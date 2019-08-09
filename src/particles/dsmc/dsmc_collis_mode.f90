@@ -25,15 +25,12 @@ INTERFACE DSMC_perform_collision
   MODULE PROCEDURE DSMC_perform_collision
 END INTERFACE
 
-INTERFACE DSMC_cross_section
-  MODULE PROCEDURE DSMC_cross_section
-END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_perform_collision,DSMC_cross_section
+PUBLIC :: DSMC_perform_collision
 !===================================================================================================================================
 
 CONTAINS
@@ -2971,64 +2968,6 @@ __STAMP__&
   END IF
 
 END SUBROUTINE DSMC_calc_P_vib
-
-FUNCTION DSMC_cross_section(iPair,CRela2)
-!===================================================================================================================================
-! Cross section sigma_vss is calculated, as described in as described in the  which is collision-specific and not 
-! collision-averaged.(Krishnan 2015/2016) 
-!===================================================================================================================================
-! MODULES
-  USE MOD_Globals,            ONLY : Abort
-  USE MOD_Globals_Vars,       ONLY : BoltzmannConst, PI
-  USE MOD_Particle_Vars,      ONLY : PartSpecies
-  USE MOD_DSMC_Vars,          ONLY : CollInf, Coll_pData ! DSMC,  SpecDSMC
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  REAL, INTENT(IN)              :: CRela2 
-  INTEGER, INTENT(IN)           :: iPair
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-  REAL                          :: DSMC_cross_section                     ! sigma_t, total collision cross-section bird1994 (2.31) 
-                                                                          ! with (p.42 l.2)!! 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  INTEGER                       :: Spec1ID, Spec2ID                       ! colliding particles and species, respectively
-  REAL                          :: diameter_squared, energy_translational ! to be solved, beschreibung 
- real :: t 
-!===================================================================================================================================
-t=6000 ! to be solved   
-   Spec1ID    = PartSpecies(Coll_pData(iPair)%iPart_p1)
-   Spec2ID    = PartSpecies(Coll_pData(iPair)%iPart_p2)
-  ! mu ref einlesen
-  !to be solved wegen debugging
-!  IF(CollInf%diameterCase.EQ.0) THEN ! via d(dref)
-    ! dref-based diameter bird to be solved ansonsten krishnan 
-    diameter_squared     = CollInf%dref(Spec1ID,Spec2ID) * (CollInf%Tref(Spec1ID,Spec2ID)/T) &
-                         ** (2 * CollInf%omega(Spec1ID,Spec2ID)) 
-                       
-                       ! to be solved temperature NACH SIMULATION in Zelle oder des Teilchens
-! d.h. brauche makroskopischen Wert, um mikroskopischen Wert. Also Sackgasse
-  WRITE(*,*) "diameter_Squared d(ref)", diameter_squared
- ! ELSE ! via d(muref)
-    energy_translational = .5*CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))*CRela2
-    ! viscosity-based diameter bird (3.74)
-    diameter_squared     = (5 * (CollInf%alphaVSS(Spec1ID,Spec2ID) + 1) * (CollInf%alphaVSS(Spec1ID,Spec2ID) + 2)        &
-                         * CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID)/PI) ** 0.5                                     & 
-                         * (BoltzmannConst * CollInf%Tref(Spec1ID,Spec2ID)) ** (CollInf%omega(Spec1ID,Spec2ID) - 0.5))      &
-                         / (16 * CollInf%alphaVSS(Spec1ID,Spec2ID) * GAMMA(4.0 - CollInf%omega(Spec1ID,Spec2ID))            &
-                         * CollInf%muref(Spec1ID,Spec2ID) * (energy_translational) ** (CollInf%omega(Spec1ID,Spec2ID) - 1.0)) 
-!DEBUG    WRITE(*,*)"CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))",CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))
-!DEBUG    WRITE(*,*) "energy_translational",energy_translational
-!DEBUG    WRITE(*,*) "CollInf%muref(Spec1ID,Spec2ID)",CollInf%muref(Spec1ID,Spec2ID)
-!DEBUG    WRITE(*,*) "CollInf%alphaVSS(Spec1ID,Spec2ID)",CollInf%alphaVSS(Spec1ID,Spec2ID)
-WRITE(*,*) "diameter_Squared d(muref)", diameter_squared
-!DEBUG  !END IF
-!DEBUG  DSMC_Cross_Section    = PI*diameter_squared
-!DEBUG  WRITE(*,*) "dsmc_cross_section",DSMC_cross_section
-STOP
-END FUNCTION DSMC_Cross_Section
 
 RECURSIVE FUNCTION lacz_gamma(a) RESULT(g)
 !===================================================================================================================================

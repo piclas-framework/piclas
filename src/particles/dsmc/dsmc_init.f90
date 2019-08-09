@@ -170,19 +170,17 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-MergeSubcells'&
                                           'the minimum particle per subcell requirement', '.FALSE.')
 
 CALL prms%SetSection("DSMC Collision")
-
+!to be solved entferne collisionmodel
 CALL prms%CreateIntOption(      'CollisionModel'  &
-                                           ,' Flags which model is used for collision. Check Bird for more information.\n '//&
-                                            ' 0 : collision averaged parameters\n'//&
-                                            ' 1 : collision specific parameters', '0')
+                                            ,' Flags which model is used for collision. Check Bird for more information.\n '//&
+                                             ' 0 : collision averaged parameters\n'//&
+                                             ' 1 : collision specific parameters', '0')
 CALL prms%CreateLogicalOption(      'AveOmega'  &
                                            ,' Flags if collision-specific(F) omega is used i.e. Part-Collision[$]-omega has '//&
                                             ' to be set\n or collision-averaged(T) omega is calculated' //&
-                                            ' i.e. Part-Species[$]-omega has to be set.', 'T')
-CALL prms%CreateIntOption(      'Part-CollisionDiameterCase'  &
-                                           ,'Flags if diameter is calculated with \n'//&
-                                            '0 : dref  - reference diameter\n'//&
-                                            '1 : muref - viscosity at reference temperature\', '0')
+                                            ' T: Part-Species[$]-omega,-TrefVHS and -DrefVHS and for VSS additionally '//&
+                                            '    Part-Collision[$]-alphaVSS must be set.\n '//&
+                                            ' F: Part-Collision[$]-omega,-Tref,-Dref,-alphaVSS must be set', 'T')
 CALL prms%CreateRealOption(     'Part-Collision[$]-alphaVSS'  &
                                            ,' VSS exponent as defined in Bird (2.36). Default alpha==1'                      //&
                                             ' for VHS calculation. See Bird 1994 p.42 for more information.'                 //&
@@ -224,9 +222,6 @@ CALL prms%CreateRealOption(     'Part-Species[$]-omega'  &
                                            ,'Reference value for exponent omega for variable hard sphere model. The Laux omega'//&
                                             'is used, which is defined through omegaLaux=Ypsilon_bird=omegaBird+0.5'//&
                                             'It can be found in tables e.g. Krishnan2015. ', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-muRef'  &
-                                           ,'Viscosity coefficient at a reference temperature Tref. Mandatory for VSS calc.'  &
-                                           , '1.', numberedmulti=.TRUE.) !to be solved. debugging - vllt woanders platzieren
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib','Characteristic vibrational temperature.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot'  &
                                            ,'Characteristic rotational temperature', '0.', numberedmulti=.TRUE.)
@@ -538,6 +533,7 @@ __STAMP__&
     ,"ERROR: nSpecies .LE. 0:", nSpecies)
   END IF
 
+  CollInf%aveOmega       = GETLOGICAL('AveOmega','.TRUE.')
   ! Either CollisMode.GT.0 or without chemical reactions due to collisions but with field ionization
   IF(DoFieldIonization.OR.CollisMode.NE.0)THEN
     ALLOCATE(SpecDSMC(nSpecies))
@@ -545,10 +541,11 @@ __STAMP__&
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       SpecDSMC(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
       SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
-      SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
-      SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
-      SpecDSMC(iSpec)%omega   = GETREAL('Part-Species'//TRIM(hilf)//'-omega','0') ! default case HS
-      SpecDSMC(iSpec)%muref   = GETREAL('Part-Species'//TRIM(hilf)//'-muref','1')
+      IF(CollInf%aveOmega) THEN
+        SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
+        SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
+        SpecDSMC(iSpec)%omega   = GETREAL('Part-Species'//TRIM(hilf)//'-omega','0') ! default case HS
+      END IF
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
         DSMC%ElectronSpecies = iSpec
@@ -568,11 +565,13 @@ __STAMP__&
 
 ! reading species data of ini_2
   DO iSpec = 1, nSpecies
-    IF((SpecDSMC(iSpec)%InterID*SpecDSMC(iSpec)%TrefVHS*SpecDSMC(iSpec)%DrefVHS).eq.0) THEN
-      WRITE(UNIT=hilf,FMT='(I0)') iSpec
-      CALL Abort(&
-      __STAMP__&
-      ,"ERROR in species data ini_2 (InterID*TrefVHS*DrefVHS is zero)")
+    IF(CollInf%aveOmega) THEN 
+      IF((SpecDSMC(iSpec)%InterID*SpecDSMC(iSpec)%TrefVHS*SpecDSMC(iSpec)%DrefVHS).eq.0) THEN
+        WRITE(UNIT=hilf,FMT='(I0)') iSpec
+        CALL Abort(&
+        __STAMP__&
+        ,"ERROR in species data ini_2 (InterID*TrefVHS*DrefVHS is zero)")
+      END IF 
     END IF
   END DO
 
@@ -615,14 +614,11 @@ __STAMP__&
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading in collision model variables 
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CollInf%collModel      = GETINT('CollisionModel','0') 
-  CollInf%aveOmega       = GETLOGICAL('AveOmega','.TRUE.')
-  CollInf%diameterCase   = GETINT('Part-CollisionDiameterCase','0')
+  CollInf%collModel      = GETINT('CollisionModel','0') ! 
   ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies)) 
   ALLOCATE(CollInf%omega(nSpecies,nSpecies))
   ALLOCATE(CollInf%dref(nSpecies,nSpecies))
   ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
-  ALLOCATE(CollInf%muref(nSpecies,nSpecies))
   DO iSpec=1,nSpecies !        
     DO jSpec=iSpec,nSpecies
       iCase=CollInf%Coll_Case(iSpec,jSpec)
@@ -641,15 +637,17 @@ __STAMP__&
       CollInf%dref(jSpec,iSpec)     = CollInf%dref(iSpec,jSpec) 
       CollInf%Tref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref')
       CollInf%Tref(jSpec,iSpec)     = CollInf%Tref(iSpec,jSpec)
-      IF(CollInf%diameterCase.EQ.1) THEN ! diameter gets calculated with viscosity reference value
-         !CollInf%muref(iSpec,jSpec) = (30 * SQRT(CollInf%MassRed(iCase) * BoltzmannConst * CollInf%Tref(iSpec,jSpec))) &
-         !                           / (SQRT(PI) * 4 * (4 - 2 * CollInf%omega(iSpec,jSpec)) *                        &
-         !                             (6-CollInf%omega(iSpec,jSpec))*CollInf%dref(iSpec,jSpec)**2)
-
-        CollInf%muref(iSpec,jSpec)     = 0.5 * (SpecDSMC(iSpec)%muref + SpecDSMC(jSpec)%muref)
-        CollInf%muref(jSpec,iSpec)     = CollInf%muref(iSpec,jSpec)
-      END IF
     END DO
+  END DO
+  DO iSpec = 1, nSpecies
+    IF(CollInf%aveOmega) THEN 
+      IF((CollInf%alphaVSS(iSpec,jSpec)*CollInf%omega(iSpec,jSpec)*CollInf%dref(iSpec,jSpec)*CollInf%Tref(iSpec,jSpec)).eq.0) THEN
+        WRITE(UNIT=hilf,FMT='(I0)') iSpec
+        CALL Abort(&
+        __STAMP__&
+        ,"ERROR in collision data (alphaVSS*omega*dref*Tref) is zero)")
+      END IF 
+    END IF
   END DO
 ! to be solved - ist nur für debugging drin
  WRITE(*,*) "alpha VSS",         CollInf%alphaVSS(:,:)

@@ -108,6 +108,6 @@ REAL                          :: printDiffTime                       !< TODO
 REAL                          :: printDiffVec(6)                     !< TODO
 REAL                          :: ChemEnergySum                       !< TODO
 LOGICAL                       :: CalcPorousBCInfo                    !< Calculate output for porous BCs (averaged over whole BC)
-LOGICAL                       :: CalcCrossSection                     !< Calculate sigma_t averaged per timestep
+!LOGICAL                       :: CalcCrossSection                     !< Calculate sigma_t averaged per timestep
 !===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars

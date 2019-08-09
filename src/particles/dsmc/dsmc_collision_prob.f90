@@ -44,7 +44,6 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
   USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, PartState, VarTimeStep
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
-  USE MOD_DSMC_Collis,            ONLY : DSMC_cross_section  
   USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_DSMC_SpecXSec
   USE MOD_part_tools,             ONLY : GetParticleWeight
@@ -118,9 +117,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
     CASE(2,3,4,11,12,21,22,20,30,40,5,6,14,24)
     ! Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic (non-CEX/MEX) Ion, Molecule-Atomic Ion, Atom-Molecular Ion, Molecule-Molecular Ion
     ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron 
-! to be solved ist hier glaubfalsch  IF(CollInf%collModel.EQ.0) THEN
         IF (BGGas%BGGasSpecies.NE.0) THEN                                     
-          ! Collision probability, Laux 1995 (2.44),(2.47),(2.49)        ! to be solved not sure why Na*Nb/Sab=BGColl_SpecPartNum     
+          ! Collision probability, Laux 1995 (2.44),(2.47),(2.49)        
           Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum / (1 + CollInf%KronDelta(collPairID))                                & 
                                  * CollInf%Cab(collPairID) * Species(Spec1ID)%MacroParticleFactor * dt / Volume &
                                  * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omega(Spec1ID,Spec2ID)) 
@@ -135,6 +133,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
                                  * CollInf%Cab(collPairID) / CollCaseNum           &          
                                  * Species(Spec1ID)%MacroParticleFactor * dt / Volume  & 
                      * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omega(Spec1ID,Spec2ID)) 
+                   ! to be solved debugwise - delete
 !WRITE(*,*) "\n   SpecNum1                     ",SpecNum1
 !WRITE(*,*) "\n         SpecNum2               ",SpecNum2
 !WRITE(*,*) "\n CollInf%Cab(collPairID)        ",CollInf%Cab(collPairID)
@@ -142,19 +141,6 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !WRITE(*,*) "\n  Species(Spec1ID)%MacroParticleFactor    ",Species(Spec1ID)%MacroParticleFactor
 !WRITE(*,*) "\nColl_pData(iPair)%Prob",Coll_pData(iPair)%Prob
         END IF
-!      ELSE ! VSS
-! nein, mit Cab        Coll_pData(iPair)%sigma_t = DSMC_cross_section(iPair,Coll_pData(iPair)%CRela2) ! calculates total cross section, which
-! nein, mit Cab                                                                                        ! depends on the temperature
-! nein, mit Cab        ! collision probability as written in    munz2014              (12)    (https://doi.org/10.1016/j.crme.2014.07.005)
-! nein, mit Cab        !                       (originally from baganoff/mcdonald1990 (20)    (https://doi.org/10.1063/1.857625)) 
-! nein, mit Cab        Coll_pData(iPair)%Prob     = SpecNum1 * SpecNum2 / (1 + CollInf%KronDelta(collPairID))          &
-! nein, mit Cab                                   * Species(Spec1ID)%MacroParticleFactor              &
-! nein, mit Cab                                   * dt / (Volume + CollInf%Coll_CaseNum(collPairID))                   & 
-! nein, mit Cab                                   * Coll_pData(iPair)%sigma_t * Coll_pData(iPair)%CRela2 
-! nein, mit Cab        ! to be solved nur für debug zwecke          
-! nein, mit Cab       ! WRITE(*,*) "sigma_t",Coll_pData(iPair)%sigma_t 
-! nein, mit Cab       ! WRITE(*,*) "VSS Wkt", Coll_pData(iPair)%Prob
-! nein, mit Cab      END IF
 !CALL Abort(&
 !              __STAMP__&
 !              ,'Error! MWConst is not set or equal to zero! Spec-Pair',1)
@@ -426,63 +412,5 @@ __STAMP__&
   END IF
 #endif
 END SUBROUTINE DSMC_prob_calc
-
-!SUBROUTINE collisionFrequency(iElem)
-! TO BE SOLVED - NEEDS TO GET DELETED
-!USE MOD_Globals_Vars,           ONLY : BoltzmannConst,PI
-!USE MOD_Particle_Vars,          ONLY : PEM, Species, nSpecies, PartSpecies
-!USE MOD_Particle_Mesh_Vars,     ONLY : GEO
-!USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, DSMC,MacroDSMC
-!USE MOD_TimeDisc_Vars,          ONLY : dt
-!
-!!--------------------------------------------------------------------------------------------------!
-!   IMPLICIT NONE                                                                                  !
-!!--------------------------------------------------------------------------------------------------!
-!! argument list declaration                                                                        !
-!! Local variable declaration                                                                       !
-!  INTEGER                       :: iPart, nPart, iPartIndx, iSpec
-!  REAL                          :: NumDensOfPartSpec(nSpecies)
-!  REAL                          :: CollFreq
-!  REAL                          :: PreRotEnergy, PreVibEnergy, PostRotEnergy, PostVibEnergy, NumDensTot
-!  INTEGER                       :: iQuant
-!  INTEGER, INTENT(IN)           :: iElem
-!!--------------------------------------------------------------------------------------------------!
-!  nPart = PEM%pNumber(iElem)
-!  NumDensOfPartSpec(1:nSpecies) = 0.0
-!
-!  iPartIndx = PEM%pStart(iElem)
-!  DO ipart = 1, nPart
-!    NumDensOfPartSpec(PartSpecies(iPartIndx)) = NumDensOfPartSpec(PartSpecies(iPartIndx)) + 1.0
-!    iPartIndx = PEM%pNext(iPartIndx)
-!  END DO
-!  NumDensOfPartSpec(1:nSpecies) = NumDensOfPartSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / GEO%Volume(iElem)
-!!  NumDensTot = SUM(NumDensOfPartSpec)
-!
-!  iPartIndx = PEM%pStart(iElem)
-!  DO ipart = 1, nPart 
-! !   PreVibEnergy  = PartStateIntEn(iPartIndx,1)
-! !   PreRotEnergy  = PartStateIntEn(iPartIndx,2)
-!    CollFreq = 0.0 
-!    DO iSpec = 1, nSpecies
-!    !marcel gefragt warum
-!    ! 2.0
-!    !richtige Temperatur?
-!    CollFreq = CollFreq +( 0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(PartSpecies(iPartIndx))%DrefVHS))**2.0 &
-!                 * NumDensOfPartSpec(iSpec) &
-!                 * ( 4.0 * PI * BoltzmannConst * SpecDSMC(PartSpecies(iPartIndx))%TrefVHS &
-!                 * (Species(iSpec)%MassIC + Species(PartSpecies(iPartIndx))%MassIC) &
-!                 / (Species(iSpec)%MassIC * Species(PartSpecies(iPartIndx))%MassIC) )**0.5 &
-!                 * (MacroDSMC(iPartIndx,iSpec)%Temp(4) / SpecDSMC(PartSpecies(iPartIndx))%TrefVHS)**(0.5 - CollInf%omega(Spec1ID,Spec2ID)))
-!    END DO
-!    SWRITE(*,*) 'This is the collision frequency after pfeiffer2018 (18)',CollFreq
-!    ! has to get divided by the collision number
-!    DO ipart = 1, nPart 
-!       CollFreq = 0.0 
-!       DO iSpec = 1, nSpecies
-!          CollFreq = CollFreq +( 0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(PartSpecies(iPartIndx))%DrefVHS))**2.0 &
-!       END DO
-!    END DO
-!
-!END SUBROUTINE collisionFrequency
 
 END MODULE MOD_DSMC_CollisionProb

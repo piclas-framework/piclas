@@ -131,7 +131,7 @@ FUNCTION DiceDeflectedVector(CRela2,ur,vr,wr,alpha)
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL,INTENT(IN)         :: CRela2                ! to be solved instead of reading in the whole container  
+  REAL,INTENT(IN)            :: CRela2                 ! instead of reading in the whole container  
   REAL,INTENT(IN)            :: ur,vr,wr               ! pre-coll relative velocity CRela=(/ur,vr,wr/)
   REAL,INTENT(IN), OPTIONAL  :: alpha                  ! VSS parameter
 

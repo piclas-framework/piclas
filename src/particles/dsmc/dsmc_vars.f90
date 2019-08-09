@@ -114,9 +114,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Param
                                                            !     400 : Excited molecular ion
   REAL                        :: TrefVHS                   ! VHS reference temp, ini_2
   REAL                        :: DrefVHS                   ! VHS reference diameter, ini_2
-  REAL                        :: omega                     ! species-specific VHS omega exponent, ini_2 ! to be solved genauere
-                                                            !  beschreibung? vielleicht doch nicht nur species specific?
-  REAL                        :: muRef                     ! for VSS calculation viscosity coefficient at a reference temperature                                                            
+  REAL                        :: omega                     ! Species-specific VHS omega exponent, see Bird1994 for details ini_2 ! 
 
   INTEGER                     :: NumOfPro                  ! Number of Protons, ini_2
   REAL                        :: Eion_eV                   ! Energy of Ionisation in eV, ini_2
@@ -336,7 +334,6 @@ TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)           ! Data of collision p
 TYPE tCollInf                                              ! Collision information 
   INTEGER                       :: collModel               ! Collision model used. to be solved Beschreibung der vier Fälle
   LOGICAL                       :: aveOmega                ! Flags if coll-spec. omega(F) is taken or coll-average(T) is created.
-  INTEGER                       :: diameterCase            ! flags how diameter for sigma_t is calculated:0= d(dref), 1= d(muref)
   INTEGER       , ALLOCATABLE   :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
   INTEGER                       :: NumCase                 ! Number of possible collision combination
   INTEGER       , ALLOCATABLE   :: Coll_CaseNum(:)         ! number of simulated species combination per cell Sab (number of cases)
