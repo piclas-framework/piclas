@@ -5133,13 +5133,15 @@ __STAMP__&
         IF (.NOT.DoForceFreeSurfaceFlux) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
       END IF !IsNewPart
       IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN  ! if output of coupled power is active and particle carries charge
-        EDiff = EDiff &       ! kinetic energy after Particle Push (positive)
+        EDiff = ABS(EDiff &       ! kinetic energy after Particle Push (positive)
                + 0.5 * Species(PartSpecies(iPart))%MassIC &
                * ( PartState(iPart,4) * PartState(iPart,4) &
                  + PartState(iPart,5) * PartState(iPart,5) &
-                 + PartState(iPart,6) * PartState(iPart,6) )
-        PCoupl = PCoupl + ABS(EDiff)
-        PCouplAverage = PCouplAverage + ABS(EDiff)
+                 + PartState(iPart,6) * PartState(iPart,6) ))
+        PCoupl = PCoupl + EDiff)
+        PCouplAverage = PCouplAverage + EDiff
+        iElem = PEM%Element(iPart)
+        PCouplDensityAvgElem(PEM%Element(iPart)) = PCouplDensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
       END IF
     END IF
   END DO

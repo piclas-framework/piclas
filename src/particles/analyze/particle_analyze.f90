@@ -473,6 +473,9 @@ IF(CalcCoupledPower) THEN
   CALL abort(__STAMP__,&
             'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
 #endif
+  ALLOCATE( PCouplDensityAvgElem(1:PP_nElems) )
+  PCouplDensityAvgElem=0.0
+  CALL AddToElemData(ElementOut,'PCouplDensityAvgElem',RealArray=PCouplDensityAvgElem(1:PP_nElems))
 END IF
 
 ! compute number of entering and leaving particles and their energy
@@ -615,6 +618,7 @@ USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Analyze_Vars           ,ONLY: CalcEpot,Wel,Wmag,Wphi,Wpsi
 USE MOD_DSMC_Vars              ,ONLY: DSMC
+USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_TimeDisc_Vars          ,ONLY: iter, dt
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
@@ -635,6 +639,7 @@ USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, F
 USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber, FPInitDone
 USE MOD_BGK_Vars               ,ONLY: BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor, BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone
+USE MOD_Restart_Vars           ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1218,8 +1223,10 @@ IF(PartMPI%MPIRoot) THEN
   ! Moving Average of PCoupl:
     IF(iter.EQ.0) THEN
       PCouplAverage = 0.0
+      PCouplDensityAvgElem = 0.0
     ELSE
-      PCouplAverage = PCouplAverage / Time
+      PCouplAverage = PCouplAverage / (Time-RestartTime)
+      PCouplDensityAvgElem(1:nElems) = PCouplDensityAvgElem(1:nElems) / (Time-RestartTime)
     END IF
     ! current PCoupl (Delta_E / Timestep)
     PCoupl = PCoupl / dt
@@ -1483,8 +1490,11 @@ IF(CalcPorousBCInfo) THEN
     PorousBC(iPBC)%Output(1:5) = 0.
   END DO
 END IF
-IF (CalcCoupledPower) THEN                         ! if output of coupled power is active
-  PCouplAverage = PCouplAverage * Time           ! PCouplAverage is reseted
+
+! Reset coupled power to particles if output of coupled power is active
+IF (CalcCoupledPower) THEN
+  PCouplAverage = PCouplAverage * (Time-RestartTime)                             ! PCouplAverage is reseted
+  PCouplDensityAvgElem(1:nElems) = PCouplDensityAvgElem(1:nElems) * (Time-RestartTime) ! PCouplDensityAvgElem is reseted
 END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
