@@ -1225,34 +1225,23 @@ IF (time.GE.DelayTime) THEN
 END IF
 
 IF (doParticleMerge) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
              PEM%pNumber(1:PP_nElems)          , &
              PEM%pNext(1:PDM%maxParticleNumber), &
              PEM%pEnd(1:PP_nElems) )
-  END IF
 #if USE_LOADBALANCE
-  CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
+    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
 #endif /*USE_LOADBALANCE*/
+  END IF
 END IF
 
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-IF ((time.GE.DelayTime).OR.(time.EQ.0)) THEN
-  CALL UpdateNextFreePosition()
-END IF
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
+IF ((time.GE.DelayTime).OR.(time.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL StartParticleMerge()
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
     DEALLOCATE(PEM%pStart , &
@@ -1260,13 +1249,7 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_SPLITMERGE,tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END IF
 
 IF (useDSMC) THEN
@@ -1508,7 +1491,7 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
   CALL ParticleInserting()
 #if USE_LOADBALANCE
-  CALL LBSplitTime(LB_EMISSION,tLBStart)
+  CALL LBPauseTime(LB_EMISSION,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
   IF (CollisMode.NE.0) THEN
@@ -1523,9 +1506,6 @@ REAL                  :: tLBStart
     __STAMP__&
     ,'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
   END IF
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
 
   CALL DSMC_main()
 
@@ -1704,10 +1684,16 @@ END DO
 
 IF (doParticleMerge) THEN
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
              PEM%pNumber(1:PP_nElems)          , &
              PEM%pNext(1:PDM%maxParticleNumber), &
              PEM%pEnd(1:PP_nElems) )
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
 END IF
 
@@ -2754,15 +2740,7 @@ DO iStage=2,nRKStages
 #endif /*DG*/
 #ifdef PARTICLES
   IF (time.GE.DelayTime) THEN
-    IF(DoUpdateInStage)THEN
-#if USE_LOADBALANCE
-      CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-      CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-      CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
-    END IF
+    IF(DoUpdateInStage) CALL UpdateNextFreePosition()
   END IF
 
 #ifdef CODE_ANALYZE
@@ -2929,54 +2907,37 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
 IF (useDSMC) THEN ! UpdateNextFreePosition is only required for DSMC
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
- CALL DSMC_main()
- PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
-                                        + DSMC_RHS(1:PDM%ParticleVecLength,1)
- PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
-                                        + DSMC_RHS(1:PDM%ParticleVecLength,2)
- PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
-                                        + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  CALL UpdateNextFreePosition()
+  CALL DSMC_main()
+  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+      + DSMC_RHS(1:PDM%ParticleVecLength,1)
+  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+      + DSMC_RHS(1:PDM%ParticleVecLength,2)
+  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+      + DSMC_RHS(1:PDM%ParticleVecLength,3)
 END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! split and merge
 !----------------------------------------------------------------------------------------------------------------------------------
 IF (doParticleMerge) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
              PEM%pNumber(1:PP_nElems)          , &
              PEM%pNext(1:PDM%maxParticleNumber), &
              PEM%pEnd(1:PP_nElems) )
-  END IF
 #if USE_LOADBALANCE
-  CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
+    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
 #endif /*USE_LOADBALANCE*/
+  END IF
 END IF
 
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-  CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
-END IF
+IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL StartParticleMerge()
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
     DEALLOCATE(PEM%pStart , &
@@ -2984,13 +2945,7 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_SPLITMERGE,tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END IF
 #endif /*PARTICLES*/
 
@@ -3753,54 +3708,37 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
 IF (useDSMC) THEN
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
- CALL DSMC_main()
- PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
-                                        + DSMC_RHS(1:PDM%ParticleVecLength,1)
- PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
-                                        + DSMC_RHS(1:PDM%ParticleVecLength,2)
- PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
-                                        + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  CALL UpdateNextFreePosition()
+  CALL DSMC_main()
+  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+      + DSMC_RHS(1:PDM%ParticleVecLength,1)
+  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+      + DSMC_RHS(1:PDM%ParticleVecLength,2)
+  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+      + DSMC_RHS(1:PDM%ParticleVecLength,3)
 END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! split and merge
 !----------------------------------------------------------------------------------------------------------------------------------
 IF (doParticleMerge) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
              PEM%pNumber(1:PP_nElems)          , &
              PEM%pNext(1:PDM%maxParticleNumber), &
              PEM%pEnd(1:PP_nElems) )
-  END IF
 #if USE_LOADBALANCE
-  CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
+    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
 #endif /*USE_LOADBALANCE*/
+  END IF
 END IF
 
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-  CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
-END IF
+IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL StartParticleMerge()
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
     DEALLOCATE(PEM%pStart , &
@@ -3808,13 +3746,7 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_SPLITMERGE,tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END IF
 #endif /*PARTICLES*/
 
@@ -3829,35 +3761,35 @@ SUBROUTINE TimeStepByEulerStaticExp()
 ! Field is propagated until steady, then particle is moved
 !===================================================================================================================================
 ! MODULES
-USE MOD_DG_Vars,                 ONLY: U,Ut
+USE MOD_DG_Vars                ,ONLY: U,Ut
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY: dt,IterDisplayStep,iter,IterDisplayStepUser,time
-USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c
-USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
-USE MOD_Filter,                  ONLY:Filter
-USE MOD_Equation,                ONLY:DivCleaningDamping
+USE MOD_TimeDisc_Vars          ,ONLY: dt,IterDisplayStep,iter,IterDisplayStepUser,time
+USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c
+USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
+USE MOD_Filter                 ,ONLY: Filter
+USE MOD_Equation               ,ONLY: DivCleaningDamping
 USE MOD_Globals
 #ifdef PP_POIS
-USE MOD_Equation,                ONLY:DivCleaningDamping_Pois,EvalGradient
-USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm_Pois
-USE MOD_Equation_Vars,           ONLY:Phi,Phit,nTotalPhi
+USE MOD_Equation               ,ONLY: DivCleaningDamping_Pois,EvalGradient
+USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm_Pois
+USE MOD_Equation_Vars          ,ONLY: Phi,Phit,nTotalPhi
 #endif
 #ifdef PARTICLES
-USE MOD_PICDepo,                 ONLY : Deposition!, DepositionMPF
-USE MOD_PICInterpolation,        ONLY : InterpolateFieldToParticle
-USE MOD_Particle_Vars,           ONLY : PartState, Pt, LastPartPos, DelayTime, PEM, PDM, dt_maxwell, MaxwellIterNum
-USE MOD_part_RHS,                ONLY : CalcPartRHS
-USE MOD_part_emission,           ONLY : ParticleInserting
-USE MOD_DSMC,                    ONLY : DSMC_main
-USE MOD_DSMC_Vars,               ONLY : useDSMC, DSMC_RHS
-USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
-USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
-USE MOD_part_tools,              ONLY : UpdateNextFreePosition
-USE MOD_Particle_Tracking_vars,  ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
-USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
+USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos, DelayTime, PEM, PDM, dt_maxwell, MaxwellIterNum
+USE MOD_part_RHS               ,ONLY: CalcPartRHS
+USE MOD_part_emission          ,ONLY: ParticleInserting
+USE MOD_DSMC                   ,ONLY: DSMC_main
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #if USE_MPI
-USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif /*USE_MPI*/
 #endif /*Particles*/
 ! IMPLICIT VARIABLE HANDLING
@@ -4551,13 +4483,13 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iPart
-REAL    :: RandVal, dtFrac
+INTEGER                    :: iPart
+REAL                       :: RandVal, dtFrac
 #if USE_LOADBALANCE
-REAL                          :: tLBStart ! load balance
+REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
-REAL           :: EDiff
+REAL                       :: EDiff
 #endif /*PARTICLES*/
 !===================================================================================================================================
 #ifdef PARTICLES
@@ -4784,22 +4716,20 @@ PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero f
 #endif
 IF (doParticleMerge) THEN
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
              PEM%pNumber(1:PP_nElems)          , &
              PEM%pNext(1:PDM%maxParticleNumber), &
              PEM%pEnd(1:PP_nElems) )
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
 END IF
 
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-  CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
-END IF
+IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
   CALL StartParticleMerge()
@@ -4809,13 +4739,7 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END IF
 
 IF (useDSMC) THEN
@@ -5311,22 +5235,20 @@ PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero f
 #endif
 IF (doParticleMerge) THEN
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
              PEM%pNumber(1:PP_nElems)          , &
              PEM%pNext(1:PDM%maxParticleNumber), &
              PEM%pEnd(1:PP_nElems) )
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
 END IF
 
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-  CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
-END IF
+IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
   CALL StartParticleMerge()
@@ -5336,13 +5258,7 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END IF
 
 IF (useDSMC) THEN
