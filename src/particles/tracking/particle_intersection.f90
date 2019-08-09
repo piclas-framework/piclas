@@ -2798,11 +2798,10 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipLocalTol,Bez
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_Globals,                 ONLY:UNIT_stdout,abort
+USE MOD_Globals,                 ONLY:UNIT_stdout,abort,myrank
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Surfaces,       ONLY:CalcNormAndTangBezier
-USE MOD_Globals,                 ONLY:myrank
 #endif /*CODE_ANALYZE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
