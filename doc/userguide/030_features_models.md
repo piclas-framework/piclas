@@ -473,7 +473,15 @@ Besides DSMC, the linear scaling is available for the BGK method. Finally, speci
 
 ### 2D/Axisymmetric Simulation \label{sec:2DAxi}
 
-For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_\mathrm{min}|=|z_\mathrm{max}|$.
+For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_\mathrm{min}|=|z_\mathrm{max}|$. The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
+
+Part-Boundary4-SourceName=SYMAXIS
+Part-Boundary4-Condition=symmetric_axis
+
+The boundaries (or a single boundary definition for both boundary sides) in the $z$-direction should be defined as symmetry sides with the `symmetric` condition
+
+Part-Boundary5-SourceName=SYM
+Part-Boundary5-Condition=symmetric
 
 To enable two-dimensional simulations, the following flag is required
 
