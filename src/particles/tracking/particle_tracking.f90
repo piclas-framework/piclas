@@ -183,11 +183,9 @@ DO i = 1,PDM%ParticleVecLength
             END IF
             DO ind = 1, nMortarElems
               NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
-              IF (NbElemID.LT.1) THEN
-                CALL abort(&
-                 __STAMP__ &
-                 ,'ERROR: Mortar Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
-              END IF
+              ! If small mortar element not defined, skip it for now, likely not inside the halo region (additional check is
+              ! performed after the MPI communication: ParticleInsideQuad3D_MortarMPI)
+              IF (NbElemID.LT.1) CYCLE
               NblocSideID = PartElemToElemAndSide(ind+4,iLocSide,ElemID)
               nbSideID = PartElemToSide(E2S_SIDE_ID,NblocSideID,NbElemID)
               DO TriNum = 1,2

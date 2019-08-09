@@ -110,6 +110,8 @@ REAL,ALLOCATABLE                        :: epsOneCell(:)      ! tolerance for pa
                                                               ! inside ref element 1+epsinCell
 
 !LOGICAL                                 :: DoRefMapping      ! tracking by mapping particle into reference element
+
+LOGICAL,ALLOCATABLE                     :: PartElemIsMortar(:)   ! 1:nElems
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 

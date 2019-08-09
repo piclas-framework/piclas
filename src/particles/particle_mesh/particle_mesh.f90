@@ -229,7 +229,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 USE MOD_Mesh_Vars              ,ONLY: nElems,nSides,nNodes,SideToElem,ElemToSide,NGeo,NGeoElevated,OffSetElem,ElemToElemGlob
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux,WriteTriaSurfaceFluxDebugMesh
-USE MOD_Mesh_Vars              ,ONLY: useCurveds,NGeo
+USE MOD_Mesh_Vars              ,ONLY: useCurveds,NGeo,MortarType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -240,7 +240,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: ALLOCSTAT,RefMappingGuessProposal
-INTEGER           :: iElem, ilocSide,iSide,iSample,ElemIDGlob
+INTEGER           :: iElem, ilocSide,iSide,iSample,ElemIDGlob, SideIDMortar
 CHARACTER(LEN=2)  :: hilf
 !===================================================================================================================================
 
@@ -373,6 +373,17 @@ DO iSide=1,nSides
   PartSideToElem(:,iSide)=SideToElem(:,iSide)
 END DO
 
+ALLOCATE(PartElemIsMortar(1:PP_nElems))
+PartElemIsMortar = .FALSE.
+DO iElem=1,PP_nElems
+  DO iLocSide = 1,6
+    SideIDMortar=MortarType(2,PartElemToSide(E2S_SIDE_ID,iLocSide,iElem))
+    IF (SideIDMortar.GT.0) THEN
+      PartElemIsMortar(iElem) = .TRUE.
+      EXIT
+    END IF
+  END DO
+END DO
 
 ParticleMeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH DONE!'
@@ -1422,13 +1433,9 @@ DO iLocSide = 1,6
         DO ind = 1, nNbMortars
           InElementCheckMortarNb = .TRUE.
           NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
-          IF (NbElemID.LT.1) THEN
-            IPWRITE(*,*) 'PartState:', PartStateLoc(1:3)
-            IPWRITE(*,*) 'ElemID:', ElemID
-            CALL abort(&
-              __STAMP__ &
-              ,'ERROR PartInsideQuad: Please increase the size of the halo region (HaloEpsVelo)!')
-          END IF
+          ! If small mortar element not defined, skip it for now, likely not inside the halo region (additional check is performed
+          ! after the MPI communication: ParticleInsideQuad3D_MortarMPI)
+          IF (NbElemID.LT.1) CYCLE
           CALL ParticleInsideNbMortar(PartStateLoc,NbElemID,InElementCheckMortarNb)
           IF (InElementCheckMortarNb) THEN
             InElementCheck = .FALSE.
