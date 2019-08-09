@@ -561,6 +561,7 @@ IF(nVar.NE.1) CALL abort(&
     __STAMP__&
     ,'WriteElemDataToSeparateContainer: Array not found in ElemData = '//TRIM(ElemDataName))
 
+#if USE_LOADBALANCE
 ! Check if ElemTime is all zeros and if this is a restart (save the old values)
 IF((MAXVAL(ElemData).LE.0.0)          .AND.& ! Restart
     DoRestart                         .AND.& ! Restart
@@ -596,6 +597,7 @@ ELSE
                             collective      = .TRUE.,RealArray        = ElemData)
   END ASSOCIATE
 END IF ! (MAXVAL(ElemData).LE.0.0).AND.DoRestart.AND.(TRIM(ElemDataName).EQ.'ElemTime')
+#endif /*USE_LOADBALANCE*/
 
 DEALLOCATE(ElemData)
 
