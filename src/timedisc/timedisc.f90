@@ -2201,7 +2201,6 @@ IF((time.GE.DelayTime).OR.(iter.EQ.0))THEN
 #endif /*USE_MPI*/
 END IF
 
-/
 ! simulation with delay-time, compute the
 IF(DelayTime.GT.0.)THEN
   IF((iter.EQ.0).AND.(time.LT.DelayTime))THEN
