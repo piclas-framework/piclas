@@ -541,11 +541,12 @@ __STAMP__&
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       SpecDSMC(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
       SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
-      IF(CollInf%aveOmega) THEN
+      ! to be solved das spec omega wird noch gebraucht auch wenn aveomega f, da in chemical nicht coll verwendet wird da array
+      ! unverständlich IF(CollInf%aveOmega) THEN
         SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
         SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
         SpecDSMC(iSpec)%omega   = GETREAL('Part-Species'//TRIM(hilf)//'-omega','0') ! default case HS
-      END IF
+      !END IF
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
         DSMC%ElectronSpecies = iSpec
@@ -565,14 +566,14 @@ __STAMP__&
 
 ! reading species data of ini_2
   DO iSpec = 1, nSpecies
-    IF(CollInf%aveOmega) THEN 
+    ! to be solved, sobald omegaFAll gelöst einkommentieren IF(CollInf%aveOmega) THEN 
       IF((SpecDSMC(iSpec)%InterID*SpecDSMC(iSpec)%TrefVHS*SpecDSMC(iSpec)%DrefVHS).eq.0) THEN
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
         CALL Abort(&
         __STAMP__&
         ,"ERROR in species data ini_2 (InterID*TrefVHS*DrefVHS is zero)")
       END IF 
-    END IF
+    !END IF
   END DO
 
 ! species and case assignment arrays
