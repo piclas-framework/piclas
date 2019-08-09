@@ -283,7 +283,8 @@ USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 USE MOD_DSMC_Vars,               ONLY:UseDSMC,CollisMode,PartStateIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC,RadialWeighting
 USE MOD_LD_Vars,                 ONLY:UseLD, PartStateBulkValues
 USE MOD_Eval_XYZ,                ONLY:GetPositionInRefElem
-USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap,ParticleInsideQuad3D
+USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
+USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars,      ONLY:epsOneCell
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping, TriaTracking
 USE MOD_Mesh_Vars,               ONLY:BC

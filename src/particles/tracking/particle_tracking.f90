@@ -76,7 +76,8 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleInsideQuad3D
+USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement
+USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem, PartSideToElem, PartElemToElemAndSide
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts, TrackInfo
 USE MOD_Mesh_Vars,                   ONLY:MortarType
