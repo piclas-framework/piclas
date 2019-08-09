@@ -2591,7 +2591,7 @@ DO iStage=2,nRKStages
     ! map particle from gamma*v to velocity
     CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
 #if USE_LOADBALANCE
-    CALL LBSPauseTime(LB_PUSH,tLBStart)
+    CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
     ! deposit explicit, local particles
     CALL Deposition(doInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
