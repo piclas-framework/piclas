@@ -65,16 +65,18 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Analyze")
-CALL prms%CreateLogicalOption('DoCalcErrorNorms' , 'Set true to compute L2 and LInf error norms at analyze step.','.FALSE.')
-CALL prms%CreateRealOption(   'Analyze_dt'       , 'Specifies time intervall at which analysis routines are called.','0.')
-CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
-                                                   'Default: 2*N.')
-CALL prms%CreateRealOption(   'OutputTimeFixed'  , 'fixed time for writing state to .h5','-1.0')
-CALL prms%CreateIntOption(    'nSkipAnalyze'     , '(Skip Analyze-Dt)')
-CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'Flag if time averaging should be performed')
-CALL prms%CreateStringOption( 'VarNameAvg'       , 'Count of time average variables',multiple=.TRUE.)
-CALL prms%CreateStringOption( 'VarNameFluc'      , 'Count of fluctuation variables',multiple=.TRUE.)
-CALL prms%CreateIntOption(    'nSkipAvg'         , 'Iter every which CalcTimeAverage is performed')
+CALL prms%CreateLogicalOption('DoCalcErrorNorms'     , 'Set true to compute L2 and LInf error norms at analyze step.','.FALSE.')
+CALL prms%CreateRealOption(   'Analyze_dt'           , 'Specifies time intervall at which analysis routines are called.','0.')
+CALL prms%CreateIntOption(    'NAnalyze'             , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
+                                                       'Default: 2*N.')
+CALL prms%CreateRealOption(   'OutputTimeFixed'      , 'fixed time for writing state to .h5','-1.0')
+CALL prms%CreateIntOption(    'nSkipAnalyze'         , '(Skip Analyze-Dt)','1')
+CALL prms%CreateLogicalOption('CalcTimeAverage'      , 'Flag if time averaging should be performed','.FALSE.')
+CALL prms%CreateLogicalOption('DoMeasureAnalyzeTime' , 'Measure time that is spent in analyze routines and count the number of '//&
+                                                       'analysis calls (to std out stream)','.FALSE.')
+CALL prms%CreateStringOption( 'VarNameAvg'           , 'Count of time average variables',multiple=.TRUE.)
+CALL prms%CreateStringOption( 'VarNameFluc'          , 'Count of fluctuation variables',multiple=.TRUE.)
+CALL prms%CreateIntOption(    'nSkipAvg'             , 'Iter every which CalcTimeAverage is performed')
 !CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
                                                  !'.FALSE.')
 !CALL prms%CreateIntOption(    'nWriteData' ,     "Intervall as multiple of Analyze_dt at which HDF5 files "//&
@@ -120,7 +122,7 @@ USE MOD_Preproc
 USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary,InterpolationInitIsDone
 USE MOD_Analyze_Vars          ,ONLY: Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
 USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed,FieldAnalyzeStep
-USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime
+USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL
 USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL
@@ -156,7 +158,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
 
 ! Get logical for calculating the error norms L2 and LInf
-DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms' ,'.FALSE.')
+DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms')
 
 ! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
 WRITE(DefStr,'(i4)') 2*(PP_N+1)
@@ -166,19 +168,21 @@ CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 ! Get the time step for performing analyzes and integer for skipping certain steps
 WRITE(DefStr,WRITEFORMAT) TEnd
 Analyze_dt        = GETREAL('Analyze_dt',DefStr)
-nSkipAnalyze      = GETINT('nSkipAnalyze','1')
-OutputTimeFixed   = GETREAL('OutputTimeFixed','-1.0')
-doCalcTimeAverage = GETLOGICAL('CalcTimeAverage'  ,'.FALSE.')
+nSkipAnalyze      = GETINT('nSkipAnalyze')
+OutputTimeFixed   = GETREAL('OutputTimeFixed')
+doCalcTimeAverage = GETLOGICAL('CalcTimeAverage')
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
 FieldAnalyzeStep  = GETINT('Field-AnalyzeStep','1')
 IF (FieldAnalyzeStep.EQ.0) FieldAnalyzeStep = HUGE(FieldAnalyzeStep)
 DoFieldAnalyze    = .FALSE.
-CalcEpot          = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
+CalcEpot          = GETLOGICAL('CalcPotentialEnergy')
 IF(CalcEpot)        DoFieldAnalyze = .TRUE.
 IF(CalcPoyntingInt) DoFieldAnalyze = .TRUE.
 
-! initialize time and counter for analyze measurement
+! Get logical for measurement of time spent in analyze routines
+DoMeasureAnalyzeTime = GETLOGICAL('DoMeasureAnalyzeTime')
+! Initialize time and counter for analyze measurement
 AnalyzeCount = 0
 AnalyzeTime  = 0.0
 
@@ -190,7 +194,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 IF(CalcPoyntingInt) CALL GetPoyntingIntPlane()
 
 ! Points Per Wavelength
-CalcPointsPerWavelength = GETLOGICAL('CalcPointsPerWavelength'  ,'.FALSE.')
+CalcPointsPerWavelength = GETLOGICAL('CalcPointsPerWavelength')
 IF(CalcPointsPerWavelength)THEN
   ! calculate cell local number excluding neighbor DOFs
   ALLOCATE( PPWCell(1:PP_nElems) )
@@ -254,7 +258,11 @@ REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze
 END SUBROUTINE InitAnalyzeBasis
 
 
+#ifdef PP_HDG
+SUBROUTINE CalcError(L_2_Error,L_Inf_Error)
+#else
 SUBROUTINE CalcError(time,L_2_Error,L_Inf_Error)
+#endif
 !===================================================================================================================================
 ! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
 !===================================================================================================================================
@@ -272,7 +280,9 @@ USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+#ifndef PP_HDG
 REAL,INTENT(IN)               :: time
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)              :: L_2_Error(PP_nVar)   !< L2 error of the solution
@@ -332,7 +342,7 @@ END SUBROUTINE CalcError
 
 
 #ifdef PARTICLES
-SUBROUTINE CalcErrorPartSource(time,PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
+SUBROUTINE CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 !===================================================================================================================================
 ! Calculates the L2 (particle) source error by integrating the difference between the numerical and analytical solution
 ! over all elements.
@@ -350,7 +360,6 @@ USE MOD_PICDepo_Vars       ,ONLY: PartSourceOld
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)               :: time
 INTEGER,INTENT(IN)            :: PartSource_nVar
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -769,7 +778,7 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
-USE MOD_Analyze_Vars           ,ONLY: AnalyzeCount,AnalyzeTime
+USE MOD_Analyze_Vars           ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter,tEnd
 USE MOD_RecordPoints           ,ONLY: RecordPoints
@@ -878,13 +887,11 @@ REAL                          :: L_2_PartSource(1:4)
 REAL                          :: L_Inf_PartSource(1:4)
 #endif
 #endif /* PARTICLES */
+REAL                          :: CurrentTime
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
 CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
-
-StartAnalyzeTime=PICLASTIME()
-AnalyzeCount = AnalyzeCount + 1
 
 ! check if final/last iteration iteration
 LastIter=.FALSE.
@@ -967,6 +974,12 @@ IF(FirstOrLastIter.OR.OutputHDF5)THEN
   IF(.NOT.LastIter) DoPerformErrorCalc=.TRUE.
 END IF
 
+IF((DoPerformFieldAnalyze.OR.DoPerformPartAnalyze.OR.DoPerformSurfaceAnalyze).AND.DoMeasureAnalyzeTime)THEN
+  StartAnalyzeTime=PICLASTIME()
+  AnalyzeCount = AnalyzeCount + 1
+END IF
+
+
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DG-Solver
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -975,11 +988,18 @@ END IF
 IF(DoCalcErrorNorms) THEN
   IF(DoPerformErrorCalc)THEN
     OutputErrorNorms=.TRUE.
+#ifdef PP_HDG
+    CALL CalcError(L_2_Error,L_Inf_Error)
+#else
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
-    IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,StartAnalyzeTime,L_2_Error)
+#endif
+    IF (OutputTime.GE.tEnd)THEN
+      CurrentTime=PICLASTIME()
+      CALL AnalyzeToFile(OutputTime,CurrentTime,L_2_Error)
+    END IF
 #ifdef PARTICLES
     IF (DoDeposition .AND. RelaxDeposition) THEN
-      CALL CalcErrorPartSource(OutputTime,PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
+      CALL CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
     END IF
 #endif /*PARTICLES*/
   END IF
@@ -1217,8 +1237,10 @@ END IF
 #endif /*CODE_ANALYZE*/
 
 ! Time for analysis
-EndAnalyzeTime=PICLASTIME()
-AnalyzeTime = AnalyzeTime + EndAnalyzeTime-StartAnalyzeTime
+IF((DoPerformFieldAnalyze.OR.DoPerformPartAnalyze.OR.DoPerformSurfaceAnalyze).AND.DoMeasureAnalyzeTime)THEN
+  EndAnalyzeTime=PICLASTIME()
+  AnalyzeTime = AnalyzeTime + EndAnalyzeTime-StartAnalyzeTime
+END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Output info
@@ -1242,12 +1264,15 @@ IF(DoPerformErrorCalc)THEN
     END IF
   END IF
 #endif /* PARTICLES */
+  IF(.NOT.DoMeasureAnalyzeTime) StartAnalyzeTime=PICLASTIME()
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
     WRITE(UNIT_StdOut,'(A17,ES16.7)')        ' Sim time      : ',OutputTime
-    WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I11,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
-    AnalyzeCount = 0
-    AnalyzeTime  = 0.0
+    IF(DoMeasureAnalyzeTime)THEN
+      WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I11,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
+      AnalyzeCount = 0
+      AnalyzeTime  = 0.0
+    END IF ! DoMeasureAnalyzeTime
     IF (OutputTime.GT.0.) THEN
       WRITE(UNIT_StdOut,'(132("."))')
       WRITE(UNIT_stdOut,'(A,A,A,F14.2,A)') ' PICLAS RUNNING ',TRIM(ProjectName),'... [',StartAnalyzeTime-StartTime,' sec ]'

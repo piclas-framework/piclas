@@ -26,6 +26,7 @@ INTEGER           :: NAnalyze                    !< number of analyzation points
 REAL,ALLOCATABLE  :: wAnalyze(:)                 !< GL integration weights used for the analyze
 REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze(:,:)    !< for interpolation to Analyze points
 REAL              :: Analyze_dt                  !< time difference to trigger analyze output
+INTEGER(KIND=8)   :: iAnalyze                    !> count number of next analyze
 REAL              :: OutputTimeFixed             !< fixed time for writing state to .h5
 LOGICAL           :: CalcPoyntingInt             !< calculate pointing vector integral | only perp to z axis
 LOGICAL           :: CalcMeshInfo                !< Output myrank, ElemID and tracking info to ElemData
@@ -39,6 +40,8 @@ REAL              :: AnalyzeTime                 !< accumulated time of analyzes
 REAL,ALLOCATABLE  :: PosPoyntingInt(:)           !< z-coordinate of plane
 REAL,ALLOCATABLE  :: S(:,:,:,:), STEM(:,:,:)     !< vector, abs for TEM waves
 LOGICAL           :: DoFieldAnalyze              !< perform analyze
+LOGICAL           :: DoMeasureAnalyzeTime        !< measure time that is spent in analyze routines and count the number of analysis
+                                                 !< calls (to std out stream)
 INTEGER           :: FieldAnalyzeStep            !< Analyze is performed each Nth time step
 LOGICAL           :: DoCalcErrorNorms            !< perform L2, LInf error calculation
 LOGICAL           :: DoSurfModelAnalyze          !< perform analyze for SurfaceModel

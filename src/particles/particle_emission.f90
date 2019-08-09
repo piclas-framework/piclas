@@ -6505,7 +6505,6 @@ USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, 
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh          ,ONLY: ParticleInsideQuad3D, PartInElemCheck
-USE MOD_Particle_Mesh_Tools    ,ONLY: BoundsOfElement
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, epsOneCell
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
@@ -6530,7 +6529,6 @@ INTEGER                          :: iPart,  nPart
 REAL                             :: iRan, RandomPos(3)
 REAL                             :: PartDens
 LOGICAL                          :: InsideFlag
-REAL                             :: Bounds(1:2,1:3) ! Bounds(1,1:3) --> minCoords, Bounds(2,1:3) --> maxCoords
 REAL                             :: Det(6,2)
 REAL                             :: RefPos(1:3)
 INTEGER                          :: CellChunkSize(1:nElems)
@@ -6563,65 +6561,66 @@ __STAMP__,&
   ichunkSize = 1
   ParticleIndexNbr = 1
   DO iElem = 1, nElems
-    CALL BoundsOfElement(iElem,Bounds)
-    IF (UseExactPartNum) THEN
-      nPart = CellChunkSize(iElem)
-    ELSE
-      IF(RadialWeighting%DoRadialWeighting) THEN
-        PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(GEO%ElemMidPoint(2,iElem), iSpec)
-      END IF
-      CALL RANDOM_NUMBER(iRan)
-      IF(VarTimeStep%UseVariableTimeStep) THEN
-        adaptTimestep = CalcVarTimeStep(GEO%ElemMidPoint(1,iElem), GEO%ElemMidPoint(2,iElem), iElem)
-        nPart = INT(PartDens / adaptTimestep * GEO%Volume(iElem) + iRan)
+    ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+      IF (UseExactPartNum) THEN
+        nPart = CellChunkSize(iElem)
       ELSE
-        nPart = INT(PartDens * GEO%Volume(iElem) + iRan)
-      END IF
-    END IF
-    DO iPart = 1, nPart
-      ParticleIndexNbr = PDM%nextFreePosition(iChunksize + PDM%CurrentNextFreePosition)
-      IF (ParticleIndexNbr .ne. 0) THEN
-        InsideFlag=.FALSE.
-        DO WHILE(.NOT.InsideFlag)
-          CALL RANDOM_NUMBER(RandomPos)
-          IF(Symmetry2DAxisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-            ! Treatment of axisymmetry without weighting
-            RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
-            RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
-          ELSE
-            RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
-          END IF
-          IF(Symmetry2D) RandomPos(3) = 0.
-          IF (DoRefMapping) THEN
-            CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-            IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
-          ELSE
-            IF (TriaTracking) THEN
-              CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
-            ELSE
-              CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
-            END IF
-          END IF
-        END DO
-        PartState(ParticleIndexNbr,1:3) = RandomPos(1:3)
-        PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-        PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
-        PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
-        PEM%Element(ParticleIndexNbr) = iElem
-        ichunkSize = ichunkSize + 1
-        IF (VarTimeStep%UseVariableTimeStep) THEN
-          VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &
-            CalcVarTimeStep(PartState(ParticleIndexNbr,1), PartState(ParticleIndexNbr,2),iElem)
-        END IF
         IF(RadialWeighting%DoRadialWeighting) THEN
-          PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(ParticleIndexNbr,2),1,ParticleIndexNbr)
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(GEO%ElemMidPoint(2,iElem), iSpec)
         END IF
-      ELSE
-        CALL abort(&
-__STAMP__&
-,'ERROR in SetCellLocalParticlePosition: Maximum particle number reached during inserting! --> ParticleIndexNbr.EQ.0')
+        CALL RANDOM_NUMBER(iRan)
+        IF(VarTimeStep%UseVariableTimeStep) THEN
+          adaptTimestep = CalcVarTimeStep(GEO%ElemMidPoint(1,iElem), GEO%ElemMidPoint(2,iElem), iElem)
+          nPart = INT(PartDens / adaptTimestep * GEO%Volume(iElem) + iRan)
+        ELSE
+          nPart = INT(PartDens * GEO%Volume(iElem) + iRan)
+        END IF
       END IF
-    END DO
+      DO iPart = 1, nPart
+        ParticleIndexNbr = PDM%nextFreePosition(iChunksize + PDM%CurrentNextFreePosition)
+        IF (ParticleIndexNbr .ne. 0) THEN
+          InsideFlag=.FALSE.
+          DO WHILE(.NOT.InsideFlag)
+            CALL RANDOM_NUMBER(RandomPos)
+            IF(Symmetry2DAxisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+              ! Treatment of axisymmetry without weighting
+              RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
+              RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
+            ELSE
+              RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
+            END IF
+            IF(Symmetry2D) RandomPos(3) = 0.
+            IF (DoRefMapping) THEN
+              CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
+              IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+            ELSE
+              IF (TriaTracking) THEN
+                CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+              ELSE
+                CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+              END IF
+            END IF
+          END DO
+          PartState(ParticleIndexNbr,1:3) = RandomPos(1:3)
+          PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
+          PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
+          PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
+          PEM%Element(ParticleIndexNbr) = iElem
+          ichunkSize = ichunkSize + 1
+          IF (VarTimeStep%UseVariableTimeStep) THEN
+            VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &
+              CalcVarTimeStep(PartState(ParticleIndexNbr,1), PartState(ParticleIndexNbr,2),iElem)
+          END IF
+          IF(RadialWeighting%DoRadialWeighting) THEN
+            PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(ParticleIndexNbr,2),1,ParticleIndexNbr)
+          END IF
+        ELSE
+          CALL abort(&
+              __STAMP__&
+              ,'ERROR in SetCellLocalParticlePosition: Maximum particle number reached during inserting! --> ParticleIndexNbr.EQ.0')
+        END IF
+      END DO
+    END ASSOCIATE
   END DO
   chunkSize = ichunkSize - 1
 
@@ -7342,7 +7341,6 @@ USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Particle_Mesh           ,ONLY: ParticleInsideQuad3D, PartInElemCheck
-USE MOD_Particle_Mesh_Tools     ,ONLY: BoundsOfElement
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, epsOneCell
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -7358,7 +7356,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                             :: iElem, iSpec, iPart, nPart, locnPart, iHeight, yPartitions
 REAL                                :: iRan, RandomPos(3), PartDens, TempMPF, MaxPosTemp, MinPosTemp
-REAL                                :: TempVol, Volume, Det(6,2), RefPos(1:3), Bounds(1:2,1:3)
+REAL                                :: TempVol, Volume, Det(6,2), RefPos(1:3)
 LOGICAL                             :: InsideFlag
 !===================================================================================================================================
 
@@ -7367,143 +7365,144 @@ SWRITE(UNIT_stdOut,*) 'PERFORMING MACROSCOPIC RESTART...'
 locnPart = 1
 
 DO iElem = 1, nElems
-  CALL BoundsOfElement(iElem,Bounds(1:2,1:3))     ! 1: Min value, 2: Max value; 1-3: x,y,z
+  ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
 ! #################### 2D ##########################################################################################################
-  IF (Symmetry2DAxisymmetric) THEN
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      DO iSpec = 1, nSpecies
-        yPartitions = 6
-        PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS)
-        ! Particle weighting
-        DO iHeight = 1, yPartitions
-          MinPosTemp = Bounds(1,2) + (Bounds(2,2) - Bounds(1,2))/ yPartitions *(iHeight-1.)
-          MaxPosTemp = Bounds(1,2) + (Bounds(2,2) - Bounds(1,2))/ yPartitions *iHeight
-          TempVol =  (MaxPosTemp-MinPosTemp)*(Bounds(2,1)-Bounds(1,1)) * Pi * (MaxPosTemp+MinPosTemp)
-          TempMPF = CalcRadWeightMPF((MaxPosTemp+MinPosTemp)*0.5,iSpec)
-          IF(VarTimeStep%UseVariableTimeStep) THEN
-            TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (MaxPosTemp+MinPosTemp)*0.5, iElem)
-          END IF
+    IF (Symmetry2DAxisymmetric) THEN
+      IF (RadialWeighting%DoRadialWeighting) THEN
+        DO iSpec = 1, nSpecies
+          yPartitions = 6
+          PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS)
+          ! Particle weighting
+          DO iHeight = 1, yPartitions
+            MinPosTemp = Bounds(1,2) + (Bounds(2,2) - Bounds(1,2))/ yPartitions *(iHeight-1.)
+            MaxPosTemp = Bounds(1,2) + (Bounds(2,2) - Bounds(1,2))/ yPartitions *iHeight
+            TempVol =  (MaxPosTemp-MinPosTemp)*(Bounds(2,1)-Bounds(1,1)) * Pi * (MaxPosTemp+MinPosTemp)
+            TempMPF = CalcRadWeightMPF((MaxPosTemp+MinPosTemp)*0.5,iSpec)
+            IF(VarTimeStep%UseVariableTimeStep) THEN
+              TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (MaxPosTemp+MinPosTemp)*0.5, iElem)
+            END IF
+            CALL RANDOM_NUMBER(iRan)
+            nPart = INT(PartDens / TempMPF  * TempVol + iRan)
+            DO iPart = 1, nPart
+              InsideFlag=.FALSE.
+              CALL RANDOM_NUMBER(RandomPos)
+              RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
+              RandomPos(2) = MinPosTemp + RandomPos(2)*(MaxPosTemp-MinPosTemp)
+              RandomPos(3) = 0.0
+              IF (DoRefMapping) THEN
+                CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
+                IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+              ELSE
+                IF (TriaTracking) THEN
+                  CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+                ELSE
+                  CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+                END IF
+              END IF
+              IF (InsideFlag) THEN
+                PartState(locnPart,1:3) = RandomPos(1:3)
+                CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
+                locnPart = locnPart + 1
+              END IF
+            END DO ! nPart
+          END DO ! yPartitions
+        END DO ! nSpecies
+      ELSE ! No RadialWeighting
+        DO iSpec = 1, nSpecies
           CALL RANDOM_NUMBER(iRan)
-          nPart = INT(PartDens / TempMPF  * TempVol + iRan)
+          TempMPF = Species(iSpec)%MacroParticleFactor
+          IF(VarTimeStep%UseVariableTimeStep) THEN
+            TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem)
+          END IF
+          nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * GEO%Volume(iElem) + iRan)
           DO iPart = 1, nPart
             InsideFlag=.FALSE.
-            CALL RANDOM_NUMBER(RandomPos)
-            RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
-            RandomPos(2) = MinPosTemp + RandomPos(2)*(MaxPosTemp-MinPosTemp)
-            RandomPos(3) = 0.0
-            IF (DoRefMapping) THEN
-              CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-              IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
-            ELSE
-              IF (TriaTracking) THEN
-                CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+            DO WHILE (.NOT.InsideFlag)
+              CALL RANDOM_NUMBER(RandomPos)
+              RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
+              RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
+              RandomPos(3) = 0.0
+              IF (DoRefMapping) THEN
+                CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
+                IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
               ELSE
-                CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+                IF (TriaTracking) THEN
+                  CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+                ELSE
+                  CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+                END IF
               END IF
-            END IF
-            IF (InsideFlag) THEN
-              PartState(locnPart,1:3) = RandomPos(1:3)
-              CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
-              locnPart = locnPart + 1
-            END IF
+            END DO
+            PartState(locnPart,1:3) = RandomPos(1:3)
+            CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
+            locnPart = locnPart + 1
           END DO ! nPart
-        END DO ! yPartitions
-      END DO ! nSpecies
-    ELSE ! No RadialWeighting
+        END DO ! nSpecies
+      END IF ! RadialWeighting: YES/NO
+    ELSE IF(Symmetry2D) THEN
+      Volume = (Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
       DO iSpec = 1, nSpecies
         CALL RANDOM_NUMBER(iRan)
         TempMPF = Species(iSpec)%MacroParticleFactor
         IF(VarTimeStep%UseVariableTimeStep) THEN
           TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem)
         END IF
-        nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * GEO%Volume(iElem) + iRan)
+        nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * Volume + iRan)
         DO iPart = 1, nPart
           InsideFlag=.FALSE.
-          DO WHILE (.NOT.InsideFlag)
-            CALL RANDOM_NUMBER(RandomPos)
-            RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
-            RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
-            RandomPos(3) = 0.0
-            IF (DoRefMapping) THEN
-              CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-              IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+          CALL RANDOM_NUMBER(RandomPos)
+          RandomPos(1:2) = Bounds(1,1:2) + RandomPos(1:2)*(Bounds(2,1:2)-Bounds(1,1:2))
+          RandomPos(3) = 0.0
+          IF (DoRefMapping) THEN
+            CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
+            IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+          ELSE
+            IF (TriaTracking) THEN
+              CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
             ELSE
-              IF (TriaTracking) THEN
-                CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
-              ELSE
-                CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
-              END IF
+              CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
             END IF
-          END DO
-          PartState(locnPart,1:3) = RandomPos(1:3)
-          CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
-          locnPart = locnPart + 1
+          END IF
+          IF (InsideFlag) THEN
+            PartState(locnPart,1:3) = RandomPos(1:3)
+            CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
+            locnPart = locnPart + 1
+          END IF
         END DO ! nPart
       END DO ! nSpecies
-    END IF ! RadialWeighting: YES/NO
-  ELSE IF(Symmetry2D) THEN
-    Volume = (Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
-    DO iSpec = 1, nSpecies
-      CALL RANDOM_NUMBER(iRan)
-      TempMPF = Species(iSpec)%MacroParticleFactor
-      IF(VarTimeStep%UseVariableTimeStep) THEN
-        TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem)
-      END IF
-      nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * Volume + iRan)
-      DO iPart = 1, nPart
-        InsideFlag=.FALSE.
-        CALL RANDOM_NUMBER(RandomPos)
-        RandomPos(1:2) = Bounds(1,1:2) + RandomPos(1:2)*(Bounds(2,1:2)-Bounds(1,1:2))
-        RandomPos(3) = 0.0
-        IF (DoRefMapping) THEN
-          CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-          IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
-        ELSE
-          IF (TriaTracking) THEN
-            CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
-          ELSE
-            CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
-          END IF
-        END IF
-        IF (InsideFlag) THEN
-          PartState(locnPart,1:3) = RandomPos(1:3)
-          CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
-          locnPart = locnPart + 1
-        END IF
-      END DO ! nPart
-    END DO ! nSpecies
-  ELSE
+    ELSE
 ! #################### 3D ##########################################################################################################
-    Volume = (Bounds(2,3) - Bounds(1,3))*(Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
-    DO iSpec = 1, nSpecies
-      CALL RANDOM_NUMBER(iRan)
-      TempMPF = Species(iSpec)%MacroParticleFactor
-      IF(VarTimeStep%UseVariableTimeStep) THEN
-        TempMPF = TempMPF * CalcVarTimeStep(iElem=iElem)
-      END IF
-      nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * Volume + iRan)
-      DO iPart = 1, nPart
-        InsideFlag=.FALSE.
-        CALL RANDOM_NUMBER(RandomPos)
-        RandomPos(1:3) = Bounds(1,1:3) + RandomPos(1:3)*(Bounds(2,1:3)-Bounds(1,1:3))
-        IF (DoRefMapping) THEN
-          CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-          IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
-        ELSE
-          IF (TriaTracking) THEN
-            CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+      Volume = (Bounds(2,3) - Bounds(1,3))*(Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
+      DO iSpec = 1, nSpecies
+        CALL RANDOM_NUMBER(iRan)
+        TempMPF = Species(iSpec)%MacroParticleFactor
+        IF(VarTimeStep%UseVariableTimeStep) THEN
+          TempMPF = TempMPF * CalcVarTimeStep(iElem=iElem)
+        END IF
+        nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * Volume + iRan)
+        DO iPart = 1, nPart
+          InsideFlag=.FALSE.
+          CALL RANDOM_NUMBER(RandomPos)
+          RandomPos(1:3) = Bounds(1,1:3) + RandomPos(1:3)*(Bounds(2,1:3)-Bounds(1,1:3))
+          IF (DoRefMapping) THEN
+            CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
+            IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
           ELSE
-            CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+            IF (TriaTracking) THEN
+              CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+            ELSE
+              CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+            END IF
           END IF
-        END IF
-        IF (InsideFlag) THEN
-          PartState(locnPart,1:3) = RandomPos(1:3)
-          CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
-          locnPart = locnPart + 1
-        END IF
-      END DO ! nPart
-    END DO ! nSpecies
-  END IF ! Symmetry2D/Axisymmetric/3D
+          IF (InsideFlag) THEN
+            PartState(locnPart,1:3) = RandomPos(1:3)
+            CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
+            locnPart = locnPart + 1
+          END IF
+        END DO ! nPart
+      END DO ! nSpecies
+    END IF ! Symmetry2D/Axisymmetric/3D
+  END ASSOCIATE
 END DO ! nElems
 
 IF(locnPart.GE.PDM%maxParticleNumber) THEN

@@ -79,16 +79,13 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars
-USE MOD_HDF5_output,     ONLY: WriteDielectricGlobalToHDF5
-USE MOD_Equation_Vars,   ONLY: c
-USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
-USE MOD_Mesh,            ONLY: GetMeshMinMaxBoundaries
-#ifdef PP_HDG
-!USE MOD_Equation_Vars,   ONLY: IniExactFunc
-USE MOD_Mesh_Vars,       ONLY: nMortarSides
-#else
-USE MOD_Equation_Vars,   ONLY: c_corr
-#endif /*if PP_HDG*/
+USE MOD_HDF5_output     ,ONLY: WriteDielectricGlobalToHDF5
+USE MOD_Equation_Vars   ,ONLY: c
+USE MOD_Interfaces      ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
+USE MOD_Mesh            ,ONLY: GetMeshMinMaxBoundaries
+#ifndef PP_HDG
+USE MOD_Equation_Vars   ,ONLY: c_corr
+#endif /*if not PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -183,11 +180,6 @@ CALL SetDielectricVolumeProfile()
   CALL SetDielectricFaceProfile()
 #else /*if PP_HDG*/
   ! Set HDG diffusion tensor 'chitens' on faces
-  IF((.NOT.mpiroot).AND.(nMortarSides.GT.0))THEN
-    CALL abort(&
-         __STAMP__,&
-         'dielectric HDG not implemented for MPI! TODO: Set HDG diffusion tensor [chitens] on faces with MPI and/or mortar sides')
-  END IF
   CALL SetDielectricFaceProfile_HDG()
   !IF(ANY(IniExactFunc.EQ.(/200,300/)))THEN ! for dielectric sphere/slab case
     ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on wheter
