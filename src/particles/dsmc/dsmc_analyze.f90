@@ -386,7 +386,7 @@ USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal, DSMC ,MacroSurfaceSpe
 USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis,nPorousBC
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData,MapInnerSurfData
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
 #endif
@@ -437,7 +437,7 @@ END IF
 
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
-#ifdef MPI
+#if USE_MPI
 IF(SurfCOMM%InnerBCs) THEN
 ! if there are innerBCs with reflective surface properties
 ! additional communcation is needed (see:SUBROUTINE MapInnerSurfData)
@@ -547,7 +547,7 @@ DO iSurfSide=1,SurfMesh%nSides
 END DO ! iSurfSide=1,SurfMesh%nSides
 
 IF (CalcSurfCollis%Output) THEN
-#ifdef MPI
+#if USE_MPI
   CALL MPI_REDUCE(CounterTotal,SumCounterTotal(1:nSpecies),nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%COMM,iError)
 #else
   SumCounterTotal(1:nSpecies)=CounterTotal
@@ -971,9 +971,9 @@ REAL,ALLOCATABLE                        :: Vdm_ElemxgpN_DSMCNOut(:,:)
 REAL,ALLOCATABLE                        :: xGP_tmp(:)
 REAL, ALLOCATABLE                       :: DetJacGauss_N(:,:,:,:), DetLocal(:,:,:,:)!, Volumes(:,:,:)
 LOGICAL, ALLOCATABLE                    :: VolumeDone(:,:,:)
-#ifndef MPI
+#if !(USE_MPI)
 INTEGER       :: k2,m2,l2
-#endif /*NOT MPI*/
+#endif /*!(USE_MPI)*/
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT High Order DSMC Sampling...'
@@ -1115,7 +1115,7 @@ __STAMP__&
     END DO
   END DO
 
-#ifdef MPI
+#if USE_MPI
   CALL MPIBackgroundMeshInitDSMCHO()
   CALL MPIVolumeExchangeBGMDSMCHO()
 #else
@@ -1313,7 +1313,7 @@ SELECT CASE(TRIM(HODSMC%SampleType))
      END IF
   END DO
 
-#ifdef MPI
+#if USE_MPI
   CALL MPISourceExchangeBGMDSMCHO(BGMSource, alphaSum)
 #else
   IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchangeDSMCHO(BGMSource, alphaSum)
@@ -2089,7 +2089,7 @@ REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:,:,:,:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================
   SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DSMC-HO TO HDF5 FILE...'
-#ifdef MPI
+#if USE_MPI
   StartT=MPI_WTIME()
 #else
   StartT=LOCALTIME()
@@ -2184,7 +2184,7 @@ FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DSMCHOState',OutputTime))//'.h5'
 ! excahnge PP_N through Nout
 IF(MPIRoot) CALL GenerateDSMCHOFileSkeleton('DSMCHOState',nVar+nVar_quality, &
       StrVarNames,MeshFileName,OutputTime,FutureTime)
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 
@@ -2233,7 +2233,7 @@ CALL CloseDataFile()
 
 DEALLOCATE(StrVarNames)
 DEALLOCATE(DSMC_MacroVal)
-#ifdef MPI
+#if USE_MPI
 IF(MPIROOT)THEN
   EndT=MPI_WTIME()
   SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
@@ -2317,7 +2317,7 @@ CALL CloseDataFile()
 END SUBROUTINE GenerateDSMCHOFileSkeleton
 
 
-#ifndef MPI
+#if !(USE_MPI)
 SUBROUTINE PeriodicSourceExchangeDSMCHO(BGMSource, alphasum)
 !===================================================================================================================================
 !> Exchange sources in periodic case
@@ -2364,7 +2364,7 @@ DO i = 1,GEO%nPeriodicVectors
 END DO
 RETURN
 END SUBROUTINE PeriodicSourceExchangeDSMCHO
-#else /*MPI*/
+#else /*USE_MPI*/
 SUBROUTINE MPISourceExchangeBGMDSMCHO(BGMSource, alphasum)
 !===================================================================================================================================
 !> Exchange sources in periodic case for MPI
@@ -3070,7 +3070,7 @@ ELSE
 END IF
 RETURN
 END SUBROUTINE MPIBackgroundMeshInitDSMCHO
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SUBROUTINE VolumeBoundBGMCInt(i, j, k, Volume)
 !===================================================================================================================================
@@ -3162,7 +3162,7 @@ REAL,INTENT(IN)                :: OutputTime, TimeSample
 CHARACTER(LEN=255)             :: Filename, TypeString, H5_Name
 INTEGER,ALLOCATABLE            :: SpeciesPositions(:,:)
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)!,params(:)
-#ifdef MPI
+#if USE_MPI
 INTEGER,ALLOCATABLE            :: sendbuf(:),recvbuf(:)
 REAL,ALLOCATABLE               :: sendbuf2(:),recvbuf2(:)
 INTEGER                        :: iProc
@@ -3197,7 +3197,7 @@ ALLOCATE(locnPart(1:nSpecies) &
         ,nPart_glob(1:nSpecies) &
         ,minnParts(1:nSpecies) &
         ,iPartCount(1:nSpecies) )
-#ifdef MPI
+#if USE_MPI
 ALLOCATE(sendbuf(1:nSpecies) &
         ,recvbuf(1:nSpecies) )
 #endif
@@ -3221,7 +3221,7 @@ DO iSpec=1,nSpecies
     'Error 2 in AnalyzeSurfCollis!')
 END DO
 
-#ifdef MPI
+#if USE_MPI
 sendbuf(:)=locnPart(:)
 recvbuf(:)=0
 CALL MPI_EXSCAN(sendbuf,recvbuf,nSpecies,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
@@ -3258,7 +3258,7 @@ IF (SFResampleAnalyzeSurfCollis) THEN
       BCTotalNumberMPF = BCTotalNumberMPF + 1
     END IF
   END DO
-#ifdef MPI
+#if USE_MPI
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,BCTotalNumberMPF,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
   BCTotalFlowrateMPF=REAL(BCTotalNumberMPF)/TimeSample
@@ -3281,7 +3281,7 @@ IF(MPIRoot) THEN !create File-Skeleton
   CALL CloseDataFile()
 END IF
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
@@ -3300,7 +3300,7 @@ IF (SFResampleAnalyzeSurfCollis) THEN
   ALLOCATE(LastAnalyzeSurfCollis%WallState(6,LastAnalyzeSurfCollis%PartNumberSamp))
   ALLOCATE(LastAnalyzeSurfCollis%Species(LastAnalyzeSurfCollis%PartNumberSamp))
   LastAnalyzeSurfCollis%pushTimeStep = HUGE(LastAnalyzeSurfCollis%pushTimeStep)
-#ifdef MPI
+#if USE_MPI
   IF (BCTotalNumberMPF.GT.0) THEN
     ALLOCATE(sendbuf2(1:AnalyzeSurfCollis%Number(nSpecies+1)*8))
     ALLOCATE(recvbuf2(1:TotalNumberMPF*8))

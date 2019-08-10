@@ -223,7 +223,7 @@ IF(DoRestart) THEN
       CALL ReadArray('PartTimeStep',2,(/nGlobalElems, 1_IK/),0_IK,1,RealArray=VarTimeStep%ElemFac(1:nGlobalElems))
     END ASSOCIATE
     SWRITE(UNIT_stdOut,*)'Variable Time Step: Read-in of timestep distribution from state file.'
-#ifdef MPI
+#if USE_MPI
     ! Allocate the array for the element-wise weighting factor
     ALLOCATE(VarTimeStep%ElemWeight(nGlobalElems))
     VarTimeStep%ElemWeight = 1.0
@@ -258,7 +258,7 @@ IF(VarTimeStep%AdaptDistribution) THEN
     ALLOCATE(VarTimeStep%ElemFac(nGlobalElems))
     VarTimeStep%ElemFac = 1.0
   END IF
-#ifdef MPI
+#if USE_MPI
   IF(.NOT.ALLOCATED(VarTimeStep%ElemWeight)) THEN
     ALLOCATE(VarTimeStep%ElemWeight(nGlobalElems))
     VarTimeStep%ElemWeight = 1.0
@@ -313,7 +313,7 @@ IF(VarTimeStep%AdaptDistribution) THEN
     TimeStepModified = .FALSE.
     ! Skipping cells, where less than 2 particles were sampled
     IF(PartNum(iElem).LT.2.0) CYCLE
-#ifdef MPI
+#if USE_MPI
     ! Storing the old time step factor temporarily
     VarTimeStep%ElemWeight(iElem) = VarTimeStep%ElemFac(iElem)
 #endif
@@ -373,7 +373,7 @@ IF(VarTimeStep%AdaptDistribution) THEN
     END IF
     ! Finally, limiting the maximal time step factor to the given value and saving it to the right variable
     VarTimeStep%ElemFac(iElem) = MIN(TimeFracTemp,VarTimeStep%DistributionMaxTimeFactor)
-#ifdef MPI
+#if USE_MPI
     ! Calculating the weight, multiplied with the particle number from state file during readMesh
     ! (covering the case when a time step distribution is read-in and adapted -> elements have been already once load-balanced with
     ! the old time step, consequently weight should only include difference between old and new time step)
@@ -521,7 +521,7 @@ END SUBROUTINE VarTimeStep_CalcElemFacs
 ! USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 ! USE MOD_Mesh_Vars               ,ONLY: nElems
 ! USE MOD_Globals
-! #ifdef MPI
+! #if USE_MPI
 ! USE MOD_part_MPI_Vars           ,ONLY: MPIGEO, PMPIVAR
 ! #endif
 ! ! IMPLICIT VARIABLE HANDLING
@@ -537,7 +537,7 @@ END SUBROUTINE VarTimeStep_CalcElemFacs
 ! REAL                                  :: tempFact(nElems), tempMean(30), NumTotalElems
 ! ! Filters
 ! REAL                                  :: MeanTimeFactor
-! #ifdef MPI
+! #if USE_MPI
 ! INTEGER                               :: iProc
 ! REAL, ALLOCATABLE                     :: MPIElemFac(:)
 ! TYPE tTempArrayProc
@@ -614,7 +614,7 @@ END SUBROUTINE VarTimeStep_CalcElemFacs
 !     tempMean(1+jElem) = tempFact(ElemID)
 !     NumTotalElems = NumTotalElems + 1.
 !   END DO
-! #ifdef MPI
+! #if USE_MPI
 !   DO jElem = 1, MPIGEO%NumNeighborElems(iElem)
 !     ElemID = MPIGEO%ElemToNeighElems(iElem)%ElemID(jElem)
 !     tempMean(1+GEO%NumNeighborElems(iElem)+jElem) = MPIElemFac(ElemID)
@@ -626,7 +626,7 @@ END SUBROUTINE VarTimeStep_CalcElemFacs
 !   END IF
 ! END DO
 ! ! --------- communication of the values from the min filter
-! #ifdef MPI
+! #if USE_MPI
 ! ALLOCATE(TempArrayProc(0:PMPIVAR%nProcs-1))
 ! DO iProc = 0, PMPIVAR%nProcs-1
 !   IF (PMPIVAR%iProc.NE.iProc) THEN
@@ -690,7 +690,7 @@ END SUBROUTINE VarTimeStep_CalcElemFacs
 !     MeanTimeFactor = MeanTimeFactor + VarTimeStep%ElemFac(ElemID)
 !     NumTotalElems = NumTotalElems + 1.
 !   END DO
-! #ifdef MPI
+! #if USE_MPI
 !   DO jElem = 1, MPIGEO%NumNeighborElems(iElem)
 !     ElemID = MPIGEO%ElemToNeighElems(iElem)%ElemID(jElem)
 !     MeanTimeFactor = MeanTimeFactor + MPIElemFac(ElemID)

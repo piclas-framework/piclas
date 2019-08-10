@@ -98,10 +98,6 @@ INTERFACE MarkAuxBCElems
   MODULE PROCEDURE MarkAuxBCElems
 END INTERFACE
 
-INTERFACE BoundsOfElement
-  MODULE PROCEDURE BoundsOfElement
-END INTERFACE
-
 PUBLIC::CountPartsPerElem
 PUBLIC::BuildElementBasis,CheckIfCurvedElem
 PUBLIC::MapRegionToElem,PointToExactElement
@@ -111,7 +107,6 @@ PUBLIC::PartInElemCheck
 PUBLIC::ParticleInsideQuad3D
 PUBLIC::InitParticleGeometry
 PUBLIC::MarkAuxBCElems
-PUBLIC::BoundsOfElement
 PUBLIC::GetMeshMinMax
 !===================================================================================================================================
 !
@@ -194,7 +189,7 @@ CALL prms%CreateLogicalOption( 'CalcHaloInfo',         'Output halo element info
                                                        '              = 0             : halo elements\n'//&
                                                        '              = 1 to PP_nElems: local elements','.FALSE.')
 CALL prms%CreateLogicalOption( 'printBezierControlPointsWarnings'&
-    ,  ' Print warning if MINVAL(BezierControlPoints3d(iDir,:,:,newSideID)) and global boundaries are too close ' &
+    ,  ' Print warning if MINVAL(BezierControlPoints3D(iDir,:,:,newSideID)) and global boundaries are too close ' &
     ,'.FALSE.')
 
 CALL prms%CreateRealOption(    'BezierNewtonAngle'      , ' BoundingBox intersection angle for switching between '//&
@@ -742,6 +737,7 @@ END IF
 SDEALLOCATE(GEO%NodeToNeighNode)
 SDEALLOCATE(GEO%ConcaveElemSide)
 SDEALLOCATE(GEO%ElemMidPoint)
+SDEALLOCATE(GEO%BoundsOfElem)
 
 SDEALLOCATE(BCElem)
 SDEALLOCATE(XiEtaZetaBasis)
@@ -798,11 +794,11 @@ INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,Cel
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                           :: InElementCheck,ParticleFound
 REAL                              :: xi(1:3),Distance2,Det(6,2)
-#ifdef MPI
+#if USE_MPI
 INTEGER                           :: XiDir,locSideID,flip,SideID
 REAL                              :: locXi,locEta,tmpXi
 INTEGER                           :: Moved(2)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 ParticleFound = .FALSE.
 IF (KeepWallParticles) THEN
@@ -914,7 +910,7 @@ DO iBGMElem=1,nBGMElems
     ELSE
      InElementCheck=.TRUE.
      ! inelementcheck can only be set to false in the following part
-#ifdef MPI
+#if USE_MPI
 !     ! check if xi is larger than unity, than the
 !     ! particle is found at least twice
      IF(MAXVAL(ABS(Xi)).GT.0.99999999)THEN ! particle possible outside
@@ -990,7 +986,7 @@ __STAMP__&
          END IF
        END IF
      END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
     END IF
   ELSE ! particle at face,edge or node, check most possible point
     InElementCheck=.FALSE.
@@ -1167,7 +1163,7 @@ USE MOD_Globals                ,ONLY: MyRank,UNIT_stdout
 USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 USE MOD_Particle_Surfaces      ,ONLY: OutputBezierControlPoints
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3d
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Intersection  ,ONLY: OutputTrajectory
 #endif /*CODE_ANALYZE*/
 USE MOD_Particle_Vars          ,ONLY: LastPartPos
@@ -1427,6 +1423,8 @@ DO iLocSide = 1,6
           InElementCheckMortarNb = .TRUE.
           NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
           IF (NbElemID.LT.1) THEN
+            IPWRITE(*,*) 'PartState:', PartStateLoc(1:3)
+            IPWRITE(*,*) 'ElemID:', ElemID
             CALL abort(&
               __STAMP__ &
               ,'ERROR PartInsideQuad: Please increase the size of the halo region (HaloEpsVelo)!')
@@ -1642,17 +1640,19 @@ SUBROUTINE InitFIBGM()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GetRealArray,GetLogical
+USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,nTotalElems,nTotalBCSides, FindNeighbourElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: InitHALOMesh, AddHaloNodeData
 USE MOD_Particle_MPI_Vars      ,ONLY: printMPINeighborWarnings,printBezierControlPointsWarnings
 USE MOD_PICDepo_Vars           ,ONLY: CellLocNodes_Volumes, DepositionType
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_PICDepo_Vars           ,ONLY: ElemRadius2_sf,DepositionType,DoSFLocalDepoAtBounds
 USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
+USE MOD_Particle_Mesh_Tools    ,ONLY: BoundsOfElement
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1705,7 +1705,7 @@ END IF
 CALL GetElemAndSideType()
 
 StartT=PICLASTIME()
-#ifdef MPI
+#if USE_MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...'
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
 printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.FALSE.')
@@ -1716,7 +1716,7 @@ CALL InitHaloMesh()
 IF(.NOT.DoRefMapping)THEN
   CALL MarkAllBCSides()
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 IF(nTotalElems.GT.PP_nElems)THEN
   ALLOCATE(HaloElemToBGM(1:6,PP_nElems+1:nTotalElems))
@@ -1734,17 +1734,24 @@ IF(PartMPI%MPIROOT)THEN
    WRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
 END IF
 
+! Compute the element bounding boxes before the arrays might be reduced in RefMapping
+ALLOCATE(GEO%BoundsOfElem(1:2,1:3,1:nElems))
+DO iElem = 1, nElems
+  CALL BoundsOfElement(iElem,GEO%BoundsOfElem(1:2,1:3,iElem))
+END DO ! iElem = 1, nElems
+
+! Reduce the Bezier control point arrays for RefMapping, as only the boundary faces are required for this type of tracking
 IF(DoRefMapping)THEN
   IF(PartMPI%MPIROOT)THEN
      WRITE(UNIT_stdOut,'(A)') ' Reshaping arrays to reduced list...'
   END IF
-  ! remove inner BezierControlPoints3D and SlabNormals, usw.
-  CALL ReshapeBezierSides()
+  ! remove inner BezierControlPoints3D and SlabNormals, etc.
+  CALL ReShapeBezierSides()
   ! compute side origin and radius for all sides in PartBCSideList
   IF(PartMPI%MPIROOT)THEN
      WRITE(UNIT_stdOut,'(A)') ' GetSideOrigin and Radius..'
   END IF
-  ! remove inner BezierControlPoints3D and SlabNormals, usw.
+  ! remove inner BezierControlPoints3D and SlabNormals, etc.
   ALLOCATE( SideOrigin(1:3,1:nTotalBCSides) &
           , SideRadius(    1:nTotalBCSides) )
   CALL GetSideOriginAndRadius(nTotalBCSides,SideOrigin,SideRadius)
@@ -1763,6 +1770,9 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
     IF(PartMPI%MPIROOT)THEN
        WRITE(UNIT_stdOut,'(A)') ' GetShapeFunctionBCElems ...'
     END IF
+    IF(.NOT.DoRefMapping) CALL abort(&
+    __STAMP__&
+    ,'DoSFLocalDepoAtBounds=T only with DoRefMapping=T because the algorithm requires arrays that are only set for DoRefMapping=T!')
     CALL GetShapeFunctionBCElems()
   END IF
 END IF
@@ -1795,14 +1805,14 @@ IF (FindNeighbourElems) THEN
      WRITE(UNIT_stdOut,'(A)') ' Node-Neighbourhood ...'
   END IF
   CALL NodeNeighbourhood()
-#ifdef MPI
+#if USE_MPI
   IF(PartMPI%MPIROOT)THEN
      WRITE(UNIT_stdOut,'(A)') ' Node-Communication ...'
   END IF
   CALL BuildLocNodeToHaloNodeComm()
   ! calculate additional volumes and weightings for halo region if deposition type is "cell_volume_mean"
   IF (TRIM(DepositionType).EQ.'cell_volweight_mean') CALL AddHaloNodeData(CellLocNodes_Volumes)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END IF
 
 SDEALLOCATE(XiEtaZetaBasis)
@@ -1824,13 +1834,13 @@ IF(DoRefMapping) THEN
   DEALLOCATE( SideOrigin, SideRadius)
 END IF
 
-#ifdef MPI
+#if USE_MPI
 ! Output halo element info
 CalcHaloInfo = GETLOGICAL('CalcHaloInfo')
 IF(CalcHaloInfo)THEN
   CALL SetHaloInfo()
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_stdOut,'(A)')' ... DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -1859,13 +1869,13 @@ USE MOD_Particle_Vars        ,ONLY: manualtimestep
 USE MOD_Particle_Vars        ,ONLY: dt_part_ratio
 #endif
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis2D
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI         ,ONLY: InitHALOMesh
 USE MOD_Particle_Mesh_Vars   ,ONLY: FIBGMCellPadding
 USE MOD_PICDepo_Vars         ,ONLY: DepositionType, r_sf
 USE MOD_Particle_MPI_Vars    ,ONLY: PartMPI
 USE MOD_Particle_Mesh_Vars   ,ONLY: NbrOfCases,casematrix
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars        ,ONLY: RK_c,nRKStages
 #endif
@@ -1891,7 +1901,7 @@ INTEGER                          :: ALLOCSTAT
 INTEGER                          :: iProc
 REAL                             :: deltaT
 REAL                             :: globalDiag
-#ifdef MPI
+#if USE_MPI
 INTEGER                          :: ii,jj,kk,i,j
 INTEGER                          :: BGMCells,  m, CurrentProc, Cell, Procs
 INTEGER                          :: imin, imax, kmin, kmax, jmin, jmax
@@ -1907,21 +1917,21 @@ INTEGER                          :: tempproclist(0:PartMPI%nProcs-1)
 INTEGER                          :: Vec1(1:3), Vec2(1:3), Vec3(1:3)
 INTEGER                          :: ind, Shift(1:3), iCase
 INTEGER                          :: j_offset
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 INTEGER                          :: iStage
 #endif
 !===================================================================================================================================
 
 ! zeros
-#ifdef MPI
+#if USE_MPI
 ii=0
 jj=0
 kk=0
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
-#ifdef MPI
+#if USE_MPI
 ! allocate and initialize MPINeighbor
 ALLOCATE(PartMPI%isMPINeighbor(0:PartMPI%nProcs-1))
 PartMPI%isMPINeighbor(:) = .FALSE.
@@ -1931,7 +1941,7 @@ PartMPI%nMPINeighbors=0
 CALL InitPeriodicBC()
 
 ! deallocate stuff // required for dynamic load balance
-#ifdef MPI
+#if USE_MPI
 IF (ALLOCATED(GEO%FIBGM)) THEN
   DO iBGM=GEO%FIBGMimin,GEO%FIBGMimax
     DO jBGM=GEO%FIBGMjmin,GEO%FIBGMjmax
@@ -1945,7 +1955,7 @@ IF (ALLOCATED(GEO%FIBGM)) THEN
   END DO
   DEALLOCATE(GEO%FIBGM)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 !--- compute number of background cells in each direction
 !BGMimax = INT((GEO%xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
@@ -2005,7 +2015,7 @@ halo_eps = halo_eps*halo_eps_velo*deltaT*SafetyFactor !dt multiplied with maximu
 halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
 
-#ifdef MPI
+#if USE_MPI
 ! Check whether halo_eps is smaller than shape function radius
 IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   IF(halo_eps.LT.r_sf)THEN
@@ -2014,7 +2024,7 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
     CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
   END IF
 END IF
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 ! limit halo_eps to diagonal of bounding box
 globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 &
@@ -2030,7 +2040,7 @@ halo_eps2=halo_eps*halo_eps
 CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
 
 
-#ifdef MPI
+#if USE_MPI
 ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
 IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   ! and changed, tooo
@@ -2057,11 +2067,11 @@ IF (ALLOCSTAT.NE.0) THEN
   WRITE(*,'(A,6(I0,A))')'Problem allocating GEO%FIBGM(',BGMimin,':',BGMimax,',', &
                                                         BGMjmin,':',BGMjmax,',', &
                                                         BGMkmin,':',BGMkmax,')'
-#ifdef MPI
+#if USE_MPI
   iProc=PartMPI%MyRank
 #else
   iProc=0
-#endif /*MPI*/
+#endif /*USE_MPI*/
   CALL abort(&
 __STAMP__&
 , 'Problem allocating GEO%FIBGM!' )
@@ -2129,7 +2139,7 @@ END DO ! iElem
 
 !IF(mode.EQ.2) RETURN
 SWRITE(UNIT_stdOut,'(A)')' Building MPI-FIBGM ...'
-#ifdef MPI
+#if USE_MPI
 !--- MPI stuff for background mesh (FastinitBGM)
 BGMCells=0
 ALLOCATE(BGMCellsArray(1:(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3))
@@ -2566,7 +2576,7 @@ DO Cell=0, BGMCells-1
   END IF
 END DO !Cell
 DEALLOCATE(ReducedBGMArray, BGMCellsArray, CellProcList, GlobalBGMCellsArray, CellProcNum)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE GetFIBGM
 
@@ -3056,10 +3066,10 @@ __STAMP__& !wunderschoen!!!
 IF (SIZE(DummyBezierControlPoints3D).NE.SIZE(BezierControlPoints3D)) CALL abort(&
 __STAMP__&
 ,'size of DummyBezierControlPoionts3D and BezierControlPoints3D not equal!')
-DummyBezierControlPoints3d=BezierControlPoints3d
+DummyBezierControlPoints3d=BezierControlPoints3D
 DEALLOCATE(BezierControlPoints3D)
-ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
-BezierControlPoints3d=0.
+ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
+BezierControlPoints3D=0.
 IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__& !wunderschoen!!!
 ,'Could not allocate BezierControlPoints3D in ReshapeBezierSides')
@@ -3142,7 +3152,7 @@ BCInc=0
 newBCSideID=0
 DO iSide=1,nBCSides
   newBCSideID=newBCSideID+1
-  BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
+  BezierControlPoints3D(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
   SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
   SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
@@ -3154,7 +3164,7 @@ END DO ! iSide
 DO iSide=nBCSides+1,nSides+nPartPeriodicSides
   IF(BC(iSide).EQ.0) CYCLE
   newBCSideID=newBCSideID+1
-  BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
+  BezierControlPoints3D(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
   SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
   SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
@@ -3165,7 +3175,7 @@ END DO ! iSide
 
 DO iSide=nSides+nPartPeriodicSides+1,nTotalSides
   newBCSideID=newBCSideID+1
-  BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
+  BezierControlPoints3D(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
   SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
   SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
@@ -3763,9 +3773,9 @@ SUBROUTINE InitElemBoundingBox()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 !USE MOD_Particle_Surfaces,       ONLY:GetElemSlabNormalsAndIntervals
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI,            ONLY:ExchangeBezierControlPoints3d
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3777,10 +3787,10 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 #ifdef PARTICLES
-#ifdef MPI
+#if USE_MPI
 ! first communicate the bezierControlPoints (slave information is missing)
 CALL ExchangeBezierControlPoints3D()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*PARTICLES*/
 
 END SUBROUTINE InitElemBoundingBox
@@ -4418,7 +4428,7 @@ ELSE ! .NOT.DoRefMapping
           nTotalBCElems=nTotalBCElems+1
         END IF ! count only single
       END IF
-#ifdef MPI
+#if USE_MPI
       IF(SideID.GT.nSides)THEN ! halo elements
         IF(BC(SideID).NE.0)THEN
           IF(.NOT.IsTracingBCElem(iElem))THEN
@@ -4948,9 +4958,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,IsTracingBCElem,nTotalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: nPartSides
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalBCSides
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_HALO      ,ONLY: WriteParticlePartitionInformation
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -4964,10 +4974,10 @@ INTEGER                                  :: nBCElems,nBCelemsTot
 INTEGER                                  :: nPlanarRectangular, nPlanarNonRectangular,nPlanarCurved,nBilinear,nCurved
 INTEGER                                  :: nPlanarRectangularTot, nPlanarNonRectangularTot,nPlanarCurvedTot,nBilinearTot,nCurvedTot
 INTEGER                                  :: nLinearElems, nCurvedElems, nCurvedElemsTot
-#ifdef MPI
+#if USE_MPI
 INTEGER                                  :: nPlanarRectangularHalo, nPlanarNonRectangularHalo,nPlanarCurvedHalo, &
                                             nBilinearHalo,nCurvedHalo,nCurvedElemsHalo,nLinearElemsHalo,nBCElemsHalo
-#endif /*MPI*/
+#endif /*USE_MPI*/
 INTEGER                                  :: nLoop
 !===================================================================================================================================
 
@@ -4980,7 +4990,7 @@ nCurved                    = 0
 nBCElems                   = 0
 nCurvedElems               = 0
 nLinearElems               = 0
-#ifdef MPI
+#if USE_MPI
 nPlanarRectangularHalo     = 0
 nPlanarNonRectangularHalo  = 0
 nPlanarCurvedHalo          = 0
@@ -4989,7 +4999,7 @@ nCurvedHalo                = 0
 nCurvedElemsHalo           = 0
 nLinearElemsHalo           = 0
 nBCElemsHalo               = 0
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 DO iElem=1,nTotalElems
   ! count elements by type and in own and halo region
@@ -5002,7 +5012,7 @@ DO iElem=1,nTotalElems
     IF(IsTracingBCElem(iElem))THEN
       nBCElems=nBCElems+1
     END IF ! count only single
-#ifdef MPI
+#if USE_MPI
   ELSE
     IF(CurvedElem(iElem)) THEN
       nCurvedElemsHalo=nCurvedElemsHalo+1
@@ -5012,7 +5022,7 @@ DO iElem=1,nTotalElems
     IF(IsTracingBCElem(iElem))THEN
       nBCElemsHalo=nBCElemsHalo+1
     END IF ! count only single
-#endif /*MPI*/
+#endif /*USE_MPI*/
   END IF
 END DO
 nLoop = nTotalSides
@@ -5031,7 +5041,7 @@ DO iSide=1,nLoop
     CASE (CURVED)
       nCurved = nCurved+1
     END SELECT
-#ifdef MPI
+#if USE_MPI
   ELSE IF (iSide.GT.nPartSides) THEN
     SELECT CASE(SideType(iSide))
     CASE (PLANAR_RECT)
@@ -5045,11 +5055,11 @@ DO iSide=1,nLoop
     CASE (CURVED)
       nCurvedHalo = nCurvedHalo+1
     END SELECT
-#endif /*MPI*/
+#endif /*USE_MPI*/
   END IF
 END DO
 
-#ifdef MPI
+#if USE_MPI
 IF(MPIRoot) THEN
   CALL MPI_REDUCE(nPlanarRectangular   ,nPlanarRectangularTot   ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
   CALL MPI_REDUCE(nPlanarNonRectangular,nPlanarNonRectangularTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
@@ -5075,7 +5085,7 @@ nPlanarCurvedTot        =nPlanarCurved
 nCurvedTot              =nCurved
 nCurvedElemsTot         =nCurvedElems
 IF(DorefMapping) nBCElemstot=nBCElems
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar-rectangular     faces: ', nPlanarRectangulartot
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar-non-rectangular faces: ', nPlanarNonRectangulartot
@@ -5089,7 +5099,7 @@ END IF
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of (bi-)linear            elems: ', nGlobalElems-nCurvedElemsTot
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved                 elems: ', nCurvedElemsTot
 SWRITE(UNIT_StdOut,'(132("-"))')
-#ifdef MPI
+#if USE_MPI
 CALL WriteParticlePartitionInformation(nPlanarRectangular+nPlanarNonRectangular,nBilinear,nCurved+nPlanarCurved,                    &
                                        nPlanarRectangularHalo+nPlanarNonRectangularHalo,nBilinearHalo,nCurvedHalo+nPlanarCurvedHalo &
                                       ,nBCElems,nLinearElems,nCurvedElems,nBCElemsHalo,nLinearElemsHalo,nCurvedElemsHalo)
@@ -5206,13 +5216,13 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToElemGlob, PartElemToElemAndSide,nTotalElems,PartElemToSide,PartBCSideList &
                                  ,SidePeriodicType,ElemToGlobalElemID
-USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
 USE MOD_Mesh_Vars              ,ONLY: OffSetElem,BC,BoundaryType,MortarType
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideNormVec
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars               ,ONLY: OffSetElemMPI
-#endif /*MPI*/
+USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
+#endif /*USE_MPI*/
 USE MOD_Mesh_vars
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
@@ -5228,10 +5238,10 @@ INTEGER                       :: iElem,ilocSide,iMortar,ProcID,ilocSide2,iMortar
 INTEGER(KIND=8)               :: GlobalElemID
 LOGICAL                       :: found
 REAL                          :: Vec1(1:3)
-#ifdef MPI
+#if USE_MPI
 INTEGER                       :: iHaloElem
 INTEGER(KIND=8)               :: HaloGlobalElemID
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' BUILD MESH-CONNECTIVITY ... '
@@ -5254,11 +5264,11 @@ ElemToGlobalElemID=-1
 DO iElem=1,nTotalElems
   IF(iElem.LE.nElems)THEN
     ElemToGlobalElemID(iElem)=offSetElem+iElem
-#ifdef MPI
+#if USE_MPI
   ELSE
     ProcID=PartHaloElemToProc(NATIVE_PROC_ID,iElem)
     ElemToGlobalElemID(iElem)=offSetElemMPI(ProcID) + PartHaloElemToProc(NATIVE_ELEM_ID,iElem)
-#endif /*MPI*/
+#endif /*USE_MPI*/
   END IF
   DO ilocSide=1,6
     DO iMortar=1,4
@@ -5269,7 +5279,7 @@ DO iElem=1,nTotalElems
         PartElemToElemAndSide(iMortar,ilocSide,iElem)=INT(GlobalElemID-OffSetElem,4)
         CYCLE
       END IF
-#ifdef MPI
+#if USE_MPI
       ! neighbor element not found, hence, it can be a halo element
       DO iHaloElem=PP_nElems+1,nTotalElems
         ProcID=PartHaloElemToProc(NATIVE_PROC_ID,iHaloElem)
@@ -5280,7 +5290,7 @@ DO iElem=1,nTotalElems
           EXIT
         END IF
       END DO ! iHaloElem=1,nTotalElems
-#endif /*MPI*/
+#endif /*USE_MPI*/
     END DO ! iMortar=1,4
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
@@ -5427,31 +5437,39 @@ __STAMP__&
   END DO ! ilocSide=1,6
 END DO
 
-! check is working on CONFORM mesh!!!
-DO iElem=1,nTotalElems
-  DO ilocSide=1,6
-    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF(DoRefMapping)THEN
-      IF(SideID.LT.1) CYCLE
-    ELSE
-      IF(SideID.LE.0) CALL abort(&
+IF(nGlobalMortarSides.GT.0) THEN
+  SWRITE(UNIT_StdOut,*)
+  SWRITE(UNIT_StdOut,'(132("!"))')
+  SWRITE(*,*)'===> TODO TODO TODO: CHECKS for particle mesh do not work on NON-CONFORMING MESHES  !!!'
+  SWRITE(UNIT_StdOut,'(132("!"))')
+  SWRITE(UNIT_StdOut,*)
+ELSE
+  ! check is working on CONFORM mesh!!!
+  DO iElem=1,nTotalElems
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)    
+      IF(DoRefMapping)THEN
+        IF(SideID.LT.1) CYCLE
+      ELSE
+        IF(SideID.LE.0) CALL abort(&
 __STAMP__&
-       , ' Error in PartElemToSide! No SideID for side!. iElem,ilocSide',iElem,REAL(ilocSide))
-    END IF
-    IF(MortarType(1,SideID).NE.0) CYCLE
-    BCID=BC(SideID)
-    IF(BCID.NE.0)THEN
-      IF(BoundaryType(BCID,BC_TYPE).GT.1) CYCLE
-    END IF
-    IF(PartElemToElemAndSide(1,ilocSide,iElem).LT.1)THEN
-       CALL abort(&
-__STAMP__&
-      , ' Error in ElemConnectivity. Found no neighbor ElemID. iElem,ilocSide',iElem,REAL(ilocSide))
+         , ' Error in PartElemToSide! No SideID for side!. iElem,ilocSide',iElem,REAL(ilocSide))
       END IF
-  END DO ! ilocSide=1,6
-END DO
+      IF(MortarType(1,SideID).NE.0) CYCLE
+      BCID=BC(SideID)
+      IF(BCID.NE.0)THEN
+        IF(BoundaryType(BCID,BC_TYPE).GT.1) CYCLE
+      END IF
+      IF(PartElemToElemAndSide(1,ilocSide,iElem).LT.1)THEN
+         CALL abort(&
+__STAMP__&
+        , ' Error in ElemConnectivity. Found no neighbor ElemID. iElem,ilocSide',iElem,REAL(ilocSide))
+        END IF
+    END DO ! ilocSide=1,6
+  END DO
+END IF
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 #endif
 SWRITE(UNIT_stdOut,'(A)')' BUILD MESH-CONNECTIVITY SUCCESSFUL '
@@ -5470,11 +5488,11 @@ USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nNodes
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, PartElemToElemAndSide
 #ifdef CODE_ANALYZE
-#ifdef MPI
+#if USE_MPI
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Particle_MPI_Vars  ,ONLY: PartHaloElemToProc
 USE MOD_MPI_Vars           ,ONLY: offsetElemMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -5489,22 +5507,22 @@ TYPE tNodeToElem
 END TYPE
 TYPE(tNodeToElem)      :: TempNodeToElem(1:nNodes)
 INTEGER                :: TempElemsOnNode(1:nNodes)
-INTEGER                :: Element, iLocSide, k, l
+INTEGER                :: Element, iLocSide, k, l,iMortar
 LOGICAL                :: ElemExists
 INTEGER                :: iElem, jNode
 INTEGER                :: iNode
 INTEGER                :: TempHaloElems(1:500)
 INTEGER                :: TempHaloNumElems
-!#ifdef MPI
+!#if USE_MPI
 !LOGICAL                :: HaloNeighNode(1:nNodes)
-!#endif /*MPI*/
+!#endif /*USE_MPI*/
 LOGICAL                :: ElemDone
 REAL                   :: MPINodeCoord(3), ElemCoord(3)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' BUILD NODE-NEIGHBOURHOOD ... '
 
-!#ifdef MPI
+!#if USE_MPI
 !! set nodes of sides with halo element connected to it as HaloNeighNodes
 !GEO%HaloNeighNode(:) = .FALSE.
 !DO iElem=1,nElems
@@ -5523,7 +5541,7 @@ SWRITE(UNIT_stdOut,'(A)')' BUILD NODE-NEIGHBOURHOOD ... '
 !  END IF
 !END DO
 !#endif /*CODE_ANALYZE*/
-!#endif /*MPI*/
+!#endif /*USE_MPI*/
 
 ALLOCATE(GEO%NumNeighborElems(1:PP_nElems))
 ALLOCATE(GEO%ElemToNeighElems(1:PP_nElems))
@@ -5541,21 +5559,23 @@ DO iElem =1, PP_nElems
   ! now check every side for neighbours, add valid neighbour to corresponding array and proceed recursively until neighbourhood
   ! is finished
   DO iLocSide = 1, 6
-    ElemExists = .FALSE.
-    Element = PartElemToElemAndSide(1,iLocSide,iElem)
-    IF (Element.GT.0) THEN !side has neighbour element
-      DO l=1, TempHaloNumElems
-        IF(Element.EQ.TempHaloElems(l)) THEN
-          ElemExists=.TRUE.
-          EXIT
+    DO iMortar=1,4
+      ElemExists = .FALSE.
+      Element = PartElemToElemAndSide(iMortar,iLocSide,iElem)
+      IF (Element.GT.0) THEN !side has neighbour element
+        DO l=1, TempHaloNumElems
+          IF(Element.EQ.TempHaloElems(l)) THEN
+            ElemExists=.TRUE.
+            EXIT
+          END IF
+        END DO
+        IF (.NOT.ElemExists) THEN
+         TempHaloNumElems = TempHaloNumElems + 1
+          TempHaloElems(TempHaloNumElems) = Element
         END IF
-      END DO
-      IF (.NOT.ElemExists) THEN
-        TempHaloNumElems = TempHaloNumElems + 1
-        TempHaloElems(TempHaloNumElems) = Element
+        CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
       END IF
-      CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
-    END IF
+    END DO
   END DO
   IF (TempHaloNumElems.LE.0) CALL abort(&
 __STAMP__&
@@ -5651,7 +5671,7 @@ END DO
 #ifdef CODE_ANALYZE
 ! write some code analyze output of connectivity
 DO iElem=1,PP_nElems
-#ifdef MPI
+#if USE_MPI
   print*,'Rank: ',MyRank,'------ Element: ',iElem+offsetElem,' has ',GEO%NumNeighborElems(iElem),' Neighbours'
   print*,'Rank: ',MyRank,'------ Neighbours are:'
   DO l=1,GEO%NumNeighborElems(iElem)
@@ -5665,7 +5685,7 @@ DO iElem=1,PP_nElems
 #else
   print*,'Rank: ',MyRank,'------ Element: ',iElem,' has ',GEO%NumNeighborElems(iElem),' Neighbours'
   print*,'Rank: ',MyRank,'------ Neighbours are:',GEO%ElemToNeighElems(iElem)%ElemID(:)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END DO
 
 DO iNode=1,nNodes
@@ -5696,46 +5716,48 @@ INTEGER,INTENT(INOUT)  :: StartElem,HaloElem,TempHaloElems(1:500), TempHaloNumEl
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                :: iNode, jNode
-INTEGER                :: iLocSide, l
+INTEGER                :: iLocSide, l, iMortar
 INTEGER                :: currentElem
 LOGICAL                :: ElemExists, ElemDone
 REAL                   :: MPINodeCoord(3), ElemCoord(3)
 !===================================================================================================================================
 DO iLocSide = 1,6
-  ElemExists = .FALSE.
-  currentElem = PartElemToElemAndSide(1,iLocSide,HaloElem)
-  IF (currentElem.GT.0 .AND. currentElem.NE.StartElem) THEN
-  !IF (currentElem.GT.PP_nElems) THEN
-    DO l=1, TempHaloNumElems
-      IF(currentElem.EQ.TempHaloElems(l)) THEN
-        ElemExists=.TRUE.
-        EXIT
-      END IF
-    END DO
-    IF (.NOT.ElemExists) THEN
-      ElemDone = .FALSE.
-      DO iNode = 1, 8
-        DO jNode = 1, 8
-          MPINodeCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(jNode,currentElem))
-          ElemCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,StartElem))
-          IF(ALMOSTEQUAL(MPINodeCoord(1),ElemCoord(1)).AND.ALMOSTEQUAL(MPINodeCoord(2),ElemCoord(2)) &
-              .AND.ALMOSTEQUAL(MPINodeCoord(3),ElemCoord(3))) THEN
-            TempHaloNumElems = TempHaloNumElems + 1
-            TempHaloElems(TempHaloNumElems) = currentElem
-            ElemDone = .TRUE.
-            CALL RecurseCheckNeighElems(StartElem,currentElem,TempHaloNumElems,TempHaloElems)
-          END IF
+  DO iMortar=1,4
+    ElemExists = .FALSE.
+    currentElem = PartElemToElemAndSide(iMortar,iLocSide,HaloElem)
+    IF (currentElem.GT.0 .AND. currentElem.NE.StartElem) THEN
+    !IF (currentElem.GT.PP_nElems) THEN
+      DO l=1, TempHaloNumElems
+        IF(currentElem.EQ.TempHaloElems(l)) THEN
+          ElemExists=.TRUE.
+          EXIT
+        END IF
+      END DO
+      IF (.NOT.ElemExists) THEN
+        ElemDone = .FALSE.
+        DO iNode = 1, 8
+          DO jNode = 1, 8
+            MPINodeCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(jNode,currentElem))
+            ElemCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,StartElem))
+            IF(ALMOSTEQUAL(MPINodeCoord(1),ElemCoord(1)).AND.ALMOSTEQUAL(MPINodeCoord(2),ElemCoord(2)) &
+                .AND.ALMOSTEQUAL(MPINodeCoord(3),ElemCoord(3))) THEN
+              TempHaloNumElems = TempHaloNumElems + 1
+              TempHaloElems(TempHaloNumElems) = currentElem
+              ElemDone = .TRUE.
+              CALL RecurseCheckNeighElems(StartElem,currentElem,TempHaloNumElems,TempHaloElems)
+            END IF
+            IF (ElemDone) EXIT
+          END DO
           IF (ElemDone) EXIT
         END DO
-        IF (ElemDone) EXIT
-      END DO
+      END IF
     END IF
-  END IF
+  END DO
 END DO
 
 END SUBROUTINE RecurseCheckNeighElems
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE BuildLocNodeToHaloNodeComm()
 !===================================================================================================================================
 !> build all missing stuff for node communication, like
@@ -5995,7 +6017,7 @@ CALL MPI_BARRIER(PartMPI%Comm,iError)
 
 
 END SUBROUTINE BuildLocNodeToHaloNodeComm
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 SUBROUTINE DuplicateSlavePeriodicSides()
@@ -6073,9 +6095,13 @@ IF(.NOT.CartesianPeriodic .AND. GEO%nPeriodicVectors.GT.0)THEN
   DO iSide=1,nSides
     IF(SidePeriodicType(iSide).NE.0)THEN
       ! abort if particles are traced over mortar sides
-      IF(MortarSlave2MasterInfo(iSide).NE.-1.OR.MortarType(1,iSide).GE.0) CALL abort(&
-__STAMP__&
-      , ' Periodic tracing over mortar sides is not implemented!')
+      IF(MortarSlave2MasterInfo(iSide).NE.-1.OR.MortarType(1,iSide).GE.0) THEN
+        WRITE (*,*) "MortarSlave2MasterInfo(iSide) =", MortarSlave2MasterInfo(iSide)
+        WRITE (*,*) "MortarType(1,iSide)           =", MortarType(1,iSide)
+        CALL abort(&
+          __STAMP__&
+          , ' Periodic tracing over mortar sides is not implemented!')
+      END IF
       ! ignore MPI sides, these have NOT to be mirrored
       ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
       IF(ElemID.EQ.-1) THEN
@@ -6118,7 +6144,7 @@ IF(MapPeriodicSides)THEN
   ALLOCATE(DummyMortarSlave2MasterInfo(1:nTotalSides))
 
   ! copy data to backup
-  DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides) = BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides)
+  DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides) = BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nTotalSides)
   DummyBezierControlPoints3dElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nTotalSides) &
      = BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nTotalSides)
   DummySideSlabNormals(1:3,1:3,1:nTotalSides)                 = SideSlabNormals(1:3,1:3,1:nTotalSides)
@@ -6145,8 +6171,8 @@ IF(MapPeriodicSides)THEN
 
   tmpnSides  =nTotalSides
   nTotalSides=nTotalSides+nPartPeriodicSides
-  ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
-  BezierControlPoints3d=-1.
+  ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nTotalSides))
+  BezierControlPoints3D=-1.
   ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nTotalSides))
   BezierControlPoints3DElevated=-1.
   ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalSides))
@@ -6167,7 +6193,7 @@ IF(MapPeriodicSides)THEN
   SidePeriodicType=0
   !ALLOCATE(SidePeriodicDisplacement(1:3,1:nTotalSides))
 
-  BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:tmpnSides) = DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:tmpnSides)
+  BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:tmpnSides) = DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:tmpnSides)
   BezierControlPoints3dElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:tmpnSides) &
      = DummyBezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:tmpnSides)
   SideSlabNormals(1:3,1:3,1:tmpnSides)                 = DummySideSlabNormals(1:3,1:3,1:tmpnSides)
@@ -6246,22 +6272,22 @@ IF(MapPeriodicSides)THEN
       ! periodic displacement
       !DO q=0,NGeo
       !  DO p=0,NGeo
-      !    BezierControlPoints3d(1:3,p,q,newSideID)  = DummyBezierControlPoints3d(1:3,p,q,iSide) &
+      !    BezierControlPoints3D(1:3,p,q,newSideID)  = DummyBezierControlPoints3d(1:3,p,q,iSide) &
       !                                              + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
       !  END DO ! p=0,NGeo
       !END DO ! q=0,NGeo
       !! recompute quark
-      !CALL RotateMasterToSlave(flip,NBlocSideID,BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newSideID))
+      !CALL RotateMasterToSlave(flip,NBlocSideID,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,newSideID))
       DO idir=1,3
-        MinMax(1)=MINVAL(BezierControlPoints3d(iDir,:,:,newSideID))
-        MinMax(2)=MAXVAL(BezierControlPoints3d(iDir,:,:,newSideID))
+        MinMax(1)=MINVAL(BezierControlPoints3D(iDir,:,:,newSideID))
+        MinMax(2)=MAXVAL(BezierControlPoints3D(iDir,:,:,newSideID))
         ! this may be required a tolerance due to periodic displacement
         IF(.NOT.ALMOSTEQUALRELATIVE(MinMax(1),MinMaxGlob(iDir),1e-10))THEN
           IF(MinMax(1).LT.MinMaxGlob(iDir)) THEN
             IPWRITE(UNIT_stdOut,*) ' Min-comparison. MinValue, GlobalMin ', MinMax(1),MinMaxGlob(iDir)
             CALL abort(&
                 __STAMP__&
-                , ' BezierControlPoints3d is moved outside of minvalue of GEO%glob! Direction', iDir)
+                , ' BezierControlPoints3D is moved outside of minvalue of GEO%glob! Direction', iDir)
           END IF
         ELSE
           IF(printBezierControlPointsWarnings)THEN
@@ -6273,7 +6299,7 @@ IF(MapPeriodicSides)THEN
             IPWRITE(UNIT_stdOut,*) ' Max-comparison MaxValue, GlobalMax ', MinMax(2),MinMaxGlob(iDir+3)
             CALL abort(&
                 __STAMP__&
-                , ' BezierControlPoints3d is moved outside of maxvalue of GEO%glob! Direction', iDir)
+                , ' BezierControlPoints3D is moved outside of maxvalue of GEO%glob! Direction', iDir)
           END IF
         ELSE
           IF(printBezierControlPointsWarnings)THEN
@@ -6338,7 +6364,7 @@ __STAMP__&
   END DO
 END DO ! iElem=1,PP_nElems
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 #endif
 SWRITE(UNIT_StdOut,'(A)') ' Sanity check of duplication successful!'
@@ -6523,9 +6549,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Mesh_Vars              ,ONLY: MortarSlave2MasterInfo
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,nTotalSides
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -6575,7 +6601,7 @@ GEO%ymax=ymax
 GEO%zmin=zmin
 GEO%zmax=zmax
 
-#ifdef MPI
+#if USE_MPI
 ! get global min, max
   CALL MPI_ALLREDUCE(GEO%xmin, GEO%xminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
   CALL MPI_ALLREDUCE(GEO%ymin, GEO%yminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
@@ -6605,7 +6631,7 @@ SUBROUTINE GetSideOriginAndRadius(nTotalBCSides,SideOrigin,SideRadius)
 USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartBCSideList,nTotalSides
 USE MOD_Basis                  ,ONLY: DeCasteljauInterpolation
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3d
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -6633,7 +6659,7 @@ DO iSide=1,nTotalSides
   RadiusMax=0.
   DO q=0,NGeo
     DO p=0,NGeo
-      Vec(1:3) = BezierControlPoints3d(:,p,q,BCSideID)-Origin
+      Vec(1:3) = BezierControlPoints3D(:,p,q,BCSideID)-Origin
       Radius=DOT_PRODUCT(Vec,Vec)
       RadiusMax=MAX(RadiusMax,Radius)
     END DO ! p=0,NGeo
@@ -6698,7 +6724,7 @@ SUBROUTINE MarkAuxBCElems()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHasAuxBCs
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHasAuxBCs,GEO
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -6709,7 +6735,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,Aux
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                  :: iElem,iAuxBC,icoord,dir(3),positiontype,positiontype_tmp
-REAL                     :: r_vec(3),n_vec(3),fmin,fmax,Bounds(1:2,1:3),radius,BoundsBC(1:2,1:3)
+REAL                     :: r_vec(3),n_vec(3),fmin,fmax,radius,BoundsBC(1:2,1:3)
 REAL                     :: lmin,lmax,deltamin,deltamax,origin(2),halfangle
 LOGICAL                  :: cartesian, backwards
 !===================================================================================================================================
@@ -6725,39 +6751,40 @@ DO iAuxBC=1,nAuxBCs
     radius=AuxBC_plane(AuxBCMap(iAuxBC))%radius
     ! loop over all  elements
     DO iElem=1,PP_nElems
-      CALL BoundsOfElement(iElem,Bounds)
-      fmin=-DOT_PRODUCT(r_vec,n_vec)
-      fmax=fmin
-      DO icoord=1,3
-        IF (n_vec(icoord).GE.0) THEN
-          fmin = fmin + n_vec(icoord)*Bounds(1,icoord)
-          fmax = fmax + n_vec(icoord)*Bounds(2,icoord)
-        ELSE
-          fmin = fmin + n_vec(icoord)*Bounds(2,icoord)
-          fmax = fmax + n_vec(icoord)*Bounds(1,icoord)
+      ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+        fmin=-DOT_PRODUCT(r_vec,n_vec)
+        fmax=fmin
+        DO icoord=1,3
+          IF (n_vec(icoord).GE.0) THEN
+            fmin = fmin + n_vec(icoord)*Bounds(1,icoord)
+            fmax = fmax + n_vec(icoord)*Bounds(2,icoord)
+          ELSE
+            fmin = fmin + n_vec(icoord)*Bounds(2,icoord)
+            fmax = fmax + n_vec(icoord)*Bounds(1,icoord)
+          END IF
+        END DO
+        IF ((fmin.LE.0 .AND. fmax.GT.0).OR.(fmin.LT.0 .AND. fmax.GE.0)) THEN !plane intersects the box!
+          !radius check needs to be implemented (compute intersection polygon and minimum radii): would sort out further elements!!!
+          !quick, conservative solution: calculate bounding box of disc in space and compare with bb of element
+          ElemHasAuxBCs(iElem,iAuxBC)=.TRUE.
+          IF (radius .LT. 0.5*HUGE(radius)) THEN !huge was default
+            BoundsBC(1,1:3) = r_vec - radius * SQRT(1.-(n_vec*n_vec))
+            BoundsBC(2,1:3) = r_vec + radius * SQRT(1.-(n_vec*n_vec))
+            DO icoord=1,3
+              IF ( BoundsBC(2,icoord).LT.Bounds(1,icoord) .OR. BoundsBC(1,icoord).GT.Bounds(2,icoord) ) THEN
+                ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
+                EXIT
+              END IF
+            END DO
+          END IF
+        ELSE IF ((fmin.LT.0 .AND. fmax.LT.0).OR.(fmin.GT.0 .AND. fmax.GT.0)) THEN !plane does not intersect the box!
+          ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
+        ELSE !e.g. if elem has zero volume...
+          CALL abort(&
+            __STAMP__&
+            ,'Error in MarkAuxBCElems for AuxBC:',iAuxBC)
         END IF
-      END DO
-      IF ((fmin.LE.0 .AND. fmax.GT.0).OR.(fmin.LT.0 .AND. fmax.GE.0)) THEN !plane intersects the box!
-        !radius check needs to be implemented (compute intersection polygon and minimum radii): would sort out further elements!!!
-        !quick, conservative solution: calculate bounding box of disc in space and compare with bb of element
-        ElemHasAuxBCs(iElem,iAuxBC)=.TRUE.
-        IF (radius .LT. 0.5*HUGE(radius)) THEN !huge was default
-          BoundsBC(1,1:3) = r_vec - radius * SQRT(1.-(n_vec*n_vec))
-          BoundsBC(2,1:3) = r_vec + radius * SQRT(1.-(n_vec*n_vec))
-          DO icoord=1,3
-            IF ( BoundsBC(2,icoord).LT.Bounds(1,icoord) .OR. BoundsBC(1,icoord).GT.Bounds(2,icoord) ) THEN
-              ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
-              EXIT
-            END IF
-          END DO
-        END IF
-      ELSE IF ((fmin.LT.0 .AND. fmax.LT.0).OR.(fmin.GT.0 .AND. fmax.GT.0)) THEN !plane does not intersect the box!
-        ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
-      ELSE !e.g. if elem has zero volume...
-        CALL abort(&
-          __STAMP__&
-          ,'Error in MarkAuxBCElems for AuxBC:',iAuxBC)
-      END IF
+      END ASSOCIATE
     END DO
   CASE ('cylinder','cone')
     IF (TRIM(AuxBCType(iAuxBC)).EQ.'cylinder') THEN
@@ -6807,40 +6834,41 @@ DO iAuxBC=1,nAuxBCs
       origin(2) = r_vec(dir(3))
       ! loop over all  elements
       DO iElem=1,PP_nElems
-        CALL BoundsOfElement(iElem,Bounds)
-        ! check for lmin and lmax
-        IF ( r_vec(dir(1))+deltamax.LT.Bounds(1,dir(1)) .OR. r_vec(dir(1))+deltamin.GT.Bounds(2,dir(1)) ) THEN
-          ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
-        ELSE !between lmin and lmax
-          IF (TRIM(AuxBCType(iAuxBC)).EQ.'cylinder') THEN
-            CALL CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype)
-          ELSE !cone
-            !local minimum radius
-            IF (backwards) THEN
-              radius = MAX(-Bounds(2,dir(1))+r_vec(dir(1)),lmin)*TAN(halfangle)
-            ELSE
-              radius = MAX(Bounds(1,dir(1))-r_vec(dir(1)),lmin)*TAN(halfangle)
-            END IF
-            CALL CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype_tmp)
-            !local maximum radius
-            IF (backwards) THEN
-              radius = MIN(-Bounds(1,dir(1))+r_vec(dir(1)),lmax)*TAN(halfangle)
-            ELSE
-              radius = MIN(Bounds(2,dir(1))-r_vec(dir(1)),lmax)*TAN(halfangle)
-            END IF
-            CALL CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype)
-            !if both are type 0 or both are type 1 than the "total" type is not 2:
-            IF ( .NOT.(positiontype_tmp.EQ.0 .AND. positiontype.EQ.0) &
-              .AND. .NOT.(positiontype_tmp.EQ.1 .AND. positiontype.EQ.1) ) THEN
-              positiontype=2
-            END IF
-          END IF
-          IF (positiontype.EQ.2) THEN
-            ElemHasAuxBCs(iElem,iAuxBC)=.TRUE.
-          ELSE
+        ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+          ! check for lmin and lmax
+          IF ( r_vec(dir(1))+deltamax.LT.Bounds(1,dir(1)) .OR. r_vec(dir(1))+deltamin.GT.Bounds(2,dir(1)) ) THEN
             ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
-          END IF
-        END IF !check for lmin and lmax
+          ELSE !between lmin and lmax
+            IF (TRIM(AuxBCType(iAuxBC)).EQ.'cylinder') THEN
+              CALL CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype)
+            ELSE !cone
+              !local minimum radius
+              IF (backwards) THEN
+                radius = MAX(-Bounds(2,dir(1))+r_vec(dir(1)),lmin)*TAN(halfangle)
+              ELSE
+                radius = MAX(Bounds(1,dir(1))-r_vec(dir(1)),lmin)*TAN(halfangle)
+              END IF
+              CALL CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype_tmp)
+              !local maximum radius
+              IF (backwards) THEN
+                radius = MIN(-Bounds(1,dir(1))+r_vec(dir(1)),lmax)*TAN(halfangle)
+              ELSE
+                radius = MIN(Bounds(2,dir(1))-r_vec(dir(1)),lmax)*TAN(halfangle)
+              END IF
+              CALL CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype)
+              !if both are type 0 or both are type 1 than the "total" type is not 2:
+              IF ( .NOT.(positiontype_tmp.EQ.0 .AND. positiontype.EQ.0) &
+                .AND. .NOT.(positiontype_tmp.EQ.1 .AND. positiontype.EQ.1) ) THEN
+                positiontype=2
+              END IF
+            END IF
+            IF (positiontype.EQ.2) THEN
+              ElemHasAuxBCs(iElem,iAuxBC)=.TRUE.
+            ELSE
+              ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
+            END IF
+          END IF !check for lmin and lmax
+        END ASSOCIATE
       END DO !iElem
     END IF !cartesian
   CASE('parabol')
@@ -6854,95 +6882,6 @@ DO iAuxBC=1,nAuxBCs
 END DO
 
 END SUBROUTINE MarkAuxBCElems
-
-SUBROUTINE BoundsOfElement(ElemID,Bounds)
-!===================================================================================================================================
-! computes the min/max of element in xyz (Based on BGMIndexOfElement)
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,sVdm_Bezier
-USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo
-USE MOD_Mesh_Vars              ,ONLY: NGeo
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
-USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-INTEGER,INTENT(IN)        :: ElemID
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)          :: Bounds(1:2,1:3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                   :: ilocSide, SideID
-REAL                      :: xmin,xmax,ymin,ymax,zmin,zmax
-REAL                      :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
-!===================================================================================================================================
-
-xmin = HUGE(1.0)
-xmax =-HUGE(1.0)
-ymin = HUGE(1.0)
-ymax =-HUGE(1.0)
-zmin = HUGE(1.0)
-zmax =-HUGE(1.0)
-
-! get min,max of BezierControlPoints of Element
-DO iLocSide = 1,6
-  SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, ElemID)
-  IF(DoRefMapping)THEN
-    IF(SideID.GT.0)THEN
-      IF(PartElemToSide(E2S_FLIP,ilocSide,ElemID).EQ.0)THEN
-        BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-      ELSE
-        SELECT CASE(ilocSide)
-        CASE(XI_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,ElemID),BezierControlPoints3D_tmp)
-        CASE(XI_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,ElemID),BezierControlPoints3D_tmp)
-        CASE(ETA_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,ElemID),BezierControlPoints3D_tmp)
-        CASE(ETA_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,ElemID),BezierControlPoints3D_tmp)
-        CASE(ZETA_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,ElemID),BezierControlPoints3D_tmp)
-        CASE(ZETA_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,ElemID),BezierControlPoints3D_tmp)
-        END SELECT
-      END IF
-    ELSE
-      SELECT CASE(ilocSide)
-      CASE(XI_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,ElemID),BezierControlPoints3D_tmp)
-      CASE(XI_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,ElemID),BezierControlPoints3D_tmp)
-      CASE(ETA_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,ElemID),BezierControlPoints3D_tmp)
-      CASE(ETA_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,ElemID),BezierControlPoints3D_tmp)
-      CASE(ZETA_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,ElemID),BezierControlPoints3D_tmp)
-      CASE(ZETA_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,ElemID),BezierControlPoints3D_tmp)
-      END SELECT
-    END IF
-  ELSE ! pure tracing
-    BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-  END IF
-  xmin=MIN(xmin,MINVAL(BezierControlPoints3D_tmp(1,:,:)))
-  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D_tmp(1,:,:)))
-  ymin=MIN(ymin,MINVAL(BezierControlPoints3D_tmp(2,:,:)))
-  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D_tmp(2,:,:)))
-  zmin=MIN(zmin,MINVAL(BezierControlPoints3D_tmp(3,:,:)))
-  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D_tmp(3,:,:)))
-END DO ! ilocSide
-Bounds(:,1)=(/xmin,xmax/)
-Bounds(:,2)=(/ymin,ymax/)
-Bounds(:,3)=(/zmin,zmax/)
-
-END SUBROUTINE BoundsOfElement
 
 
 SUBROUTINE CheckBoundsWithCartRadius(Bounds,dir,origin,radius,positiontype)
@@ -7037,7 +6976,7 @@ END IF
 END SUBROUTINE CheckBoundsWithCartRadius
 
 
-#ifdef MPI
+#if USE_MPI
 !===================================================================================================================================
 !> For each rank an ElemData array 'ElemHaloInfo' is created, which contains information regarding the halo region of each rank
 !> ElemHaloInfo = 0: element not in list
@@ -7338,7 +7277,7 @@ SDEALLOCATE(HaloInfoMPIExchange%RecvRequest)
 SDEALLOCATE(HaloElemTargetProc)
 
 END SUBROUTINE SetHaloInfo
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 END MODULE MOD_Particle_Mesh

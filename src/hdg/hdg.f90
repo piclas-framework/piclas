@@ -73,7 +73,6 @@ CALL prms%CreateLogicalOption(  'OnlyPostProc'           , 'TODO-DEFINE-PARAMETE
 CALL prms%CreateLogicalOption(  'ExactLambda'            , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 
 CALL prms%CreateIntOption(      'HDG_N'                  , 'TODO-DEFINE-PARAMETER \nDefault: 2*N')
-CALL prms%CreateLogicalOption(  'HDG_MassOverintegration', 'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateIntOption(      'HDGskip'                , 'TODO-DEFINE-PARAMETER', '0')
 CALL prms%CreateIntOption(      'HDGSkipInit'            , 'TODO-DEFINE-PARAMETER', '0')
 CALL prms%CreateRealOption(     'HDGSkip_t0'             , 'TODO-DEFINE-PARAMETER', '0.')
@@ -93,8 +92,9 @@ USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Elem_Mat           ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
-USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides,SurfElem,SideToElem
+USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
+USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides,nMortarMPISides
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
 USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
 USE MOD_Equation_Vars      ,ONLY: eps0
@@ -102,7 +102,7 @@ USE MOD_Restart_Vars       ,ONLY: DoRestart
 USE MOD_Mesh_Vars          ,ONLY: DoSwapMesh
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_Basis              ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
-USE MOD_Interpolation_Vars ,ONLY: xGP,wBary
+USE MOD_FillMortar_HDG     ,ONLY: InitMortar_HDG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -111,16 +111,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,k,p,q,r,iElem,jElem,SideID
+INTEGER           :: i,j,k,r,iElem,SideID
 INTEGER           :: BCType,BCState,RegionID
 REAL              :: D(0:PP_N,0:PP_N)
-CHARACTER(LEN=40) :: DefStr
-REAL,ALLOCATABLE  :: SurfElem_HDGN(:,:,:)
-REAL,ALLOCATABLE  :: SurfElem_N(:,:,:)
-REAL,ALLOCATABLE  :: Fdiag_HDGN(:,:,:),Fdiag_N(:,:,:)
-REAL,ALLOCATABLE  :: Vdm_GaussHDGN_GaussN(:,:)
-REAL,ALLOCATABLE  :: Vdm_GaussN_GaussHDGN(:,:)
-REAL,ALLOCATABLE  :: xGP_HDGN(:),wGP_HDGN(:),wBary_HDGN(:)
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    SWRITE(*,*) "InitHDG already called."
@@ -139,6 +132,7 @@ IF (HDGSkip.GT.0) THEN
 ELSE
   HDGSkip=0
 END IF
+
 IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
   nonlinear = .true.
   NonLinSolver=GETINT('NonLinSolver','1')
@@ -189,18 +183,16 @@ maxIterCG=GETINT('maxIterCG','500')
 OnlyPostProc=GETLOGICAL('OnlyPostProc','.FALSE.')
 ExactLambda=GETLOGICAL('ExactLambda','.FALSE.')
 
-! Mass matrix overintegration
-HDG_MassOverintegration=GETLOGICAL('HDG_MassOverintegration','.FALSE.')
-IF(HDG_MassOverintegration)THEN
-  WRITE(DefStr,'(i4)') 2*(PP_N) ! randomly chosen
-  HDG_N=GETINT('HDG_N',DefStr)
-  IF(HDG_N.LT.PP_N)THEN
-    CALL abort(&
-        __STAMP__&
-        ,' Do NOT underintegrate!')
-  END IF
-END IF
+ALLOCATE(MaskedSide(1:nSides))
+MaskedSide=.FALSE.
 
+IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
+  IF(nMortarMPISides.GT.0) CALL abort( &
+  __STAMP__,&
+  "nMortarMPISides >0: HDG mortar MPI implementation relies on big sides having always only master sides (=> nMortarMPISides=0 )") 
+END IF !mortarMesh
+
+CALL InitMortar_HDG()
 
 !boundary conditions
 nDirichletBCsides=0
@@ -237,7 +229,8 @@ DO SideID=1,nBCSides
   CASE(2,4,5) !dirichlet
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
-  CASE(10,11) !Neumann,
+    MaskedSide(SideID)=.TRUE.
+  CASE(10,11) !Neumann, 
     nNeumannBCsides=nNeumannBCsides+1
     NeumannBC(nNeumannBCsides)=SideID
   END SELECT ! BCType
@@ -325,96 +318,6 @@ IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as on
   CALL Elem_Mat(INT(0,8))
 END IF
 
-ALLOCATE(Fdiag(nGP_face,nSides))
-
-IF(HDG_MassOverintegration)THEN
-  ALLOCATE(SurfElem_N(1,0:PP_N ,0:PP_N ))
-  ALLOCATE(SurfElem_HDGN(1,0:HDG_N,0:HDG_N))
-
-  ALLOCATE(Vdm_GaussHDGN_GaussN(0:PP_N ,0:HDG_N))
-  ALLOCATE(Vdm_GaussN_GaussHDGN(0:HDG_N,0:PP_N ))
-
-  ALLOCATE(Fdiag_HDGN(1,0:HDG_N,0:HDG_N))
-  ALLOCATE(Fdiag_N(1,0:PP_N,0:PP_N ))
-  ALLOCATE(xGP_HDGN(0:HDG_N))
-  ALLOCATE(wGP_HDGN(0:HDG_N))
-  ALLOCATE(wBary_HDGN(0:HDG_N))
-
-  CALL LegendreGaussNodesAndWeights(HDG_N,xGP_HDGN,wGP_HDGN)
-  CALL BarycentricWeights(HDG_N,xGP_HDGN,wBary_HDGN)
-
-  ! from Gauss (HDG_N) to Gauss (N)
-  CALL InitializeVandermonde(HDG_N,  PP_N, wBary_HDGN, xGP_HDGN, xGP     , Vdm_GaussHDGN_GaussN)
-
-  ! from Gauss (N) to Gauss (HDG_N)
-  CALL InitializeVandermonde(PP_N , HDG_N, wBary     , xGP     , xGP_HDGN, Vdm_GaussN_GaussHDGN)
-
-  DO SideID=1,nSides
-    DO q=0, PP_N; DO p=0, PP_N
-      SurfElem_N(1,p,q)=SurfElem(p,q,SideID)
-    END DO; END DO
-    WRITE (*,*) "SurfElem_N =", SurfElem_N
-    CALL ChangeBasis2D(1, PP_N, HDG_N, Vdm_GaussN_GaussHDGN , SurfElem_N(1:1,:,:), SurfElem_HDGN(1:1,:,:))
-    WRITE (*,*) "SurfElem_HDGN =", SurfElem_HDGN
-
-    DO q=0,HDG_N; DO p=0,HDG_N
-      Fdiag_HDGN(1,p,q)=SurfElem_HDGN(1,p,q)*wGP_HDGN(p)*wGP_HDGN(q) !*2.0 ! mit *2 ist es besser ?! bei N=1 und HDG_N=2
-    END DO; END DO !p,q
-    WRITE (*,*) "Fdiag_HDGN(1:1,:,:)      =", Fdiag_HDGN(1:1,:,:)
-    WRITE (*,*) "SUM(Fdiag_HDGN(1:1,:,:)) =", SUM(Fdiag_HDGN(1:1,:,:))
-    CALL ChangeBasis2D(1, HDG_N, PP_N, Vdm_GaussHDGN_GaussN , Fdiag_HDGN(1:1,:,:), Fdiag_N(1:1,:,:)) ! <---- defekt weil zu klein?
-
-    WRITE (*,*) "Fdiag_N(1:1,:,:)         =", Fdiag_N(1:1,:,:)
-    WRITE (*,*) "SUM(Fdiag_N(1:1,:,:)) =", SUM(Fdiag_N(1:1,:,:))
-    WRITE (*,*) "SUM(Fdiag_N(1:1,:,:))*2.0 =", SUM(Fdiag_N(1:1,:,:))*2.0
-    DO q=0,PP_N; DO p=0,PP_N
-      r=q*(PP_N+1)+p+1
-      Fdiag(r,SideID)=Fdiag_N(1,p,q)
-    END DO; END DO !p,q
-    WRITE (*,*) " "
-    WRITE (*,*) "----"
-    WRITE (*,*) "Side =", SideID,"Fdiag =", Fdiag(:,SideID)
-    !exit
-
-    iElem= SideToElem(S2E_ELEM_ID,SideID)
-    jElem= SideToElem(S2E_NB_ELEM_ID,SideID)
-    IF(jElem.EQ.-1)THEN
-      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(iElem)
-    ELSEIF(iElem.EQ.-1)THEN
-      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(jElem)
-    ELSE
-      Fdiag(:,SideID)=-Fdiag(:,SideID)*(Tau(iElem)+Tau(jElem))
-    END IF
-  END DO
-  SDEALLOCATE(SurfElem_N)
-  SDEALLOCATE(SurfElem_HDGN)
-  SDEALLOCATE(Vdm_GaussHDGN_GaussN)
-  SDEALLOCATE(Fdiag_HDGN)
-  SDEALLOCATE(Fdiag_N)
-  SDEALLOCATE(Vdm_GaussN_GaussHDGN)
-  SDEALLOCATE(xGP_HDGN)
-  SDEALLOCATE(wGP_HDGN)
-  SDEALLOCATE(wBary_HDGN)
-ELSE ! Standard mass matrix
-  DO SideID=1,nSides
-    DO q=0,PP_N; DO p=0,PP_N
-      r=q*(PP_N+1)+p+1
-      Fdiag(r,SideID)=SurfElem(p,q,SideID)*wGP(p)*wGP(q)
-    END DO; END DO !p,q
-    !WRITE (*,*) "Side =", SideID,"Fdiag =", Fdiag(:,SideID)
-    !WRITE (*,*) "SUM(Fdiag(:,SideID)) =", SUM(Fdiag(:,SideID))
-    !read*
-    iElem= SideToElem(S2E_ELEM_ID,SideID)
-    jElem= SideToElem(S2E_NB_ELEM_ID,SideID)
-    IF(jElem.EQ.-1)THEN
-      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(iElem)
-    ELSEIF(iElem.EQ.-1)THEN
-      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(jElem)
-    ELSE
-      Fdiag(:,SideID)=-Fdiag(:,SideID)*(Tau(iElem)+Tau(jElem))
-    END IF
-  END DO
-END IF
 
 CALL BuildPrecond()
 
@@ -493,11 +396,7 @@ USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars     ,ONLY: wGP
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Elem_Mat               ,ONLY: PostProcessGradient
-#ifdef MPI
-USE MOD_MPI_Vars
-USE MOD_MPI                    ,ONLY: FinishExchangeMPIData, StartReceiveMPIData,StartSendMPIData
-USE MOD_Mesh_Vars              ,ONLY: nMPISides,nMPIsides_YOUR,nMPIsides_MINE
-#endif /*MPI*/
+USE MOD_FillMortar_HDG         ,ONLY: SmallToBigMortar_HDG
 #if (PP_nVar==1)
 USE MOD_Equation_Vars          ,ONLY: E
 #elif (PP_nVar==3)
@@ -523,10 +422,6 @@ INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
 REAL    :: rtmp(nGP_vol)
 !LOGICAL :: converged
-#ifdef MPI
-REAL    :: RHS_face_buf( PP_nVar,nGP_Face,nMPISides_MINE)
-INTEGER :: startbuf,endbuf
-#endif /*MPI*/
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
@@ -651,8 +546,8 @@ DO iVar = 1, PP_nVar
                           rtmp,1,1.,& !add to RHS_face
                           RHS_face(iVar,:,SideID),1)
     END DO
-  END DO !iElem
-END DO
+  END DO !iElem 
+END DO !ivar
 
 !add Neumann
 DO BCsideID=1,nNeumannBCSides
@@ -674,22 +569,20 @@ END DO
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#ifdef MPI
-startbuf=nSides-nMPISides+1
-endbuf=nSides-nMPISides+nMPISides_MINE
-IF(nMPIsides_MINE.GT.0)RHS_face_buf=RHS_face(:,:,startbuf:endbuf)
-CALL StartReceiveMPIData(1,RHS_face,1,nSides,RecRequest_U ,SendID=2) ! Receive MINE
-CALL StartSendMPIData(   1,RHS_face,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-CALL FinishExchangeMPIData(SendRequest_U,     RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
-IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
-#endif /*MPI*/
+
+#if USE_MPI
+CALL Mask_MPIsides(PP_nVar,RHS_face)
+#endif /*USE_MPI*/
+CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
+
+
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 ! SOLVE
 DO iVar=1, PP_nVar
+
   CALL CG_solver(RHS_face(iVar,:,:),lambda(iVar,:,:),iVar)
   !POST PROCESSING
 
@@ -707,8 +600,8 @@ DO iVar=1, PP_nVar
     CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
                                -RHS_vol(iVar,:,iElem),1,0., &
                                U_out(iVar,:,iElem),1)
-  END DO !iElem
-END DO
+  END DO !iElem 
+END DO !iVar
 
 #if (PP_nVar==1)
   CALL PostProcessGradient(U_out(1,:,:),lambda(1,:,:),E)
@@ -748,31 +641,27 @@ SUBROUTINE HDGNewton(t,U_out,td_iter)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
+USE MOD_Equation               ,ONLY: CalcSourceHDG,ExactFunc
+USE MOD_FillMortar_HDG         ,ONLY: SmallToBigMortar_HDG
 #if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars, ONLY:DoPrintConvInfo
+USE MOD_LinearSolver_Vars      ,ONLY: DoPrintConvInfo
 #endif
-USE MOD_Equation_Vars,     ONLY:eps0
-USE MOD_Equation_Vars,     ONLY:chitens_face
-USE MOD_Mesh_Vars,         ONLY:Face_xGP,BoundaryType,nSides,BC!,Elem_xGP,Face_xGP
-USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
-USE MOD_Interpolation_Vars,ONLY:wGP
-USE MOD_Particle_Vars     ,ONLY:  RegionElectronRef
-USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
-USE MOD_Particle_Mesh_Vars,ONLY : GEO
-USE MOD_Elem_Mat          ,ONLY:PostProcessGradient, Elem_Mat,BuildPrecond
-USE MOD_Restart_Vars      ,ONLY: DoRestart,RestartTime
-#ifdef MPI
-USE MOD_MPI_Vars
-USE MOD_MPI,               ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,         ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
-#endif /*MPI*/
+USE MOD_Equation_Vars          ,ONLY: eps0
+USE MOD_Equation_Vars          ,ONLY: chitens_face
+USE MOD_Mesh_Vars              ,ONLY: Face_xGP,BoundaryType,nSides,BC
+USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
+USE MOD_Interpolation_Vars     ,ONLY: wGP
+USE MOD_Particle_Vars          ,ONLY:  RegionElectronRef
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Elem_Mat               ,ONLY: PostProcessGradient, Elem_Mat,BuildPrecond
+USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
 #if (PP_nVar==1)
-USE MOD_Equation_Vars,     ONLY:E
+USE MOD_Equation_Vars          ,ONLY: E
 #endif
-USE MOD_TimeDisc_Vars,     ONLY:IterDisplayStep,DoDisplayIter
+USE MOD_TimeDisc_Vars          ,ONLY: IterDisplayStep,DoDisplayIter
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -791,10 +680,6 @@ REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
 REAL    :: rtmp(nGP_vol),Norm_r2!,Norm_r2_old
 LOGICAL :: converged, beLinear
 LOGICAL :: warning_linear
-#ifdef MPI
-REAL    :: RHS_face_buf( PP_nVar,nGP_Face,nMPISides_MINE)
-INTEGER :: startbuf,endbuf
-#endif /*MPI*/
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
@@ -892,21 +777,17 @@ END DO
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#ifdef MPI
-  startbuf=nSides-nMPISides+1
-  endbuf=nSides-nMPISides+nMPISides_MINE
-  IF(nMPIsides_MINE.GT.0)RHS_face_buf=RHS_face(:,:,startbuf:endbuf)
-  CALL StartReceiveMPIData(1,RHS_face,1,nSides,RecRequest_U ,SendID=2) ! Receive MINE
-  CALL StartSendMPIData(   1,RHS_face,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-  CALL FinishExchangeMPIData(SendRequest_U,     RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-  IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
-  IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
-#endif /*MPI*/
+#if USE_MPI
+CALL Mask_MPISides(PP_nVar,RHS_Face)
+#endif /*USE_MPI*/
+CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
+
 #if USE_LOADBALANCE
-  CALL LBSplitTime(LB_DGCOMM,tLBStart)
+CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-! SOLVE
+
+! SOLVE 
 CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
 IF (converged) THEN
 #if defined(IMPA) || defined(ROS)
@@ -1034,16 +915,10 @@ ELSE
     END DO
 
 
-#ifdef MPI
-    startbuf=nSides-nMPISides+1
-    endbuf=nSides-nMPISides+nMPISides_MINE
-    IF(nMPIsides_MINE.GT.0)RHS_face_buf=RHS_face(:,:,startbuf:endbuf)
-    CALL StartReceiveMPIData(1,RHS_face,1,nSides,RecRequest_U ,SendID=2) ! Receive MINE
-    CALL StartSendMPIData(   1,RHS_face,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-    CALL FinishExchangeMPIData(SendRequest_U,     RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-    IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
-    IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
-#endif /*MPI*/
+#if USE_MPI
+  CALL Mask_MPIsides(PP_nVar,RHS_face)
+#endif /*USE_MPI*/
+  CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
 
     ! SOLVE
     CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
@@ -1074,8 +949,8 @@ ELSE
         SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
         CALL DGEMV('T',nGP_face,nGP_vol,1., &
                             Ehat(:,:,iLocSide,iElem), nGP_face, &
-                            lambda(PP_nVar,:,SideID),1,1.,& !add to RHS_face
-                            RHS_vol(PP_nVar,:,iElem),1)
+                            lambda(PP_nVar,:,SideID),1,1.,& !add to RHS_vol 
+                            RHS_vol(PP_nVar,:,iElem),1)  
       END DO
       CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
                                  -RHS_vol(PP_nVar,:,iElem),1,0., &
@@ -1118,23 +993,23 @@ REAL, INTENT(OUT) :: Norm_r2
 REAL,DIMENSION(nGP_face*nSides) :: R
 INTEGER                         :: VecSize
 !===================================================================================================================================
-#ifdef MPI
+#if USE_MPI
 ! not use MPI_YOUR sides for vector_dot_product!!!
   VecSize=(nSides-nMPIsides_YOUR)*nGP_face
 #else
   VecSize=nSides*nGP_face
-#endif /*MPI*/
+#endif /*USE_MPI*/
   CALL EvalResidual(RHS,lambda,R)
 
   CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
 !  print*, Norm_R2
 !  read*
-#ifdef MPI
+#if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.EpsNonLinear**2)
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 #else
   converged=(Norm_R2.LT.EpsNonLinear**2)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END SUBROUTINE CheckNonLinRes
 
 SUBROUTINE CG_solver(RHS,lambda,iVar)
@@ -1144,9 +1019,10 @@ SUBROUTINE CG_solver(RHS,lambda,iVar)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_HDG_Vars           ,ONLY: nGP_face
-USE MOD_HDG_Vars           ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG
-USE MOD_Mesh_Vars          ,ONLY: nSides,nMPISides_YOUR
+USE MOD_HDG_Vars      ,ONLY: nGP_face
+USE MOD_HDG_Vars      ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG
+USE MOD_TimeDisc_Vars ,ONLY: iter,IterDisplayStep
+USE MOD_Mesh_Vars     ,ONLY: nSides,nMPISides_YOUR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1161,20 +1037,22 @@ INTEGER, INTENT(INOUT),OPTIONAL::iVar
 REAL,DIMENSION(nGP_face*nSides) :: V,Z,R
 REAL                            :: AbortCrit2
 REAL                            :: omega,rr,vz,rz1,rz2,Norm_r2
-REAL                            :: timestartCG
-INTEGER                         :: iter
+REAL                            :: timestartCG,timeEndCG
+INTEGER                         :: iteration
 INTEGER                         :: VecSize
 LOGICAL                         :: converged
 !===================================================================================================================================
-!SWRITE(UNIT_StdOut,'(132("-"))')
-!SWRITE(*,*)'CG solver start'
+IF(MOD(iter,IterDisplayStep).EQ.0) THEN
+  SWRITE(UNIT_StdOut,'(132("-"))')
+  SWRITE(*,*)'CG solver start'
+END IF
 TimeStartCG=PICLASTIME()
-#ifdef MPI
+#if USE_MPI
 ! not use MPI_YOUR sides for vector_dot_product!!!
 VecSize=(nSides-nMPIsides_YOUR)*nGP_face
 #else
 VecSize=nSides*nGP_face
-#endif /*MPI*/
+#endif /*USE_MPI*/
 IF(PRESENT(iVar)) THEN
   CALL EvalResidual(RHS,lambda,R,iVar)
 ELSE
@@ -1183,19 +1061,19 @@ END IF
 
 CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
 IF(useRelativeAbortCrit)THEN
-#ifdef MPI
+#if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.1e-16)
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 #else
   converged=(Norm_R2.LT.1e-16)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ELSE
-#ifdef MPI
+#if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.EpsCG**2)
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 #else
   converged=(Norm_R2.LT.EpsCG**2)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END IF
 IF(converged) THEN !converged
 !  SWRITE(*,*)'CG not needed, residual already =0'
@@ -1215,7 +1093,7 @@ CALL VectorDotProduct(VecSize,R(1:VecSize),V(1:VecSize),rz1) !Z=V
 ! Conjugate Gradient
 !IF(MPIroot) print*, '!!!!!!!!!!!!!!!!!!!!!!'
 !IF(MPIroot) print*, iVar
-DO iter=1,MaxIterCG
+DO iteration=1,MaxIterCG
   ! matrix vector
   IF(PRESENT(iVar)) THEN
     CALL MatVec(V,Z, iVar)
@@ -1230,27 +1108,29 @@ DO iter=1,MaxIterCG
   lambda=lambda+omega*V
   R=R-omega*Z
   CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),rr)
-#ifdef MPI
+#if USE_MPI
   IF(MPIroot) converged=(rr.LT.AbortCrit2)
 !  IF(MPIroot) print*, rr, AbortCrit2
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 #else
   converged=(rr.LT.AbortCrit2)
-#endif /*MPI*/
+#endif /*USE_MPI*/
   IF(converged) THEN !converged
-!    TimeEndCG=PICLASTIME()
-!    SWRITE(UNIT_StdOut,'(A,X,I16)')   '#iterations        :',iter
-!    SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime         [s]:',(TimeEndCG-TimeStartCG)
-!    SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iter    [s]:', (TimeEndCG-TimeStartCG)/REAL(iter)
-!    SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iter/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iter*PP_nElems*nGP_vol)
-!    CALL EvalResidual(RHS,lambda,R)
-!    CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
-!    SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'Final Residual     :',SQRT(Norm_R2)
-!    SWRITE(UNIT_StdOut,'(132("-"))')
+    TimeEndCG=PICLASTIME()
+    CALL EvalResidual(RHS,lambda,R)
+    CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
+    IF(MOD(iter,IterDisplayStep).EQ.0) THEN
+      SWRITE(UNIT_StdOut,'(A,X,I16)')      '#iterations          :',iteration
+      SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime           [s]:',(TimeEndCG-TimeStartCG)
+      SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime/iteration [s]:', (TimeEndCG-TimeStartCG)/REAL(iteration)
+!      SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iteration/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iteration*PP_nElems*nGP_vol)
+      SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'Final Residual       :',SQRT(Norm_R2)
+      SWRITE(UNIT_StdOut,'(132("-"))')
+    END IF
     RETURN
   END IF !converged
-  IF (MOD(iter , MAX(INT(REAL(MaxIterCG)/REAL(OutIterCG)),1) ).EQ.0) THEN
-    SWRITE(*,'(2(A,I0),2(A,G0))') 'CG solver reached ',iter, ' of ',MaxIterCG, ' iterations with res = ',rr, ' > ',AbortCrit2
+  IF (MOD(iteration , MAX(INT(REAL(MaxIterCG)/REAL(OutIterCG)),1) ).EQ.0) THEN
+    SWRITE(*,'(2(A,I0),2(A,G0))') 'CG solver reached ',iteration, ' of ',MaxIterCG, ' iterations with res = ',rr, ' > ',AbortCrit2
   END IF
 
   IF(PrecondType.NE.0) THEN
@@ -1261,8 +1141,8 @@ DO iter=1,MaxIterCG
   CALL VectorDotProduct(VecSize,R(1:VecSize),Z(1:VecSize),rz2)
   V=Z+(rz2/rz1)*V
   rz1=rz2
-END DO ! iter
-SWRITE(*,*)'CG solver not converged in ',iter, 'iterations!!'
+END DO ! iteration
+SWRITE(*,*)'CG solver not converged in ',iteration, 'iterations!!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE CG_solver
@@ -1316,17 +1196,24 @@ END SUBROUTINE EvalResidual
 
 SUBROUTINE MatVec(lambda, mv, iVar)
 !===================================================================================================================================
-! Performs matrix-vector multiplication for lambda system
+!> Performs matrix-vector multiplication for lambda system
+!>   Parallel Mortar concept:
+!>   1) MORTAR, BigToSmall: interpolate lambda from  big to small (small master sides)
+!>   2) send lambda from master MPI sides to slave MPI sides (includes small mortar master sides)
+!>   3) compute matrix-vector product locally on each proc, in mv array
+!>   4) call mask_MPIsides: send  mv contribution from slave MPI sides to master MPI sides and add to master MPI sides
+!>   5) MORTAR, SmallToBig: add contribution of finalized small mortar sides to big mortar, via Transpose of interpolation operator 
 !===================================================================================================================================
 ! MODULES
-USE MOD_HDG_Vars           ,ONLY: Smat,Fdiag, nGP_face
-USE MOD_HDG_Vars           ,ONLY: nDirichletBCSides,DirichletBC
-USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide
-#ifdef MPI
+USE MOD_Globals
+USE MOD_HDG_Vars       ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC
+USE MOD_Mesh_Vars      ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
+USE MOD_FillMortar_HDG ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
+#if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
-#endif /*MPI*/
+USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_HDG_Vars       ,ONLY: Mask_MPIsides 
+#endif /*USE_MPI*/ 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1341,24 +1228,18 @@ INTEGER, INTENT(INOUT),OPTIONAL::iVar
 INTEGER :: firstSideID, lastSideID
 INTEGER :: BCsideID,SideID, ElemID, locSideID
 INTEGER :: jLocSide,jSideID(6)
-#ifdef MPI
-REAL    :: mvbuf(nGP_Face,nMPISides_MINE)
-INTEGER :: startbuf,endbuf
-#endif /*MPI*/
 !===================================================================================================================================
-#ifdef MPI
-CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive MINE
-CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send YOUR
-#endif /*MPI*/
+
+CALL BigToSmallMortar_HDG(1,lambda)
+
+#if USE_MPI
+CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+#endif /*USE_MPI*/
 
 
-#ifdef MPI
 firstSideID = 1
 lastSideID = nSides-nMPIsides_YOUR
-#else
-firstSideID = 1
-lastSideID = nSides
-#endif /*MPI*/
 
 mv=0.
 
@@ -1388,10 +1269,10 @@ DO SideID=firstSideID,lastSideID
     END DO !jLocSide
   END IF !locSideID.NE.-1
   !add mass matrix
-  mv(:,SideID)=mv(:,SideID)-Fdiag(:,SideID)*lambda(:,SideID)
 END DO ! SideID=1,nSides
+!SWRITE(*,*)'DEBUG---------------------------------------------------------'
 
-#ifdef MPI
+#if USE_MPI
 ! Finish lambda communication
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 
@@ -1423,24 +1304,16 @@ DO SideID=firstSideID,lastSideID
     END DO !jLocSide
   END IF !locSideID.NE.-1
   !add mass matrix
-  mv(:,SideID)=mv(:,SideID)-Fdiag(:,SideID)*lambda(:,SideID)
 END DO ! SideID=1,nSides
 
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 
-#ifdef MPI
-startbuf=nSides-nMPISides+1
-endbuf=nSides-nMPISides+nMPISides_MINE
-IF(nMPIsides_MINE.GT.0)mvbuf=mv(:,startbuf:endbuf)
-CALL StartReceiveMPIData(1,mv,1,nSides,RecRequest_U ,SendID=2)  ! Receive MINE
-CALL StartSendMPIData(   1,mv,1,nSides,SendRequest_U,SendID=2)  ! Send YOUR
-CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-IF(nMPIsides_MINE.GT.0) mv(:,startbuf:endbuf)=mv(:,startbuf:endbuf)+mvbuf
-IF(nMPIsides_YOUR.GT.0) mv(:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
-#endif /*MPI*/
-
+#if USE_MPI
+CALL Mask_MPIsides(1,mv)
+#endif /*USE_MPI*/
+CALL SmallToBigMortar_HDG(1,mv)
 
 #if (PP_nVar!=1)
 IF (iVar.EQ.4) THEN
@@ -1453,6 +1326,9 @@ END DO ! SideID=1,nSides
 END IF
 #endif
 
+! Suppress compiler warning
+RETURN
+iVar=0
 
 END SUBROUTINE MatVec
 
@@ -1477,7 +1353,7 @@ REAL,INTENT(OUT)  :: Resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i
-#ifdef MPI
+#if USE_MPI
 REAL              :: ResuSend
 #endif
 !===================================================================================================================================
@@ -1487,7 +1363,7 @@ DO i=1,dim1
   Resu=Resu + A(i)*B(i)
 END DO
 
-#ifdef MPI
+#if USE_MPI
   ResuSend=Resu
   CALL MPI_ALLREDUCE(ResuSend,Resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
@@ -1501,14 +1377,11 @@ SUBROUTINE ApplyPrecond(R, V)
 ! Apply the block-diagonal preconditioner for the lambda system
 !===================================================================================================================================
 ! MODULES
-USE MOD_HDG_Vars           ,ONLY: nGP_face, Precond, PrecondType,InvPrecondDiag
-USE MOD_Mesh_Vars          ,ONLY: nSides
-#ifdef MPI
-USE MOD_MPI_Vars
-USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:nMPIsides_YOUR
-#endif /*MPI*/
-
+USE MOD_Globals
+USE MOD_HDG_Vars  ,ONLY: nGP_face, Precond, PrecondType,InvPrecondDiag
+USE MOD_HDG_Vars  ,ONLY: MaskedSide
+USE MOD_Mesh_Vars ,ONLY: nSides
+USE MOD_Mesh_Vars ,ONLY: nMPIsides_YOUR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1524,26 +1397,30 @@ INTEGER :: firstSideID, lastSideID, SideID, igf
 
 
 firstSideID = 1
-#ifdef MPI
 lastSideID = nSides-nMPIsides_YOUR
-#else
-lastSideID = nSides
-#endif /*MPI*/
 
 SELECT CASE(PrecondType)
 CASE(0)
   ! do nothing, should not be called
 CASE(1) !apply side-block SPD Preconditioner matrix, already Cholesky decomposed
   DO SideID=firstSideID,lastSideID
-    ! solve the preconditioner linear system
-    call solveSPD(nGP_face,Precond(:,:,SideID),1,R(:,SideID), V(:,SideID))
+    IF(MaskedSide(sideID)) THEN
+      V(:,SideID)=0.
+    ELSE
+      ! solve the preconditioner linear system
+      CALL solveSPD(nGP_face,Precond(:,:,SideID),1,R(:,SideID), V(:,SideID))
+    END IF !maskedSide
   END DO ! SideID=1,nSides
 CASE(2)
   DO SideID=firstSideID,lastSideID
-    ! apply inverse of diagonal preconditioner
-    DO igf = 1, nGP_face
-      V(igf, SideID) = InvPrecondDiag(igf,SideID)*R(igf,SideID)
-    END DO ! igf
+    IF(MaskedSide(sideID)) THEN
+      V(:,SideID)=0.
+    ELSE
+      ! apply inverse of diagonal preconditioner
+      DO igf = 1, nGP_face
+        V(igf, SideID) = InvPrecondDiag(igf,SideID)*R(igf,SideID)
+      END DO ! igf
+    END IF !maskedSide
   END DO ! SideID=1,nSides
 END SELECT ! PrecondType
 
@@ -1594,9 +1471,9 @@ USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Elem_Mat          ,ONLY:PostProcessGradient
 USE MOD_Basis              ,ONLY: getSPDInverse, GetInverse
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #if (PP_nVar==1)
 USE MOD_Equation_Vars,     ONLY:E
 #elif (PP_nVar==3)
@@ -1610,8 +1487,6 @@ IMPLICIT NONE
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifdef MPI
-#endif /*MPI*/
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
@@ -1645,7 +1520,6 @@ END SUBROUTINE RestartHDG
 #endif /* PP_HDG*/
 
 
-
 SUBROUTINE FinalizeHDG()
 !===================================================================================================================================
 ! Finalizes variables necessary for hdg subroutines
@@ -1676,11 +1550,13 @@ SDEALLOCATE(JwGP_vol)
 SDEALLOCATE(Ehat)
 SDEALLOCATE(Smat)
 SDEALLOCATE(Tau)
-SDEALLOCATE(Fdiag)
 SDEALLOCATE(lambda)
 SDEALLOCATE(RHS_vol)
 SDEALLOCATE(Precond)
 SDEALLOCATE(InvPrecondDiag)
+SDEALLOCATE(MaskedSide)
+SDEALLOCATE(SmallMortarInfo)
+SDEALLOCATE(IntMatMortar)
 END SUBROUTINE FinalizeHDG
 
 

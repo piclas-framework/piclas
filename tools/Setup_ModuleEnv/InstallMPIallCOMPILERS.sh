@@ -39,10 +39,19 @@ if [ ${WHICHCOMPILER} == gcc ] || [ ${WHICHCOMPILER} == intel ]; then
     COMPILERVERSION=$(ls ${MODULESDIR}/compilers/${WHICHCOMPILER}/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n ${i} | tail -n 1)
     MPIMODULEFILEDIR=${MODULESDIR}/MPI/${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}
     MPIMODULEFILE=${MPIMODULEFILEDIR}/${COMPILERVERSION}
+    if [[ -n ${1} ]]; then
+      if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MPIMODULEFILE} ]]; then
+        rm ${MPIMODULEFILE}
+      fi
+    fi
     # if no mpi module for this compiler found, install ${WHICHMPI} and create module
     if [ ! -e ${MPIMODULEFILE} ]; then
       echo "creating ${WHICHMPI}-${MPIVERSION} for ${WHICHCOMPILER}-${COMPILERVERSION}"
       module purge
+      if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION}) ]]; then
+        echo "module ${WHICHCOMPILER}/${COMPILERVERSION} not found "
+        break
+      fi
       module load ${WHICHCOMPILER}/${COMPILERVERSION}
 
       # build and installation
@@ -70,6 +79,9 @@ if [ ${WHICHCOMPILER} == gcc ] || [ ${WHICHCOMPILER} == intel ]; then
       if [ ! -e ${SOURCEDIR}/${WHICHMPI}-${MPIVERSION}/build_${WHICHCOMPILER}-${COMPILERVERSION} ]; then
         mkdir -p ${SOURCEDIR}/${WHICHMPI}-${MPIVERSION}/build_${WHICHCOMPILER}-${COMPILERVERSION}
       fi
+      if [[ ${1} =~ ^-r(erun)?$ ]] ; then
+        rm ${SOURCEDIR}/${WHICHMPI}-${MPIVERSION}/build_${WHICHCOMPILER}-${COMPILERVERSION}/* 
+      fi
       cd ${SOURCEDIR}/${WHICHMPI}-${MPIVERSION}/build_${WHICHCOMPILER}-${COMPILERVERSION}
 
       if [ ${WHICHCOMPILER} == gcc ]; then
@@ -77,7 +89,7 @@ if [ ${WHICHCOMPILER} == gcc ] || [ ${WHICHCOMPILER} == intel ]; then
       elif [ ${WHICHCOMPILER} == intel ]; then
         ../configure --prefix=${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION} CC=$(which icc) CXX=$(which icpc) FC=$(which ifort)
       fi
-      make -j 2>&1 | tee make.out
+      make -j 2 2>&1 | tee make.out
       make install 2>&1 | tee install.out
 
       # create modulefile if installation seems succesfull (check if mpicc, mpicxx, mpifort exists in installdir)
@@ -86,10 +98,10 @@ if [ ${WHICHCOMPILER} == gcc ] || [ ${WHICHCOMPILER} == intel ]; then
           mkdir -p ${MPIMODULEFILEDIR}
         fi
         cp ${MODULETEMPLATESDIR}/MPI/${MODULETEMPLATENAME} ${MPIMODULEFILE}
-        sed -i 's/whichcompiler/'${WHICHCOMPILER}'/g' ${MPIMODULEFILE}
-        sed -i 's/compilerversion/'${COMPILERVERSION}'/g' ${MPIMODULEFILE}
-        sed -i 's/whichmpi/'${WHICHMPI}'/g' ${MPIMODULEFILE}
-        sed -i 's/mpiversion/'${MPIVERSION}'/g' ${MPIMODULEFILE}
+        sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MPIMODULEFILE}
+        sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MPIMODULEFILE}
+        sed -i 's/whichmpi/'${WHICHMPI}'/gI' ${MPIMODULEFILE}
+        sed -i 's/mpiversion/'${MPIVERSION}'/gI' ${MPIMODULEFILE}
       else
         echo "No module file created for ${WHICHMPI}-${MPIVERSION} for ${WHICHCOMPILER}-${COMPILERVERSION}"
         echo "No mpi found in ${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION}/bin"

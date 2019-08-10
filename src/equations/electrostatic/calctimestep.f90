@@ -100,9 +100,9 @@ DO iElem=1,PP_nElems
         ,'Convective timestep NaN!',999,999.)
   END IF
 END DO ! iElem
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(locTimeStepConv,TimeStepConv,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 CalcTimeStep=TimeStepConv
 END FUNCTION CALCTIMESTEP
 

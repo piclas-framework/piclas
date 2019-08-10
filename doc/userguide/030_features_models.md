@@ -772,3 +772,90 @@ Example: The simulation end time is $T_\mathrm{end}=1$ with a time step of $\Del
 ### Integral Variables
 
 PartAnalyze/FieldAnalyze
+
+### Element-constant properties
+The determined properties are given by a single value within each cell.
+
+#### Analysis of particle properties via *Particle Analyze*
+
+**Plasma Frequency**
+The (cold) plasma frequency can be calculated via
+
+$$\omega_{p}=\omega_{e}=\frac{e^{2}n_{e}}{\varepsilon_{0}m_{e}}$$
+
+which is the frequency with which the charge density of the electrons oscillates, where
+$\varepsilon_{0}$ is the permittivity of vacuum, $e$ is the elementary charge, $n_{e}$ and $m_{e}$ 
+are the electron density and mass, respectively.
+The calculation is activated by
+
+    CalcPlasmaFreqeuncy = T
+
+**PIC Particle Time Step**
+The maximum allowed time step within the PIC schemes can be estimated by
+
+$$\Delta_{t,\mathrm{PIC}}<\frac{0.2}{\omega_{p}}$$
+
+where $\omega_{p}$ is the (cold) plasma frequency.
+The calculation is activated by
+
+    CalcPICTimeStep = T
+
+**Debye length**
+The Debye length can be calculated via
+
+$$\lambda_{D}=\sqrt{\frac{\varepsilon_{0}k_{B}T_{e}}{e^{2}n_{e}}}$$
+
+where $\varepsilon_{0}$ is the permittivity of vacuum, $k_{B}$ is the Boltzmann constant, $e$ is the
+elementary charge and $T_{e}$ and $n_{e}$ are the electron temperature and density, respectively. 
+The Debye length measures the distance after which the magnitude of the electrostatic
+potential of a single charge drops by $1/\text{e}$.
+The calculation is activated by
+
+    CalcDebyeLength = T
+
+**Points per Debye Length**
+The spatial resolution in terms of grid points per Debye length can be estimated via
+
+$$\mathrm{PPD}=\frac{\lambda_{D}}{\Delta x}=\frac{(p+1)\lambda_{D}}{L}\sim 1$$
+
+where $\Delta x$ is the grid spacing (average spacing between grid points), 
+$p$ is the polynomial degree of the solution, $\lambda_{D}$ is the Debye length and $L=V^{1/3}$ 
+is the characteristic cell length, which is determined from the volume $V$ of the grid cell.
+Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting 
+$L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of 
+each cell. These values are especially useful when dealing with Cartesian grids.
+The calculation is activated by
+
+    CalcPointsPerDebyeLength = T
+
+**PIC CFL Condition**
+The plasma frequency time step restriction and the spatial Debye length restriction can be merged
+into a single parameter
+
+$$\frac{\Delta t}{0.4 \Delta x}\sqrt{\frac{k_{b}T_{e}}{m_{e}}}= \frac{(p+1)\Delta t}{0.4 L}\sqrt{\frac{k_{b}T_{e}}{m_{e}}} \lesssim 1$$
+
+where $\Delta t$ is the time step, $\Delta x$ is the grid spacing (average spacing between grid
+points), $p$ is the polynomial degree of the solution, $k_{B}$ is the Boltzmann constant, $T_{e}$ 
+and $m_{e}$ are the electron temperature and mass, respectively. Furthermore, the calculation in 
+each direction $x$, $y$ and $z$ is performed by setting $L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, 
+which are the average distances of the bounding box of each cell. 
+These values are especially useful when dealing with Cartesian grids.
+The calculation is activated by
+
+    CalcPICCFLCondition = T
+
+**Maximum Particle Displacement**
+The largest displacement of a particle within one time step $\Delta t$ is estimated for each cell
+via
+
+$$\frac{\mathrm{max}(v_{\mathrm{iPart}})\Delta t}{\Delta x}=\frac{(p+1)\mathrm{max}(v_{\mathrm{iPart}})\Delta t}{L} < 1$$
+
+which means that the fastest particle is not allowed to travel over the length of two grid points
+separated by $\Delta x$.
+Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting 
+$L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of 
+each cell. 
+These values are especially useful when dealing with Cartesian grids.
+The calculation is activated by
+
+    CalcMaxPartDisplacement = T

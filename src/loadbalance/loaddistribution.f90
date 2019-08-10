@@ -26,12 +26,12 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#ifdef MPI
+#if USE_MPI
 INTERFACE ApplyWeightDistributionMethod
   MODULE PROCEDURE ApplyWeightDistributionMethod
 END INTERFACE
 PUBLIC::ApplyWeightDistributionMethod
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 INTERFACE WriteElemTimeStatistics
   MODULE PROCEDURE WriteElemTimeStatistics
@@ -41,7 +41,7 @@ PUBLIC::WriteElemTimeStatistics
 
 CONTAINS
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE SingleStepOptimalPartition(OldElems,NewElems,ElemTime)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Calculate the optimal load partition, subroutine taken from sparta.f90 of HALO
@@ -1090,7 +1090,7 @@ END DO
 END SUBROUTINE freeList
 
 
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 !----------------------------------------------------------------------------------------------------------------------------------!

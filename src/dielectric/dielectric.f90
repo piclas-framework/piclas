@@ -79,16 +79,13 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars
-USE MOD_HDF5_output,     ONLY: WriteDielectricGlobalToHDF5
-USE MOD_Equation_Vars,   ONLY: c
-USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
-USE MOD_Mesh,            ONLY: GetMeshMinMaxBoundaries
-#ifdef PP_HDG
-!USE MOD_Equation_Vars,   ONLY: IniExactFunc
-USE MOD_Mesh_Vars,       ONLY: nMortarSides
-#else
-USE MOD_Equation_Vars,   ONLY: c_corr
-#endif /*if PP_HDG*/
+USE MOD_HDF5_output     ,ONLY: WriteDielectricGlobalToHDF5
+USE MOD_Equation_Vars   ,ONLY: c
+USE MOD_Interfaces      ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
+USE MOD_Mesh            ,ONLY: GetMeshMinMaxBoundaries
+#ifndef PP_HDG
+USE MOD_Equation_Vars   ,ONLY: c_corr
+#endif /*if not PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -183,11 +180,6 @@ CALL SetDielectricVolumeProfile()
   CALL SetDielectricFaceProfile()
 #else /*if PP_HDG*/
   ! Set HDG diffusion tensor 'chitens' on faces
-  IF((.NOT.mpiroot).AND.(nMortarSides.GT.0))THEN
-    CALL abort(&
-         __STAMP__,&
-         'dielectric HDG not implemented for MPI! TODO: Set HDG diffusion tensor [chitens] on faces with MPI and/or mortar sides')
-  END IF
   CALL SetDielectricFaceProfile_HDG()
   !IF(ANY(IniExactFunc.EQ.(/200,300/)))THEN ! for dielectric sphere/slab case
     ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on wheter
@@ -310,7 +302,7 @@ USE MOD_PreProc
 USE MOD_Dielectric_Vars, ONLY:DielectricConstant_inv,Dielectric_Master,Dielectric_Slave,isDielectricElem,ElemToDielectric
 USE MOD_Mesh_Vars,       ONLY:nSides
 USE MOD_ProlongToFace,   ONLY:ProlongToFace
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,             ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif
@@ -326,10 +318,10 @@ IMPLICIT NONE
 REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Master
 REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Slave
 REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) :: Dielectric_dummy_elem
-#ifdef MPI
+#if USE_MPI
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Master2
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Slave2
-#endif /*MPI*/
+#endif /*USE_MPI*/
 INTEGER                                                  :: iElem,I,J,iSide
 !===================================================================================================================================
 ! General workflow:
@@ -365,7 +357,7 @@ END DO
 !3.   Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar)
 CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
 CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
-#ifdef MPI
+#if USE_MPI
   CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
   CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
 
@@ -395,7 +387,7 @@ CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
 
   CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
   CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! 6.  Allocate the actually needed arrays containing the dielectric material information on the sides
 ALLOCATE(Dielectric_Master(0:PP_N,0:PP_N,1:nSides))
@@ -404,13 +396,13 @@ ALLOCATE(Dielectric_Slave( 0:PP_N,0:PP_N,1:nSides))
 
 ! 7.  With MPI, use dummy array which was used for sending the MPI data
 !     or with single execution, directly use prolonged data on face
-#ifdef MPI
+#if USE_MPI
   Dielectric_Master=Dielectric_dummy_Master2(1,0:PP_N,0:PP_N,1:nSides)
   Dielectric_Slave =Dielectric_dummy_Slave2( 1,0:PP_N,0:PP_N,1:nSides)
 #else
   Dielectric_Master=Dielectric_dummy_Master(1,0:PP_N,0:PP_N,1:nSides)
   Dielectric_Slave =Dielectric_dummy_Slave( 1,0:PP_N,0:PP_N,1:nSides)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! 8.  Check if the default value remains unchanged (negative material constants are not allowed until now)
 IF(MINVAL(Dielectric_Master).LT.0.0)THEN
