@@ -642,19 +642,15 @@ __STAMP__&
         CollInf%Tref(iSpec,jSpec)  = 0.5 * (SpecDSMC(iSpec)%TrefVHS + SpecDSMC(jSpec)%TrefVHS)
         CollInf%Tref(jSpec,iSpec)  = CollInf%Tref(iSpec,jSpec)
       END IF
-
-    END DO
-  END DO
-  DO iSpec = 1, nSpecies
-    IF(CollInf%aveOmega) THEN 
       IF((CollInf%alphaVSS(iSpec,jSpec)*CollInf%omega(iSpec,jSpec)*CollInf%dref(iSpec,jSpec)*CollInf%Tref(iSpec,jSpec)).eq.0) THEN
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
         CALL Abort(&
         __STAMP__&
         ,"ERROR in collision data (alphaVSS*omega*dref*Tref) is zero)")
       END IF 
-    END IF
+    END DO
   END DO
+
 ! to be solved - ist nur für debugging drin
  WRITE(*,*) "alpha VSS",         CollInf%alphaVSS(:,:)
  WRITE(*,*) "omega coll",         CollInf%omega(:,:)
