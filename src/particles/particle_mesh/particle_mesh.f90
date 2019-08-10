@@ -697,6 +697,7 @@ INTEGER                             :: iELem,iNode
 
 SDEALLOCATE(PartElemToSide)
 SDEALLOCATE(PartSideToElem)
+SDEALLOCATE(PartElemIsMortar)
 SDEALLOCATE(PartElemToElemGlob)
 SDEALLOCATE(PartElemToElemAndSide)
 SDEALLOCATE(PartBCSideList)
