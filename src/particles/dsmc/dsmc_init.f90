@@ -171,17 +171,17 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-MergeSubcells'&
 
 CALL prms%SetSection("DSMC Collision")
 !to be solved  collisionmodel ist für cases verantwortlich 
-CALL prms%CreateIntOption(      'CollisionModel'  &
+CALL prms%CreateIntOption(      'CabMode'  &
                                             ,' Flags which model is used for collision. Check Bird for more information.\n '//&
-                                             ' 0 : collision averaged parameters\n'//&
-                                             ' 1 : collision specific parameters', '0')
+                                             ' 1 : to be solved\n'//&
+                                             ' 2 : collision specific parameters', '0')
 CALL prms%CreateLogicalOption(   'aveCollPa'  &
                                            ,' Flags if collision-averaged(T) parameters are calculated '//&
                                             ' or collision-specific(F) parameters are used' //&
                                             ' T: Part-Species[$]-omega,-Tref,-Dref,-alpha must be set.\n '//&
                                             ' F: Part-Collision[$]-[$]-omega,-Tref,-Dref,-alpha must be set', 'T')
 CALL prms%CreateRealOption(     'Part-Collision[$]-[$]-alpha'  &
-                                           ,' INDEX= SPECIESi-SPECIESj colliding. VSS exponent as defined in Bird (2.36).'   //&
+                                           ,' INDEX= SPECIESi-SPECIESj colliding.VSS scattering angle exponent see Bird (2.36).'//&
                                             ' for alpha=1 VHS Case. See Bird 1994 p.42 for more information.'                 //&
                                             ' Can be found in tables e.g. in\n'                                              //& 
                                             ' krishnan2015(https://doi.org/10.2514/6.2015-3373),\n'                          //&
@@ -221,6 +221,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-omega'  &
                                            ,'Reference value for exponent omega for variable hard sphere model. The Laux omega'//&
                                             'is used, which is defined through omegaLaux=Ypsilon_bird=omegaBird+0.5'//&
                                             'It can be found in tables e.g. Krishnan2015. ', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-alphaVSS','VSS scattering angle exponent bird1994(2.36)', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib','Characteristic vibrational temperature.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot'  &
                                            ,'Characteristic rotational temperature', '0.', numberedmulti=.TRUE.)
@@ -532,10 +533,16 @@ __STAMP__&
     ,"ERROR: nSpecies .LE. 0:", nSpecies)
   END IF
 
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading in collision model variables 
 !-----------------------------------------------------------------------------------------------------------------------------------
+  ALLOCATE(CollInf%alpha(nSpecies,nSpecies)) 
+  ALLOCATE(CollInf%omega(nSpecies,nSpecies))
+  ALLOCATE(CollInf%dref(nSpecies,nSpecies))
+  ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
+  CollInf%aveCollPa       = GETLOGICAL('aveCollPa','.TRUE.')
+  CollInf%cabMode        = GETINT('CabMode','1') !
+
   ! Either CollisMode.GT.0 or without chemical reactions due to collisions but with field ionization
   IF(DoFieldIonization.OR.CollisMode.NE.0)THEN
     ALLOCATE(SpecDSMC(nSpecies))
@@ -543,12 +550,21 @@ __STAMP__&
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       SpecDSMC(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
       SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
-      ! to be solved das spec omega wird noch gebraucht auch wenn aveCollPa f, da in chemical nicht coll verwendet wird da array
+      ! to be solved Übergangslösung, damit Code auch mit alten Inis läuft
       IF(CollInf%aveCollPa) THEN
+<<<<<<< Updated upstream
         SpecDSMC(iSpec)%Tref = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
         SpecDSMC(iSpec)%dref = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
         SpecDSMC(iSpec)%omega   = GETREAL('Part-Species'//TRIM(hilf)//'-omega','0') ! default case HS
       !END IF
+=======
+        WRITE(*,*) "part-spec-dref wird eingelesen"
+        SpecDSMC(iSpec)%Tref     = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
+        SpecDSMC(iSpec)%dref     = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
+        SpecDSMC(iSpec)%omega    = GETREAL('Part-Species'//TRIM(hilf)//'-omega','0') ! default case HS
+        SpecDSMC(iSpec)%alphaVSS = GETREAL('Part-Species'//TRIM(hilf)//'-alphaVSS','1') 
+      END IF
+>>>>>>> Stashed changes
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
         DSMC%ElectronSpecies = iSpec
@@ -558,48 +574,65 @@ __STAMP__&
     END DO
   END IF 
   
-  ALLOCATE(CollInf%alpha(nSpecies,nSpecies)) 
-  ALLOCATE(CollInf%omega(nSpecies,nSpecies))
-  ALLOCATE(CollInf%dref(nSpecies,nSpecies))
-  ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
-  CollInf%aveCollPa       = GETLOGICAL('aveCollPa','.TRUE.')
-  CollInf%cabMode        = GETINT('CollisionModel','0') ! 
-  DO iSpec=1,nSpecies !        
+  DO iSpec=1,nSpecies         
     DO jSpec=iSpec,nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       WRITE(UNIT=hilf2,FMT='(I0)') jSpec
-
       IF(.NOT.CollInf%aveCollPa) THEN ! collision-specific omega
-        CollInf%alpha(iSpec,jSpec)   = GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-alpha')
-        CollInf%alpha(jSpec,iSpec)   = CollInf%alpha(iSpec,jSpec) 
-        CollInf%omega(iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-omega')
-        CollInf%omega(jSpec,iSpec) = CollInf%omega(iSpec,jSpec)
-        CollInf%dref(iSpec,jSpec)  = GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-dref')
-        CollInf%dref(jSpec,iSpec)  = CollInf%dref(iSpec,jSpec) 
+        WRITE(*,*) "erste not collinf aveomega abfrage"
         CollInf%Tref(iSpec,jSpec)  = GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-Tref')
         CollInf%Tref(jSpec,iSpec)  = CollInf%Tref(iSpec,jSpec)
-
+        CollInf%dref(iSpec,jSpec)  = GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-dref')
+        CollInf%dref(jSpec,iSpec)  = CollInf%dref(iSpec,jSpec) 
+        CollInf%omega(iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-omega')
+        CollInf%omega(jSpec,iSpec) = CollInf%omega(iSpec,jSpec)
+        CollInf%alpha(iSpec,jSpec)   = GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-alpha')
+        CollInf%alpha(jSpec,iSpec)   = CollInf%alpha(iSpec,jSpec) 
       ELSE                            !  collision-averaged  omega Tref Dref
+        CollInf%Tref(iSpec,jSpec)  = 0.5 * (SpecDSMC(iSpec)%Tref + SpecDSMC(jSpec)%Tref)
+        CollInf%Tref(jSpec,iSpec)  = CollInf%Tref(iSpec,jSpec)
+        CollInf%dref(iSpec,jSpec)  = 0.5 * (SpecDSMC(iSpec)%dref + SpecDSMC(jSpec)%dref)
+        CollInf%dref(jSpec,iSpec)  = CollInf%dref(iSpec,jSpec) 
         CollInf%omega(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omega + SpecDSMC(jSpec)%omega)
         CollInf%omega(jSpec,iSpec) = CollInf%omega(iSpec,jSpec)  
+<<<<<<< Updated upstream
         CollInf%dref(iSpec,jSpec)  = 0.5 * (SpecDSMC(iSpec)%dref + SpecDSMC(jSpec)%dref)
         CollInf%dref(jSpec,iSpec)  = CollInf%dref(iSpec,jSpec) 
         CollInf%Tref(iSpec,jSpec)  = 0.5 * (SpecDSMC(iSpec)%Tref + SpecDSMC(jSpec)%Tref)
         CollInf%Tref(jSpec,iSpec)  = CollInf%Tref(iSpec,jSpec)
+=======
+        CollInf%alpha(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%alphaVSS + SpecDSMC(jSpec)%alphaVSS)
+        CollInf%alpha(jSpec,iSpec) = CollInf%alpha(iSpec,jSpec) 
+ WRITE(*,*) "alpha collinf",         CollInf%alpha(:,:)
+ WRITE(*,*) "omega collinf",         CollInf%omega(:,:)
+ WRITE(*,*) "dref collinf",          CollInf%dref(:,:)
+ WRITE(*,*) "Tref collinf",          CollInf%Tref(:,:)
+ WRITE(*,*) "collnumcase ",      CollInf%NumCase
+ WRITE(*,*) "\n"
+>>>>>>> Stashed changes
       END IF
       IF((CollInf%alpha(iSpec,jSpec)*CollInf%omega(iSpec,jSpec)*CollInf%dref(iSpec,jSpec)*CollInf%Tref(iSpec,jSpec)).eq.0) THEN
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
         CALL Abort(&
         __STAMP__&
-        ,"ERROR in collision data (alpha*omega*dref*Tref) is zero)")
+        ,"ERROR in collision data (Tref*dref*omega*alpha) is zero)")
       END IF 
     END DO
+<<<<<<< Updated upstream
     !to be solved - so soll der Code laufen, auch wenn aveCollPa=F und man nicht SpecDSMC Werte in der ini angibt
     IF(CollInf%aveCollPa) THEN ! collision-averaged omega
        SpecDSMC(iSpec)%alpha = CollInf%alpha(iSpec,iSpec)
        SpecDSMC(iSpec)%Tref  = CollInf%Tref(iSpec,iSpec)
        SpecDSMC(iSpec)%Dref  = CollInf%Dref(iSpec,iSpec)
        SpecDSMC(iSpec)%omega = CollInf%omega(iSpec,iSpec)
+=======
+    !to be solved Übergangslösung solange BGK nicht aufgeräumt ist
+    IF(.NOT.CollInf%aveCollPa) THEN 
+       SpecDSMC(iSpec)%Tref     = CollInf%Tref(iSpec,iSpec)
+       SpecDSMC(iSpec)%Dref     = CollInf%Dref(iSpec,iSpec)
+       SpecDSMC(iSpec)%omega    = CollInf%omega(iSpec,iSpec)
+       SpecDSMC(iSpec)%alphaVSS = CollInf%omega(iSpec,iSpec)
+>>>>>>> Stashed changes
     END IF
   END DO
 
@@ -607,11 +640,17 @@ __STAMP__&
  WRITE(*,*) "alpha collinf",         CollInf%alpha(:,:)
  WRITE(*,*) "omega collinf",         CollInf%omega(:,:)
  WRITE(*,*) "dref collinf",          CollInf%dref(:,:)
+<<<<<<< Updated upstream
  WRITE(*,*) "muref collinf",          CollInf%muref(:,:)
+=======
+>>>>>>> Stashed changes
  WRITE(*,*) "Tref collinf",          CollInf%Tref(:,:)
  WRITE(*,*) "collnumcase ",      CollInf%NumCase
  WRITE(*,*) "\n"
 
+ WRITE(*,*) "Tref spec", SpecDSMC(:)%Tref        
+ WRITE(*,*) "dref spec",  SpecDSMC(:)%Dref        
+ WRITE(*,*) "omega spec",  SpecDSMC(:)%omega       
 
   IF (CollisMode.EQ.0) THEN
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001) || (PP_TimeDiscMethod==42)
@@ -1710,7 +1749,6 @@ SDEALLOCATE(CollInf%alpha)
 SDEALLOCATE(CollInf%omega)    
 SDEALLOCATE(CollInf%dref)    
 SDEALLOCATE(CollInf%Tref)    
-SDEALLOCATE(CollInf%muref)   
 SDEALLOCATE(HValue)
 !SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)
