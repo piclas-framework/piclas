@@ -116,8 +116,8 @@ IF((BulkValues(iElem)%CellType.EQ.3).OR.(BulkValues(iElem)%CellType.EQ.4)) THEN 
       BulkValues(iElem)%DegreeOfFreedom = BulkValues(iElem)%DegreeOfFreedom + PartStateBulkValues(iPartIndx,5) * WeightFak
       CellMass                          = CellMass + WeightFak * Species(PartSpecies(iPartIndx))%MassIC
 !--- for viscousity terms...
-      MeanRefTemp = MeanRefTemp + SpecDSMC(PartSpecies(iPartIndx))%TrefVHS * WeightFak
-      MeanRefDiameter = MeanRefDiameter + SpecDSMC(PartSpecies(iPartIndx))%DrefVHS * WeightFak
+      MeanRefTemp = MeanRefTemp + SpecDSMC(PartSpecies(iPartIndx))%Tref * WeightFak
+      MeanRefDiameter = MeanRefDiameter + SpecDSMC(PartSpecies(iPartIndx))%dref * WeightFak
       MeanOmega = MeanOmega + SpecDSMC(PartSpecies(iPartIndx))%omega * WeightFak
 !--- end for viscousity terms
       MPFSum = MPFSum + WeightFak

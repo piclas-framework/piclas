@@ -157,9 +157,9 @@ SELECT CASE (ChemReac%QKMethod(iReac))
                    ( ( ( CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2                    / &
                                ( 2 * BoltzmannConst * ( 2 - omegaAB ) )  )                                       / &
                              SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%CharaTVib)**ChemReac%QKCoeff(iReac,2) )  * &
-                            1.0/6.0 * PI * ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%DrefVHS           + &
-                                      SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%DrefVHS                  + &
-                                      SpecDSMC(PartSpecies(iPart_p3))%DrefVHS       )**3
+                            1.0/6.0 * PI * ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%dref           + &
+                                      SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%dref                  + &
+                                      SpecDSMC(PartSpecies(iPart_p3))%dref       )**3
     IF ( ReactionProb .ge. 1 ) THEN
       IPWRITE(UNIT_stdOut,*) 'ERROR: Recombination probability  >1'
       IPWRITE(UNIT_stdOut,*) 'iReac: ',iReac
@@ -215,9 +215,9 @@ SELECT CASE (ChemReac%QKMethod(iReac))
     END DO
     IF ( iQua .EQ. 0 ) THEN
       ReactionProb = nPartNode * Species(PartSpecies(iPart_p3))%MacroParticleFactor / Volume     * &
-                     1.0/6.0 * PI * ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%DrefVHS + &
-                                      SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%DrefVHS + &
-                                      SpecDSMC(PartSpecies(iPart_p3))%DrefVHS       )**3
+                     1.0/6.0 * PI * ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%dref + &
+                                      SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%dref + &
+                                      SpecDSMC(PartSpecies(iPart_p3))%dref       )**3
       CALL RANDOM_NUMBER(iRan)
       IF ( ReactionProb .gt. iRan) THEN
         IF ( MaxColQua .gt. 0 ) THEN
@@ -614,9 +614,9 @@ END DO
 
 ! Bird's recombination approach modified to ion - electron recombination
 ! reference radius
-Vref = 1.0/6.0 * PI * ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%DrefVHS + &
-                        SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%DrefVHS + &
-                        SpecDSMC(PartSpecies(iPart_p3))%DrefVHS       )**3
+Vref = 1.0/6.0 * PI * ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%dref + &
+                        SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%dref + &
+                        SpecDSMC(PartSpecies(iPart_p3))%dref       )**3
 
 ! omega VHS
 omegaAB = 0.5 * ( SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omega          &

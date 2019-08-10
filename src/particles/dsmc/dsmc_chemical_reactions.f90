@@ -328,9 +328,9 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
               / (BoltzmannConst * 2.*(2.-SpecDSMC(EductReac(1))%omega))
         b=     (0.5 - SpecDSMC(EductReac(1))%omega)
         Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
-          * (SpecDSMC(EductReac(1))%DrefVHS/2. + SpecDSMC(EductReac(2))%DrefVHS/2.)**2 &
-          * (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omega) &
-          * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS &
+          * (SpecDSMC(EductReac(1))%dref/2. + SpecDSMC(EductReac(2))%dref/2.)**2 &
+          * (Tcoll / SpecDSMC(EductReac(1))%Tref)**(0.5 - SpecDSMC(EductReac(1))%omega) &
+          * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%Tref &
           / (ReducedMass* 2./(Weight1+Weight2)))
         Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omega)**b &
              * gamma(2.-SpecDSMC(EductReac(1))%omega)/gamma(2.-SpecDSMC(EductReac(1))%omega+b)
@@ -348,9 +348,9 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
               / (BoltzmannConst * 2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omega))
       b=     (0.5 - SpecDSMC(EductReac(1))%omega)
       Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
-        * (SpecDSMC(EductReac(1))%DrefVHS/2. + SpecDSMC(EductReac(2))%DrefVHS/2.)**2 &
-        * (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omega) &
-        * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS &
+        * (SpecDSMC(EductReac(1))%dref/2. + SpecDSMC(EductReac(2))%dref/2.)**2 &
+        * (Tcoll / SpecDSMC(EductReac(1))%Tref)**(0.5 - SpecDSMC(EductReac(1))%omega) &
+        * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%Tref &
         / (ReducedMass * 2./(Weight1+Weight2)))
       Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omega)**b &
            * gamma(2.-SpecDSMC(EductReac(1))%omega)/gamma(2.-SpecDSMC(EductReac(1))%omega+b)
@@ -363,9 +363,9 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
               / (BoltzmannConst * 2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omega))
       b=     (0.5 - SpecDSMC(EductReac(1))%omega)
       Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
-        * (SpecDSMC(EductReac(1))%DrefVHS/2. + SpecDSMC(EductReac(2))%DrefVHS/2.)**2 &
-        * (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omega) &
-        * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS &
+        * (SpecDSMC(EductReac(1))%dref/2. + SpecDSMC(EductReac(2))%dref/2.)**2 &
+        * (Tcoll / SpecDSMC(EductReac(1))%Tref)**(0.5 - SpecDSMC(EductReac(1))%omega) &
+        * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%Tref &
         / (ReducedMass * 2./(Weight1+Weight2)))
       Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omega)**b &
            * gamma(2.-SpecDSMC(EductReac(1))%omega)/gamma(2.-SpecDSMC(EductReac(1))%omega+b)
@@ -1418,16 +1418,16 @@ INTEGER                       :: iSpec1, iSpec2, MaxElecQua, iQua
 REAL                          :: z ! contribution of the relevant mode to the electronic or vibrational partition function
 REAL                          :: Q ! incomplete gamma function
 INTEGER                       :: MaxVibQuant ! highest vibrational quantum state
-REAL                          :: Rcoll, TrefVHS
+REAL                          :: Rcoll, Tref
 !===================================================================================================================================
 CalcQKAnalyticRate = 0.0
 z = 0.0
 iSpec1 = ChemReac%DefinedReact(iReac,1,1)
 iSpec2 = ChemReac%DefinedReact(iReac,1,2)
-TrefVHS=(SpecDSMC(iSpec1)%TrefVHS + SpecDSMC(iSpec2)%TrefVHS)/2.
+Tref=(SpecDSMC(iSpec1)%Tref + SpecDSMC(iSpec2)%Tref)/2.
 Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(iSpec1, iSpec2))) &
-    * (SpecDSMC(iSpec1)%DrefVHS/2. + SpecDSMC(iSpec2)%DrefVHS/2.)**2 &
-    * SQRT(2. * BoltzmannConst * TrefVHS &
+    * (SpecDSMC(iSpec1)%dref/2. + SpecDSMC(iSpec2)%dref/2.)**2 &
+    * SQRT(2. * BoltzmannConst * Tref &
     / (CollInf%MassRed(CollInf%Coll_Case(iSpec1, iSpec2))))
 
 SELECT CASE (ChemReac%ReactType(iReac))
@@ -1440,7 +1440,7 @@ CASE('iQK')
         * EXP(-SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp)
     z = z + SpecDSMC(iSpec1)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp)
   END DO
-  CalcQKAnalyticRate = CalcQKAnalyticRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omega)*Rcoll/z
+  CalcQKAnalyticRate = CalcQKAnalyticRate*(Temp / Tref)**(0.5 - SpecDSMC(iSpec1)%omega)*Rcoll/z
 CASE('D')
   MaxVibQuant = SpecDSMC(iSpec1)%DissQuant
   DO iQua = 0, MaxVibQuant - 1
@@ -1448,7 +1448,7 @@ CASE('D')
     CalcQKAnalyticRate= CalcQKAnalyticRate + Q * EXP(- iQua*SpecDSMC(iSpec1)%CharaTVib / Temp)
   END DO
   z = 1. / (1. - EXP(-SpecDSMC(iSpec1)%CharaTVib / Temp))
-  CalcQKAnalyticRate = CalcQKAnalyticRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omega)*Rcoll/z
+  CalcQKAnalyticRate = CalcQKAnalyticRate*(Temp / Tref)**(0.5 - SpecDSMC(iSpec1)%omega)*Rcoll/z
 END SELECT
 
 END FUNCTION CalcQKAnalyticRate

@@ -207,9 +207,9 @@ nu= 1.-3./(2.*Prandtl)
 Theta = BoltzmannConst*CellTemp/Species(1)%MassIC
 nu= MAX(nu,-Theta/(W(3)-Theta))
 dens = nPart * WeightingFactor / NodeVolume
-dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*SpecDSMC(1)%TrefVHS/Pi) &
-        /(4.*(4.- 2.*SpecDSMC(1)%omega) * (6. - 2.*SpecDSMC(1)%omega)* SpecDSMC(1)%DrefVHS**2.)
-relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omega + 0.5) &
+dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*SpecDSMC(1)%Tref/Pi) &
+        /(4.*(4.- 2.*SpecDSMC(1)%omega) * (6. - 2.*SpecDSMC(1)%omega)* SpecDSMC(1)%dref**2.)
+relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%Tref**(SpecDSMC(1)%omega + 0.5) &
       /dynamicvis*CellTemp**(-SpecDSMC(1)%omega +0.5)
 IF (FPCollModel.EQ.2) THEN
 !  relaxtime = 2.0*(1.-nu)/relaxfreq

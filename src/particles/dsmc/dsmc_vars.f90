@@ -112,10 +112,9 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Param
                                                            !     100 : Excited atomic ion
                                                            !     200 : Excited molecule
                                                            !     400 : Excited molecular ion
-  REAL                        :: TrefVHS                   ! VHS reference temp, ini_2
-  REAL                        :: DrefVHS                   ! VHS reference diameter, ini_2
-  REAL                        :: omega                     ! Species-specific VHS omega exponent, see Bird1994 for details ini_2 ! 
-
+  REAL                        :: Tref                      ! collision model reference temp, ini_2
+  REAL                        :: dref                      ! collision model reference diameter, ini_2
+  REAL                        :: omega                     ! collision model temperature exponent,ini_2 details: bird1994 
   INTEGER                     :: NumOfPro                  ! Number of Protons, ini_2
   REAL                        :: Eion_eV                   ! Energy of Ionisation in eV, ini_2
   REAL                        :: RelPolarizability         ! relative polarizability, ini_2
@@ -332,7 +331,6 @@ END TYPE tPairData
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)           ! Data of collision pairs into a cell (nPair)
 
 TYPE tCollInf                                              ! Collision information 
-  INTEGER                       :: collModel               ! Collision model used. to be solved Beschreibung der beiden  Fälle
   LOGICAL                       :: aveOmega                ! Flags if coll-spec. omega(F) is taken or coll-average(T) is created.
                                                            ! In case T,omega,Tref,dref are averaged
   INTEGER       , ALLOCATABLE   :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
@@ -344,7 +342,7 @@ TYPE tCollInf                                              ! Collision informati
   REAL          , ALLOCATABLE   :: FracMassCent(:,:)       ! mx/(my+mx) (nSpec, number of cases)
   REAL          , ALLOCATABLE   :: MeanMPF(:)
   REAL          , ALLOCATABLE   :: MassRed(:)              ! reduced mass (number of cases)
-  REAL          , ALLOCATABLE   :: alphaVSS(:,:)           ! VSS exponent alpha per collision needed for scattering angle, ini_2
+  REAL          , ALLOCATABLE   :: alpha(:,:)              ! VSS exponent alpha per collision needed for scattering angle, ini_2
   REAL          , ALLOCATABLE   :: omega(:,:)              ! VSS exponent omega collision-specific, ini_2
   REAL          , ALLOCATABLE   :: dref(:,:)               ! Reference diameter per collision, ini_2 
   REAL          , ALLOCATABLE   :: Tref(:,:)               ! Reference temperature of CollInf%omega, ini_2 

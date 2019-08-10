@@ -545,8 +545,8 @@ __STAMP__&
       SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
       ! to be solved das spec omega wird noch gebraucht auch wenn aveCollPa f, da in chemical nicht coll verwendet wird da array
       IF(CollInf%aveCollPa) THEN
-        SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
-        SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
+        SpecDSMC(iSpec)%Tref = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
+        SpecDSMC(iSpec)%dref = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
         SpecDSMC(iSpec)%omega   = GETREAL('Part-Species'//TRIM(hilf)//'-omega','0') ! default case HS
       !END IF
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
@@ -582,9 +582,9 @@ __STAMP__&
       ELSE                            !  collision-averaged  omega Tref Dref
         CollInf%omega(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omega + SpecDSMC(jSpec)%omega)
         CollInf%omega(jSpec,iSpec) = CollInf%omega(iSpec,jSpec)  
-        CollInf%dref(iSpec,jSpec)  = 0.5 * (SpecDSMC(iSpec)%drefVHS + SpecDSMC(jSpec)%drefVHS)
+        CollInf%dref(iSpec,jSpec)  = 0.5 * (SpecDSMC(iSpec)%dref + SpecDSMC(jSpec)%dref)
         CollInf%dref(jSpec,iSpec)  = CollInf%dref(iSpec,jSpec) 
-        CollInf%Tref(iSpec,jSpec)  = 0.5 * (SpecDSMC(iSpec)%TrefVHS + SpecDSMC(jSpec)%TrefVHS)
+        CollInf%Tref(iSpec,jSpec)  = 0.5 * (SpecDSMC(iSpec)%Tref + SpecDSMC(jSpec)%Tref)
         CollInf%Tref(jSpec,iSpec)  = CollInf%Tref(iSpec,jSpec)
       END IF
       IF((CollInf%alpha(iSpec,jSpec)*CollInf%omega(iSpec,jSpec)*CollInf%dref(iSpec,jSpec)*CollInf%Tref(iSpec,jSpec)).eq.0) THEN
@@ -595,7 +595,7 @@ __STAMP__&
       END IF 
     END DO
     !to be solved - so soll der Code laufen, auch wenn aveCollPa=F und man nicht SpecDSMC Werte in der ini angibt
-    IF(.NOT.CollInf%aveCollPa) THEN ! collision-specific omega
+    IF(CollInf%aveCollPa) THEN ! collision-averaged omega
        SpecDSMC(iSpec)%alpha = CollInf%alpha(iSpec,iSpec)
        SpecDSMC(iSpec)%Tref  = CollInf%Tref(iSpec,iSpec)
        SpecDSMC(iSpec)%Dref  = CollInf%Dref(iSpec,iSpec)
@@ -604,11 +604,11 @@ __STAMP__&
   END DO
 
 ! to be solved - ist nur für debugging drin
- WRITE(*,*) "alpha VSS",         CollInf%alpha(:,:)
- WRITE(*,*) "omega coll",         CollInf%omega(:,:)
- WRITE(*,*) "dref VSS",          CollInf%dref(:,:)
- WRITE(*,*) "muref VSS",          CollInf%muref(:,:)
- WRITE(*,*) "Tref VSS",          CollInf%Tref(:,:)
+ WRITE(*,*) "alpha collinf",         CollInf%alpha(:,:)
+ WRITE(*,*) "omega collinf",         CollInf%omega(:,:)
+ WRITE(*,*) "dref collinf",          CollInf%dref(:,:)
+ WRITE(*,*) "muref collinf",          CollInf%muref(:,:)
+ WRITE(*,*) "Tref collinf",          CollInf%Tref(:,:)
  WRITE(*,*) "collnumcase ",      CollInf%NumCase
  WRITE(*,*) "\n"
 
@@ -624,11 +624,11 @@ __STAMP__&
 ! reading species data of ini_2
   DO iSpec = 1, nSpecies
     ! to be solved, sobald omegaFAll gelöst einkommentieren IF(CollInf%aveCollPa) THEN 
-      IF((SpecDSMC(iSpec)%InterID*SpecDSMC(iSpec)%TrefVHS*SpecDSMC(iSpec)%DrefVHS).eq.0) THEN
+      IF((SpecDSMC(iSpec)%InterID*SpecDSMC(iSpec)%Tref*SpecDSMC(iSpec)%dref).eq.0) THEN
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
         CALL Abort(&
         __STAMP__&
-        ,"ERROR aveCollPa=T but in species data ini_2 (InterID*TrefVHS*DrefVHS) is zero")
+        ,"ERROR aveCollPa=T but in species data ini_2 (InterID*Tref*dref) is zero")
       END IF 
     !END IF
   END DO
@@ -1310,7 +1310,7 @@ __STAMP__&
         SpecDSMC(iSpec)%CharaVelo(jSpec) = SQRT(  BoltzmannConst / CollInf%MassRed(iCase) &
                                                 * (2./3.*SpecDSMC(iSpec)%MW_Const(jSpec))**3.)
         SpecDSMC(iSpec)%CollNumVib = SpecDSMC(iSpec)%CollNumVib * (2.*(2.-SpecDSMC(iSpec)%omega)*BoltzmannConst &
-                                   * SpecDSMC(iSpec)%TrefVHS / CollInf%MassRed(iCase))**SpecDSMC(iSpec)%omega
+                                   * SpecDSMC(iSpec)%Tref / CollInf%MassRed(iCase))**SpecDSMC(iSpec)%omega
 
       END DO
     END DO
