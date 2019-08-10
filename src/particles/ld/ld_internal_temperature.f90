@@ -74,12 +74,12 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
     PreRotEnergy  = PartStateIntEn(iPartIndx,2)
     CollFreq = 0.0
     DO iSpec = 1, nSpecies
-        CollFreq = CollFreq + 0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(PartSpecies(iPartIndx))%DrefVHS)**2.0 &
+        CollFreq = CollFreq + 0.5 * (SpecDSMC(iSpec)%dref + SpecDSMC(PartSpecies(iPartIndx))%dref)**2.0 &
                  * NumDensOfPartSpec(iSpec) &
-                 * ( 2.0 * 3.14159265359 * BoltzmannConst * SpecDSMC(PartSpecies(iPartIndx))%TrefVHS &
+                 * ( 2.0 * 3.14159265359 * BoltzmannConst * SpecDSMC(PartSpecies(iPartIndx))%Tref &
                  * (Species(iSpec)%MassIC + Species(PartSpecies(iPartIndx))%MassIC) &
                  / (Species(iSpec)%MassIC * Species(PartSpecies(iPartIndx))%MassIC) )**0.5 &
-                 * (PartStateBulkValues(iPartIndx,4) / SpecDSMC(PartSpecies(iPartIndx))%TrefVHS)**(0.5 - SpecDSMC(iSpec)%omega)
+                 * (PartStateBulkValues(iPartIndx,4) / SpecDSMC(PartSpecies(iPartIndx))%Tref)**(0.5 - SpecDSMC(iSpec)%omega)
     END DO
     CollNum = 18.1 / ( 1.0 + 0.5*3.14159265359**1.5*(91.5/ PartStateBulkValues(iPartIndx,4) )**0.5 &
             + (3.14159265359 + 0.25*3.14159265359**2.0)*91.5 / PartStateBulkValues(iPartIndx,4) )

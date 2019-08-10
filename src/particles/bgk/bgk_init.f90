@@ -118,9 +118,9 @@ ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
   ALLOCATE(SpecBGK(iSpec)%CollFreqPreFactor(nSpecies))
   DO iSpec2=1, nSpecies
-    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(SpecDSMC(iSpec)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)**2.0 &
-        * SQRT(2.*Pi*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
-        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/SpecDSMC(iSpec)%TrefVHS**(-SpecDSMC(iSpec)%omega +0.5)
+    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(SpecDSMC(iSpec)%dref + SpecDSMC(iSpec2)%dref)**2.0 &
+        * SQRT(2.*Pi*BoltzmannConst*SpecDSMC(iSpec)%Tref*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
+        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/SpecDSMC(iSpec)%Tref**(-SpecDSMC(iSpec)%omega +0.5)
   END DO
 END DO
 

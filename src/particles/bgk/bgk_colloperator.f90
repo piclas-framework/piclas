@@ -230,18 +230,18 @@ ELSE
 END IF
 
 ! 2.) Calculate the reference dynamic viscosity, Prandtl number and the resulting relaxation frequency of the distribution function
-dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*SpecDSMC(1)%TrefVHS/Pi) &
-        /(4.*(4.- 2.*SpecDSMC(1)%omega) * (6. - 2.*SpecDSMC(1)%omega)* SpecDSMC(1)%DrefVHS**2.)
+dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*SpecDSMC(1)%Tref/Pi) &
+        /(4.*(4.- 2.*SpecDSMC(1)%omega) * (6. - 2.*SpecDSMC(1)%omega)* SpecDSMC(1)%dref**2.)
 Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
 CShak= Prandtl*(1.-BGKUnifiedCes)
 IF (BGKCollModel.EQ.1) THEN
-  relaxfreq = Prandtl*dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omega + 0.5) &
+  relaxfreq = Prandtl*dens*BoltzmannConst*SpecDSMC(1)%Tref**(SpecDSMC(1)%omega + 0.5) &
       /dynamicvis*CellTempRelax**(-SpecDSMC(1)%omega +0.5)
 ELSE IF (BGKCollModel.EQ.4) THEN
-  relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omega + 0.5) &
+  relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%Tref**(SpecDSMC(1)%omega + 0.5) &
       /(dynamicvis*(1.-BGKUnifiedCes))*CellTempRelax**(-SpecDSMC(1)%omega +0.5)
 ELSE
-  relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omega + 0.5) &
+  relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%Tref**(SpecDSMC(1)%omega + 0.5) &
       /dynamicvis*CellTempRelax**(-SpecDSMC(1)%omega +0.5)
 END IF
 

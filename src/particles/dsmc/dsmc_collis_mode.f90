@@ -217,7 +217,7 @@ USE MOD_part_tools,               ONLY : GetParticleWeight
   CRelay = PartState(collPart1ID, 5) - PartState(collPart2ID, 5)
   CRelaz = PartState(collPart1ID, 6) - PartState(collPart2ID, 6)
   ! Calculate random vec
-  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(Spec1ID,Spec2ID))
+  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(Spec1ID,Spec2ID))
   
  ! deltaV particle 1 
   DSMC_RHS(collPart1ID,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(collPart1ID, 4)
@@ -718,8 +718,7 @@ END IF
 
   !Calculate random vec and new squared velocities
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
-  ! DiceUnitVector if alphaVSS ==1
-  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(Spec1ID,Spec2ID))
+  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(Spec1ID,Spec2ID))
   ! deltaV particle 1
   DSMC_RHS(collPart1ID,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(collPart1ID, 4)
   DSMC_RHS(collPart1ID,2) = VeloMy + FracMassCent2*RanVec(2) - PartState(collPart1ID, 5)
@@ -1093,9 +1092,7 @@ __STAMP__&
 
   !calculate random vec and new velocities
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
-  !swrite(*,*) "alpha= ",SpecDSMC(Spec1ID))%alphaVSS
-  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(Spec1ID,Spec2ID))
-  !swrite(*,*) "dicedeflectedVector exited"
+  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(Spec1ID,Spec2ID))
 
   ! deltaV particle 1
   DSMC_RHS(collPart1ID,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(collPart1ID, 4)
@@ -2913,7 +2910,7 @@ REAL, INTENT(IN)          :: Xi_rel
 REAL, INTENT(INOUT)       :: ProbVib, ProbVibMax
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                      :: CorrFact, CRelaSub, TempCorr, DrefVHS
+REAL                      :: CorrFact, CRelaSub, TempCorr, dref
 INTEGER                   :: iPolyatMole, iDOF
 INTEGER                   :: collPart1ID, collPart2ID                         ! Colliding particles 1 and 2
 !===================================================================================================================================
@@ -2941,7 +2938,7 @@ INTEGER                   :: collPart1ID, collPart2ID                         ! 
   ELSEIF(DSMC%VibRelaxProb.EQ.2.0) THEN ! P_vib according to Boyd, corrected by Abe, only V-T transfer
           ! instead of averaging over all collisions in a cell, for convenience a cell averaged relative velocity is used.
     ! determine joint omega and Dref factor and rel velo of one vib quantum level below the current one
-    DrefVHS = 0.5 * (SpecDSMC(Spec1ID)%DrefVHS + SpecDSMC(Spec2ID)%DrefVHS)
+    dref = 0.5 * (SpecDSMC(Spec1ID)%dref + SpecDSMC(Spec2ID)%dref)
     CRelaSub = CRelaAv - 2.*(BoltzmannConst*SpecDSMC(Spec1ID)%CharaTVib) / CollInf%MassRed(Coll_pData(iPair)%PairType)
     IF(CRelaSub.LT.0.) THEN
       CRelaSub = 0.

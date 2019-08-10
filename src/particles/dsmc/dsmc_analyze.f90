@@ -783,7 +783,7 @@ IF(nPart.LE.0) RETURN
 ! Calculation of mixture reference diameter
 IF (nPart.EQ.0) RETURN
     DO iSpec = 1, nSpecies
-      DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%DrefVHS / nPart
+      DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%dref / nPart
     END DO
 ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
 ! (only defined for a single weighting factor, if omega is present calculation of the mean free path with the VHS model)
