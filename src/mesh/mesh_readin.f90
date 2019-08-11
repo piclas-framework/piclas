@@ -432,6 +432,7 @@ LOGWRITE(*,'(4(A,I8))')'offsetElem = ',offsetElem,' ,nElems = ', nElems, &
 ! to the state file (keep ElemTime on restart, if no new ElemTime is calculated during the run or replace with newly measured values
 ! if LoadBalance is on)
 IF(ElemTimeExists)THEN
+  SDEALLOCATE(ElemTime_tmp)
   ALLOCATE(ElemTime_tmp(1:nElems))
   ElemTime_tmp=0.
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
