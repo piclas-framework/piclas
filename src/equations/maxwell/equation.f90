@@ -1333,7 +1333,7 @@ SUBROUTINE InitExactFlux()
 USE MOD_PreProc
 USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot
 #if USE_MPI
-USE MOD_Globals,         ONLY:MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER
+USE MOD_Globals,         ONLY:MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER,IERROR
 #endif
 USE MOD_Mesh_Vars,       ONLY:nElems,ElemToSide,SideToElem,lastMPISide_MINE
 USE MOD_Interfaces,      ONLY:FindElementInRegion,FindInterfacesInRegion,CountAndCreateMappings
