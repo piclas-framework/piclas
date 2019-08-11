@@ -4929,6 +4929,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
 USE MOD_SurfaceModel           ,ONLY: UpdateSurfModelVars, SurfaceModel_main
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
@@ -4946,6 +4947,7 @@ INTEGER        :: iPart, iStage_loc
 REAL           :: RandVal
 #ifdef PARTICLES
 REAL           :: EDiff
+INTEGER        :: iElem,iSpec
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
 REAL           :: tLBStart
@@ -5140,7 +5142,7 @@ __STAMP__&
                * ( PartState(iPart,4) * PartState(iPart,4) &
                  + PartState(iPart,5) * PartState(iPart,5) &
                  + PartState(iPart,6) * PartState(iPart,6) ))
-        PCoupl = PCoupl + EDiff)
+        PCoupl = PCoupl + EDiff
         PCouplAverage = PCouplAverage + EDiff
         iElem = PEM%Element(iPart)
         iSpec = PartSpecies(iPart)
