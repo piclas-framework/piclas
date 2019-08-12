@@ -329,14 +329,14 @@ DO iSpec = 1,nSpecies
       CALL abort(&
 __STAMP__&
 ,'surfacemode=1 not working!')
-    !  ALLOCATE( Adsorption%MaxCoverage(1:SurfMesh%nSides,1:nSpecies),&
-    !            Adsorption%InitStick(1:SurfMesh%nSides,1:nSpecies),&
-    !            Adsorption%PrefactorStick(1:SurfMesh%nSides,1:nSpecies),&
-    !            Adsorption%Adsorbexp(1:SurfMesh%nSides,1:nSpecies),&
-    !            Adsorption%Nu_a(1:SurfMesh%nSides,1:nSpecies),&
-    !            Adsorption%Nu_b(1:SurfMesh%nSides,1:nSpecies),&
-    !            Adsorption%DesorbEnergy(1:SurfMesh%nSides,1:nSpecies),&
-    !            Adsorption%Intensification(1:SurfMesh%nSides,1:nSpecies))
+    !  ALLOCATE( Adsorption%MaxCoverage(1:SurfMesh%nMasterSides,1:nSpecies),&
+    !            Adsorption%InitStick(1:SurfMesh%nMasterSides,1:nSpecies),&
+    !            Adsorption%PrefactorStick(1:SurfMesh%nMasterSides,1:nSpecies),&
+    !            Adsorption%Adsorbexp(1:SurfMesh%nMasterSides,1:nSpecies),&
+    !            Adsorption%Nu_a(1:SurfMesh%nMasterSides,1:nSpecies),&
+    !            Adsorption%Nu_b(1:SurfMesh%nMasterSides,1:nSpecies),&
+    !            Adsorption%DesorbEnergy(1:SurfMesh%nMasterSides,1:nSpecies),&
+    !            Adsorption%Intensification(1:SurfMesh%nMasterSides,1:nSpecies))
     !DO iSpec = 1,nSpecies
     !  WRITE(UNIT=hilf,FMT='(I0)') iSpec
     !  Adsorption%MaxCoverage(:,iSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-MaximumCoverage','0.')
@@ -463,9 +463,9 @@ END DO
 
 
 ! allocate and initialize adsorption variables
-ALLOCATE( SurfModel%SumEvapPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
-          SurfModel%SumDesorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
-          SurfModel%SumReactPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
+ALLOCATE( SurfModel%SumEvapPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nMasterSides,1:nSpecies),&
+          SurfModel%SumDesorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nMasterSides,1:nSpecies),&
+          SurfModel%SumReactPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nMasterSides,1:nSpecies),&
           SurfModel%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
           SurfModel%SumERDesorbed(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies))
 ALLOCATE( Adsorption%ProbAds(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
@@ -1076,16 +1076,16 @@ IF (DoRestart) THEN
       SWRITE(UNIT_stdOut,'(A,A)') ' NUMBER OF SURFACE-SIDES IN RESTART FILE NOT EQUAL TO CALCULATION ... RESTARTING FROM INI'
       WallModelExists(:)=.FALSE.
     ELSE
-      ALLOCATE(SurfModelType(SurfMesh%nSides))
+      ALLOCATE(SurfModelType(SurfMesh%nMasterSides))
       ! Associate construct for integer KIND=8 possibility
       ASSOCIATE (&
-            nSides          => INT(SurfMesh%nSides,IK) ,&
+            nSides          => INT(SurfMesh%nMasterSides,IK) ,&
             nSpecies        => INT(nSpecies,IK) ,&
             offsetSurfSide  => INT(offsetSurfSide,IK) )
         CALL ReadArray('SurfaceModelType',1,(/nSides/) ,&
                        offsetSurfSide,1,IntegerArray_i4=SurfModelType)
       END ASSOCIATE
-      DO iSurfSide=1,SurfMesh%nSides
+      DO iSurfSide=1,SurfMesh%nMasterSides
         SideID = SurfMesh%SurfIDToSideID(iSurfSide)
         PartboundID = PartBound%MapToPartBC(BC(SideID))
         IF (PartBound%SurfaceModel(PartboundID).NE.SurfModelType(iSurfSide)) THEN
@@ -1129,7 +1129,7 @@ IF (TRIM(SurfaceFileName).EQ.'none') THEN
   END DO
   IF (SurfMesh%SurfOnProc) THEN
     ! write temporary coverage values into global coverage array for each surface
-    DO iSurfSide=1,SurfMesh%nSides
+    DO iSurfSide=1,SurfMesh%nMasterSides
       SideID = SurfMesh%SurfIDToSideID(iSurfSide)
       PartboundID = PartBound%MapToPartBC(BC(SideID))
       IF (.NOT.WallModelExists(PartBoundID)) THEN
@@ -1214,20 +1214,20 @@ __STAMP__&
 __STAMP__&
 ,'Error in surface coverage init: number of variables in HDF5-file does not match!')
     SDEALLOCATE(SurfState_HDF5)
-    ALLOCATE(SurfState_HDF5(1:nVarSurf_HDF5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+    ALLOCATE(SurfState_HDF5(1:nVarSurf_HDF5,1:nSurfSample,1:nSurfSample,SurfMesh%nMasterSides))
 
     ! Associate construct for integer KIND=8 possibility
     ASSOCIATE (&
           nVarSurf_HDF5   => INT(nVarSurf_HDF5,IK)   ,&
           nSurfSample     => INT(nSurfSample,IK)     ,&
-          nSides          => INT(SurfMesh%nSides,IK) ,&
+          nSides          => INT(SurfMesh%nMasterSides,IK) ,&
           offsetSurfSide  => INT(offsetSurfSide,IK)  )
       CALL ReadArray(  'SurfaceData',4,(/nVarSurf_HDF5,nSurfSample,nSurfSample,nSides/)&
                      ,offsetSurfSide,4,RealArray=SurfState_HDF5)
     END ASSOCIATE
     iVar = 3
     DO iSpec = 1, nSpecies
-      DO iSurfSide = 1, SurfMesh%nSides
+      DO iSurfSide = 1, SurfMesh%nMasterSides
         SideID = SurfMesh%SurfIDToSideID(iSurfSide)
         PartboundID = PartBound%MapToPartBC(BC(SideID))
         IF (PartBound%Reactive(PartboundID)) THEN
@@ -1239,7 +1239,7 @@ __STAMP__&
         ELSE
           Adsorption%Coverage(:,:,iSurfSide,iSpec) = 0.
         END IF
-      END DO ! iSurfSide = 1, SurfMesh%nSides
+      END DO ! iSurfSide = 1, SurfMesh%nMasterSides
       iVar = iVar + nVar2D_Spec
     END DO ! iSpec = 1, nSpecies
     SDEALLOCATE(SurfState_HDF5)
@@ -1391,7 +1391,7 @@ SDEALLOCATE(Adsorption%Ads_Prefactor)
 SDEALLOCATE(Adsorption%TST_calc)
 ! surfaces distribution variables (currently surfacemodel=3)
 IF (ALLOCATED(SurfDistInfo)) THEN
-DO iSurfSide=1,SurfMesh%nSides
+DO iSurfSide=1,SurfMesh%nMasterSides
   DO iSubSurf = 1,nSurfSample
   DO jSubSurf = 1,nSurfSample
 #if USE_MPI

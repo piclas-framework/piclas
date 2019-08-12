@@ -431,9 +431,9 @@ IF(nPorousBC.GT.0) THEN
   nVar = nVar + nPorousBC
 END IF
 ! Allocate the output container
-ALLOCATE(MacroSurfaceVal(1:nVar,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+ALLOCATE(MacroSurfaceVal(1:nVar,1:nSurfSample,1:nSurfSample,SurfMesh%nMasterSides))
 MacroSurfaceVal=0.
-ALLOCATE(MacroSurfaceSpecVal(1:nVarSpec,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
+ALLOCATE(MacroSurfaceSpecVal(1:nVarSpec,1:nSurfSample,1:nSurfSample,SurfMesh%nMasterSides,nSpecies))
 MacroSurfaceSpecVal=0.
 
 IF (CalcSurfCollis%Output) THEN
@@ -443,7 +443,7 @@ IF (CalcSurfCollis%Output) THEN
   SumCounterTotal(1:nSpecies+1)=0
 END IF
 
-DO iSurfSide=1,SurfMesh%nSides
+DO iSurfSide=1,SurfMesh%nMasterSides
   DO q=1,nSurfSample
     DO p=1,nSurfSample
       CounterSum = SUM(SampWall(iSurfSide)%State(13:12+nSpecies,p,q))
@@ -527,7 +527,7 @@ DO iSurfSide=1,SurfMesh%nSides
       END DO ! iSpec=1,nSpecies
     END DO ! q=1,nSurfSample
   END DO ! p=1,nSurfSample
-END DO ! iSurfSide=1,SurfMesh%nSides
+END DO ! iSurfSide=1,SurfMesh%nMasterSides
 
 IF (CalcSurfCollis%Output) THEN
 #if USE_MPI

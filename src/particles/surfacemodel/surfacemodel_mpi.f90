@@ -494,7 +494,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
 END DO ! iProc
 
 ! assign bond order to surface atoms in the surfacelattice for halo sides
-DO iSurfSide = SurfMesh%nSides+1,SurfMesh%nTotalSides
+DO iSurfSide = SurfMesh%nMasterSides+1,SurfMesh%nTotalSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%SurfaceModel(PartboundID).NE.3) CYCLE

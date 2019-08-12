@@ -1246,16 +1246,16 @@ END IF
       IF (nSurfSides_HDF5.NE.SurfMesh%nGlobalSides) THEN
         SWRITE(UNIT_stdOut,'(A,A)') ' NUMBER OF SURFACE-SIDES IN RESTART FILE NOT EQUAL TO CALCULATION ... RESTARTING FROM INI'
       ELSE
-        ALLOCATE(SurfModelType(SurfMesh%nSides))
+        ALLOCATE(SurfModelType(SurfMesh%nMasterSides))
         ! Associate construct for integer KIND=8 possibility
         ASSOCIATE (&
-              nSides          => INT(SurfMesh%nSides,IK) ,&
+              nSides          => INT(SurfMesh%nMasterSides,IK) ,&
               offsetSurfSide  => INT(offsetSurfSide,IK) )
           CALL ReadArray('SurfaceModelType',1,(/nSides/) ,&
                          offsetSurfSide,1,IntegerArray_i4=SurfModelType)
         END ASSOCIATE
         WallModelExists(:)=.TRUE.
-        DO iSurfSide=1,SurfMesh%nSides
+        DO iSurfSide=1,SurfMesh%nMasterSides
           SideID = SurfMesh%SurfIDToSideID(iSurfSide)
           PartboundID = PartBound%MapToPartBC(BC(SideID))
           IF (PartBound%SurfaceModel(PartboundID).NE.SurfModelType(iSurfSide)) THEN
@@ -1286,19 +1286,19 @@ __STAMP__&
       CALL DatasetExists(File_ID,'SurfCalcData',SurfCalcDataExists)
       IF (SurfCalcDataExists) THEN
         nVar = 4
-        ALLOCATE(SurfCalcData(nVar,nSurfSample,nSurfSample,SurfMesh%nSides,nSpecies))
+        ALLOCATE(SurfCalcData(nVar,nSurfSample,nSurfSample,SurfMesh%nMasterSides,nSpecies))
 
         ! Associate construct for integer KIND=8 possibility
         ASSOCIATE (&
               nVar            => INT(nVar,IK) ,&
               nSurfSample     => INT(nSurfSample,IK) ,&
-              nSides          => INT(SurfMesh%nSides,IK) ,&
+              nSides          => INT(SurfMesh%nMasterSides,IK) ,&
               nSpecies        => INT(nSpecies,IK) ,&
               offsetSurfSide  => INT(offsetSurfSide,IK) )
           CALL ReadArray('SurfCalcData',5,(/nVar,nSurfSample,nSurfSample,nSides,nSpecies/) ,&
                          offsetSurfSide,4,RealArray=SurfCalcData)
         END ASSOCIATE
-        DO iSurfSide = 1,SurfMesh%nSides
+        DO iSurfSide = 1,SurfMesh%nMasterSides
           SideID = SurfMesh%SurfIDToSideID(iSurfSide)
           PartboundID = PartBound%MapToPartBC(BC(SideID))
           IF (PartBound%Reactive(PartboundID).AND.WallModelExists(PartBoundID)) THEN
@@ -1324,12 +1324,12 @@ __STAMP__&
           SurfPartIntExists=.FALSE.
           CALL DatasetExists(File_ID,'SurfPartInt',SurfPartIntExists)
           IF(SurfPartIntExists)THEN
-            ALLOCATE(SurfPartInt(offsetSurfSide+1:offsetSurfSide+SurfMesh%nSides &
+            ALLOCATE(SurfPartInt(offsetSurfSide+1:offsetSurfSide+SurfMesh%nMasterSides &
                                  ,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize))
 
             ! Associate construct for integer KIND=8 possibility
             ASSOCIATE (&
-                  nSides          => INT(SurfMesh%nSides,IK) ,&
+                  nSides          => INT(SurfMesh%nMasterSides,IK) ,&
                   nSurfSample     => INT(nSurfSample,IK)     ,&
                   Coordinations   => INT(Coordinations,IK)   ,&
                   SurfPartIntSize => INT(SurfPartIntSize,IK) ,&
@@ -1342,8 +1342,8 @@ __STAMP__&
             SurfPartDataExists=.FALSE.
             CALL DatasetExists(File_ID,'SurfPartData',SurfPartDataExists)
             IF(SurfPartDataExists)THEN
-              IF (SurfMesh%nSides.GT.0) THEN
-                locnSurfPart = SurfPartInt(offsetSurfSide+SurfMesh%nSides,nSurfSample,nSurfSample,Coordinations,3) &
+              IF (SurfMesh%nMasterSides.GT.0) THEN
+                locnSurfPart = SurfPartInt(offsetSurfSide+SurfMesh%nMasterSides,nSurfSample,nSurfSample,Coordinations,3) &
                              - SurfPartInt(offsetSurfSide+1,1,1,1,2)
                 offsetnSurfPart=SurfPartInt(offsetSurfSide+1,1,1,1,2)
               ELSE
@@ -1360,7 +1360,7 @@ __STAMP__&
                     offsetnSurfPart   => INT(offsetnSurfPart,IK)   )
                 CALL ReadArray('SurfPartData',2,(/locnSurfPart,SurfPartDataSize/),offsetnSurfPart,1,IntegerArray_i4=SurfPartData)
               END ASSOCIATE
-              DO iSurfSide = 1,SurfMesh%nSides
+              DO iSurfSide = 1,SurfMesh%nMasterSides
                 SideID = SurfMesh%SurfIDToSideID(iSurfSide)
                 PartboundID = PartBound%MapToPartBC(BC(SideID))
                 IF (PartBound%Reactive(PartboundID).AND.WallModelExists(PartBoundID)) THEN

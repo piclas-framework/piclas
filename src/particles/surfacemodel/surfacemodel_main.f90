@@ -130,7 +130,7 @@ IF (.NOT.KeepWallParticles) THEN
     IF (DSMC%ReservoirRateStatistic) SurfModel%Info(iSpec)%WallSpecNumCount = 0
 #endif
 !----- 2.
-    DO iSurfSide = 1,SurfMesh%nSides
+    DO iSurfSide = 1,SurfMesh%nMasterSides
       IF (.NOT.IsReactiveSurface(iSurfSide)) CYCLE
       DO q = 1,nSurfSample
         DO p = 1,nSurfSample
@@ -212,7 +212,7 @@ IF (.NOT.KeepWallParticles) THEN
   END DO
 !----- 3.
   ! SumEvapPart is nullified in particle emission (surface flux) after inserting particles at corresponding surfaces
-  SurfModel%SumEvapPart(:,:,:,:) = SurfModel%SumEvapPart(:,:,:,:) + SurfModel%SumERDesorbed(:,:,1:SurfMesh%nSides,:)
+  SurfModel%SumEvapPart(:,:,:,:) = SurfModel%SumEvapPart(:,:,:,:) + SurfModel%SumERDesorbed(:,:,1:SurfMesh%nMasterSides,:)
   SurfModel%SumERDesorbed(:,:,:,:) = 0
   SurfModel%SumDesorbPart(:,:,:,:) = 0
   SurfModel%SumAdsorbPart(:,:,:,:) = 0
@@ -226,15 +226,7 @@ CALL CalcAdsorbProb()
 CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-!----- 5.
-#if USE_MPI
-! communicate coverage and probabilities to halo sides of neighbour procs
-CALL ExchangeCoverageInfo()
-! communicate distribution to halo-sides of neighbour procs
-CALL ExchangeSurfDistInfo()
-#endif
-
-DO iSurfSide = 1,SurfMesh%nSides
+DO iSurfSide = 1,SurfMesh%nMasterSides
   DO iSpec=1, nSpecies
     IF(Adsorption%CollSpecPartNum(iSurfSide,iSpec).GT.50) THEN
       Adsorption%IncidentNormalVeloAtSurf(iSurfSide,iSpec) = &
@@ -244,6 +236,14 @@ DO iSurfSide = 1,SurfMesh%nSides
      END IF
   END DO
 END DO
+
+!----- 5.
+#if USE_MPI
+! communicate coverage and probabilities to halo sides of neighbour procs
+CALL ExchangeCoverageInfo()
+! communicate distribution to halo-sides of neighbour procs
+CALL ExchangeSurfDistInfo()
+#endif
 
 END SUBROUTINE UpdateSurfModelVars
 

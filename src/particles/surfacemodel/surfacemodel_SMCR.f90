@@ -582,7 +582,7 @@ ALLOCATE( P_react_forward(1:Adsorption%nExchReactions),&
           Pos_Product(1:2,1:Adsorption%ReactNum+Adsorption%nExchReactions))
 
 ! sample energy of surfaces before desorption treatment
-DO iSurf = 1,SurfMesh%nSides
+DO iSurf = 1,SurfMesh%nMasterSides
   IF (SurfaceHasModelNum(iSurf).NE.3) CYCLE
   DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
@@ -596,7 +596,7 @@ DO iSurf = 1,SurfMesh%nSides
 END DO
 
 ! loop over all surfaces and decide if catalytic boundary of modeltype 3
-DO iSurf = 1,SurfMesh%nSides
+DO iSurf = 1,SurfMesh%nMasterSides
   IF (SurfaceHasModelNum(iSurf).NE.3) CYCLE
 #if USE_LOADBALANCE
   IF(PerformLBSample) ElemID = PartSideToElem(S2E_ELEM_ID,globSide)
@@ -1610,10 +1610,10 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
 #endif
   END DO ! nSpecies (analyze)
 END DO ; END DO ! nSurfSample
-END DO ! SurfMesh%nSides
+END DO ! SurfMesh%nMasterSides
 
 ! sample energy of surfaces after desorption treatment
-DO iSurf = 1,SurfMesh%nSides
+DO iSurf = 1,SurfMesh%nMasterSides
   IF (SurfaceHasModelNum(iSurf).NE.3) CYCLE
   DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
@@ -1671,7 +1671,7 @@ IF (.NOT.SurfMesh%SurfOnProc) RETURN
 IF (Adsorption%NoDiffusion) RETURN
 
 ! diffusion into equilibrium distribution
-DO iSurf=1,SurfMesh%nSides
+DO iSurf=1,SurfMesh%nMasterSides
   IF (SurfaceHasModelNum(iSurf).NE.3) CYCLE
   DO jSubSurf=1,nSurfSample ; DO iSubSurf=1,nSurfSample
 
@@ -1772,7 +1772,7 @@ DO iSurf=1,SurfMesh%nSides
           * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(1)%MacroParticleFactor
     END IF
   END DO ; END DO !iSubSurf = 1,nSurfSample; jSubSurf = 1,nSurfSample
-END DO !iSurf = 1,SurfMesh%nSides
+END DO !iSurf = 1,SurfMesh%nMasterSides
 
 END SUBROUTINE SMCR_Diffusion
 

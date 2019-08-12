@@ -126,7 +126,8 @@ INTEGER                          :: ElemID
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 
 DO iSpec = 1,nSpecies
-  DO iSurfSide = 1,SurfMesh%nSides
+  DO iSurfSide = 1,SurfMesh%nBCSides + SurfMesh%nInnerSides
+
 #if USE_LOADBALANCE
     IF(PerformLBSample) THEN
       ElemID = PartSideToElem(S2E_ELEM_ID,SurfMesh%SurfIDToSideID(iSurfSide))
@@ -240,7 +241,7 @@ REAL                             :: Theta_req, Kfactor, S_0
 INTEGER                          :: PartBoundID
 !===================================================================================================================================
 DO iSpec=1,nSpecies
-  DO SurfSide=1,SurfMesh%nSides
+  DO SurfSide=1,SurfMesh%nBCSides + SurfMesh%nInnerSides
     PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
     IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
     DO q = 1,nSurfSample
@@ -310,7 +311,7 @@ REAL                             :: E_des
 INTEGER                          :: PartBoundID, iReactNum, RecombReactID, jSpec, kSpec
 !===================================================================================================================================
 ! CALL CalcSurfDistInteraction()
-DO SurfSide=1,SurfMesh%nSides
+DO SurfSide=1,SurfMesh%nBCSides + SurfMesh%nInnerSides
   PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
   IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
 ! special TPD (temperature programmed desorption) temperature adjustment routine

@@ -254,7 +254,7 @@ IF(Adsorption%CoverageReduction) ALLOCATE(Adsorption%CovReductionStep(1:nSpecies
 #endif
 ! Use Coverage information to distribute adsorbates randomly on surface
 IF (MAXVAL(Adsorption%Coverage(:,:,:,:)).GT.0) THEN
-  DO iSurfSide = 1,SurfMesh%nSides
+  DO iSurfSide = 1,SurfMesh%nBCSides+SurfMesh%nInnerSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%SurfaceModel(PartboundID).NE.3) CYCLE
