@@ -4532,46 +4532,45 @@ SUBROUTINE TimeStepPoisson()
 ! Euler (500) or Leapfrog (509) -push with HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                 ONLY: Abort, LocalTime
-USE MOD_DG_Vars,                 ONLY: U
+USE MOD_Globals                ,ONLY: Abort, LocalTime
+USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY: dt,iter,time
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
 #if (PP_TimeDiscMethod==509)
-USE MOD_TimeDisc_Vars,           ONLY: dt_old
+USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 #endif /*(PP_TimeDiscMethod==509)*/
-USE MOD_HDG,                     ONLY: HDG
-USE MOD_Particle_Tracking_vars,  ONLY: DoRefMapping!,MeasureTrackTime
+USE MOD_HDG                    ,ONLY: HDG
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 #ifdef PARTICLES
-USE MOD_PICDepo,                 ONLY: Deposition
-USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell!, usevMPF
-USE MOD_Particle_Vars,           ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
-USE MOD_Particle_Vars,           ONLY: Species,PartSpecies
-USE MOD_Particle_Analyze_Vars,   ONLY: CalcCoupledPower,PCoupl, PCouplAverage
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
+USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell ! , usevMPF
+USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
+USE MOD_Particle_Vars          ,ONLY: Species,PartSpecies
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl, PCouplAverage, PCouplSpec
 #if (PP_TimeDiscMethod==509)
-USE MOD_Particle_Vars,           ONLY: velocityAtTime, velocityOutputAtTime
+USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
-USE MOD_part_RHS,                ONLY: CalcPartRHS
-!USE MOD_part_boundary,           ONLY : ParticleBoundary
-USE MOD_part_emission,           ONLY: ParticleInserting, ParticleSurfaceflux
-USE MOD_DSMC,                    ONLY: DSMC_main
-USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS
-USE MOD_part_MPFtools,           ONLY: StartParticleMerge
-USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
-USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge,PartAnalyzeStep
+USE MOD_part_RHS               ,ONLY: CalcPartRHS
+USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_DSMC                   ,ONLY: DSMC_main
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
+USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge,PartAnalyzeStep
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 #if USE_MPI
-USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars,       ONLY:  DoExternalParts
-USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
+USE MOD_Particle_MPI_Vars      ,ONLY:  DoExternalParts
+USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif
-!USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
-USE MOD_part_tools,              ONLY: UpdateNextFreePosition
-USE MOD_Particle_Tracking_vars,  ONLY: DoRefMapping,TriaTracking !,MeasureTrackTime
-USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -4582,10 +4581,11 @@ IMPLICIT NONE
 INTEGER :: iPart
 REAL    :: RandVal, dtFrac
 #if USE_LOADBALANCE
-REAL                          :: tLBStart ! load balance
+REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
-REAL           :: EDiff
+REAL                       :: EDiff
+INTEGER                    :: iElem,iSpec
 #endif /*PARTICLES*/
 !===================================================================================================================================
 #ifdef PARTICLES
@@ -4752,17 +4752,19 @@ IF (time.GE.DelayTime) THEN
       END IF
 #endif /*(PP_TimeDiscMethod==509)*/
       IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN  ! if output of coupled power is active and particle carries charge
-        EDiff = EDiff &       ! kinetic energy after Particle Push (positive)
+        EDiff = ABS(EDiff &       ! kinetic energy after Particle Push (positive)
                + 0.5 * Species(PartSpecies(iPart))%MassIC &
                * ( PartState(iPart,4) * PartState(iPart,4) &
                  + PartState(iPart,5) * PartState(iPart,5) &
-                 + PartState(iPart,6) * PartState(iPart,6) )
-        PCoupl = PCoupl + ABS(EDiff)
-        PCouplAverage = PCouplAverage + ABS(EDiff)
+                 + PartState(iPart,6) * PartState(iPart,6) ))
+        PCoupl = PCoupl + EDiff
+        PCouplAverage = PCouplAverage + EDiff
+        iElem = PEM%Element(iPart)
+        iSpec = PartSpecies(iPart)
+        PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
       END IF
     END IF
   END DO
-  !read*
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4915,7 +4917,7 @@ USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl,PCouplAverage
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl,PCouplAverage,PCouplSpec
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -4927,6 +4929,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
 USE MOD_SurfaceModel           ,ONLY: UpdateSurfModelVars, SurfaceModel_main
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
@@ -4944,6 +4947,7 @@ INTEGER        :: iPart, iStage_loc
 REAL           :: RandVal
 #ifdef PARTICLES
 REAL           :: EDiff
+INTEGER        :: iElem,iSpec
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
 REAL           :: tLBStart
@@ -5133,13 +5137,16 @@ __STAMP__&
         IF (.NOT.DoForceFreeSurfaceFlux) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
       END IF !IsNewPart
       IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN  ! if output of coupled power is active and particle carries charge
-        EDiff = EDiff &       ! kinetic energy after Particle Push (positive)
+        EDiff = ABS(EDiff &       ! kinetic energy after Particle Push (positive)
                + 0.5 * Species(PartSpecies(iPart))%MassIC &
                * ( PartState(iPart,4) * PartState(iPart,4) &
                  + PartState(iPart,5) * PartState(iPart,5) &
-                 + PartState(iPart,6) * PartState(iPart,6) )
-        PCoupl = PCoupl + ABS(EDiff)
-        PCouplAverage = PCouplAverage + ABS(EDiff)
+                 + PartState(iPart,6) * PartState(iPart,6) ))
+        PCoupl = PCoupl + EDiff
+        PCouplAverage = PCouplAverage + EDiff
+        iElem = PEM%Element(iPart)
+        iSpec = PartSpecies(iPart)
+        PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
       END IF
     END IF
   END DO
@@ -5322,13 +5329,16 @@ DO iStage=2,nRKStages
           IF (.NOT.DoForceFreeSurfaceFlux .OR. iStage.EQ.nRKStages) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
         END IF !IsNewPart
         IF (CalcCoupledPower) THEN  ! if output of coupled power is active
-          EDiff = EDiff &       ! kinetic energy after Particle Push (positive)
+          EDiff = ABS(EDiff &       ! kinetic energy after Particle Push (positive)
                  + 0.5 * Species(PartSpecies(iPart))%MassIC &
                  * ( PartState(iPart,4) * PartState(iPart,4) &
                    + PartState(iPart,5) * PartState(iPart,5) &
-                   + PartState(iPart,6) * PartState(iPart,6) )
-          PCoupl = PCoupl + ABS(EDiff)
-          PCouplAverage = PCouplAverage + ABS(EDiff)
+                   + PartState(iPart,6) * PartState(iPart,6) ))
+          PCoupl = PCoupl + EDiff
+          PCouplAverage = PCouplAverage + EDiff
+          iElem = PEM%Element(iPart)
+          iSpec = PartSpecies(iPart)
+          PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
         END IF
       END IF
     END DO

@@ -207,6 +207,7 @@ REAL          :: DOF,VolumeShapeFunction
 CHARACTER(32) :: hilf
 REAL          :: Bounds(1:2,1:3)
 INTEGER       :: ALLOCSTAT
+INTEGER       :: iSpec
 !===================================================================================================================================
 IF (ParticleAnalyzeInitIsDone) THEN
 CALL abort(__STAMP__,&
@@ -316,6 +317,9 @@ END IF
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
   ! Determine the average distances in x, y and z
   ! Move the determination of these variables as soon as they are required for other functions!
+  SDEALLOCATE(GEO%CharLengthX)
+  SDEALLOCATE(GEO%CharLengthY)
+  SDEALLOCATE(GEO%CharLengthZ)
   ALLOCATE(GEO%CharLengthX(nElems),GEO%CharLengthY(nElems),GEO%CharLengthZ(nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
@@ -471,18 +475,22 @@ IF(CalcCoupledPower) THEN
   DoPartAnalyze = .TRUE.
 #if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==509))
   CALL abort(__STAMP__,&
-            'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
+      'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
 #endif
+  ! Allocate type array for all ranks
+  ALLOCATE(PCouplSpec(1:nSpecies))
+  DO iSpec = 1, nSpecies
+    ALLOCATE(PCouplSpec(iSpec)%DensityAvgElem(1:PP_nElems))
+    PCouplSpec(iSpec)%DensityAvgElem = 0.
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    CALL AddToElemData(ElementOut,'PCouplDensityAvgElem-Spec-'//TRIM(hilf),RealArray=PCouplSpec(iSpec)%DensityAvgElem)
+  END DO ! iSpec = 1, nSpecies
 END IF
 
 ! compute number of entering and leaving particles and their energy
 CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
 IF (CalcPartBalance) THEN
   DoPartAnalyze = .TRUE.
-  SDEALLOCATE(nPartIn)
-  SDEALLOCATE(nPartOut)
-  SDEALLOCATE(PartEkinIn)
-  SDEALLOCATE(PartEkinOut)
   ALLOCATE( nPartIn(1:nSpecAnalyze)     &
           , nPartOut(1:nSpecAnalyze)    &
           , PartEkinOut(1:nSpecAnalyze) &
@@ -615,6 +623,7 @@ USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Analyze_Vars           ,ONLY: CalcEpot,Wel,Wmag,Wphi,Wpsi
 USE MOD_DSMC_Vars              ,ONLY: DSMC
+USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_TimeDisc_Vars          ,ONLY: iter, dt
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
@@ -635,6 +644,7 @@ USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, F
 USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber, FPInitDone
 USE MOD_BGK_Vars               ,ONLY: BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor, BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone
+USE MOD_Restart_Vars           ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1219,7 +1229,7 @@ IF(PartMPI%MPIRoot) THEN
     IF(iter.EQ.0) THEN
       PCouplAverage = 0.0
     ELSE
-      PCouplAverage = PCouplAverage / Time
+      PCouplAverage = PCouplAverage / (Time-RestartTime)
     END IF
     ! current PCoupl (Delta_E / Timestep)
     PCoupl = PCoupl / dt
@@ -1483,8 +1493,10 @@ IF(CalcPorousBCInfo) THEN
     PorousBC(iPBC)%Output(1:5) = 0.
   END DO
 END IF
-IF (CalcCoupledPower) THEN                         ! if output of coupled power is active
-  PCouplAverage = PCouplAverage * Time           ! PCouplAverage is reseted
+
+! Reset coupled power to particles if output of coupled power is active
+IF (CalcCoupledPower) THEN
+  PCouplAverage = PCouplAverage * (Time-RestartTime) ! PCouplAverage is reseted
 END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4146,14 +4158,15 @@ SUBROUTINE FinalizeParticleAnalyze()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Analyze_Vars ,ONLY: ParticleAnalyzeInitIsDone,DebyeLengthCell,PICTimeStepCell &
-                                    ,ElectronTemperatureCell,ElectronDensityCell,PlasmaFrequencyCell,PPSCell,PPSCellEqui
-! IMPLICIT VARIABLE HANDLINGDGInitIsDone
+USE MOD_Particle_Analyze_Vars
+USE MOD_Particle_Vars         ,ONLY: nSpecies
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER           :: iSpec
 !===================================================================================================================================
 ParticleAnalyzeInitIsDone = .FALSE.
 SDEALLOCATE(DebyeLengthCell)
@@ -4163,6 +4176,34 @@ SDEALLOCATE(ElectronTemperatureCell)
 SDEALLOCATE(PlasmaFrequencyCell)
 SDEALLOCATE(PPSCell)
 SDEALLOCATE(PPSCellEqui)
+IF(CalcCoupledPower) THEN
+  DO iSpec = 1, nSpecies
+    SDEALLOCATE(PCouplSpec(iSpec)%DensityAvgElem)
+  END DO ! iSpec = 1, nSpecies
+END IF
+SDEALLOCATE(PCouplSpec)
+SDEALLOCATE(PPDCell)
+SDEALLOCATE(PPDCellX)
+SDEALLOCATE(PPDCellY)
+SDEALLOCATE(PPDCellZ)
+SDEALLOCATE(IonizationCell)
+SDEALLOCATE(PICCFLCell)
+SDEALLOCATE(PICCFLCellX)
+SDEALLOCATE(PICCFLCellY)
+SDEALLOCATE(PICCFLCellZ)
+SDEALLOCATE(MaxPartDisplacementCell)
+SDEALLOCATE(MaxPartDisplacementCellX)
+SDEALLOCATE(MaxPartDisplacementCellY)
+SDEALLOCATE(MaxPartDisplacementCellZ)
+SDEALLOCATE(PlasmaParameterCell)
+SDEALLOCATE(QuasiNeutralityCell)
+SDEALLOCATE(IonDensityCell)
+SDEALLOCATE(NeutralDensityCell)
+SDEALLOCATE(ChargeNumberCell)
+SDEALLOCATE(nPartIn)
+SDEALLOCATE(nPartOut)
+SDEALLOCATE(PartEkinIn)
+SDEALLOCATE(PartEkinOut)
 END SUBROUTINE FinalizeParticleAnalyze
 #endif /*PARTICLES*/
 
