@@ -1227,6 +1227,7 @@ USE MOD_Globals
 USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall,PartBound
 USE MOD_Mesh_Vars,                  ONLY:nBCSides,nSides,BC
 USE MOD_Particle_Mesh_Vars,         ONLY:PartSideToElem
+USE MOD_SurfaceModel_Vars,          ONLY:Adsorption
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1251,6 +1252,17 @@ IF(SurfMesh%nSides.GT.StartSurfSide) THEN ! There are reflective inner BCs on Sl
             SurfSideHaloID=SurfMesh%SideIDToSurfID(TargetHaloSide)
             SampWall(SurfSideHaloID)%State(:,p,q)=SampWall(SurfSideHaloID)%State(:,p,q) &
                                                   +SampWall(SurfSideID)%State(:,p,q)
+            IF (ANY(PartBound%Reactive)) THEN
+              SampWall(SurfSideHaloID)%SurfModelState(:,p,q)=SampWall(SurfSideHaloID)%SurfModelState(:,p,q) &
+                  +SampWall(SurfSideID)%SurfModelState(:,p,q)
+              SampWall(SurfSideHaloID)%Accomodation(:,p,q)=SampWall(SurfSideHaloID)%Accomodation(:,p,q) &
+                  +SampWall(SurfSideID)%Accomodation(:,p,q)
+              DO iReact=1,2*Adsorption%ReactNum
+                SampWall(SurfSideHaloID)%SurfModelReactCount(iReact,:,p,q) = &
+                    SampWall(SurfSideHaloID)%SurfModelReactCount(iReact,:,p,q) &
+                    +SampWall(SurfSideID)%SurfModelReactCount(iReact,:,p,q)
+              END DO
+            END IF
           END DO
         END DO
       END IF
