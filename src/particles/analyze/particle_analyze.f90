@@ -4159,14 +4159,15 @@ SUBROUTINE FinalizeParticleAnalyze()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Analyze_Vars ,ONLY: ParticleAnalyzeInitIsDone,DebyeLengthCell,PICTimeStepCell &
-                                    ,ElectronTemperatureCell,ElectronDensityCell,PlasmaFrequencyCell,PPSCell,PPSCellEqui
-! IMPLICIT VARIABLE HANDLINGDGInitIsDone
+USE MOD_Particle_Analyze_Vars
+USE MOD_Particle_Vars         ,ONLY: nSpecies
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER           :: iSpec
 !===================================================================================================================================
 ParticleAnalyzeInitIsDone = .FALSE.
 SDEALLOCATE(DebyeLengthCell)
@@ -4176,6 +4177,12 @@ SDEALLOCATE(ElectronTemperatureCell)
 SDEALLOCATE(PlasmaFrequencyCell)
 SDEALLOCATE(PPSCell)
 SDEALLOCATE(PPSCellEqui)
+IF(CalcCoupledPower) THEN
+  DO iSpec = 1, nSpecies
+    SDEALLOCATE(PCouplSpec(iSpec)%DensityAvgElem)
+  END DO ! iSpec = 1, nSpecies
+END IF
+SDEALLOCATE(PCouplSpec)
 END SUBROUTINE FinalizeParticleAnalyze
 #endif /*PARTICLES*/
 
