@@ -235,9 +235,9 @@ USE MOD_IO_HDF5
 #if USE_MPI
 USE MOD_MPI_Vars             ,ONLY: offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 USE MOD_LoadBalance_Vars     ,ONLY: NewImbalance,MaxWeight,MinWeight,ElemGlobalTime,LoadDistri,PartDistri,TargetWeight,ElemTime
-#if USE_HDG
+#if USE_HDG && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: ElemHDGSides,TotalHDGSides
-#endif /*USE_HDG*/
+#endif /*USE_HDG && USE_LOADBALANCE*/
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars     ,ONLY: nTracksPerElem,nPartsPerBCElem
 #if USE_LOADBALANCE
@@ -440,7 +440,7 @@ IF(ElemTimeExists)THEN
   CALL CloseDataFile()
 END IF ! ElemTimeExists
 
-#if USE_HDG
+#if USE_HDG && USE_LOADBALANCE
 ! Allocate container for number of master sides for the HDG solver for each element
 SDEALLOCATE(ElemHDGSides)
 ALLOCATE(ElemHDGSides(1:nElems))
@@ -449,7 +449,7 @@ IF(CalcMeshInfo)THEN
   CALL AddToElemData(ElementOut,'ElemHDGSides',IntArray=ElemHDGSides(1:nElems))
 END IF ! CalcMeshInfo
 TotalHDGSides=0
-#endif /*USE_HDG*/
+#endif /*USE_HDG && USE_LOADBALANCE*/
 
 ! Set new ElemTime depending on new load distribution
 SDEALLOCATE(ElemTime)
