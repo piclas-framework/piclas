@@ -3924,7 +3924,7 @@ USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray,GetD
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
 USE MOD_Particle_Vars           ,ONLY: Symmetry2D, Symmetry2DAxisymmetric
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D         ,ONLY: DSMC_2D_CalcSymmetryArea
+USE MOD_DSMC_Symmetry2D         ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 USE MOD_Restart_Vars            ,ONLY: DoRestart, RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3978,7 +3978,14 @@ INTEGER               :: iProc
 REAL, ALLOCATABLE     :: areasLoc(:),areasGlob(:)
 REAL                  :: totalAreaSF_global
 #endif
-REAL                  :: ymin, ymax, VFR_total
+REAL                  :: ymin, ymax, VFR_total, yMinTemp, yMaxTemp
+TYPE tBCdata_auxSFTemp
+  REAL, ALLOCATABLE   :: SubSideWeight(:,:)
+  REAL, ALLOCATABLE   :: WeightingFactor(:)
+  REAL, ALLOCATABLE   :: SubSideArea(:,:)
+END TYPE
+TYPE(tBCdata_auxSFTemp),ALLOCATABLE          :: BCdata_auxSFTemp(:)
+INTEGER               :: iSub
 !===================================================================================================================================
 
 #if USE_MPI
@@ -4396,6 +4403,11 @@ IF (UseCircularInflow) THEN
   nType1=0
   nType2=0
 END IF
+
+IF(RadialWeighting%DoRadialWeighting) THEN
+  ALLOCATE(BCdata_auxSFTemp(1:nPartBound))
+END IF
+
 !--- 2b: save sequential lists in BCdata_auxSF
 DO iBC=1,nDataBC
   BCdata_auxSF(TmpMapToBC(iBC))%SideNumber=TmpSideNumber(iBC)
@@ -4406,7 +4418,9 @@ DO iBC=1,nDataBC
     ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%TriaSideGeo(1:TmpSideNumber(iBC)))
   END IF
   IF(RadialWeighting%DoRadialWeighting) THEN
-    ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%WeightingFactor(1:TmpSideNumber(iBC)))
+    ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(1:TmpSideNumber(iBC)))
+    ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
+    ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
   END IF
   DO iSpec=1,nSpecies
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
@@ -4415,6 +4429,9 @@ DO iBC=1,nDataBC
         IF (UseCircularInflow .AND. (iSF .LE. Species(iSpec)%nSurfacefluxBCs)) THEN
           ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(1:TmpSideNumber(iBC)) )
         END IF
+      END IF
+      IF(RadialWeighting%DoRadialWeighting) THEN
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
       END IF
     END DO
   END DO
@@ -4444,15 +4461,22 @@ DO iBC=1,nDataBC
               ! Surfaces that are NOT parallel to the YZ-plane
               IF(RadialWeighting%CellLocalWeighting) THEN
                 ! Cell local weighting
-                BCdata_auxSF(TmpMapToBC(iBC))%WeightingFactor(iCount) = (1. + GEO%ElemMidPoint(2,ElemID)&
+                BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = (1. + GEO%ElemMidPoint(2,ElemID)&
                                                                         / GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))
               ELSE
-                BCdata_auxSF(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1.          &
-                  + (ymax**2/(GEO%ymaxglob*2.)*(RadialWeighting%PartScaleFactor-1.) &
-                  -  ymin**2/(GEO%ymaxglob*2.)*(RadialWeighting%PartScaleFactor-1.))/(ymax - ymin)
+                BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1.
+                DO iSub = 1, RadialWeighting%nSubSides
+                  yMinTemp = ymin + (iSub-1) * (ymax - ymin) / RadialWeighting%nSubSides
+                  yMaxTemp = ymin + iSub * (ymax - ymin) / RadialWeighting%nSubSides
+                  BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,iSub) = 1.          &
+                    + (yMaxTemp**2/(GEO%ymaxglob*2.)*(RadialWeighting%PartScaleFactor-1.) &
+                    -  yMinTemp**2/(GEO%ymaxglob*2.)*(RadialWeighting%PartScaleFactor-1.))/(yMaxTemp - yMinTemp)
+                END DO
+                BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(iCount,:) = DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,ElemID)
               END IF
             ELSE ! surfaces parallel to the x-axis (ymax = ymin)
-              BCdata_auxSF(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1. + ymax/(GEO%ymaxglob)*(RadialWeighting%PartScaleFactor-1.)
+              BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1. &
+                                                                        + ymax/(GEO%ymaxglob)*(RadialWeighting%PartScaleFactor-1.)
             END IF
           END IF
         ELSE
@@ -4741,6 +4765,13 @@ __STAMP__&
               a = Species(iSpec)%Surfaceflux(iSF)%VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
               vSF = v_thermal / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity through normal sub-face
               nVFR = tmp_SubSideAreas(iSample,jSample) * vSF !VFR projected to inwards normal of sub-side
+              IF(RadialWeighting%DoRadialWeighting) THEN
+                nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
+                DO iSub = 1, RadialWeighting%nSubSides
+                  Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) &
+                                                                      * vSF / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
+                END DO
+              END IF
             CASE DEFAULT
               CALL abort(&
 __STAMP__&
@@ -4751,7 +4782,6 @@ __STAMP__&
                 nVFR = 0.
               END IF
             END IF
-            IF(RadialWeighting%DoRadialWeighting) nVFR = nVFR / BCdata_auxSF(currentBC)%WeightingFactor(iSide)
             Species(iSpec)%Surfaceflux(iSF)%VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total + nVFR
             !-- store SF-specific SubSide data in SurfFluxSubSideData (incl. projected velos)
             Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR = nVFR
@@ -5076,6 +5106,8 @@ REAL                        :: tLBStart
 REAL                        :: tmpVec(3)
 #endif /*CODE_ANALYZE*/
 TYPE(tSurfFluxLink),POINTER :: currentSurfFluxPart => NULL()
+REAL                        :: PminTemp, PmaxTemp
+INTEGER                     :: PartInsSideSubSub(1:RadialWeighting%nSubSides), iSub, iPartSub
 !===================================================================================================================================
 
 DO iSpec=1,nSpecies
@@ -5203,6 +5235,7 @@ __STAMP__&
       END IF
       DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
         ExtraParts = 0 !set here number of additional to-be-inserted particles in current BCSideID/subsides (e.g. desorption)
+        IF(Symmetry2DAxisymmetric.AND.(jSample.EQ.2)) CYCLE
         IF (TriaSurfaceFlux) THEN
           !-- compute parallelogram of triangle
           Node1 = jSample+1     ! normal = cross product of 1-2 and 1-3 for first triangle
@@ -5235,6 +5268,34 @@ __STAMP__&
             END IF !SurfMesh%SideIDToSurfID(SideID).GT.0
           END IF !reactive surface
         END IF !noAdaptive
+
+        ! REQUIRED LATER FOR THE POSITION START
+        IF(Symmetry2DAxisymmetric) THEN
+          !-- compute parallelogram of triangle (only simple 2 value adds/subs, other from init)
+          Node1 = 2     ! normal = cross product of 1-2 and 1-3 for first triangle
+          Node2 = 4     !          and 1-3 and 1-4 for second triangle
+          Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - xNod
+          Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - yNod
+          Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - zNod
+          Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - xNod
+          Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - yNod
+          Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - zNod
+          IF (ABS(Vector1(3)).GT.ABS(Vector2(3))) THEN
+            Vector2D(1:2) = Vector2(1:2)
+          ELSE
+            Vector2D(1:2) = Vector1(1:2)
+          END IF
+          minVec = MINLOC((/ynod, ynod+Vector2D(2)/),1)
+          SELECT CASE(minVec)
+          CASE(1)
+            minPos(1:2) = (/xnod, ynod/)
+            RVec(1:2) =  Vector2D(1:2)
+          CASE(2)
+            minPos(1:2) = (/xnod,ynod/) + Vector2D(1:2)
+            RVec(1:2) = - Vector2D(1:2)
+          END SELECT
+        END IF
+        ! REQUIRED LATER FOR THE POSITION END
 
 !----- 1.: set positions
         !-- compute number of to be inserted particles
@@ -5406,34 +5467,18 @@ __STAMP__&
           CALL RANDOM_NUMBER(RandVal1)
           PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
             * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR + RandVal1)
-        END IF ! noAdaptive.AND.(.NOT.Symmetry2DAxisymmetric)
-        ! REQUIRED LATER FOR THE POSITION START
-        IF(Symmetry2DAxisymmetric) THEN
-          !-- compute parallelogram of triangle (only simple 2 value adds/subs, other from init)
-          Node1 = 2     ! normal = cross product of 1-2 and 1-3 for first triangle
-          Node2 = 4     !          and 1-3 and 1-4 for second triangle
-          Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - xNod
-          Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - yNod
-          Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - zNod
-          Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - xNod
-          Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - yNod
-          Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - zNod
-          IF (ABS(Vector1(3)).GT.ABS(Vector2(3))) THEN
-            Vector2D(1:2) = Vector2(1:2)
-          ELSE
-            Vector2D(1:2) = Vector1(1:2)
+          IF(.NOT.RadialWeighting%CellLocalWeighting) THEN
+            IF(.NOT.ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
+              PartInsSubSide = 0
+              DO iSub = 1, RadialWeighting%nSubSides
+                CALL RANDOM_NUMBER(RandVal1)
+                PartInsSideSubSub(iSub) = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
+                        * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub)+ RandVal1)
+                PartInsSubSide = PartInsSubSide + PartInsSideSubSub(iSub)
+              END DO
+            END IF
           END IF
-          minVec = MINLOC((/ynod, ynod+Vector2D(2)/),1)
-          SELECT CASE(minVec)
-          CASE(1)
-            minPos(1:2) = (/xnod, ynod/)
-            RVec(1:2) =  Vector2D(1:2)
-          CASE(2)
-            minPos(1:2) = (/xnod,ynod/) + Vector2D(1:2)
-            RVec(1:2) = - Vector2D(1:2)
-          END SELECT
-        END IF
-        ! REQUIRED LATER FOR THE POSITION END
+        END IF ! noAdaptive.AND.(.NOT.Symmetry2DAxisymmetric)
         !-- proceed with calculated to be inserted particles
         IF (PartInsSubSide.LT.0) THEN
           CALL abort(&
@@ -5462,26 +5507,58 @@ __STAMP__&
         iPart=1
         nReject=0
         allowedRejections=0
-        DO WHILE (iPart+allowedRejections .LE. PartInsSubSide)
-          IF (TriaSurfaceFlux) THEN
-            IF(Symmetry2DAxisymmetric) THEN
-              CALL RANDOM_NUMBER(RandVal1)
-              IF (RadialWeighting%DoRadialWeighting.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))))) THEN
+        
+        IF(Symmetry2DAxisymmetric) THEN
+          IF (RadialWeighting%DoRadialWeighting.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))))) THEN
+            IF(RadialWeighting%CellLocalWeighting) THEN
+              DO WHILE (iPart .LE. PartInsSubSide)
+                CALL RANDOM_NUMBER(RandVal1)
                 Particle_pos(2) = minPos(2) + RandVal1 * RVec(2)
                 ! x-position depending on the y-location
                 Particle_pos(1) = minPos(1) + (Particle_pos(2)-minPos(2)) * RVec(1) / RVec(2)
+                particle_positions(iPart*3-2) = Particle_pos(1)
+                particle_positions(iPart*3-1) = Particle_pos(2)
+                particle_positions(iPart*3  ) = 0.
+                iPart = iPart + 1
+              END DO
+            ELSE
+              DO iSub = 1, RadialWeighting%nSubSides
+                iPartSub = 1
+                DO WHILE (iPartSub.LE.PartInsSideSubSub(iSub))
+                  CALL RANDOM_NUMBER(RandVal1)
+                  PminTemp = minPos(2) + RVec(2)/RadialWeighting%nSubSides*(iSub-1.)
+                  PmaxTemp = minPos(2) + RVec(2)/RadialWeighting%nSubSides*iSub
+                  Particle_pos(2) = PminTemp + RandVal1 * (PmaxTemp - PminTemp)
+                  ! x-position depending on the y-location
+                  Particle_pos(1) = minPos(1) + (Particle_pos(2)-minPos(2)) * RVec(1) / RVec(2)
+                  particle_positions(iPart*3-2) = Particle_pos(1)
+                  particle_positions(iPart*3-1) = Particle_pos(2)
+                  particle_positions(iPart*3  ) = 0.
+                  iPart = iPart + 1
+                  iPartSub = iPartSub + 1
+                END DO
+              END DO
+            END IF
+          ELSE
+            DO WHILE (iPart .LE. PartInsSubSide)
+              CALL RANDOM_NUMBER(RandVal1)
+              IF (ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
+                ! y_min = y_max, faces parallel to x-direction, constant distribution
+                Particle_pos(1:2) = minPos(1:2) + RVec(1:2) * RandVal1
               ELSE
-                IF (ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
-                  ! y_min = y_max, faces parallel to x-direction, constant distribution
-                  Particle_pos(1:2) = minPos(1:2) + RVec(1:2) * RandVal1
-                ELSE
-                ! No RadialWeighting, regular linear distribution of particle positions
-                  Particle_pos(1:2) = minPos(1:2) + RVec(1:2) &
-                      * ( SQRT(RandVal1*((minPos(2) + RVec(2))**2-minPos(2)**2)+minPos(2)**2) - minPos(2) ) / (RVec(2))
-                END IF
+              ! No RadialWeighting, regular linear distribution of particle positions
+                Particle_pos(1:2) = minPos(1:2) + RVec(1:2) &
+                    * ( SQRT(RandVal1*((minPos(2) + RVec(2))**2-minPos(2)**2)+minPos(2)**2) - minPos(2) ) / (RVec(2))
               END IF
-              Particle_pos(3) = 0.
-            ELSE ! Regular 3D simulation
+              particle_positions(iPart*3-2) = Particle_pos(1)
+              particle_positions(iPart*3-1) = Particle_pos(2)
+              particle_positions(iPart*3  ) = 0.
+              iPart = iPart + 1
+            END DO
+          END IF
+        ELSE
+          DO WHILE (iPart+allowedRejections .LE. PartInsSubSide)
+            IF (TriaSurfaceFlux) THEN
               CALL RANDOM_NUMBER(RandVal2)
               IF (.NOT.TriaTracking) THEN !prevent inconsistency with non-triatracking by bilinear-routine (tol. might be increased)
                 RandVal2 = RandVal2 + eps_nontria*(1 - 2.*RandVal2) !shift randVal off from 0 and 1
@@ -5498,105 +5575,105 @@ __STAMP__&
               IF (PartDistance.GT.0.) THEN !flip into right triangle if outside
                 Particle_pos(1:3) = 2*midpoint(1:3)-Particle_pos(1:3)
               END IF
-            END IF
-          ELSE !.NOT.TriaSurfaceFlux
-            iLoop=0
-            DO !ARM for xi considering the dA of the Subside in RefSpace
-              iLoop = iLoop+1
-              CALL RANDOM_NUMBER(RandVal2)
-              xiab(1,1:2)=(/BezierSampleXi(ISample-1),BezierSampleXi(ISample)/) !correct order?!?
-              xiab(2,1:2)=(/BezierSampleXi(JSample-1),BezierSampleXi(JSample)/) !correct order?!?
-              xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
-              IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
-                IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
-                  CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,2 &
-                    ,Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
-                    ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo) &
-                    ,Gradient=gradXiEta2D)
-                  E=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(1,1:2))
-                  F=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(2,1:2))
-                  G=DOT_PRODUCT(gradXiEta2D(2,1:2),gradXiEta2D(2,1:2))
-                ELSE
-                  CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
-                    ,Gradient=gradXiEta3D)
-                  E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
-                  F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
-                  G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
-                END IF !.NOT.VeloIsNormal
-                D=SQRT(E*G-F*F)
-                D=D/Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax !scaled Jacobian of xi
-                IF (D .GT. 1.01) THEN !arbitrary warning threshold
-                  IPWRITE(*,'(I4,x,A28,I0,A9,I0,A22,I0)') &
-                    'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has inaccurate Dmax! ',D
-                END IF
-                CALL RANDOM_NUMBER(RandVal1)
-                IF (RandVal1.LE.D) THEN
-                  EXIT !accept xi
-                ELSE
-                  IF (MOD(iLoop,100).EQ.0) THEN !arbitrary warning threshold
-                    IPWRITE(*,'(I4,x,A28,I0,A9,I0,A18,I0)') &
-                      'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has reached loop ',iLoop
-                    IPWRITE(*,'(I4,x,A19,2(x,E16.8))') &
-                      '         R, D/Dmax:',RandVal1,D
+            ELSE !.NOT.TriaSurfaceFlux
+              iLoop=0
+              DO !ARM for xi considering the dA of the Subside in RefSpace
+                iLoop = iLoop+1
+                CALL RANDOM_NUMBER(RandVal2)
+                xiab(1,1:2)=(/BezierSampleXi(ISample-1),BezierSampleXi(ISample)/) !correct order?!?
+                xiab(2,1:2)=(/BezierSampleXi(JSample-1),BezierSampleXi(JSample)/) !correct order?!?
+                xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
+                IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
+                  IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+                    CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,2 &
+                      ,Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
+                      ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo) &
+                      ,Gradient=gradXiEta2D)
+                    E=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(1,1:2))
+                    F=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(2,1:2))
+                    G=DOT_PRODUCT(gradXiEta2D(2,1:2),gradXiEta2D(2,1:2))
+                  ELSE
+                    CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
+                      ,Gradient=gradXiEta3D)
+                    E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
+                    F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
+                    G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
+                  END IF !.NOT.VeloIsNormal
+                  D=SQRT(E*G-F*F)
+                  D=D/Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax !scaled Jacobian of xi
+                  IF (D .GT. 1.01) THEN !arbitrary warning threshold
+                    IPWRITE(*,'(I4,x,A28,I0,A9,I0,A22,I0)') &
+                      'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has inaccurate Dmax! ',D
                   END IF
+                  CALL RANDOM_NUMBER(RandVal1)
+                  IF (RandVal1.LE.D) THEN
+                    EXIT !accept xi
+                  ELSE
+                    IF (MOD(iLoop,100).EQ.0) THEN !arbitrary warning threshold
+                      IPWRITE(*,'(I4,x,A28,I0,A9,I0,A18,I0)') &
+                        'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has reached loop ',iLoop
+                      IPWRITE(*,'(I4,x,A19,2(x,E16.8))') &
+                        '         R, D/Dmax:',RandVal1,D
+                    END IF
+                  END IF
+                ELSE !no ARM -> accept xi
+                  EXIT
                 END IF
-              ELSE !no ARM -> accept xi
-                EXIT
+              END DO !Jacobian-based ARM-loop
+              IF(MINVAL(XI).LT.-1.)THEN
+                IPWRITE(UNIT_StdOut,'(I0,A,E16.8)') ' Xi<-1',XI
               END IF
-            END DO !Jacobian-based ARM-loop
-            IF(MINVAL(XI).LT.-1.)THEN
-              IPWRITE(UNIT_StdOut,'(I0,A,E16.8)') ' Xi<-1',XI
-            END IF
-            IF(MAXVAL(XI).GT.1.)THEN
-              IPWRITE(UNIT_StdOut,'(I0,A,E16.8)') ' Xi>1',XI
-            END IF
-            CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos)
-          END IF !TriaSurfaceFlux
-
-          IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
-            SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide))
-            CASE(0) !- RejectType=0 : complete side is inside valid bounds
-              AcceptPos=.TRUE.
-            CASE(1) !- RejectType=1 : complete side is outside of valid bounds
-              CALL abort(&
-__STAMP__&
-,'side outside of valid bounds was considered although nVFR=0...?!')
-              !AcceptPos=.FALSE.
-            CASE(2) !- RejectType=2 : side is partly inside valid bounds
-              point(1)=Particle_pos(dir(2))-origin(1)
-              point(2)=Particle_pos(dir(3))-origin(2)
-              radius=SQRT( (point(1))**2+(point(2))**2 )
-              IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
-                AcceptPos=.TRUE.
-              ELSE
-                AcceptPos=.FALSE.
+              IF(MAXVAL(XI).GT.1.)THEN
+                IPWRITE(UNIT_StdOut,'(I0,A,E16.8)') ' Xi>1',XI
               END IF
-            CASE DEFAULT
-              CALL abort(&
-__STAMP__&
-,'wrong SurfFluxSideRejectType!')
-            END SELECT !SurfFluxSideRejectType
-          ELSE !no check for rmax-rejection
-            AcceptPos=.TRUE.
-          END IF ! CircularInflow
+              CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos)
+            END IF !TriaSurfaceFlux
 
-          !-- save position if accepted:
-          IF (AcceptPos) THEN
-            particle_positions(iPart*3-2) = Particle_pos(1)
-            particle_positions(iPart*3-1) = Particle_pos(2)
-            particle_positions(iPart*3  ) = Particle_pos(3)
-            IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) THEN
-              particle_xis(iPart*2-1) = xi(1)
-              particle_xis(iPart*2  ) = xi(2)
-            END IF !VeloIsNormal
-            iPart=iPart+1
-          ELSE
-            nReject=nReject+1
             IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
-              allowedRejections=allowedRejections+1
+              SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide))
+              CASE(0) !- RejectType=0 : complete side is inside valid bounds
+                AcceptPos=.TRUE.
+              CASE(1) !- RejectType=1 : complete side is outside of valid bounds
+                CALL abort(&
+  __STAMP__&
+  ,'side outside of valid bounds was considered although nVFR=0...?!')
+                !AcceptPos=.FALSE.
+              CASE(2) !- RejectType=2 : side is partly inside valid bounds
+                point(1)=Particle_pos(dir(2))-origin(1)
+                point(2)=Particle_pos(dir(3))-origin(2)
+                radius=SQRT( (point(1))**2+(point(2))**2 )
+                IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
+                  AcceptPos=.TRUE.
+                ELSE
+                  AcceptPos=.FALSE.
+                END IF
+              CASE DEFAULT
+                CALL abort(&
+  __STAMP__&
+  ,'wrong SurfFluxSideRejectType!')
+              END SELECT !SurfFluxSideRejectType
+            ELSE !no check for rmax-rejection
+              AcceptPos=.TRUE.
+            END IF ! CircularInflow
+
+            !-- save position if accepted:
+            IF (AcceptPos) THEN
+              particle_positions(iPart*3-2) = Particle_pos(1)
+              particle_positions(iPart*3-1) = Particle_pos(2)
+              particle_positions(iPart*3  ) = Particle_pos(3)
+              IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) THEN
+                particle_xis(iPart*2-1) = xi(1)
+                particle_xis(iPart*2  ) = xi(2)
+              END IF !VeloIsNormal
+              iPart=iPart+1
+            ELSE
+              nReject=nReject+1
+              IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
+                allowedRejections=allowedRejections+1
+              END IF
             END IF
-          END IF
-        END DO !put particles in subside: WHILE(iPart+allowedRejections .LE. PartInsSubSide)
+          END DO !put particles in subside: WHILE(iPart+allowedRejections .LE. PartInsSubSide)
+        END IF
         PartInsSubSide = PartInsSubSide - allowedRejections
         NbrOfParticle = NbrOfParticle - allowedRejections
         ParticleIndexNbr = 1

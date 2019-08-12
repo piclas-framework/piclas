@@ -48,12 +48,17 @@ INTERFACE LBElemPauseTime_avg
   MODULE PROCEDURE LBElemPauseTime_avg
 END INTERFACE
 
+INTERFACE LBElemSplitTime_avg
+  MODULE PROCEDURE LBElemSplitTime_avg
+END INTERFACE
+
 PUBLIC::LBStartTime
 PUBLIC::LBSplitTime
 PUBLIC::LBPauseTime
 PUBLIC::LBElemSplitTime
 PUBLIC::LBElemPauseTime
 PUBLIC::LBElemPauseTime_avg
+PUBLIC::LBElemSplitTime_avg
 
 CONTAINS
 
@@ -204,6 +209,32 @@ tLBEnd = LOCALTIME() ! LB Time End
 ElemTime(:)=ElemTime(:)+(tLBEnd-tLBStart)/nElems
 END SUBROUTINE LBElemPauseTime_avg
 
+
+SUBROUTINE LBElemSplitTime_avg(tLBStart)
+!===================================================================================================================================
+!> calculates end time and adds time to Elemtime(ElemID)
+!> and resets tLBstart
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals          ,ONLY: LOCALTIME
+USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample
+USE MOD_Mesh_Vars        ,ONLY: nElems
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(INOUT)  :: tLBStart
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+REAL                :: tLBEnd
+!===================================================================================================================================
+IF(.NOT. PerformLBSample) RETURN
+tLBEnd = LOCALTIME() ! LB Time End
+ElemTime(:)=ElemTime(:)+(tLBEnd-tLBStart)/nElems
+tLBStart = tLBEnd !LOCALTIME() ! LB Time Start
+END SUBROUTINE LBElemSplitTime_avg
 
 
 END MODULE MOD_LoadBalance_Tools

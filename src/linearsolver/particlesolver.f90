@@ -103,7 +103,7 @@ PartNewtonLinTolerance  = GETLOGICAL('PartNewtonLinTolerance','.FALSE.')
 EisenstatWalker = .FALSE.
 #endif /*IMPA*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 EpsPartLinSolver   =GETREAL('EpsPartLinSolver','0.')
 IF(EpsPartLinSolver.EQ.0.) EpsPartLinSolver=Eps_LinearSolver
 #else

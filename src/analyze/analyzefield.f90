@@ -676,10 +676,10 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,          ONLY : nElems, sJ
 USE MOD_Interpolation_Vars, ONLY : wGP
 USE MOD_Equation_Vars,      ONLY : smu0, eps0
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_DG_Vars,            ONLY : U
 #endif /*PP_nVar=8*/
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==1
 USE MOD_Equation_Vars,        ONLY:E
 #elif PP_nVar==3
@@ -689,7 +689,7 @@ USE MOD_Equation_Vars,        ONLY:B,E
 #endif /*PP_nVar==1*/
 #else
 USE MOD_PML_Vars,             ONLY:DoPML,isPMLElem
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -703,7 +703,7 @@ INTEGER           :: iElem
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: WEl_tmp, WMag_tmp, E_abs
-#ifndef PP_HDG
+#if !(USE_HDG)
 REAL              :: B_abs , Phi_abs, Psi_abs
 #endif
 #if USE_MPI
@@ -719,7 +719,7 @@ WMag=0.
 Wphi=0.
 Wpsi=0.
 DO iElem=1,nElems
-#ifndef PP_HDG
+#if !(USE_HDG)
   IF(DoPML)THEN
     IF(isPMLElem(iElem))CYCLE
   END IF
@@ -735,7 +735,7 @@ DO iElem=1,nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 ! in electromagnetische felder by henke 2011 - springer
 ! WMag = 1/(2mu) * int_V B^2 dV
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==1
     E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
 #elif PP_nVar==3
@@ -746,20 +746,20 @@ DO iElem=1,nElems
 #endif /*PP_nVar==1*/
 #else
     E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 #if (PP_nVar==8)
     B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
     Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem) 
     Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem) 
 #endif /*PP_nVar=8*/        
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==3
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
 #elif PP_nVar==4
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
 #endif /*PP_nVar==3*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
     WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs
 #if (PP_nVar==8)
     WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
@@ -812,11 +812,11 @@ SUBROUTINE CalcPotentialEnergy_Dielectric(WEl, WMag, Wphi, Wpsi)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==3 || PP_nVar==4
 USE MOD_Dielectric_vars    ,ONLY: DielectricMu
 #endif /*PP_nVar==3 or 4*/
-#endif /*PP_HDG or PP_nVar==8*/
+#endif /*USE_HDG or PP_nVar==8*/
 USE MOD_Mesh_Vars          ,ONLY: nElems, sJ
 USE MOD_Interpolation_Vars ,ONLY: wGP
 #if (PP_nVar==8)
@@ -824,10 +824,10 @@ USE MOD_Dielectric_vars    ,ONLY: DielectricMu
 #endif /*PP_nVar=8*/
 USE MOD_Equation_Vars      ,ONLY: smu0, eps0
 USE MOD_Dielectric_vars    ,ONLY: isDielectricElem,DielectricEps,ElemToDielectric
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_DG_Vars            ,ONLY: U
 #endif /*PP_nVar=8*/
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==1
 USE MOD_Equation_Vars      ,ONLY: E
 #elif PP_nVar==3
@@ -837,7 +837,7 @@ USE MOD_Equation_Vars      ,ONLY: B,E
 #endif /*PP_nVar==1*/
 #else
 USE MOD_PML_Vars           ,ONLY: DoPML,isPMLElem
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -851,7 +851,7 @@ INTEGER           :: iElem
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: WEl_tmp, WMag_tmp, E_abs
-#ifndef PP_HDG
+#if !(USE_HDG)
 REAL              :: B_abs , Phi_abs, Psi_abs
 #endif
 #if USE_MPI
@@ -868,7 +868,7 @@ Wphi=0.
 Wpsi=0.
 
 DO iElem=1,nElems
-#ifndef PP_HDG
+#if !(USE_HDG)
   IF(DoPML)THEN
     IF(isPMLElem(iElem))CYCLE
   END IF
@@ -886,7 +886,7 @@ DO iElem=1,nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       ! in electromagnetische felder by henke 2011 - springer
       ! WMag = 1/(2mu) * int_V B^2 dV
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==1
       E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
 #elif PP_nVar==3
@@ -897,20 +897,20 @@ DO iElem=1,nElems
 #endif /*PP_nVar==1*/
 #else
       E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 #if (PP_nVar==8)
       B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
       Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem) 
       Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem) 
 #endif /*PP_nVar=8*/        
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==3
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs / DielectricMu( i,j,k,ElemToDielectric(iElem))
 #elif PP_nVar==4
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs / DielectricMu( i,j,k,ElemToDielectric(iElem))
 #endif /*PP_nVar==3*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
       WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs * DielectricEps(i,j,k,ElemToDielectric(iElem))
 #if (PP_nVar==8)
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs / DielectricMu(i,j,k,ElemToDielectric(iElem))
@@ -922,7 +922,7 @@ DO iElem=1,nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       ! in electromagnetische felder by henke 2011 - springer
       ! WMag = 1/(2mu) * int_V B^2 dV
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==1
       E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
 #elif PP_nVar==3
@@ -933,20 +933,20 @@ DO iElem=1,nElems
 #endif /*PP_nVar==1*/
 #else
       E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 #if (PP_nVar==8)
       B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
       Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem) 
       Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem) 
 #endif /*PP_nVar=8*/
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==3
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
 #elif PP_nVar==4
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
 #endif /*PP_nVar==3*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
       WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs
 #if (PP_nVar==8)
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs

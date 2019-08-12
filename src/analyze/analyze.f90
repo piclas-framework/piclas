@@ -258,7 +258,7 @@ REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze
 END SUBROUTINE InitAnalyzeBasis
 
 
-#ifdef PP_HDG
+#if USE_HDG
 SUBROUTINE CalcError(L_2_Error,L_Inf_Error)
 #else
 SUBROUTINE CalcError(time,L_2_Error,L_Inf_Error)
@@ -280,7 +280,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#ifndef PP_HDG
+#if !(USE_HDG)
 REAL,INTENT(IN)               :: time
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -311,7 +311,7 @@ DO iElem=1,PP_nElems
    DO m=0,NAnalyze
      DO l=0,NAnalyze
        DO k=0,NAnalyze
-#ifdef PP_HDG
+#if USE_HDG
          CALL ExactFunc(IniExactFunc,Coords_NAnalyze(1:3,k,l,m),U_exact,ElemID=iElem)
 #else
          CALL ExactFunc(IniExactFunc,time,0,Coords_NAnalyze(1:3,k,l,m),U_exact)
@@ -818,10 +818,10 @@ USE MOD_Particle_Vars          ,ONLY: DelayTime
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
-#if defined(LSERK) ||  defined(IMPA) || defined(ROS)
+#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
 USE MOD_Analyze_Vars           ,ONLY: DoFieldAnalyze
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
-#endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS)*/
+#endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS) || USE_HDG*/
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
 USE MOD_Particle_Analyze       ,ONLY: AnalyticParticleMovement
@@ -865,11 +865,11 @@ REAL                          :: PartStateAnalytic(1:6)        !< analytic posit
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: L_Inf_Error(PP_nVar)
-#if defined(LSERK) || defined(IMPA) || defined(ROS)
+#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
-#endif /* LSERK && IMPA && ROS */
+#endif /* LSERK && IMPA && ROS && USE_HDG*/
 REAL                          :: StartAnalyzeTime,EndAnalyzeTime
 CHARACTER(LEN=40)             :: formatStr
 LOGICAL                       :: DoPerformFieldAnalyze
@@ -877,7 +877,7 @@ LOGICAL                       :: DoPerformPartAnalyze
 LOGICAL                       :: DoPerformSurfaceAnalyze
 LOGICAL                       :: DoPerformErrorCalc
 #ifdef PARTICLES
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
 INTEGER                       :: PartSource_nVar=1
 REAL                          :: L_2_PartSource(1:1)
 REAL                          :: L_Inf_PartSource(1:1)
@@ -988,7 +988,7 @@ END IF
 IF(DoCalcErrorNorms) THEN
   IF(DoPerformErrorCalc)THEN
     OutputErrorNorms=.TRUE.
-#ifdef PP_HDG
+#if USE_HDG
     CALL CalcError(L_2_Error,L_Inf_Error)
 #else
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
@@ -1006,7 +1006,7 @@ IF(DoCalcErrorNorms) THEN
 END IF
 
 ! the following analysis are restricted to Runge-Kutta based time-discs and temporal varying electrodynamic fields
-#if defined(LSERK) || defined(IMPA) || defined(ROS)
+#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Maxwell's equation: Compute Poynting Vector and field energies
@@ -1040,7 +1040,7 @@ IF(RP_onProc) THEN
 END IF
 
 ! end the analyzes for  all Runge-Kutta besed time-discs
-#endif /* LSERK && IMPA && ROS */
+#endif /* LSERK && IMPA && ROS && USE_HDG*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! PIC, DSMC and other Particle-based Solvers

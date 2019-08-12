@@ -201,7 +201,7 @@ CALL abort(&
 __STAMP__&
 ,' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(10) !PartBound%SymmetryBC
+CASE(10,11) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL  PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
                             ,opt_Symmetry=.TRUE.,opt_Reflected=crossedBC,TriNum=TriNum)
@@ -370,7 +370,7 @@ CALL abort(&
 __STAMP__&
 ,' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(10) !PartBound%SymmetryBC
+CASE(10,11) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   BCSideID=PartBCSideList(SideID)
   CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &

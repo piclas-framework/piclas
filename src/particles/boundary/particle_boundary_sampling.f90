@@ -1695,7 +1695,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iProc,iSurfSide
+INTEGER :: iSurfSide
+#if USE_MPI
+INTEGER :: iProc
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 SDEALLOCATE(XiEQ_SurfSample)

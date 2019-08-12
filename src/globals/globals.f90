@@ -687,6 +687,7 @@ FUNCTION TIMESTAMP(Filename,Time)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
+USE MOD_Globals_Vars ,ONLY: TimeStampLenStr,TimeStampLenStr2
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -699,11 +700,9 @@ CHARACTER(LEN=255) :: TimeStamp ! the complete timestamp
 ! LOCAL VARIABLES
 INTEGER            :: i         ! loop variable
 !===================================================================================================================================
-!IF (Analyze_dt.LT.1E-10) THEN
-!  WRITE(TimeStamp,'(F15.14)')Time
-!ELSE
-WRITE(TimeStamp,'(F21.17)')Time
-!END IF
+!WRITE(TimeStamp,'(F21.17)')Time
+WRITE(TimeStamp,'(F'//TRIM(TimeStampLenStr)//'.'//TRIM(TimeStampLenStr2)//')')Time
+
 ! Replace spaces with 0's
 DO i=1,LEN(TRIM(TimeStamp))
   IF(TimeStamp(i:i).EQ.' ') TimeStamp(i:i)='0'
