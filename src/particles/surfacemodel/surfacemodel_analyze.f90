@@ -217,7 +217,6 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nPartBound
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*USE_MPI*/
 #if ( PP_TimeDiscMethod ==42)
-USE MOD_Globals_Vars              ,ONLY: ProjectName
 USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfModel
 #endif /* DSMC*/
 USE MOD_Particle_Vars             ,ONLY: nSpecies
@@ -788,8 +787,7 @@ SUBROUTINE GetCollCounter(SurfCollNum,AdsorbNum)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
 #endif /*USE_MPI*/
@@ -802,7 +800,7 @@ IMPLICIT NONE
 INTEGER, INTENT(OUT)            :: SurfCollNum(nSpecies), AdsorbNum(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iSpec, iCase, iReact
+INTEGER                         :: iSpec
 #if USE_MPI
 INTEGER                         :: ADN(nSpecies)
 #endif /*USE_MPI*/
@@ -841,7 +839,6 @@ SUBROUTINE GetDesCounter(DesorbNum)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
@@ -855,9 +852,8 @@ IMPLICIT NONE
 INTEGER, INTENT(OUT)            :: DesorbNum(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iSpec, iReact, iCase
+INTEGER                         :: iSpec
 #if USE_MPI
-INTEGER                         :: commSize
 INTEGER                         :: DEN(nSpecies)
 #endif /*USE_MPI*/
 !===================================================================================================================================
@@ -894,7 +890,6 @@ USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfDistInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, SurfMesh, PartBound
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
-USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1101,7 +1096,6 @@ REAL   , INTENT(OUT)            :: ProperAdsorbnu(nSpecies*(Adsorption%ReactNum+
 INTEGER                         :: iSpec, iCase, iReact
 #if USE_MPI
 REAL                            :: AD(nSpecies),RR(nSpecies*Adsorption%ReactNum)
-INTEGER                         :: ADN(nSpecies)
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
@@ -1221,7 +1215,6 @@ INTEGER                         :: iSpec, iReact, iCase
 INTEGER                         :: commSize
 REAL                            :: DE(nSpecies)
 REAL                            :: RR(nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact)
-INTEGER                         :: DEN(nSpecies)
 #endif /*USE_MPI*/
 !===================================================================================================================================
 

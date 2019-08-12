@@ -89,7 +89,6 @@ REAL,INTENT(OUT)   :: TransArray(1:6),IntArray(1:6)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL    :: oldVelo(1:3)
 REAL    :: VeloReal
 !-----------------------------------------------------------------------------------------------------------------------------------
 IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
