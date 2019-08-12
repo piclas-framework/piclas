@@ -44,6 +44,7 @@ SUBROUTINE SurfaceModel_main()
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_SMCR                   ,ONLY: SMCR_PartDesorb, SMCR_Diffusion
 USE MOD_SurfaceModel_Tools     ,ONLY: CalcEvapPartNum
+USE MOD_TimeDisc_Vars          ,ONLY: iter
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -51,6 +52,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 IF (.NOT.ANY(PartBound%Reactive)) RETURN
+! Surface variables have to updated (mpi communication) in first iteration because coverage is initialized in init or restart
+IF (iter.EQ.0) CALL UpdateSurfModelVars()
 ! evaporating particles for surface models using mean values on surfaces
 CALL CalcEvapPartNum()
 ! desorbing particles for surface model 3
