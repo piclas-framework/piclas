@@ -317,6 +317,9 @@ END IF
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
   ! Determine the average distances in x, y and z
   ! Move the determination of these variables as soon as they are required for other functions!
+  SDEALLOCATE(GEO%CharLengthX)
+  SDEALLOCATE(GEO%CharLengthY)
+  SDEALLOCATE(GEO%CharLengthZ)
   ALLOCATE(GEO%CharLengthX(nElems),GEO%CharLengthY(nElems),GEO%CharLengthZ(nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
@@ -488,10 +491,6 @@ END IF
 CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
 IF (CalcPartBalance) THEN
   DoPartAnalyze = .TRUE.
-  SDEALLOCATE(nPartIn)
-  SDEALLOCATE(nPartOut)
-  SDEALLOCATE(PartEkinIn)
-  SDEALLOCATE(PartEkinOut)
   ALLOCATE( nPartIn(1:nSpecAnalyze)     &
           , nPartOut(1:nSpecAnalyze)    &
           , PartEkinOut(1:nSpecAnalyze) &
@@ -4183,6 +4182,28 @@ IF(CalcCoupledPower) THEN
   END DO ! iSpec = 1, nSpecies
 END IF
 SDEALLOCATE(PCouplSpec)
+SDEALLOCATE(PPDCell)
+SDEALLOCATE(PPDCellX)
+SDEALLOCATE(PPDCellY)
+SDEALLOCATE(PPDCellZ)
+SDEALLOCATE(IonizationCell)
+SDEALLOCATE(PICCFLCell)
+SDEALLOCATE(PICCFLCellX)
+SDEALLOCATE(PICCFLCellY)
+SDEALLOCATE(PICCFLCellZ)
+SDEALLOCATE(MaxPartDisplacementCell)
+SDEALLOCATE(MaxPartDisplacementCellX)
+SDEALLOCATE(MaxPartDisplacementCellY)
+SDEALLOCATE(MaxPartDisplacementCellZ)
+SDEALLOCATE(PlasmaParameterCell)
+SDEALLOCATE(QuasiNeutralityCell)
+SDEALLOCATE(IonDensityCell)
+SDEALLOCATE(NeutralDensityCell)
+SDEALLOCATE(ChargeNumberCell)
+SDEALLOCATE(nPartIn)
+SDEALLOCATE(nPartOut)
+SDEALLOCATE(PartEkinIn)
+SDEALLOCATE(PartEkinOut)
 END SUBROUTINE FinalizeParticleAnalyze
 #endif /*PARTICLES*/
 
