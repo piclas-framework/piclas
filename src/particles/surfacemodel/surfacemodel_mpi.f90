@@ -180,6 +180,7 @@ INTEGER :: MessageSize,nValues,iSurfSide,SurfSideID
 INTEGER :: iPos,p,q,iProc
 INTEGER :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
+IF (.NOT.ALLOCATED(SurfModelExchange%nSidesSend) .OR. .NOT.ALLOCATED(SurfModelExchange%nSidesRecv)) RETURN
 
 nValues=2*nSpecies*(nSurfSample)**2
 
@@ -294,6 +295,7 @@ INTEGER :: p,q,iProc
 INTEGER :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 INTEGER :: iCoord
 !===================================================================================================================================
+IF (.NOT.ALLOCATED(SurfModelExchange%nSurfDistSidesSend) .OR. .NOT.ALLOCATED(SurfModelExchange%nSurfDistSidesRecv)) RETURN
 
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -391,6 +393,7 @@ INTEGER :: iPos,p,q,iProc
 INTEGER :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 INTEGER :: iCoord,nSites,nSitesRemain,iSite,iInteratom,UsedSiteMapPos,iSpec,xpos,ypos
 !===================================================================================================================================
+IF (.NOT.ALLOCATED(SurfModelExchange%nSurfDistSidesSend) .OR. .NOT.ALLOCATED(SurfModelExchange%nSurfDistSidesRecv)) RETURN
 
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -544,6 +547,7 @@ INTEGER :: MessageSize, iSurfSide, SurfSideID
 INTEGER :: iPos,p,q,iProc, nValues
 INTEGER :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
+IF (.NOT.ALLOCATED(SurfModelExchange%nCoverageSidesSend) .OR. .NOT.ALLOCATED(SurfModelExchange%nCoverageSidesRecv)) RETURN
 
 nValues = 3*nSpecies * nSurfSample**2
 ! open receive buffer
