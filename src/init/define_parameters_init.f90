@@ -70,6 +70,7 @@ USE MOD_BGK_Init                        ,ONLY: DefineParametersBGK
 USE MOD_FPFlow_Init                     ,ONLY: DefineParametersFPFlow
 USE MOD_Particle_Boundary_Porous        ,ONLY: DefineParametersPorousBC
 USE MOD_Particle_VarTimeStep            ,ONLY: DefineParametersVaribleTimeStep
+USE MOD_DSMC_Symmetry2D                 ,ONLY: DefineParametersParticleSymmetry
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
@@ -112,6 +113,7 @@ CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()
 #ifdef PARTICLES
 CALL DefineParametersParticles()
+CALL DefineParametersParticleSymmetry()
 CALL DefineParametersVaribleTimeStep()
 CALL DefineParametersPorousBC()
 CALL DefineParametersParticleMesh()
