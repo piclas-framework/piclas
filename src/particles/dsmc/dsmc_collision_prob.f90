@@ -131,14 +131,14 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
           ! does not calculate the cross-section new in every iteration. Cab is initially determined and works as reference.
           Coll_pData(iPair)%Prob = SpecNum1 * SpecNum2     / (1 + CollInf%KronDelta(collPairID))        &
                                  * CollInf%Cab(collPairID) / CollCaseNum           &          
-                                 * Species(Spec1ID)%MacroParticleFactor * dt / Volume  & 
-                     * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omega(Spec1ID,Spec2ID)) 
+                                 * MacroParticleFactor * dtCell / Volume  & 
+                                 * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omega(Spec1ID,Spec2ID)) 
                    ! to be solved debugwise - delete
 !WRITE(*,*) "\n   SpecNum1                     ",SpecNum1
 !WRITE(*,*) "\n         SpecNum2               ",SpecNum2
 !WRITE(*,*) "\n CollInf%Cab(collPairID)        ",CollInf%Cab(collPairID)
 !WRITE(*,*) "\n CollCaseNum  ",CollCaseNum
-!WRITE(*,*) "\n  Species(Spec1ID)%MacroParticleFactor    ",Species(Spec1ID)%MacroParticleFactor
+!WRITE(*,*) "\n  MacroParticleFactor    ",MacroParticleFactor
 !WRITE(*,*) "\nColl_pData(iPair)%Prob",Coll_pData(iPair)%Prob
         END IF
 !CALL Abort(&

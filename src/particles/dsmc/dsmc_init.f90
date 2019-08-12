@@ -552,19 +552,12 @@ __STAMP__&
       SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
       ! to be solved Übergangslösung, damit Code auch mit alten Inis läuft
       IF(CollInf%aveCollPa) THEN
-<<<<<<< Updated upstream
-        SpecDSMC(iSpec)%Tref = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
-        SpecDSMC(iSpec)%dref = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
-        SpecDSMC(iSpec)%omega   = GETREAL('Part-Species'//TRIM(hilf)//'-omega','0') ! default case HS
-      !END IF
-=======
         WRITE(*,*) "part-spec-dref wird eingelesen"
         SpecDSMC(iSpec)%Tref     = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
         SpecDSMC(iSpec)%dref     = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
         SpecDSMC(iSpec)%omega    = GETREAL('Part-Species'//TRIM(hilf)//'-omega','0') ! default case HS
         SpecDSMC(iSpec)%alphaVSS = GETREAL('Part-Species'//TRIM(hilf)//'-alphaVSS','1') 
       END IF
->>>>>>> Stashed changes
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
         DSMC%ElectronSpecies = iSpec
@@ -595,21 +588,8 @@ __STAMP__&
         CollInf%dref(jSpec,iSpec)  = CollInf%dref(iSpec,jSpec) 
         CollInf%omega(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omega + SpecDSMC(jSpec)%omega)
         CollInf%omega(jSpec,iSpec) = CollInf%omega(iSpec,jSpec)  
-<<<<<<< Updated upstream
-        CollInf%dref(iSpec,jSpec)  = 0.5 * (SpecDSMC(iSpec)%dref + SpecDSMC(jSpec)%dref)
-        CollInf%dref(jSpec,iSpec)  = CollInf%dref(iSpec,jSpec) 
-        CollInf%Tref(iSpec,jSpec)  = 0.5 * (SpecDSMC(iSpec)%Tref + SpecDSMC(jSpec)%Tref)
-        CollInf%Tref(jSpec,iSpec)  = CollInf%Tref(iSpec,jSpec)
-=======
         CollInf%alpha(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%alphaVSS + SpecDSMC(jSpec)%alphaVSS)
         CollInf%alpha(jSpec,iSpec) = CollInf%alpha(iSpec,jSpec) 
- WRITE(*,*) "alpha collinf",         CollInf%alpha(:,:)
- WRITE(*,*) "omega collinf",         CollInf%omega(:,:)
- WRITE(*,*) "dref collinf",          CollInf%dref(:,:)
- WRITE(*,*) "Tref collinf",          CollInf%Tref(:,:)
- WRITE(*,*) "collnumcase ",      CollInf%NumCase
- WRITE(*,*) "\n"
->>>>>>> Stashed changes
       END IF
       IF((CollInf%alpha(iSpec,jSpec)*CollInf%omega(iSpec,jSpec)*CollInf%dref(iSpec,jSpec)*CollInf%Tref(iSpec,jSpec)).eq.0) THEN
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -618,32 +598,18 @@ __STAMP__&
         ,"ERROR in collision data (Tref*dref*omega*alpha) is zero)")
       END IF 
     END DO
-<<<<<<< Updated upstream
-    !to be solved - so soll der Code laufen, auch wenn aveCollPa=F und man nicht SpecDSMC Werte in der ini angibt
-    IF(CollInf%aveCollPa) THEN ! collision-averaged omega
-       SpecDSMC(iSpec)%alpha = CollInf%alpha(iSpec,iSpec)
-       SpecDSMC(iSpec)%Tref  = CollInf%Tref(iSpec,iSpec)
-       SpecDSMC(iSpec)%Dref  = CollInf%Dref(iSpec,iSpec)
-       SpecDSMC(iSpec)%omega = CollInf%omega(iSpec,iSpec)
-=======
     !to be solved Übergangslösung solange BGK nicht aufgeräumt ist
     IF(.NOT.CollInf%aveCollPa) THEN 
        SpecDSMC(iSpec)%Tref     = CollInf%Tref(iSpec,iSpec)
        SpecDSMC(iSpec)%Dref     = CollInf%Dref(iSpec,iSpec)
        SpecDSMC(iSpec)%omega    = CollInf%omega(iSpec,iSpec)
        SpecDSMC(iSpec)%alphaVSS = CollInf%omega(iSpec,iSpec)
->>>>>>> Stashed changes
     END IF
   END DO
-
 ! to be solved - ist nur für debugging drin
  WRITE(*,*) "alpha collinf",         CollInf%alpha(:,:)
  WRITE(*,*) "omega collinf",         CollInf%omega(:,:)
  WRITE(*,*) "dref collinf",          CollInf%dref(:,:)
-<<<<<<< Updated upstream
- WRITE(*,*) "muref collinf",          CollInf%muref(:,:)
-=======
->>>>>>> Stashed changes
  WRITE(*,*) "Tref collinf",          CollInf%Tref(:,:)
  WRITE(*,*) "collnumcase ",      CollInf%NumCase
  WRITE(*,*) "\n"

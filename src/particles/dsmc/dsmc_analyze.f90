@@ -790,6 +790,7 @@ IF (nPart.EQ.0) RETURN
 IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
   omega = opt_omega
   Temp = opt_temp
+                           !   write(*,*) "temp vor schleife",temp
   IF (Temp.LE.0) RETURN
       DO iSpec = 1, nSpecies
         MFP_Tmp = 0.0
@@ -799,6 +800,11 @@ IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
               MFP_Tmp = MFP_Tmp + (Pi * DrefMixture ** 2. * SpecPartNum(jSpec) * MacroParticleFactor / Volume &
                                 * (CollInf%Tref(iSpec,jSpec)/ Temp) ** (omega) &
                                 * SQRT(1. + Species(iSpec)%MassIC / Species(jSpec)%MassIC))
+                       !       WRITE(*,*) "MFP_TMP omega gg",mfp_tmp
+                              !write(*,*) "drefmixture",drefmixture
+                          !    write(*,*) "temp",temp
+                             ! write(*,*) "SpecPartNum",SpecPartNum
+                             ! write(*,*) "nPart",nPart
             END IF
           END DO
           CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
@@ -812,12 +818,14 @@ ELSE !Tref/T =1
         IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
           MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
                                 * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+                              WRITE(*,*) "MFP_TMP ohne omega",mfp_tmp
         END IF
       END DO
       CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
     END IF
   END DO
 END IF
+                          !    write(*,*) "temp nach schleife",temp
 RETURN
 END FUNCTION CalcMeanFreePath
 
