@@ -839,7 +839,7 @@ SUBROUTINE GetDesCounter(DesorbNum)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
 #endif /*USE_MPI*/

@@ -72,7 +72,7 @@ INTEGER , ALLOCATABLE            :: NeighbourID(:,:)!, NeighSpec(:)
 INTEGER                          :: SiteSpec, Neighpos_j, Neighpos_k, chosen_Neigh_j, chosen_Neigh_k
 INTEGER                          :: n_empty_Neigh(3), n_Neigh(3), adsorbates(nSpecies)
 REAL                             :: E_a
-REAL                             :: Heat_A, Heat_B, Heat_AB, D_AB, D_A, D_B
+REAL                             :: Heat_A, Heat_B, Heat_AB, D_AB
 !REAL                             :: vel_norm, vel_coll, potential_pot, a_const, mu, surfmass, trapping_prob
 !INTEGER                          :: nNeigh_trap
 LOGICAL                          :: Cell_Occupied
@@ -440,13 +440,7 @@ IF (sum_probabilities .GT. RanNum) THEN
         ProductSpec(1) = -Adsorption%DissocReact(1,DissocReactID,SpecID)
         ProductSpec(2) = -Adsorption%DissocReact(2,DissocReactID,SpecID)
         ! calculate reaction Enthalpie
-        !Heat_A = 0.
-        !Heat_B = 0.
-        !Heat_AB = 0.
         D_AB = Adsorption%EDissBond(ReactNum,SpecID)
-        !D_A = 0.
-        !D_B = 0.
-        !AdsorptionEnthalpie = (( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
         AdsorptionEnthalpie = D_AB * BoltzmannConst
       ELSE IF (ReactNum.GT.0 .AND. ReactNum.GT.Adsorption%DissNum) THEN
         ! if ER-reaction set output parameters
@@ -454,13 +448,7 @@ IF (sum_probabilities .GT. RanNum) THEN
         ProductSpec(1) = Adsorption%RecombReact(2,RecombReactID,SpecID)
         ProductSpec(2) = Adsorption%RecombReact(1,RecombReactID,SpecID)
         ! calculate adsorption Enthalpie
-        !Heat_A = 0.
-        !Heat_B = 0.
-        !Heat_AB = 0.
         D_AB = Adsorption%EDissBond(ReactNum,SpecID)
-        !D_A = 0.
-        !D_B = 0.
-        !AdsorptionEnthalpie = -(( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
         AdsorptionEnthalpie = -D_AB * BoltzmannConst
       END IF
       EXIT
@@ -1677,7 +1665,7 @@ REAL                             :: Heat_i, Heat_j, Heat_temp
 INTEGER                          :: n_equal_site_Neigh, Surfpos, newpos
 INTEGER , ALLOCATABLE            :: free_Neigh_pos(:)
 
-REAL :: CharaTemp, VarPartitionFuncWall, VarPartitionFuncSurf, VarPartitionFuncAct, nu_react
+REAL :: CharaTemp, VarPartitionFuncWall, VarPartitionFuncAct, nu_react
 !----------------------------------------------------------------------------------------------------------------------------------!
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 IF (Adsorption%NoDiffusion) RETURN

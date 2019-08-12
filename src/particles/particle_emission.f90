@@ -5035,7 +5035,8 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartIn,PartEkinIn
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
-USE MOD_Mesh_Vars              ,ONLY: SideToElem
+USE MOD_Mesh_Vars              ,ONLY: SideToElem!, ElemBaryNGeo
+USE MOD_Mesh_Vars              ,ONLY: NGeo!,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide, GEO
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, SurfMeshSubSideData!, SideType
 USE MOD_Timedisc_Vars          ,ONLY: dt
@@ -5045,7 +5046,6 @@ USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #endif /*IMPA*/
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
 USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
-USE MOD_Mesh_Vars              ,ONLY: NGeo!,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 !USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem!, TensorProductInterpolation
 #ifdef CODE_ANALYZE
@@ -5058,7 +5058,6 @@ USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
 #endif
-USE MOD_Mesh_Vars,              ONLY : BC!, ElemBaryNGeo
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nSurfacefluxPerElem
 USE MOD_LoadBalance_tools,      ONLY:LBStartTime, LBElemSplitTime, LBPauseTime

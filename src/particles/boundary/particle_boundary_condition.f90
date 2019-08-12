@@ -62,7 +62,7 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles, UseCircularInflow, UseAdaptive, Species
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies, UseCircularInflow, UseAdaptive, Species
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,nPorousBC
 USE MOD_Particle_Boundary_Porous, ONLY: PorousBoundaryTreatment
@@ -238,7 +238,7 @@ SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,x
 USE MOD_PreProc
 USE MOD_Globals!,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles
+USE MOD_Particle_Vars,          ONLY:PDM
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,epsilontol
 USE MOD_SurfaceModel,           ONLY:ReactiveSurfaceTreatment

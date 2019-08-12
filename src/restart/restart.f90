@@ -277,7 +277,7 @@ USE MOD_Equation_Vars,           ONLY:Phi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
 USE MOD_Restart_Vars,            ONLY:DoMacroscopicRestart
-USE MOD_Particle_Vars,           ONLY:PartState, PartSpecies, PEM, PDM, Species, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset
+USE MOD_Particle_Vars,           ONLY:PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 USE MOD_DSMC_Vars,               ONLY:UseDSMC,CollisMode,PartStateIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC,RadialWeighting
 USE MOD_LD_Vars,                 ONLY:UseLD, PartStateBulkValues

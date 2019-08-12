@@ -77,7 +77,7 @@ SUBROUTINE UpdateSurfModelVars()
 !>    and need coverage info for adsorption calculation (mpi routines know which sides to communicate)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, PI
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles, Species, nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall, PartBound
@@ -250,8 +250,8 @@ SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi
 !===================================================================================================================================
 !> Routine for Selection of Surface interaction
 !===================================================================================================================================
-USE MOD_Globals                ,ONLY: CROSSNORM,UNITVECTOR,myrank,UNIT_stdOut
-USE MOD_Globals_Vars           ,ONLY: Pi
+USE MOD_Globals                ,ONLY: CROSSNORM,UNITVECTOR
+USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_Part_Tools             ,ONLY: VELOFROMDISTRIBUTION, CreateParticle
 USE MOD_DSMC_Analyze           ,ONLY: CalcWallSample
@@ -271,7 +271,6 @@ USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBil
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, ModelERSpecular, SurfModel
 USE MOD_SMCR                   ,ONLY: SMCR_PartAdsorb
 USE MOD_SEE                    ,ONLY: SecondaryElectronEmission
-USE MOD_Particle_Analyze_Vars  ,ONLY: nPartOut,PartEkinOut
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -652,7 +651,7 @@ CASE(3) ! reactive interaction case
   ! Create new particles
   IF (ProductSpec(2).GT.0) THEN
     DO iNewPart = 1, ProductSpecNbr
-        SurfModel%Info(ProductSpec(2))%NumOfDes = SurfModel%Info(ProductSpec(2))%NumOfDes + 1
+      SurfModel%Info(ProductSpec(2))%NumOfDes = SurfModel%Info(ProductSpec(2))%NumOfDes + 1
       ! create new particle and assign correct energies
       ! sample newly created velocity
       NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),SpecID,TempErgy(2))

@@ -160,7 +160,7 @@ DO iSpec = 1,nSpecies
                      * Adsorption%ProbDes(p,q,iSurfSide,iSpec)
             IF (SurfaceHasModelNum(iSurfSide).EQ.102) THEN
               sigma=SQRT(BoltzmannConst*LiquidSurfTemp/Species(iSpec)%MassIC)
-              PartEvap_temp = PartEvap
+              PartEvap_temp = INT(PartEvap,4)
               PartEvap = 0
               DO iPart = 1,PartEvap_temp
                 CALL RANDOM_NUMBER(RanNum)
@@ -208,9 +208,6 @@ DO iSpec = 1,nSpecies
             END IF
           END IF !PartEvap.GT.WallPartNum
           SurfModel%SumEvapPart(p,q,iSurfSide,iSpec) = SurfModel%SumEvapPart(p,q,iSurfSide,iSpec) + INT(PartEvapInfo)
-#if (PP_TimeDiscMethod==42)
-          SurfModel%Info(iSpec)%NumOfDes = SurfModel%Info(iSpec)%NumOfDes + INT(PartEvapInfo)
-#endif
         END IF !WallPartNum.GT.0
       END DO
     END DO
@@ -790,13 +787,11 @@ REAL FUNCTION CalcAdsorbReactProb(ReactionCase,ReactNum,PartID,SurfID,NormalVelo
 ! MODULES
 USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst, PI
 USE MOD_Globals
-USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_Particle_Vars          ,ONLY: PartSpecies, Species ,PartState
+USE MOD_Particle_Vars          ,ONLY: PartSpecies, Species !, PartState
 USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, PartStateIntEn, PolyatomMolDSMC
 USE MOD_DSMC_Analyze           ,ONLY: CalcTVib, CalcTVibPoly
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
 USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncActAdsorb, PartitionFuncSurf, PartitionFuncGas
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -817,14 +812,13 @@ REAL, INTENT(INOUT),OPTIONAL :: loc_nu
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL    :: EZeroPoint_Educt, Xi_Rot, Xi_Vib, Xi_Total, Norm_Ec, phi_1, phi_2, PartVelo
-REAL    :: Beta, a_f, b_f, c_f, AdsorptionTemp, TempVelo
+REAL    :: EZeroPoint_Educt, Xi_Rot, Xi_Vib, Xi_Total, Norm_Ec, phi_1, phi_2!, PartVelo, MeanNormalVelo
+REAL    :: Beta, a_f, b_f, c_f, AdsorptionTemp
 INTEGER :: SpecID
-INTEGER :: globSide, PartBoundID, DissocNum, AssocNum
+INTEGER :: DissocNum, AssocNum
 !INTEGER :: iDof, iPolyAtMole
 !INTEGER :: iQuant
 !REAL    :: RanNum
-REAL    :: WallTemp, MeanNormalVelo
 #if (PP_TimeDiscMethod==42)
 INTEGER :: iSampleReact
 #endif

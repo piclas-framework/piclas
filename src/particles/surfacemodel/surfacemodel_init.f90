@@ -941,10 +941,13 @@ SUBROUTINE Init_TST_Coeff()
 !> nu_react_2 => calculated with partitionfunctions of activated state Q* and ground state Q_a => Q*/Q_a
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: abort, MPIRoot, UNIT_StdOut
+USE MOD_Globals                ,ONLY: abort, UNIT_StdOut
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_ReadInTools            ,ONLY: GETREAL, GETINT
+#if USE_MPI
+USE MOD_Globals                ,ONLY: MPIRoot
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
