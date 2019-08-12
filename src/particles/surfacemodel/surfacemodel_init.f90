@@ -1257,7 +1257,7 @@ END SUBROUTINE InitSurfCoverage
 
 SUBROUTINE Init_SurfChemistrySampling()
 !===================================================================================================================================
-!> Initializion of additional surface sampling if PartWallModel>0
+!> Initialization of additional surface sampling if any Partbound#-SurfaceModel>0
 !===================================================================================================================================
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: nSpecies

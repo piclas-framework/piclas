@@ -65,7 +65,7 @@ ALLOCATE(SurfModelExchange%nSidesSend(1:SurfCOMM%nMPINeighbors) &
 SurfModelExchange%nSidesSend = SurfExchange%nSidesSend
 SurfModelExchange%nSidesRecv = SurfExchange%nSidesRecv
 
-! allocate send and receive buffer for sum arrays for adsorbing particles from halo sides to local sides of neighbours
+! allocate send and receive buffer for sum arrays of adsorbing particles from halo sides to origin sides
 ALLOCATE(AdsorbSendBuf(SurfCOMM%nMPINeighbors))
 ALLOCATE(AdsorbRecvBuf(SurfCOMM%nMPINeighbors))
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -76,7 +76,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
 END DO ! iProc
 
 ! currently only needed for SurfaceModel=2
-! represents inverse communication where information is send from local sides to halo sides (local sides of halo procs)
+! represents inverse communication where information is send from origin sides to halo sides (local sides of neighbor halo procs)
 ALLOCATE(SurfCoverageSendBuf(SurfCOMM%nMPINeighbors))
 ALLOCATE(SurfCoverageRecvBuf(SurfCOMM%nMPINeighbors))
 ALLOCATE(SurfModelExchange%nCoverageSidesSend(SurfCOMM%nMPINeighbors))
@@ -103,7 +103,7 @@ END SUBROUTINE InitSurfModel_MPI
 
 SUBROUTINE InitSMCR_MPI()
 !===================================================================================================================================
-!> Initializing MPI for Surface Model (SMCR model specific communicating distribution data)
+!> Initializing MPI for Kinetic Surface Model (SMCR model specific: communication of distribution data)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -154,12 +154,12 @@ END SUBROUTINE InitSMCR_MPI
 
 SUBROUTINE ExchangeAdsorbNum()
 !===================================================================================================================================
-!> exchange the number of adsorbing particles on halo surface
-!> only processes with samling sides in their halo region and the original process participate on the communication
-!> structure is similar to surface sampling/particle communication
-!> each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
-!> the receiving process adds the new data to his own sides
-!>  Exchanged are SumAdsorbPart and SumERDesorbed arrays
+!> Exchange the number of particles that adsorbed on a halo surface to origin surface of the corresponding proc
+!>   only processes with samling side to send or recieve participate in the communication
+!>   structure is similar to surface sampling/particle communication (halo->origin)
+!> Each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
+!>   the receiving process adds the new data to his own sides
+!> Exchanged arrays: SumAdsorbPart, SumERDesorbed
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -271,8 +271,8 @@ END SUBROUTINE ExchangeAdsorbNum
 
 SUBROUTINE ExchangeSurfDistSize()
 !===================================================================================================================================
-!> exchange the number of surface distribution sites to communicate to halosides with neighbours
-!> only processes with surface sides in their halo region and the original process participate on the communication
+!> Calculates and communicates the number of surface distribution sites that need to be send between the participating procs
+!>   in subroutine ExchangeSurfDistInfo
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -367,11 +367,9 @@ END SUBROUTINE ExchangeSurfDistSize
 
 SUBROUTINE ExchangeSurfDistInfo()
 !===================================================================================================================================
-!> exchange the surface distribution to halosides of neighbours
-!> only processes with surface sides in their halo region and the original process participate on the communication
-!> structure is similar to surface sampling/particle communication
-!> each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
-!> the receiving process adds the new data to his own sides
+!> Exchanges information from origin to the respecitve halosides of corresponding neighbours
+!>   The structure is similar to surface sampling/particle communication but has inverse communication path (origin->halo)
+!> Exchanged information: Surface distribution
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -523,11 +521,9 @@ END SUBROUTINE ExchangeSurfDistInfo
 
 SUBROUTINE ExchangeCoverageInfo()
 !===================================================================================================================================
-!> exchange the surface Coverage and Probabilities to halosides of neighbours
-!> only processes with surface sides in their halo region and the original process participate on the communication
-!> structure is similar to surface sampling/particle communication
-!> each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
-!> the receiving process adds the new data to his own sides
+!> Exchanges information from origin to the halosides of corresponding neighbours
+!>   The structure is similar to surface sampling/particle communication but has inverse communication path (origin->halo)
+!> Exchanged information: Surface coverage, constant probabilities
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
