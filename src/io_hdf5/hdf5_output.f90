@@ -376,8 +376,10 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
 #endif /*Particles*/
 
+#if USE_LOADBALANCE
 ! Write 'ElemTime' to a separate container in the state.h5 file
 CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElemTime')
+#endif /*USE_LOADBALANCE*/
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
 CALL WriteAdditionalElemData(FileName,ElementOut)
@@ -485,6 +487,7 @@ DEALLOCATE(ElemData,StrVarNames)
 END SUBROUTINE WriteAdditionalElemData
 
 
+#if USE_LOADBALANCE
 SUBROUTINE WriteElemDataToSeparateContainer(FileName,ElemList,ElemDataName)
 !===================================================================================================================================
 !> Similar to WriteAdditionalElemData() but only writes one of the fields to a separate container
@@ -603,6 +606,7 @@ END IF ! (MAXVAL(ElemData).LE.0.0).AND.DoRestart.AND.(TRIM(ElemDataName).EQ.'Ele
 DEALLOCATE(ElemData)
 
 END SUBROUTINE WriteElemDataToSeparateContainer
+#endif /*USE_LOADBALANCE*/
 
 
 #if (PP_nVar==8)
