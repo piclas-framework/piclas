@@ -21,7 +21,7 @@ IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-#ifdef PP_HDG
+#if USE_HDG
 INTERFACE Elem_Mat
   MODULE PROCEDURE Elem_Mat
 END INTERFACE
@@ -37,12 +37,12 @@ END INTERFACE
 PUBLIC :: Elem_Mat
 PUBLIC :: BuildPrecond
 PUBLIC :: PostProcessGradient
-#endif /* PP_HDG*/
+#endif /*USE_HDG*/
 !===================================================================================================================================
 
 CONTAINS
 
-#ifdef PP_HDG
+#if USE_HDG
 SUBROUTINE Elem_Mat(td_iter)
 !===================================================================================================================================
 !
@@ -91,7 +91,7 @@ IF(DoPrintConvInfo)THEN
 END IF
 #else
 IF(DoDisplayIter)THEN
-  IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
+  IF(HDGDisplayConvergence.AND.(MOD(td_iter,IterDisplayStep).EQ.0)) THEN
     time0=PICLASTIME()
     SWRITE(UNIT_stdOut,'(132("-"))')
     SWRITE(*,*)'HDG ELEM_MAT: Pre-compute HDG local element matrices...'
@@ -302,7 +302,7 @@ IF(DoPrintConvInfo)THEN
 END IF
 #else
 IF(DoDisplayIter)THEN
-  IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
+  IF(HDGDisplayConvergence.AND.(MOD(td_iter,IterDisplayStep).EQ.0)) THEN
     time=PICLASTIME()
     SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
     SWRITE(UNIT_stdOut,'(132("-"))')
@@ -515,5 +515,5 @@ DO iElem=1,PP_nElems
 END DO !iElem
 
 END SUBROUTINE PostProcessGradient
-#endif /* PP_HDG*/
+#endif /*USE_HDG*/
 END MODULE MOD_Elem_Mat

@@ -52,7 +52,7 @@ SUBROUTINE ImplicitNorm(t,coeff,R,Norm_R,Delta_Norm_R,Delta_Norm_Rel,First)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DG_Vars,                 ONLY:U
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS,mass
 USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
@@ -91,7 +91,7 @@ REAL                       :: NormArray(3), GlobalNormArray(3)
 Norm_R         =0.
 Delta_Norm_R   =0.
 Delta_Norm_Rel =0.
-#ifndef PP_HDG
+#if !(USE_HDG)
 ! compute error-norm-version1, non-optimized
 CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
 ImplicitSource=0.
@@ -199,7 +199,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_LinearSolver,            ONLY:LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:FieldStage
 USE MOD_LinearOperator,          ONLY:EvalResidual
@@ -207,7 +207,7 @@ USE MOD_Predictor,               ONLY:Predictor,PredictorType
 #else
 USE MOD_HDG,                     ONLY:HDG
 USE MOD_HDG_Vars,                ONLY:EpsCG,useRelativeAbortCrit
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_DG_Vars,                 ONLY:U
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver,nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
@@ -263,11 +263,11 @@ REAL                       :: tLBStart
 #endif /*PARTICLES*/
 REAL                       :: relTolerance,Criterion
 LOGICAL                    :: IsConverged
-#ifdef PP_HDG
+#if USE_HDG
 INTEGER(KIND=8)            :: iter=0
 #else
 REAL                       :: Norm_R0_linSolver
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 REAL                       :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                       :: Rold(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                       :: Uold(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -348,7 +348,7 @@ END IF
 #endif /*PARTICLES*/
 
 R=0.
-#ifndef PP_HDG
+#if !(USE_HDG)
 ! compute norm for Newton, which can be different than the first norm for the
 ! linear solver
 CALL ImplicitNorm(tStage,coeff,R,Norm_R0,Delta_Norm_R0,Delta_Norm_Rel0,First=.TRUE.)
@@ -576,7 +576,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 #ifdef PARTICLES
   IF(DoFieldUpdate)THEN ! update of field
 #endif /*PARTICLES*/
-#ifndef PP_HDG
+#if !(USE_HDG)
   ! compute R0
   IF(DoPrintConvInfo)THEN
     SWRITE(UNIT_stdOut,'(A20,E24.12)')           ' DGSolver-Tol   :', relTolerance

@@ -205,7 +205,6 @@ IMPLICIT NONE
 INTEGER       :: dir, VeloDirs_hilf(4),iElem
 REAL          :: DOF,VolumeShapeFunction
 CHARACTER(32) :: hilf
-REAL          :: Bounds(1:2,1:3)
 INTEGER       :: ALLOCSTAT
 INTEGER       :: iSpec
 !===================================================================================================================================
@@ -623,7 +622,6 @@ USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Analyze_Vars           ,ONLY: CalcEpot,Wel,Wmag,Wphi,Wpsi
 USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_TimeDisc_Vars          ,ONLY: iter, dt
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
@@ -1742,9 +1740,9 @@ USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_PML_Vars              ,ONLY: DoPML,xyzPhysicalMinMax
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 #endif /*USE_MPI*/
@@ -1765,7 +1763,7 @@ Ekin    = 0.!d0
 IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
-#ifndef PP_HDG
+#if !(USE_HDG)
       IF(DoPML)THEN
         IF (PartState(i,1) .GE. xyzPhysicalMinMax(1) .AND. PartState(i,1) .LE. xyzPhysicalMinMax(2) .AND. &
             PartState(i,2) .GE. xyzPhysicalMinMax(3) .AND. PartState(i,2) .LE. xyzPhysicalMinMax(4) .AND. &
@@ -1773,7 +1771,7 @@ IF (nSpecAnalyze.GT.1) THEN
           CYCLE
         END IF
       ENDIF
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
       partV2 = PartState(i,4) * PartState(i,4) &
               + PartState(i,5) * PartState(i,5) &
               + PartState(i,6) * PartState(i,6)
@@ -1807,7 +1805,7 @@ IF (nSpecAnalyze.GT.1) THEN
 ELSE ! nSpecAnalyze = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
-#ifndef PP_HDG
+#if !(USE_HDG)
       IF(DoPML)THEN
         IF (PartState(i,1) .GE. xyzPhysicalMinMax(1) .AND. PartState(i,1) .LE. xyzPhysicalMinMax(2) .AND. &
             PartState(i,2) .GE. xyzPhysicalMinMax(3) .AND. PartState(i,2) .LE. xyzPhysicalMinMax(4) .AND. &
@@ -1815,7 +1813,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
           CYCLE
         END IF
       ENDIF
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
       partV2 = PartState(i,4) * PartState(i,4) &
              + PartState(i,5) * PartState(i,5) &
              + PartState(i,6) * PartState(i,6)
@@ -1865,9 +1863,9 @@ USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze,LaserInteractionEkinMaxRadius,LaserInteractionEkinMaxZPosMin
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_PML_Vars              ,ONLY: DoPML,xyzPhysicalMinMax
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 #endif /*USE_MPI*/
@@ -1892,7 +1890,7 @@ EkinMax = -1.
 IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
-#ifndef PP_HDG
+#if !(USE_HDG)
       IF(DoPML)THEN
         IF (PartState(i,1) .GE. xyzPhysicalMinMax(1) .AND. PartState(i,1) .LE. xyzPhysicalMinMax(2) .AND. &
             PartState(i,2) .GE. xyzPhysicalMinMax(3) .AND. PartState(i,2) .LE. xyzPhysicalMinMax(4) .AND. &
@@ -1900,7 +1898,7 @@ IF (nSpecAnalyze.GT.1) THEN
           CYCLE
         END IF
       ENDIF
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
       partV2 = PartState(i,4) * PartState(i,4) &
               + PartState(i,5) * PartState(i,5) &
               + PartState(i,6) * PartState(i,6)
@@ -1937,7 +1935,7 @@ IF (nSpecAnalyze.GT.1) THEN
 ELSE ! nSpecAnalyze = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
-#ifndef PP_HDG
+#if !(USE_HDG)
       IF(DoPML)THEN
         IF (PartState(i,1) .GE. xyzPhysicalMinMax(1) .AND. PartState(i,1) .LE. xyzPhysicalMinMax(2) .AND. &
             PartState(i,2) .GE. xyzPhysicalMinMax(3) .AND. PartState(i,2) .LE. xyzPhysicalMinMax(4) .AND. &
@@ -1945,7 +1943,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
           CYCLE
         END IF
       ENDIF
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
       partV2 = PartState(i,4) * PartState(i,4) &
              + PartState(i,5) * PartState(i,5) &
              + PartState(i,6) * PartState(i,6)
@@ -2004,8 +2002,8 @@ USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 #if USE_MPI
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcNumSpec
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3235,7 +3233,7 @@ USE MOD_PICDepo_Vars      ,ONLY: PartSource
 USE MOD_Part_RHS          ,ONLY: PartVeloToImp
 USE MOD_Preproc
 USE MOD_PICDepo           ,ONLY: Deposition
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_DG_Vars           ,ONLY: U
 #else
 #if PP_nVar==1
@@ -3318,7 +3316,7 @@ DO iSpec=1,nSpecies
       DO j=0,PP_N
         DO i=0,PP_N
           ! 1:3 PowerDensity, 4 charge density
-#ifndef PP_HDG
+#if !(USE_HDG)
           PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*U(1,i,j,k,iElem)
           PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*U(2,i,j,k,iElem)
           PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)*U(3,i,j,k,iElem)
@@ -4160,7 +4158,6 @@ SUBROUTINE FinalizeParticleAnalyze()
 ! MODULES
 USE MOD_Particle_Analyze_Vars
 USE MOD_Particle_Vars         ,ONLY: nSpecies
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES

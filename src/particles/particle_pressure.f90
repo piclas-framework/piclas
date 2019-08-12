@@ -63,12 +63,13 @@ USE MOD_Particle_Vars
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell
 USE MOD_Particle_Mesh          ,ONLY: PointToExactElement
-USE MOD_Mesh_Vars              ,ONLY: nElems,ElemToSide
+USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Eval_XYZ               ,ONLY: TensorProductInterpolation
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToElemAndSide
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: nInnerSides, nBCSides
+USE MOD_Mesh_Vars              ,ONLY: ElemToSide
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -83,9 +84,12 @@ REAL                 :: det1, det2, det3, RandVal(2), dist1, dist2, xi(3)
 INTEGER, ALLOCATABLE :: TempElemTotalInside(:), TempElemPartlyInside(:)
 INTEGER              :: nNodesInside, nBoundNodes, nInterest, nInterOld, Element, ExamElem
 INTEGER              :: iShot, iElem, iSpec, iInit, iElem2
-INTEGER              :: iLocSide,SideID,locSideID
+INTEGER              :: iLocSide,locSideID
 INTEGER              :: i,j,k
 LOGICAL              :: InElementCheck,Marked
+#if USE_MPI
+INTEGER              :: SideID
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 IF(.NOT.DoRefMapping) CALL abort(&
@@ -665,9 +669,12 @@ REAL                 :: det1, det2, det3, RandVal(2), dist1, dist2
 INTEGER, ALLOCATABLE :: TempElemTotalInside(:), TempElemPartlyInside(:)
 INTEGER              :: nNodesInside, nBoundNodes, nInterest, nInterOld, Element, ExamElem
 INTEGER              :: iShot, iElem, iSpec, iInit, iElem2
-INTEGER              :: iLocSide,SideID,locSideID
+INTEGER              :: iLocSide,locSideID
 INTEGER              :: i,j,k
 LOGICAL              :: InElementCheck,Marked
+#if USE_MPI
+INTEGER              :: SideID
+#endif /*USE_MPI*/
 !===================================================================================================================================
 IF(.NOT.DoRefMapping) CALL abort(&
 __STAMP__&

@@ -2884,7 +2884,7 @@ END DO
 nDataBC_CollectCharges=0
 nCollectChargesBCs = GETINT('PIC-nCollectChargesBCs','0')
 IF (nCollectChargesBCs .GT. 0) THEN
-#if !(defined (PP_HDG) && (PP_nVar==1))
+#if !((USE_HDG) && (PP_nVar==1))
   CALL abort(__STAMP__&
     , 'CollectCharges only implemented for electrostatic HDG!')
 #endif

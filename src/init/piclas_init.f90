@@ -71,9 +71,9 @@ USE MOD_Equation             ,ONLY: InitEquation
 USE MOD_GetBoundaryFlux      ,ONLY: InitBC
 USE MOD_DG                   ,ONLY: InitDG
 USE MOD_Mortar               ,ONLY: InitMortar
-#ifndef PP_HDG
+#if ! (USE_HDG)
 USE MOD_PML                  ,ONLY: InitPML
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_Dielectric           ,ONLY: InitDielectric
 USE MOD_Filter               ,ONLY: InitFilter
 USE MOD_Analyze              ,ONLY: InitAnalyze
@@ -102,7 +102,7 @@ USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
 USE MOD_ParticleSolver       ,ONLY: InitPartSolver
 #endif
 #endif
-#ifdef PP_HDG
+#if USE_HDG
 USE MOD_HDG                  ,ONLY: InitHDG
 #endif
 USE MOD_Interfaces           ,ONLY: InitInterfaces
@@ -193,9 +193,9 @@ CALL InitBC()
 !#ifdef PARTICLES
 !CALL InitParticles()
 !#endif
-#ifndef PP_HDG
+#if !(USE_HDG)
 CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 CALL InitDielectric() ! Dielectric media
 CALL InitDG()
 CALL InitFilter()
@@ -220,7 +220,7 @@ CALL InitParticleAnalyze()
 CALL InitSurfModelAnalyze()
 #endif
 
-#ifdef PP_HDG
+#if USE_HDG
 CALL InitHDG()
 #endif
 
@@ -268,11 +268,11 @@ USE MOD_GetBoundaryFlux,           ONLY:FinalizeBC
 USE MOD_DG,                        ONLY:FinalizeDG
 USE MOD_Mortar,                    ONLY:FinalizeMortar
 USE MOD_Dielectric,                ONLY:FinalizeDielectric
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_PML,                       ONLY:FinalizePML
 #else
 USE MOD_HDG,                       ONLY:FinalizeHDG
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_Filter,                    ONLY:FinalizeFilter
 USE MOD_Analyze,                   ONLY:FinalizeAnalyze
 USE MOD_RecordPoints,              ONLY:FinalizeRecordPoints
@@ -328,12 +328,12 @@ CALL FinalizeDG()
 !CALL FinalizeCSR()
 CALL FinalizeLinearSolver()
 #endif /*IMEX*/
-#ifndef PP_HDG
+#if !(USE_HDG)
 CALL FinalizePML()
 #else
 CALL FinalizeDielectric()
 CALL FinalizeHDG()
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 CALL FinalizeEquation()
 CALL FinalizeBC()
 IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()

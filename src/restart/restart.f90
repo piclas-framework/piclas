@@ -58,13 +58,13 @@ CALL prms%CreateLogicalOption('DoInitialAutoRestart',&
                                "Restart is done if Imbalance > 'Load-DeviationThreshold'."&
                                , '.FALSE.')
 CALL prms%CreateIntOption('InitialAutoRestartSample',&
-                               "Define number of iterations at simulation start used for elemtime "// &
+                               "Define number of iterations at simulation start used for ElemTime "// &
                                "sampling before performing automatic initial restart.\n"// &
                                "IF 0 than one iteration is sampled and statefile written has zero timeflag.\n"// &
                                " DEFAULT: LoadBalanceSample.")
 CALL prms%CreateLogicalOption( 'InitialAutoRestart-PartWeightLoadBalance', &
                                "Set flag for doing initial auto restart with partMPIWeight instead of"//&
-                               " elemtimes. Elemtime array in state file is filled with nParts*PartMPIWeight for each Elem. "//&
+                               " ElemTimes. ElemTime array in state file is filled with nParts*PartMPIWeight for each Elem. "//&
                                " If Flag [TRUE] InitialAutoRestartSample is set to 0 and vice versa.", '.FALSE.')
 #endif /*USE_LOADBALANCE*/
 CALL prms%CreateLogicalOption( 'RestartNullifySolution', &
@@ -95,7 +95,7 @@ USE MOD_Interpolation_Vars ,ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
 USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
 #ifdef PP_POIS
-#elif defined PP_HDG
+#elif USE_HDG
 USE MOD_HDF5_Input         ,ONLY: DatasetExists
 #else
 #endif
@@ -110,9 +110,9 @@ IMPLICIT NONE
 #if USE_LOADBALANCE
 CHARACTER(20)               :: hilf
 #endif /*USE_LOADBALANCE*/
-#ifdef PP_HDG
+#if USE_HDG
 LOGICAL                     :: DG_SolutionUExists
-#endif /* PP_HDG */
+#endif /*USE_HDG*/
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.RestartInitIsDone)THEN
    CALL abort(&
@@ -152,7 +152,7 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
       __STAMP__&
       ,'InitRestart: This case is not implemented here. Fix this!')
 #endif
-#elif defined PP_HDG
+#elif USE_HDG
   CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
   IF(DG_SolutionUExists)THEN
     CALL GetDataProps('DG_SolutionU',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
@@ -187,10 +187,10 @@ WRITE(UNIT=hilf,FMT='(I0)') LoadBalanceSample
 InitialAutoRestartSample = GETINT('InitialAutoRestartSample',TRIM(hilf))
 IAR_PerformPartWeightLB = GETLOGICAL('InitialAutoRestart-PartWeightLoadBalance','F')
 IF (IAR_PerformPartWeightLB) THEN
-  InitialAutoRestartSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
+  InitialAutoRestartSample = 0 ! deactivate loadbalance sampling of ElemTimes if balancing with partweight is enabled
   CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance = T : InitialAutoRestartSample','INFO',IntOpt=InitialAutoRestartSample)
 ELSE IF (InitialAutoRestartSample.EQ.0) THEN
-  IAR_PerformPartWeightLB = .TRUE. ! loadbalance (elemtimes) is done with partmpiweight if loadbalancesampling is set to zero
+  IAR_PerformPartWeightLB = .TRUE. ! loadbalance (ElemTimes) is done with partmpiweight if loadbalancesampling is set to zero
   CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance','INFO',LogOpt=IAR_PerformPartWeightLB)
 END IF
 #endif /*USE_LOADBALANCE*/
@@ -259,19 +259,19 @@ USE MOD_PreProc
 USE MOD_IO_HDF5
 USE MOD_DG_Vars,                 ONLY:U
 USE MOD_Mesh_Vars,               ONLY:offsetElem,DoWriteStateToHDF5
-#ifdef PP_HDG
+#if USE_HDG
 USE MOD_Mesh_Vars,               ONLY:offsetSide,nSides,nMPISides_YOUR, offsetSide
 #endif
-#if (USE_QDS_DG) || (!PP_HDG)
+#if (USE_QDS_DG) || !(USE_HDG)
 USE MOD_Restart_Vars,            ONLY:Vdm_GaussNRestart_GaussN
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_Restart_Vars,            ONLY:DoRestart,N_Restart,RestartFile,RestartTime,InterpolateSolution,RestartNullifySolution
 USE MOD_ChangeBasis,             ONLY:ChangeBasis3D
 USE MOD_HDF5_input ,             ONLY:OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
 USE MOD_HDF5_Output,             ONLY:FlushHDF5
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_PML_Vars,                ONLY:DoPML,PMLToElem,U2,nPMLElems,PMLnVar
-#endif /*not PP_HDG*/
+#endif /*not USE_HDG*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:Phi
 #endif /*PP_POIS*/
@@ -296,14 +296,14 @@ USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 USE MOD_Particle_Tracking,       ONLY:ParticleCollectCharges
 USE MOD_PICDepo_Vars,            ONLY:DoDeposition, RelaxDeposition, PartSourceOld
 #endif /*PARTICLES*/
-#ifdef PP_HDG
+#if USE_HDG
 USE MOD_HDG_Vars,                ONLY:lambda, nGP_face
 USE MOD_HDG,                     ONLY:RestartHDG
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #if USE_QDS_DG
 USE MOD_QDS_DG_Vars,             ONLY:DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesMass
 #endif /*USE_QDS_DG*/
-#if (USE_QDS_DG) || (PARTICLES) || (PP_HDG)
+#if (USE_QDS_DG) || (PARTICLES) || (USE_HDG)
 USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists,GetDataProps,nDims,HSize
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -314,15 +314,15 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if (USE_QDS_DG) || (!PP_HDG)
+#if (USE_QDS_DG) || !(USE_HDG)
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
 #endif
-#ifdef PP_HDG
+#if USE_HDG
 LOGICAL                            :: DG_SolutionLambdaExists,DG_SolutionUExists
 INTEGER(KIND=8)                    :: iter
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 INTEGER                            :: iElem
 #if USE_MPI
 REAL                               :: StartT,EndT
@@ -376,9 +376,9 @@ INTEGER                            :: IndNum    ! > auxiliary variable containin
 INTEGER                            :: i
 #endif
 INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTEGER(KIND=IK)                   :: PMLnVarTmp
-#endif /*not PP_HDG*/
+#endif /*not USE_HDG*/
 !===================================================================================================================================
 IF(DoRestart)THEN
 #if USE_MPI
@@ -392,9 +392,9 @@ IF(DoRestart)THEN
   PP_nVarTmp    = INT(PP_nVar,IK)
   PP_nElemsTmp  = INT(PP_nElems,IK)
   N_RestartTmp  = INT(N_Restart,IK)
-#ifndef PP_HDG
+#if !(USE_HDG)
   PMLnVarTmp    = INT(PMLnVar,IK)
-#endif /*not PP_HDG*/
+#endif /*not USE_HDG*/
   ! ===========================================================================
   ! 1.) Read the field solution
   ! ===========================================================================
@@ -457,7 +457,7 @@ IF(DoRestart)THEN
           CALL ReadArray('DG_Source' ,5,(/4_IK,PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=PartSource_HDF5)
           DO iElem =1, PP_nElems
             DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
               PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
               PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
 #else
@@ -487,7 +487,7 @@ IF(DoRestart)THEN
       CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       CALL ReadArray('DG_SolutionPhi',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #endif
-#elif defined PP_HDG
+#elif USE_HDG
       CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
       IF(DG_SolutionUExists)THEN
         CALL ReadArray('DG_SolutionU',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
@@ -551,7 +551,7 @@ IF(DoRestart)THEN
       END DO
       DEALLOCATE(U_local)
 #endif
-#elif defined PP_HDG
+#elif USE_HDG
       CALL abort(&
           __STAMP__&
           ,' Restart with changed polynomial degree not implemented for HDG!')
@@ -1415,14 +1415,14 @@ __STAMP__&
   ! include initially collected particles for first call of field-solver (e.g. in RecomputeLambda)
   CALL ParticleCollectCharges(initialCall_opt=.TRUE.)
 #endif /*PARTICLES*/
-#ifdef PP_HDG
+#if USE_HDG
   iter=0
   ! INSTEAD OF ALL THIS STUFF DO
   ! 1) MPI-Communication for shape-function particles
   ! 2) Deposition
   ! 3) ONE HDG solve
   CALL  RecomputeLambda(RestartTime)
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 
   ! Delete all files that will be rewritten
@@ -1643,7 +1643,7 @@ END SUBROUTINE MacroscopicRestart
 #endif /*PARTICLES*/
 
 
-#ifdef PP_HDG
+#if USE_HDG
 SUBROUTINE RecomputeLambda(t)
 !===================================================================================================================================
 ! The lambda-solution is stored per side, however, the side-list is computed with the OLD domain-decomposition. To allow for
@@ -1697,7 +1697,7 @@ CALL Deposition(doInnerParts=.FALSE.)
 CALL HDG(t,U,iter)
 
 END SUBROUTINE RecomputeLambda
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 SUBROUTINE FinalizeRestart()
 !===================================================================================================================================

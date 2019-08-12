@@ -364,7 +364,7 @@ END SUBROUTINE GetDataProps
 
 !===================================================================================================================================
 !> High level wrapper to ReadArray and ReadAttrib. Check if array exists and directly
-!> allocate, read array and attribs
+!> allocate, read array and attributes
 !> Assume that the array to be read is of size (nVar,.,.,.,.,nElems) and that an associated
 !> attribute containing the variable names exists
 !===================================================================================================================================
@@ -397,16 +397,15 @@ IF (found) THEN
   IF(nVal(dims).NE.nGlobalElems) STOP 'Last array dimension != nElems !'
   nVal(dims)=nElems
   DEALLOCATE(HSize)
-  ALLOCATE(array(PRODUCT(nVal(1:dims))))
+  ALLOCATE(Array(PRODUCT(nVal(1:dims))))
   ALLOCATE(VarNames(nVal(1)))
-
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
         nVal       => INT(nVal(1:dims),IK)    ,&
         OffsetElem => INT(OffsetElem,IK) )
     ! read array
-    CALL ReadArray(TRIM(ArrayName),dims,nVal,OffsetElem,dims,RealArray=array)
+    CALL ReadArray(TRIM(ArrayName),dims,nVal,OffsetElem,dims,RealArray=Array)
   END ASSOCIATE
 
   ! read variable names
@@ -419,7 +418,7 @@ END SUBROUTINE GetArrayAndName
 !==================================================================================================================================
 !> Subroutine to read arrays of rank "Rank" with dimensions "Dimsf(1:Rank)".
 !==================================================================================================================================
-SUBROUTINE ReadArray(ArrayName,Rank,nVal,Offset_in,Offset_dim,RealArray,IntegerArray,StrArray,IntegerArray_i4)
+SUBROUTINE ReadArray(ArrayName,Rank,nVal,Offset_in,offset_dim,RealArray,IntegerArray,StrArray,IntegerArray_i4)
 ! MODULES
 USE MOD_Globals
 USE,INTRINSIC :: ISO_C_BINDING
