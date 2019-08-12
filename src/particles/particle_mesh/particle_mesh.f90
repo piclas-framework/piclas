@@ -779,13 +779,17 @@ USE MOD_Particle_Mesh_Vars          ,ONLY: Geo
 USE MOD_Particle_Tracking_Vars      ,ONLY: DoRefMapping,TriaTracking
 USE MOD_Particle_Mesh_Vars          ,ONLY: epsOneCell,IsTracingBCElem,ElemRadius2NGeo
 USE MOD_Eval_xyz                    ,ONLY: GetPositionInRefElem
-USE MOD_Utils                       ,ONLY: InsertionSort                                  ! BubbleSortID
+USE MOD_Utils                       ,ONLY: InsertionSort
 USE MOD_Particle_Tracking_Vars      ,ONLY: DoRefMapping,Distance,ListDistance
 USE MOD_Particle_Boundary_Condition ,ONLY: PARTSWITCHELEMENT
-USE MOD_Particle_MPI_Vars           ,ONLY: PartHaloElemToProc
-USE MOD_Mesh_Vars                   ,ONLY: ElemToSide,BC,ElemBaryNGeo
+USE MOD_Mesh_Vars                   ,ONLY: ElemBaryNGeo
 USE MOD_Particle_MPI_Vars           ,ONLY: SafetyFactor
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
+#if USE_MPI
+USE MOD_Mesh_Vars                   ,ONLY: BC
+USE MOD_Mesh_Vars                   ,ONLY: ElemToSide
+USE MOD_Particle_MPI_Vars           ,ONLY: PartHaloElemToProc
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1363,8 +1367,10 @@ USE MOD_PICDepo_Vars           ,ONLY: CellLocNodes_Volumes, DepositionType
 #endif /*USE_MPI*/
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_PICDepo_Vars           ,ONLY: ElemRadius2_sf,DepositionType,DoSFLocalDepoAtBounds
-USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
 USE MOD_Particle_Mesh_Tools    ,ONLY: BoundsOfElement
+#if USE_MPI
+USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1572,9 +1578,9 @@ USE MOD_Globals
 USE MOD_Partilce_Periodic_BC ,ONLY: InitPeriodicBC
 USE MOD_Particle_Mesh_Vars   ,ONLY: GEO
 USE MOD_Particle_MPI_Vars    ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_CalcTimeStep         ,ONLY: CalcTimeStep
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_Equation_Vars        ,ONLY: c
 USE MOD_Particle_Vars        ,ONLY: manualtimestep
 #if (PP_TimeDiscMethod==201)
@@ -1694,13 +1700,13 @@ BGMkmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))-1
 !--- PO: modified for curved and shape-function influence
 !        c*dt*SafetyFactor+r_cutoff
 IF (ManualTimeStep.EQ.0.0) THEN
-#ifndef PP_HDG
+#if !(USE_HDG)
   deltaT=CALCTIMESTEP()
 #else
    CALL abort(&
 __STAMP__&
 , 'ManualTimeStep.EQ.0.0 -> ManualTimeStep is not defined correctly! Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 ELSE
   deltaT=ManualTimeStep
 END IF
@@ -3879,7 +3885,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
-USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo,nSides,NGeo,nBCSides,sJ,BC,nElems
+USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo,nSides,NGeo,nBCSides,sJ,nElems
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,IsTracingBCElem,nTotalElems,nTotalBCElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: TracingBCInnerSides,TracingBCTotalSides
@@ -3889,6 +3895,9 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: sVdm_Bezier
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps,halo_eps2
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
 USE MOD_Analyze_Vars           ,ONLY: CalcMeshInfo
+#if USE_MPI
+USE MOD_Mesh_Vars              ,ONLY: BC
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -4669,8 +4678,8 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: SideType
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,IsTracingBCElem,nTotalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: nPartSides
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalBCSides
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #if USE_MPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_Particle_MPI_HALO      ,ONLY: WriteParticlePartitionInformation
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -4681,14 +4690,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                  :: iElem
-INTEGER                                  :: iSide, nDummy
+INTEGER                                  :: iSide
 INTEGER                                  :: nBCElems,nBCelemsTot
 INTEGER                                  :: nPlanarRectangular, nPlanarNonRectangular,nPlanarCurved,nBilinear,nCurved
 INTEGER                                  :: nPlanarRectangularTot, nPlanarNonRectangularTot,nPlanarCurvedTot,nBilinearTot,nCurvedTot
 INTEGER                                  :: nLinearElems, nCurvedElems, nCurvedElemsTot
 #if USE_MPI
 INTEGER                                  :: nPlanarRectangularHalo, nPlanarNonRectangularHalo,nPlanarCurvedHalo, &
-                                            nBilinearHalo,nCurvedHalo,nCurvedElemsHalo,nLinearElemsHalo,nBCElemsHalo
+                                            nBilinearHalo,nCurvedHalo,nCurvedElemsHalo,nLinearElemsHalo,nBCElemsHalo,nDummy
 #endif /*USE_MPI*/
 INTEGER                                  :: nLoop
 !===================================================================================================================================
@@ -4946,12 +4955,12 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iElem,ilocSide,iMortar,ProcID,ilocSide2,iMortar2,NbElemID,ElemID,BCID,SideID,BCSideID
+INTEGER                       :: iElem,ilocSide,iMortar,ilocSide2,iMortar2,NbElemID,ElemID,BCID,SideID,BCSideID
 INTEGER(KIND=8)               :: GlobalElemID
 LOGICAL                       :: found
 REAL                          :: Vec1(1:3)
 #if USE_MPI
-INTEGER                       :: iHaloElem
+INTEGER                       :: iHaloElem,ProcID
 INTEGER(KIND=8)               :: HaloGlobalElemID
 #endif /*USE_MPI*/
 !===================================================================================================================================

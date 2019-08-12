@@ -23,7 +23,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-#ifdef PP_HDG
+#if USE_HDG
 INTEGER             :: HDG_N
 INTEGER             :: nGP_vol              !=(PP_N+1)**3
 INTEGER             :: nGP_face             !=(PP_N+1)**2
@@ -77,6 +77,7 @@ LOGICAL,ALLOCATABLE :: MaskedSide(:)      ! 1:nSides: all sides which are set to
 REAL,ALLOCATABLE    :: IntMatMortar(:,:,:,:) ! Interpolation matrix for mortar: (nGP_face,nGP_Face,1:4(iMortar),1:3(MortarType))
 INTEGER,ALLOCATABLE :: SmallMortarInfo(:)      ! 1:nSides: info on small Mortar sides: 
                                                ! -1: is neighbor small mortar , 0: not a small mortar, 1: small mortar on big side
+LOGICAL             :: HDGDisplayConvergence ! Display divergence criteria: Iterations, Runtime and Residual
 !===================================================================================================================================
 
 
@@ -131,5 +132,5 @@ END SUBROUTINE Mask_MPIsides
 #endif /*USE_MPI*/ 
 
 
-#endif /* PP_HDG*/
+#endif /*USE_HDG*/
 END MODULE MOD_HDG_Vars

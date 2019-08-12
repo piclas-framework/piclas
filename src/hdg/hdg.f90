@@ -21,7 +21,7 @@ MODULE MOD_HDG
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-#ifdef PP_HDG
+#if USE_HDG
 INTERFACE InitHDG
   MODULE PROCEDURE InitHDG
 END INTERFACE
@@ -37,12 +37,12 @@ END INTERFACE
 PUBLIC :: InitHDG,FinalizeHDG
 PUBLIC :: HDG, RestartHDG
 PUBLIC :: DefineParametersHDG
-#endif /* PP_HDG*/
+#endif /*USE_HDG*/
 !===================================================================================================================================
 
 CONTAINS
 
-#ifdef PP_HDG
+#if USE_HDG
 !==================================================================================================================================
 !> Define parameters for HDG (Hubridized Discontinous Galerkin)
 !==================================================================================================================================
@@ -73,9 +73,11 @@ CALL prms%CreateLogicalOption(  'OnlyPostProc'           , 'TODO-DEFINE-PARAMETE
 CALL prms%CreateLogicalOption(  'ExactLambda'            , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 
 CALL prms%CreateIntOption(      'HDG_N'                  , 'TODO-DEFINE-PARAMETER \nDefault: 2*N')
-CALL prms%CreateIntOption(      'HDGskip'                , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateIntOption(      'HDGSkip'                , 'TODO-DEFINE-PARAMETER', '0')
 CALL prms%CreateIntOption(      'HDGSkipInit'            , 'TODO-DEFINE-PARAMETER', '0')
 CALL prms%CreateRealOption(     'HDGSkip_t0'             , 'TODO-DEFINE-PARAMETER', '0.')
+
+CALL prms%CreateLogicalOption(  'HDGDisplayConvergence'  , 'Display divergence criteria: Iterations, Runtime and Residual', '.FALSE.')
 
 END SUBROUTINE DefineParametersHDG
 
@@ -122,27 +124,29 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
 
-nGP_vol =(PP_N+1)**3
-nGP_face=(PP_N+1)**2
+HDGDisplayConvergence = GETLOGICAL('HDGDisplayConvergence')
 
-HDGSkip = GETINT('HDGSkip','0')
+nGP_vol  = (PP_N+1)**3
+nGP_face = (PP_N+1)**2
+
+HDGSkip = GETINT('HDGSkip')
 IF (HDGSkip.GT.0) THEN
-  HDGSkipInit = GETINT('HDGSkipInit','0')
-  HDGSkip_t0 = GETREAL('HDGSkip_t0','0.')
+  HDGSkipInit = GETINT('HDGSkipInit')
+  HDGSkip_t0  = GETREAL('HDGSkip_t0')
 ELSE
   HDGSkip=0
 END IF
 
 IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
   nonlinear = .true.
-  NonLinSolver=GETINT('NonLinSolver','1')
+  NonLinSolver=GETINT('NonLinSolver')
 
   IF (NonLinSolver.EQ.1) THEN
-    NewtonExactApprox = GETLOGICAL('NewtonExactSourceDeriv','false')
-    AdaptIterNewton=GETINT('AdaptIterNewton','0')
-    AdaptIterNewtonOld = AdaptIterNewton
-    AdaptNewtonStartValue = GETLOGICAL('NewtonAdaptStartValue','false')
-    AdaptIterNewtonToLinear = GETINT('AdaptIterNewtonToLinear','100')
+    NewtonExactApprox       = GETLOGICAL('NewtonExactSourceDeriv')
+    AdaptIterNewton         = GETINT('AdaptIterNewton')
+    AdaptIterNewtonOld      = AdaptIterNewton
+    AdaptNewtonStartValue   = GETLOGICAL('NewtonAdaptStartValue')
+    AdaptIterNewtonToLinear = GETINT('AdaptIterNewtonToLinear')
     IF (NewtonExactApprox) AdaptNewtonStartValue=.true.
     IF (DoRestart) AdaptNewtonStartValue=.false.
     ALLOCATE(NonlinVolumeFac(nGP_vol,PP_nElems))
@@ -159,29 +163,29 @@ IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far 
     END DO !iElem
   END IF
 
-  RelaxFacNonlinear0=GETREAL('RelaxFacNonlinear','0.5')
-  RelaxFacNonlinear=RelaxFacNonlinear0
-  AdaptIterFixPoint0=GETINT('AdaptIterFixPoint','10')
-  AdaptIterFixPoint=AdaptIterFixPoint0
-  MaxIterFixPoint = GETINT('MaxIterFixPoint','10000')
-  NormNonlinearDevLimit=GETREAL('NormNonlinearDevLimit','99999.')
+  RelaxFacNonlinear0    = GETREAL('RelaxFacNonlinear')
+  RelaxFacNonlinear     = RelaxFacNonlinear0
+  AdaptIterFixPoint0    = GETINT('AdaptIterFixPoint')
+  AdaptIterFixPoint     = AdaptIterFixPoint0
+  MaxIterFixPoint       = GETINT('MaxIterFixPoint')
+  NormNonlinearDevLimit = GETREAL('NormNonlinearDevLimit')
   IF (NormNonlinearDevLimit .LT. 1.) THEN
     STOP 'NormNonlinearDevLimit should be .GE. 1'
   END IF
-  EpsNonLinear=GETREAL('EpsNonLinear','1.0E-6')
+  EpsNonLinear=GETREAL('EpsNonLinear')
 ELSE
   nonlinear = .false.
 END IF
 
 !CG parameters
-PrecondType=GETINT('PrecondType','2')
-epsCG=GETREAL('epsCG','1.0E-6')
-OutIterCG=GETINT('OutIterCG','1')
-useRelativeAbortCrit=GETLOGICAL('useRelativeAbortCrit','.FALSE.')
-maxIterCG=GETINT('maxIterCG','500')
+PrecondType          = GETINT('PrecondType')
+epsCG                = GETREAL('epsCG')
+OutIterCG            = GETINT('OutIterCG')
+useRelativeAbortCrit = GETLOGICAL('useRelativeAbortCrit')
+maxIterCG            = GETINT('maxIterCG')
 
-OnlyPostProc=GETLOGICAL('OnlyPostProc','.FALSE.')
-ExactLambda=GETLOGICAL('ExactLambda','.FALSE.')
+OnlyPostProc         = GETLOGICAL('OnlyPostProc')
+ExactLambda          = GETLOGICAL('ExactLambda')
 
 ALLOCATE(MaskedSide(1:nSides))
 MaskedSide=.FALSE.
@@ -567,17 +571,19 @@ END DO
 #endif
 
 #if USE_LOADBALANCE
-CALL LBSplitTime(LB_DG,tLBStart)
+CALL LBPauseTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
 CALL Mask_MPIsides(PP_nVar,RHS_face)
 #endif /*USE_MPI*/
-CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
-
 
 #if USE_LOADBALANCE
-  CALL LBSplitTime(LB_DGCOMM,tLBStart)
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
 
 ! SOLVE
@@ -586,6 +592,9 @@ DO iVar=1, PP_nVar
   CALL CG_solver(RHS_face(iVar,:,:),lambda(iVar,:,:),iVar)
   !POST PROCESSING
 
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
   !post processing:
   DO iElem=1,PP_nElems
     ! for post-proc
@@ -601,8 +610,14 @@ DO iVar=1, PP_nVar
                                -RHS_vol(iVar,:,iElem),1,0., &
                                U_out(iVar,:,iElem),1)
   END DO !iElem 
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
+#endif /*USE_LOADBALANCE*/
 END DO !iVar
 
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 #if (PP_nVar==1)
   CALL PostProcessGradient(U_out(1,:,:),lambda(1,:,:),E)
 #elif (PP_nVar==3)
@@ -929,7 +944,7 @@ ELSE
       END IF
 #else
       IF(DoDisplayIter)THEN
-        IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
+        IF(HDGDisplayConvergence.AND.(MOD(td_iter,IterDisplayStep).EQ.0)) THEN
           SWRITE(*,*) 'Newton Iteration has converged in ',iter,' steps...'
         END IF
       END IF
@@ -1019,10 +1034,13 @@ SUBROUTINE CG_solver(RHS,lambda,iVar)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_HDG_Vars      ,ONLY: nGP_face
-USE MOD_HDG_Vars      ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG
-USE MOD_TimeDisc_Vars ,ONLY: iter,IterDisplayStep
-USE MOD_Mesh_Vars     ,ONLY: nSides,nMPISides_YOUR
+USE MOD_HDG_Vars          ,ONLY: nGP_face,HDGDisplayConvergence
+USE MOD_HDG_Vars          ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG
+USE MOD_TimeDisc_Vars     ,ONLY: iter,IterDisplayStep
+USE MOD_Mesh_Vars         ,ONLY: nSides,nMPISides_YOUR
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1041,8 +1059,11 @@ REAL                            :: timestartCG,timeEndCG
 INTEGER                         :: iteration
 INTEGER                         :: VecSize
 LOGICAL                         :: converged
+#if USE_LOADBALANCE
+REAL                            :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-IF(MOD(iter,IterDisplayStep).EQ.0) THEN
+IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
   SWRITE(UNIT_StdOut,'(132("-"))')
   SWRITE(*,*)'CG solver start'
 END IF
@@ -1083,11 +1104,17 @@ END IF !converged
 AbortCrit2=EpsCG**2
 IF(useRelativeAbortCrit) AbortCrit2=Norm_R2*EpsCG**2
 
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 IF(PrecondType.NE.0) THEN
   CALL ApplyPrecond(R,V)
 ELSE
   V(:)=R(:)
 END IF
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
+#endif /*USE_LOADBALANCE*/
 CALL VectorDotProduct(VecSize,R(1:VecSize),V(1:VecSize),rz1) !Z=V
 
 ! Conjugate Gradient
@@ -1119,10 +1146,10 @@ DO iteration=1,MaxIterCG
     TimeEndCG=PICLASTIME()
     CALL EvalResidual(RHS,lambda,R)
     CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
-    IF(MOD(iter,IterDisplayStep).EQ.0) THEN
+    IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
       SWRITE(UNIT_StdOut,'(A,X,I16)')      '#iterations          :',iteration
       SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime           [s]:',(TimeEndCG-TimeStartCG)
-      SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime/iteration [s]:', (TimeEndCG-TimeStartCG)/REAL(iteration)
+      SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime/iteration [s]:',(TimeEndCG-TimeStartCG)/REAL(iteration)
 !      SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iteration/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iteration*PP_nElems*nGP_vol)
       SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'Final Residual       :',SQRT(Norm_R2)
       SWRITE(UNIT_StdOut,'(132("-"))')
@@ -1133,14 +1160,26 @@ DO iteration=1,MaxIterCG
     SWRITE(*,'(2(A,I0),2(A,G0))') 'CG solver reached ',iteration, ' of ',MaxIterCG, ' iterations with res = ',rr, ' > ',AbortCrit2
   END IF
 
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
   IF(PrecondType.NE.0) THEN
     CALL ApplyPrecond(R,Z)
   ELSE
     Z(:)=R(:)
   END IF
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
+#endif /*USE_LOADBALANCE*/
   CALL VectorDotProduct(VecSize,R(1:VecSize),Z(1:VecSize),rz2)
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
   V=Z+(rz2/rz1)*V
   rz1=rz2
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
+#endif /*USE_LOADBALANCE*/
 END DO ! iteration
 SWRITE(*,*)'CG solver not converged in ',iteration, 'iterations!!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -1206,14 +1245,17 @@ SUBROUTINE MatVec(lambda, mv, iVar)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_HDG_Vars       ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC
-USE MOD_Mesh_Vars      ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
-USE MOD_FillMortar_HDG ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
+USE MOD_HDG_Vars          ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC
+USE MOD_Mesh_Vars         ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
+USE MOD_FillMortar_HDG    ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_HDG_Vars       ,ONLY: Mask_MPIsides 
+USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_HDG_Vars          ,ONLY: Mask_MPIsides 
 #endif /*USE_MPI*/ 
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1228,9 +1270,18 @@ INTEGER, INTENT(INOUT),OPTIONAL::iVar
 INTEGER :: firstSideID, lastSideID
 INTEGER :: BCsideID,SideID, ElemID, locSideID
 INTEGER :: jLocSide,jSideID(6)
+#if USE_LOADBALANCE
+REAL    :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 CALL BigToSmallMortar_HDG(1,lambda)
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
+#endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
 CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
@@ -1238,6 +1289,9 @@ CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 #endif /*USE_MPI*/
 
 
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 firstSideID = 1
 lastSideID = nSides-nMPIsides_YOUR
 
@@ -1271,11 +1325,17 @@ DO SideID=firstSideID,lastSideID
   !add mass matrix
 END DO ! SideID=1,nSides
 !SWRITE(*,*)'DEBUG---------------------------------------------------------'
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
+#endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
 ! Finish lambda communication
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 firstSideID=nSides-nMPIsides_YOUR+1
 lastSideID =nSides
 DO SideID=firstSideID,lastSideID
@@ -1305,14 +1365,15 @@ DO SideID=firstSideID,lastSideID
   END IF !locSideID.NE.-1
   !add mass matrix
 END DO ! SideID=1,nSides
-
-#endif /*USE_MPI*/
-
-
-
-#if USE_MPI
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
+#endif /*USE_LOADBALANCE*/
 CALL Mask_MPIsides(1,mv)
 #endif /*USE_MPI*/
+
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 CALL SmallToBigMortar_HDG(1,mv)
 
 #if (PP_nVar!=1)
@@ -1325,6 +1386,10 @@ END DO ! SideID=1,nSides
 #if (PP_nVar!=1)
 END IF
 #endif
+
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
+#endif /*USE_LOADBALANCE*/
 
 ! Suppress compiler warning
 RETURN
@@ -1394,8 +1459,6 @@ REAL,INTENT(INOUT) :: V(nGP_face, nSides)
 ! LOCAL VARIABLES
 INTEGER :: firstSideID, lastSideID, SideID, igf
 !===================================================================================================================================
-
-
 firstSideID = 1
 lastSideID = nSides-nMPIsides_YOUR
 
@@ -1423,8 +1486,6 @@ CASE(2)
     END IF !maskedSide
   END DO ! SideID=1,nSides
 END SELECT ! PrecondType
-
-
 END SUBROUTINE ApplyPrecond
 
 
@@ -1517,7 +1578,7 @@ REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
   CALL PostProcessGradient(U_out(4,:,:),lambda(4,:,:),E)
 #endif
 END SUBROUTINE RestartHDG
-#endif /* PP_HDG*/
+#endif /*USE_HDG*/
 
 
 SUBROUTINE FinalizeHDG()

@@ -26,7 +26,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTERFACE LinearSolver
   MODULE PROCEDURE LinearSolver
 END INTERFACE
@@ -110,7 +110,7 @@ USE MOD_ReadInTools,          ONLY:GETINT,GETREAL,GETLOGICAL
 USE MOD_Mesh_Vars,            ONLY:MeshInitIsDone
 USE MOD_Interpolation_Vars,   ONLY:InterpolationInitIsDone
 USE MOD_Mesh_Vars,            ONLY:nGlobalElems
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_Interpolation_Vars,   ONLY:wGP
 USE MOD_Mesh_Vars,            ONLY:sJ
 USE MOD_Precond,              ONLY:InitPrecond
@@ -125,7 +125,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTEGER    :: i,j,k,iElem
 #endif
 !===================================================================================================================================
@@ -138,7 +138,7 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT LINEAR SOLVER...'
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 nGP2D=(PP_N+1)**2
 nGP3D=nGP2D*(PP_N+1)
 nDOFLine=PP_nVar*(PP_N+1)
@@ -167,7 +167,7 @@ gammaEW=GETREAL('gammaEW','0.9')
 #endif
 
 nRestarts             = GETINT('nRestarts','1')
-#ifndef PP_HDG
+#if !(USE_HDG)
 nDofGlobalMPI=nDofGlobal
 #if USE_MPI
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,nDofGlobalMPI,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
@@ -184,7 +184,7 @@ nInnerIter=0
 totalIterLinearSolver = 0
 
 DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
-#if defined(ROS) && !defined(PP_HDG)
+#if defined(ROS) && !(USE_HDG)
 ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))
 #endif /*ROS and NOT HDG*/
 #if IMPA
@@ -195,7 +195,7 @@ Eps2_FullNewton      = Eps_FullNewton*Eps_FullNewton
 FullEisenstatWalker  = GETINT('FullEisenstatWalker','0')
 FullgammaEW          = GETREAL('FullgammaEW','0.9')
 Fulletamax           = GETREAL('Fulletamax','0.9999')
-#ifndef PP_HDG
+#if !(USE_HDG)
 ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))
 #endif /*NOT HDG*/
 #ifdef PARTICLES
@@ -224,7 +224,7 @@ DoFieldUpdate        = GETLOGICAL('DoFieldUpdate','.TRUE.')
 #endif /*ROS or IMPA*/
 #endif /*PARTICLES*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 ALLOCATE(Mass(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 DO iElem=1,PP_nElems
   DO k=0,PP_N
@@ -265,7 +265,7 @@ END SELECT
 ! init predictor
 CALL InitPredictor()
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 ! init preconditoner
 CALL InitPrecond()
 #endif /*NOT HDG*/
@@ -275,7 +275,7 @@ SWRITE(UNIT_stdOut,'(A)')' INIT LINEAR SOLVER DONE!'
 
 END SUBROUTINE InitLinearSolver
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 SUBROUTINE LinearSolver(t,Coeff,relTolerance,Norm_R0)
 !==================================================================================================================================
 ! Selection between different linear solvers
@@ -1819,7 +1819,7 @@ USE MOD_ParticleSolver,       ONLY:FinalizePartSolver
 USE MOD_LinearSolver_Vars,ONLY:ExplicitPartSource
 #endif
 #endif /*PARTICLES*/
-#ifndef PP_HDG
+#if !(USE_HDG)
 #if defined(ROS) || defined(IMPA)
 USE MOD_Precond,              ONLY:FinalizePrecond
 USE MOD_LinearSolver_Vars,ONLY:FieldStage,mass
@@ -1848,7 +1848,7 @@ SDEALLOCATE(ExplicitPartSource)
 CALL FinalizePartSolver()
 #endif
 #endif /*PARTICLES*/
-#ifndef PP_HDG
+#if !(USE_HDG)
 #if defined(ROS) || defined(IMPA)
 SDEALLOCATE(FieldStage)
 SDEALLOCATE(mass)
