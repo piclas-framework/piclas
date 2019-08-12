@@ -237,6 +237,7 @@ USE MOD_MPI_Vars             ,ONLY: offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 USE MOD_LoadBalance_Vars     ,ONLY: NewImbalance,MaxWeight,MinWeight,ElemGlobalTime,LoadDistri,PartDistri,TargetWeight,ElemTime
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: ElemHDGSides,TotalHDGSides
+USE MOD_Analyze_Vars         ,ONLY: CalcMeshInfo
 #endif /*USE_HDG && USE_LOADBALANCE*/
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars     ,ONLY: nTracksPerElem,nPartsPerBCElem
@@ -259,9 +260,6 @@ USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_InitDistribution
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: ElemTime_tmp
 #endif /*USE_LOADBALANCE*/
-#if USE_HDG
-USE MOD_Analyze_Vars         ,ONLY: CalcMeshInfo
-#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
