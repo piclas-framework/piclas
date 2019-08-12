@@ -76,7 +76,8 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleInsideQuad3D
+USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement
+USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem, PartSideToElem, PartElemToElemAndSide
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts, TrackInfo
 USE MOD_Mesh_Vars,                   ONLY:MortarType
@@ -183,11 +184,9 @@ DO i = 1,PDM%ParticleVecLength
             END IF
             DO ind = 1, nMortarElems
               NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
-              IF (NbElemID.LT.1) THEN
-                CALL abort(&
-                 __STAMP__ &
-                 ,'ERROR: Mortar Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
-              END IF
+              ! If small mortar element not defined, skip it for now, likely not inside the halo region (additional check is
+              ! performed after the MPI communication: ParticleInsideQuad3D_MortarMPI)
+              IF (NbElemID.LT.1) CYCLE
               NblocSideID = PartElemToElemAndSide(ind+4,iLocSide,ElemID)
               nbSideID = PartElemToSide(E2S_SIDE_ID,NblocSideID,NbElemID)
               DO TriNum = 1,2
