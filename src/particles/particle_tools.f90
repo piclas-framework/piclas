@@ -58,7 +58,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER            :: counter1,i,n
 #if USE_LOADBALANCE
-REAL               :: tLBStart,tLBEnd
+REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 #if USE_LOADBALANCE

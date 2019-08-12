@@ -206,6 +206,7 @@ INTEGER       :: dir, VeloDirs_hilf(4),iElem
 REAL          :: DOF,VolumeShapeFunction
 CHARACTER(32) :: hilf
 INTEGER       :: ALLOCSTAT
+INTEGER       :: iSpec
 !===================================================================================================================================
 IF (ParticleAnalyzeInitIsDone) THEN
 CALL abort(__STAMP__,&
@@ -473,8 +474,16 @@ IF(CalcCoupledPower) THEN
   DoPartAnalyze = .TRUE.
 #if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==509))
   CALL abort(__STAMP__,&
-            'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
+      'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
 #endif
+  ! Allocate type array for all ranks
+  ALLOCATE(PCouplSpec(1:nSpecies))
+  DO iSpec = 1, nSpecies
+    ALLOCATE(PCouplSpec(iSpec)%DensityAvgElem(1:PP_nElems))
+    PCouplSpec(iSpec)%DensityAvgElem = 0.
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    CALL AddToElemData(ElementOut,'PCouplDensityAvgElem-Spec-'//TRIM(hilf),RealArray=PCouplSpec(iSpec)%DensityAvgElem)
+  END DO ! iSpec = 1, nSpecies
 END IF
 
 ! compute number of entering and leaving particles and their energy
@@ -633,6 +642,7 @@ USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, F
 USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber, FPInitDone
 USE MOD_BGK_Vars               ,ONLY: BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor, BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone
+USE MOD_Restart_Vars           ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1217,7 +1227,7 @@ IF(PartMPI%MPIRoot) THEN
     IF(iter.EQ.0) THEN
       PCouplAverage = 0.0
     ELSE
-      PCouplAverage = PCouplAverage / Time
+      PCouplAverage = PCouplAverage / (Time-RestartTime)
     END IF
     ! current PCoupl (Delta_E / Timestep)
     PCoupl = PCoupl / dt
@@ -1481,8 +1491,10 @@ IF(CalcPorousBCInfo) THEN
     PorousBC(iPBC)%Output(1:5) = 0.
   END DO
 END IF
-IF (CalcCoupledPower) THEN                         ! if output of coupled power is active
-  PCouplAverage = PCouplAverage * Time           ! PCouplAverage is reseted
+
+! Reset coupled power to particles if output of coupled power is active
+IF (CalcCoupledPower) THEN
+  PCouplAverage = PCouplAverage * (Time-RestartTime) ! PCouplAverage is reseted
 END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4145,12 +4157,13 @@ SUBROUTINE FinalizeParticleAnalyze()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Analyze_Vars
-! IMPLICIT VARIABLE HANDLINGDGInitIsDone
+USE MOD_Particle_Vars         ,ONLY: nSpecies
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER           :: iSpec
 !===================================================================================================================================
 ParticleAnalyzeInitIsDone = .FALSE.
 SDEALLOCATE(DebyeLengthCell)
@@ -4160,6 +4173,12 @@ SDEALLOCATE(ElectronTemperatureCell)
 SDEALLOCATE(PlasmaFrequencyCell)
 SDEALLOCATE(PPSCell)
 SDEALLOCATE(PPSCellEqui)
+IF(CalcCoupledPower) THEN
+  DO iSpec = 1, nSpecies
+    SDEALLOCATE(PCouplSpec(iSpec)%DensityAvgElem)
+  END DO ! iSpec = 1, nSpecies
+END IF
+SDEALLOCATE(PCouplSpec)
 SDEALLOCATE(PPDCell)
 SDEALLOCATE(PPDCellX)
 SDEALLOCATE(PPDCellY)

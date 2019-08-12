@@ -1060,7 +1060,7 @@ INTEGER                         :: iteration
 INTEGER                         :: VecSize
 LOGICAL                         :: converged
 #if USE_LOADBALANCE
-REAL                            :: tLBStart,tLBEnd
+REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
@@ -1271,7 +1271,7 @@ INTEGER :: firstSideID, lastSideID
 INTEGER :: BCsideID,SideID, ElemID, locSideID
 INTEGER :: jLocSide,jSideID(6)
 #if USE_LOADBALANCE
-REAL    :: tLBStart,tLBEnd
+REAL    :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 

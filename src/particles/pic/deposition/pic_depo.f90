@@ -1405,7 +1405,7 @@ INTEGER                          :: SourceDim
 #endif
 INTEGER                          :: NodeID(1:8)
 #if USE_LOADBALANCE
-REAL                             :: tLBStart,tLBEnd
+REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !============================================================================================================================
 ! Return, if no deposition is required

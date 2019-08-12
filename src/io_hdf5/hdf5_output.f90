@@ -132,6 +132,10 @@ USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
+USE MOD_TimeDisc_Vars          ,ONLY: Time
+USE MOD_Restart_Vars           ,ONLY: RestartTime
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCouplSpec
+USE MOD_Particle_Vars          ,ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -147,6 +151,7 @@ CHARACTER(LEN=255)             :: FileName
 #ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
+INTEGER                        :: iSpec
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
@@ -374,15 +379,41 @@ IF(RadialWeighting%DoRadialWeighting) CALL WriteClonesToHDF5(FileName)
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
-#endif /*Particles*/
+#endif /*PARTICLES*/
 
 #if USE_LOADBALANCE
 ! Write 'ElemTime' to a separate container in the state.h5 file
 CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElemTime')
 #endif /*USE_LOADBALANCE*/
 
+#ifdef PARTICLES
+! Set coupled power to particles if output of coupled power is active
+IF (CalcCoupledPower) THEN
+  ASSOCIATE( timediff => (Time-RestartTime) )
+    IF(timediff.GT.0.)THEN
+      DO iSpec = 1, nSpecies
+        PCouplSpec(iSpec)%DensityAvgElem = PCouplSpec(iSpec)%DensityAvgElem / timediff
+      END DO ! iSpec = 1, nSpecies
+    END IF ! timediff.GT.0.
+  END ASSOCIATE
+END IF
+#endif /*PARTICLES*/
+
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
 CALL WriteAdditionalElemData(FileName,ElementOut)
+
+#ifdef PARTICLES
+! Reset coupled power to particles if output of coupled power is active
+IF (CalcCoupledPower) THEN
+  ASSOCIATE( timediff => (Time-RestartTime) )
+    IF(timediff.GT.0.)THEN
+      DO iSpec = 1, nSpecies
+        PCouplSpec(iSpec)%DensityAvgElem = PCouplSpec(iSpec)%DensityAvgElem * timediff
+      END DO ! iSpec = 1, nSpecies
+    END IF ! timediff.GT.0.
+  END ASSOCIATE
+END IF
+#endif /*PARTICLES*/
 
 #if (PP_nVar==8)
 CALL WritePMLDataToHDF5(FileName)
