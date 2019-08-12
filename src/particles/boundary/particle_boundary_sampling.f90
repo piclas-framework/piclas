@@ -1236,7 +1236,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: StartSurfSide,iSide,TargetHaloSide,q,p,SurfSideID,SurfSideHaloID
+INTEGER                         :: StartSurfSide,iSide,TargetHaloSide,q,p,SurfSideID,SurfSideHaloID,iReact
 !===================================================================================================================================
 
 StartSurfSide = SurfMesh%nBCSides + SurfMesh%nInnerSides
