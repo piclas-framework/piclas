@@ -502,17 +502,17 @@ DO iSide=1,SurfMesh%nTotalSides
 END DO
 Adsorption%NumCovSamples = 0
 
-ALLOCATE ( Adsorption%IncidentNormalTempAtSurf(1:SurfMesh%nTotalSides,1:nSpecies),&
+ALLOCATE ( Adsorption%IncidentNormalVeloAtSurf(1:SurfMesh%nTotalSides,1:nSpecies),&
            Adsorption%SurfaceNormalVelo(1:SurfMesh%nTotalSides,1:nSpecies),&
-           Adsorption%SurfaceNormalVelo2(1:SurfMesh%nTotalSides,1:nSpecies),&
            Adsorption%CollSpecPartNum(1:SurfMesh%nTotalSides,1:nSpecies) )
 DO iSide = 1,SurfMesh%nTotalSides
   DO iSpec = 1,nSpecies
-    Adsorption%IncidentNormalTempAtSurf(iSide,iSpec) = Species(iSpec)%Init(0)%MWTemperatureIC
+    ! Expacted value for an assumed Rayleigh distribution
+    Adsorption%IncidentNormalVeloAtSurf(iSide,iSpec) =  &
+        SQRT(BoltzmannConst*Species(iSpec)%Init(0)%MWTemperatureIC/Species(iSpec)%MassIC) *SQRT(PI/2.)
   END DO
 END DO
 Adsorption%SurfaceNormalVelo(:,:)  = 0.
-Adsorption%SurfaceNormalVelo2(:,:) = 0.
 Adsorption%CollSpecPartNum(:,:)    = 0
 
 ! Initialize surface coverage

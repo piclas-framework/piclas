@@ -99,7 +99,6 @@ IMPLICIT NONE
 INTEGER                          :: iSpec, iSurfSide, p, q, new_adsorbates, numSites
 REAL                             :: maxPart
 REAL                             :: coverage_tmp, coverage_corrected
-REAL                             :: MeanPartV_2, Mean_PartV2
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -234,23 +233,14 @@ CALL ExchangeSurfDistInfo()
 
 DO iSurfSide = 1,SurfMesh%nSides
   DO iSpec=1, nSpecies
-    MeanPartV_2=0.
-    Mean_PartV2=0.
-    IF(Adsorption%CollSpecPartNum(iSurfSide,iSpec).GT.1) THEN
-      !Adsorption%IncidentNormalVeloAtSurf(iSurfSide,iSpec) = 0.9 * Adsorption%IncidentNormalVeloAtSurf(iSurfSide,iSpec) &
-          !+ 0.1 * Adsorption%SurfaceNormalVelo(iSurfSide,iSpec) / REAL(Adsorption%CollSpecPartNum(iSurfSide,iSpec))
-      ! Compute velocity averages
-      MeanPartV_2 = (Adsorption%SurfaceNormalVelo(iSurfSide,iSpec) / REAL(Adsorption%CollSpecPartNum(iSurfSide,iSpec)))**2  ! <|v|>**2
-      Mean_PartV2 = Adsorption%SurfaceNormalVelo2(iSurfSide,iSpec) / REAL(Adsorption%CollSpecPartNum(iSurfSide,iSpec))      ! <|v|**2>
-      ! Compute temperature
-      Adsorption%IncidentNormalTempAtSurf(iSurfSide,iSpec) = 0.9 * Adsorption%IncidentNormalTempAtSurf(iSurfSide,iSpec) &
-          + 0.1 *Species(iSpec)%MassIC/BoltzmannConst/(2.-Pi/2.) * (Mean_PartV2 - MeanPartV_2)
+    IF(Adsorption%CollSpecPartNum(iSurfSide,iSpec).GT.50) THEN
+      Adsorption%IncidentNormalVeloAtSurf(iSurfSide,iSpec) = &
+          Adsorption%SurfaceNormalVelo(iSurfSide,iSpec) / REAL(Adsorption%CollSpecPartNum(iSurfSide,iSpec))
+      Adsorption%SurfaceNormalVelo(iSurfSide,iSpec)  = 0.
+      Adsorption%CollSpecPartNum(iSurfSide,iSpec)    = 0
      END IF
   END DO
 END DO
-Adsorption%SurfaceNormalVelo(:,:)  = 0.
-Adsorption%SurfaceNormalVelo2(:,:) = 0.
-Adsorption%CollSpecPartNum(:,:)    = 0
 
 END SUBROUTINE UpdateSurfModelVars
 
