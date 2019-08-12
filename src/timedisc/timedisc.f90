@@ -1405,8 +1405,8 @@ REAL                  :: tLBStart
 
   IF (DoSurfaceFlux) THEN
     ! treat surface with respective model
-    CALL UpdateSurfModelVars()
     CALL SurfaceModel_main()
+    CALL UpdateSurfModelVars()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
