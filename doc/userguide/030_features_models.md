@@ -473,7 +473,15 @@ Besides DSMC, the linear scaling is available for the BGK method. Finally, speci
 
 ### 2D/Axisymmetric Simulation \label{sec:2DAxi}
 
-For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_\mathrm{min}|=|z_\mathrm{max}|$.
+For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_\mathrm{min}|=|z_\mathrm{max}|$. The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
+
+Part-Boundary4-SourceName=SYMAXIS
+Part-Boundary4-Condition=symmetric_axis
+
+The boundaries (or a single boundary definition for both boundary sides) in the $z$-direction should be defined as symmetry sides with the `symmetric` condition
+
+Part-Boundary5-SourceName=SYM
+Part-Boundary5-Condition=symmetric
 
 To enable two-dimensional simulations, the following flag is required
 
@@ -506,6 +514,10 @@ For the cloning procedure, two methods are implemented, where the information of
     Particles-RadialWeighting-CloneDelay=10
 
 This serves the purpose to avoid the so-called particle avalanche phenomenon [@Galitzine2015], where clones travel on the exactly same path as the original in the direction of a decreasing weight. They have a zero relative velocity (due to the same velocity vector) and thus a collision probability of zero. Combined with the nearest neighbor pairing, this would lead to an ever-increasing number of identical particles travelling on the same path. An indicator how often identical particle pairs are encountered per time step during collisions is given as an output (`2D_IdenticalParticles`, to enable the output see Section \ref{sec:dsmc_quality}). Additionally, it should be noted that a large delay of the clone insertion might be problematic for time-accurate simulations. However, for the most cases, values for the clone delay between 2 and 10 should be sufficient to avoid the avalance phenomenon.
+
+Another issue is the particle emission on large sides in $y$-dimension close to the rotational axis. As particles are inserted linearly along the $y$-direction of the side, a higher number density is inserted closer to the axis. This effect is directly visible in the free-stream in the cells downstream, when using mortar elements, or in the heatflux (unrealistic peak) close to the rotational axis. It can be avoided by splitting the surface flux emission side into multiple subsides with the following flag (default value is 20)
+
+    Particles-RadialWeighting-SurfFluxSubSides = 20
 
 An alternative to the particle position-based weighting is the cell-local radial weighting, which can be enabled by
 
