@@ -232,6 +232,12 @@ After a successful simulation, state files will be written out in the HDF5 forma
     TestCase_State_001.5000000000000000.h5
     TestCase_DSMCState_001.5000000000000000.h5
 
+The format and floating point length of the time stamp *001.5000000000000000* can be adjusted with the parameter
+
+    TimeStampLength = 21
+
+where the floating format with length of *F21.14* is used as default value.
+
 ### Parallel execution
 The simulation code is specifically designed for (massively) parallel execution using the MPI library. For parallel runs, the code must be compiled with `PICLAS_MPI=ON`. Parallel execution is then controlled using `mpirun`
 
