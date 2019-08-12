@@ -222,7 +222,10 @@ SUBROUTINE CalcAdsorbProb()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption,SurfModel
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+#if (PP_TimeDiscMethod==42)
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
+#endif
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 #if (PP_TimeDiscMethod==42)
@@ -287,7 +290,10 @@ SUBROUTINE CalcDesorbProb()
 USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+#if (PP_TimeDiscMethod==42)
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
+#endif
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 #if (PP_TimeDiscMethod==42)
@@ -790,7 +796,10 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, Species !, PartState
 USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, PartStateIntEn, PolyatomMolDSMC
 USE MOD_DSMC_Analyze           ,ONLY: CalcTVib, CalcTVibPoly
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+#if (PP_TimeDiscMethod==42)
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
+#endif
 USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncActAdsorb, PartitionFuncSurf, PartitionFuncGas
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
