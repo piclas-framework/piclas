@@ -457,7 +457,13 @@ The second flag allows to enable/disable the adaptation of the time step distrib
 
 The parameters `TargetMCSoverMFP` (ratio of the mean collision separation distance over mean free path) and `TargetMaxCollProb` (maximum collision probability) allow to modify the target values for the adaptation. The `MaxFactor` and `MinFactor` allow to limit the adapted time step within a range of $f_\mathrm{min} \Delta t$ and $f_\mathrm{max} \Delta t$. Finally, the time step adaptation can be used to increase the number of particles by defining a minimum particle number (e.g `MinPartNum` = 10, optional).
 
-The last two flags enable to initialize the particles distribution from the given DSMC state file, using the macroscopic properties such as flow velocity, number density and temperature (see Section \ref{sec:macro_restart}). Strictly speaking, the VTS procedure only requires the `Filename` for the read-in of aforementioned parameters, however, it is recommended to perform a macroscopic restart to initialize the correct particle number per cells. Otherwise, cells with a decreased/increased time step will require some time until the additional particles has reached/left the cell.
+The last two flags enable to initialize the particles distribution from the given DSMC state file, using the macroscopic properties such as flow velocity, number density and temperature (see Section \ref{sec:macro_restart}). Strictly speaking, the VTS procedure only requires the `Filename` for the read-in of the aforementioned parameters, however, it is recommended to perform a macroscopic restart to initialize the correct particle number per cells. Otherwise, cells with a decreased/increased time step will require some time until the additional particles have reached/left the cell.
+
+For the BGK method, the time step can be adapted according to a target maximal relaxation factor, analogous to the maximal collision probability in DSMC
+
+    Part-VariableTimeStep-Distribution-TargetMaxRelaxFactor = 0.8
+
+The time step adaptation can also be utilized in coupled BGK-DSMC simulations, where the time step will be adapted in both regions according to the respective criteria as the BGK factors are zero in the DSMC region and vice versa. Attention should be payed in the transitional region between BGK and DSMC, where the factors are potentially calculated for both methods. Here, the time step required to fulfil the maximal collision probability criteria will be utilized as it is the more stringent one.
 
 #### Linear scaling
 
@@ -687,6 +693,8 @@ The current implementation supports:
 - 4 different methods (i.e. different target distribution functions): Ellipsoidal Statistical, Shakov, standard BGK, and Unified
 - Single species, monoatomic and diatomic gases
 - Thermal non-equilibrium with rotational and vibrational excitation (continuous or quantized treatment)
+- 2D/Axisymmetric simulations
+- Variable time step (adaption of the distribution according to the maximal relaxation factor and linear scaling)
 
 Relevant publications of the developers:
 

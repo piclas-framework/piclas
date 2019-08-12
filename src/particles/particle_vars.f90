@@ -490,6 +490,7 @@ TYPE tVariableTimeStep
   LOGICAL                              :: AdaptDistribution
   REAL                                 :: TargetMCSoverMFP
   REAL                                 :: TargetMaxCollProb
+  REAL                                 :: TargetMaxRelaxFactor
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
 
