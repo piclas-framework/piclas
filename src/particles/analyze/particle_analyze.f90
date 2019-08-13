@@ -1222,13 +1222,15 @@ IF(PartMPI%MPIRoot) THEN
       IF(BGK_MeanRelaxFactorCounter.GT.0) BGK_MeanRelaxFactor = BGK_MeanRelaxFactor / REAL(BGK_MeanRelaxFactorCounter)
     END IF
   END IF
+    ! Moving Average of PCoupl:
   IF(CalcCoupledPower) THEN
-  ! Moving Average of PCoupl:
-    IF(iter.EQ.0) THEN
-      PCouplAverage = 0.0
-    ELSE
-      PCouplAverage = PCouplAverage / (Time-RestartTime)
-    END IF
+    ASSOCIATE( timediff => (Time-RestartTime) )
+      IF((iter.EQ.0).OR.ABS(timediff).LE.0.) THEN
+        PCouplAverage = 0.0
+      ELSE
+        PCouplAverage = PCouplAverage / timediff
+      END IF
+    END ASSOCIATE
     ! current PCoupl (Delta_E / Timestep)
     PCoupl = PCoupl / dt
   END IF
