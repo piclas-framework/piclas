@@ -21,6 +21,7 @@ MODULE MOD_SurfaceModel_MPI
 IMPLICIT NONE
 PRIVATE
 
+#if USE_MPI
 INTERFACE ExchangeSurfaceHaloToOrigin
   MODULE PROCEDURE ExchangeSurfaceHaloToOrigin
 END INTERFACE
@@ -38,7 +39,6 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-#if USE_MPI
 PUBLIC :: InitSurfModel_MPI
 PUBLIC :: InitSMCR_MPI
 PUBLIC :: ExchangeSurfaceHaloToOrigin
@@ -57,7 +57,6 @@ SUBROUTINE InitSurfModel_MPI()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfComm,nSurfSample
 USE MOD_Particle_MPI_Vars      ,ONLY: SurfExchange
 USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfModelExchange
@@ -146,8 +145,6 @@ SUBROUTINE ExchangeSurfaceHaloToOrigin(IntDataIN,RealDataIn,AddFlag)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfComm, nSurfSample, SurfMesh
 USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfModelExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -320,8 +317,6 @@ SUBROUTINE ExchangeSurfaceOriginToHalo(IntDataIN,RealDataIn,AddFlag)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfComm, nSurfSample, SurfMesh
 USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfModelExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -357,7 +352,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
                   , MessageSize                                     &
                   , MPI_INT                                         &
                   , SurfCOMM%MPINeighbor(iProc)%NativeProcID        &
-                  , 1010                                            &
+                  , 1013                                            &
                   , SurfCOMM%COMM                                   &
                   , SurfModelExchange%RecvRequest(1,iProc)          &
                   , IERROR )
@@ -367,7 +362,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
                   , MessageSize                                     &
                   , MPI_DOUBLE_PRECISION                            &
                   , SurfCOMM%MPINeighbor(iProc)%NativeProcID        &
-                  , 1011                                            &
+                  , 1014                                            &
                   , SurfCOMM%COMM                                   &
                   , SurfModelExchange%RecvRequest(2,iProc)          &
                   , IERROR )
@@ -405,7 +400,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
                   , MessageSize                                     &
                   , MPI_INT                                         &
                   , SurfCOMM%MPINeighbor(iProc)%NativeProcID        &
-                  , 1010                                            &
+                  , 1013                                            &
                   , SurfCOMM%COMM                                   &
                   , SurfModelExchange%SendRequest(1,iProc)          &
                   , IERROR)
@@ -415,7 +410,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
                   , MessageSize                                     &
                   , MPI_DOUBLE_PRECISION                            &
                   , SurfCOMM%MPINeighbor(iProc)%NativeProcID        &
-                  , 1011                                            &
+                  , 1014                                            &
                   , SurfCOMM%COMM                                   &
                   , SurfModelExchange%SendRequest(2,iProc)          &
                   , IERROR)
@@ -829,7 +824,6 @@ USE MOD_Globals
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh,nSurfSample,PartBound
 USE MOD_Mesh_Vars              ,ONLY: nBCSides,nSides,BC
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel, SurfDistInfo
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
