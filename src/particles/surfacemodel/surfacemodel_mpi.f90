@@ -79,7 +79,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   ! same number of sides as normal surface exchange      
   SurfModelExchange%nH2OSidesSend(iProc) = SurfExchange%nSidesSend(iProc)
   SurfModelExchange%nH2OSidesRecv(iProc) = SurfExchange%nSidesRecv(iProc)
-  IF(SurfModelExchange%nO2HSidesSend(iProc).NE.0) THEN
+  IF(SurfModelExchange%nH2OSidesSend(iProc).NE.0) THEN
     ! allocate and initialize mapping of to be send sides
     ALLOCATE(SurfCOMM%MPINeighbor(iProc)%H2OSendList(SurfModelExchange%nH2OSidesSend(iProc)))
     SurfCOMM%MPINeighbor(iProc)%H2OSendList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
