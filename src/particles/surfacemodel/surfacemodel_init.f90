@@ -237,7 +237,7 @@ USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption, ModelERSpecular, SurfModel
 USE MOD_SurfaceModel_Tools         ,ONLY: CalcAdsorbProb, CalcDesorbProb
 USE MOD_SMCR_Init                  ,ONLY: InitSMCR
 #if USE_MPI
-USE MOD_SurfaceModel_MPI           ,ONLY: InitSurfModel_MPI, ExchangeCoverageInfo
+USE MOD_SurfaceModel_MPI           ,ONLY: InitSurfModel_MPI
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -502,18 +502,16 @@ DO iSide=1,SurfMesh%nTotalSides
 END DO
 Adsorption%NumCovSamples = 0
 
-ALLOCATE ( Adsorption%IncidentNormalVeloAtSurf(1:SurfMesh%nTotalSides,1:nSpecies),&
-           Adsorption%SurfaceNormalVelo(1:SurfMesh%nTotalSides,1:nSpecies),&
-           Adsorption%CollSpecPartNum(1:SurfMesh%nTotalSides,1:nSpecies) )
-DO iSide = 1,SurfMesh%nTotalSides
-  DO iSpec = 1,nSpecies
-    ! Expacted value for an assumed Rayleigh distribution
-    Adsorption%IncidentNormalVeloAtSurf(iSide,iSpec) =  &
-        SQRT(BoltzmannConst*Species(iSpec)%Init(0)%MWTemperatureIC/Species(iSpec)%MassIC) *SQRT(PI/2.)
-  END DO
+ALLOCATE ( Adsorption%IncidentNormalVeloAtSurf(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
+           Adsorption%SurfaceNormalVelo(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
+           Adsorption%CollSpecPartNum(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies) )
+DO iSpec = 1,nSpecies
+  ! Expacted value for an assumed Rayleigh distribution
+  Adsorption%IncidentNormalVeloAtSurf(:,:,:,iSpec) =  &
+      SQRT(BoltzmannConst*Species(iSpec)%Init(0)%MWTemperatureIC/Species(iSpec)%MassIC) *SQRT(PI/2.)
 END DO
-Adsorption%SurfaceNormalVelo(:,:)  = 0.
-Adsorption%CollSpecPartNum(:,:)    = 0
+Adsorption%SurfaceNormalVelo(:,:,:,:)  = 0.
+Adsorption%CollSpecPartNum(:,:,:,:)    = 0
 
 ! Initialize surface coverage
 CALL InitSurfCoverage()
@@ -1319,8 +1317,7 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, SurfMesh
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 USE MOD_SurfaceModel_MPI_Vars     ,ONLY: SurfModelExchange
-USE MOD_SurfaceModel_MPI_Vars     ,ONLY: AdsorbSendBuf,AdsorbRecvBuf,SurfDistSendBuf,SurfDistRecvBuf
-USE MOD_SurfaceModel_MPI_Vars     ,ONLY: SurfCoverageSendBuf,SurfCoverageRecvBuf
+USE MOD_SurfaceModel_MPI_Vars     ,ONLY: SurfDistSendBuf,SurfDistRecvBuf
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1422,31 +1419,12 @@ DEALLOCATE(SurfDistInfo)
 END IF
 
 #if USE_MPI
-IF (ALLOCATED(AdsorbSendBuf)) THEN
-  DO iProc=1,SurfCOMM%nMPINeighbors
-    SDEALLOCATE(AdsorbSendBuf(iProc)%content_int)
-  END DO
-  DEALLOCATE(AdsorbSendBuf)
-END IF
-IF (ALLOCATED(AdsorbRecvBuf)) THEN
-  DO iProc=1,SurfCOMM%nMPINeighbors
-    SDEALLOCATE(AdsorbRecvBuf(iProc)%content_int)
-  END DO
-  DEALLOCATE(AdsorbRecvBuf)
-END IF
 IF (ALLOCATED(SurfCOMM%MPINeighbor)) THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
-  SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistSendList)
-  SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList)
-  SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%CoverageSendList)
-  SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%CoverageRecvList)
+    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistSendList)
+    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList)
   END DO
 END IF
-SDEALLOCATE(SurfModelExchange%nSurfDistSidesSend)
-SDEALLOCATE(SurfModelExchange%nSurfDistSidesRecv)
-SDEALLOCATE(SurfModelExchange%SurfDistSendRequest)
-SDEALLOCATE(SurfModelExchange%SurfDistRecvRequest)
-SDEALLOCATE(SurfModelExchange%NbrOfPos)
 IF (ALLOCATED(SurfDistSendBuf)) THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
     SDEALLOCATE(SurfDistSendBuf(iProc)%content_int)
@@ -1459,22 +1437,52 @@ IF (ALLOCATED(SurfDistRecvBuf)) THEN
   END DO
   DEALLOCATE(SurfDistRecvBuf)
 END IF
-SDEALLOCATE(SurfModelExchange%nCoverageSidesSend)
-SDEALLOCATE(SurfModelExchange%nCoverageSidesRecv)
-IF (ALLOCATED(SurfCoverageSendBuf)) THEN
+SDEALLOCATE(SurfModelExchange%nSurfDistSidesSend)
+SDEALLOCATE(SurfModelExchange%nSurfDistSidesRecv)
+SDEALLOCATE(SurfModelExchange%SurfDistSendRequest)
+SDEALLOCATE(SurfModelExchange%SurfDistRecvRequest)
+SDEALLOCATE(SurfModelExchange%NbrOfPos)
+
+IF (ALLOCATED(SurfCOMM%MPINeighbor)) THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
-    SDEALLOCATE(SurfCoverageSendBuf(iProc)%content)
+    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%H2OSendList)
+    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%H2ORecvList)
+    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%O2HSendList)
+    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%O2HRecvList)
   END DO
-  DEALLOCATE(SurfCoverageSendBuf)
 END IF
-IF (ALLOCATED(SurfCoverageRecvBuf)) THEN
+IF (ALLOCATED(SurfModelExchange%H2OSendBuf)) THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
-    SDEALLOCATE(SurfCoverageRecvBuf(iProc)%content)
+    SDEALLOCATE(SurfModelExchange%H2OSendBuf(iProc)%content_int)
+    SDEALLOCATE(SurfModelExchange%H2OSendBuf(iProc)%content)
   END DO
-  DEALLOCATE(SurfCoverageRecvBuf)
+  DEALLOCATE(SurfModelExchange%H2OSendBuf)
 END IF
-SDEALLOCATE(SurfModelExchange%nSidesSend)
-SDEALLOCATE(SurfModelExchange%nSidesRecv)
+IF (ALLOCATED(SurfModelExchange%H2ORecvBuf)) THEN
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    SDEALLOCATE(SurfModelExchange%H2ORecvBuf(iProc)%content_int)
+    SDEALLOCATE(SurfModelExchange%H2ORecvBuf(iProc)%content)
+  END DO
+  DEALLOCATE(SurfModelExchange%H2ORecvBuf)
+END IF
+IF (ALLOCATED(SurfModelExchange%O2HSendBuf)) THEN
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    SDEALLOCATE(SurfModelExchange%O2HSendBuf(iProc)%content_int)
+    SDEALLOCATE(SurfModelExchange%O2HSendBuf(iProc)%content)
+  END DO
+  DEALLOCATE(SurfModelExchange%O2HSendBuf)
+END IF
+IF (ALLOCATED(SurfModelExchange%O2HRecvBuf)) THEN
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    SDEALLOCATE(SurfModelExchange%O2HRecvBuf(iProc)%content_int)
+    SDEALLOCATE(SurfModelExchange%O2HRecvBuf(iProc)%content)
+  END DO
+  DEALLOCATE(SurfModelExchange%O2HRecvBuf)
+END IF
+SDEALLOCATE(SurfModelExchange%nH2OSidesSend)
+SDEALLOCATE(SurfModelExchange%nH2OSidesRecv)
+SDEALLOCATE(SurfModelExchange%nO2HSidesSend)
+SDEALLOCATE(SurfModelExchange%nO2HSidesRecv)
 SDEALLOCATE(SurfModelExchange%SendRequest)
 SDEALLOCATE(SurfModelExchange%RecvRequest)
 #endif /*USE_MPI*/

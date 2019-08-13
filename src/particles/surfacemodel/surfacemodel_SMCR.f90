@@ -129,8 +129,9 @@ Surfpos = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%UsedSiteMap(Ad
 SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(Surfpos)
 
 ! sample the normal velo at surfaces for the incident temperature that is needed in adsorption probability calculation
-Adsorption%SurfaceNormalVelo(SurfID,SpecID) = Adsorption%SurfaceNormalVelo(SurfID,SpecID) + Norm_Velo
-Adsorption%CollSpecPartNum(SurfID,SpecID) = Adsorption%CollSpecPartNum(SurfID,SpecID) + 1
+Adsorption%SurfaceNormalVelo(subsurfxi,subsurfeta,SurfID,SpecID) = &
+    Adsorption%SurfaceNormalVelo(subsurfxi,subsurfeta,SurfID,SpecID) + Norm_Velo
+Adsorption%CollSpecPartNum(subsurfxi,subsurfeta,SurfID,SpecID) = Adsorption%CollSpecPartNum(subsurfxi,subsurfeta,SurfID,SpecID) + 1
 
 !!-----------------------------------------------------------------------------------------------------------------------------------
 !! calculate trapping probability (using hard cube collision with surface atom or adsorbate)
@@ -218,10 +219,12 @@ IF ( (SiteSpec.EQ.0) .AND. (.NOT.SpaceOccupied(SurfID,subsurfxi,subsurfeta,Coord
   E_d = 0.1 * Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,SpecID,Surfpos,.TRUE.) * Boltzmannconst
 #if (PP_TimeDiscMethod==42)
   iSampleReact = 1 + ReactNum
-  ProbAds(ReactNum) = CalcAdsorbReactProb(1,ReactNum,PartID,SurfID,Norm_velo,E_a,E_d &
+  ProbAds(ReactNum) = CalcAdsorbReactProb(1,ReactNum,PartID,SurfID &
+      ,Adsorption%IncidentNormalVeloAtSurf(subsurfxi,subsurfeta,SurfID,SpecID),E_a,E_d &
       ,loc_ActE=loc_AdsActE(iSampleReact),loc_nu=loc_Adsnu(iSampleReact))
 #else
-  ProbAds(Reactnum) = CalcAdsorbReactProb(1,ReactNum,PartID,SurfID,Norm_velo,E_a,E_d)
+  ProbAds(Reactnum) = CalcAdsorbReactProb(1,ReactNum,PartID,SurfID &
+      ,Adsorption%IncidentNormalVeloAtSurf(subsurfxi,subsurfeta,SurfID,SpecID),E_a,E_d)
 #endif
 END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -347,10 +350,12 @@ DO ReactNum = 1,(Adsorption%DissNum)
         ! calculation of dissociative adsorption probability
 #if (PP_TimeDiscMethod==42)
         iSampleReact = 1 + ReactNum
-        ProbAds(ReactNum) = CalcAdsorbReactProb(2,ReactNum,PartID,SurfID,Norm_Velo,E_a,E_d &
+        ProbAds(ReactNum) = CalcAdsorbReactProb(2,ReactNum,PartID,SurfID &
+            ,Adsorption%IncidentNormalVeloAtSurf(subsurfxi,subsurfeta,SurfID,SpecID),E_a,E_d&
             ,loc_ActE=loc_AdsActE(iSampleReact),loc_nu=loc_Adsnu(iSampleReact))
 #else
-        ProbAds(ReactNum) = CalcAdsorbReactProb(2,ReactNum,PartID,SurfID,Norm_Velo,E_a,E_d)
+        ProbAds(ReactNum) = CalcAdsorbReactProb(2,ReactNum,PartID,SurfID &
+            ,Adsorption%IncidentNormalVeloAtSurf(subsurfxi,subsurfeta,SurfID,SpecID),E_a,E_d)
 #endif
       END IF
     END IF !both neighbour positions assigned
@@ -402,10 +407,12 @@ DO ReactNum = Adsorption%DissNum+1,(Adsorption%ReactNum)
       ! calculation of ER-reaction probability
 #if (PP_TimeDiscMethod==42)
       iSampleReact = 1 + ReactNum
-      ProbAds(ReactNum) = CalcAdsorbReactProb(3,ReactNum,PartID,SurfID,Norm_Velo,E_a,E_d, &
-                                loc_ActE=loc_AdsActE(iSampleReact),loc_nu=loc_Adsnu(iSampleReact))
+      ProbAds(ReactNum) = CalcAdsorbReactProb(3,ReactNum,PartID,SurfID &
+          ,Adsorption%IncidentNormalVeloAtSurf(subsurfxi,subsurfeta,SurfID,SpecID),E_a,E_d &
+          ,loc_ActE=loc_AdsActE(iSampleReact),loc_nu=loc_Adsnu(iSampleReact))
 #else
-      ProbAds(ReactNum) = CalcAdsorbReactProb(3,ReactNum,PartID,SurfID,Norm_Velo,E_a,E_d)
+      ProbAds(ReactNum) = CalcAdsorbReactProb(3,ReactNum,PartID,SurfID &
+          ,Adsorption%IncidentNormalVeloAtSurf(subsurfxi,subsurfeta,SurfID,SpecID),E_a,E_d)
 #endif
     END IF
   END IF

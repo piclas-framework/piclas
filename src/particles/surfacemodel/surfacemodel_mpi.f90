@@ -20,6 +20,19 @@ MODULE MOD_SurfaceModel_MPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
+
+INTERFACE ExchangeSurfaceHaloToOrigin
+  MODULE PROCEDURE ExchangeSurfaceHaloToOrigin
+END INTERFACE
+
+INTERFACE ExchangeSurfaceOriginToHalo
+  MODULE PROCEDURE ExchangeSurfaceHaloToOrigin
+END INTERFACE
+
+INTERFACE MapHaloInnerToOriginInnerSurf
+  MODULE PROCEDURE MapHaloInnerToOriginInnerSurf
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -28,9 +41,10 @@ PRIVATE
 #if USE_MPI
 PUBLIC :: InitSurfModel_MPI
 PUBLIC :: InitSMCR_MPI
-PUBLIC :: ExchangeAdsorbNum
+PUBLIC :: ExchangeSurfaceHaloToOrigin
+PUBLIC :: ExchangeSurfaceOriginToHalo
 PUBLIC :: ExchangeSurfDistInfo
-PUBLIC :: ExchangeCoverageInfo
+PUBLIC :: MapHaloInnerToOriginInnerSurf
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
@@ -46,8 +60,7 @@ SUBROUTINE InitSurfModel_MPI()
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfComm,nSurfSample
 USE MOD_Particle_MPI_Vars      ,ONLY: SurfExchange
-USE MOD_SurfaceModel_MPI_Vars  ,ONLY: AdsorbSendBuf, AdsorbRecvBuf, SurfModelExchange
-USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfCoverageSendBuf, SurfCoverageRecvBuf
+USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfModelExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -58,47 +71,418 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER :: iProc
 !===================================================================================================================================
-ALLOCATE(SurfModelExchange%nSidesSend(1:SurfCOMM%nMPINeighbors) &
-        ,SurfModelExchange%nSidesRecv(1:SurfCOMM%nMPINeighbors) &
-        ,SurfModelExchange%SendRequest(SurfCOMM%nMPINeighbors)  &
-        ,SurfModelExchange%RecvRequest(SurfCOMM%nMPINeighbors)  )
-SurfModelExchange%nSidesSend = SurfExchange%nSidesSend
-SurfModelExchange%nSidesRecv = SurfExchange%nSidesRecv
-
-! allocate send and receive buffer for sum arrays of adsorbing particles from halo sides to origin sides
-ALLOCATE(AdsorbSendBuf(SurfCOMM%nMPINeighbors))
-ALLOCATE(AdsorbRecvBuf(SurfCOMM%nMPINeighbors))
+! allocate information for sending from own halo sides to origin sides of neighbor procs
+ALLOCATE(SurfModelExchange%nH2OSidesSend(1:SurfCOMM%nMPINeighbors) &
+        ,SurfModelExchange%nH2OSidesRecv(1:SurfCOMM%nMPINeighbors) )
+ALLOCATE(SurfModelExchange%H2OSendBuf(1:SurfCOMM%nMPINeighbors))
+ALLOCATE(SurfModelExchange%H2ORecvBuf(1:SurfCOMM%nMPINeighbors))
 DO iProc=1,SurfCOMM%nMPINeighbors
-  ALLOCATE(AdsorbSendBuf(iProc)%content_int(2*nSpecies*(nSurfSample**2)*SurfModelExchange%nSidesSend(iProc)))
-  ALLOCATE(AdsorbRecvBuf(iProc)%content_int(2*nSpecies*(nSurfSample**2)*SurfModelExchange%nSidesRecv(iProc)))
-  AdsorbSendBuf(iProc)%content_int=0
-  AdsorbRecvBuf(iProc)%content_int=0
-END DO ! iProc
-
-! currently only needed for SurfaceModel=2
-! represents inverse communication where information is send from origin sides to halo sides (local sides of neighbor halo procs)
-ALLOCATE(SurfCoverageSendBuf(SurfCOMM%nMPINeighbors))
-ALLOCATE(SurfCoverageRecvBuf(SurfCOMM%nMPINeighbors))
-ALLOCATE(SurfModelExchange%nCoverageSidesSend(SurfCOMM%nMPINeighbors))
-ALLOCATE(SurfModelExchange%nCoverageSidesRecv(SurfCOMM%nMPINeighbors))
-DO iProc=1,SurfCOMM%nMPINeighbors
-  SurfModelExchange%nCoverageSidesSend(iProc) = SurfModelExchange%nSidesRecv(iProc)
-  SurfModelExchange%nCoverageSidesRecv(iProc) = SurfModelExchange%nSidesSend(iProc)
-  IF(SurfModelExchange%nCoverageSidesRecv(iProc).NE.0) THEN
-    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%CoverageRecvList(SurfModelExchange%nCoverageSidesRecv(iProc)))
-    SurfCOMM%MPINeighbor(iProc)%CoverageRecvList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
-    ALLOCATE(SurfCoverageRecvBuf(iProc)%content(1:3*nSpecies*(nSurfSample**2)*SurfModelExchange%nCoverageSidesRecv(iProc)))
-    SurfCoverageRecvBuf(iProc)%content = 0.
+  ! same number of sides as normal surface exchange      
+  SurfModelExchange%nH2OSidesSend(iProc) = SurfExchange%nSidesSend(iProc)
+  SurfModelExchange%nH2OSidesRecv(iProc) = SurfExchange%nSidesRecv(iProc)
+  IF(SurfModelExchange%nO2HSidesSend(iProc).NE.0) THEN
+    ! allocate and initialize mapping of to be send sides
+    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%H2OSendList(SurfModelExchange%nH2OSidesSend(iProc)))
+    SurfCOMM%MPINeighbor(iProc)%H2OSendList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
+    ! allocate and initialize buffer of to be send sides
+    ALLOCATE(SurfModelExchange%H2OSendBuf(iProc)%content_int((nSurfSample**2)*SurfModelExchange%nH2OSidesSend(iProc)))
+    SurfModelExchange%H2OSendBuf(iProc)%content_int=0
+    ALLOCATE(SurfModelExchange%H2OSendBuf(iProc)%content((nSurfSample**2)*SurfModelExchange%nH2OSidesSend(iProc)))
+    SurfModelExchange%H2OSendBuf(iProc)%content=0.
   END IF
-  IF(SurfModelExchange%nCoverageSidesSend(iProc).NE.0) THEN
-    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%CoverageSendList(SurfModelExchange%nCoverageSidesSend(iProc)))
-    SurfCOMM%MPINeighbor(iProc)%CoverageSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
-    ALLOCATE(SurfCoverageSendBuf(iProc)%content(1:3*nSpecies*(nSurfSample**2)*SurfModelExchange%nCoverageSidesSend(iProc)))
-    SurfCoverageSendBuf(iProc)%content = 0.
+  IF(SurfModelExchange%nH2OSidesRecv(iProc).NE.0) THEN
+    ! allocate and initialize mapping of to be received sides
+    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%H2ORecvList(SurfModelExchange%nH2OSidesRecv(iProc)))
+    SurfCOMM%MPINeighbor(iProc)%H2ORecvList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
+    ! allocate and initialize buffer of to be received sides
+    ALLOCATE(SurfModelExchange%H2ORecvBuf(iProc)%content_int((nSurfSample**2)*SurfModelExchange%nH2OSidesRecv(iProc)))
+    SurfModelExchange%H2ORecvBuf(iProc)%content_int=0
+    ALLOCATE(SurfModelExchange%H2ORecvBuf(iProc)%content((nSurfSample**2)*SurfModelExchange%nH2OSidesRecv(iProc)))
+    SurfModelExchange%H2ORecvBuf(iProc)%content=0
   END IF
 END DO
 
+! represents inverse communication where information is send from own origin sides to halo sides of neighbor procs
+ALLOCATE(SurfModelExchange%nO2HSidesSend(1:SurfCOMM%nMPINeighbors) &
+        ,SurfModelExchange%nO2HSidesRecv(1:SurfCOMM%nMPINeighbors) )
+ALLOCATE(SurfModelExchange%O2HSendBuf(1:SurfCOMM%nMPINeighbors))
+ALLOCATE(SurfModelExchange%O2HRecvBuf(1:SurfCOMM%nMPINeighbors))
+DO iProc=1,SurfCOMM%nMPINeighbors
+  ! inverse mapping of number of sides to communicate
+  SurfModelExchange%nO2HSidesSend(iProc) = SurfModelExchange%nH2OSidesRecv(iProc)
+  SurfModelExchange%nO2HSidesRecv(iProc) = SurfModelExchange%nH2OSidesSend(iProc)
+  IF(SurfModelExchange%nO2HSidesSend(iProc).NE.0) THEN
+    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%O2HSendList(SurfModelExchange%nO2HSidesSend(iProc)))
+    ! inverse mapping of list of sides to send
+    SurfCOMM%MPINeighbor(iProc)%O2HSendList(:)=SurfCOMM%MPINeighbor(iProc)%H2ORecvList(:)
+    ALLOCATE(SurfModelExchange%O2HSendBuf(iProc)%content_int((nSurfSample**2)*SurfModelExchange%nO2HSidesSend(iProc)))
+    SurfModelExchange%O2HSendBuf(iProc)%content_int=0
+    ALLOCATE(SurfModelExchange%O2HSendBuf(iProc)%content((nSurfSample**2)*SurfModelExchange%nO2HSidesSend(iProc)))
+    SurfModelExchange%O2HSendBuf(iProc)%content=0.
+  END IF
+  IF(SurfModelExchange%nO2HSidesRecv(iProc).NE.0) THEN
+    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%O2HRecvList(SurfModelExchange%nO2HSidesRecv(iProc)))
+    ! inverse mapping of list of sides to receive
+    SurfCOMM%MPINeighbor(iProc)%O2HRecvList(:)=SurfCOMM%MPINeighbor(iProc)%H2OSendList(:)
+    ALLOCATE(SurfModelExchange%O2HRecvBuf(iProc)%content_int((nSurfSample**2)*SurfModelExchange%nO2HSidesRecv(iProc)))
+    SurfModelExchange%O2HRecvBuf(iProc)%content_int=0
+    ALLOCATE(SurfModelExchange%O2HRecvBuf(iProc)%content((nSurfSample**2)*SurfModelExchange%nO2HSidesRecv(iProc)))
+    SurfModelExchange%O2HRecvBuf(iProc)%content=0
+  END IF
+END DO
+
+ALLOCATE(SurfModelExchange%SendRequest(1:3,SurfCOMM%nMPINeighbors)  &
+        ,SurfModelExchange%RecvRequest(1:3,SurfCOMM%nMPINeighbors)  )
+
 END SUBROUTINE InitSurfModel_MPI
+
+
+SUBROUTINE ExchangeSurfaceHaloToOrigin(IntDataIN,RealDataIn,AddFlag)
+!===================================================================================================================================
+!> Each process sends his halo-information directly to the halo process by use of a list, containing the surfsideids for sending.
+!> The receiving process adds the new data to his origin surfaces
+!> Only processes with surfaces to send or receive participate in the communication
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfComm, nSurfSample, SurfMesh
+USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfModelExchange
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+INTEGER,INTENT(INOUT),OPTIONAL :: IntDataIN(nSurfSample,nSurfSample,SurfMesh%nTotalSides)
+REAL   ,INTENT(INOUT),OPTIONAL :: RealDataIN(nSurfSample,nSurfSample,SurfMesh%nTotalSides)
+LOGICAL,INTENT(IN)   ,OPTIONAL :: AddFlag
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: MessageSize,iSurfSide,SurfSideID
+INTEGER :: iPos,p,q,iProc
+INTEGER :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
+LOGICAL :: locAddFlag
+!===================================================================================================================================
+IF (.NOT.ALLOCATED(SurfModelExchange%nH2OSidesSend) .OR. .NOT.ALLOCATED(SurfModelExchange%nH2OSidesRecv)) RETURN
+IF (.NOT.PRESENT(IntDataIN) .AND. .NOT.PRESENT(RealDataIN) ) RETURN
+IF (PRESENT(AddFlag)) THEN
+  locAddFlag = AddFlag
+ELSE
+  locAddFlag = .FALSE.
+END IF
+
+! open receive buffer
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfModelExchange%nH2OSidesRecv(iProc).EQ.0) CYCLE
+  MessageSize=SurfModelExchange%nH2OSidesRecv(iProc)*(nSurfSample)**2
+  IF (PRESENT(IntDataIN)) THEN
+    CALL MPI_IRECV( SurfModelExchange%H2ORecvBuf(iProc)%content_int &
+                  , MessageSize                                     &
+                  , MPI_INT                                         &
+                  , SurfCOMM%MPINeighbor(iProc)%NativeProcID        &
+                  , 1010                                            &
+                  , SurfCOMM%COMM                                   &
+                  , SurfModelExchange%RecvRequest(1,iProc)          &
+                  , IERROR )
+  END IF
+  IF (PRESENT(RealDataIN)) THEN
+    CALL MPI_IRECV( SurfModelExchange%H2ORecvBuf(iProc)%content     &
+                  , MessageSize                                     &
+                  , MPI_DOUBLE_PRECISION                            &
+                  , SurfCOMM%MPINeighbor(iProc)%NativeProcID        &
+                  , 1011                                            &
+                  , SurfCOMM%COMM                                   &
+                  , SurfModelExchange%RecvRequest(2,iProc)          &
+                  , IERROR )
+  END IF
+END DO ! iProc
+
+! build message
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfModelExchange%nH2OSidesSend(iProc).EQ.0) CYCLE
+  iPos=0
+  IF (PRESENT(IntDataIN))  SurfModelExchange%H2OSendBuf(iProc)%content_int = 0
+  IF (PRESENT(RealDataIN)) SurfModelExchange%H2OSendBuf(iProc)%content = 0.
+  DO iSurfSide=1,SurfModelExchange%nH2OSidesSend(iProc)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample
+        iPos=iPos+1
+        IF (PRESENT(RealDataIN)) SurfModelExchange%H2OSendBuf(iProc)%content(iPos) = RealDataIN(p,q,SurfSideID)
+        IF (PRESENT(IntDataIN)) SurfModelExchange%H2OSendBuf(iProc)%content_int(iPos) = IntDataIN(p,q,SurfSideID)
+        IF (locAddFlag) THEN
+          IF (PRESENT(RealDataIN)) RealDataIN(p,q,SurfSideID) = 0.
+          IF (PRESENT(IntDataIN)) IntDataIN(p,q,SurfSideID) = 0
+        END IF
+      END DO ! p=0,nSurfSample
+    END DO ! q=0,nSurfSample
+  END DO ! iSurfSide=1,nSurfModelExchange%nH2OSidesSend(iProc)
+END DO
+
+! send message
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfModelExchange%nH2OSidesSend(iProc).EQ.0) CYCLE
+  MessageSize=SurfModelExchange%nH2OSidesSend(iProc)*(nSurfSample)**2
+  IF (PRESENT(IntDataIN)) THEN
+    CALL MPI_ISEND( SurfModelExchange%H2OSendBuf(iProc)%content_int &
+                  , MessageSize                                     &
+                  , MPI_INT                                         &
+                  , SurfCOMM%MPINeighbor(iProc)%NativeProcID        &
+                  , 1010                                            &
+                  , SurfCOMM%COMM                                   &
+                  , SurfModelExchange%SendRequest(1,iProc)          &
+                  , IERROR)
+  END IF
+  IF (PRESENT(RealDataIN)) THEN
+    CALL MPI_ISEND( SurfModelExchange%H2OSendBuf(iProc)%content     &
+                  , MessageSize                                     &
+                  , MPI_DOUBLE_PRECISION                            &
+                  , SurfCOMM%MPINeighbor(iProc)%NativeProcID        &
+                  , 1011                                            &
+                  , SurfCOMM%COMM                                   &
+                  , SurfModelExchange%SendRequest(2,iProc)          &
+                  , IERROR)
+  END IF
+END DO ! iProc
+
+! 4) Finish communication
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfModelExchange%nH2OSidesSend(iProc).NE.0) THEN
+    IF (PRESENT(IntDataIN)) THEN
+      CALL MPI_WAIT(SurfModelExchange%SendRequest(1,iProc),MPIStatus,IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+  __STAMP__&
+            ,' Send MPI Communication error in ExchangeSurfaceHaloToOrigin', IERROR)
+    END IF
+    IF (PRESENT(RealDataIN)) THEN
+      CALL MPI_WAIT(SurfModelExchange%SendRequest(2,iProc),MPIStatus,IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+  __STAMP__&
+            ,' Send MPI Communication error in ExchangeSurfaceHaloToOrigin', IERROR)
+    END IF
+  END IF
+  IF(SurfModelExchange%nH2OSidesRecv(iProc).NE.0) THEN
+    IF (PRESENT(IntDataIN)) THEN
+      CALL MPI_WAIT(SurfModelExchange%RecvRequest(1,iProc),recv_status_list(:,iProc),IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+  __STAMP__&
+            ,' Recv MPI Communication error in ExchangeSurfaceHaloToOrigin', IERROR)
+    END IF
+    IF (PRESENT(RealDataIN)) THEN
+      CALL MPI_WAIT(SurfModelExchange%RecvRequest(2,iProc),recv_status_list(:,iProc),IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+  __STAMP__&
+            ,' Recv MPI Communication error in ExchangeSurfaceHaloToOrigin', IERROR)
+    END IF
+  END IF
+END DO ! iProc
+
+! add data do my list
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfModelExchange%nH2OSidesRecv(iProc).EQ.0) CYCLE
+  MessageSize=SurfModelExchange%nH2OSidesSend(iProc)*(nSurfSample)**2
+  iPos=0
+  DO iSurfSide=1,SurfModelExchange%nH2OSidesRecv(iProc)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample
+        iPos=iPos+1
+        IF (locAddFlag) THEN
+          IF (PRESENT(RealDataIN)) RealDataIN(p,q,SurfSideID) = &
+              RealDataIN(p,q,SurfSideID)+SurfModelExchange%H2ORecvBuf(iProc)%content(iPos)
+          IF (PRESENT(IntDataIN)) IntDataIN(p,q,SurfSideID) = &
+              IntDataIN(p,q,SurfSideID)+SurfModelExchange%H2ORecvBuf(iProc)%content_int(iPos)
+        ELSE
+          IF (PRESENT(RealDataIN)) RealDataIN(p,q,SurfSideID) = &
+              SurfModelExchange%H2ORecvBuf(iProc)%content(iPos)
+          IF (PRESENT(IntDataIN)) IntDataIN(p,q,SurfSideID) = &
+              SurfModelExchange%H2ORecvBuf(iProc)%content_int(iPos)
+        END IF
+      END DO ! p=0,nSurfSample
+    END DO ! q=0,nSurfSample
+  END DO ! iSurfSide=1,nSurfModelExchange%nH2OSidesSend(iProc)
+  IF (PRESENT(IntDataIN))  SurfModelExchange%H2ORecvBuf(iProc)%content_int = 0
+  IF (PRESENT(RealDataIN)) SurfModelExchange%H2ORecvBuf(iProc)%content = 0.
+END DO ! iProc
+
+END SUBROUTINE ExchangeSurfaceHaloToOrigin
+
+
+SUBROUTINE ExchangeSurfaceOriginToHalo(IntDataIN,RealDataIn,AddFlag)
+!===================================================================================================================================
+!> Each process sends his origin-information directly to the halo process by use of a list, containing the surfsideids for sending.
+!> The receiving process adds the new data to his halo surfaces
+!> Only processes with surfaces to send or receive participate in the communication
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfComm, nSurfSample, SurfMesh
+USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfModelExchange
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+INTEGER,INTENT(INOUT),OPTIONAL :: IntDataIN(nSurfSample,nSurfSample,SurfMesh%nTotalSides)
+REAL   ,INTENT(INOUT),OPTIONAL :: RealDataIN(nSurfSample,nSurfSample,SurfMesh%nTotalSides)
+LOGICAL,INTENT(IN)   ,OPTIONAL :: AddFlag
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: MessageSize,iSurfSide,SurfSideID
+INTEGER :: iPos,p,q,iProc
+INTEGER :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
+LOGICAL :: locAddFlag
+!===================================================================================================================================
+IF (.NOT.ALLOCATED(SurfModelExchange%nO2HSidesSend) .OR. .NOT.ALLOCATED(SurfModelExchange%nO2HSidesRecv)) RETURN
+IF (.NOT.PRESENT(IntDataIN) .AND. .NOT.PRESENT(RealDataIN) ) RETURN
+IF (PRESENT(AddFlag)) THEN
+  locAddFlag = AddFlag
+ELSE
+  locAddFlag = .FALSE.
+END IF
+
+! open receive buffer
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfModelExchange%nO2HSidesRecv(iProc).EQ.0) CYCLE
+  MessageSize=SurfModelExchange%nO2HSidesRecv(iProc)*(nSurfSample)**2
+  IF (PRESENT(IntDataIN)) THEN
+    CALL MPI_IRECV( SurfModelExchange%O2HRecvBuf(iProc)%content_int &
+                  , MessageSize                                     &
+                  , MPI_INT                                         &
+                  , SurfCOMM%MPINeighbor(iProc)%NativeProcID        &
+                  , 1010                                            &
+                  , SurfCOMM%COMM                                   &
+                  , SurfModelExchange%RecvRequest(1,iProc)          &
+                  , IERROR )
+  END IF
+  IF (PRESENT(RealDataIN)) THEN
+    CALL MPI_IRECV( SurfModelExchange%O2HRecvBuf(iProc)%content     &
+                  , MessageSize                                     &
+                  , MPI_DOUBLE_PRECISION                            &
+                  , SurfCOMM%MPINeighbor(iProc)%NativeProcID        &
+                  , 1011                                            &
+                  , SurfCOMM%COMM                                   &
+                  , SurfModelExchange%RecvRequest(2,iProc)          &
+                  , IERROR )
+  END IF
+END DO ! iProc
+
+! build message
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfModelExchange%nO2HSidesSend(iProc).EQ.0) CYCLE
+  iPos=0
+  IF (PRESENT(IntDataIN))  SurfModelExchange%O2HSendBuf(iProc)%content_int = 0
+  IF (PRESENT(RealDataIN)) SurfModelExchange%O2HSendBuf(iProc)%content = 0.
+  DO iSurfSide=1,SurfModelExchange%nO2HSidesSend(iProc)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample
+        iPos=iPos+1
+        IF (PRESENT(RealDataIN)) SurfModelExchange%O2HSendBuf(iProc)%content(iPos) = RealDataIN(p,q,SurfSideID)
+        IF (PRESENT(IntDataIN)) SurfModelExchange%O2HSendBuf(iProc)%content_int(iPos) = IntDataIN(p,q,SurfSideID)
+        IF (locAddFlag) THEN
+          IF (PRESENT(RealDataIN)) RealDataIN(p,q,SurfSideID) = 0.
+          IF (PRESENT(IntDataIN)) IntDataIN(p,q,SurfSideID) = 0
+        END IF
+      END DO ! p=0,nSurfSample
+    END DO ! q=0,nSurfSample
+  END DO ! iSurfSide=1,nSurfModelExchange%nO2HSidesSend(iProc)
+END DO
+
+! send message
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfModelExchange%nO2HSidesSend(iProc).EQ.0) CYCLE
+  MessageSize=SurfModelExchange%nO2HSidesSend(iProc)*(nSurfSample)**2
+  IF (PRESENT(IntDataIN)) THEN
+    CALL MPI_ISEND( SurfModelExchange%O2HSendBuf(iProc)%content_int &
+                  , MessageSize                                     &
+                  , MPI_INT                                         &
+                  , SurfCOMM%MPINeighbor(iProc)%NativeProcID        &
+                  , 1010                                            &
+                  , SurfCOMM%COMM                                   &
+                  , SurfModelExchange%SendRequest(1,iProc)          &
+                  , IERROR)
+  END IF
+  IF (PRESENT(RealDataIN)) THEN
+    CALL MPI_ISEND( SurfModelExchange%O2HSendBuf(iProc)%content     &
+                  , MessageSize                                     &
+                  , MPI_DOUBLE_PRECISION                            &
+                  , SurfCOMM%MPINeighbor(iProc)%NativeProcID        &
+                  , 1011                                            &
+                  , SurfCOMM%COMM                                   &
+                  , SurfModelExchange%SendRequest(2,iProc)          &
+                  , IERROR)
+  END IF
+END DO ! iProc
+
+! 4) Finish communication
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfModelExchange%nO2HSidesSend(iProc).NE.0) THEN
+    IF (PRESENT(IntDataIN)) THEN
+      CALL MPI_WAIT(SurfModelExchange%SendRequest(1,iProc),MPIStatus,IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+  __STAMP__&
+            ,' Send MPI Communication error in ExchangeSurfaceOriginToHalo', IERROR)
+    END IF
+    IF (PRESENT(RealDataIN)) THEN
+      CALL MPI_WAIT(SurfModelExchange%SendRequest(2,iProc),MPIStatus,IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+  __STAMP__&
+            ,' Send MPI Communication error in ExchangeSurfaceOriginToHalo', IERROR)
+    END IF
+  END IF
+  IF(SurfModelExchange%nO2HSidesRecv(iProc).NE.0) THEN
+    IF (PRESENT(IntDataIN)) THEN
+      CALL MPI_WAIT(SurfModelExchange%RecvRequest(1,iProc),recv_status_list(:,iProc),IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+  __STAMP__&
+            ,' Recv MPI Communication error in ExchangeSurfaceOriginToHalo', IERROR)
+    END IF
+    IF (PRESENT(RealDataIN)) THEN
+      CALL MPI_WAIT(SurfModelExchange%RecvRequest(2,iProc),recv_status_list(:,iProc),IERROR)
+      IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+  __STAMP__&
+            ,' Recv MPI Communication error in ExchangeSurfaceOriginToHalo', IERROR)
+    END IF
+  END IF
+END DO ! iProc
+
+! add data do my list
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfModelExchange%nO2HSidesRecv(iProc).EQ.0) CYCLE
+  MessageSize=SurfModelExchange%nO2HSidesSend(iProc)*(nSurfSample)**2
+  iPos=0
+  DO iSurfSide=1,SurfModelExchange%nO2HSidesRecv(iProc)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample
+        iPos=iPos+1
+        IF (locAddFlag) THEN
+          IF (PRESENT(RealDataIN)) RealDataIN(p,q,SurfSideID) = &
+              RealDataIN(p,q,SurfSideID)+SurfModelExchange%O2HRecvBuf(iProc)%content(iPos)
+          IF (PRESENT(IntDataIN)) IntDataIN(p,q,SurfSideID) = &
+              IntDataIN(p,q,SurfSideID)+SurfModelExchange%O2HRecvBuf(iProc)%content_int(iPos)
+        ELSE
+          IF (PRESENT(RealDataIN)) RealDataIN(p,q,SurfSideID) = &
+              SurfModelExchange%O2HRecvBuf(iProc)%content(iPos)
+          IF (PRESENT(IntDataIN)) IntDataIN(p,q,SurfSideID) = &
+              SurfModelExchange%O2HRecvBuf(iProc)%content_int(iPos)
+        END IF
+      END DO ! p=0,nSurfSample
+    END DO ! q=0,nSurfSample
+  END DO ! iSurfSide=1,nSurfModelExchange%nO2HSidesSend(iProc)
+  IF (PRESENT(IntDataIN))  SurfModelExchange%O2HRecvBuf(iProc)%content_int = 0
+  IF (PRESENT(RealDataIN)) SurfModelExchange%O2HRecvBuf(iProc)%content = 0.
+END DO ! iProc
+
+END SUBROUTINE ExchangeSurfaceOriginToHalo
 
 
 SUBROUTINE InitSMCR_MPI()
@@ -128,8 +512,8 @@ ALLOCATE(SurfModelExchange%nSurfDistSidesSend(1:SurfCOMM%nMPINeighbors) &
 ALLOCATE(SurfDistSendBuf(SurfCOMM%nMPINeighbors))
 ALLOCATE(SurfDistRecvBuf(SurfCOMM%nMPINeighbors))
 DO iProc=1,SurfCOMM%nMPINeighbors
-  SurfModelExchange%nSurfDistSidesSend(iProc) = SurfModelExchange%nSidesRecv(iProc)
-  SurfModelExchange%nSurfDistSidesRecv(iProc) = SurfModelExchange%nSidesSend(iProc)
+  SurfModelExchange%nSurfDistSidesSend(iProc) = SurfModelExchange%nO2HSidesRecv(iProc)
+  SurfModelExchange%nSurfDistSidesRecv(iProc) = SurfModelExchange%nO2HSidesSend(iProc)
   IF(SurfModelExchange%nSurfDistSidesRecv(iProc).NE.0) THEN
     ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(SurfModelExchange%nSurfDistSidesRecv(iProc)))
     SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
@@ -150,124 +534,6 @@ CALL ExchangeSurfDistSize()
 CALL ExchangeSurfDistInfo()
 
 END SUBROUTINE InitSMCR_MPI
-
-
-SUBROUTINE ExchangeAdsorbNum()
-!===================================================================================================================================
-!> Exchange the number of particles that adsorbed on a halo surface to origin surface of the corresponding proc
-!>   only processes with samling side to send or recieve participate in the communication
-!>   structure is similar to surface sampling/particle communication (halo->origin)
-!> Each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
-!>   the receiving process adds the new data to his own sides
-!> Exchanged arrays: SumAdsorbPart, SumERDesorbed
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfComm, nSurfSample
-USE MOD_SurfaceModel_MPI_Vars  ,ONLY: AdsorbSendBuf, AdsorbRecvBuf, SurfModelExchange
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER :: MessageSize,nValues,iSurfSide,SurfSideID
-INTEGER :: iPos,p,q,iProc
-INTEGER :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
-!===================================================================================================================================
-IF (.NOT.ALLOCATED(SurfModelExchange%nSidesSend) .OR. .NOT.ALLOCATED(SurfModelExchange%nSidesRecv)) RETURN
-
-nValues=2*nSpecies*(nSurfSample)**2
-
-! open receive buffer
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfModelExchange%nSidesRecv(iProc).EQ.0) CYCLE
-  MessageSize=SurfModelExchange%nSidesRecv(iProc)*nValues
-  CALL MPI_IRECV( AdsorbRecvBuf(iProc)%content_int             &
-                , MessageSize                                  &
-                , MPI_INT                                      &
-                , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
-                , 1010                                         &
-                , SurfCOMM%COMM                                &
-                , SurfModelExchange%RecvRequest(iProc)              &
-                , IERROR )
-END DO ! iProc
-
-! build message
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfModelExchange%nSidesSend(iProc).EQ.0) CYCLE
-  iPos=0
-  AdsorbSendBuf(iProc)%content_int = 0
-  DO iSurfSide=1,SurfModelExchange%nSidesSend(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
-    DO q=1,nSurfSample
-      DO p=1,nSurfSample
-        AdsorbSendBuf(iProc)%content_int(iPos+1:iPos+nSpecies)= SurfModel%SumAdsorbPart(p,q,SurfSideID,:)
-        iPos=iPos+nSpecies
-        AdsorbSendBuf(iProc)%content_int(iPos+1:iPos+nSpecies)= SurfModel%SumERDesorbed(p,q,SurfSideID,:)
-        iPos=iPos+nSpecies
-      END DO ! p=0,nSurfSample
-    END DO ! q=0,nSurfSample
-  END DO ! iSurfSide=1,nSurfModelExchange%nSidesSend(iProc)
-END DO
-
-! send message
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfModelExchange%nSidesSend(iProc).EQ.0) CYCLE
-  MessageSize=SurfModelExchange%nSidesSend(iProc)*nValues
-  CALL MPI_ISEND( AdsorbSendBuf(iProc)%content_int         &
-                , MessageSize                              &
-                , MPI_INT                                  &
-                , SurfCOMM%MPINeighbor(iProc)%NativeProcID &
-                , 1010                                     &
-                , SurfCOMM%COMM                            &
-                , SurfModelExchange%SendRequest(iProc)          &
-                , IERROR)
-END DO ! iProc
-
-! 4) Finish Received number of particles
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfModelExchange%nSidesSend(iProc).NE.0) THEN
-    CALL MPI_WAIT(SurfModelExchange%SendRequest(iProc),MPIStatus,IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-__STAMP__&
-          ,' MPI Communication error', IERROR)
-  END IF
-  IF(SurfModelExchange%nSidesRecv(iProc).NE.0) THEN
-    CALL MPI_WAIT(SurfModelExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-__STAMP__&
-          ,' MPI Communication error', IERROR)
-  END IF
-END DO ! iProc
-
-! add data do my list
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfModelExchange%nSidesRecv(iProc).EQ.0) CYCLE
-  MessageSize=SurfModelExchange%nSidesSend(iProc)*nValues
-  iPos=0
-  DO iSurfSide=1,SurfModelExchange%nSidesRecv(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
-    DO q=1,nSurfSample
-      DO p=1,nSurfSample
-        SurfModel%SumAdsorbPart(p,q,SurfSideID,:)=SurfModel%SumAdsorbPart(p,q,SurfSideID,:) &
-                                         +AdsorbRecvBuf(iProc)%content_int(iPos+1:iPos+nSpecies)
-        iPos=iPos+nSpecies
-        SurfModel%SumERDesorbed(p,q,SurfSideID,:)=SurfModel%SumERDesorbed(p,q,SurfSideID,:) &
-                                         +AdsorbRecvBuf(iProc)%content_int(iPos+1:iPos+nSpecies)
-        iPos=iPos+nSpecies
-      END DO ! p=0,nSurfSample
-    END DO ! q=0,nSurfSample
-  END DO ! iSurfSide=1,nSurfModelExchange%nSidesSend(iProc)
-  AdsorbRecvBuf(iProc)%content_int = 0
-END DO ! iProc
-
-END SUBROUTINE ExchangeAdsorbNum
 
 
 SUBROUTINE ExchangeSurfDistSize()
@@ -379,7 +645,8 @@ USE MOD_Globals
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SurfComm, nSurfSample, PartBound
 USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfDistSendBuf, SurfDistRecvBuf, SurfModelExchange
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo
-USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_Mesh_Vars              ,ONLY: BC,nBCSides,nSides
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -392,6 +659,7 @@ INTEGER :: MessageSize, iSurfSide, SurfSideID, iSurf, SideID, PartboundID
 INTEGER :: iPos,p,q,iProc
 INTEGER :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 INTEGER :: iCoord,nSites,nSitesRemain,iSite,iInteratom,UsedSiteMapPos,iSpec,xpos,ypos
+INTEGER :: iSide,TargetHaloSide,SurfSideHaloID
 !===================================================================================================================================
 IF (.NOT.ALLOCATED(SurfModelExchange%nSurfDistSidesSend) .OR. .NOT.ALLOCATED(SurfModelExchange%nSurfDistSidesRecv)) RETURN
 
@@ -489,9 +757,36 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         END DO
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample.
-  END DO ! iSurfSide=1,nSurfModelExchange%nSidesSend(iProc)
+  END DO ! iSurfSide=1,nSurfModelExchange%nH2OSidesSend(iProc)
   SurfDistRecvBuf(iProc)%content_int = 0
 END DO ! iProc
+
+IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner BCs on SlaveSide
+  DO iSide=nBCSides+1,nSides
+    IF(BC(iSide).EQ.0) CYCLE
+    IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
+      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1) THEN ! SlaveSide
+        DO q=1,nSurfSample
+          DO p=1,nSurfSample
+            TargetHaloSide = SurfMesh%innerBCSideToHaloMap(iSide)
+            SurfSideID=SurfMesh%SideIDToSurfID(iSide)
+            SurfSideHaloID=SurfMesh%SideIDToSurfID(TargetHaloSide)
+            ! map distribution data (haloinnersurface->innersurface)
+            IF (ALLOCATED(SurfDistInfo)) THEN
+              SurfDistInfo(p,q,SurfSideID)%SitesRemain(:) = SurfDistInfo(p,q,SurfSideHaloID)%SitesRemain(:)
+              DO iCoord = 1,3
+                SurfDistInfo(p,q,SurfSideID)%AdsMap(iCoord)%Species(:) = &
+                    SurfDistInfo(p,q,SurfSideHaloID)%AdsMap(iCoord)%Species(:)
+                SurfDistInfo(p,q,SurfSideID)%AdsMap(iCoord)%UsedSiteMap(:) = &
+                    SurfDistInfo(p,q,SurfSideHaloID)%AdsMap(iCoord)%UsedSiteMap(:)
+              END DO
+            END IF
+          END DO
+        END DO
+      END IF
+    END IF
+  END DO
+END IF
 
 ! assign bond order to surface atoms in the surfacelattice for halo sides
 DO iSurfSide = SurfMesh%nMasterSides+1,SurfMesh%nTotalSides
@@ -522,119 +817,81 @@ END DO
 END SUBROUTINE ExchangeSurfDistInfo
 
 
-SUBROUTINE ExchangeCoverageInfo()
+SUBROUTINE MapHaloInnerToOriginInnerSurf(IntDataIN,RealDataIN,AddFlag,Reverse)
 !===================================================================================================================================
-!> Exchanges information from origin to the halosides of corresponding neighbours
-!>   The structure is similar to surface sampling/particle communication but has inverse communication path (origin->halo)
-!> Exchanged information: Surface coverage, constant probabilities
+! Map the surface data from innerBC SlaveSides to corresponding HaloSide.
+! All surfacemodel informations of a innerBC SlaveSide is added to corresponding HaloSide and vice versa
+! Afterwards, these informations are send to innerBC MasterSide in a second ExchangeData call
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfComm, nSurfSample
-USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfCoverageSendBuf, SurfCoverageRecvBuf, SurfModelExchange
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh,nSurfSample,PartBound
+USE MOD_Mesh_Vars              ,ONLY: nBCSides,nSides,BC
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel, SurfDistInfo
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
+INTEGER,INTENT(INOUT),OPTIONAL :: IntDataIN(nSurfSample,nSurfSample,SurfMesh%nTotalSides)
+REAL   ,INTENT(INOUT),OPTIONAL :: RealDataIN(nSurfSample,nSurfSample,SurfMesh%nTotalSides)
+LOGICAL,INTENT(IN)   ,OPTIONAL :: AddFlag
+LOGICAL,INTENT(IN)   ,OPTIONAL :: Reverse
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: MessageSize, iSurfSide, SurfSideID
-INTEGER :: iPos,p,q,iProc, nValues
-INTEGER :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
+INTEGER :: iSide,TargetHaloSide,q,p,SurfSideID,SurfSideHaloID
+LOGICAL :: locAddFlag, locReverse
 !===================================================================================================================================
-IF (.NOT.ALLOCATED(SurfModelExchange%nCoverageSidesSend) .OR. .NOT.ALLOCATED(SurfModelExchange%nCoverageSidesRecv)) RETURN
+IF (.NOT.PRESENT(IntDataIN) .AND. .NOT.PRESENT(RealDataIN) ) RETURN
+IF (PRESENT(AddFlag)) THEN
+  locAddFlag = AddFlag
+ELSE
+  locAddFlag = .FALSE.
+END IF
+IF (PRESENT(Reverse)) THEN
+  locReverse = Reverse
+ELSE
+  locReverse = .FALSE.
+END IF
 
-nValues = 3*nSpecies * nSurfSample**2
-! open receive buffer
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfModelExchange%nCoverageSidesRecv(iProc).EQ.0) CYCLE
-  Messagesize = SurfModelExchange%nCoverageSidesRecv(iProc)*nValues
-  CALL MPI_IRECV( SurfCoverageRecvBuf(iProc)%content           &
-                , MessageSize                                  &
-                , MPI_INT                                      &
-                , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
-                , 1013                                         &
-                , SurfCOMM%COMM                                &
-                , SurfModelExchange%RecvRequest(iProc)&
-                , IERROR )
-END DO ! iProc
-
-! build message
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfModelExchange%nCoverageSidesSend(iProc).EQ.0) CYCLE
-  iPos=0
-  SurfCoverageSendBuf(iProc)%content = 0.
-  DO iSurfSide=1,SurfModelExchange%nCoverageSidesSend(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%CoverageSendList(iSurfSide)
-    DO q=1,nSurfSample
-      DO p=1,nSurfSample
-        SurfCoverageSendBuf(iProc)%content(iPos+1:iPos+nSpecies) = Adsorption%Coverage(p,q,SurfSideID,:)
-        iPos=iPos+nSpecies
-        SurfCoverageSendBuf(iProc)%content(iPos+1:iPos+nSpecies) = Adsorption%ProbAds(p,q,SurfSideID,:)
-        iPos=iPos+nSpecies
-        SurfCoverageSendBuf(iProc)%content(iPos+1:iPos+nSpecies) = Adsorption%ProbDes(p,q,SurfSideID,:)
-        iPos=iPos+nSpecies
-      END DO ! p=0,nSurfSample
-    END DO ! q=0,nSurfSample
-  END DO ! iSurfSide=1,SurfModelExchange%nSurfDistSidesSend(iProc)
-END DO
-
-! send message
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfModelExchange%nCoverageSidesSend(iProc).EQ.0) CYCLE
-  Messagesize = SurfModelExchange%nCoverageSidesSend(iProc)*nValues
-  CALL MPI_ISEND( SurfCoverageSendBuf(iProc)%content       &
-                , MessageSize                              &
-                , MPI_INT                                  &
-                , SurfCOMM%MPINeighbor(iProc)%NativeProcID &
-                , 1013                                     &
-                , SurfCOMM%COMM                            &
-                , SurfModelExchange%SendRequest(iProc)&
-                , IERROR )
-END DO ! iProc
-
-! 4) Finish received surface distribution
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfModelExchange%nCoverageSidesSend(iProc).NE.0) THEN
-    CALL MPI_WAIT(SurfModelExchange%SendRequest(iProc),MPIStatus,IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-__STAMP__&
-          ,' MPI Communication error in surface distribution (send)', IERROR)
-  END IF
-  IF(SurfModelExchange%nCoverageSidesRecv(iProc).NE.0) THEN
-    CALL MPI_WAIT(SurfModelExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-__STAMP__&
-          ,' MPI Communication error in Surface distribution (receive)', IERROR)
-  END IF
-END DO ! iProc
-
-! add data do my list
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfModelExchange%nCoverageSidesRecv(iProc).EQ.0) CYCLE
-  iPos=0
-  DO iSurfSide=1,SurfModelExchange%nCoverageSidesRecv(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%CoverageRecvList(iSurfSide)
-    DO q=1,nSurfSample
-      DO p=1,nSurfSample
-        Adsorption%Coverage(p,q,SurfSideID,:) = SurfCoverageRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
-        iPos=iPos+nSpecies
-        Adsorption%ProbAds(p,q,SurfSideID,:) = SurfCoverageRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
-        iPos=iPos+nSpecies
-        Adsorption%ProbDes(p,q,SurfSideID,:) = SurfCoverageRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
-        iPos=iPos+nSpecies
-      END DO ! p=0,nSurfSample
-    END DO ! q=0,nSurfSample.
-  END DO ! iSurfSide=1,SurfModelExchange%nSidesSend(iProc)
-  SurfCoverageRecvBuf(iProc)%content = 0.
-END DO ! iProc
-
-END SUBROUTINE ExchangeCoverageInfo
+IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner BCs on SlaveSide
+  DO iSide=nBCSides+1,nSides
+    IF(BC(iSide).EQ.0) CYCLE
+    IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
+      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1) THEN ! SlaveSide
+        DO q=1,nSurfSample
+          DO p=1,nSurfSample
+            TargetHaloSide = SurfMesh%innerBCSideToHaloMap(iSide)
+            SurfSideID=SurfMesh%SideIDToSurfID(iSide)
+            SurfSideHaloID=SurfMesh%SideIDToSurfID(TargetHaloSide)
+            IF (locReverse) THEN
+              IF (locAddFlag) THEN
+                IF (PRESENT(RealDataIN)) RealDataIN(p,q,SurfSideID) = RealDataIN(p,q,SurfSideID)+RealDataIN(p,q,SurfSideHaloID)
+                IF (PRESENT(IntDataIN)) IntDataIN(p,q,SurfSideID) = IntDataIN(p,q,SurfSideID)+IntDataIN(p,q,SurfSideHaloID)
+              ELSE
+                IF (PRESENT(RealDataIN)) RealDataIN(p,q,SurfSideID) = RealDataIN(p,q,SurfSideHaloID)
+                IF (PRESENT(IntDataIN)) IntDataIN(p,q,SurfSideID) = IntDataIN(p,q,SurfSideHaloID)
+              END IF
+            ELSE
+              IF (locAddFlag) THEN
+                IF (PRESENT(RealDataIN)) RealDataIN(p,q,SurfSideID) = RealDataIN(p,q,SurfSideID)+RealDataIN(p,q,SurfSideHaloID)
+                IF (PRESENT(IntDataIN)) IntDataIN(p,q,SurfSideID) = IntDataIN(p,q,SurfSideID)+IntDataIN(p,q,SurfSideHaloID)
+              ELSE
+                IF (PRESENT(RealDataIN)) RealDataIN(p,q,SurfSideID) = RealDataIN(p,q,SurfSideHaloID)
+                IF (PRESENT(IntDataIN)) IntDataIN(p,q,SurfSideID) = IntDataIN(p,q,SurfSideHaloID)
+              END IF
+            END IF
+          END DO
+        END DO
+      END IF
+    END IF
+  END DO
+END IF
+END SUBROUTINE MapHaloInnerToOriginInnerSurf
 #endif /*USE_MPI*/
+
 
 END MODULE MOD_SurfaceModel_MPI

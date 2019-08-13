@@ -83,7 +83,7 @@ SUBROUTINE UpdateSurfModelVars()
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles, Species, nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall, PartBound
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall, PartBound, SurfCOMM
 USE MOD_TimeDisc_Vars          ,ONLY: tend,time
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -92,7 +92,8 @@ USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo, SurfModel
 USE MOD_SurfaceModel_Tools     ,ONLY: CalcAdsorbProb, CalcDesorbProb
 USE MOD_SurfaceModel_Tools     ,ONLY: SMCR_AdjustMapNum, IsReactiveSurface, SurfaceHasModelNum
 #if USE_MPI
-USE MOD_SurfaceModel_MPI       ,ONLY: ExchangeAdsorbNum, ExchangeCoverageInfo, ExchangeSurfDistInfo
+USE MOD_SurfaceModel_MPI       ,ONLY: ExchangeSurfaceHaloToOrigin, ExchangeSurfaceOriginToHalo, ExchangeSurfDistInfo
+USE MOD_SurfaceModel_MPI       ,ONLY: MapHaloInnerToOriginInnerSurf
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -118,7 +119,25 @@ CALL LBStartTime(tLBStart)
 IF (.NOT.KeepWallParticles) THEN
 #if USE_MPI
 !----- 1.
-  CALL ExchangeAdsorbNum()
+  DO iSpec = 1,nSpecies
+    IF(SurfCOMM%InnerBCs) THEN
+    ! if there are innerBCs with reflective (reactive) surface properties
+    ! additional communcation is needed (see:SUBROUTINE MapInnerSurfData)
+      CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumAdsorbPart(:,:,:,iSpec),AddFlag=.TRUE.)
+      CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumERDesorbed(:,:,:,iSpec),AddFlag=.TRUE.)
+      CALL ExchangeSurfaceHaloToOrigin(RealDataIN=Adsorption%SurfaceNormalVelo(:,:,:,iSpec),AddFlag=.TRUE.)
+      CALL ExchangeSurfaceHaloToOrigin(IntDataIN=Adsorption%CollSpecPartNum(:,:,:,iSpec),AddFlag=.TRUE.)
+      CALL MapHaloInnerToOriginInnerSurf(IntDataIN=SurfModel%SumAdsorbPart(:,:,:,iSpec),AddFlag=.TRUE.)
+      CALL MapHaloInnerToOriginInnerSurf(IntDataIN=SurfModel%SumERDesorbed(:,:,:,iSpec),AddFlag=.TRUE.)
+      CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%SurfaceNormalVelo(:,:,:,iSpec),AddFlag=.TRUE.)
+      CALL MapHaloInnerToOriginInnerSurf(IntDataIN=Adsorption%CollSpecPartNum(:,:,:,iSpec),AddFlag=.TRUE.)
+    END IF
+    CALL MapHaloInnerToOriginInnerSurf
+    CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumAdsorbPart(:,:,:,iSpec),AddFlag=.TRUE.)
+    CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumERDesorbed(:,:,:,iSpec),AddFlag=.TRUE.)
+    CALL ExchangeSurfaceHaloToOrigin(RealDataIN=Adsorption%SurfaceNormalVelo(:,:,:,iSpec),AddFlag=.TRUE.)
+    CALL ExchangeSurfaceHaloToOrigin(IntDataIN=Adsorption%CollSpecPartNum(:,:,:,iSpec),AddFlag=.TRUE.)
+  END DO
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_SURFCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -226,21 +245,32 @@ CALL CalcAdsorbProb()
 CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-DO iSurfSide = 1,SurfMesh%nMasterSides
+DO iSurfSide = 1,SurfMesh%nMasterSides ; DO q=1,nSurfSample ; DO p=1,nSurfSample
   DO iSpec=1, nSpecies
-    IF(Adsorption%CollSpecPartNum(iSurfSide,iSpec).GT.50) THEN
-      Adsorption%IncidentNormalVeloAtSurf(iSurfSide,iSpec) = &
-          Adsorption%SurfaceNormalVelo(iSurfSide,iSpec) / REAL(Adsorption%CollSpecPartNum(iSurfSide,iSpec))
-      Adsorption%SurfaceNormalVelo(iSurfSide,iSpec)  = 0.
-      Adsorption%CollSpecPartNum(iSurfSide,iSpec)    = 0
+    IF(Adsorption%CollSpecPartNum(p,q,iSurfSide,iSpec).GT.50) THEN
+      Adsorption%IncidentNormalVeloAtSurf(p,q,iSurfSide,iSpec) = &
+          Adsorption%SurfaceNormalVelo(p,q,iSurfSide,iSpec) / REAL(Adsorption%CollSpecPartNum(p,q,iSurfSide,iSpec))
+      Adsorption%SurfaceNormalVelo(p,q,iSurfSide,iSpec)  = 0.
+      Adsorption%CollSpecPartNum(p,q,iSurfSide,iSpec)    = 0
      END IF
   END DO
-END DO
+END DO ; END DO ; END DO
 
 !----- 5.
 #if USE_MPI
 ! communicate coverage and probabilities to halo sides of neighbour procs
-CALL ExchangeCoverageInfo()
+DO iSpec = 1,nSpecies
+  CALL ExchangeSurfaceOriginTohalo(RealDataIN=Adsorption%Coverage(:,:,:,iSpec),AddFlag=.FALSE.)
+  CALL ExchangeSurfaceOriginTohalo(RealDataIN=Adsorption%ProbAds(:,:,:,iSpec),AddFlag=.FALSE.)
+  CALL ExchangeSurfaceOriginTohalo(RealDataIN=Adsorption%ProbDes(:,:,:,iSpec),AddFlag=.FALSE.)
+  CALL ExchangeSurfaceOriginTohalo(RealDataIN=Adsorption%IncidentNormalVeloAtSurf(:,:,:,iSpec),AddFlag=.FALSE.)
+  IF(SurfCOMM%InnerBCs) THEN
+    CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%Coverage(:,:,:,iSpec),AddFlag=.FALSE.,Reverse=.TRUE.)
+    CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%ProbAds(:,:,:,iSpec),AddFlag=.FALSE.,Reverse=.TRUE.)
+    CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%ProbDes(:,:,:,iSpec),AddFlag=.FALSE.,Reverse=.TRUE.)
+    CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%IncidentNormalVeloAtSurf(:,:,:,iSpec),AddFlag=.FALSE.,Reverse=.TRUE.)
+  END IF
+END DO
 ! communicate distribution to halo-sides of neighbour procs
 CALL ExchangeSurfDistInfo()
 #endif

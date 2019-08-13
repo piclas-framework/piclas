@@ -147,9 +147,9 @@ TYPE tAdsorption
   INTEGER                                :: NumOfExchReact          ! sum of all possible exchange reactions on surfaces
   ! TST Factor calculation variables
   LOGICAL , ALLOCATABLE                  :: TST_Calc(:,:)
-  REAL    , ALLOCATABLE                  :: IncidentNormalVeloAtSurf(:,:)
-  REAL    , ALLOCATABLE                  :: SurfaceNormalVelo(:,:)
-  INTEGER , ALLOCATABLE                  :: CollSpecPartNum(:,:)
+  REAL    , ALLOCATABLE                  :: IncidentNormalVeloAtSurf(:,:,:,:)
+  REAL    , ALLOCATABLE                  :: SurfaceNormalVelo(:,:,:,:)
+  INTEGER , ALLOCATABLE                  :: CollSpecPartNum(:,:,:,:)
 END TYPE
 TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
 

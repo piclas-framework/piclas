@@ -890,7 +890,7 @@ IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
   !Xi_Total = 1.! Xi_vib + Xi_rot + 3.
   !AdsorptionTemp=2.*Norm_Ec/Xi_Total/BoltzmannConst
   !MeanNormalVelo = SQRT((BoltzmannConst*AdsorptionTemp) / (2*PI*Species(SpecID)%MassIC)) ! equilibrium mean thermal velo for AdsorptionTemp
-  AdsorptionTemp = (Species(SpecID)%MassIC*(Adsorption%IncidentNormalVeloAtSurf(SurfID,SpecID))**2 / BoltzmannConst) * 2./PI
+  AdsorptionTemp = (Species(SpecID)%MassIC*NormalVelo**2 / BoltzmannConst) * 2./PI
   a_f = (BoltzmannConst*AdsorptionTemp/PlanckConst) &
         *(PartitionFuncActAdsorb(SpecID, AdsorptionTemp)/PartitionFuncGas(SpecID, AdsorptionTemp))
 #endif
