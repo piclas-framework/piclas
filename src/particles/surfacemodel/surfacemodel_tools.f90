@@ -884,13 +884,13 @@ END IF
 
 CalcAdsorbReactProb = 0.0
 IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
-#if (PP_TimeDiscMethod==42)
   !PartVelo = SQRT(PartState(PartID,4)**2 + PartState(PartID,5)**2 + PartState(PartID,6)**2)
   !Norm_Ec = PartVelo**2 * 0.5*Species(SpecID)%MassIC !+ PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
   !Xi_Total = 1.! Xi_vib + Xi_rot + 3.
   !AdsorptionTemp=2.*Norm_Ec/Xi_Total/BoltzmannConst
   !MeanNormalVelo = SQRT((BoltzmannConst*AdsorptionTemp) / (2*PI*Species(SpecID)%MassIC)) ! equilibrium mean thermal velo for AdsorptionTemp
   AdsorptionTemp = (Species(SpecID)%MassIC*NormalVelo**2 / BoltzmannConst) * 2./PI
+#if (PP_TimeDiscMethod==42)
   a_f = (BoltzmannConst*AdsorptionTemp/PlanckConst) &
         *(PartitionFuncActAdsorb(SpecID, AdsorptionTemp)/PartitionFuncGas(SpecID, AdsorptionTemp))
 #endif
