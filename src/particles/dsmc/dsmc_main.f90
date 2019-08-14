@@ -57,7 +57,6 @@ SUBROUTINE DSMC_main(DoElement)
   USE MOD_DSMC_ParticlePairing,  ONLY : DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
   USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
   USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
-  USE MOD_vmpf_collision,        ONLY : DSMC_vmpf_prob
   USE MOD_Particle_Vars,         ONLY : KeepWallParticles
 #if (PP_TimeDiscMethod==1001)
   USE MOD_LD_Vars,               ONLY : BulkValues, LD_DSMC_RHS
@@ -142,11 +141,7 @@ SUBROUTINE DSMC_main(DoElement)
 
         DO iPair = 1, nPair
           IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-            IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN            ! calculation of collision prob
-              CALL DSMC_vmpf_prob(iElem, iPair)
-            ELSE
-              CALL DSMC_prob_calc(iElem, iPair)
-            END IF
+            CALL DSMC_prob_calc(iElem, iPair)
             CALL RANDOM_NUMBER(iRan)
             IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
 #if (PP_TimeDiscMethod==42)

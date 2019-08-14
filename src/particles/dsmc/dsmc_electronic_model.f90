@@ -179,32 +179,6 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
             ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua))**FakXi
     CALL RANDOM_NUMBER(iRan2)
   END DO
-
-  IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-    IF (PartMPF( iPart1).GT.PartMPF( iPart2)) THEN
-      Phi = PartMPF( iPart2) / PartMPF( iPart1)
-      PartStateIntEnTemp = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-      PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn( iPart1,3) + Phi * PartStateIntEnTemp
-      PartStateTemp = PartStateIntEnTemp / BoltzmannConst
-      ! searche for new vib quant
-      iQuaMax = 0
-      DO iQua = 0, MaxElecQuant
-        IF ( PartStateTemp .ge. &
-          SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) ) THEN
-          iQuaMax = iQua
-        ELSE
-        ! exit loop
-          EXIT
-        END IF
-      END DO
-      iQua = iQuaMax
-      PartStateIntEn( iPart1,3) = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
-      DeltaPartStateIntEn = PartMPF( iPart1) &
-                          * (PartStateIntEnTemp - PartStateIntEn( iPart1,3))
-      GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
-    END IF
-  ELSE
 #if (PP_TimeDiscMethod==42)
 ! Reservoir simulation for obtaining the reaction rate at one given point does not require to performe the reaction
   IF (.NOT.DSMC%ReservoirSimuRate) THEN
@@ -213,7 +187,6 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
 #if (PP_TimeDiscMethod==42)
   END IF
 #endif
-  END IF
 
 END SUBROUTINE ElectronicEnergyExchange
 
@@ -313,33 +286,6 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
     END IF
     CALL RANDOM_NUMBER(iRan2)
   END DO
-
-  !vmpf muss noch gemacht werden !!!!
-  IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-    IF (PartMPF( iPart1).GT.PartMPF( iPart2)) THEN
-      Phi = PartMPF( iPart2) / PartMPF( iPart1)
-      PartStateIntEnTemp = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
-      CollisionEnergy = CollisionEnergy - PartStateIntEnTemp
-      PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn( iPart1,3) + Phi * PartStateIntEnTemp
-      PartStateTemp = PartStateIntEnTemp / BoltzmannConst
-      ! searche for new vib quant
-      iQuaMax = 0
-      DO iQua = 0, MaxElecQuant
-        IF ( PartStateTemp .ge. &
-          SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) ) THEN
-          iQuaMax = iQua
-        ELSE
-        ! exit loop
-          EXIT
-        END IF
-      END DO
-      iQua = iQuaMax
-      PartStateIntEn( iPart1,3) = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
-      DeltaPartStateIntEn = PartMPF( iPart1) &
-                          * (PartStateIntEnTemp - PartStateIntEn( iPart1,3))
-      GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
-    END IF
-  ELSE
 #if (PP_TimeDiscMethod==42)
 ! Reservoir simulation for obtaining the reaction rate at one given point does not require to performe the reaction
   IF (.NOT.DSMC%ReservoirSimuRate) THEN
@@ -350,7 +296,6 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
 #if (PP_TimeDiscMethod==42)
   END IF
 #endif
-  END IF
 
 !#if (PP_TimeDiscMethod==42)
 !    ! list of number of particles in each energy level
