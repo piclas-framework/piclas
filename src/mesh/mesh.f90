@@ -905,8 +905,8 @@ USE MOD_Mesh_Vars ,ONLY: lastBCSide,lastMortarInnerSide,lastInnerSide,lastMPISid
 USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,nSides,nSidesMaster,nSidesSlave
 #if USE_HDG
 USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
-USE MOD_Globals   ,ONLY: myrank
 #if USE_MPI
+USE MOD_Globals   ,ONLY: myrank
 USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD
 USE mpi
 #endif /*USE_MPI*/

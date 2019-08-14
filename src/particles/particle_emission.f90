@@ -6614,7 +6614,8 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_Particle_Mesh          ,ONLY: ParticleInsideQuad3D, PartInElemCheck
+USE MOD_Particle_Mesh          ,ONLY: PartInElemCheck
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, epsOneCell
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
@@ -7450,7 +7451,8 @@ USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping, TriaTracking
-USE MOD_Particle_Mesh           ,ONLY: ParticleInsideQuad3D, PartInElemCheck
+USE MOD_Particle_Mesh           ,ONLY: PartInElemCheck
+USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, epsOneCell
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 !-----------------------------------------------------------------------------------------------------------------------------------

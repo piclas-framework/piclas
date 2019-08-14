@@ -110,6 +110,10 @@ REAL,ALLOCATABLE                        :: epsOneCell(:)      ! tolerance for pa
                                                               ! inside ref element 1+epsinCell
 
 !LOGICAL                                 :: DoRefMapping      ! tracking by mapping particle into reference element
+ 
+LOGICAL,ALLOCATABLE                     :: PartElemIsMortar(:)! Flag is true if element has at least one side with mortar elements,
+                                                              ! required in TriaTracking for an additional check in which element
+                                                              ! the particle ended up after the MPI comm of particles (1:nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 
