@@ -1674,8 +1674,6 @@ REAL                             :: WallTemp, Prob_diff, RanNum
 REAL                             :: Heat_i, Heat_j, Heat_temp
 INTEGER                          :: n_equal_site_Neigh, Surfpos, newpos
 INTEGER , ALLOCATABLE            :: free_Neigh_pos(:)
-
-REAL :: CharaTemp, VarPartitionFuncWall, VarPartitionFuncAct, nu_react
 !----------------------------------------------------------------------------------------------------------------------------------!
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 IF (Adsorption%NoDiffusion) RETURN
@@ -1702,22 +1700,6 @@ DO iSurf=1,SurfMesh%nMasterSides
         Surfpos = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
         SpecID = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%Species(Surfpos)
 
-        globSide = SurfMesh%SurfIDToSideID(iSurf)
-        WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
-        ! check if adsorbate diffusses on the surfaces
-        ! calculate heat of adsorption for actual site
-        Heat_i = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,SpecID,Surfpos,.FALSE.)
-        ! estimate vibrational temperatures of surface-particle bond
-        CharaTemp = Heat_i / 200.
-        ! calculate partition function of first particle bound on surface
-        VarPartitionFuncWall = PartitionFuncSurf(SpecID, WallTemp,CharaTemp)
-        ! estimate partition function of activated complex
-        VarPartitionFuncAct = PartitionFuncActDesorb(SpecID,WallTemp,Adsorption%DensSurfAtoms(iSurf))
-        nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct/VarPartitionFuncWall)
-        Prob_diff = nu_react * exp(-0.5*Heat_i/WallTemp) * dt
-        CALL RANDOM_NUMBER(RanNum)
-        IF (Prob_diff.LE.RanNum) CYCLE
-
         ! choose Random vacant neighbour position
         n_equal_site_Neigh = 0
         free_Neigh_pos(:) = 0
@@ -1736,6 +1718,8 @@ DO iSurf=1,SurfMesh%nMasterSides
           END IF
         END DO
 
+        ! calculate heat of adsorption for actual site
+        Heat_i = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,SpecID,Surfpos,.FALSE.)
         ! update surfatom bond order and species map
         CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,Coord,Surfpos,SpecID,.TRUE.,relaxation=.TRUE.)
 
@@ -1751,9 +1735,11 @@ DO iSurf=1,SurfMesh%nMasterSides
 
         ! only try to diffuse particle if unoccupied sites available
         IF (n_equal_site_Neigh .GE. 1) THEN
+          globSide = SurfMesh%SurfIDToSideID(iSurf)
+          WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
           Prob_diff = exp(-(Heat_i - Heat_j)/WallTemp) / (1+exp(-(Heat_i - Heat_j)/Walltemp)) ! QCA
           CALL RANDOM_NUMBER(RanNum)
-          !IF (dt.LT.1e-1) Prob_diff = Prob_diff*dt
+          IF (dt.LT.1e-1) Prob_diff = Prob_diff*dt
           IF (Prob_diff.GT.RanNum) THEN
           ! move particle to new position and update map
             DO i = 1,nSitesRemain
