@@ -230,7 +230,6 @@ USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 #if (PP_TimeDiscMethod==42)
-USE MOD_DSMC_Vars              ,ONLY: DSMC
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -272,11 +271,8 @@ DO iSpec=1,nSpecies
           Adsorption%ProbAds(p,q,SurfSide,iSpec) = Adsorption%ReactCoeff(PartBoundID,iSpec)
         END SELECT
 !----------------------------------------------------------------------------------------------------------------------------------!
-#if (PP_TimeDiscMethod==42)
-        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-          SurfModel%Info(iSpec)%MeanProbAds = SurfModel%Info(iSpec)%MeanProbAds+Adsorption%ProbAds(p,q,SurfSide,iSpec)
-        END IF
-#endif
+        SurfModel%Info(iSpec)%MeanProbAds = SurfModel%Info(iSpec)%MeanProbAds+Adsorption%ProbAds(p,q,SurfSide,iSpec)
+        SurfModel%Info(iSpec)%MeanProbAdsCount = SurfModel%Info(iSpec)%MeanProbAdsCount + 1
       END DO
     END DO
   END DO
@@ -299,7 +295,6 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 #if (PP_TimeDiscMethod==42)
 USE MOD_TimeDisc_Vars          ,ONLY: iter
-USE MOD_DSMC_Vars              ,ONLY: DSMC
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -345,12 +340,6 @@ DO SurfSide=1,SurfMesh%nBCSides + SurfMesh%nInnerSides
           ELSE
             Adsorption%ProbDes(p,q,SurfSide,iSpec) = 0.0
           END IF
-#if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            SurfModel%Info(iSpec)%MeanProbDes = SurfModel%Info(iSpec)%MeanProbDes &
-                                                     + Adsorption%ProbDes(p,q,SurfSide,iSpec)
-          END IF
-#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
         CASE (2) ! Recombination Model described by Fasoulas/Laux
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -379,6 +368,8 @@ DO SurfSide=1,SurfMesh%nBCSides + SurfMesh%nInnerSides
 !----------------------------------------------------------------------------------------------------------------------------------!
           Adsorption%ProbDes(p,q,SurfSide,iSpec) = Adsorption%ReactCoeff(PartBoundID,iSpec)
         END SELECT
+        SurfModel%Info(iSpec)%MeanProbDes = SurfModel%Info(iSpec)%MeanProbDes + Adsorption%ProbDes(p,q,SurfSide,iSpec)
+        SurfModel%Info(iSpec)%MeanProbDesCount = SurfModel%Info(iSpec)%MeanProbDesCount + 1
       END DO
     END DO
   END DO

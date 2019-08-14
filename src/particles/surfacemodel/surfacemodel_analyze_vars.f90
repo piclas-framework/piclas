@@ -27,6 +27,8 @@ INTEGER                       :: SurfaceAnalyzeStep                  ! Analyze o
 LOGICAL                       :: CalcCollCounter                     ! Calculate the number of surface collision and number of
                                                                      ! adsorbed particles per species
 LOGICAL                       :: CalcDesCounter                      ! Calculate the number of desorption particle per species
+LOGICAL                       :: CalcAdsProb                         ! Calculate the probability of adsorption per species
+LOGICAL                       :: CalcDesProb                         ! Calculate the probability of desorption per species
 LOGICAL                       :: CalcSurfNumSpec                     ! Calculate the number of simulated particles per species
                                                                      ! on surfaces
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42)

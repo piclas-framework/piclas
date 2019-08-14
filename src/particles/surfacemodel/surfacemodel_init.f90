@@ -278,11 +278,13 @@ DO iSpec = 1,nSpecies
   SurfModel%Info(iSpec)%WallCollCount = 0
   SurfModel%Info(iSpec)%NumOfAds = 0
   SurfModel%Info(iSpec)%NumOfDes = 0
+  SurfModel%Info(iSpec)%MeanProbAds  = 0.
+  SurfModel%Info(iSpec)%MeanProbAdsCount  = 0
+  SurfModel%Info(iSpec)%MeanProbDes  = 0.
+  SurfModel%Info(iSpec)%MeanProbDesCount  = 0
 END DO
 #if (PP_TimeDiscMethod==42)
 DO iSpec = 1,nSpecies
-  SurfModel%Info(iSpec)%MeanProbAds  = 0.
-  SurfModel%Info(iSpec)%MeanProbDes  = 0.
   SurfModel%Info(iSpec)%WallSpecNumCount = 0
   SurfModel%Info(iSpec)%Accomodation = 0
 END DO

@@ -423,6 +423,8 @@ sum_probabilities = 0.
 DO ReactNum = 0,Adsorption%ReactNum
   sum_probabilities = sum_probabilities + ProbAds(ReactNum)
 END DO
+SurfModel%Info(SpecID)%MeanProbAds = SurfModel%Info(SpecID)%MeanProbAds + sum_probabilities
+SurfModel%Info(SpecID)%MeanProbAdsCount = SurfModel%Info(SpecID)%MeanProbAdsCount + 1
 ! initialize adsorption case
 adsorption_case = 1
 AdsorptionEnthalpie = 0.
@@ -468,7 +470,6 @@ IF (sum_probabilities .GT. RanNum) THEN
     IF (DSMC%ReservoirRateStatistic) THEN
       SurfModel%ProperInfo(SpecID)%NumAdsReact(iSampleReact) = &
           SurfModel%ProperInfo(SpecID)%NumAdsReact(iSampleReact) + 1.
-      SurfModel%Info(SpecID)%MeanProbAds = SurfModel%Info(SpecID)%MeanProbAds + 1.
     END IF
     SurfModel%ProperInfo(SpecID)%ProperAdsActE(iSampleReact) = &
         SurfModel%ProperInfo(SpecID)%ProperAdsActE(iSampleReact) + loc_AdsActE(iSampleReact)
@@ -1222,6 +1223,8 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
     DO iReact = 0,Adsorption%ReactNum+Adsorption%nExchReactions
       sum_probabilities = sum_probabilities + ProbDes(iReact)
     END DO
+    SurfModel%Info(SpecID)%MeanProbDes = SurfModel%Info(SpecID)%MeanProbDes + sum_probabilities
+    SurfModel%Info(SpecID)%MeanProbDesCount = SurfModel%Info(SpecID)%MeanProbDesCount + 1
     !-------------------------------------------------------------------------------------------------------------------------------
     ! choose which surface reaction takes place
     !-------------------------------------------------------------------------------------------------------------------------------

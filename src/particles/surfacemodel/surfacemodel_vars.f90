@@ -30,9 +30,11 @@ TYPE tMeanInfo
   INTEGER                                :: WallCollCount           ! counter of wallcollisions
   INTEGER                                :: NumOfAds                ! Number of Adsorptions on surfaces
   INTEGER                                :: NumOfDes                ! Number of Desorptions on surfaces
-#if (PP_TimeDiscMethod==42)
   REAL                                   :: MeanProbAds             ! mean adsorption probability
+  INTEGER                                :: MeanProbAdsCount        ! mean desorption probability
   REAL                                   :: MeanProbDes             ! mean desorption probability
+  INTEGER                                :: MeanProbDesCount        ! mean desorption probability
+#if (PP_TimeDiscMethod==42)
   INTEGER                                :: WallSpecNumCount        ! counter of Particles on Surface
   REAL                                   :: Accomodation            ! Accomodation coeffcient calculated from Hard-Cube-Model
 #endif
