@@ -214,8 +214,9 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nPartBound
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*USE_MPI*/
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModel
 #if ( PP_TimeDiscMethod ==42)
-USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfModel
+USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
 #endif /* DSMC*/
 USE MOD_Particle_Vars             ,ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
@@ -232,9 +233,9 @@ CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter, iPB
 INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
 REAL                :: MeanAdsorptionProb(nSpecies), MeanDesorptionProb(nSpecies)
+INTEGER             :: iSpec
 #if (PP_TimeDiscMethod ==42)
 INTEGER             :: iCase
-INTEGER             :: iSpec
 REAL                :: Accomodation(nSpecies)
 REAL,ALLOCATABLE    :: SurfReactRate(:), AdsorptionReactRate(:)
 REAL,ALLOCATABLE    :: AdsorptionActE(:), ProperAdsorptionActE(:), Adsorptionnu(:), ProperAdsorptionnu(:)

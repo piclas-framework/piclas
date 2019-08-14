@@ -223,10 +223,7 @@ SUBROUTINE CalcAdsorbProb()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
-#if (PP_TimeDiscMethod==42)
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
-#endif
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 #if (PP_TimeDiscMethod==42)
@@ -287,10 +284,7 @@ SUBROUTINE CalcDesorbProb()
 USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
-#if (PP_TimeDiscMethod==42)
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
-#endif
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 #if (PP_TimeDiscMethod==42)
