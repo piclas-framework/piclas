@@ -1428,7 +1428,7 @@ END IF
 IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
 !----  Sampling force at walls
   SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) &
-      + Species(PartSpecies(PartID))%MassIC * (PartState(PartID,4:6) - NewVelo(1:3)) * MacroParticleFactor
+      + Species(PartSpecies(PartID))%MassIC * (PartState(PartID,4:6) - NewVelo(1:3) - WallVelo(1:3)) * MacroParticleFactor
  !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
   IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
     SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) +1
