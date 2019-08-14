@@ -104,7 +104,8 @@ INTEGER                        :: iArgsStart
 LOGICAL                        :: MeshInitFinished, ReadMeshFinished
 ! PartData
 LOGICAL                        :: VisuParticles, PartDataExists
-!==================================================================================================================================
+INTEGER                        :: TimeStampLength
+!===================================================================================================================================
 CALL InitMPI()
 CALL ParseCommandlineArguments()
 !CALL DefineParametersMPI()
@@ -126,6 +127,7 @@ CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which a
                                                    'Default: 2*N. (needed for CalcDiffError)')
 CALL prms%CreateLogicalOption('VisuParticles',  "Visualize particles (velocity, species, internal energy).", '.FALSE.')
 CALL prms%CreateLogicalOption('writePartitionInfo',  "Write information about MPI partitions into a file.",'.FALSE.')
+CALL prms%CreateIntOption(    'TimeStampLength', 'Length of the floating number time stamp', '14')
 CALL DefineParametersIO()
 
 NVisuDefault = .FALSE.
@@ -244,6 +246,13 @@ VisuSource    = GETLOGICAL('VisuSource','.FALSE.')
 VisuParticles    = GETLOGICAL('VisuParticles','.FALSE.')
 ! Initialization of I/O routines
 CALL InitIO()
+! Get length of the floating number time stamp
+TimeStampLength = GETINT('TimeStampLength')
+IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(&
+    __STAMP__&
+    ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
+WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
+WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
 
 ! Measure init duration
 Time=PICLASTIME()
