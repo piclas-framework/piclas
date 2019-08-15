@@ -47,13 +47,13 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
-  USE MOD_DSMC_Vars,              ONLY : DSMC, PairE_vMPF, SpecDSMC
+  USE MOD_DSMC_Vars,              ONLY : DSMC, PairE_vMPF, SpecDSMC, nCollis, ProbVibAvNew
   USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, usevMPF, PartMPF, WriteMacroVolumeValues, VarTimeStep
   USE MOD_DSMC_Relaxation,        ONLY : SetMeanVibQua
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
   USE MOD_Particle_Analyze_Vars,  ONLY : CalcEkin
   USE MOD_DSMC_CollisionProb,     ONLY : DSMC_prob_calc
-  USE MOD_DSMC_Collis,            ONLY : DSMC_perform_collision
+  USE MOD_DSMC_Collis,            ONLY : DSMC_perform_collision, DSMC_calc_var_P_vib
   USE MOD_vmpf_collision,         ONLY : DSMC_vmpf_prob
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
   USE MOD_part_tools,             ONLY : GetParticleWeight
@@ -71,7 +71,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 ! LOCAL VARIABLES
   INTEGER                       :: iPair, iPart1, iPart2, iLoop, iPart, nPart
   INTEGER                       :: cSpec1, cSpec2, iCase , PairNum_Node
-  REAL                          :: Dist1, Dist2, iRan
+  REAL                          :: Dist1, Dist2, iRan, VibProb
   REAL                          :: TempMPFFac, MPFFac
 !===================================================================================================================================
 
@@ -84,9 +84,6 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   IF (CollisMode.EQ.3) THEN
     ChemReac%RecombParticle = 0
     ChemReac%nPairForRec = 0
-  END IF
-
-  IF (CollisMode.EQ.3) THEN
     ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
     DO iPart = 1, PartNum
       ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart)))=ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) &
@@ -105,7 +102,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
     ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
     ! 3. Case: Temperature required for the mean free path with the VHS model
     CALL CalcInstantTransTemp(iPartIndx_Node,PartNum)
-    IF(SelectionProc.EQ.2) CALL CalcGammaVib()
+    IF((SelectionProc.EQ.2).OR.(DSMC%VibRelaxProb.EQ.2.0)) CALL CalcGammaVib()
   END IF
 
   ALLOCATE(Coll_pData(PairNum_Node))
@@ -189,8 +186,16 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
       ELSE
         CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
       END IF
+      ! variable vibrational relaxation probability has to average of all collisions
+      IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+        CALL DSMC_calc_var_P_vib(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2),iPair,VibProb)
+        ProbVibAvNew = ProbVibAvNew + VibProb
+        CALL DSMC_calc_var_P_vib(PartSpecies(Coll_pData(iPair)%iPart_p2),PartSpecies(Coll_pData(iPair)%iPart_p1),iPair,VibProb)
+        ProbVibAvNew = ProbVibAvNew + VibProb
+        nCollis=nCollis+1
+      END IF
       CALL RANDOM_NUMBER(iRan)
-      IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
+      IF (Coll_pData(iPair)%Prob.GE.iRan) THEN
 #if (PP_TimeDiscMethod==42)
         IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN
 #else
@@ -620,12 +625,13 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
-  USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
+  USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, ProbVibAvNew, ProbVibAv, nCollis, alpha
   USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies,PartPosRef
   USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
   USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
   USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
   USE MOD_part_tools,             ONLY : GetParticleWeight
+  USE MOD_TimeDisc_Vars,          ONLY : iter
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -642,6 +648,10 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
+IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+  ProbVibAvNew = 0
+  nCollis = 0
+END IF
 
 IF (nPart.GT.1) THEN
   NULLIFY(TreeNode)
@@ -701,6 +711,15 @@ IF (nPart.GT.1) THEN
   DEALLOCATE(TreeNode%iPartIndx_Node)
   DEALLOCATE(TreeNode)
 END IF !nPart > 0
+
+IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+  IF(nCollis.NE.0) THEN
+    ProbVibAv(iElem) = ProbVibAv(iElem) * alpha**(2.*nCollis) + (1.-alpha**(2.*nCollis))/(2.*nCollis) * ProbVibAvNew
+    ! open(unit=226,file='ProbVibAv.csv',action='write',position='append')
+    !   WRITE(226,*) Iter,',',ProbVibAv(iElem),',',2*nCollis
+    ! CLOSE(Unit=226)
+  END IF
+END IF
 
 END SUBROUTINE DSMC_pairing_octree
 

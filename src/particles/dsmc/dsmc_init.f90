@@ -78,7 +78,7 @@ CALL prms%CreateRealOption(     'Particles-DSMC-RotRelaxProb'&
                                           '0-1: constant\n'//&
                                           '2: variable, Boyd)', '0.2')
 CALL prms%CreateRealOption(     'Particles-DSMC-VibRelaxProb'&
-                                          , 'Define the vibrational relaxation probability upon collision of molecules', '0.02')
+                                          , 'Define the vibrational relaxation probability upon collision of molecules', '0.004')
 CALL prms%CreateRealOption(     'Particles-DSMC-ElecRelaxProb'&
                                           , 'Define the elextronic relaxation probability upon collision of molecules', '0.01')
 CALL prms%CreateRealOption(     'Particles-DSMC-GammaQuant'&
@@ -205,13 +205,17 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CollNumRotInf'  &
 CALL prms%CreateRealOption(     'Part-Species[$]-TempRefRot'  &
                                            ,'Referece temperature for rotational relaxation according to Parker or '//&
                                             'Zhang, ini_2 -> model dependent!', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-MWConst-[$]-[$]'  &
-                                           ,'Millikan-White constant for variable vibrational relaxation probability, ini_2' &
-                                           , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-CollNumVib'  &
-                                           ,'Vibrational collision number according to Boyd, ini_2', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-MWConstA-[$]-[$]'  &
+                                           ,'Millikan-White constant A for variable vibrational relaxation probability, ini_2' &
+                                           ,'0.0',  numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-MWConstB-[$]-[$]'  &
+                                           ,'Millikan-White constant B for variable vibrational relaxation probability, ini_2' &
+                                           ,'0.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Particles-DSMC-alpha'  &
+                                           ,'Relaxation factor of vibration probability for VibRelaxProb = 2' &
+                                           ,'0.99')
 CALL prms%CreateRealOption(     'Part-Species[$]-VibCrossSection'  &
-                                           ,'Vibrational collision cross-section to Boyd, ini_2', numberedmulti=.TRUE.)
+                                           , 'Vibrational collision cross-section to Boyd, ini_2','1.E-19', numberedmulti=.TRUE.)
 ! ----------------------------------------------------------------------------------------------------------------------------------
 CALL prms%CreateRealOption(     'Part-Species[$]-TempVib'  &
                                            ,'Vibrational temperature.', '0.', numberedmulti=.TRUE.)
@@ -381,7 +385,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf , hilf2
-  INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
+  INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, iElem
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
   REAL                  :: BGGasEVib
   INTEGER               :: currentBC, ElemID, iSide, BCSideID, VarNum
@@ -423,7 +427,7 @@ IMPLICIT NONE
 ,'ERROR: Merging of subcells only supported within a 2D/axisymmetric simulation!')
   END IF
   DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb','0.2')
-  DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb','0.02')
+  DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb','0.004')
   DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
   DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
   ALLOCATE(DSMC%veloMinColl(nSpecies))
@@ -676,7 +680,7 @@ __STAMP__&
         END IF
         SpecDSMC(iSpec)%VFD_Phi3_Factor = GETREAL('Part-Species'//TRIM(hilf)//'-VFDPhi3','0.')
         ! Read in species values for rotational relaxation models of Boyd/Zhang if necessary
-        IF(DSMC%RotRelaxProb.GT.1.0) THEN
+        IF(DSMC%RotRelaxProb.GT.1.0.AND.((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20))) THEN
           SpecDSMC(iSpec)%CollNumRotInf = GETREAL('Part-Species'//TRIM(hilf)//'-CollNumRotInf')
           SpecDSMC(iSpec)%TempRefRot    = GETREAL('Part-Species'//TRIM(hilf)//'-TempRefRot')
           IF(SpecDSMC(iSpec)%CollNumRotInf*SpecDSMC(iSpec)%TempRefRot.EQ.0) THEN
@@ -687,23 +691,43 @@ __STAMP__&
         END IF
         ! Read in species values for vibrational relaxation models of Milikan-White if necessary
         IF(DSMC%VibRelaxProb.GT.1.0) THEN
-          ALLOCATE(SpecDSMC(iSpec)%MW_Const(1:nSpecies))
+          ALLOCATE(SpecDSMC(iSpec)%MW_ConstA(1:nSpecies))
+          ALLOCATE(SpecDSMC(iSpec)%MW_ConstB(1:nSpecies))
           DO jSpec = 1, nSpecies
-            WRITE(UNIT=hilf2,FMT='(I0)') jSpec
-            hilf2=TRIM(hilf)//'-'//TRIM(hilf2)
-            SpecDSMC(iSpec)%MW_Const(jSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-MWConst-'//TRIM(hilf2))
+            ! Only molecules or charged molecules
+            IF(((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) &
+                    .OR.((SpecDSMC(jSpec)%InterID.EQ.2).OR.(SpecDSMC(jSpec)%InterID.EQ.20))) THEN
+              WRITE(UNIT=hilf2,FMT='(I0)') jSpec
+              hilf2=TRIM(hilf)//'-'//TRIM(hilf2)
+              SpecDSMC(iSpec)%MW_ConstA(jSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-MWConstA-'//TRIM(hilf2))
+              SpecDSMC(iSpec)%MW_ConstB(jSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-MWConstB-'//TRIM(hilf2))
+
+              IF(SpecDSMC(iSpec)%MW_ConstA(jSpec).EQ.0) THEN
+                CALL Abort(&
+                __STAMP__&
+                ,'Error! MW_ConstA is equal to zero for species:', iSpec)
+              END IF
+             IF(SpecDSMC(iSpec)%MW_ConstB(jSpec).EQ.0) THEN
+                CALL Abort(&
+                __STAMP__&
+                ,'Error! MW_ConstB is equal to zero for species:', iSpec)
+              END IF
+            END IF
           END DO
-          SpecDSMC(iSpec)%CollNumVib     = GETREAL('Part-Species'//TRIM(hilf)//'-CollNumVib')
           SpecDSMC(iSpec)%VibCrossSec    = GETREAL('Part-Species'//TRIM(hilf)//'-VibCrossSection')
-          IF(SpecDSMC(iSpec)%CollNumVib.EQ.0) THEN
+          ! Only molecules or charged molecules
+          IF((SpecDSMC(iSpec)%VibCrossSec.EQ.0).AND.((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20))) THEN
             CALL Abort(&
             __STAMP__&
-            ,'Error! CollNumVib is equal to zero for species:', iSpec)
+            ,'Error! VibCrossSec is equal to zero for species:', iSpec)
           END IF
+          ! open(unit=226,file='ProbVibAv.csv',status='replace',action='write')
+          !   WRITE(226,*) 'Iter,ProbVibAv(iElem),nCollis'
+          ! CLOSE(Unit=226)
         END IF
         ! Setting the values of Rot-/Vib-RelaxProb to a fix value
         SpecDSMC(iSpec)%RotRelaxProb  = DSMC%RotRelaxProb
-        SpecDSMC(iSpec)%VibRelaxProb  = DSMC%VibRelaxProb    !0.02
+        SpecDSMC(iSpec)%VibRelaxProb  = DSMC%VibRelaxProb    !0.004
         SpecDSMC(iSpec)%ElecRelaxProb = DSMC%ElecRelaxProb    !or 0.02 | Bird: somewhere in range 0.01 .. 0.02
         ! multi init stuff
         ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
@@ -1203,19 +1227,43 @@ __STAMP__&
   END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! Calculate vib collision numbers, according to Boyd & Abe
+! Calculate vib collision numbers and characteristic velocity, according to Abe
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF(DSMC%VibRelaxProb.EQ.2) THEN
+    alpha = GETREAL('Particles-DSMC-alpha','0.99')
+    IF ((alpha.LT.0).OR.(alpha.GE.1)) THEN
+      CALL abort(&
+      __STAMP__&
+      ,'ERROR: Particles-DSMC-alpha has to be in the range between 0 and 1')
+    END IF
+    IF(Symmetry2D) THEN
+      CALL abort(&
+      __STAMP__&
+      ,'Variable vibrational relaxation is not implemented with 2D yet')
+    END IF
     DO iSpec = 1, nSpecies
       ALLOCATE(SpecDSMC(iSpec)%CharaVelo(1:nSpecies))
+      ALLOCATE(SpecDSMC(iSpec)%CollNumVib(1:nSpecies))
       DO jSpec = 1, nSpecies
         iCase = CollInf%Coll_Case(iSpec,jSpec)
+        ! Calculation Of CharaVelo (g^*) according to Abe (doi:10.1063/1.868094)
         SpecDSMC(iSpec)%CharaVelo(jSpec) = SQRT(  BoltzmannConst / CollInf%MassRed(iCase) &
-                                                * (2./3.*SpecDSMC(iSpec)%MW_Const(jSpec))**3.)
-        SpecDSMC(iSpec)%CollNumVib = SpecDSMC(iSpec)%CollNumVib * (2.*(2.-SpecDSMC(iSpec)%omegaVHS)*BoltzmannConst &
-                                   * SpecDSMC(iSpec)%TrefVHS / CollInf%MassRed(iCase))**SpecDSMC(iSpec)%omegaVHS
+                                                * (2./3.*SpecDSMC(iSpec)%MW_ConstA(jSpec))**3.)
+        ! Calculation Of CollNumVib (Z_0) according to Abe (doi:10.1063/1.868094)
+        SpecDSMC(iSpec)%CollNumVib(jSpec) = (2.* (SpecDSMC(iSpec)%CharaVelo(jSpec)**2) * EXP(SpecDSMC(iSpec)%MW_ConstB(jSpec)) &
+                                   / (SQRT(3.) * CollInf%MassRed(iCase)) ) &
+                                   * pi/4.*(0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(jSpec)%DrefVHS) )**2 &
+                                   * ( 2.* (2.-SpecDSMC(iSpec)%omegaVHS) * BoltzmannConst * SpecDSMC(iSpec)%TrefVHS &
+                                   / CollInf%MassRed(iCase) ) ** SpecDSMC(iSpec)%omegaVHS
 
-      END DO
+      END DO ! jSpec
+      DEALLOCATE(SpecDSMC(iSpec)%MW_ConstA)
+      DEALLOCATE(SpecDSMC(iSpec)%MW_ConstB)
+    END DO ! iSpec
+    nCollisGlob = 0;
+    ALLOCATE(ProbVibAv(1:NElems))
+    DO iElem = 1, nElems
+      ProbVibAv(iElem) = 0.
     END DO
   END IF
 

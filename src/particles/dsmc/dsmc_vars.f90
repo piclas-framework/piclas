@@ -54,13 +54,18 @@ INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for
 LOGICAL                       :: useDSMC
 REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! (npartmax,1:3) with 2nd index: Evib, Erot, Eel
 
-INTEGER                         :: LD_MultiTemperaturMod   ! Modell choice for MultiTemperature
+INTEGER                       :: LD_MultiTemperaturMod      ! Modell choice for MultiTemperature
                                                               ! 0 = no MultiTemperature Modeling
                                                               ! 1 = LD1 see Paper
                                                               ! 2 = LD2
                                                               ! 3 = LD3
 REAL                          :: CRelaMax                   ! Max relative velocity
 REAL                          :: CRelaAv                    ! Average relative velocity
+REAL                          :: ProbVibAvNew               ! New Average of vibrational relaxation probability, VibRelaxProb = 2
+REAL, ALLOCATABLE             :: ProbVibAv(:)               ! Average of vibrational relaxation probability of the Element 
+                                                            ! (1:nElems), VibRelaxProb = 2
+INTEGER                       :: nCollis                    ! Number of Collisions, VibRelaxProb = 2
+REAL                          :: alpha                      ! Relaxation factor of ProbVib, VibRelaxProb = 2
 
 TYPE tRadialWeighting
   REAL                        :: PartScaleFactor
@@ -139,8 +144,9 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
                                                             ! Zhang, ini_2 -> model dependent!
   REAL                        :: TempRefRot                 ! Referece temperature for rotational relaxation according to Parker or
                                                             ! Zhang, ini_2 -> model dependent!
-  REAL, ALLOCATABLE           :: MW_Const(:)                ! Model Constant 'A' of Milikan-White Model for vibrational relax, ini_2
-  REAL                        :: CollNumVib                 ! vibrational collision number according to Boyd, ini_2
+  REAL, ALLOCATABLE           :: MW_ConstA(:)               ! Model Constant 'A' of Milikan-White Model for vibrational relax, ini_2
+  REAL, ALLOCATABLE           :: MW_ConstB(:)               ! Model Constant 'B' of Milikan-White Model for vibrational relax, ini_2
+  REAL, ALLOCATABLE           :: CollNumVib(:)              ! vibrational collision number
   REAL                        :: VibCrossSec                ! vibrational cross section, ini_2
   REAL, ALLOCATABLE           :: CharaVelo(:)               ! characteristic velocity according to Boyd & Abe, nec for vib
                                                             ! relaxation
