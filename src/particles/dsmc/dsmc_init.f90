@@ -1260,7 +1260,6 @@ __STAMP__&
       DEALLOCATE(SpecDSMC(iSpec)%MW_ConstA)
       DEALLOCATE(SpecDSMC(iSpec)%MW_ConstB)
     END DO ! iSpec
-    nCollisGlob = 0;
     ALLOCATE(ProbVibAv(1:NElems))
     DO iElem = 1, nElems
       ProbVibAv(iElem) = 0.
