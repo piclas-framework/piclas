@@ -213,9 +213,9 @@ CALL prms%CreateIntOption(     'Part-Species[$]-InteractionID' , 'ID for identif
                                                                  '100: Excited Atomic Ion\n'//&
                                                                  '200: Excited Molecule\n'//&
                                                                  '400: Excited Molecular Ion)', '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-VHSReferenceTemp'  &
+CALL prms%CreateRealOption(     'Part-Species[$]-Tref'  &
                                            ,'Reference temperature [°C] for variable hard sphere model.', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-VHSReferenceDiam' &
+CALL prms%CreateRealOption(     'Part-Species[$]-dref' &
                                            ,'Reference diameter for variable hard sphere model.', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-omega'  &
                                            ,'Reference value for exponent omega for variable hard sphere model. The Laux omega'//&
@@ -553,8 +553,8 @@ __STAMP__&
       ! to be solved Übergangslösung, damit Code auch mit alten Inis läuft
       IF(CollInf%aveCollPa) THEN
         WRITE(*,*) "part-spec-dref wird eingelesen"
-        SpecDSMC(iSpec)%Tref     = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
-        SpecDSMC(iSpec)%dref     = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
+        SpecDSMC(iSpec)%Tref     = GETREAL('Part-Species'//TRIM(hilf)//'-Tref','0')
+        SpecDSMC(iSpec)%dref     = GETREAL('Part-Species'//TRIM(hilf)//'-dref','0')
         SpecDSMC(iSpec)%omega    = GETREAL('Part-Species'//TRIM(hilf)//'-omega','0') ! default case HS
         SpecDSMC(iSpec)%alphaVSS = GETREAL('Part-Species'//TRIM(hilf)//'-alphaVSS','1') 
       END IF
