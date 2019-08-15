@@ -483,7 +483,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-OneDTwoStreamTransRatio' &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-vpiDomainType'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Specifying Keyword for virtual Pre-Inserting region\n'//&
+                                  'Specifying Keyword for virtual pre-inserting region\n'//&
                                   'implemented: - perpendicular_extrusion (default)\n'//&
                                   ' - freestream\n'//&
                                   ' - orifice\n'//&
@@ -538,7 +538,7 @@ CALL prms%CreateIntOption(      'Part-Species[$]-ElemTElecFileID'  &
                                 , numberedmulti=.TRUE.)
 
 
-CALL prms%SetSection("Particle Species Ninits")
+CALL prms%SetSection("Particle Species nInits")
 ! if Ninit>0 some variables have to be defined twice
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Init[$]-UseForInit' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -692,7 +692,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-OneDTwoStreamTransRatio
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-vpiDomainType'  &
                                    , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Specifying Keyword for virtual Pre-Inserting region\n'//&
+                                  'Specifying Keyword for virtual pre-inserting region\n'//&
                                   'implemented: - perpendicular_extrusion (default)\n'//&
                                   ' - freestream\n'//&
                                   ' - orifice\n'//&
@@ -785,7 +785,6 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ExcludeRegion[$]-Cylind
                                   'negative value = opposite direction ', '1.', numberedmulti=.TRUE.)
 
 CALL prms%SetSection("Particle Boundaries")
-
 CALL prms%CreateIntOption(      'Part-nBounds'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Number of particle boundaries.', '1')
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
@@ -798,38 +797,8 @@ CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition'  &
                                   '- reflective\n'//&
                                   '- periodic\n'//&
                                   '- simple_anode\n'//&
-                                  '- simple_cathode.\n'//&
-                                 'If condition=open, the following parameters are'//&
-                                  ' used: (Part-Boundary[$]-=PB) PB-Ambient ,PB-AmbientTemp,PB-AmbientMeanPartMass,'//&
-                                  'PB-AmbientVelo,PB-AmbientDens,PB-AmbientDynamicVisc,PB-AmbientThermalCond,PB-Voltage\n'//&
-                                 'If condition=reflective: PB-MomentumACC,PB-WallTemp,PB-TransACC,PB-VibACC,PB-RotACC,'//&
-                                  'PB-WallVelo,Voltage,SpeciesSwaps.If condition=periodic:Part-nPeriodicVectors,'//&
-                                  'Part-PeriodicVector[$]', 'open', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-AmbientCondition'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Use ambient condition (condition "behind" boundary).', '.FALSE.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-AmbientConditionFix'  &
-                                , 'TODO-DEFINE-PARAMETER', '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientTemp'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient temperature ', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientMeanPartMass'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient mean particle mass', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-AmbientVelo'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient velocity', '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientDens'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient density', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientDynamicVisc'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient dynamic viscosity', '1.72326582572253E-5', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientThermalCond'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient thermal conductivity', '2.42948500556027E-2'&
-                                , numberedmulti=.TRUE.)
+                                  '- simple_cathode.\n', 'open', numberedmulti=.TRUE.)
+
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Adaptive'  &
   , 'Define if particle boundary [$] is adaptive [.TRUE.] or not [.FALSE.]', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-AdaptiveType'  &
@@ -910,6 +879,7 @@ CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseForQCrit'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Flag to use Boundary for Q-Criterion', '.TRUE.', numberedmulti=.TRUE.)
 
+CALL prms%SetSection("Auxilary Boundary Conditions")
 CALL prms%CreateIntOption(      'Part-nAuxBCs'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Number of auxillary BCs that are checked during tracing',  '0')
@@ -978,6 +948,33 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-halfangle'  &
                                 , 'TODO-DEFINE-PARAMETER',  '45.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
+
+CALL prms%SetSection("Low Diffusion Ambient Conditions")
+CALL prms%CreateLogicalOption(  'Part-Boundary[$]-AmbientCondition'  &
+                                , 'TODO-DEFINE-PARAMETER'//&
+                                  'Use ambient condition (condition "behind" boundary).', '.FALSE.'&
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Boundary[$]-AmbientConditionFix'  &
+                                , 'TODO-DEFINE-PARAMETER', '.TRUE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientTemp'  &
+                                , 'TODO-DEFINE-PARAMETER'//&
+                                  'Ambient temperature ', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientMeanPartMass'  &
+                                , 'TODO-DEFINE-PARAMETER'//&
+                                  'Ambient mean particle mass', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Boundary[$]-AmbientVelo'  &
+                                , 'TODO-DEFINE-PARAMETER'//&
+                                  'Ambient velocity', '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientDens'  &
+                                , 'TODO-DEFINE-PARAMETER'//&
+                                  'Ambient density', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientDynamicVisc'  &
+                                , 'TODO-DEFINE-PARAMETER'//&
+                                  'Ambient dynamic viscosity', '1.72326582572253E-5', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientThermalCond'  &
+                                , 'TODO-DEFINE-PARAMETER'//&
+                                  'Ambient thermal conductivity', '2.42948500556027E-2'&
+                                , numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticles
 
@@ -1804,18 +1801,18 @@ __STAMP__&
       IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.1) .AND. (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.2) ) &
         CALL abort(&
 __STAMP__&
-        ,' Wrong emission-type for virtual Pre-Inserting region!')
+        ,' Wrong emission-type for virtual pre-inserting region!')
       IF (TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).NE.'maxwell_lpn') &
         CALL abort(&
 __STAMP__&
-        ,' Only maxwell_lpn is implemened as velocity-distribution for virtual Pre-Inserting region!')
+        ,' Only maxwell_lpn is implemened as velocity-distribution for virtual pre-inserting region!')
       IF (Species(iSpec)%Init(iInit)%UseForInit) &
         CALL abort(&
 __STAMP__&
-          ,' virtual Pre-Inserting is not supported for initial ParticleInserting. Use additional Init!')
-      !-- Virtual Pre-Inserting is used correctly !
+          ,' virtual pre-inserting is not supported for initial ParticleInserting. Use additional Init!')
+      !-- Virtual pre-inserting is used correctly !
       Species(iSpec)%Init(iInit)%VirtPreInsert = .TRUE.
-      SWRITE(*,*) "Virtual Pre-Inserting is used for Species, Init ", iSpec, iInit
+      SWRITE(*,*) "Virtual pre-inserting is used for Species, Init ", iSpec, iInit
       IF (Species(iSpec)%Init(iInit)%PartDensity .EQ. 0.) THEN
         SWRITE(*,*) "WARNING: If VPI-BC is open, a backflow might not be compensated"
         SWRITE(*,*) "         (use PartDensity instead of ParticleEmission)!"
@@ -2548,7 +2545,7 @@ END DO ! iSpec = 1, nSpecies
 
 DelayTime = GETREAL('Part-DelayTime','0.')
 
-!-- Read Flag if warnings to be displayed for rejected velocities when virtual Pre-Inserting region (vpi) is used with PartDensity
+!-- Read Flag if warnings to be displayed for rejected velocities when virtual pre-inserting region (vpi) is used with PartDensity
 OutputVpiWarnings = GETLOGICAL('Particles-OutputVpiWarnings','.FALSE.')
 
 !-- AuxBCs
