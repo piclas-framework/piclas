@@ -1279,7 +1279,7 @@ CHARACTER(LEN=255)             :: CoordID
 #if USE_MPI
 INTEGER                        :: sendbuf(1),recvbuf(1)
 #endif
-INTEGER                        :: locnSurfPart,offsetnSurfPart,nSurfPart_glob,masterSurfSides
+INTEGER                        :: locnSurfPart,offsetnSurfPart,nSurfPart_glob
 INTEGER                        :: iSpec, nVar, iPB
 INTEGER                        :: iOffset, UsedSiteMapPos, SideID, PartBoundID
 INTEGER                        :: iSurfSide, isubsurf, jsubsurf, iCoord, nSites, nSitesRemain, iPart, iVar
@@ -1299,8 +1299,7 @@ IF(.NOT.(ANY(PartBound%Reactive))) RETURN
 ! only pocs with real surfaces (not halo) in own proc write out
 #if USE_MPI
 CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
-masterSurfSides = SurfMesh%nBCSides + SurfMesh%nInnerSides
-IF(masterSurfSides.EQ.0) RETURN
+IF(SurfMesh%nMasterSides.EQ.0) RETURN
 #endif /*USE_MPI*/
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
@@ -1317,9 +1316,9 @@ END IF
 #endif
 
 ! write surfacemodel type for every surface into partstate
-ALLOCATE(SurfModelType(masterSurfSides))
+ALLOCATE(SurfModelType(SurfMesh%nMasterSides))
 SurfModelType = 0
-DO iSurfSide = 1,masterSurfSides
+DO iSurfSide = 1,SurfMesh%nMasterSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%Reactive(PartboundID)) THEN
@@ -1333,7 +1332,7 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,commun
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       nGlobalSides   => INT(SurfMesh%nGlobalSides,IK) ,&
-      nSides         => INT(masterSurfSides,IK)       ,&
+      nSides         => INT(SurfMesh%nMasterSides,IK) ,&
       offsetSurfSide => INT(offsetSurfSide,IK) )
   CALL WriteArrayToHDF5(DataSetName=H5_Name , rank=1, &
                         nValGlobal =(/nGlobalSides/) , &
@@ -1369,9 +1368,9 @@ END IF
 #endif
 
 ! rewrite and save arrays for SurfCalcData
-ALLOCATE(SurfCalcData(nVar,nSurfSample,nSurfSample,masterSurfSides,nSpecies))
+ALLOCATE(SurfCalcData(nVar,nSurfSample,nSurfSample,SurfMesh%nMasterSides,nSpecies))
 SurfCalcData = 0.
-DO iSurfSide = 1,masterSurfSides
+DO iSurfSide = 1,SurfMesh%nMasterSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%Reactive(PartboundID)) THEN
@@ -1393,7 +1392,7 @@ WRITE(H5_Name,'(A)') 'SurfCalcData'
 !CALL GatheredWriteArray(FileName,create=.FALSE.,&
 !                        DataSetName=H5_Name, rank=5,&
 !                        nValGlobal=(/nVar,nSurfSample,nSurfSample,SurfMesh%nGlobalSides,nSpecies/),&
-!                        nVal=      (/nVar,nSurfSample,nSurfSample,masterSurfSides      ,nSpecies/),&
+!                        nVal=      (/nVar,nSurfSample,nSurfSample,SurfMesh%nMasterSides,nSpecies/),&
 !                        offset=    (/0   ,0          ,0          ,offsetSurfSide       ,0       /),&
 !                        collective=.TRUE.,  RealArray=SurfCalcData)
 !#else
@@ -1406,9 +1405,9 @@ ASSOCIATE (&
       nVar           => INT(nVar,IK)                  ,&
       nSurfSample    => INT(nSurfSample,IK)           ,&
       nGlobalSides   => INT(SurfMesh%nGlobalSides,IK) ,&
-      nSides         => INT(masterSurfSides,IK)       ,&
+      nSides         => INT(SurfMesh%nMasterSides,IK) ,&
       offsetSurfSide => INT(offsetSurfSide,IK) )
-  CALL WriteArrayToHDF5(DataSetName=H5_Name , rank=5                                                          , &
+  CALL WriteArrayToHDF5(DataSetName=H5_Name , rank=5                                                   , &
                         nValGlobal =(/nVar   , nSurfSample , nSurfSample , nGlobalSides   , nSpecies/) , &
                         nVal       =(/nVar   , nSurfSample , nSurfSample , nSides         , nSpecies/) , &
                         offset     =(/0_IK   , 0_IK        , 0_IK        , offsetSurfSide , 0_IK    /) , &
@@ -1439,7 +1438,7 @@ nSurfPart_glob = 0
 offsetnSurfPart = 0
 
 ! calculate number of adsorbates on each coordination (already on surface) and all sites
-DO iSurfSide = 1,masterSurfSides
+DO iSurfSide = 1,SurfMesh%nMasterSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%Reactive(PartboundID)) THEN
@@ -1472,10 +1471,10 @@ offsetnSurfPart=0
 nSurfPart_glob=locnSurfPart
 #endif
 
-ALLOCATE(SurfPartInt(offsetSurfSide+1:offsetSurfSide+masterSurfSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize))
+ALLOCATE(SurfPartInt(offsetSurfSide+1:offsetSurfSide+SurfMesh%nMasterSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize))
 ALLOCATE(SurfPartData(offsetnSurfPart+1:offsetnSurfPart+locnSurfPart,SurfPartDataSize))
 iOffset = offsetnSurfPart
-DO iSurfSide = 1,masterSurfSides
+DO iSurfSide = 1,SurfMesh%nMasterSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%Reactive(PartboundID)) THEN
@@ -1545,7 +1544,7 @@ CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
 !  CALL GatheredWriteArray(FileName,create=.FALSE.,&
 !                          DataSetName='SurfPartInt', rank=5,&
 !                          nValGlobal=(/SurfMesh%nGlobalSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&
-!                          nVal=      (/masterSurfSides      ,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&
+!                          nVal=      (/SurfMesh%nMasterSides      ,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&
 !                          offset=    (/offsetSurfSide       ,0          ,0          ,0            ,0              /),&
 !                          collective=.TRUE.,IntegerArray=SurfPartInt(:,:,:,:,:))
 !
@@ -1566,7 +1565,7 @@ ASSOCIATE (&
       SurfPartIntSize  => INT(SurfPartIntSize,IK)      ,&
       nSurfSample      => INT(nSurfSample,IK)          ,&
       nGlobalSides     => INT(SurfMesh%nGlobalSides,IK),&
-      nSides           => INT(masterSurfSides,IK)      ,&
+      nSides           => INT(SurfMesh%nMasterSides,IK),&
       offsetSurfSide   => INT(offsetSurfSide,IK)       ,&
       nSurfPart_glob   => INT(nSurfPart_glob,IK)       ,&
       locnSurfPart     => INT(locnSurfPart,IK)         ,&
