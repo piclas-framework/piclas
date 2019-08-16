@@ -287,7 +287,6 @@ USE MOD_Globals                ,ONLY: CROSSNORM,UNITVECTOR
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_Part_Tools             ,ONLY: VELOFROMDISTRIBUTION, CreateParticle
-USE MOD_DSMC_Analyze           ,ONLY: CalcWallSample
 USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Vars          ,ONLY: PartState,Species,PartSpecies
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
@@ -295,7 +294,7 @@ USE MOD_Particle_Vars          ,ONLY: LastPartPos, PEM
 USE MOD_Particle_Analyze       ,ONLY: RemoveParticle
 USE MOD_Mesh_Vars              ,ONLY: BC,NGeo
 USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_Particle_Boundary_Tools,ONLY: PartEnergyToSurface,SurfaceToPartEnergy
+USE MOD_Particle_Boundary_Tools,ONLY: SurfaceToPartEnergyInternal, CalcWallSample, AnalyzeSurfaceCollisions
 USE MOD_Particle_Boundary_Tools,ONLY: TSURUTACONDENSCOEFF, AddPartInfoToSample
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time, dt, RKdtFrac
@@ -603,16 +602,15 @@ CASE(3) ! reactive interaction case
 
   !-----------------------------------------------------------
   ! Treat incident particle
-  oldVelo(1:3) = PartState(PartID,4:6) ! PartState is changed in partenergytosurface
-  ! Sampling the particle energy that is transferred onto the surface
-  CALL PartEnergyToSurface(PartID,SpecID,Transarray,IntArray)
-
+  CALL AddPartInfoToSample(PartID,TransArray,IntArray,'old')
   ! Sample momentum, heatflux and collision counter on surface
-  CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
+  CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap)
+  CALL AnalyzeSurfaceCollisions(PartID,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
 
   IF (ProductSpec(1).LE.0) THEN
     CALL RemoveParticle(PartID,alpha=alpha,crossedBC=Opt_Reflected)
   ELSE
+    oldVelo(1:3) = PartState(PartID,4:6)
     IF(TRIM(velocityDistribution(1)).NE.'') THEN
       ! sample new velocity for reflected particle
       NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(1),SpecID,TempErgy(1))
@@ -674,10 +672,11 @@ CASE(3) ! reactive interaction case
 
     ! set new species of reflected particle
     PartSpecies(PartID) = ProductSpec(1)
-    ! Sampling the energy that is transferred from the surface onto the particle
-    CALL SurfaceToPartEnergy(PartID,ProductSpec(1),WallTemp,Transarray,IntArray)
+    ! Adding the energy that is transferred from the surface onto the internal energies of the particle
+    CALL SurfaceToPartEnergyInternal(PartID,WallTemp)
+    CALL AddPartInfoToSample(PartID,TransArray,IntArray,'new')
     ! Sample momentum, heatflux and collision counter on surface
-    CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
+    CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap,emission_opt=.TRUE.)
   END IF
 
   !-----------------------------------------------------------
@@ -694,9 +693,11 @@ CASE(3) ! reactive interaction case
       PartTrajectory2=UNITVECTOR(NewVelo(1:3))
 
       CALL CreateParticle(ProductSpec(2),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
+      ! Adding the energy that is transferred from the surface onto the internal energies of the particle
+      CALL SurfaceToPartEnergyInternal(PartID,WallTemp)
 
-      CALL AddPartInfoToSample(NewPartID,TransArray,IntArray)
-      CALL CalcWallSample(NewPartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory2,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
+      CALL AddPartInfoToSample(NewPartID,TransArray,IntArray,'new')
+      CALL CalcWallSample(NewPartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap,emission_opt=.TRUE.)
     END DO ! iNewPart = 1, ProductSpecNbr
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------

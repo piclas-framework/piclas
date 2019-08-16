@@ -5021,7 +5021,7 @@ USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, RadialWeighting
 USE MOD_SurfaceModel_Vars      ,ONLY : SurfModel
-USE MOD_DSMC_Analyze           ,ONLY : CalcWallSample
+USE MOD_Particle_Boundary_Tools,ONLY : CalcWallSample
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
 USE MOD_DSMC_Symmetry2D,        ONLY : CalcRadWeightMPF
@@ -6042,8 +6042,7 @@ __STAMP__&
                   IntArray(:) = 0.
                 END IF
                 ! sample values
-                CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray, &
-                    (/0.,0.,0./),0.,.False.,currentBC,emission_opt=.TRUE.)
+                CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray,.False.,emission_opt=.TRUE.)
                 currentSurfFluxPart => currentSurfFluxPart%next
 #if USE_LOADBALANCE
                 CALL LBElemSplitTime(PEM%Element(PartID),tLBStart)

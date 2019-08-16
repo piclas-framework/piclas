@@ -64,7 +64,7 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMCHO_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
 PUBLIC :: CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly, InitHODSMC, WriteDSMCHOToHDF5, CalcGammaVib
-PUBLIC :: CalcInstantTransTemp, CalcWallSample
+PUBLIC :: CalcInstantTransTemp
 !===================================================================================================================================
 
 CONTAINS
@@ -232,120 +232,6 @@ CALL CloseDataFile()
 END SUBROUTINE WriteDSMCToHDF5
 
 
-SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt)
-!===================================================================================================================================
-!> Sample Wall values from Particle collisions
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals                ,ONLY: abort
-USE MOD_Particle_Vars
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, useDSMC
-USE MOD_DSMC_Vars              ,ONLY: CollisMode, DSMC
-USE MOD_Particle_Boundary_Vars ,ONLY: SampWall, CalcSurfCollis, AnalyzeSurfCollis
-USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                 :: PartID,SurfSideID,p,q,locBCID
-REAL,INTENT(IN)                    :: PartTrajectory(1:3), alpha
-REAL,INTENT(IN)                    :: TransArray(1:6) !1-3 trans energies(old,wall,new), 4-6 diff. trans vel. (x,y,z)
-REAL,INTENT(IN)                    :: IntArray(1:6) ! 1-6 internal energies (rot-old,rot-wall,rot-new,vib-old,vib-wall,vib-new)
-LOGICAL,INTENT(IN)                 :: IsSpeciesSwap
-LOGICAL,INTENT(IN),OPTIONAL        :: emission_opt
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-LOGICAL        :: emission_opt_loc
-!===================================================================================================================================
-! return if sampling is not enabled
-IF (.NOT.(&
-         (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)&
-         )) RETURN
-
-!----  Sampling for energy (translation) accommodation at walls
-SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q) &
-                                + TransArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
-SampWall(SurfSideID)%State(2,p,q)= SampWall(SurfSideID)%State(2,p,q) &
-                                + TransArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
-SampWall(SurfSideID)%State(3,p,q)= SampWall(SurfSideID)%State(3,p,q) &
-                                + TransArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor
-
-!----  Sampling force at walls
-SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) &
-    + Species(PartSpecies(PartID))%MassIC * (TransArray(4)) * Species(PartSpecies(PartID))%MacroParticleFactor
-SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) &
-    + Species(PartSpecies(PartID))%MassIC * (TransArray(5)) * Species(PartSpecies(PartID))%MacroParticleFactor
-SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) &
-    + Species(PartSpecies(PartID))%MassIC * (TransArray(6)) * Species(PartSpecies(PartID))%MacroParticleFactor
-
-IF (useDSMC) THEN
-  IF (CollisMode.GT.1) THEN
-    IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.SpecDSMC(PartSpecies(PartID))%InterID.EQ.20) THEN
-      !----  Sampling for internal (rotational) energy accommodation at walls
-      SampWall(SurfSideID)%State(4,p,q) = SampWall(SurfSideID)%State(4,p,q) &
-                                        + IntArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
-      SampWall(SurfSideID)%State(5,p,q) = SampWall(SurfSideID)%State(5,p,q) &
-                                        + IntArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
-      SampWall(SurfSideID)%State(6,p,q) = SampWall(SurfSideID)%State(6,p,q) &
-                                        + IntArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor
-
-      !----  Sampling for internal (vibrational) energy accommodation at walls
-      SampWall(SurfSideID)%State(7,p,q) = SampWall(SurfSideID)%State(7,p,q) &
-                                        + IntArray(4) * Species(PartSpecies(PartID))%MacroParticleFactor
-      SampWall(SurfSideID)%State(8,p,q) = SampWall(SurfSideID)%State(8,p,q) &
-                                        + IntArray(5) * Species(PartSpecies(PartID))%MacroParticleFactor
-      SampWall(SurfSideID)%State(9,p,q) = SampWall(SurfSideID)%State(9,p,q) &
-                                        + IntArray(6) * Species(PartSpecies(PartID))%MacroParticleFactor
-    END IF
-  END IF
-END IF
-
-! if calcwalsample is called with emission_opt (from particle emission eg. evaporation, desorption) than collision counter are not
-! added to sampwall and surfcollis analyzes
-IF (PRESENT(emission_opt)) THEN
-  emission_opt_loc=emission_opt
-ELSE
-  emission_opt_loc=.FALSE.
-END IF
-IF (.NOT.emission_opt_loc) THEN
-  !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
-  IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
-    SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
-    IF (CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
-      AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
-      AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
-      IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
-        CALL abort(&
-        __STAMP__&
-        ,'maxSurfCollisNumber reached!')
-      END IF
-      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
-        = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
-      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
-        = PartState(PartID,4)
-      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
-        = PartState(PartID,5)
-      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
-        = PartState(PartID,6)
-      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
-        = LastPartPos(PartID,1)
-      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
-        = LastPartPos(PartID,2)
-      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
-        = LastPartPos(PartID,3)
-      AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
-        = PartSpecies(PartID)
-      AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) &
-        = locBCID
-    END IF
-  END IF
-END IF
-
-END SUBROUTINE CalcWallSample
-
-
 SUBROUTINE CalcSurfaceValues(during_dt_opt)
 !===================================================================================================================================
 !> Calculates macroscopic surface values from samples
@@ -446,10 +332,10 @@ END IF
 DO iSurfSide=1,SurfMesh%nMasterSides
   DO q=1,nSurfSample
     DO p=1,nSurfSample
-      CounterSum = SUM(SampWall(iSurfSide)%State(13:12+nSpecies,p,q))
+      CounterSum = SUM(SampWall(iSurfSide)%State(SAMPWALL_NVARS+1:SAMPWALL_NVARS+nSpecies,p,q))
       IF(CounterSum.GT.0.0) THEN
         IF(VarTimeStep%UseVariableTimeStep) THEN
-          TimeSampleTemp = TimeSample * SampWall(iSurfSide)%State(12+nSpecies+1,p,q) / CounterSum
+          TimeSampleTemp = TimeSample * SampWall(iSurfSide)%State(SAMPWALL_NVARS+nSpecies+1,p,q) / CounterSum
         ELSE
           TimeSampleTemp = TimeSample
         END IF
@@ -458,23 +344,26 @@ DO iSurfSide=1,SurfMesh%nMasterSides
         CYCLE
       END IF
       ! Force per area in x,y,z-direction
-      MacroSurfaceVal(1:3,p,q,iSurfSide) = SampWall(iSurfSide)%State(10:12,p,q)/(SurfMesh%SurfaceArea(p,q,iSurfSide)*TimeSampleTemp)
+      MacroSurfaceVal(1:3,p,q,iSurfSide) = SampWall(iSurfSide)%State(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q) &
+                                           / (SurfMesh%SurfaceArea(p,q,iSurfSide)*TimeSampleTemp)
       ! Deleting the z-component for 2D/axisymmetric simulations
       IF(Symmetry2D) MacroSurfaceVal(3,p,q,iSurfSide) = 0.
+      MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(SAMPWALL_ETRANSOLD,p,q) &
+                                         +SampWall(iSurfSide)%State(SAMPWALL_EROTOLD  ,p,q) &
+                                         +SampWall(iSurfSide)%State(SAMPWALL_EVIBOLD  ,p,q) &
+                                         -SampWall(iSurfSide)%State(SAMPWALL_ETRANSNEW,p,q) &
+                                         -SampWall(iSurfSide)%State(SAMPWALL_EROTNEW  ,p,q) &
+                                         -SampWall(iSurfSide)%State(SAMPWALL_EVIBNEW  ,p,q)) &
+                                         / (SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSampleTemp)
       nVarCount = 5
       IF (PartBound%Reactive(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(iSurfSide))))) THEN
-        MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
-                                           +SampWall(iSurfSide)%State(4,p,q) &
-                                           +SampWall(iSurfSide)%State(7,p,q) &
-                                           -SampWall(iSurfSide)%State(3,p,q) &
-                                           -SampWall(iSurfSide)%State(6,p,q) &
-                                           -SampWall(iSurfSide)%State(9,p,q) &
-                                           -SampWall(iSurfSide)%SurfModelState(1,p,q)&
-                                           -SampWall(iSurfSide)%SurfModelState(2,p,q)&
-                                           -SampWall(iSurfSide)%SurfModelState(3,p,q)&
-                                           -SampWall(iSurfSide)%SurfModelState(4,p,q)&
-                                           -SampWall(iSurfSide)%SurfModelState(5,p,q))&
-                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSampleTemp)
+        MacroSurfaceVal(4,p,q,iSurfSide) = MacroSurfaceVal(4,p,q,iSurfSide) + &
+                                          (-SampWall(iSurfSide)%SurfModelState(1,p,q)  &
+                                           -SampWall(iSurfSide)%SurfModelState(2,p,q)  &
+                                           -SampWall(iSurfSide)%SurfModelState(3,p,q)  &
+                                           -SampWall(iSurfSide)%SurfModelState(4,p,q)  &
+                                           -SampWall(iSurfSide)%SurfModelState(5,p,q) )&
+                                           / (SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSampleTemp)
         DO iAdsSampl=1, nAdsSamples
           ! Note: the if-statement is required to prevent the output of "-0" in the .h5 file!
           IF(ABS(SampWall(iSurfSide)%SurfModelState(iAdssampl,p,q)).GT.0.0)THEN
@@ -483,14 +372,6 @@ DO iSurfSide=1,SurfMesh%nMasterSides
           END IF ! ABS(SampWall(iSurfSide)%SurfModelState(iAdssampl,p,q)).GT.0.0
         END DO
         nVarCount = nVarCount + nAdsSamples
-      ELSE
-        MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
-                                           +SampWall(iSurfSide)%State(4,p,q) &
-                                           +SampWall(iSurfSide)%State(7,p,q) &
-                                           -SampWall(iSurfSide)%State(3,p,q) &
-                                           -SampWall(iSurfSide)%State(6,p,q) &
-                                           -SampWall(iSurfSide)%State(9,p,q)) &
-                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSampleTemp)
       END IF
       IF(nPorousBC.GT.0) THEN
         DO iPBC=1, nPorousBC
@@ -499,14 +380,15 @@ DO iSurfSide=1,SurfMesh%nMasterSides
         END DO
       END IF
       DO iSpec=1,nSpecies
-        IF (CalcSurfCollis%Output) CounterTotal(iSpec) = CounterTotal(iSpec) + INT(SampWall(iSurfSide)%State(12+iSpec,p,q))
+        IF (CalcSurfCollis%Output) CounterTotal(iSpec)=CounterTotal(iSpec)+INT(SampWall(iSurfSide)%State(SAMPWALL_NVARS+iSpec,p,q))
         IF (CalcSurfCollis%SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
-          MacroSurfaceVal(5,p,q,iSurfSide) = MacroSurfaceVal(5,p,q,iSurfSide) + SampWall(iSurfSide)%State(12+iSpec,p,q)/TimeSample
+          MacroSurfaceVal(5,p,q,iSurfSide) = MacroSurfaceVal(5,p,q,iSurfSide) &
+                                           + SampWall(iSurfSide)%State(SAMPWALL_NVARS+iSpec,p,q)/TimeSample
         END IF
-        MacroSurfaceSpecVal(1,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
+        MacroSurfaceSpecVal(1,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%State(SAMPWALL_NVARS+iSpec,p,q) / TimeSample
         IF (PartBound%Reactive(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(iSurfSide))))) THEN
           ! calculate accomodation coefficient
-          IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
+          IF (SampWall(iSurfSide)%State(SAMPWALL_NVARS+iSpec,p,q).EQ.0) THEN
             MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = 0.
           ELSE
             MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = (SampWall(iSurfSide)%Accomodation(iSpec,p,q) &
