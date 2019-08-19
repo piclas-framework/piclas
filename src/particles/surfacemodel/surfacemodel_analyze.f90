@@ -62,50 +62,30 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Surface Analyze")
 
-CALL prms%CreateIntOption(      'Surface-AnalyzeStep'     , 'Analyze is performed each Nth time step for surfaces','1')
-CALL prms%CreateLogicalOption(  'Surf-CalcCollCounter'    , 'Calculate the number of surface collision and number of '//&
-                                                            'adsorbed particles per species','.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-CalcDesCounter'     , 'Calculate the number of desorption particle per species','.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-CalcAdsProb'        , 'Calculate the number of desorption particle per species','.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-CalcDesProb'        , 'Calculate the number of desorption particle per species','.FALSE.')
+CALL prms%CreateIntOption(      'Surface-AnalyzeStep'   , 'Analyze is performed each Nth time step for surfaces','1')
+CALL prms%CreateLogicalOption(  'Surf-CalcCollCounter'  , 'Analyze the number of surface collision and number of '//&
+                                                          'adsorbed particles per species','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcDesCounter'   , 'Analyze the number of desorbed particles per species','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcAdsProb'      , 'Analyze the mean probabilty for adsorption per species','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcDesProb'      , 'Analyze the mean probablity for desorption per species','.FALSE.')
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
-CALL prms%CreateLogicalOption(  'Surf-CalcNumSpec'        , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate the number of simulated'//&
-                                                            'particles per species on surfaces','.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-CalcCoverage'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate the surface coverages for'//&
-                                                            'each species','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcNumSpec'      , 'Analyze the number of simulated particles per species on surfaces'&
+                                                          ,'.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcCoverage'     , 'Analyze the mean surface coverages for each species','.FALSE.')
 #if (PP_TimeDiscMethod==42)
-CALL prms%CreateLogicalOption(  'Surf-CalcAccomodation'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate the surface accomodation coefficient'&
-                                                          ,'.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-CalcAdsorbRates'    , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calcualte the adsorption probabilities of species'&
-                                                          ,'.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-CalcAdsorbProb'     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate the surface reaction rate per reaction'//&
-                                                            ' (k_r)','.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-CalcAdsorbE'        , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate the surface reaction rate per reaction'//&
-                                                            ' (k_r)','.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-CalcAdsorbnu'        , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate the surface reaction rate per reaction'//&
-                                                            ' (k_r)','.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-CalcSurfRates'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate the surface reaction rate per reaction'//&
-                                                            ' (k_r)','.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-CalcSurfProb'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate the surface reaction rate per reaction'//&
-                                                            ' (k_r)','.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-CalcSurfnu'         , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate the surface reaction rate per reaction'//&
-                                                            ' (k_r)','.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-CalcSurfE'          , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate the surface reaction rate per reaction'//&
-                                                            ' (k_r)','.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-CalcHeatFlux'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate the surface reaction rate per reaction'//&
-                                                            ' (k_r)','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcAccomodation' , 'Analyze the mean surface accomodation coefficient','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcAdsorbRates'  , 'Analyze every refined rate data of gas-surface reactions.\n'//&
+                                                          'Enables flags: CalcAdsorbProb / CalcAdsorbE / CalcAdsorbnu.','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcAdsorbProb'   , 'Analyze eaction probabilities per reaction and species','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcAdsorbE'      , 'Analyze activation barriers per reaction and species.','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcAdsorbnu'     , 'Analyze reaction frequencies (nu_r) per reaction and species','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcSurfRates'    , 'Analyze every refined rate data on the surfaces.\n'//&
+                                                          'Enables flags: CalcSurfProb / CalcSurfE / CalcSurfnu.','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcSurfProb'     , 'Analyze eaction probabilities per reaction and species','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcSurfE'        , 'Analyze activation barriers per reaction and species.','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcSurfnu'       , 'Analyze reaction frequencies (nu_r) per reaction and species','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcHeatFlux'     , 'Analyze the the heat fluxes onto surface and corresponding reaction'//&
+                                                          'counters per reaction and','.FALSE.')
 #endif
 #endif
 
@@ -1353,7 +1333,7 @@ END SUBROUTINE GetSurfRates
 
 SUBROUTINE GetSurfHeatFluxes(HeatFlux,AdsReactCount,DesReactCount)
 !===================================================================================================================================
-!> Calculate heat fluxes on surface resulting from enthalpie of reaction for all species
+!> Calculate heat fluxes on surface resulting from enthalpy of reaction for all species
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
