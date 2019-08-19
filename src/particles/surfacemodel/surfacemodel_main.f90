@@ -329,8 +329,8 @@ INTEGER                          :: ProductSpec(2)   !< 1: product species of in
 INTEGER                          :: ProductSpecNbr   !< number of emitted particles for ProductSpec(1)
 CHARACTER(30)                    :: velocityDistribution(2)   !< specifying keyword for velocity distribution
 REAL                             :: TempErgy(2)               !< temperature, energy or velocity used for velofromdistribution
-REAL                             :: reactionEnthalpie     !< negative: transferred to surface / positive: transferred from surface
-LOGICAL                          :: SampledEnthalpie
+REAL                             :: reactionEnthalpy     !< negative: transferred to surface / positive: transferred from surface
+LOGICAL                          :: SampledEnthalpy
 REAL                             :: PartTrajectory2(1:3)
 INTEGER                          :: NewPartID
 REAL                             :: RanNum
@@ -439,8 +439,8 @@ END IF
 #endif
 
 ReflectionIndex = -1 ! has to be reset in SurfaceModel, otherwise abort() will be called
-reactionEnthalpie = 0.
-SampledEnthalpie = .FALSE.
+reactionEnthalpy = 0.
+SampledEnthalpy = .FALSE.
 ProductSpec(1) = SpecID
 ProductSpec(2) = 0
 ProductSpecNbr = 0
@@ -492,7 +492,7 @@ CASE (2)
       END DO
       ProductSpec(2) = Adsorption%RecombReact(1,RecombReactID,SpecID)
       ProductSpec(1) = Adsorption%RecombReact(2,RecombReactID,SpecID)
-      reactionEnthalpie = - Adsorption%EDissBond(iReact,SpecID) * Adsorption%ReactAccomodation(locBCID,SpecID) * BoltzmannConst
+      reactionEnthalpy = - Adsorption%EDissBond(iReact,SpecID) * Adsorption%ReactAccomodation(locBCID,SpecID) * BoltzmannConst
     END IF
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -501,7 +501,7 @@ CASE (3)
   ReflectionIndex = 1
   Norm_velo = DOT_PRODUCT(PartState(PartID,4:6),n_loc(1:3))
   !Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
-  CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_velo,ReflectionIndex,ProductSpec,reactionEnthalpie)
+  CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_velo,ReflectionIndex,ProductSpec,reactionEnthalpy)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (4)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -564,7 +564,7 @@ CASE(3) ! reactive interaction case
     END IF
   END IF
 #if (PP_TimeDiscMethod==42)
-  SurfModel%ProperInfo(SpecID)%HeatFlux(1) = SurfModel%ProperInfo(SpecID)%HeatFlux(1) + reactionEnthalpie/BoltzmannConst
+  SurfModel%ProperInfo(SpecID)%HeatFlux(1) = SurfModel%ProperInfo(SpecID)%HeatFlux(1) + reactionEnthalpy/BoltzmannConst
 #endif
 
   !-----------------------------------------------------------
@@ -572,32 +572,32 @@ CASE(3) ! reactive interaction case
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
     ! Sample dissociation reaction counter and heatflux
     DO iReact = 1,Adsorption%DissNum
-      IF (SampledEnthalpie) EXIT
+      IF (SampledEnthalpy) EXIT
       IF (Adsorption%DissocReact(1,iReact,SpecID).EQ.ABS(ProductSpec(1)) &
           .AND. Adsorption%DissocReact(2,iReact,SpecID).EQ.ABS(ProductSpec(2)))THEN
         SampWall(SurfSideID)%SurfModelState(4,p,q) = SampWall(SurfSideID)%SurfModelState(4,p,q) &
-                                               + reactionEnthalpie * Species(SpecID)%MacroParticleFactor
+                                               + reactionEnthalpy * Species(SpecID)%MacroParticleFactor
         SampWall(SurfSideID)%SurfModelReactCount(iReact,SpecID,p,q)=SampWall(SurfSideID)%SurfModelReactCount(iReact,SpecID,p,q) + 1
-        SampledEnthalpie = .TRUE.
+        SampledEnthalpy = .TRUE.
       END IF
     END DO
     ! Sample recombination reaction counter and heatflux
     DO iReact = 1,Adsorption%RecombNum
-      IF (SampledEnthalpie) EXIT
+      IF (SampledEnthalpy) EXIT
       IF (Adsorption%RecombReact(2,iReact,SpecID).EQ.ABS(ProductSpec(1)) &
           .AND. Adsorption%RecombReact(1,iReact,SpecID).EQ.ABS(ProductSpec(2)))THEN
         SampWall(SurfSideID)%SurfModelReactCount(Adsorption%DissNum+iReact,SpecID,p,q) = &
             SampWall(SurfSideID)%SurfModelReactCount(Adsorption%DissNum+iReact,SpecID,p,q) + 1
-        !----  Sampling of reactionEnthalpie
-        IF (ALLOCATED(Adsorption%ReactAccomodation)) reactionEnthalpie = &
-              reactionEnthalpie * Adsorption%ReactAccomodation(locBCID,SpecID)
+        !----  Sampling of reactionEnthalpy
+        IF (ALLOCATED(Adsorption%ReactAccomodation)) reactionEnthalpy = &
+              reactionEnthalpy * Adsorption%ReactAccomodation(locBCID,SpecID)
         SampWall(SurfSideID)%SurfModelState(3,p,q) = SampWall(SurfSideID)%SurfModelState(3,p,q) &
-                                               + reactionEnthalpie * Species(SpecID)%MacroParticleFactor
-        SampledEnthalpie = .TRUE.
+                                               + reactionEnthalpy * Species(SpecID)%MacroParticleFactor
+        SampledEnthalpy = .TRUE.
       END IF
     END DO
-    IF (.NOT.SampledEnthalpie) SampWall(SurfSideID)%SurfModelState(5,p,q) = SampWall(SurfSideID)%SurfModelState(5,p,q) &
-                                                                          + ReactionEnthalpie * Species(SpecID)%MacroParticleFactor
+    IF (.NOT.SampledEnthalpy) SampWall(SurfSideID)%SurfModelState(5,p,q) = SampWall(SurfSideID)%SurfModelState(5,p,q) &
+                                                                          + ReactionEnthalpy * Species(SpecID)%MacroParticleFactor
   END IF
 
   !-----------------------------------------------------------

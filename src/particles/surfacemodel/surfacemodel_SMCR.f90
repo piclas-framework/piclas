@@ -32,7 +32,7 @@ PUBLIC :: SMCR_Diffusion
 
 CONTAINS
 
-SUBROUTINE SMCR_PartAdsorb(subsurfxi,subsurfeta,SurfID,PartID,Norm_Velo,adsorption_case,ProductSpec,AdsorptionEnthalpie)
+SUBROUTINE SMCR_PartAdsorb(subsurfxi,subsurfeta,SurfID,PartID,Norm_Velo,adsorption_case,ProductSpec,AdsorptionEnthalpy)
 !===================================================================================================================================
 !> Particle adsorption probability calculation for one impinging particle using a surface replication (SMCR) (surfacemodel = 3)
 !===================================================================================================================================
@@ -56,7 +56,7 @@ INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfID,PartID
 INTEGER,INTENT(OUT)              :: adsorption_case
 INTEGER,INTENT(OUT)              :: ProductSpec(2)      !< ProductSpec(1) new ID of impacting particle (the old one can change)
                                                         !< ProductSpec(2) new ID of created or consumed partner
-REAL   ,INTENT(OUT)              :: AdsorptionEnthalpie
+REAL   ,INTENT(OUT)              :: AdsorptionEnthalpy
 REAL   ,INTENT(IN)               :: Norm_Velo
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
@@ -192,7 +192,7 @@ Adsorption%CollSpecPartNum(subsurfxi,subsurfeta,SurfID,SpecID) = Adsorption%Coll
   IF(RanNum.GE.PartBound%MomentumACC(PartBoundID)) THEN
     ProductSpec(1) = SpecID
     ProductSpec(2) = 0
-    AdsorptionEnthalpie = 0.
+    AdsorptionEnthalpy = 0.
     adsorption_case = 1
     RETURN
   END IF
@@ -203,7 +203,7 @@ Adsorption%CollSpecPartNum(subsurfxi,subsurfeta,SurfID,SpecID) = Adsorption%Coll
 !IF (RanNum.GT.trapping_prob) THEN
 !  ProductSpec(1) = SpecID
 !  ProductSpec(2) = 0
-!  AdsorptionEnthalpie = 0.
+!  AdsorptionEnthalpy = 0.
 !  adsorption_case = 1
 !  RETURN
 !END IF
@@ -427,7 +427,7 @@ SurfModel%Info(SpecID)%MeanProbAds = SurfModel%Info(SpecID)%MeanProbAds + sum_pr
 SurfModel%Info(SpecID)%MeanProbAdsCount = SurfModel%Info(SpecID)%MeanProbAdsCount + 1
 ! initialize adsorption case
 adsorption_case = 1
-AdsorptionEnthalpie = 0.
+AdsorptionEnthalpy = 0.
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! choose which adsorption type takes place
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -448,17 +448,17 @@ IF (sum_probabilities .GT. RanNum) THEN
         DissocReactID = ReactNum
         ProductSpec(1) = -Adsorption%DissocReact(1,DissocReactID,SpecID)
         ProductSpec(2) = -Adsorption%DissocReact(2,DissocReactID,SpecID)
-        ! calculate reaction Enthalpie
+        ! calculate reaction Enthalpy
         D_AB = Adsorption%EDissBond(ReactNum,SpecID)
-        AdsorptionEnthalpie = D_AB * BoltzmannConst
+        AdsorptionEnthalpy = D_AB * BoltzmannConst
       ELSE IF (ReactNum.GT.0 .AND. ReactNum.GT.Adsorption%DissNum) THEN
         ! if ER-reaction set output parameters
         RecombReactID = ReactNum - Adsorption%DissNum
         ProductSpec(1) = Adsorption%RecombReact(2,RecombReactID,SpecID)
         ProductSpec(2) = Adsorption%RecombReact(1,RecombReactID,SpecID)
-        ! calculate adsorption Enthalpie
+        ! calculate adsorption Enthalpy
         D_AB = Adsorption%EDissBond(ReactNum,SpecID)
-        AdsorptionEnthalpie = -D_AB * BoltzmannConst
+        AdsorptionEnthalpy = -D_AB * BoltzmannConst
       END IF
       EXIT
     END IF
@@ -544,7 +544,7 @@ REAL                              :: CharaTemp
 INTEGER , ALLOCATABLE             :: Pos_ReactP(:), Coord_ReactP(:), Pos_Product(:,:), Coord_Product(:,:)
 INTEGER , ALLOCATABLE             :: React_NeighbourID(:,:), NeighbourID(:,:)
 REAL , ALLOCATABLE                :: ProbDes(:),P_react_forward(:),P_react_back(:)
-REAL                              :: AdsorptionEnthalpie
+REAL                              :: AdsorptionEnthalpy
 !variables used for sampling of vibrational energies of reacting/desorbing particles
 !INTEGER                           :: SampleParts, iPart
 !INTEGER                           :: iPolyatMole, iDOF
@@ -1276,7 +1276,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
 
         IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
             .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-        !  ! calculate Enthalpie of desorption and sample
+        !  ! calculate Enthalpy of desorption and sample
         !  Heat_A = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,SpecID,-1,.FALSE.)
         !  Heat_Product1 = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,Adsorption%DissocReact(1,iDissocReact,SpecID),-1,.FALSE.)
         !  Heat_Product2 = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,Adsorption%DissocReact(2,iDissocReact,SpecID),-1,.FALSE.)
@@ -1284,23 +1284,23 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
           Heat_Product1 = 0.0
           Heat_Product2 = 0.0
           D_A = Adsorption%EDissBond(iReact,SpecID)
-          AdsorptionEnthalpie = ((( Heat_A -Heat_Product1 -Heat_Product2 ) + D_A) * BoltzmannConst &
+          AdsorptionEnthalpy = ((( Heat_A -Heat_Product1 -Heat_Product2 ) + D_A) * BoltzmannConst &
                           / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
                           * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
                           * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(SpecID)%MacroParticleFactor
           !----  Sampling of energies
           SampWall(iSurf)%SurfModelState(2,iSubSurf,jSubSurf) = SampWall(iSurf)%SurfModelState(2,iSubSurf,jSubSurf) &
-                                                                + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor
+                                                                + AdsorptionEnthalpy * Species(SpecID)%MacroParticleFactor
           NumSurfReact(SpecID,iReact) = NumSurfReact(SpecID,iReact) + 1
         END IF
 #if (PP_TimeDiscMethod==42)
         D_A = Adsorption%EDissBond(iReact,SpecID)
-        AdsorptionEnthalpie = ((( Heat_A -Heat_Product1 -Heat_Product2 ) + D_A) * BoltzmannConst &
+        AdsorptionEnthalpy = ((( Heat_A -Heat_Product1 -Heat_Product2 ) + D_A) * BoltzmannConst &
                         / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
                         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
                         * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(SpecID)%MacroParticleFactor
         SurfModel%ProperInfo(SpecID)%HeatFlux(2) = SurfModel%ProperInfo(SpecID)%HeatFlux(2) &
-            + AdsorptionEnthalpie/BoltzmannConst
+            + AdsorptionEnthalpy/BoltzmannConst
         iSampleReact = iReact + 1
         SurfModel%ProperInfo(SpecID)%HeatFluxDesCount(iSampleReact) = &
             SurfModel%ProperInfo(SpecID)%HeatFluxDesCount(iSampleReact) &
@@ -1370,7 +1370,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
         reactdesorbnum(SpecID) = reactdesorbnum(SpecID) - 1
         IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
             .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-        !  ! calculate Enthalpie of desorption and sample
+        !  ! calculate Enthalpy of desorption and sample
         !  Heat_A = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,SpecID,-1,.FALSE.)
         !  Heat_B = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,Prod_Spec1,-1,.FALSE.)
         !  Heat_AB = 0.
@@ -1378,23 +1378,23 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
           Heat_B = 0.
           Heat_AB = 0.
           D_AB = Adsorption%EDissBond(iReact,SpecID)
-          AdsorptionEnthalpie = (-(( Heat_AB -Heat_A -Heat_B ) + D_AB) * BoltzmannConst &
+          AdsorptionEnthalpy = (-(( Heat_AB -Heat_A -Heat_B ) + D_AB) * BoltzmannConst &
                           / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
                           * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
                           * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(SpecID)%MacroParticleFactor
           !----  Sampling of energies
           SampWall(iSurf)%SurfModelState(1,iSubSurf,jSubSurf) = SampWall(iSurf)%SurfModelState(1,iSubSurf,jSubSurf) &
-                                                                + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor
+                                                                + AdsorptionEnthalpy * Species(SpecID)%MacroParticleFactor
           NumSurfReact(SpecID,iReact) = NumSurfReact(SpecID,iReact) + 1
         END IF
 #if (PP_TimeDiscMethod==42)
         D_AB = Adsorption%EDissBond(iReact,SpecID)
-        AdsorptionEnthalpie = (-(( Heat_AB -Heat_A -Heat_B ) + D_AB) * BoltzmannConst &
+        AdsorptionEnthalpy = (-(( Heat_AB -Heat_A -Heat_B ) + D_AB) * BoltzmannConst &
                         / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
                         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
                         * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(SpecID)%MacroParticleFactor
         SurfModel%ProperInfo(SpecID)%HeatFlux(2) = SurfModel%ProperInfo(SpecID)%HeatFlux(2) &
-            + AdsorptionEnthalpie/BoltzmannConst
+            + AdsorptionEnthalpy/BoltzmannConst
         iSampleReact = iReact + 1
         SurfModel%ProperInfo(SpecID)%HeatFluxDesCount(iSampleReact) = &
             SurfModel%ProperInfo(SpecID)%HeatFluxDesCount(iSampleReact) &
@@ -1444,7 +1444,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
         END IF
         IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
             .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-        !  ! calculate Enthalpie of reaction and sample
+        !  ! calculate Enthalpy of reaction and sample
         !  Heat_A = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,Adsorption%ChemReactant(1,ExchNum),-1,.FALSE.)
         !  Heat_ReactP = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,Adsorption%ChemReactant(2,ExchNum),-1,.FALSE.)
         !  Heat_Product1 = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,Adsorption%ChemProduct(1,ExchNum),-1,.FALSE.)
@@ -1457,15 +1457,15 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
           D_ReactP = Adsorption%Reactant_DissBond_K(2,ExchNum)
           D_Product1 = Adsorption%Product_DissBond_K(1,ExchNum)
           D_Product2 = Adsorption%Product_DissBond_K(2,ExchNum)
-          AdsorptionEnthalpie = (-(( Heat_A +Heat_ReactP -Heat_Product1 -Heat_Product2 ) &
+          AdsorptionEnthalpy = (-(( Heat_A +Heat_ReactP -Heat_Product1 -Heat_Product2 ) &
                           + (D_A +D_ReactP -D_Product1 -D_Product2)) * BoltzmannConst &
                           / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
                           * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
                           * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(SpecID)%MacroParticleFactor
-          IF (ReactDirForward) AdsorptionEnthalpie = -AdsorptionEnthalpie
+          IF (ReactDirForward) AdsorptionEnthalpy = -AdsorptionEnthalpy
           !----  Sampling of energies
           SampWall(iSurf)%SurfModelState(1,iSubSurf,jSubSurf) = SampWall(iSurf)%SurfModelState(1,iSubSurf,jSubSurf) &
-                                                                + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor
+                                                                + AdsorptionEnthalpy * Species(SpecID)%MacroParticleFactor
         END IF
         ! remove first adsorbate and update map
         CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,Coord,Surfpos,SpecID,.TRUE.,relaxation=.TRUE.)

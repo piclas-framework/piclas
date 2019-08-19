@@ -71,15 +71,15 @@ CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-ReactionAccomodati
   , 'Define energy accomodation coefficient.\n'//&
     'Describes the percentage of reaction enthalpy of surface reaction transmitted to surface.','1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-EDissBond', 'Bond dissociation energy (K) needed for calculation of'//&
-                                           'adsorption enthalpie in bond order methodology' &
+                                           'adsorption enthalpy in bond order methodology' &
                                          , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-EDissBondPoly1'&
                                          , 'Dissociation energy (K) of first bond needed for calculation of'//&
-                                           'adsorption enthalpie in bond order methodology for Poly atomic species' &
+                                           'adsorption enthalpy in bond order methodology for Poly atomic species' &
                                          , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-EDissBondPoly2'&
                                          , 'Dissociation energy (K) of second bond needed for calculation of'//&
-                                           'adsorption enthalpie in bond order methodology for Poly atomic species' &
+                                           'adsorption enthalpy in bond order methodology for Poly atomic species' &
                                          , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Surface-Adsorption-CalcTST'&
                                           , 'Define, which rate coefficient for adsorption are used:\n'//&
