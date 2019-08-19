@@ -45,24 +45,34 @@ INTERFACE GetDataSize
   MODULE PROCEDURE GetDataSize
 END INTERFACE
 
+INTERFACE GetAttributeSize
+  MODULE PROCEDURE GetAttributeSize
+END INTERFACE
+
 INTERFACE GetDataProps
   MODULE PROCEDURE GetDataProps
 END INTERFACE
 
+! no interface because one argument is size of another argument-array -> nVal, Array(nVal)
 !INTERFACE ReadArray
-!  MODULE PROCEDURE ReadArrayFromHDF5
+!  MODULE PROCEDURE ReadArray
 !END INTERFACE
 
 INTERFACE ReadAttribute
   MODULE PROCEDURE ReadAttribute
 END INTERFACE
 
-PUBLIC :: ISVALIDHDF5FILE,ISVALIDMESHFILE,GetDataProps,GetHDF5NextFileName
+INTERFACE GetVarnames
+  MODULE PROCEDURE GetVarnames
+END INTERFACE
+
+PUBLIC :: ISVALIDHDF5FILE,ISVALIDMESHFILE,GetDataProps,GetAttributeSize,GetHDF5NextFileName
 PUBLIC :: ReadArray,ReadAttribute
 PUBLIC :: File_ID,HSize,nDims        ! Variables that need to be public
 PUBLIC :: OpenDataFile,CloseDataFile ! Subroutines that need to be public
 PUBLIC :: DatasetExists
 PUBLIC :: GetDataSize
+PUBLIC :: GetVarnames
 PUBLIC :: GetArrayAndName
 !===================================================================================================================================
 
@@ -253,6 +263,38 @@ END SUBROUTINE GetDataSize
 
 
 !==================================================================================================================================
+!> Subroutine to determine HDF5 size of attribute
+!==================================================================================================================================
+SUBROUTINE GetAttributeSize(Loc_ID,AttribName,nDims,Size)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*)                     :: AttribName !< name if attribute to be checked
+INTEGER(HID_T),INTENT(IN)            :: Loc_ID   !< ID of dataset
+INTEGER,INTENT(OUT)                  :: nDims    !< found data size dimensions
+INTEGER(HSIZE_T),POINTER,INTENT(OUT) :: Size(:)  !< found data size
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER(HID_T)                       :: Attr_ID,FileSpace
+INTEGER(HSIZE_T), POINTER            :: SizeMax(:)
+!==================================================================================================================================
+! Open the dataset with default properties.
+CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
+! Get the data space of the dataset.
+CALL H5AGET_SPACE_F(Attr_ID, FileSpace, iError)
+! Get number of dimensions of data space
+CALL H5SGET_SIMPLE_EXTENT_NDIMS_F(FileSpace, nDims, iError)
+! Get size and max size of data space
+ALLOCATE(Size(nDims),SizeMax(nDims))
+CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, Size, SizeMax, iError)
+CALL H5SCLOSE_F(FileSpace, iError)
+CALL H5ACLOSE_F(Attr_ID, iError)
+DEALLOCATE(SizeMax)
+END SUBROUTINE GetAttributeSize
+
+
+!==================================================================================================================================
 !> @brief Subroutine to check whether a dataset in the HDF5 file exists
 !>
 !> We have no "h5dexists_f", so we use the error given by h5dopen_f.
@@ -361,6 +403,30 @@ CALL PrintOption('Number of Elements','HDF5',IntOpt=nElems_HDF5) ! 'HDF5.'
 SWRITE(UNIT_stdOut,'(A)')' DONE!'
 SWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE GetDataProps
+
+SUBROUTINE GetVarnames(AttribName,VarNames,AttribExists)
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)                :: AttribName
+CHARACTER(LEN=255),ALLOCATABLE,INTENT(OUT) :: VarNames(:)
+LOGICAL,INTENT(OUT)                        :: AttribExists
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER  :: dims, nVal
+!===================================================================================================================================
+SDEALLOCATE(VarNames)
+CALL DatasetExists(File_ID,AttribName,AttribExists,attrib=.TRUE.)
+IF (AttribExists) THEN
+  ! get size of array
+  CALL GetAttributeSize(File_ID,AttribName,dims,HSize)
+  nVal=INT(HSize(1))
+  DEALLOCATE(HSize)
+  ALLOCATE(VarNames(nVal))
+
+  ! read variable names
+  CALL ReadAttribute(File_ID,TRIM(AttribName),nVal,StrArray=VarNames)
+END IF
+END SUBROUTINE GetVarnames
 
 !===================================================================================================================================
 !> High level wrapper to ReadArray and ReadAttrib. Check if array exists and directly

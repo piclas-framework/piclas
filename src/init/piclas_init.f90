@@ -176,7 +176,7 @@ ELSE
 END IF
 #endif
 
-CALL InitMesh()
+CALL InitMesh(2)
 #if USE_MPI
 CALL InitMPIVars()
 #endif /*USE_MPI*/

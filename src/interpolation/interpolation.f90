@@ -103,7 +103,7 @@ CALL prms%CreateIntOption('N'    , "Polynomial degree of computation to represen
 END SUBROUTINE DefineParametersInterpolation
 
 
-SUBROUTINE InitInterpolation()
+SUBROUTINE InitInterpolation(NIn)
 !============================================================================================================================
 ! Initialize basis for Gauss-points of order N.
 ! Prepares Differentiation matrices D, D_Hat, Basis at the boundaries L(1), L(-1), L_Hat(1), L_Hat(-1)
@@ -118,23 +118,39 @@ USE MOD_ReadInTools,ONLY:GETINT
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
 !input parameters
+INTEGER,INTENT(IN),OPTIONAL :: NIn  !< optional polynomial degree
 !----------------------------------------------------------------------------------------------------------------------------
 !output parameters
 !----------------------------------------------------------------------------------------------------------------------------
 !local variables
 !============================================================================================================================
 IF (InterpolationInitIsDone) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'InitInterpolation already called.',999,999.)
+  CALL CollectiveStop(__STAMP__,&
+    'InitInterpolation already called.')
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT INTERPOLATION...'
 
 ! Access ini-file
 #if PP_N == N
-PP_N=GETINT('N','2')   ! N could be set by readin_HDF5 routine -> postproctool
+IF(PRESENT(Nin))THEN
+  PP_N = NIn
+ELSE
+  PP_N = GETINT('N')
+END IF
+#else
+IF(PRESENT(Nin))THEN
+  Ntmp = NIn
+ELSE
+  Ntmp=PP_N
+  IF(CountOption('N').EQ.1) Ntmp=GETINT('N')
+END IF
+IF(PP_N.NE.Ntmp) THEN
+  CALL CollectiveStop(__STAMP__,&
+  'N in ini-file is different from hard-compiled N in Flexi. Ini/Compiled:',Ntmp,REAL(PP_N))
+END IF
 #endif
+SWRITE(UNIT_stdOut,'(A)') ' NodeType: '//NodeType
 !CALL InitInterpolationBasis(PP_N, xGP ,wGP, swGP,wBary ,L_Minus ,L_Plus , L_PlusMinus, wGPSurf, Vdm_Leg ,sVdm_Leg)
 CALL InitInterpolationBasis(PP_N, xGP ,wGP, wBary ,L_Minus ,L_Plus , L_PlusMinus &
                            ,swGP=swGP,wGPSurf=wGPSurf)

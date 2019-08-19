@@ -100,7 +100,15 @@ CALL prms%CreateLogicalOption( 'writePartitionInfo',  "Write information about M
 
 END SUBROUTINE DefineParametersMesh
 
-SUBROUTINE InitMesh()
+!==================================================================================================================================
+!> Routine controlling the initialization of the mesh.
+!> - parameter and mesh reading
+!> - domain partitioning
+!> - allocation of mesh arrays
+!> - build mesh mappings to handle volume/surface operations
+!> - compute the mesh metrics
+!==================================================================================================================================
+SUBROUTINE InitMesh(meshMode,MeshFile_IN)
 !===================================================================================================================================
 ! Read Parameter from inputfile
 !===================================================================================================================================
@@ -116,7 +124,7 @@ USE MOD_Mesh_ReadIn            ,ONLY: readMesh
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_Metrics                ,ONLY: CalcMetrics
+USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics
 USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,CalcMeshInfo
 USE MOD_Mappings               ,ONLY: InitMappings
 #ifdef PARTICLES
@@ -140,7 +148,9 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(IN) :: meshMode !< 0: only read and build Elem_xGP,
+                               !< 1: as 0 + build connectivity, 2: as 1 + calc metrics
+CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: MeshFile_IN !< file name of mesh to be read
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -188,7 +198,11 @@ IF(DoSwapMesh)THEN
 END IF
 
 ! prepare pointer structure (get nElems, etc.)
-MeshFile = GETSTR('MeshFile')
+IF (PRESENT(MeshFile_IN)) THEN
+  MeshFile = MeshFile_IN
+ELSE
+  MeshFile = GETSTR('MeshFile')
+END IF
 validMesh = ISVALIDMESHFILE(MeshFile)
 IF(.NOT.validMesh) &
     CALL CollectiveStop(__STAMP__,'ERROR - Mesh file not a valid HDF5 mesh.')
@@ -223,74 +237,6 @@ CALL ReadMesh(MeshFile) !set nElems
 !schmutz fink
 PP_nElems=nElems
 
-SWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
-CALL setLocalSideIDs()
-
-#if USE_MPI
-! for MPI, we need to exchange flips, so that MINE MPISides have flip>0, YOUR MpiSides flip=0
-SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
-CALL exchangeFlip()
-#endif
-
-! Set the side ranges here (because by now nMortarInnerSides, nMPISides_MINE and nMPISides_YOUR have been determined)
-! and calculate nGlobalUniqueSides (also required are nBCSides and nInnerSides, which have been determined in ReadMesh())
-! Requires:
-!   nBCSides          is set in ReadMesh()
-!   nMortarInnerSides is set in setLocalSideIDs()
-!   nInnerSides       is set in ReadMesh()
-!   nMPISides_MINE    is set in setLocalSideIDs()
-!   nMPISides_YOUR    is set in setLocalSideIDs()
-CALL setSideRanges()
-
-! fill ElemToSide, SideToElem,BC
-ALLOCATE(ElemToSide(2,6,nElems))
-ALLOCATE(SideToElem(5,nSides))
-ALLOCATE(BC(1:nSides))
-ALLOCATE(AnalyzeSide(1:nSides))
-ElemToSide  = 0
-SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
-BC          = 0
-AnalyzeSide = 0
-
-!NOTE: nMortarSides=nMortarInnerSides+nMortarMPISides
-ALLOCATE(MortarType(2,1:nSides))              ! 1: Type, 2: Index in MortarInfo
-ALLOCATE(MortarInfo(MI_FLIP,4,nMortarSides)) ! [1]: 1: Neighbour sides, 2: Flip, [2]: small sides
-ALLOCATE(MortarSlave2MasterInfo(1:nSides))
-MortarType=-1
-MortarInfo=-1
-
-SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
-CALL fillMeshInfo()
-
-#ifdef PARTICLES
-! save geometry information for particle tracking
-CALL InitParticleMesh()
-IF (TriaTracking) THEN
-  CALL InitParticleGeometry()
-END IF
-#endif
-
-! dealloacte pointers
-SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
-CALL deleteMeshPointer()
-
-! build necessary mappings
-CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
-                       SideToVolA,SideToVol2A,CGNS_SideToVol2A,FS2M)
-
-! if trees are available: compute metrics on tree level and interpolate to elements
-interpolateFromTree=.FALSE.
-IF(isMortarMesh) interpolateFromTree=GETLOGICAL('interpolateFromTree','.TRUE.')
-IF(interpolateFromTree)THEN
-  coords=>TreeCoords
-  NGeo=NGeoTree
-  nElemsLoc=nTrees
-ELSE
-  coords=>NodeCoords
-  nElemsLoc=nElems
-ENDIF
-
-! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
 ! scale and deform mesh if desired (warning: no mesh output!)
 meshScale=GETREAL('meshScale','1.0')
 IF(ABS(meshScale-1.).GT.1e-14)&
@@ -306,87 +252,168 @@ IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
   END DO
 END IF
 
-! allocate type Mesh
-! volume data
 ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
-ALLOCATE(      dXCL_N(3,3,0:PP_N,0:PP_N,0:PP_N,nElems)) ! temp
-ALLOCATE(Metrics_fTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-ALLOCATE(Metrics_gTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-ALLOCATE(Metrics_hTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-ALLOCATE(sJ            (  0:PP_N,0:PP_N,0:PP_N,nElems))
-NGeoRef=3*NGeo ! build jacobian at higher degree
-ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
+IF(interpolateFromTree)THEN
+  CALL BuildCoords(NodeCoords,PP_N,Elem_xGP,TreeCoords)
+ELSE
+  CALL BuildCoords(NodeCoords,PP_N,Elem_xGP)
+ENDIF
 
-! surface data
-ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,             1:nSides)) ! temp
-Face_xGP=0.
-NormVec=0.
-TangVec1=0.
-TangVec2=0.
-SurfElem=0.
+! Return if no connectivity and metrics are required (e.g. for visualization mode)
+IF (meshMode.GT.0) THEN
+  SWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
+  CALL setLocalSideIDs()
+
+#if USE_MPI
+  ! for MPI, we need to exchange flips, so that MINE MPISides have flip>0, YOUR MpiSides flip=0
+  SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
+  CALL exchangeFlip()
+#endif
+
+  ! Set the side ranges here (because by now nMortarInnerSides, nMPISides_MINE and nMPISides_YOUR have been determined)
+  ! and calculate nGlobalUniqueSides (also required are nBCSides and nInnerSides, which have been determined in ReadMesh())
+  ! Requires:
+  !   nBCSides          is set in ReadMesh()
+  !   nMortarInnerSides is set in setLocalSideIDs()
+  !   nInnerSides       is set in ReadMesh()
+  !   nMPISides_MINE    is set in setLocalSideIDs()
+  !   nMPISides_YOUR    is set in setLocalSideIDs()
+  CALL setSideRanges()
+
+  ! fill ElemToSide, SideToElem,BC
+  ALLOCATE(ElemToSide(2,6,nElems))
+  ALLOCATE(SideToElem(5,nSides))
+  ALLOCATE(BC(1:nSides))
+  ALLOCATE(AnalyzeSide(1:nSides))
+  ElemToSide  = 0
+  SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
+  BC          = 0
+  AnalyzeSide = 0
+
+  !NOTE: nMortarSides=nMortarInnerSides+nMortarMPISides
+  ALLOCATE(MortarType(2,1:nSides))              ! 1: Type, 2: Index in MortarInfo
+  ALLOCATE(MortarInfo(MI_FLIP,4,nMortarSides)) ! [1]: 1: Neighbour sides, 2: Flip, [2]: small sides
+  ALLOCATE(MortarSlave2MasterInfo(1:nSides))
+  MortarType=-1
+  MortarInfo=-1
+
+  SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
+  CALL fillMeshInfo()
+
+#ifdef PARTICLES
+  ! save geometry information for particle tracking
+  CALL InitParticleMesh()
+  IF (TriaTracking) THEN
+    CALL InitParticleGeometry()
+  END IF
+#endif
+
+  ! dealloacte pointers
+  SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
+  CALL deleteMeshPointer()
+
+  ! build necessary mappings
+  CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
+                         SideToVolA,SideToVol2A,CGNS_SideToVol2A,FS2M)
+
+  ! if trees are available: compute metrics on tree level and interpolate to elements
+  interpolateFromTree=.FALSE.
+  IF(isMortarMesh) interpolateFromTree=GETLOGICAL('interpolateFromTree','.TRUE.')
+  IF(interpolateFromTree)THEN
+    coords=>TreeCoords
+    NGeo=NGeoTree
+    nElemsLoc=nTrees
+  ELSE
+    coords=>NodeCoords
+    nElemsLoc=nElems
+  ENDIF
+  ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
+END IF
+
+IF (meshMode.GT.1) THEN
+  ! allocate type Mesh
+  ! volume data
+  ALLOCATE(      dXCL_N(3,3,0:PP_N,0:PP_N,0:PP_N,nElems)) ! temp
+  ALLOCATE(Metrics_fTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
+  ALLOCATE(Metrics_gTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
+  ALLOCATE(Metrics_hTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
+  ALLOCATE(sJ            (  0:PP_N,0:PP_N,0:PP_N,nElems))
+  NGeoRef=3*NGeo ! build jacobian at higher degree
+  ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
+
+  ! surface data
+  ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
+  ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides))
+  ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides))
+  ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))
+  ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))
+  ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,             1:nSides)) ! temp
+  Face_xGP=0.
+  NormVec=0.
+  TangVec1=0.
+  TangVec2=0.
+  SurfElem=0.
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
-ALLOCATE(nVecLoc(1:3,0:PP_N,0:PP_N,1:6,PP_nElems))
-ALLOCATE(SurfLoc(0:PP_N,0:PP_N,1:6,PP_nElems))
-nVecLoc=0.
-SurfLoc=0.
+  ALLOCATE(nVecLoc(1:3,0:PP_N,0:PP_N,1:6,PP_nElems))
+  ALLOCATE(SurfLoc(0:PP_N,0:PP_N,1:6,PP_nElems))
+  nVecLoc=0.
+  SurfLoc=0.
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
 
-! PoyntingVecIntegral
-CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral')
+  ! PoyntingVecIntegral
+  CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral')
 
-! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
-! assign 1/detJ (sJ)
-! assign normal and tangential vectors and surfElems on faces
+  ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+  ! assign 1/detJ (sJ)
+  ! assign normal and tangential vectors and surfElems on faces
 #ifdef PARTICLES
-ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) )
-BezierControlPoints3D=0.
+  ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) )
+  BezierControlPoints3D=0.
 
-ALLOCATE(SideSlabNormals(1:3,1:3,1:nSides),SideSlabIntervals(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
-SideSlabNormals=0.
-SideSlabIntervals=0.
-BoundingBoxIsEmpty=.TRUE.
-ALLOCATE(ElemSlabNormals(1:3,0:3,1:nElems),ElemSlabIntervals(1:6,nElems) )
-ElemSlabNormals=0.
-ElemSlabIntervals=0.
+  ALLOCATE(SideSlabNormals(1:3,1:3,1:nSides),SideSlabIntervals(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
+  SideSlabNormals=0.
+  SideSlabIntervals=0.
+  BoundingBoxIsEmpty=.TRUE.
+  ALLOCATE(ElemSlabNormals(1:3,0:3,1:nElems),ElemSlabIntervals(1:6,nElems) )
+  ElemSlabNormals=0.
+  ElemSlabIntervals=0.
 #endif /*PARTICLES*/
 #ifdef CODE_ANALYZE
-ALLOCATE(SideBoundingBoxVolume(1:nSides))
-SideBoundingBoxVolume=0.
+  ALLOCATE(SideBoundingBoxVolume(1:nSides))
+  SideBoundingBoxVolume=0.
 #endif /*CODE_ANALYZE*/
 
-crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
-SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
-CALL InitMeshBasis(NGeo,PP_N,xGP)
+  crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
+  SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
+  CALL InitMeshBasis(NGeo,PP_N,xGP)
 
-! get XCL_NGeo
-ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
-XCL_NGeo = 0.
+  ! get XCL_NGeo
+  ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
+  XCL_NGeo = 0.
 #ifdef PARTICLES
-ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
-dXCL_NGeo = 0.
-CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
+  ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
+  dXCL_NGeo = 0.
+  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 #else
-CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
+  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
 #endif
 
-! compute elem bary and elem radius
-ALLOCATE(ElemBaryNGeo(1:3,1:nElems) )
-CALL BuildElementOrigin()
+  ! compute elem bary and elem radius
+  ALLOCATE(ElemBaryNGeo(1:3,1:nElems) )
+  CALL BuildElementOrigin()
 
-! Initialize element volumes and characteristic lengths
-CALL InitElemVolumes()
+  ! Initialize element volumes and characteristic lengths
+  CALL InitElemVolumes()
+END IF
 
-DEALLOCATE(NodeCoords)
-DEALLOCATE(dXCL_N)
-DEALLOCATE(Ja_Face)
-
+SDEALLOCATE(NodeCoords)
+SDEALLOCATE(dXCL_N)
+SDEALLOCATE(Ja_Face)
+SDEALLOCATE(TreeCoords)
+SDEALLOCATE(xiMinMax)
+SDEALLOCATE(ElemToTree)
 
 IF(CalcMeshInfo)THEN
   CALL AddToElemData(ElementOut,'myRank',IntScalar=myRank)

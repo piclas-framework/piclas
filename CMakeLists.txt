@@ -10,7 +10,7 @@ IF ("${CMAKE_VERSION}" VERSION_GREATER 3.11)
     # From the following TWO settings,  the OLD behavior is deprecated
     # produces a "FATAL_ERROR" if "get_target_property()"is called with a
     # non-existing argument
-    cmake_policy (SET CMP0045 NEW) 
+    cmake_policy (SET CMP0045 NEW)
     # error in non-existing dependencies, NEW report error
     cmake_policy (SET CMP0046 NEW)
 ELSE()
@@ -123,7 +123,7 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                               LD-DSMC)
 
 OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
-OPTION(PICLAS_BUILDPOSTI "Build POSTI toolset" OFF)
+OPTION(PICLAS_BUILD_PARAVIEWREADER "Build the ParaView reader" OFF)
 OPTION(PICLAS_MPI "Compile SINGLE or MPI version" ON)
 CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use LoadBalance timemeasurement" ON "PICLAS_MPI" OFF)
 OPTION(PICLAS_MKL "Use MKL libraries instead of BLAS/LAPACK" OFF)
@@ -361,7 +361,7 @@ FILE(WRITE ${configuration} "")
 GETLISTOFVARSSTARTINGWITH("PICLAS_" piclasVars)
 FOREACH (_var IN LISTS piclasVars)
   GET_PROPERTY(currentHelpString CACHE "${_var}" PROPERTY HELPSTRING)
-  SET(boolian (${${_var}} STREQUAL "ON" OR ${${_var}} STREQUAL "OFF")) 
+  SET(boolian (${${_var}} STREQUAL "ON" OR ${${_var}} STREQUAL "OFF"))
   IF(${boolian})
     FILE(APPEND ${configuration} "OPTION(${_var} \"${currentHelpString}\" ${${_var}})\n")
   ELSE()
@@ -527,7 +527,7 @@ ELSE()
     #  BUILD_COMMAND ${MAKE}
     #)
   ENDIF()
-  
+
   SET(PICLAS_HDF5_CMAKE FALSE)
   SET(HDF5_hdf5_LIBRARY_RELEASE         ${PICLAS_HDF5_DIR}/lib/libhdf5.a)
   SET(HDF5_hdf5_fortran_LIBRARY_RELEASE ${PICLAS_HDF5_DIR}/lib/libhdf5_fortran.a)
@@ -609,20 +609,20 @@ ELSE()
   ADD_DEFINITIONS(-DUSE_LOADBALANCE=0)
 ENDIF()
 
-# ========================================================================= 
-# PAPI library 
-# ========================================================================= 
+# =========================================================================
+# PAPI library
+# =========================================================================
 IF(PICLAS_PAPI)
   FIND_PACKAGE(PAPI REQUIRED)
   ADD_DEFINITIONS(-DPAPI)
   LIST(APPEND linkedlibs ${PAPI_LIBRARIES})
   INCLUDE_DIRECTORIES(${PAPI_INCLUDE_DIRS})
-  MESSAGE(STATUS "Building PICLas with PAPI benchmark support.") 
+  MESSAGE(STATUS "Building PICLas with PAPI benchmark support.")
 ENDIF()
 
-# ========================================================================= 
+# =========================================================================
 # QDS with DGSEM
-# ========================================================================= 
+# =========================================================================
 IF(PICLAS_QDS_DG)
   MESSAGE(STATUS "Building PICLas with QDS-DGSEM")
   ADD_DEFINITIONS(-DUSE_QDS_DG=1)
@@ -637,15 +637,15 @@ ENDIF()
 function(add_exec target)
   ADD_EXECUTABLE(${target} ${ARGN})
   TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o piclaslib userblocklib stacksizelib ${linkedlibs})
-  SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}) 
+  SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS})
   SET_TARGET_PROPERTIES(${target} PROPERTIES LINKER_LANGUAGE Fortran)
   INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target} DESTINATION bin)
   STRING(TOUPPER ${target} TARGETUP)
   ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: ${TARGETUP} BUILD COMPLETE!")
 endfunction()
 
-# include piclas.h 
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src) 
+# include piclas.h
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # collect all F90 files needed for piclaslib
 FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
@@ -717,7 +717,7 @@ ENDIF()
 FILE(GLOB mainF90 ./src/piclas.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
                                ./src/interpolation/eval_xyz.f90)
-FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90 
+FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90
                          ./src/particles/particle_mesh/particle_mesh_vars.f90
                          ./src/particles/particle_vars.f90
@@ -746,12 +746,12 @@ IF (PICLAS_PARTICLES)
    LIST(APPEND piclasF90 ${noparticlesF90})
  ENDIF(PICLAS_PARTICLES)
  IF(PICLAS_QDS_DG)
-  LIST(APPEND piclasF90 ${QDSF90}) 
+  LIST(APPEND piclasF90 ${QDSF90})
 ENDIF()
 
 # define libs
 ADD_LIBRARY(piclaslibF90 OBJECT ${piclasF90} )
-SET_TARGET_PROPERTIES(piclaslibF90 PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}) 
+SET_TARGET_PROPERTIES(piclaslibF90 PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS})
 ADD_LIBRARY(piclaslib STATIC $<TARGET_OBJECTS:piclaslibF90>)
 IF(SELFBUILTEXTERNALS)
   ADD_DEPENDENCIES(piclaslibF90 ${SELFBUILTEXTERNALS})
@@ -790,13 +790,13 @@ add_exec(h5piclas2vtk ./src/h5piclas2vtk.f90)
 ADD_DEPENDENCIES(h5piclas2vtk piclaslib)
 
 # =========================================================================
-# Posti
+# ParaviewReader
 # =========================================================================
-IF(PICLAS_BUILDPOSTI)
-  INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/posti/CMakeLists.txt)
+IF(PICLAS_BUILD_PARAVIEWREADER)
+  INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/src/visu/CMakeLists.txt)
 ELSE()
-  GETLISTOFVARSSTARTINGWITH("POSTI_" postiVars)
-  FOREACH (_var IN LISTS postiVars)
+  GETLISTOFVARSSTARTINGWITH("VISU_" visuVars)
+  FOREACH (_var IN LISTS visuVars)
     UNSET(${_var} CACHE)
   ENDFOREACH()
 ENDIF()
@@ -804,11 +804,11 @@ ENDIF()
 #   # =========================================================================
 #   # RegressionCheck tool && Examples
 #   # =========================================================================
-#   add_exec(regressioncheck ./regressioncheck/regressioncheck.f90 
-#                            ./regressioncheck/regressioncheck_vars.f90 
-#                            ./regressioncheck/regressioncheck_build.f90 
-#                            ./regressioncheck/regressioncheck_compare.f90 
-#                            ./regressioncheck/regressioncheck_run.f90 
+#   add_exec(regressioncheck ./regressioncheck/regressioncheck.f90
+#                            ./regressioncheck/regressioncheck_vars.f90
+#                            ./regressioncheck/regressioncheck_build.f90
+#                            ./regressioncheck/regressioncheck_compare.f90
+#                            ./regressioncheck/regressioncheck_run.f90
 #                            ./regressioncheck/regressioncheck_tools.f90 )
 #   ADD_DEFINITIONS(-DH5DIFF="${HDF5_DIFF_EXECUTABLE}")
 #   SET(PICLAS_REGRESSIONCHECK_EXAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/regressioncheck/examples")
@@ -816,7 +816,7 @@ ENDIF()
 # =========================================================================
 # Userblock
 # =========================================================================
-ADD_CUSTOM_COMMAND(TARGET piclaslib PRE_BUILD COMMAND 
+ADD_CUSTOM_COMMAND(TARGET piclaslib PRE_BUILD COMMAND
   sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CACHEFILE_DIR} "${CMAKE_CACHE_MAJOR_VERSION}.${CMAKE_CACHE_MINOR_VERSION}.${CMAKE_CACHE_PATCH_VERSION}")
 
 # =========================================================================

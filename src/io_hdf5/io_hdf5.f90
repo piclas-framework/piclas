@@ -75,8 +75,13 @@ INTERFACE ClearElemData
   MODULE PROCEDURE ClearElemData
 END INTERFACE
 
+INTERFACE GetDatasetNamesInGroup
+  MODULE PROCEDURE GetDatasetNamesInGroup
+END INTERFACE
+
 PUBLIC::DefineParametersIO,InitIO,OpenDataFile,CloseDataFile
 PUBLIC::AddToElemData
+PUBLIC::GetDatasetNamesInGroup
 
 !===================================================================================================================================
 
@@ -355,5 +360,26 @@ END DO
 NULLIFY(ElementOut)
 
 END SUBROUTINE ClearElemData
+
+!==================================================================================================================================
+!> Takes a group and reads the names of the datasets
+!==================================================================================================================================
+SUBROUTINE GetDatasetNamesInGroup(group,names)
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+CHARACTER(LEN=*)               :: group    !< name of group
+CHARACTER(LEN=255),ALLOCATABLE :: names(:) !< names of datasets
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: nMembers,i,type
+!===================================================================================================================================
+CALL H5GN_MEMBERS_F(File_ID, TRIM(group), nMembers, ierror)
+ALLOCATE(names(nMembers))
+DO i=1,nMembers
+  CALL h5gget_obj_info_idx_f(File_ID, TRIM(group), i-1, names(i), type, ierror)
+  IF (type.NE.H5G_DATASET_F) names(i) = ''
+END DO
+END SUBROUTINE GetDatasetNamesInGroup
+
 
 END MODULE MOD_io_HDF5
