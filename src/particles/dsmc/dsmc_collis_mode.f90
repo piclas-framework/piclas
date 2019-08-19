@@ -2948,7 +2948,7 @@ SUBROUTINE DSMC_calc_P_vib(iSpec, jSpec, Xi_rel, iElem, ProbVib)
 ! MODULES
   USE MOD_Globals            ,ONLY : Abort
   USE MOD_Globals_Vars       ,ONLY : Pi, BoltzmannConst
-  USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, DSMC, CollInf, ProbVibAv
+  USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, DSMC, CollInf, VarVibRelaxProb
   USE MOD_DSMC_Vars          ,ONLY : PolyatomMolDSMC
 
 ! IMPLICIT VARIABLE HANDLING
@@ -2990,7 +2990,7 @@ INTEGER                   :: iPolyatMole, iDOF
     ! Calculation of Prob Vib in function DSMC_calc_var_P_vib. 
     ! This has to average over all collisions according to Boyd (doi:10.1063/1.858495)
     ! The average value of the cell is only taken from the vector
-    ProbVib = ProbVibAv(iElem)
+    ProbVib = VarVibRelaxProb%ProbVibAv(iElem, iSpec)
   ELSE
     CALL Abort(&
     __STAMP__&
@@ -3046,7 +3046,7 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
   ProbVib = ProbVib * TempCorr / (ProbVib + TempCorr) * CorrFact         ! TauVib = TauVibStd + TauTempCorr
   IF(ProbVib.NE.ProbVib) THEN !If is NAN
     ProbVib=0.
-    SWRITE(*,*) 'WARNING: Vibrational relaxation probability is NAN and set to zero. CRela:', CRela
+    SWRITE(*,*) 'WARNING: Vibrational relaxation probability is NAN and is set to zero. CRela:', CRela
     ! CALL Abort(&
     ! __STAMP__&
     ! ,'Error! Vibrational relaxation probability is NAN (CRela);',RealInfoOpt=CRela)!, jSpec, CRela

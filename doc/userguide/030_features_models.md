@@ -619,6 +619,9 @@ $0.004$ is the default. If the value of this variable is between 0 and 1, this v
     Part-Species2-MWConstB-2-1 = -6.92
     Part-Species2-VibCrossSection = 1e-19
 
+It is not possible to calculate an instantanious vibrational relaxation probability with this model [@Boyd1992]. Thus, the probablility is calculated for every colission and summed up. To avoid large errors in cells containing only a few particles, a relaxation of this average probability is implemented. The relaxation factor alpha can be changed with the following parameter in the ini file:
+
+    Particles-DSMC-alpha = 0.99
 
 #### Electronic Relaxation \label{sec:dsmc_electronic_relxation}
 

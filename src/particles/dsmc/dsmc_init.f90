@@ -691,12 +691,11 @@ __STAMP__&
         END IF
         ! Read in species values for vibrational relaxation models of Milikan-White if necessary
         IF(DSMC%VibRelaxProb.GT.1.0) THEN
-          ALLOCATE(SpecDSMC(iSpec)%MW_ConstA(1:nSpecies))
-          ALLOCATE(SpecDSMC(iSpec)%MW_ConstB(1:nSpecies))
-          DO jSpec = 1, nSpecies
-            ! Only molecules or charged molecules
-            IF(((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) &
-                    .OR.((SpecDSMC(jSpec)%InterID.EQ.2).OR.(SpecDSMC(jSpec)%InterID.EQ.20))) THEN
+          ! Only molecules or charged molecules
+          IF(((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20))) THEN
+            ALLOCATE(SpecDSMC(iSpec)%MW_ConstA(1:nSpecies))
+            ALLOCATE(SpecDSMC(iSpec)%MW_ConstB(1:nSpecies))
+            DO jSpec = 1, nSpecies
               WRITE(UNIT=hilf2,FMT='(I0)') jSpec
               hilf2=TRIM(hilf)//'-'//TRIM(hilf2)
               SpecDSMC(iSpec)%MW_ConstA(jSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-MWConstA-'//TRIM(hilf2))
@@ -707,13 +706,13 @@ __STAMP__&
                 __STAMP__&
                 ,'Error! MW_ConstA is equal to zero for species:', iSpec)
               END IF
-             IF(SpecDSMC(iSpec)%MW_ConstB(jSpec).EQ.0) THEN
+              IF(SpecDSMC(iSpec)%MW_ConstB(jSpec).EQ.0) THEN
                 CALL Abort(&
                 __STAMP__&
                 ,'Error! MW_ConstB is equal to zero for species:', iSpec)
               END IF
-            END IF
-          END DO
+            END DO
+          END IF
           SpecDSMC(iSpec)%VibCrossSec    = GETREAL('Part-Species'//TRIM(hilf)//'-VibCrossSection')
           ! Only molecules or charged molecules
           IF((SpecDSMC(iSpec)%VibCrossSec.EQ.0).AND.((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20))) THEN
@@ -1230,8 +1229,8 @@ __STAMP__&
 ! Calculate vib collision numbers and characteristic velocity, according to Abe
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF(DSMC%VibRelaxProb.EQ.2) THEN
-    alpha = GETREAL('Particles-DSMC-alpha','0.99')
-    IF ((alpha.LT.0).OR.(alpha.GE.1)) THEN
+    VarVibRelaxProb%alpha = GETREAL('Particles-DSMC-alpha','0.99')
+    IF ((VarVibRelaxProb%alpha.LT.0).OR.(VarVibRelaxProb%alpha.GE.1)) THEN
       CALL abort(&
       __STAMP__&
       ,'ERROR: Particles-DSMC-alpha has to be in the range between 0 and 1')
@@ -1242,6 +1241,7 @@ __STAMP__&
     !   ,'Variable vibrational relaxation is not implemented with 2D yet')
     ! END IF
     DO iSpec = 1, nSpecies
+      IF(.NOT.((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20))) CYCLE
       ALLOCATE(SpecDSMC(iSpec)%CharaVelo(1:nSpecies))
       ALLOCATE(SpecDSMC(iSpec)%CollNumVib(1:nSpecies))
       DO jSpec = 1, nSpecies
@@ -1260,9 +1260,13 @@ __STAMP__&
       DEALLOCATE(SpecDSMC(iSpec)%MW_ConstA)
       DEALLOCATE(SpecDSMC(iSpec)%MW_ConstB)
     END DO ! iSpec
-    ALLOCATE(ProbVibAv(1:NElems))
+    ALLOCATE(VarVibRelaxProb%ProbVibAv(1:NElems,1:nSpecies))
+    ALLOCATE(VarVibRelaxProb%ProbVibAvNew(1:nSpecies))
+    ALLOCATE(VarVibRelaxProb%nCollis(1:nSpecies))
     DO iElem = 1, nElems
-      ProbVibAv(iElem) = 0.
+      DO iSpec = 1, nSpecies
+        VarVibRelaxProb%ProbVibAv(iElem,iSpec) = 0.
+      END DO
     END DO
   END IF
 

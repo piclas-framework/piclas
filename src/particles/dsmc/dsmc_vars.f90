@@ -61,11 +61,16 @@ INTEGER                       :: LD_MultiTemperaturMod      ! Modell choice for 
                                                               ! 3 = LD3
 REAL                          :: CRelaMax                   ! Max relative velocity
 REAL                          :: CRelaAv                    ! Average relative velocity
-REAL                          :: ProbVibAvNew               ! New Average of vibrational relaxation probability, VibRelaxProb = 2
-REAL, ALLOCATABLE             :: ProbVibAv(:)               ! Average of vibrational relaxation probability of the Element 
+
+TYPE tVarVibRelaxProb
+  REAL, ALLOCATABLE             :: ProbVibAvNew(:)          ! New Average of vibrational relaxation probability, VibRelaxProb = 2
+  REAL, ALLOCATABLE             :: ProbVibAv(:,:)           ! Average of vibrational relaxation probability of the Element 
                                                             ! (1:nElems), VibRelaxProb = 2
-INTEGER                       :: nCollis                    ! Number of Collisions, VibRelaxProb = 2
-REAL                          :: alpha                      ! Relaxation factor of ProbVib, VibRelaxProb = 2
+  INTEGER, ALLOCATABLE          :: nCollis(:)               ! Number of Collisions, VibRelaxProb = 2
+  REAL                          :: alpha                    ! Relaxation factor of ProbVib, VibRelaxProb = 2
+END TYPE tVarVibRelaxProb
+
+TYPE(tVarVibRelaxProb) VarVibRelaxProb
 
 TYPE tRadialWeighting
   REAL                        :: PartScaleFactor
