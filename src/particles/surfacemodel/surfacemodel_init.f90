@@ -1393,9 +1393,6 @@ IF (ALLOCATED(SurfDistInfo)) THEN
 DO iSurfSide=1,SurfMesh%nMasterSides
   DO iSubSurf = 1,nSurfSample
   DO jSubSurf = 1,nSurfSample
-#if USE_MPI
-    SDEALLOCATE(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%Nbr_changed)
-#endif /*USE_MPI*/
     SDEALLOCATE(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites)
     SDEALLOCATE(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain)
     SDEALLOCATE(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SurfAtomBondOrder)

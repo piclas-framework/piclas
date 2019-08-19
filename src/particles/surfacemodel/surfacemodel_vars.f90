@@ -31,9 +31,9 @@ TYPE tMeanInfo
   INTEGER                                :: NumOfAds                ! Number of Adsorptions on surfaces
   INTEGER                                :: NumOfDes                ! Number of Desorptions on surfaces
   REAL                                   :: MeanProbAds             ! mean adsorption probability
-  INTEGER                                :: MeanProbAdsCount        ! mean desorption probability
+  INTEGER                                :: MeanProbAdsCount        ! mean adsorption probability counter
   REAL                                   :: MeanProbDes             ! mean desorption probability
-  INTEGER                                :: MeanProbDesCount        ! mean desorption probability
+  INTEGER                                :: MeanProbDesCount        ! mean desorption probability counter
 #if (PP_TimeDiscMethod==42)
   INTEGER                                :: WallSpecNumCount        ! counter of Particles on Surface
   REAL                                   :: Accomodation            ! Accomodation coeffcient calculated from Hard-Cube-Model
@@ -59,8 +59,8 @@ TYPE tProperInfo
   INTEGER  , ALLOCATABLE                 :: ProperSurfReactCount(:) ! Number of reactive desorptions
   REAL     , ALLOCATABLE                 :: HeatFlux(:)             ! heatflux on surface due to species reacting on surface
                                                                     ! 1: adsorption process ; 2: desorption process
-  REAL     , ALLOCATABLE                 :: HeatFluxDesCount(:)     ! heatflux on surface due to species reacting on surface
-  REAL     , ALLOCATABLE                 :: HeatFluxAdsCount(:)     ! heatflux on surface due to species reacting on adsorption
+  REAL     , ALLOCATABLE                 :: HeatFluxDesCount(:)     ! counter of heatflux on surface due to species reacting on surface
+  REAL     , ALLOCATABLE                 :: HeatFluxAdsCount(:)     ! counter of heatflux on surface due to species reacting on adsorption
 END TYPE
 #endif
 
@@ -148,15 +148,19 @@ TYPE tAdsorption
   INTEGER                                :: NumOfRecombReact        ! sum of all possible recombination reactions on surfaces
   INTEGER                                :: NumOfExchReact          ! sum of all possible exchange reactions on surfaces
   ! TST Factor calculation variables
-  LOGICAL , ALLOCATABLE                  :: TST_Calc(:,:)
-  REAL    , ALLOCATABLE                  :: IncidentNormalVeloAtSurf(:,:,:,:)
-  REAL    , ALLOCATABLE                  :: SurfaceNormalVelo(:,:,:,:)
-  INTEGER , ALLOCATABLE                  :: CollSpecPartNum(:,:,:,:)
+  LOGICAL , ALLOCATABLE                  :: TST_Calc(:,:)           ! flag defining if reaction parameters are 
+                                                                    ! 0: set in ini
+                                                                    ! 1: set in ini and calculated for unset parameters
+                                                                    ! 2: calculated
+  REAL    , ALLOCATABLE                  :: IncidentNormalVeloAtSurf(:,:,:,:) ! Mean normal velocity of incident particles
+  REAL    , ALLOCATABLE                  :: SurfaceNormalVelo(:,:,:,:)  ! sum array of incident velocities
+  INTEGER , ALLOCATABLE                  :: CollSpecPartNum(:,:,:,:) ! counter of collision per subsurface and species
+                                                                     ! used for calculation of mean normal incident velo
 END TYPE
 TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
 
 TYPE tSpeciesSurface
-  REAL                                   :: ParamAntoine(1:3)                ! Parameter for Anointe Eq (vapor pressure)
+  REAL                                   :: ParamAntoine(1:3)       ! Parameter for Anointe Eq (vapor pressure)
   INTEGER                                :: condensCase
   REAL                                   :: liquidTkrit
   REAL                                   :: liquidTmelt
@@ -187,9 +191,6 @@ END TYPE
 
 TYPE tSurfaceDistributionInfo
   ! variables for surface distribution calculation
-#if USE_MPI
-  INTEGER , ALLOCATABLE                  :: Nbr_changed(:)
-#endif /*USE_MPI*/
   INTEGER , ALLOCATABLE                  :: nSites(:)               ! max number of sites for site coordination (1:nCoordination=3)
   INTEGER , ALLOCATABLE                  :: SitesRemain(:)          ! number of empty sites for site coordination(1:nCoordination=3)
   INTEGER , ALLOCATABLE                  :: SurfAtomBondOrder(:,:,:)! bond order of surface atoms ((1:nSpecies,1:nXPos,1:nYPos)
