@@ -359,13 +359,13 @@ INTEGER                          :: iNewPart ! particle counter for newly create
 ! =============================
 ! Workflow:
 !
-!  0.  Initial surface checks:  Check incident velocity vector and surface normal
+!  1.  Initial surface checks:  Check incident velocity vector and surface normal
 !  2.  Select surface model:    Determine what happens at the surface
 !  3.  (New) Particle handling: Perform reflection/removal of incident particle, create (multiple) possible new particles
 !==============================
 
 !===================================================================================================================================
-! 0.) Initial surface checks
+! 1.) Initial surface checks
 ! find normal vector two perpendicular tangential vectors (normal_vector points outwards !!!)
 !===================================================================================================================================
 IF(PRESENT(BCSideID))THEN
@@ -448,7 +448,7 @@ velocityDistribution(1:2)=''
 TempErgy(1:2)=WallTemp
 
 !===================================================================================================================================
-! 1.) Select surface model
+! 2.) Select surface model
 ! Here, the surfacemodel decides how the particle is treated on the surface
 !===================================================================================================================================
 SELECT CASE(PartBound%SurfaceModel(locBCID))
@@ -539,7 +539,7 @@ END SELECT
 
 
 !===================================================================================================================================
-! 2.) (New) Particle handling
+! 3.) (New) Particle handling
 ! Here, the incident particle is reflected/adsorbed and an additional product is emitted/adsorbed
 !===================================================================================================================================
 SELECT CASE(ReflectionIndex)
