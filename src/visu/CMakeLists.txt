@@ -35,11 +35,13 @@ IF (ParaView_FOUND)
    INCLUDE_DIRECTORIES(${TOOL_DIR}/paraviewReader/)
    ADD_PARAVIEW_PLUGIN(visuReader "1.0"
      SERVER_MANAGER_XML     ${TOOL_DIR}/paraviewReader/visuReader.xml
-     SERVER_MANAGER_SOURCES ${TOOL_DIR}/paraviewReader/visuReader.cxx
+     SERVER_MANAGER_SOURCES ${TOOL_DIR}/paraviewReader/visuReader.cpp
      REQUIRED_ON_SERVER
      DEPENDS               "${TOOL_DIR}/paraviewReader/visuReader.h"
      )
 
    ADD_DEPENDENCIES(     visuReader ${TOOL_NAME}lib piclaslib stacksizelib HDF5)
    TARGET_LINK_LIBRARIES(visuReader PUBLIC ${TOOL_NAME}lib piclaslib stacksizelib)
+   #ADD_DEPENDENCIES(     visuReader piclaslib stacksizelib HDF5)
+   #TARGET_LINK_LIBRARIES(visuReader PUBLIC piclaslib stacksizelib)
 ENDIF()
