@@ -636,18 +636,29 @@ ENDIF()
 
 function(add_exec target)
   ADD_EXECUTABLE(${target} ${ARGN})
-  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o piclaslib userblocklib stacksizelib ${linkedlibs})
-  SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS})
-  SET_TARGET_PROPERTIES(${target} PROPERTIES LINKER_LANGUAGE Fortran)
+  TARGET_LINK_LIBRARIES(${target} libpiclasshared)
+  SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}
+                                              LINKER_LANGUAGE Fortran)
   INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target} DESTINATION bin)
   STRING(TOUPPER ${target} TARGETUP)
   ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: ${TARGETUP} BUILD COMPLETE!")
 endfunction()
 
+FUNCTION(add_lib target)
+  ADD_LIBRARY(${target} SHARED ${ARGN})
+  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o libpiclasstatic userblocklib stacksizelib ${linkedlibs})
+  SET_TARGET_PROPERTIES(${target} PROPERTIES PREFIX ""
+                                             COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}
+                                             LINKER_LANGUAGE Fortran)
+  INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target} DESTINATION bin)
+  STRING(TOUPPER ${target} TARGETUP)
+  ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: ${TARGETUP} BUILD COMPLETE!")
+ENDFUNCTION()
+
 # include piclas.h
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-# collect all F90 files needed for piclaslib
+# collect all F90 files needed for libpiclasstatic
 FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
                                 ./src/analyze/*.f90
                                 ./src/filter/*.f90
@@ -714,7 +725,8 @@ ELSE()
                                ./src/precond/jac_ex/maxwell/*.f90)
 ENDIF()
 
-FILE(GLOB mainF90 ./src/piclas.f90)
+FILE(GLOB mainF90 ./src/piclas.f90
+                  ./src/piclaslib.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
                                ./src/interpolation/eval_xyz.f90)
 FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
@@ -750,23 +762,30 @@ IF (PICLAS_PARTICLES)
 ENDIF()
 
 # define libs
-ADD_LIBRARY(piclaslibF90 OBJECT ${piclasF90} )
-SET_TARGET_PROPERTIES(piclaslibF90 PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS})
-ADD_LIBRARY(piclaslib STATIC $<TARGET_OBJECTS:piclaslibF90>)
+ADD_LIBRARY(libpiclasstaticF90 OBJECT ${piclasF90} )
+SET_TARGET_PROPERTIES(libpiclasstaticF90 PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS})
+ADD_LIBRARY(libpiclasstatic STATIC $<TARGET_OBJECTS:libpiclasstaticF90>)
+SET_TARGET_PROPERTIES(libpiclasstatic PROPERTIES PREFIX ""
+                                      OUTPUT_NAME "libpiclasf90")
 IF(SELFBUILTEXTERNALS)
-  ADD_DEPENDENCIES(piclaslibF90 ${SELFBUILTEXTERNALS})
+  ADD_DEPENDENCIES(libpiclasstaticF90 ${SELFBUILTEXTERNALS})
 ENDIF()
 
 ADD_LIBRARY(userblocklib STATIC ./src/output/read_userblock.c)
-SET_TARGET_PROPERTIES(userblocklib PROPERTIES LINKER_LANGUAGE C)
-SET_TARGET_PROPERTIES(userblocklib PROPERTIES COMPILE_FLAGS "-fPIC")
+SET_TARGET_PROPERTIES(userblocklib PROPERTIES LINKER_LANGUAGE C
+                                              COMPILE_FLAGS "-fPIC")
 
 ADD_LIBRARY(stacksizelib STATIC ./src/globals/stacksize.c)
-SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LINKER_LANGUAGE C)
-SET_TARGET_PROPERTIES(stacksizelib PROPERTIES COMPILE_FLAGS "-fPIC")
+SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LINKER_LANGUAGE C
+                                               COMPILE_FLAGS "-fPIC")
 
+
+# we link the statically built libs
+add_lib(libpiclasshared ./src/piclaslib.f90)
+SET_TARGET_PROPERTIES(libpiclasshared PROPERTIES OUTPUT_NAME "libpiclas")
+ADD_DEPENDENCIES(libpiclasshared libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
 add_exec(piclas ./src/piclas.f90)
-ADD_DEPENDENCIES(piclas piclaslib userblocklib stacksizelib ${INTERNALLIBS})
+ADD_DEPENDENCIES(piclas libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
 
 # special compiler flags to avoid warnings for empty functions of testcase.f90 and overwrite of intrinsic abort in globals.f90
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
@@ -787,7 +806,7 @@ ADD_CUSTOM_TARGET(preproc_defines COMMAND echo ${comp_defs_str})
 # Add H5piclas2VTK tool
 # =========================================================================
 add_exec(h5piclas2vtk ./src/h5piclas2vtk.f90)
-ADD_DEPENDENCIES(h5piclas2vtk piclaslib)
+ADD_DEPENDENCIES(h5piclas2vtk libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
 
 # =========================================================================
 # ParaviewReader
@@ -816,7 +835,7 @@ ENDIF()
 # =========================================================================
 # Userblock
 # =========================================================================
-ADD_CUSTOM_COMMAND(TARGET piclaslib PRE_BUILD COMMAND
+ADD_CUSTOM_COMMAND(TARGET libpiclasstatic PRE_BUILD COMMAND
   sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CACHEFILE_DIR} "${CMAKE_CACHE_MAJOR_VERSION}.${CMAKE_CACHE_MINOR_VERSION}.${CMAKE_CACHE_PATCH_VERSION}")
 
 # =========================================================================

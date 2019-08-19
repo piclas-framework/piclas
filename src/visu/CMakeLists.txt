@@ -23,7 +23,7 @@ FILE(GLOB ${TOOL_NAME}F90 ${TOOL_DIR}/CMakeLists.txt
 ADD_LIBRARY(${TOOL_NAME}libF90 OBJECT ${${TOOL_NAME}F90})
 SET_TARGET_PROPERTIES(${TOOL_NAME}libF90 PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS})
 ADD_LIBRARY(${TOOL_NAME}lib STATIC $<TARGET_OBJECTS:${TOOL_NAME}libF90>)
-#ADD_DEPENDENCIES(${TOOL_NAME}libF90 piclaslibF90 HDF5)
+ADD_DEPENDENCIES(${TOOL_NAME}libF90 libpiclasshared)
 
 # Posti visu plugin for Paraview
 FIND_PACKAGE(ParaView)
@@ -40,8 +40,6 @@ IF (ParaView_FOUND)
      DEPENDS               "${TOOL_DIR}/paraviewReader/visuReader.h"
      )
 
-   ADD_DEPENDENCIES(     visuReader ${TOOL_NAME}lib piclaslib stacksizelib HDF5)
-   TARGET_LINK_LIBRARIES(visuReader PUBLIC ${TOOL_NAME}lib piclaslib stacksizelib)
-   #ADD_DEPENDENCIES(     visuReader piclaslib stacksizelib HDF5)
-   #TARGET_LINK_LIBRARIES(visuReader PUBLIC piclaslib stacksizelib)
+   ADD_DEPENDENCIES(     visuReader ${TOOL_NAME}lib libpiclasshared)
+   TARGET_LINK_LIBRARIES(visuReader PUBLIC ${TOOL_NAME}lib libpiclasshared)
 ENDIF()

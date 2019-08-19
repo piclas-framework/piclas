@@ -153,6 +153,10 @@ INTERFACE PrintOption
   MODULE PROCEDURE PrintOption
 END INTERFACE
 
+INTERFACE FinalizeParameters
+  MODULE PROCEDURE FinalizeParameters
+END INTERFACE
+
 PUBLIC :: IgnoredParameters
 PUBLIC :: PrintDefaultParameterFile
 PUBLIC :: CNTSTR
@@ -169,6 +173,7 @@ PUBLIC :: GETINTFROMSTR
 PUBLIC :: addStrListEntry
 PUBLIC :: ExtractParameterFile
 PUBLIC :: PrintOption
+PUBLIC :: FinalizeParameters
 
 TYPE(Parameters) :: prms
 PUBLIC :: prms
@@ -300,6 +305,30 @@ ELSE
 END IF
 
 END SUBROUTINE finalize
+
+!===================================================================================================================================
+!> Clear parameters list 'prms'.
+!===================================================================================================================================
+SUBROUTINE FinalizeParameters()
+IMPLICIT NONE
+! LOCAL VARIABLES
+CLASS(link), POINTER         :: current, tmp
+!===================================================================================================================================
+
+if(associated(prms%firstlink))then
+  current => prms%firstLink
+  DO WHILE (associated(current%next))
+    DEALLOCATE(current%opt)
+    NULLIFY(current%opt)
+    tmp => current%next
+    DEALLOCATE(current)
+    NULLIFY(current)
+    current => tmp
+  END DO
+end if
+prms%firstLink => null()
+prms%lastLink  => null()
+END SUBROUTINE FinalizeParameters
 
 !==================================================================================================================================
 !> Remove not used entries in the linked list of THIS parameters.

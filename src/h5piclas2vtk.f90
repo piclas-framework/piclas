@@ -106,6 +106,7 @@ LOGICAL                        :: MeshInitFinished, ReadMeshFinished
 LOGICAL                        :: VisuParticles, PartDataExists
 INTEGER                        :: TimeStampLength
 !===================================================================================================================================
+CALL SetStackSizeUnlimited()
 CALL InitMPI()
 CALL ParseCommandlineArguments()
 !CALL DefineParametersMPI()

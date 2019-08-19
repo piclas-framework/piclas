@@ -55,7 +55,7 @@ CONTAINS
 !> The additional variables are stored in the datasets 'ElemData' (elementwise data) and 'FieldData' (pointwise data).
 !> Also a list of all available boundary names is created for surface visualization.
 !===================================================================================================================================
-SUBROUTINE visu_getVarNamesAndFileType(statefile,meshfile,varnames_loc, bcnames_loc)
+SUBROUTINE visu_getVarNamesAndFileType(mpi_comm_IN,statefile,meshfile,varnames_loc, bcnames_loc)
 USE MOD_Globals
 USE MOD_Visu_Vars      ,ONLY: FileType,VarNamesHDF5,nBCNamesAll
 USE MOD_HDF5_Input     ,ONLY: OpenDataFile,CloseDataFile,GetDataSize,GetVarNames,ISVALIDMESHFILE,ISVALIDHDF5FILE,ReadAttribute
@@ -64,6 +64,7 @@ USE MOD_IO_HDF5        ,ONLY: GetDatasetNamesInGroup,File_ID
 USE MOD_StringTools    ,ONLY: STRICMP
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)                                  :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(IN)                       :: statefile
 CHARACTER(LEN=*)  ,INTENT(IN)                       :: meshfile
 CHARACTER(LEN=255),INTENT(INOUT),ALLOCATABLE,TARGET :: varnames_loc(:)
@@ -84,7 +85,7 @@ IF (ISVALIDMESHFILE(statefile)) THEN      ! MESH
   FileType='Mesh'
 ELSE IF (ISVALIDHDF5FILE(statefile)) THEN ! other file
   SDEALLOCATE(varnames_loc)
-  CALL OpenDataFile(statefile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+  CALL OpenDataFile(statefile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=mpi_comm_IN)
   CALL ReadAttribute(File_ID,'File_Type',   1,StrScalar =FileType)
 
   ! check if variables in state file are the same as in the EQNSYS
@@ -161,7 +162,7 @@ ELSE IF (ISVALIDHDF5FILE(statefile)) THEN ! other file
   INQUIRE(FILE=TRIM(MeshFile_loc), EXIST=file_exists)
   IF (file_exists) THEN
     ! Open the mesh file and read all boundary names for surface visualization
-    CALL OpenDataFile(MeshFile_loc,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+    CALL OpenDataFile(MeshFile_loc,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=mpi_comm_IN)
     CALL GetDataSize(File_ID,'BCNames',nDims,HSize)
     CHECKSAFEINT(HSize(1),4)
     nBCNamesAll=INT(HSize(1),4)
@@ -187,7 +188,7 @@ END SUBROUTINE visu_getVarNamesAndFileType
 !> * Call routines that build the distribution between DG elements and the mappings needed to calculate and visualize the
 !>   desired variables.
 !===================================================================================================================================
-SUBROUTINE visu_InitFile(statefile,postifile)
+SUBROUTINE visu_InitFile(mpi_comm_IN,statefile,postifile)
 ! MODULES
 USE HDF5
 USE MOD_Preproc
@@ -202,6 +203,7 @@ USE MOD_StringTools        ,ONLY: STRICMP
 USE MOD_ReadInTools        ,ONLY: prms,GETINT,GETLOGICAL,addStrListEntry,GETSTR
 !USE MOD_Posti_Mappings     ,ONLY: Build_mapDepToCalc_mapAllVarsToVisuVars
 IMPLICIT NONE
+INTEGER,INTENT(IN)               :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(IN)    :: statefile
 CHARACTER(LEN=255),INTENT(INOUT) :: postifile
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -215,7 +217,7 @@ IF (STRICMP(fileType,'Mesh')) THEN
 END IF
 
 ! open state file to be able to read attributes
-CALL OpenDataFile(statefile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+CALL OpenDataFile(statefile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=mpi_comm_IN)
 
 ! read the meshfile attribute from statefile
 CALL ReadAttribute(File_ID,'MeshFile',    1,StrScalar =MeshFile_state)
@@ -236,9 +238,9 @@ END IF
 NodeTypeVisuPosti = GETSTR('NodeTypeVisu')
 CALL CloseDataFile()
 
-CALL visu_getVarNamesAndFileType(statefile,"",VarnamesAll,BCNamesAll)
+CALL visu_getVarNamesAndFileType(mpi_comm_IN,statefile,"",VarnamesAll,BCNamesAll)
 
-CALL OpenDataFile(statefile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+CALL OpenDataFile(statefile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=mpi_comm_IN)
 
 ! check if state, mesh or NVisu changed
 changedStateFile = .NOT.STRICMP(statefile,statefile_old)
@@ -303,12 +305,12 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Visu_Vars
 USE MOD_MPI                 ,ONLY: InitMPI
-USE MOD_HDF5_Input          ,ONLY: ISVALIDMESHFILE,ISVALIDHDF5FILE,OpenDataFile,CloseDataFile
+USE MOD_HDF5_Input          ,ONLY: ISVALIDMESHFILE,ISVALIDHDF5FILE,CloseDataFile
 USE MOD_Posti_ReadState     ,ONLY: ReadState
 USE MOD_Posti_VisuMesh      ,ONLY: VisualizeMesh
 !USE MOD_Posti_Calc          ,ONLY: CalcQuantities_DG
 USE MOD_Posti_ConvertToVisu ,ONLY: ConvertToVisu_DG,ConvertToVisu_GenericData
-USE MOD_ReadInTools         ,ONLY: prms,ExtractParameterFile
+USE MOD_ReadInTools         ,ONLY: prms,ExtractParameterFile,FinalizeParameters
 USE MOD_StringTools         ,ONLY: STRICMP
 USE MOD_Posti_VisuMesh      ,ONLY: BuildVisuCoords
 USE MOD_Posti_Mappings      ,ONLY: Build_mapBCSides
@@ -424,12 +426,12 @@ IF (ISVALIDMESHFILE(statefile)) THEN ! visualize mesh
   MeshFileMode = .TRUE.
   MeshFile      = statefile
   nVar_State    = 0
-  CALL VisualizeMesh(postifile,MeshFile)
+  CALL VisualizeMesh(mpi_comm_IN,postifile,MeshFile)
 ELSE IF (ISVALIDHDF5FILE(statefile)) THEN ! visualize state file
   SWRITE(*,*) "State Mode"
   MeshFileMode = .FALSE.
   ! initialize state file
-  CALL visu_InitFile(statefile,postifile)
+  CALL visu_InitFile(mpi_comm_IN,statefile,postifile)
 
   ! read solution from state file (either direct or including a evaluation of the DG operator)
   IF (LEN_TRIM(prmfile).EQ.0) THEN
@@ -444,7 +446,7 @@ ELSE IF (ISVALIDHDF5FILE(statefile)) THEN ! visualize state file
   SWRITE (*,*) "changedPrmFile       ", changedPrmFile, TRIM(prmfile_old), " -> ", TRIM(prmfile)
   SWRITE (*,*) "changedBCnames       ", changedBCnames
   IF (changedStateFile.OR.changedWithDGOperator.OR.changedPrmFile) THEN
-      CALL ReadState(prmfile,statefile)
+      CALL ReadState(mpi_comm_IN,prmfile,statefile)
   END IF
 
   ! build mappings of BC sides for surface visualization
@@ -462,7 +464,7 @@ ELSE IF (ISVALIDHDF5FILE(statefile)) THEN ! visualize state file
 
   ! convert generic data to visu grid
   IF (changedStateFile.OR.changedVarNames.OR.changedNVisu.OR.changedBCnames) THEN
-    CALL ConvertToVisu_GenericData(statefile)
+    CALL ConvertToVisu_GenericData(mpi_comm_IN,statefile)
   END IF
 
   ! Convert coordinates to visu grid

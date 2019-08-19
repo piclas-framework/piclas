@@ -45,13 +45,14 @@ CONTAINS
 !> If the DG operator should not be called and no parameter file (seperate or from userblock) can be found,
 !> we specify PP_N from the state file as our polynomial degree (later needed by InitInterpolation).
 !===================================================================================================================================
-SUBROUTINE ReadState(prmfile,statefile)
+SUBROUTINE ReadState(mpi_comm_IN,prmfile,statefile)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools ,ONLY:ExtractParameterFile
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)               :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(INOUT) :: prmfile      !< FLEXI parameter file, used if DG operator is called
 CHARACTER(LEN=255),INTENT(IN)    :: statefile    !< HDF5 state file
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -68,13 +69,13 @@ IF (LEN_TRIM(prmfile).EQ.0) THEN ! No seperate parameter file has been given
     CALL CollectiveStop(__STAMP__, "No userblock found in state file '"//TRIM(statefile)//"' and no parameter file specified.")
   END IF
 END IF
-CALL ReadStateWithoutGradients(prmfile,statefile)
+CALL ReadStateWithoutGradients(mpi_comm_IN,prmfile,statefile)
 END SUBROUTINE ReadState
 
 !===================================================================================================================================
 !> Read 'U' directly from a state file.
 !===================================================================================================================================
-SUBROUTINE ReadStateWithoutGradients(prmfile,statefile)
+SUBROUTINE ReadStateWithoutGradients(mpi_comm_IN,prmfile,statefile)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -93,6 +94,7 @@ USE MOD_Interpolation       ,ONLY: DefineParametersInterpolation,InitInterpolati
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)           :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(IN):: prmfile       !< FLEXI parameter file, used if DG operator is called
 CHARACTER(LEN=255),INTENT(IN):: statefile     !< HDF5 state file
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -140,7 +142,7 @@ meshMode_old = meshMode_loc
 
 SDEALLOCATE(U)
 ALLOCATE(U(1:nVar_State,0:PP_N,0:PP_N,0:PP_N,nElems))
-CALL OpenDataFile(statefile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+CALL OpenDataFile(statefile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=mpi_comm_IN)
 CALL ReadArray('DG_Solution',5,(/nVar_State,PP_N+1,PP_N+1,PP_N+1,nElems/),offsetElem,5,RealArray=U)
 CALL CloseDataFile()
 

@@ -94,7 +94,7 @@ END SUBROUTINE ConvertToVisu_DG
 !> The addtional variables will always be sorted AFTER the conservative or derived quantities.
 !> If surface visualization is needed, the quantities will simply be prolonged to the surfaces.
 !===================================================================================================================================
-SUBROUTINE ConvertToVisu_GenericData(statefile)
+SUBROUTINE ConvertToVisu_GenericData(mpi_comm_IN,statefile)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Visu_Vars
@@ -112,6 +112,7 @@ USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)           :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(IN)  :: statefile   !< HDF5 state file
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -130,7 +131,7 @@ REAL,ALLOCATABLE               :: FVdouble(:,:)
 !===================================================================================================================================
 SWRITE(*,*) "Convert generic datasets to Visu grid"
 ! Open HDF5 file
-CALL OpenDataFile(statefile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+CALL OpenDataFile(statefile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=mpi_comm_IN)
 
 DataSetOld = ''  ! Used to decide if arrays and Vandermonde matrix should be re-allocated
 

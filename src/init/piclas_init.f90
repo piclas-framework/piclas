@@ -22,10 +22,11 @@ INTERFACE InitPiclas
 END INTERFACE
 
 INTERFACE FinalizePiclas
-  MODULE PROCEDURE FinalizePiclas
+   MODULE PROCEDURE FinalizePiclas
 END INTERFACE
 
-PUBLIC:: InitPiclas,FinalizePiclas
+PUBLIC:: FinalizePiclas
+PUBLIC:: InitPiclas
 !===================================================================================================================================
 !PUBLIC:: InitDefineParameters
 
@@ -255,60 +256,60 @@ SUBROUTINE FinalizePiclas(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_ReadInTools               ,ONLY:prms
-USE MOD_Restart,                   ONLY:FinalizeRestart
-USE MOD_Interpolation,             ONLY:FinalizeInterpolation
-USE MOD_Mesh,                      ONLY:FinalizeMesh
-USE MOD_Equation,                  ONLY:FinalizeEquation
-USE MOD_Interfaces,                ONLY:FinalizeInterfaces
+USE MOD_Globals
+USE MOD_ReadInTools                ,ONLY: prms
+USE MOD_Restart                    ,ONLY: FinalizeRestart
+USE MOD_Interpolation              ,ONLY: FinalizeInterpolation
+USE MOD_Mesh                       ,ONLY: FinalizeMesh
+USE MOD_Equation                   ,ONLY: FinalizeEquation
+USE MOD_Interfaces                 ,ONLY: FinalizeInterfaces
 #if USE_QDS_DG
-USE MOD_QDS,                       ONLY:FinalizeQDS
+USE MOD_QDS                        ,ONLY: FinalizeQDS
 #endif /*USE_QDS_DG*/
-USE MOD_GetBoundaryFlux,           ONLY:FinalizeBC
-USE MOD_DG,                        ONLY:FinalizeDG
-USE MOD_Mortar,                    ONLY:FinalizeMortar
-USE MOD_Dielectric,                ONLY:FinalizeDielectric
-#if !(USE_HDG)
-USE MOD_PML,                       ONLY:FinalizePML
+USE MOD_GetBoundaryFlux            ,ONLY: FinalizeBC
+USE MOD_DG                         ,ONLY: FinalizeDG
+USE MOD_Mortar                     ,ONLY: FinalizeMortar
+USE MOD_Dielectric                 ,ONLY: FinalizeDielectric
+#if ! (USE_HDG)
+USE MOD_PML                        ,ONLY: FinalizePML
 #else
-USE MOD_HDG,                       ONLY:FinalizeHDG
+USE MOD_HDG                        ,ONLY: FinalizeHDG
 #endif /*USE_HDG*/
-USE MOD_Filter,                    ONLY:FinalizeFilter
-USE MOD_Analyze,                   ONLY:FinalizeAnalyze
-USE MOD_RecordPoints,              ONLY:FinalizeRecordPoints
+USE MOD_Filter                     ,ONLY: FinalizeFilter
+USE MOD_Analyze                    ,ONLY: FinalizeAnalyze
+USE MOD_RecordPoints               ,ONLY: FinalizeRecordPoints
+USE MOD_RecordPoints_Vars          ,ONLY: RP_Data
 #if defined(ROS) || defined(IMPA)
-USE MOD_LinearSolver,              ONLY:FinalizeLinearSolver
-!USE MOD_CSR,                       ONLY:FinalizeCSR
+USE MOD_LinearSolver               ,ONLY: FinalizeLinearSolver
 #endif /*IMEX*/
-!USE MOD_TimeDisc,                  ONLY:FinalizeTimeDisc
 #if USE_MPI
-USE MOD_MPI,                       ONLY:FinalizeMPI
+USE MOD_MPI                        ,ONLY: FinalizeMPI
 #endif /*USE_MPI*/
 #ifdef PARTICLES
-USE MOD_Particle_Surfaces,         ONLY:FinalizeParticleSurfaces
-USE MOD_InitializeBackgroundField, ONLY:FinalizeBackGroundField
-USE MOD_Particle_Mesh,             ONLY:FinalizeParticleMesh
-USE MOD_Particle_Analyze,          ONLY:FinalizeParticleAnalyze
-USE MOD_PICDepo,                   ONLY:FinalizeDeposition
-USE MOD_ParticleInit,              ONLY:FinalizeParticles
-USE MOD_TTMInit,                   ONLY:FinalizeTTM
-USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
+USE MOD_Particle_Surfaces          ,ONLY: FinalizeParticleSurfaces
+USE MOD_InitializeBackgroundField  ,ONLY: FinalizeBackGroundField
+USE MOD_Particle_Mesh              ,ONLY: FinalizeParticleMesh
+USE MOD_Particle_Analyze           ,ONLY: FinalizeParticleAnalyze
+USE MOD_PICDepo                    ,ONLY: FinalizeDeposition
+USE MOD_ParticleInit               ,ONLY: FinalizeParticles
+USE MOD_TTMInit                    ,ONLY: FinalizeTTM
+USE MOD_DSMC_Init                  ,ONLY: FinalizeDSMC
 #if (PP_TimeDiscMethod==300)
-USE MOD_FPFlow_Init,               ONLY:FinalizeFPFlow
+USE MOD_FPFlow_Init                ,ONLY: FinalizeFPFlow
 #endif
 #if (PP_TimeDiscMethod==400)
-USE MOD_BGK_Init,                  ONLY:FinalizeBGK
+USE MOD_BGK_Init                   ,ONLY: FinalizeBGK
 #endif
-USE MOD_SurfaceModel_Init,         ONLY:FinalizeSurfaceModel
-USE MOD_Particle_Boundary_Sampling,ONLY:FinalizeParticleBoundarySampling
-USE MOD_Particle_Vars,             ONLY:ParticlesInitIsDone
-USE MOD_PIC_Vars,                  ONLY:PICInitIsDone
+USE MOD_SurfaceModel_Init          ,ONLY: FinalizeSurfaceModel
+USE MOD_Particle_Boundary_Sampling ,ONLY: FinalizeParticleBoundarySampling
+USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone
+USE MOD_PIC_Vars                   ,ONLY: PICInitIsDone
 #if USE_MPI
-USE MOD_Particle_MPI,              ONLY:FinalizeParticleMPI
-USE MOD_Particle_MPI_Vars,         ONLY:ParticleMPIInitisdone
+USE MOD_Particle_MPI               ,ONLY: FinalizeParticleMPI
+USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
-USE MOD_IO_HDF5,                ONLY:ClearElemData,ElementOut
+USE MOD_IO_HDF5                    ,ONLY: ClearElemData,ElementOut
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -317,6 +318,7 @@ LOGICAL,INTENT(IN)      :: IsLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL                    :: Time
 !===================================================================================================================================
 
 CALL ClearElemData(ElementOut)
@@ -382,6 +384,71 @@ CALL FinalizeQDS()
 #endif /*USE_QDS_DG*/
 CALL prms%finalize(IsLoadBalance)
 
+CALL FinalizeTimeDisc()
+! mssing arrays to deallocate
+SDEALLOCATE(RP_Data)
+
+!Measure simulation duration
+Time=PICLASTIME()
+
+#if USE_MPI
+!! and additional required for restart with load balance
+!ReadInDone=.FALSE.
+!ParticleMPIInitIsDone=.FALSE.
+!ParticlesInitIsDone=.FALSE.
+CALL FinalizeLoadBalance()
+CALL MPI_FINALIZE(iError)
+IF(iError .NE. 0) &
+  CALL abort(&
+  __STAMP__&
+  ,'MPI finalize error',iError,999.)
+#endif /*USE_MPI*/
+SWRITE(UNIT_stdOut,'(132("="))')
+SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(132("="))')
+
 END SUBROUTINE FinalizePiclas
+
+
+#if USE_MPI
+SUBROUTINE FinalizeLoadBalance()
+!===================================================================================================================================
+! Deallocate arrays
+!===================================================================================================================================
+! MODULES
+USE MOD_LoadBalance_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+SDEALLOCATE( tCurrent  )
+InitLoadBalanceIsDone = .FALSE.
+
+END SUBROUTINE FinalizeLoadBalance
+#endif /*USE_MPI*/
+
+
+SUBROUTINE FinalizeTimeDisc()
+!===================================================================================================================================
+! Finalizes variables necessary for analyse subroutines
+!===================================================================================================================================
+! MODULES
+USE MOD_TimeDisc_Vars,ONLY:TimeDiscInitIsDone
+! IMPLICIT VARIABLE HANDLINGDGInitIsDone
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+TimeDiscInitIsDone = .FALSE.
+END SUBROUTINE FinalizeTimeDisc
+
 
 END MODULE MOD_Piclas_Init

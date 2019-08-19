@@ -29,10 +29,6 @@ INTERFACE InitLoadBalance
   MODULE PROCEDURE InitLoadBalance
 END INTERFACE
 
-INTERFACE FinalizeLoadBalance
-  MODULE PROCEDURE FinalizeLoadBalance
-END INTERFACE
-
 #if USE_LOADBALANCE
 INTERFACE ComputeElemLoad
   MODULE PROCEDURE ComputeElemLoad
@@ -43,7 +39,7 @@ INTERFACE LoadBalance
   MODULE PROCEDURE LoadBalance
 END INTERFACE
 
-PUBLIC::InitLoadBalance,FinalizeLoadBalance,LoadBalance
+PUBLIC::InitLoadBalance,LoadBalance
 #if USE_LOADBALANCE
 PUBLIC::ComputeElemLoad
 #endif /*USE_LOADBALANCE*/
@@ -352,7 +348,7 @@ USE MOD_Globals
 USE MOD_Globals_vars     ,ONLY: InitializationWallTime
 USE MOD_Preproc
 USE MOD_Restart          ,ONLY: Restart
-USE MOD_Piclas_Init  ,ONLY: InitPiclas,FinalizePiclas
+USE MOD_Piclas_Init      ,ONLY: InitPiclas,FinalizePiclas
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars     ,ONLY: DepositionType
@@ -495,26 +491,6 @@ END IF
 END SUBROUTINE ComputeImbalance
 
 
-SUBROUTINE FinalizeLoadBalance()
-!===================================================================================================================================
-! Deallocate arrays
-!===================================================================================================================================
-! MODULES
-USE MOD_LoadBalance_Vars
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-SDEALLOCATE( tCurrent  )
-InitLoadBalanceIsDone = .FALSE.
-
-END SUBROUTINE FinalizeLoadBalance
 #endif /*USE_MPI*/
 
 END MODULE MOD_LoadBalance

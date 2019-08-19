@@ -82,7 +82,7 @@ END SUBROUTINE BuildVisuCoords
 !> 3. write mesh to VTK array
 !> 4. set length of all other output arrays to zero
 !=================================================================================================================================
-SUBROUTINE VisualizeMesh(postifile,meshfile_in)
+SUBROUTINE VisualizeMesh(mpi_comm_IN,postifile,meshfile_in)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -98,6 +98,7 @@ USE MOD_VTK           ,ONLY: WriteCoordsToVTK_array
 USE MOD_HDF5_Input    ,ONLY: ReadAttribute,File_ID,OpenDataFile,CloseDataFile
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)           :: mpi_comm_IN    
 CHARACTER(LEN=255),INTENT(IN):: postifile
 CHARACTER(LEN=255),INTENT(IN):: meshfile_in
 ! LOCAL VARIABLES
@@ -109,7 +110,7 @@ CALL FinalizeMPI()
 CALL FinalizeMesh()
 CALL FinalizeInterpolation()
 
-CALL OpenDataFile(meshfile_in,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+CALL OpenDataFile(meshfile_in,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=mpi_comm_IN)
 CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=Ngeo)
 CALL CloseDataFile()
 

@@ -30,11 +30,7 @@ INTERFACE TimeDisc
   MODULE PROCEDURE TimeDisc
 END INTERFACE
 
-INTERFACE FinalizeTimeDisc
-  MODULE PROCEDURE FinalizeTimeDisc
-END INTERFACE
-
-PUBLIC :: InitTimeDisc,FinalizeTimeDisc
+PUBLIC :: InitTimeDisc
 PUBLIC :: TimeDisc
 !===================================================================================================================================
 PUBLIC :: DefineParametersTimeDisc
@@ -5721,23 +5717,6 @@ TotalPartIterLinearSolver=0
 SWRITE(UNIT_stdOut,'(132("="))')
 #endif /*IMPA && PARTICLE*/
 END SUBROUTINE WriteInfoStdOut
-
-
-SUBROUTINE FinalizeTimeDisc()
-!===================================================================================================================================
-! Finalizes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_TimeDisc_Vars,ONLY:TimeDiscInitIsDone
-! IMPLICIT VARIABLE HANDLINGDGInitIsDone
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-TimeDiscInitIsDone = .FALSE.
-END SUBROUTINE FinalizeTimeDisc
 
 
 END MODULE MOD_TimeDisc

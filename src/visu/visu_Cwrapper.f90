@@ -104,7 +104,7 @@ statefile = cstrToChar255(statefile_IN, strlen_state)
 meshfile  = cstrToChar255(meshfile_IN , strlen_mesh)
 
 CALL InitMPI(mpi_comm_IN)
-CALL visu_getVarNamesAndFileType(statefile,meshfile,VarnamesAll,BCNamesAll)
+CALL visu_getVarNamesAndFileType(mpi_comm_IN,statefile,meshfile,VarnamesAll,BCNamesAll)
 IF (ALLOCATED(VarnamesAll)) THEN
   varnames_pointer => VarnamesAll
   varnames%len  = SIZE(varnames_pointer)*255

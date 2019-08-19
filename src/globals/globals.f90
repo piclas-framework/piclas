@@ -106,6 +106,11 @@ INTERFACE CROSS
   MODULE PROCEDURE CROSS
 END INTERFACE CROSS
 
+INTERFACE
+  SUBROUTINE setstacksizeunlimited() BIND(C)
+  END SUBROUTINE setstacksizeunlimited
+END INTERFACE
+
 INTERFACE str2real
   MODULE PROCEDURE str2real
 END INTERFACE
@@ -121,6 +126,8 @@ END INTERFACE
 INTERFACE GetParameterFromFile
   MODULE PROCEDURE GetParameterFromFile
 END INTERFACE
+
+PUBLIC :: setstacksizeunlimited
 
 !===================================================================================================================================
 CONTAINS
