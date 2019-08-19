@@ -2972,7 +2972,7 @@ INTEGER                   :: iPolyatMole, iDOF
   ! calculate correction factor according to Gimelshein et al.
   ! - depending on selection procedure. As only one particle undergoes relaxation
   ! - only one VibDOF (GammaVib) is needed (of considered species)
-  CorrFact = 1. + SpecDSMC(iSpec)%GammaVib/Xi_rel
+  ! CorrFact = 1. + SpecDSMC(iSpec)%GammaVib/Xi_rel
 
   IF((DSMC%VibRelaxProb.GE.0.0).AND.(DSMC%VibRelaxProb.LE.1.0)) THEN
     IF (SpecDSMC(iSpec)%PolyatomicMol.AND.(DSMC%PolySingleMode)) THEN
@@ -2984,7 +2984,7 @@ INTEGER                   :: iPolyatMole, iDOF
                                                    + DSMC%VibRelaxProb * (1. + PolyatomMolDSMC(iPolyatMole)%GammaVib(1)/Xi_rel)
       END DO
     ELSE
-      ProbVib = DSMC%VibRelaxProb * CorrFact
+      ProbVib = DSMC%VibRelaxProb! * CorrFact
     END IF
   ELSE IF(DSMC%VibRelaxProb.EQ.2.0) THEN 
     ! Calculation of Prob Vib in function DSMC_calc_var_P_vib. 
@@ -3006,7 +3006,7 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
   ! No instantanious variable probability calculateable
 !===================================================================================================================================
 ! MODULES
-    USE MOD_Globals            ,ONLY : Abort
+    USE MOD_Globals            !,ONLY : Abort
     USE MOD_Globals_Vars       ,ONLY : Pi, BoltzmannConst
     USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, DSMC, CollInf, CRelaAv
     USE MOD_DSMC_Vars          ,ONLY : PolyatomMolDSMC
@@ -3045,9 +3045,11 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
   ! determine corrected probabilities
   ProbVib = ProbVib * TempCorr / (ProbVib + TempCorr) * CorrFact         ! TauVib = TauVibStd + TauTempCorr
   IF(ProbVib.NE.ProbVib) THEN !If is NAN
-    CALL Abort(&
-    __STAMP__&
-    ,'Error! Vibrational relaxation probability is NAN (CRela);',RealInfoOpt=CRela)!, jSpec, CRela
+    ProbVib=0.
+    SWRITE(*,*) 'WARNING: Vibrational relaxation probability is NAN and set to zero. CRela:', CRela
+    ! CALL Abort(&
+    ! __STAMP__&
+    ! ,'Error! Vibrational relaxation probability is NAN (CRela);',RealInfoOpt=CRela)!, jSpec, CRela
   END IF
   
 END SUBROUTINE DSMC_calc_var_P_vib

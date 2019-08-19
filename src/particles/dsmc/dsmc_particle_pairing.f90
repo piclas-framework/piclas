@@ -344,7 +344,6 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
                              -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
     Coll_pData(iPair)%PairType = iCase
     Coll_pData(iPair)%NeedForRec = .FALSE.
-
     ! get maximum and average relative velocity
     CRelaMax = MAX(CRelaMax, SQRT(Coll_pData(iPair)%CRela2))
     CRelaAv = CRelaAv + SQRT(Coll_pData(iPair)%CRela2)
@@ -365,14 +364,14 @@ SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoi
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars,              ONLY: CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
-USE MOD_DSMC_Vars,              ONLY: DSMC, PairE_vMPF, RadialWeighting, SamplingActive, SpecDSMC
+USE MOD_DSMC_Vars,              ONLY: DSMC, PairE_vMPF, RadialWeighting, SamplingActive, SpecDSMC, nCollis, ProbVibAvNew
 USE MOD_DSMC_Symmetry2D,        ONLY: CalcRadWeightMPF
 USE MOD_Particle_Vars,          ONLY: PartState, nSpecies, PartSpecies, usevMPF, PartMPF, WriteMacroVolumeValues, VarTimeStep
 USE MOD_DSMC_Relaxation,        ONLY: SetMeanVibQua
 USE MOD_DSMC_Analyze,           ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
 USE MOD_Particle_Analyze_Vars,  ONLY: CalcEkin
 USE MOD_DSMC_CollisionProb,     ONLY: DSMC_prob_calc
-USE MOD_DSMC_Collis,            ONLY: DSMC_perform_collision
+USE MOD_DSMC_Collis,            ONLY: DSMC_perform_collision, DSMC_calc_var_P_vib
 USE MOD_vmpf_collision,         ONLY: DSMC_vmpf_prob
 USE MOD_TimeDisc_Vars,          ONLY: TEnd, Time
 USE MOD_part_tools,             ONLY: GetParticleWeight
@@ -390,7 +389,7 @@ INTEGER, INTENT(INOUT)          :: iPartIndx_Node(:)
 ! LOCAL VARIABLES
 INTEGER                         :: iPair, iPart1, iPart2, iLoop, iPart, nPart, loopStart
 INTEGER                         :: cSpec1, cSpec2, iCase , PairNum_Node, tempPart
-REAL                            :: Dist1, Dist2, iRan
+REAL                            :: Dist1, Dist2, iRan, VibProb
 REAL                            :: TempMPFFac, MPFFac, iRanVec(2), NodeLength
 !===================================================================================================================================
 
@@ -411,6 +410,7 @@ IF (CollisMode.EQ.3) THEN
       + PartStateIntEn(iPartIndx_Node(iPart),1) * GetParticleWeight(iPartIndx_Node(iPart))
   END DO
 END IF
+
 
 DO iPart = 1, PartNum
   CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
@@ -578,6 +578,14 @@ DO iPair = 1,  PairNum_Node
       CALL DSMC_vmpf_prob(iElem, iPair, NodeVolume)
     ELSE
       CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
+    END IF
+    ! variable vibrational relaxation probability has to average of all collisions
+    IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+      CALL DSMC_calc_var_P_vib(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2),iPair,VibProb)
+      ProbVibAvNew = ProbVibAvNew + VibProb
+      CALL DSMC_calc_var_P_vib(PartSpecies(Coll_pData(iPair)%iPart_p2),PartSpecies(Coll_pData(iPair)%iPart_p1),iPair,VibProb)
+      ProbVibAvNew = ProbVibAvNew + VibProb
+      nCollis=nCollis+1
     END IF
     CALL RANDOM_NUMBER(iRan)
     IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
@@ -916,7 +924,7 @@ SUBROUTINE DSMC_pairing_quadtree(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, CollInf
+USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, CollInf, ProbVibAvNew, ProbVibAv, nCollis, alpha
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -935,7 +943,10 @@ TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
   Volume = GEO%Volume(iElem)
-
+  IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+    ProbVibAvNew = 0
+    nCollis = 0
+  END IF
   SpecPartNum = 0.
 
   NULLIFY(TreeNode)
@@ -991,6 +1002,15 @@ TYPE(tTreeNode), POINTER      :: TreeNode
 
     DEALLOCATE(TreeNode%iPartIndx_Node)
     DEALLOCATE(TreeNode)
+  END IF
+
+  IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+    IF(nCollis.NE.0) THEN
+      ProbVibAv(iElem) = ProbVibAv(iElem) * alpha**(2.*nCollis) + (1.-alpha**(2.*nCollis))/(2.*nCollis) * ProbVibAvNew
+      ! open(unit=226,file='ProbVibAv.csv',action='write',position='append')
+      !   WRITE(226,*) Iter,',',ProbVibAv(iElem),',',2*nCollis
+      ! CLOSE(Unit=226)
+    END IF
   END IF
 
 END SUBROUTINE DSMC_pairing_quadtree

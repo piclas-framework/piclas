@@ -1236,11 +1236,11 @@ __STAMP__&
       __STAMP__&
       ,'ERROR: Particles-DSMC-alpha has to be in the range between 0 and 1')
     END IF
-    IF(Symmetry2D) THEN
-      CALL abort(&
-      __STAMP__&
-      ,'Variable vibrational relaxation is not implemented with 2D yet')
-    END IF
+    ! IF(Symmetry2D) THEN
+    !   CALL abort(&
+    !   __STAMP__&
+    !   ,'Variable vibrational relaxation is not implemented with 2D yet')
+    ! END IF
     DO iSpec = 1, nSpecies
       ALLOCATE(SpecDSMC(iSpec)%CharaVelo(1:nSpecies))
       ALLOCATE(SpecDSMC(iSpec)%CollNumVib(1:nSpecies))
