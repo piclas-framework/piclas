@@ -1296,9 +1296,9 @@ LOGICAL                        :: doDistributionData
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 IF(.NOT.(ANY(PartBound%Reactive))) RETURN
 
-! only pocs with real surfaces (not halo) in own proc write out
 #if USE_MPI
-CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
+CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
+! only pocs with real surfaces (not halo) in own proc write out
 IF(SurfMesh%nMasterSides.EQ.0) RETURN
 #endif /*USE_MPI*/
 
@@ -1426,7 +1426,7 @@ DO iPB=1,nPartBound
     EXIT
   END IF
 END DO
-IF (.NOT.doDistributionData) RETURN
+!IF (.NOT.doDistributionData) RETURN
 
 ! save number and positions of binded particles for all coordinations
 Coordinations    = 3
