@@ -1597,6 +1597,11 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER       :: iPoly
 !===================================================================================================================================
+IF(DSMC%VibRelaxProb.EQ.2) THEN
+  SDEALLOCATE(VarVibRelaxProb%ProbVibAv)
+  SDEALLOCATE(VarVibRelaxProb%ProbVibAvNew)
+  SDEALLOCATE(VarVibRelaxProb%nCollis)
+END IF
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(DSMC_RHS)
 SDEALLOCATE(PartStateIntEn)
