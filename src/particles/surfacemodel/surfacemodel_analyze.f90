@@ -85,7 +85,7 @@ CALL prms%CreateLogicalOption(  'Surf-CalcSurfProb'     , 'Analyze eaction proba
 CALL prms%CreateLogicalOption(  'Surf-CalcSurfE'        , 'Analyze activation barriers per reaction and species.','.FALSE.')
 CALL prms%CreateLogicalOption(  'Surf-CalcSurfnu'       , 'Analyze reaction frequencies (nu_r) per reaction and species','.FALSE.')
 CALL prms%CreateLogicalOption(  'Surf-CalcHeatFlux'     , 'Analyze the the heat fluxes onto surface and corresponding reaction'//&
-                                                          'counters per reaction and','.FALSE.')
+                                                          'counters per reaction','.FALSE.')
 #endif
 #endif
 

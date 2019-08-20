@@ -32,18 +32,20 @@ LOGICAL                       :: CalcDesProb                         ! Calculate
 LOGICAL                       :: CalcSurfNumSpec                     ! Calculate the number of simulated particles per species
                                                                      ! on surfaces
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42)
-LOGICAL                       :: CalcEvaporation                     ! Calculate rate of evaporation [kg/s]
 LOGICAL                       :: CalcSurfCoverage                    ! Calculate the surface coverages for each species
 LOGICAL                       :: CalcAccomodation                    ! Calculate the surface accommodation coefficient
-LOGICAL                       :: CalcAdsorbRates                     ! Calculate the adsorption probabilities of species (k_r)
-LOGICAL                       :: CalcAdsorbProb                      ! Calculate the surface reaction rate per reaction (P_r)
-LOGICAL                       :: CalcAdsorbnu                        ! Calculate the surface reaction rate per reaction (nu_r)
-LOGICAL                       :: CalcAdsorbE                         ! Calculate the surface reaction rate per reaction (E_r)
-LOGICAL                       :: CalcSurfRates                       ! Calculate the surface reaction rate per reaction (k_r)
-LOGICAL                       :: CalcSurfProb                        ! Calculate the surface reaction rate per reaction (P_r)
-LOGICAL                       :: CalcSurfnu                          ! Calculate the surface reaction rate per reaction (nu_r)
-LOGICAL                       :: CalcSurfE                           ! Calculate the surface reaction rate per reaction (E_r)
-LOGICAL                       :: CalcHeatflux                        ! Calculate the surface reaction rate per reaction (q)
+#if (PP_TimeDiscMethod==42)
+LOGICAL                       :: CalcAdsorbRates                     ! Flag activating Analyze every refined rate data of gas-surface reactions
+LOGICAL                       :: CalcAdsorbProb                      ! Flag activating Analyze eaction probabilities per reaction and species
+LOGICAL                       :: CalcAdsorbnu                        ! Flag activating Analyze reaction frequencies (nu_r) per reaction and species'
+LOGICAL                       :: CalcAdsorbE                         ! Flag activating Analyze activation barriers per reaction and species
+LOGICAL                       :: CalcSurfRates                       ! Flag activating Analyze every refined rate data on the surfaces
+LOGICAL                       :: CalcSurfProb                        ! Flag activating Analyze eaction probabilities per reaction and species
+LOGICAL                       :: CalcSurfnu                          ! Flag activating Analyze reaction frequencies (nu_r) per reaction and species
+LOGICAL                       :: CalcSurfE                           ! Flag activating Analyze activation barriers per reaction and species
+LOGICAL                       :: CalcHeatflux                        ! Flag activating Analyze the the heat fluxes onto surface and corresponding
+                                                                     ! reaction counters per reaction
+#endif
 #endif
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Analyze_Vars
