@@ -25,71 +25,71 @@ MODULE MOD_Posti_Mappings
 IMPLICIT NONE
 PRIVATE
 
-!INTERFACE Build_mapDepToCalc_mapAllVarsToVisuVars
-!  MODULE PROCEDURE Build_mapDepToCalc_mapAllVarsToVisuVars
-!END INTERFACE
+INTERFACE Build_mapDepToCalc_mapAllVarsToVisuVars
+  MODULE PROCEDURE Build_mapDepToCalc_mapAllVarsToVisuVars
+END INTERFACE
 
 INTERFACE Build_mapBCSides
   MODULE PROCEDURE Build_mapBCSides
 END INTERFACE
 
-!PUBLIC:: Build_mapDepToCalc_mapAllVarsToVisuVars
+PUBLIC:: Build_mapDepToCalc_mapAllVarsToVisuVars
 PUBLIC:: Build_mapBCSides
 
 CONTAINS
 
-!!===================================================================================================================================
-!!> This routine builds the mappings from the total number of variables available for visualization to number of calculation
-!!> and visualization variables.
-!!>  1. Read 'VarName' options from the parameter file. This are the quantities that will be visualized.
-!!>  2. Initialize the dependecy table
-!!>  3. check wether gradients are needed for any quantity. If this is the case, remove the conservative quantities from the
-!!>     dependecies of the primitive quantities (the primitive quantities are available directly, since the DGTimeDerivative_weakForm
-!!>     will be executed.
-!!>  4. build the 'mapDepToCalc' that holds for each quantity that will be calculated the index in 'UCalc' array (0 if not calculated)
-!!>  5. build the 'mapAllVarsToVisuVars' that holds for each quantity that will be visualized the index in 'UVisu' array (0 if not visualized)
-!!>  6. build the 'mapAllBCNamesToVisuBCNames' that holds for each available boundary the visualization index
-!!===================================================================================================================================
-!SUBROUTINE Build_mapDepToCalc_mapAllVarsToVisuVars()
-!USE MOD_Globals
-!USE MOD_Visu_Vars
-!USE MOD_ReadInTools     ,ONLY: GETSTR,CountOption
-!USE MOD_StringTools     ,ONLY: STRICMP
-!IMPLICIT NONE
-!! INPUT / OUTPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!INTEGER             :: iVar,iVar2
-!CHARACTER(LEN=255)  :: VarName
-!CHARACTER(LEN=255)  :: BoundaryName
-!CHARACTER(LEN=20)   :: format
-!!===================================================================================================================================
-!! Read Varnames from parameter file and fill
-!!   mapAllVarsToVisuVars = map, which stores at position x the position/index of the x.th quantity in the UVisu array
-!!             if a quantity is not visualized it is zero
-!SDEALLOCATE(mapAllVarsToVisuVars)
-!SDEALLOCATE(mapAllVarsToSurfVisuVars)
-!ALLOCATE(mapAllVarsToVisuVars(1:nVarAll))
-!ALLOCATE(mapAllVarsToSurfVisuVars(1:nVarAll))
-!mapAllVarsToVisuVars = 0
-!mapAllVarsToSurfVisuVars = 0
-!nVarVisu = 0
-!nVarSurfVisuAll = 0
-!! Compare varnames that should be visualized with available varnames
-!DO iVar=1,CountOption("VarName")
-!  VarName = GETSTR("VarName")
-!  DO iVar2=1,nVarAll
-!    IF (STRICMP(VarName, VarnamesAll(iVar2))) THEN
-!      nVarSurfVisuAll = nVarSurfVisuAll + 1
-!      mapAllVarsToSurfVisuVars(iVar2) = nVarSurfVisuAll
-!      IF (iVar2.LE.nVarDep) THEN
-!        IF(DepSurfaceOnly(iVar2).EQ.1) CYCLE
-!      END IF
-!      nVarVisu = nVarVisu + 1
-!      mapAllVarsToVisuVars(iVar2) = nVarVisu
-!    END IF
-!  END DO
-!END DO
+!===================================================================================================================================
+!> This routine builds the mappings from the total number of variables available for visualization to number of calculation
+!> and visualization variables.
+!>  1. Read 'VarName' options from the parameter file. This are the quantities that will be visualized.
+!>  2. Initialize the dependecy table
+!>  3. check wether gradients are needed for any quantity. If this is the case, remove the conservative quantities from the
+!>     dependecies of the primitive quantities (the primitive quantities are available directly, since the DGTimeDerivative_weakForm
+!>     will be executed.
+!>  4. build the 'mapDepToCalc' that holds for each quantity that will be calculated the index in 'UCalc' array (0 if not calculated)
+!>  5. build the 'mapAllVarsToVisuVars' that holds for each quantity that will be visualized the index in 'UVisu' array (0 if not visualized)
+!>  6. build the 'mapAllBCNamesToVisuBCNames' that holds for each available boundary the visualization index
+!===================================================================================================================================
+SUBROUTINE Build_mapDepToCalc_mapAllVarsToVisuVars()
+USE MOD_Globals
+USE MOD_Visu_Vars
+USE MOD_ReadInTools     ,ONLY: GETSTR,CountOption
+USE MOD_StringTools     ,ONLY: STRICMP
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iVar,iVar2
+CHARACTER(LEN=255)  :: VarName
+CHARACTER(LEN=255)  :: BoundaryName
+CHARACTER(LEN=20)   :: format
+!===================================================================================================================================
+! Read Varnames from parameter file and fill
+!   mapAllVarsToVisuVars = map, which stores at position x the position/index of the x.th quantity in the UVisu array
+!             if a quantity is not visualized it is zero
+SDEALLOCATE(mapAllVarsToVisuVars)
+SDEALLOCATE(mapAllVarsToSurfVisuVars)
+ALLOCATE(mapAllVarsToVisuVars(1:nVarAll))
+ALLOCATE(mapAllVarsToSurfVisuVars(1:nVarAll))
+mapAllVarsToVisuVars = 0
+mapAllVarsToSurfVisuVars = 0
+nVarVisu = 0
+nVarSurfVisuAll = 0
+! Compare varnames that should be visualized with available varnames
+DO iVar=1,CountOption("VarName")
+  VarName = GETSTR("VarName")
+  DO iVar2=1,nVarAll
+    IF (STRICMP(VarName, VarnamesAll(iVar2))) THEN
+      nVarSurfVisuAll = nVarSurfVisuAll + 1
+      mapAllVarsToSurfVisuVars(iVar2) = nVarSurfVisuAll
+      IF (iVar2.LE.nVarDep) THEN
+        IF(DepSurfaceOnly(iVar2).EQ.1) CYCLE
+      END IF
+      nVarVisu = nVarVisu + 1
+      mapAllVarsToVisuVars(iVar2) = nVarVisu
+    END IF
+  END DO
+END DO
 
 !! check whether gradients are needed for any quantity
 !DO iVar=1,nVarDep
@@ -145,10 +145,10 @@ CONTAINS
 !mapAllVarsToSurfVisuVars_old = mapAllVarsToSurfVisuVars
 
 
-!! print the mappings
-!WRITE(format,'(I3)') nVarAll
+! print the mappings
+WRITE(format,'(I0)') nVarAll
 !SWRITE (*,'(A,'//format//'I3)') "mapDepToCalc             ",mapDepToCalc
-!SWRITE (*,'(A,'//format//'I3)') "mapAllVarsToVisuVars     ",mapAllVarsToVisuVars
+SWRITE (*,'(A,'//format//'I3)') "mapAllVarsToVisuVars     ",mapAllVarsToVisuVars
 !SWRITE (*,'(A,'//format//'I3)') "mapAllVarsToSurfVisuVars ",mapAllVarsToSurfVisuVars
 
 
@@ -188,7 +188,7 @@ CONTAINS
 
 !SWRITE (*,'(A,'//format//'I3)') "mapAllBCNamesToVisuBCNames ",mapAllBCNamesToVisuBCNames
 
-!END SUBROUTINE Build_mapDepToCalc_mapAllVarsToVisuVars
+END SUBROUTINE Build_mapDepToCalc_mapAllVarsToVisuVars
 
 !===================================================================================================================================
 !> This routine builds mappings that give for each BC side the index of the visualization side, seperate by FV and DG.

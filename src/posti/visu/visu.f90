@@ -121,6 +121,10 @@ ELSE IF (ISVALIDHDF5FILE(statefile)) THEN ! other file
         END IF
       ELSE IF(STRICMP(datasetNames(i), "ElemData")) THEN
         CALL GetVarNames("VarNamesAdd",varnames_tmp,VarNamesExist)
+      ELSE IF(STRICMP(datasetNames(i), "PartData")) THEN
+        CYCLE ! Do not add particle data
+      ELSE IF(STRICMP(datasetNames(i), "PartInt")) THEN
+        CYCLE ! Do not add particle location in cells info
       ELSE
         CALL GetDataSize(File_ID,TRIM(datasetNames(i)),dims,HSize)
         IF ((dims.NE.5).AND.(dims.NE.2)) CYCLE ! Do not add datasets to the list that can not contain elementwise or field data
@@ -201,7 +205,7 @@ USE MOD_Interpolation_Vars ,ONLY: NodeType
 USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_StringTools        ,ONLY: STRICMP
 USE MOD_ReadInTools        ,ONLY: prms,GETINT,GETLOGICAL,addStrListEntry,GETSTR
-!USE MOD_Posti_Mappings     ,ONLY: Build_mapDepToCalc_mapAllVarsToVisuVars
+USE MOD_Posti_Mappings     ,ONLY: Build_mapDepToCalc_mapAllVarsToVisuVars
 IMPLICIT NONE
 INTEGER,INTENT(IN)               :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(IN)    :: statefile
@@ -227,7 +231,6 @@ CALL prms%read_options(postifile)
 NVisu             = GETINT("NVisu")
 ! again read MeshFile from posti prm file (this overwrites the MeshFile read from the state file)
 
-write(*,*) "XXXXXXXXXXXXXXx -- 0192"
 Meshfile          =  GETSTR("MeshFile",MeshFile_state)
 IF (.NOT.FILEEXISTS(MeshFile)) THEN
   !!!!!!
@@ -264,6 +267,12 @@ END IF
 CALL CloseDataFile()
 
 ! Check for changed visualization basis here to take change done for average output into account
+IF(NVisu.NE.NVisu_old)THEN
+  SWRITE(*,*) "Node type Visu has changed"
+END IF ! NVisu.NE.NVisu_old
+IF(NodeTypeVisuPosti.NE.NodeTypeVisuPosti_old)THEN
+  SWRITE(*,*) "Node type VisuPosti has changed"
+END IF ! NodeTypeVisuPosti.NE.NodeTypeVisuPosti_old
 changedNVisu     = ((NVisu.NE.NVisu_old) .OR. (NodeTypeVisuPosti.NE.NodeTypeVisuPosti_old))
 
 ! set number of dependent and raw variables
@@ -293,7 +302,7 @@ END IF
 
 ! build mappings of variables which must be calculated/visualized
 ! also set withDGOperator flag if a dependent variable requires the evaluation of the DG operator
-!CALL Build_mapDepToCalc_mapAllVarsToVisuVars()
+CALL Build_mapDepToCalc_mapAllVarsToVisuVars()
 
 END SUBROUTINE visu_InitFile
 
@@ -485,7 +494,13 @@ MeshFile_old          = MeshFile
 prmfile_old           = prmfile
 statefile_old         = statefile
 NVisu_old             = NVisu
+!NCalc_old             = NCalc
 nVar_State_old        = nVar_State
+!withDGOperator_old    = withDGOperator
+!DGonly_old            = DGonly
+!Avg2D_old             = Avg2D
+NodeTypeVisuPosti_old = NodeTypeVisuPosti
+!NState_old            = PP_N
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(*,*) "Visu finished for state file: ", TRIM(statefile)
