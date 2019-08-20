@@ -11,7 +11,7 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 MODULE MOD_MPI_Vars
-#ifdef MPI
+#if USE_MPI
 !===================================================================================================================================
 ! Add comments please!
 !===================================================================================================================================
@@ -31,7 +31,7 @@ INTEGER             :: iNbProc
 INTEGER             :: nSendVal,nRecVal,DataSizeSide
 INTEGER             :: SideID_start,SideID_end
 LOGICAL             :: MPIInitIsDone=.FALSE.
-#ifdef MPI
+#if USE_MPI
 INTEGER               :: nNbProcs         ! number of neighbor procs
 INTEGER,ALLOCATABLE   :: NbProc(:)        ! iProc list of neighbor procs; allocated from 1:nNbProcs
 INTEGER,ALLOCATABLE   :: nMPISides_Proc(:)
@@ -42,7 +42,7 @@ INTEGER,ALLOCATABLE   :: offsetMPISides_YOUR(:)! gives position of send/recv blo
 INTEGER,ALLOCATABLE   :: offsetElemMPI(:)      ! gives offsetposotion of elements of all procs
 INTEGER,ALLOCATABLE   :: nMPISides_send(:,:),nMPISides_rec(:,:)
 INTEGER,ALLOCATABLE   :: OffsetMPISides_send(:,:),OffsetMPISides_rec(:,:)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 #endif
 END MODULE MOD_MPI_Vars

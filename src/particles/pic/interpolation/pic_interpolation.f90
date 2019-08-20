@@ -146,7 +146,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM,PartPosGauss,PartSpecies,Species,DoFieldIonization
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_DG_Vars                ,ONLY: U
 #endif
 USE MOD_PIC_Vars
@@ -157,7 +157,7 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem,EvaluateFieldAtPhysPo
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: E
 #endif
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==1
 USE MOD_Equation_Vars          ,ONLY: E
 #elif PP_nVar==3
@@ -165,11 +165,11 @@ USE MOD_Equation_Vars          ,ONLY: B
 #else
 USE MOD_Equation_Vars          ,ONLY: B,E
 #endif /*PP_nVar==1*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
-#ifdef MPI
+#if USE_MPI
 ! only required for shape function??  only required for shape function??
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif
@@ -192,9 +192,9 @@ REAL                             :: field(6)
 INTEGER                          :: iPart,iElem
 ! for Nearest GaussPoint
 INTEGER                          :: a,b,k,ii,l,m
-#if defined PP_POIS || (defined PP_HDG && PP_nVar==4)
+#if defined PP_POIS || (USE_HDG && PP_nVar==4)
 REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
-#endif /*(PP_POIS||PP_HDG)*/
+#endif /*(PP_POIS||USE_HDG)*/
 LOGICAL                          :: NotMappedSurfFluxParts
 !===================================================================================================================================
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
@@ -209,13 +209,13 @@ IF(doInnerParts)THEN
   firstPart=1
   lastPart =PDM%ParticleVecLength
 ELSE
-#ifdef MPI
+#if USE_MPI
   firstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
   lastPart =PDM%ParticleVecLength
 #else
   firstPart=2
   LastPart =1
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END IF
 ! thats wrong
 IF(firstPart.GT.lastPart) RETURN
@@ -225,7 +225,7 @@ IF (.NOT.InterpolationElemLoop) THEN
   DO iPart = firstPart, LastPart
     IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     ! Don't interpolate the field at neutral particles (only when considering field ionization)
-    IF(DoFieldIonization.OR.CHARGEDPARTICLE(iPart))THEN
+    IF(DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart))THEN
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
     END IF
   END DO
@@ -260,7 +260,7 @@ ELSE ! use variable or fixed external field
 #endif
     ! Bz field strength at particle position
     DO iPart = firstPart, LastPart
-      IF(CHARGEDPARTICLE(iPart))THEN
+      IF(INTERPOLATEPARTICLE(iPart))THEN
         FieldAtParticle(iPart,6) = InterpolateVariableExternalField(PartState(iPart,3))
       END IF
     END DO
@@ -301,7 +301,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 !
 #ifdef PP_POIS
       CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
       CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif PP_nVar==3
@@ -319,7 +319,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       DO iPart=firstPart,LastPart
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
         ! Don't interpolate the field at neutral particles (only when considering field ionization)
-        IF(DoFieldIonization.OR.CHARGEDPARTICLE(iPart))THEN
+        IF(DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart))THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
             FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
           END IF! Element(iPart).EQ.iElem
@@ -331,7 +331,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       DO iPart = firstPart, LastPart
         IF(.NOT.PDM%ParticleInside(iPart))CYCLE
         ! Don't interpolate the field at neutral particles (only when considering field ionization)
-        IF(DoFieldIonization.OR.CHARGEDPARTICLE(iPart))THEN
+        IF(DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart))THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
             Pos = PartState(iPart,1:3)
             !--- evaluate at Particle position
@@ -346,7 +346,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
             CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
             CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif PP_nVar==3
@@ -362,7 +362,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif /*(PP_nVar==8)*/
             FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
           END IF ! Element(iPart).EQ.iElem
-        END IF ! DoFieldIonization.OR.CHARGEDPARTICLE(iPart)
+        END IF ! DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart)
       END DO ! iPart
     END DO ! iElem=1,PP_nElems
   CASE('particle_position')
@@ -372,7 +372,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         DO iPart=firstPart,LastPart
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           ! Don't interpolate the field at neutral particles (only when considering field ionization)
-          IF(DoFieldIonization.OR.CHARGEDPARTICLE(iPart))THEN
+          IF(DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart))THEN
             IF(PEM%Element(iPart).EQ.iElem)THEN
               IF(.NOT.DoRefMapping)THEN
                 CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
@@ -389,7 +389,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
               CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
               CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif PP_nVar==3
@@ -405,7 +405,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
               FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
             END IF ! Element(iPart).EQ.iElem
-          END IF ! DoFieldIonization.OR.CHARGEDPARTICLE(iPart)
+          END IF ! DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart)
         END DO ! iPart
       END DO ! iElem=1,PP_nElems
     ELSE IF(NotMappedSurfFluxParts .AND.(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint'))THEN
@@ -414,7 +414,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         DO iPart=firstPart,LastPart
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           ! Don't interpolate the field at neutral particles (only when considering field ionization)
-          IF(DoFieldIonization.OR.CHARGEDPARTICLE(iPart))THEN
+          IF(DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart))THEN
             IF(PEM%Element(iPart).EQ.iElem)THEN
               IF(PDM%dtFracPush(iPart))THEN ! same as in "particles are not yet mapped"
                 Pos = PartState(iPart,1:3)
@@ -430,7 +430,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
                 CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
                 CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
 #elif PP_nVar==3
@@ -460,7 +460,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
                 CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
                 CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif PP_nVar==3
@@ -477,7 +477,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
               END IF !PDM%dtFracPush(iPart)
               FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
             END IF ! Element(iPart).EQ.iElem
-          END IF ! DoFieldIonization.OR.CHARGEDPARTICLE(iPart)
+          END IF ! DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart)
         END DO ! iPart
       END DO ! iElem=1,PP_nElems
     ELSE ! particles are not yet mapped
@@ -485,7 +485,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         DO iPart=firstPart,LastPart
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           ! Don't interpolate the field at neutral particles (only when considering field ionization)
-          IF(DoFieldIonization.OR.CHARGEDPARTICLE(iPart))THEN
+          IF(DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart))THEN
             IF(PEM%Element(iPart).EQ.iElem)THEN
               Pos = PartState(iPart,1:3)
               !--- evaluate at Particle position
@@ -500,7 +500,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
               CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
               CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
 #elif PP_nVar==3
@@ -516,7 +516,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
               FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
             END IF ! Element(iPart).EQ.iElem
-          END IF ! DoFieldIonization.OR.CHARGEDPARTICLE(iPart)
+          END IF ! DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart)
         END DO ! iPart
       END DO ! iElem=1,PP_nElems
     END IF ! DoRefMapping .or. Depositiontype=nearest_gausspoint
@@ -533,7 +533,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       DO iPart=firstPart,LastPart
         IF(.NOT.PDM%ParticleInside(iPart))CYCLE
         ! Don't interpolate the field at neutral particles (only when considering field ionization)
-        IF(DoFieldIonization.OR.CHARGEDPARTICLE(iPart))THEN
+        IF(DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart))THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
             IF(.NOT.DoRefMapping .OR. (NotMappedSurfFluxParts .AND. PDM%dtFracPush(iPart)))THEN
               CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
@@ -583,7 +583,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
             field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
             FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
             field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
             FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
@@ -601,7 +601,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
 #endif
           END IF ! Element(iPart).EQ.iElem
-        END IF ! DoFieldIonization.OR.CHARGEDPARTICLE(iPart)
+        END IF ! DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart)
       END DO ! iPart
     END DO ! iElem=1,PP_nElems
   CASE DEFAULT
@@ -624,7 +624,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Particle_Vars,           ONLY:PartPosRef,PDM,PartState,PEM,PartPosGauss
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_DG_Vars,                 ONLY:U
 #endif
 USE MOD_PIC_Vars!,      ONLY:
@@ -634,7 +634,7 @@ USE MOD_Eval_xyz,                ONLY:GetPositionInRefElem,EvaluateFieldAtPhysPo
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:E
 #endif
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==1
 USE MOD_Equation_Vars,        ONLY:E
 #elif PP_nVar==3
@@ -642,7 +642,7 @@ USE MOD_Equation_Vars,        ONLY:B
 #else
 USE MOD_Equation_Vars,        ONLY:B,E
 #endif /*PP_nVar==1*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
@@ -664,9 +664,9 @@ REAL                         :: Pos(3),Field(1:6)
 INTEGER                      :: ElemID
 ! for Nearest GaussPoint
 INTEGER                          :: a,b,k,ii,l,m
-#if defined PP_POIS || (defined PP_HDG && PP_nVar==4)
+#if defined PP_POIS || (USE_HDG && PP_nVar==4)
 REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
-#endif /*(PP_POIS||PP_HDG)*/
+#endif /*(PP_POIS||USE_HDG)*/
 LOGICAL                          :: NotMappedSurfFluxParts
 !===================================================================================================================================
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
@@ -715,7 +715,7 @@ END IF
 IF (DoInterpolation) THEN                 ! skip if no self fields are calculated
   field(1:6)=0.
   ElemID=PEM%Element(PartID)
-#ifdef MPI
+#if USE_MPI
   IF(ElemID.GT.PP_nElems) RETURN
 #endif
   SELECT CASE(TRIM(InterpolationType))
@@ -736,7 +736,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
     CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
     CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif PP_nVar==3
@@ -765,7 +765,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
     CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
     CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif PP_nVar==3
@@ -798,7 +798,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
       CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
       CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif PP_nVar==3
@@ -829,7 +829,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
         CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
         CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
 #elif PP_nVar==3
@@ -859,7 +859,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
         CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
         CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif PP_nVar==3
@@ -889,7 +889,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
       CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
       CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
 #elif PP_nVar==3
@@ -962,7 +962,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
     field(1:3) = E(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
     FieldAtParticle(1:3) = FieldAtParticle(1:3) + field(1:3)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
     field(1:3) = E(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
     FieldAtParticle(1:3) = FieldAtParticle(1:3) + field(1:3)

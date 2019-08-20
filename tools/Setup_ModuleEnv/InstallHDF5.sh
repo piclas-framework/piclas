@@ -24,9 +24,18 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
 
     # build hdf5 in single
     MODULEFILE=${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/single
+    if [[ -n ${1} ]]; then
+      if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
+        rm ${MODULEFILE}
+      fi
+    fi
     if [ ! -e ${MODULEFILE} ]; then
       echo "creating HDF5-${HDF5VERSION} library for ${WHICHCOMPILER}-${COMPILERVERSION} single"
       module purge
+      if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION}) ]]; then
+        echo "module ${WHICHCOMPILER}/${COMPILERVERSION} not found "
+        break
+      fi
       module load ${WHICHCOMPILER}/${COMPILERVERSION}
 
       cd ${SOURCESDIR}
@@ -42,7 +51,10 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
       if [ ! -d ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/single ]; then
         mkdir -p ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/single
       fi
-      cd ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/single
+      if [[ ${1} =~ ^-r(erun)?$ ]] ; then
+        rm ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/single/* 
+      fi
+      cd ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/single/
       if [ ${WHICHCOMPILER} == gcc ]; then
         ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/single --with-pic --enable-fortran --enable-fortran2003 --disable-shared CC=$(which gcc) CXX=$(which g++) FC=$(which gfortran)
       elif [ ${WHICHCOMPILER} == intel ]; then
@@ -52,9 +64,9 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
       make install 2>&1 | tee install.out
 
       cp ${TEMPLATEDIR}/libraries/hdf5/single_template ${MODULEFILE}
-      sed -i 's/whichcompiler/'${WHICHCOMPILER}'/g' ${MODULEFILE}
-      sed -i 's/compilerversion/'${COMPILERVERSION}'/g' ${MODULEFILE}
-      sed -i 's/hdf5version/'${HDF5VERSION}'/g' ${MODULEFILE} 
+      sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}
+      sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
+      sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE} 
     else
       echo "HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} already created (module file exists)"
     fi
@@ -69,24 +81,40 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
       for j in $(seq 1 ${NMPI}); do
         MPIVERSION=$(ls /opt/modules/modulefiles/MPI/${WHICHMPI}/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n ${j} | tail -n 1)
         MODULEFILE=${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}
+        if [[ -n ${1} ]]; then
+          if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
+            rm ${MODULEFILE}
+          fi
+        fi
         if [ ! -e ${MODULEFILE} ]; then
           module purge
+          if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION}) ]]; then
+            echo "module ${WHICHCOMPILER}/${COMPILERVERSION} not found "
+            break
+          fi
           module load ${WHICHCOMPILER}/${COMPILERVERSION}
+          if [[ -n $(module load ${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION}) ]]; then
+            echo "module ${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION} not found "
+            break
+          fi
           module load ${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION}
 
           if [ ! -d ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION} ]; then
             mkdir -p ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}
+          fi
+          if [[ ${1} =~ ^-r(erun)?$ ]] ; then
+            rm ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}/* 
           fi
           cd ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}
           ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION} --with-pic --enable-fortran --enable-fortran2003 --disable-shared --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
           make -j 2>&1 | tee make.out
           make install 2>&1 | tee install.out
           cp ${TEMPLATEDIR}/libraries/hdf5/mpi_template ${MODULEFILE}
-          sed -i 's/whichcompiler/'${WHICHCOMPILER}'/g' ${MODULEFILE}
-          sed -i 's/compilerversion/'${COMPILERVERSION}'/g' ${MODULEFILE}
-          sed -i 's/hdf5version/'${HDF5VERSION}'/g' ${MODULEFILE} 
-          sed -i 's/whichmpi/'${WHICHMPI}'/g' ${MODULEFILE}
-          sed -i 's/mpiversion/'${MPIVERSION}'/g' ${MODULEFILE}
+          sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}
+          sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
+          sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE} 
+          sed -i 's/whichmpi/'${WHICHMPI}'/gI' ${MODULEFILE}
+          sed -i 's/mpiversion/'${MPIVERSION}'/gI' ${MODULEFILE}
         else
           echo "HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} and ${WHICHMPI}-${MPIVERSION} already created (module file exists)"
           continue

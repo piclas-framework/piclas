@@ -1340,7 +1340,7 @@ SUBROUTINE CalcHeatOfFormation()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals       ,ONLY: abort,UNIT_stdOut
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals       ,ONLY: mpiroot
 #endif
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
@@ -1402,7 +1402,7 @@ SUBROUTINE SetNextIonizationSpecies()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals       ,ONLY: UNIT_stdOut
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals       ,ONLY: mpiroot
 #endif
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies

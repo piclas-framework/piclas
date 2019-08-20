@@ -40,10 +40,10 @@ USE MOD_ReadInTools,            ONLY:GETINT,GETREALARRAY
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,NbrOfCases,casematrix
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Mesh_Vars,              ONLY:BoundaryType,nBCs
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_Vars,          ONLY:PDM
 USE MOD_Particle_MPI_Vars,      ONLY: PartShiftVector
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !USE MOD_Particle_Vars,      ONLY:PartBound
 !USE MOD_Particle_MPI_Vars,  ONLY:NbrOfCases, casematrix!, partShiftVector
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -133,13 +133,13 @@ ELSE
   ALLOCATE(casematrix(1:1,1:3))
   casematrix(:,:) = 0
 END IF
-#ifdef MPI
+#if USE_MPI
 SDEALLOCATE(PartShiftVector)
 IF (GEO%nPeriodicVectors.GT.0) THEN
   ALLOCATE(PartShiftVector(1:3,1:PDM%maxParticleNumber))
   PartShiftVector = 0.
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE InitPeriodicBC
 

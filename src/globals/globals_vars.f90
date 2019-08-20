@@ -44,6 +44,7 @@ CHARACTER(LEN=255)           :: ProjectName                           !> TODO-DE
 CHARACTER(LEN=255)           :: ParameterFile                         !> filename of the parameter file
 CHARACTER(LEN=255)           :: ParameterDSMCFile                     !> filename of the parameterDSMC file
 REAL, PARAMETER              :: BoltzmannConst=1.380648813E-23        !> Boltzmann constant [J/K] SI-Unit! in m^2/(s^2*K)
+CHARACTER(LEN=5)             :: TimeStampLenStr,TimeStampLenStr2      !> Strings for timestamp format of time
 !===================================================================================================================================
 
 !CONTAINS

@@ -15,7 +15,7 @@ MODULE MOD_DSMC_Vars
 ! Contains the DSMC variables
 !===================================================================================================================================
 ! MODULES
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars, ONLY: tPartMPIConnect
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -82,6 +82,7 @@ TYPE tRadialWeighting
   INTEGER, ALLOCATABLE        :: ClonePartNum(:)
   INTEGER                     :: CloneInputDelay
   LOGICAL                     :: CellLocalWeighting
+  INTEGER                     :: nSubSides
 END TYPE tRadialWeighting
 
 TYPE(tRadialWeighting)        :: RadialWeighting
@@ -538,7 +539,7 @@ TYPE tSampleCartmesh_VolWe
   INTEGER                               :: OrderVolInt
   REAL, ALLOCATABLE                    :: x_VolInt(:)
   REAL, ALLOCATABLE                    :: w_VolInt(:)
-#ifdef MPI
+#if USE_MPI
   TYPE(tPartMPIConnect)        , ALLOCATABLE :: MPIConnect(:)             ! MPI connect for each process
 #endif
 END TYPE
@@ -574,7 +575,7 @@ END TYPE
 
 TYPE (tDSMCSampAdaptCellVolW) DSMCSampAdaptCellVolW
 
-#ifdef MPI
+#if USE_MPI
 TYPE tAdaptCellVolWRecvPart
   REAL,ALLOCATABLE                      :: PartState(:,:)
   REAL,ALLOCATABLE                      :: PartStateInt(:,:)

@@ -49,9 +49,9 @@ USE MOD_Interpolation,       ONLY: GetVandermonde
 USE MOD_ChangeBasis,         ONLY: ChangeBasis3D
 USE MOD_VTK,                 ONLY: WriteDataToVTK,WriteVTKMultiBlockDataSet
 USE MOD_Prepare_Mesh,        ONLY: fillMeshInfo
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars,            ONLY: NbProc,nMPISides_Proc
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_Analyze,             ONLY: CalcErrorStateFiles, CalcErrorStateFileSigma
 USE MOD_Analyze_Vars,        ONLY: NAnalyze
 USE MOD_Mesh_Vars,           ONLY: sJ,NGeoRef
@@ -104,7 +104,8 @@ INTEGER                        :: iArgsStart
 LOGICAL                        :: MeshInitFinished, ReadMeshFinished
 ! PartData
 LOGICAL                        :: VisuParticles, PartDataExists
-!==================================================================================================================================
+INTEGER                        :: TimeStampLength
+!===================================================================================================================================
 CALL InitMPI()
 CALL ParseCommandlineArguments()
 !CALL DefineParametersMPI()
@@ -126,6 +127,7 @@ CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which a
                                                    'Default: 2*N. (needed for CalcDiffError)')
 CALL prms%CreateLogicalOption('VisuParticles',  "Visualize particles (velocity, species, internal energy).", '.FALSE.')
 CALL prms%CreateLogicalOption('writePartitionInfo',  "Write information about MPI partitions into a file.",'.FALSE.')
+CALL prms%CreateIntOption(    'TimeStampLength', 'Length of the floating number time stamp', '14')
 CALL DefineParametersIO()
 
 NVisuDefault = .FALSE.
@@ -244,6 +246,13 @@ VisuSource    = GETLOGICAL('VisuSource','.FALSE.')
 VisuParticles    = GETLOGICAL('VisuParticles','.FALSE.')
 ! Initialization of I/O routines
 CALL InitIO()
+! Get length of the floating number time stamp
+TimeStampLength = GETINT('TimeStampLength')
+IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(&
+    __STAMP__&
+    ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
+WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
+WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
 
 ! Measure init duration
 Time=PICLASTIME()
@@ -338,10 +347,10 @@ DO iArgs = iArgsStart,nArgs
       END IF
       ! Deallocate and finalize mesh vars
       SDEALLOCATE(NodeCoords)
-#ifdef MPI
+#if USE_MPI
       SDEALLOCATE(NbProc)
       SDEALLOCATE(nMPISides_Proc)
-#endif /*MPI*/
+#endif /*USE_MPI*/
       CALL FinalizeMesh()
 
       ! Read in parameters from mesh file
@@ -524,7 +533,7 @@ CALL FinalizeParticleMesh()
 #endif
 ! Measure processing duration
 Time=PICLASTIME()
-#ifdef MPI
+#if USE_MPI
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) THEN
   CALL abort(__STAMP__,&
@@ -733,7 +742,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars
 USE MOD_PreProc
 USE MOD_Prepare_Mesh            ,ONLY: setLocalSideIDs,fillMeshInfo
-#ifdef MPI
+#if USE_MPI
 USE MOD_Prepare_Mesh            ,ONLY: exchangeFlip
 #endif
 #ifdef PARTICLES
@@ -749,7 +758,7 @@ PP_nElems=nElems
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
 CALL setLocalSideIDs()
 
-#ifdef MPI
+#if USE_MPI
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
 CALL exchangeFlip()
 #endif
