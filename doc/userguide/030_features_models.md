@@ -602,7 +602,9 @@ Particles-DSMC-ProhibitDoubleCollision [@Shevyrin2005,@Akhlaghi2018]
 
 ### Relaxation \label{sec:dsmc_relaxation}
 
-To determine the different relaxation probabilities of the different internal degrees of freedom, different models are implemented. The first and easiest model are constant relaxation probabilities and second more complex models with variable, mostly temperature dependent, relaxation probabilities. Three different kinds of internal degrees of freedom are implemented in piclas: rotational, vibrational and electronical ones. For each one, different relaxation models are neccesary. Also different selection procedures are implemented: multi-relaxation and prohibiting-double-relaxation.
+To determine the different relaxation probabilities of the different internal degrees of freedom, different models are implemented. The first and easiest model are constant relaxation probabilities and second more complex models with variable, mostly temperature dependent, relaxation probabilities. Three different kinds of internal degrees of freedom are implemented in piclas: rotational, vibrational and electronical ones. For each one, different relaxation models are neccesary. Also different selection procedures are implemented: multi-relaxation and prohibiting-double-relaxation. The following flag has to be set true to enable the correction factor of Lumpkin [@Lumpkin1991],:
+
+    Particles-DSMC-useRelaxProbCorrFactor = false
 
 #### Rotational Relaxation \label{sec:dsmc_rotational_relxation}
 

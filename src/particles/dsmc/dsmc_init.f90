@@ -199,6 +199,8 @@ CALL prms%CreateRealOption(     'Part-Species[$]-VFDPhi3'  &
                                            ,'Factor of Phi3 in VFD Method: Phi3 = 0 => VFD', '0.'&
                                            , numberedmulti=.TRUE.)
 ! ----------------------------------------------------------------------------------------------------------------------------------
+CALL prms%CreateLogicalOption(  'Particles-DSMC-useRelaxProbCorrFactor'&
+                                           ,'Use the relaxation probability correction factor of Lumpkin', '.FALSE.')
 CALL prms%CreateRealOption(     'Part-Species[$]-CollNumRotInf'  &
                                            ,'Collision number for rotational relaxation according to Parker or'//&
                                             'Zhang, ini_2 -> model dependent!', numberedmulti=.TRUE.)
@@ -650,6 +652,7 @@ __STAMP__&
     SpecDSMC(1:nSpecies)%EZeroPoint = 0.0
     SpecDSMC(1:nSpecies)%PolyatomicMol=.false.
     SpecDSMC(1:nSpecies)%SpecToPolyArray = 0
+    useRelaxProbCorrFactor=GETLOGICAL('Particles-DSMC-useRelaxProbCorrFactor','.FALSE.')
     DO iSpec = 1, nSpecies
       IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -720,9 +723,6 @@ __STAMP__&
             __STAMP__&
             ,'Error! VibCrossSec is equal to zero for species:', iSpec)
           END IF
-          ! open(unit=226,file='ProbVibAv.csv',status='replace',action='write')
-          !   WRITE(226,*) 'Iter,ProbVibAv(iElem),nCollis'
-          ! CLOSE(Unit=226)
         END IF
         ! Setting the values of Rot-/Vib-RelaxProb to a fix value
         SpecDSMC(iSpec)%RotRelaxProb  = DSMC%RotRelaxProb

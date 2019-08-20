@@ -47,7 +47,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
-  USE MOD_DSMC_Vars,              ONLY : DSMC, PairE_vMPF, SpecDSMC, VarVibRelaxProb
+  USE MOD_DSMC_Vars,              ONLY : DSMC, PairE_vMPF, SpecDSMC, VarVibRelaxProb, useRelaxProbCorrFactor
   USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, usevMPF, PartMPF, WriteMacroVolumeValues, VarTimeStep
   USE MOD_DSMC_Relaxation,        ONLY : SetMeanVibQua
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
@@ -96,13 +96,15 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
               CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + GetParticleWeight(iPartIndx_Node(iPart))
   END DO
 
-  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
+  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
+                    .OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1))) THEN
     ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
     !           relaxation probability (CalcGammaVib)
     ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
     ! 3. Case: Temperature required for the mean free path with the VHS model
+    ! 4. Case: Needed to calculate the correction factor
     CALL CalcInstantTransTemp(iPartIndx_Node,PartNum)
-    IF((SelectionProc.EQ.2).OR.(DSMC%VibRelaxProb.EQ.2.0)) CALL CalcGammaVib()
+    IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
   END IF
 
   ALLOCATE(Coll_pData(PairNum_Node))
@@ -238,7 +240,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac, PairE_vMPF, CRelaMax, CRelaAv
-  USE MOD_DSMC_Vars,              ONLY : DSMC, SelectionProc, RadialWeighting
+  USE MOD_DSMC_Vars,              ONLY : DSMC, SelectionProc, RadialWeighting, useRelaxProbCorrFactor
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp
   USE MOD_Particle_Vars,          ONLY : PEM, PartSpecies, nSpecies, PartState, usevMPF, PartMPF, VarTimeStep
   USE MOD_Particle_Vars,          ONLY : KeepWallParticles, PDM
@@ -298,13 +300,15 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     iPart = PEM%pNext(iPart)
   END DO
 
-  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
+  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
+                    .OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1))) THEN
     ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
     !           relaxation probability (CalcGammaVib)
     ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
     ! 3. Case: Temperature required for the mean free path with the VHS model
+    ! 4. Case: Needed to calculate the correction factor
     CALL CalcInstantTransTemp(iPartIndx,nPart)
-    IF(SelectionProc.EQ.2) CALL CalcGammaVib()
+    IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
   END IF
 
   IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) MPFFac = 1
@@ -372,6 +376,7 @@ SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoi
 USE MOD_Globals
 USE MOD_DSMC_Vars,              ONLY: CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
 USE MOD_DSMC_Vars,              ONLY: DSMC, PairE_vMPF, RadialWeighting, SamplingActive, SpecDSMC, VarVibRelaxProb
+USE MOD_DSMC_Vars,              ONLY: useRelaxProbCorrFactor
 USE MOD_DSMC_Symmetry2D,        ONLY: CalcRadWeightMPF
 USE MOD_Particle_Vars,          ONLY: PartState, nSpecies, PartSpecies, usevMPF, PartMPF, WriteMacroVolumeValues, VarTimeStep
 USE MOD_DSMC_Relaxation,        ONLY: SetMeanVibQua
@@ -424,9 +429,15 @@ DO iPart = 1, PartNum
             CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + GetParticleWeight(iPartIndx_Node(iPart))
 END DO
 
-IF((CollisMode.GT.1).AND.(SelectionProc.EQ.2).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
+IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
+                  .OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1))) THEN
+  ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
+  !           relaxation probability (CalcGammaVib)
+  ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
+  ! 3. Case: Temperature required for the mean free path with the VHS model
+  ! 4. Case: Needed to calculate the correction factor
   CALL CalcInstantTransTemp(iPartIndx_Node,PartNum)
-  IF(SelectionProc.EQ.2) CALL CalcGammaVib()
+  IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
 END IF
 
 ALLOCATE(Coll_pData(PairNum_Node))

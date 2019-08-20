@@ -62,12 +62,14 @@ INTEGER                       :: LD_MultiTemperaturMod      ! Modell choice for 
 REAL                          :: CRelaMax                   ! Max relative velocity
 REAL                          :: CRelaAv                    ! Average relative velocity
 
+LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
+
 TYPE tVarVibRelaxProb
-  REAL, ALLOCATABLE             :: ProbVibAvNew(:)          ! New Average of vibrational relaxation probability, VibRelaxProb = 2
-  REAL, ALLOCATABLE             :: ProbVibAv(:,:)           ! Average of vibrational relaxation probability of the Element 
+  REAL, ALLOCATABLE           :: ProbVibAvNew(:)            ! New Average of vibrational relaxation probability, VibRelaxProb = 2
+  REAL, ALLOCATABLE           :: ProbVibAv(:,:)             ! Average of vibrational relaxation probability of the Element 
                                                             ! (1:nElems), VibRelaxProb = 2
-  INTEGER, ALLOCATABLE          :: nCollis(:)               ! Number of Collisions, VibRelaxProb = 2
-  REAL                          :: alpha                    ! Relaxation factor of ProbVib, VibRelaxProb = 2
+  INTEGER, ALLOCATABLE        :: nCollis(:)                 ! Number of Collisions, VibRelaxProb = 2
+  REAL                        :: alpha                      ! Relaxation factor of ProbVib, VibRelaxProb = 2
 END TYPE tVarVibRelaxProb
 
 TYPE(tVarVibRelaxProb) VarVibRelaxProb
@@ -78,7 +80,7 @@ TYPE tRadialWeighting
   INTEGER                     :: CloneDelayDiff
   LOGICAL                     :: DoRadialWeighting              ! Enables radial weighting in the axisymmetric simulations
   INTEGER                     :: CloneMode                      ! 1 = Clone Delay
-                                                                 ! 2 = Clone Random Delay
+                                                                ! 2 = Clone Random Delay
   INTEGER, ALLOCATABLE        :: ClonePartNum(:)
   INTEGER                     :: CloneInputDelay
   LOGICAL                     :: CellLocalWeighting

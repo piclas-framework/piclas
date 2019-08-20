@@ -843,7 +843,7 @@ INTEGER               :: iSpec, iDOF, iPolyatMole
 
 ! Calculate GammaVib Factor  = Xi_Vib² * exp(CharaTVib/T_trans) / 2
 DO iSpec = 1, nSpecies
-  IF(DSMC%InstantTransTemp(iSpec).GT.0.0) THEN
+  IF(DSMC%InstantTransTemp(iSpec).GT.10.0) THEN ! If too low exp cannot evaluted
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
         iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray

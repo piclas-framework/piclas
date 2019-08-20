@@ -2879,7 +2879,7 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 ! MODULES
   USE MOD_Globals            ,ONLY : Abort
   USE MOD_Globals_Vars       ,ONLY : Pi, BoltzmannConst
-  USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, PartStateIntEn, DSMC
+  USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, PartStateIntEn, DSMC, useRelaxProbCorrFactor
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2903,11 +2903,15 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
   ! calculate correction factor according to Lumpkin et al.
   ! - depending on selection procedure. As only one particle undergoes relaxation
   ! - only one RotDOF is needed (of considered species)
-  CorrFact = 1. + RotDOF/Xi_rel
+  IF(useRelaxProbCorrFactor) THEN
+    CorrFact = 1. + RotDOF/Xi_rel
+  ELSE
+    CorrFact = 1.
+  END IF
 
   ! calculate corrected probability for rotational relaxation
   IF(DSMC%RotRelaxProb.GE.0.0.AND.DSMC%RotRelaxProb.LE.1.0) THEN
-    ProbRot = DSMC%RotRelaxProb
+    ProbRot = DSMC%RotRelaxProb * CorrFact
   ELSEIF(DSMC%RotRelaxProb.EQ.2.0) THEN ! P_rot according to Boyd (based on Parker's model)
 
     RotDOF = RotDOF*0.5 ! Only half of the rotational degree of freedom, because the other half is used in the relaxation 
@@ -2947,7 +2951,7 @@ SUBROUTINE DSMC_calc_P_vib(iSpec, Xi_rel, iElem, ProbVib)
 ! MODULES
   USE MOD_Globals            ,ONLY : Abort
   USE MOD_Globals_Vars       ,ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, DSMC, VarVibRelaxProb
+  USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, DSMC, VarVibRelaxProb, useRelaxProbCorrFactor
   USE MOD_DSMC_Vars          ,ONLY : PolyatomMolDSMC
 
 ! IMPLICIT VARIABLE HANDLING
@@ -2971,7 +2975,13 @@ INTEGER                   :: iPolyatMole, iDOF
   ! calculate correction factor according to Gimelshein et al.
   ! - depending on selection procedure. As only one particle undergoes relaxation
   ! - only one VibDOF (GammaVib) is needed (of considered species)
-  ! CorrFact = 1. + SpecDSMC(iSpec)%GammaVib/Xi_rel
+  IF(useRelaxProbCorrFactor) THEN
+    CorrFact = 1. + SpecDSMC(iSpec)%GammaVib/Xi_rel
+  ELSE
+    CorrFact = 1.
+  END IF
+
+  WRITE(*,*) CorrFact
 
   IF((DSMC%VibRelaxProb.GE.0.0).AND.(DSMC%VibRelaxProb.LE.1.0)) THEN
     IF (SpecDSMC(iSpec)%PolyatomicMol.AND.(DSMC%PolySingleMode)) THEN
@@ -2983,13 +2993,13 @@ INTEGER                   :: iPolyatMole, iDOF
                                                    + DSMC%VibRelaxProb * (1. + PolyatomMolDSMC(iPolyatMole)%GammaVib(1)/Xi_rel)
       END DO
     ELSE
-      ProbVib = DSMC%VibRelaxProb! * CorrFact
+      ProbVib = DSMC%VibRelaxProb * CorrFact
     END IF
   ELSE IF(DSMC%VibRelaxProb.EQ.2.0) THEN 
     ! Calculation of Prob Vib in function DSMC_calc_var_P_vib. 
     ! This has to average over all collisions according to Boyd (doi:10.1063/1.858495)
     ! The average value of the cell is only taken from the vector
-    ProbVib = VarVibRelaxProb%ProbVibAv(iElem, iSpec)
+    ProbVib = VarVibRelaxProb%ProbVibAv(iElem, iSpec) * CorrFact
   ELSE
     CALL Abort(&
     __STAMP__&
@@ -3019,15 +3029,10 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
   REAL, INTENT(OUT)         :: ProbVib
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                      :: CorrFact, TempCorr, DrefVHS, CRela               ! CorrFact: To correct sample Bias 
-                                                                                ! (fewer DSMC particles than natural ones)
+  REAL                      :: TempCorr, DrefVHS, CRela
 !===================================================================================================================================
   
   
-  ! calculate correction factor according to Gimelshein et al.
-  ! - depending on selection procedure. As only one particle undergoes relaxation
-  ! - only one VibDOF (GammaVib) is needed (of considered species)
-  CorrFact = 1. + SpecDSMC(iSpec)%GammaVib / (2. * (2. - SpecDSMC(iSpec)%omegaVHS) )
   ! P_vib according to Boyd, corrected by Abe, only V-T transfer
   ! determine joint omegaVHS and Dref factor and rel velo
   DrefVHS = 0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(jSpec)%DrefVHS)
@@ -3040,7 +3045,7 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
           * (  CollInf%MassRed(Coll_pData(iPair)%PairType)*CRela & !**2
               / (2.*(2.-SpecDSMC(iSpec)%omegaVHS)*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS))**SpecDSMC(iSpec)%omegaVHS
   ! determine corrected probabilities
-  ProbVib = ProbVib * TempCorr / (ProbVib + TempCorr) * CorrFact         ! TauVib = TauVibStd + TauTempCorr
+  ProbVib = ProbVib * TempCorr / (ProbVib + TempCorr)        ! TauVib = TauVibStd + TauTempCorr
   IF(ProbVib.NE.ProbVib) THEN !If is NAN
     ProbVib=0.
     SWRITE(*,*) 'WARNING: Vibrational relaxation probability is NAN and is set to zero. CRela:', CRela
