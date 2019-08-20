@@ -47,8 +47,8 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
-  USE MOD_DSMC_Vars,              ONLY : DSMC, PairE_vMPF, SpecDSMC
-  USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, usevMPF, PartMPF, WriteMacroVolumeValues, VarTimeStep
+  USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC
+  USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, WriteMacroVolumeValues, VarTimeStep
   USE MOD_DSMC_Relaxation,        ONLY : SetMeanVibQua
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
   USE MOD_Particle_Analyze_Vars,  ONLY : CalcEkin
@@ -71,7 +71,6 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   INTEGER                       :: iPair, iPart1, iPart2, iLoop, iPart, nPart
   INTEGER                       :: cSpec1, cSpec2, iCase , PairNum_Node
   REAL                          :: Dist1, Dist2, iRan
-  REAL                          :: TempMPFFac, MPFFac
 !===================================================================================================================================
 
   PairNum_Node = INT(PartNum/2)
@@ -206,10 +205,10 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
 ! Classic statistical pairing method
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac, PairE_vMPF, CRelaMax, CRelaAv
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac, CRelaMax, CRelaAv
   USE MOD_DSMC_Vars,              ONLY : DSMC, SelectionProc, RadialWeighting
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp
-  USE MOD_Particle_Vars,          ONLY : PEM, PartSpecies, nSpecies, PartState, usevMPF, PartMPF, VarTimeStep
+  USE MOD_Particle_Vars,          ONLY : PEM, PartSpecies, nSpecies, PartState, VarTimeStep
   USE MOD_Particle_Vars,          ONLY : KeepWallParticles, PDM
   USE MOD_part_tools,             ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -225,7 +224,6 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   INTEGER                       :: cSpec1, cSpec2, iCase
   INTEGER, ALLOCATABLE          :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
   REAL                          :: iRan
-  REAL                          :: TempMPFFac, MPFFac
 !===================================================================================================================================
   IF (KeepWallParticles) THEN
     nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
@@ -326,9 +324,9 @@ SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoi
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars,              ONLY: CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
-USE MOD_DSMC_Vars,              ONLY: DSMC, PairE_vMPF, RadialWeighting, SamplingActive, SpecDSMC
+USE MOD_DSMC_Vars,              ONLY: DSMC, RadialWeighting, SamplingActive, SpecDSMC
 USE MOD_DSMC_Symmetry2D,        ONLY: CalcRadWeightMPF
-USE MOD_Particle_Vars,          ONLY: PartState, nSpecies, PartSpecies, usevMPF, PartMPF, WriteMacroVolumeValues, VarTimeStep
+USE MOD_Particle_Vars,          ONLY: PartState, nSpecies, PartSpecies, PartMPF, WriteMacroVolumeValues, VarTimeStep
 USE MOD_DSMC_Relaxation,        ONLY: SetMeanVibQua
 USE MOD_DSMC_Analyze,           ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
 USE MOD_Particle_Analyze_Vars,  ONLY: CalcEkin
@@ -351,7 +349,7 @@ INTEGER, INTENT(INOUT)          :: iPartIndx_Node(:)
 INTEGER                         :: iPair, iPart1, iPart2, iLoop, iPart, nPart, loopStart
 INTEGER                         :: cSpec1, cSpec2, iCase , PairNum_Node, tempPart
 REAL                            :: Dist1, Dist2, iRan
-REAL                            :: TempMPFFac, MPFFac, iRanVec(2), NodeLength
+REAL                            :: iRanVec(2), NodeLength
 !===================================================================================================================================
 
 PairNum_Node = INT(PartNum/2)
@@ -1509,9 +1507,9 @@ SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,PairE_vMPF,BGGas,DSMC,RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
 USE MOD_DSMC_Vars             ,ONLY: SamplingActive, SelectionProc, SpecDSMC
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, usevMPF, PartMPF, WriteMacroVolumeValues, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -1530,7 +1528,6 @@ INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
 INTEGER                       :: nPair, iPair, iPart, cPart1, cPart2, nPart, tempPart
 INTEGER                       :: cSpec1, cSpec2, iCase
 REAL                          :: iRan
-REAL                          :: TempMPFFac, MPFFac
 !===================================================================================================================================
 
 nPart = PartNum

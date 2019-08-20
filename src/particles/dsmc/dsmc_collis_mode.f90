@@ -35,14 +35,13 @@ PUBLIC :: DSMC_perform_collision
 
 CONTAINS
 
-SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
+SUBROUTINE DSMC_Elastic_Col(iPair)
 !===================================================================================================================================
 ! Performs simple elastic collision (CollisMode = 1)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, PairE_vMPF, RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, usevMPF, PartMPF, VarTimeStep, Species
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, RadialWeighting
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, VarTimeStep, Species
   USE MOD_part_tools,             ONLY : DiceUnitVector
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -50,7 +49,6 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iPair
-  INTEGER, INTENT(IN)           :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -299,17 +297,16 @@ SUBROUTINE TLU_Scat_Interpol(E_p,b_p,ScatAngle)
   !write(*,*) (ScatAngle/ACOS(-1.0)*180), I_jp1, szB
 END SUBROUTINE TLU_Scat_Interpol
 
-SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
+SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 !===================================================================================================================================
 ! Performs inelastic collisions with energy exchange (CollisMode = 2/3), allows the relaxation of both collision partners
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, &
-                                         SpecDSMC, PartStateIntEn, PairE_vMPF, RadialWeighting
+                                         SpecDSMC, PartStateIntEn, RadialWeighting
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, usevMPF, PartMPF, Species, VarTimeStep
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, Species, VarTimeStep
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
@@ -320,7 +317,6 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iPair
-  INTEGER, INTENT(IN)           :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -332,7 +328,6 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2   ! Check whether rot or vib relax is performed
   REAL (KIND=8)                 :: Xi_rel, Xi, FakXi                ! Factors of DOF
   REAL                          :: RanVec(3)                        ! Max. Quantum Number
-  REAL                          :: PartStateIntEnTemp, Phi!, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
   REAL                          :: ReducedMass
   INTEGER                       :: iSpec1, iSpec2, iPart1, iPart2
   ! variables for electronic level relaxation and transition
@@ -415,11 +410,7 @@ IF (DSMC%DoTEVRRelaxation) THEN
     IF(DoElec1.AND.DoVib1) THEN
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,3)  &
                            +    PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
-#if (PP_TimeDiscMethod == 42)
-      CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2)
-#else
       CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi)
-#endif
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,3)  &
                            -    PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
       DoElec1=.false.
@@ -431,11 +422,7 @@ IF (DSMC%DoTEVRRelaxation) THEN
     IF(DoElec2.AND.DoVib2) THEN
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)  &
                            +    PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
-#if (PP_TimeDiscMethod == 42)
-      CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1)
-#else
       CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi)
-#endif
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)  &
                            -    PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
       DoElec2=.false.
@@ -448,11 +435,7 @@ END IF
   IF ( DoElec1 ) THEN
     ! calculate energy for electronic relaxation of particle 1
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,3) * GetParticleWeight(iPart1)
-#if (PP_TimeDiscMethod == 42)
-    CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2)
-#else
     CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi)
-#endif
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,3) * GetParticleWeight(iPart1)
   END IF
 
@@ -586,7 +569,7 @@ END IF
 END SUBROUTINE DSMC_Relax_Col_LauxTSHO
 
 
-SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
+SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
 !===================================================================================================================================
 ! Performs inelastic collisions with energy exchange (CollisMode = 2/3)
 ! Selection procedure according to Gimelshein et al. (Physics of Fluids, V 14, No 12, 2002: 'Vibrational Relaxation rates in the
@@ -597,9 +580,8 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   USE MOD_Globals,                ONLY : Abort
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, PolyatomMolDSMC, VibQuantsPar, &
-                                         SpecDSMC, PartStateIntEn, PairE_vMPF, RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, usevMPF, PartMPF
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+                                         SpecDSMC, PartStateIntEn
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
@@ -609,7 +591,6 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iPair
-  INTEGER, INTENT(IN)           :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -623,7 +604,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   REAL (KIND=8)                 :: FakXi, Xi_rel                                ! Factors of DOF
   INTEGER                       :: iQuaMax, iQua                                ! Quantum Numbers
   REAL                          :: MaxColQua, RanVec(3)                         ! Max. Quantum Number
-  REAL                          :: PartStateIntEnTemp, Phi!, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
+  REAL                          :: PartStateIntEnTemp                           ! temp. var for inertial energy (needed for vMPF)
   REAL                          :: ProbFrac1, ProbFrac2, ProbFrac3, ProbFrac4   ! probability-fractions according to Zhang
   REAL                          :: ProbRot1, ProbRot2, ProbVib1, ProbVib2       ! probabilities for rot-/vib-relax for part 1/2
   REAL                          :: BLCorrFact, ProbRotMax1, ProbRotMax2         ! Correction factor for BL-redistribution of energy
@@ -861,7 +842,6 @@ __STAMP__&
     ! no polyatomic treatment
     ELSE
      CALL RANDOM_NUMBER(iRan)
-      ! variable MPF
       PartStateIntEnTemp = iRan * Coll_pData(iPair)%Ec
       CALL RANDOM_NUMBER(iRan)
       DO WHILE(iRan.GT.(1. - PartStateIntEnTemp/Coll_pData(iPair)%Ec)**FakXi*BLCorrFact)      ! FakXi hier nur 0.5*Xi_rel - 1 !
@@ -988,7 +968,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
       ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
       IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-        CALL DSMC_Elastic_Col(iPair, iElem)
+        CALL DSMC_Elastic_Col(iPair)
 #if (PP_TimeDiscMethod==42)
       END IF
 #endif
@@ -999,9 +979,9 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 #endif
         SELECT CASE(SelectionProc)
           CASE(1)
-            CALL DSMC_Relax_Col_LauxTSHO(iPair, iElem)
+            CALL DSMC_Relax_Col_LauxTSHO(iPair)
           CASE(2)
-            CALL DSMC_Relax_Col_Gimelshein(iPair, iElem)
+            CALL DSMC_Relax_Col_Gimelshein(iPair)
           CASE DEFAULT
             CALL Abort(&
 __STAMP__&
@@ -1024,9 +1004,9 @@ __STAMP__&
         IF (RelaxToDo) THEN
           SELECT CASE(SelectionProc)
             CASE(1)
-              CALL DSMC_Relax_Col_LauxTSHO(iPair, iElem)
+              CALL DSMC_Relax_Col_LauxTSHO(iPair)
             CASE(2)
-              CALL DSMC_Relax_Col_Gimelshein(iPair, iElem)
+              CALL DSMC_Relax_Col_Gimelshein(iPair)
             CASE DEFAULT
               CALL Abort(&
 __STAMP__&
@@ -1053,7 +1033,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
   USE MOD_Globals,                ONLY : Abort
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst, ElementaryCharge
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, usevMPF, VarTimeStep
+  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep
   USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb
   USE MOD_Globals,                ONLY : Unit_stdOut
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
@@ -1128,7 +1108,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
         END IF
         IF (ChemReac%QKProcedure(iReac)) THEN
           ! QK - model
-          CALL QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
+          CALL QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,NodeVolume,NodePartNum)
         ELSE
 !-----------------------------------------------------------------------------------------------------------------------------------
         ! traditional Recombination
@@ -2486,7 +2466,7 @@ __STAMP__&
           END IF
 #endif
         ELSE
-          CALL DSMC_Elastic_Col(iPair, iElem)
+          CALL DSMC_Elastic_Col(iPair)
           CALL simpleMEX(iReac, iPair)
         END IF
       END IF !ChemReac%DoScat(iReac)

@@ -38,8 +38,7 @@ SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PartStateIntEn, Coll_pData, RadialWeighting
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartMPF, usevMPF, PEM, VarTimeStep
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -51,8 +50,8 @@ REAL, INTENT(IN)              :: FakXi
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: MaxColQua, iRan, Ec, Phi, PartStateIntEnTemp, DeltaPartStateIntEn
-INTEGER                       :: iQuaMax, iQua, iElem
+REAL                          :: MaxColQua, iRan, Ec
+INTEGER                       :: iQuaMax, iQua
 !===================================================================================================================================
 IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)

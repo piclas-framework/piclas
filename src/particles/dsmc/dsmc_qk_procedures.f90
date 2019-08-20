@@ -104,7 +104,7 @@ END IF
 END SUBROUTINE QK_dissociation
 
 
-SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
+SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,NodeVolume,NodePartNum)
 !===================================================================================================================================
 ! tests for molecular recombination of two colliding atoms by the use of Birds QK theory
 !===================================================================================================================================
@@ -112,7 +112,7 @@ SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,Node
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
-USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PEM, PartState,  usevMPF
+USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PEM, PartState
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_DSMC_ChemReact,         ONLY: DSMC_Chemistry
 ! IMPLICIT VARIABLE HANDLING
@@ -121,7 +121,6 @@ IMPLICIT NONE
 ! INPUT VARiABLES
 INTEGER, INTENT(IN)           :: iPair, iReac,iPart_p3
 LOGICAL, INTENT(INOUT)        :: RelaxToDo
-INTEGER, INTENT(IN)           :: iElem
 REAL, INTENT(IN), OPTIONAL    :: NodeVolume
 INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 !-----------------------------------------------------------------------------------------------------------------------------------
