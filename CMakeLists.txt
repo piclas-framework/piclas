@@ -123,7 +123,7 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                               LD-DSMC)
 
 OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
-OPTION(PICLAS_BUILD_PARAVIEWREADER "Build the ParaView reader" OFF)
+OPTION(PICLAS_BUILDPOSTI "Build POSTI toolset" OFF)
 OPTION(PICLAS_MPI "Compile SINGLE or MPI version" ON)
 CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use LoadBalance timemeasurement" ON "PICLAS_MPI" OFF)
 OPTION(PICLAS_MKL "Use MKL libraries instead of BLAS/LAPACK" OFF)
@@ -809,28 +809,16 @@ add_exec(h5piclas2vtk ./src/h5piclas2vtk.f90)
 ADD_DEPENDENCIES(h5piclas2vtk libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
 
 # =========================================================================
-# ParaviewReader
+# Posti
 # =========================================================================
-IF(PICLAS_BUILD_PARAVIEWREADER)
-  INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/src/visu/CMakeLists.txt)
+IF(PICLAS_BUILDPOSTI)
+  INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/src/posti/CMakeLists.txt)
 ELSE()
-  GETLISTOFVARSSTARTINGWITH("VISU_" visuVars)
-  FOREACH (_var IN LISTS visuVars)
+  GETLISTOFVARSSTARTINGWITH("POSTI_" postiVars)
+  FOREACH (_var IN LISTS postiVars)
     UNSET(${_var} CACHE)
   ENDFOREACH()
 ENDIF()
-
-#   # =========================================================================
-#   # RegressionCheck tool && Examples
-#   # =========================================================================
-#   add_exec(regressioncheck ./regressioncheck/regressioncheck.f90
-#                            ./regressioncheck/regressioncheck_vars.f90
-#                            ./regressioncheck/regressioncheck_build.f90
-#                            ./regressioncheck/regressioncheck_compare.f90
-#                            ./regressioncheck/regressioncheck_run.f90
-#                            ./regressioncheck/regressioncheck_tools.f90 )
-#   ADD_DEFINITIONS(-DH5DIFF="${HDF5_DIFF_EXECUTABLE}")
-#   SET(PICLAS_REGRESSIONCHECK_EXAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/regressioncheck/examples")
 
 # =========================================================================
 # Userblock
