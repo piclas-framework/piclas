@@ -845,15 +845,7 @@ IF(RadialWeighting%DoRadialWeighting) THEN
 ELSE
   usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
 END IF
-IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-  ALLOCATE(GEO%DeltaEvMPF(nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-,'ERROR in InitParticleGeometry: Cannot allocate GEO%DeltaEvMPF!')
-  END IF
-  GEO%DeltaEvMPF(:) = 0.0
-END IF
+
 #endif /* PARTICLES */
 
 ! Calculate element volumes and characteristic lengths
