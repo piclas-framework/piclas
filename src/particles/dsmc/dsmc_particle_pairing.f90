@@ -111,7 +111,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   ALLOCATE(Coll_pData(PairNum_Node))
   nPart = PartNum
 
-  IF (usevMPF) MPFFac = 1
+!  IF (usevMPF) MPFFac = 1
   DO iPair = 1, PairNum_Node
     CALL RANDOM_NUMBER(iRan)
     iPart1 = 1 + INT(nPart * iRan)
@@ -144,18 +144,18 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
     cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
     cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
 
-    IF (usevMPF) THEN
-      TempMPFFac = PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2)
-      IF (TempMPFFac .GE. MPFFac) THEN
-          MPFFac = TempMPFFac
-          PairE_vMPF(1) = iPair
-        IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
-          PairE_vMPF(2) = Coll_pData(iPair)%iPart_p2
-        ELSE
-          PairE_vMPF(2) = Coll_pData(iPair)%iPart_p1
-        END IF
-      END IF
-    END IF
+!    IF (usevMPF) THEN
+!      TempMPFFac = PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2)
+!      IF (TempMPFFac .GE. MPFFac) THEN
+!          MPFFac = TempMPFFac
+!          PairE_vMPF(1) = iPair
+!        IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
+!          PairE_vMPF(2) = Coll_pData(iPair)%iPart_p2
+!        ELSE
+!          PairE_vMPF(2) = Coll_pData(iPair)%iPart_p1
+!        END IF
+!      END IF
+!    END IF
 
     iCase = CollInf%Coll_Case(cSpec1, cSpec2)
 
@@ -184,11 +184,11 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 
   DO iPair = 1,  PairNum_Node
     IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-      IF (usevMPF) THEN            ! calculation of collision prob
-        CALL DSMC_vmpf_prob(iElem, iPair, NodeVolume)
-      ELSE
+!      IF (usevMPF) THEN            ! calculation of collision prob
+!        CALL DSMC_vmpf_prob(iElem, iPair, NodeVolume)
+!      ELSE
         CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
-      END IF
+!      END IF
       CALL RANDOM_NUMBER(iRan)
       IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
 #if (PP_TimeDiscMethod==42)
@@ -256,7 +256,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     ChemReac%RecombParticle = 0
   END IF
 
-  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
   CollInf%Coll_SpecPartNum = 0.
   CollInf%Coll_CaseNum = 0
@@ -295,7 +295,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     IF(SelectionProc.EQ.2) CALL CalcGammaVib()
   END IF
 
-  IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) MPFFac = 1
+!  IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) MPFFac = 1
 
   DO iPair = 1, nPair                               ! statistical pairing
     CALL RANDOM_NUMBER(iRan)
@@ -312,21 +312,21 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
     cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
 
-    IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-      TempMPFFac = PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2)
-      IF (TempMPFFac .GE. MPFFac) THEN
-          MPFFac = TempMPFFac
-          PairE_vMPF(1) = iPair
-        IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
-          PairE_vMPF(2) = Coll_pData(iPair)%iPart_p2
-        ELSE
-          PairE_vMPF(2) = Coll_pData(iPair)%iPart_p1
-        END IF
-      END IF
-    END IF
+!    IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!      TempMPFFac = PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2)
+!      IF (TempMPFFac .GE. MPFFac) THEN
+!          MPFFac = TempMPFFac
+!          PairE_vMPF(1) = iPair
+!        IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
+!          PairE_vMPF(2) = Coll_pData(iPair)%iPart_p2
+!        ELSE
+!          PairE_vMPF(2) = Coll_pData(iPair)%iPart_p1
+!        END IF
+!      END IF
+!    END IF
 
     iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-    IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
       CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
                                                           + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
     END IF
@@ -392,7 +392,7 @@ REAL                            :: TempMPFFac, MPFFac, iRanVec(2), NodeLength
 PairNum_Node = INT(PartNum/2)
 CollInf%Coll_SpecPartNum = 0
 CollInf%Coll_CaseNum = 0
-IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
 IF (CollisMode.EQ.3) THEN
   ChemReac%RecombParticle = 0
@@ -420,7 +420,7 @@ END IF
 ALLOCATE(Coll_pData(PairNum_Node))
 nPart = PartNum
 
-IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) MPFFac = 1
+!IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) MPFFac = 1
 DO iPair = 1, PairNum_Node
   loopStart = 0
   CALL RANDOM_NUMBER(iRan)
@@ -463,21 +463,21 @@ DO iPair = 1, PairNum_Node
   cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
   cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
 
-  IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-    TempMPFFac = PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2)
-    IF (TempMPFFac .GE. MPFFac) THEN
-        MPFFac = TempMPFFac
-        PairE_vMPF(1) = iPair
-      IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
-        PairE_vMPF(2) = Coll_pData(iPair)%iPart_p2
-      ELSE
-        PairE_vMPF(2) = Coll_pData(iPair)%iPart_p1
-      END IF
-    END IF
-  END IF
+!  IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!    TempMPFFac = PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2)
+!    IF (TempMPFFac .GE. MPFFac) THEN
+!        MPFFac = TempMPFFac
+!        PairE_vMPF(1) = iPair
+!      IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
+!        PairE_vMPF(2) = Coll_pData(iPair)%iPart_p2
+!      ELSE
+!        PairE_vMPF(2) = Coll_pData(iPair)%iPart_p1
+!      END IF
+!    END IF
+!  END IF
 
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
                                                         + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
   END IF
@@ -569,11 +569,11 @@ DO iPair = 1,  PairNum_Node
         END IF
       END IF
     END IF
-    IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN            ! calculation of collision prob
-      CALL DSMC_vmpf_prob(iElem, iPair, NodeVolume)
-    ELSE
+!    IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN            ! calculation of collision prob
+!      CALL DSMC_vmpf_prob(iElem, iPair, NodeVolume)
+!    ELSE
       CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
-    END IF
+!    END IF
     CALL RANDOM_NUMBER(iRan)
     IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
 #if (PP_TimeDiscMethod==42)
@@ -985,7 +985,7 @@ RECURSIVE SUBROUTINE AddQuadTreeNode(TreeNode, iElem, NodeVol)
 USE MOD_Globals
 USE MOD_DSMC_Analyze      ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, RadialWeighting, CollInf
-USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies, VarTimeStep
+USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies, VarTimeStep, usevMPF
 USE MOD_DSMC_Vars         ,ONLY: ElemNodeVol
 USE MOD_part_tools        ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -1107,7 +1107,7 @@ DO iLoop = 1, 4
   IF((PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin).AND.(.NOT.ForceNearestNeigh)) THEN
     ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-    IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
       DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), Volume(iLoop))
     ELSE
       DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), Volume(iLoop))
@@ -1590,7 +1590,7 @@ REAL                          :: TempMPFFac, MPFFac
 
 nPart = PartNum
 nPair = INT(nPart/2)
-IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
 IF (CollisMode.EQ.3) THEN
   ChemReac%RecombParticle = 0
@@ -1626,7 +1626,7 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%B
   IF(SelectionProc.EQ.2) CALL CalcGammaVib()
 END IF
 
-IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) MPFFac = 1
+!IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) MPFFac = 1
 
 IF (CollInf%ProhibitDoubleColl.AND.(nPair.EQ.1)) THEN
 ! Do not get stuck in an endless loop if only two particles/one pair are present in the cell
@@ -1663,22 +1663,22 @@ DO iPair = 1, nPair                               ! statistical pairing
   cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
   cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
 
-  IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-    TempMPFFac = PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2)
-    IF (TempMPFFac .GE. MPFFac) THEN
-        MPFFac = TempMPFFac
-        PairE_vMPF(1) = iPair
-      IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
-        PairE_vMPF(2) = Coll_pData(iPair)%iPart_p2
-      ELSE
-        PairE_vMPF(2) = Coll_pData(iPair)%iPart_p1
-      END IF
-    END IF
-  END IF
+!  IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!    TempMPFFac = PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2)
+!    IF (TempMPFFac .GE. MPFFac) THEN
+!        MPFFac = TempMPFFac
+!        PairE_vMPF(1) = iPair
+!      IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
+!        PairE_vMPF(2) = Coll_pData(iPair)%iPart_p2
+!      ELSE
+!        PairE_vMPF(2) = Coll_pData(iPair)%iPart_p1
+!      END IF
+!    END IF
+!  END IF
 
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
   ! Summation of the average weighting factor of the collision pairs for each case (AA, AB, BB)
-  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
                                                         + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
   END IF
@@ -1788,11 +1788,11 @@ END IF        ! DoRadialWeighting
 
 DO iPair = 1, nPair
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-    IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-      CALL DSMC_vmpf_prob(iElem, iPair, NodeVolume)
-    ELSE
+!    IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!      CALL DSMC_vmpf_prob(iElem, iPair, NodeVolume)
+!    ELSE
       CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
-    END IF
+!    END IF
     CALL RANDOM_NUMBER(iRan)
     IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
       CALL DSMC_perform_collision(iPair,iElem, NodeVolume, PartNum)

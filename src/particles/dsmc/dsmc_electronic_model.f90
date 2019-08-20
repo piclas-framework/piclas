@@ -138,7 +138,7 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
   REAL                          :: DeltaPartStateIntEn, Phi, PartStateIntEnTemp
 !===================================================================================================================================
 
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     CollisionEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart1)
   ELSE
     CollisionEnergy = Coll_pData(iPair)%Ec

@@ -183,7 +183,7 @@ USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
-USE MOD_Particle_Vars         ,ONLY: nSpecies, VarTimeStep, PDM
+USE MOD_Particle_Vars         ,ONLY: nSpecies, VarTimeStep, PDM, usevMPF
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
@@ -525,7 +525,7 @@ CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
 CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
 
 IF(CalcReacRates) THEN
-  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     CALL abort(&
       __STAMP__&
       ,'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
@@ -2053,7 +2053,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars         ,ONLY: Species,usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_DSMC_Vars             ,ONLY: BGGas, RadialWeighting
-USE MOD_Particle_Vars         ,ONLY: nSpecies
+USE MOD_Particle_Vars         ,ONLY: nSpecies, usevMPF
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 !----------------------------------------------------------------------------------------------------------------------------------!

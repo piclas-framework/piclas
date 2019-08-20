@@ -706,7 +706,7 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM(iPair, iPart, FakXi)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData, RadialWeighting
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep, usevMPF
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -725,7 +725,7 @@ INTEGER,ALLOCATABLE           :: iQuant(:), iMaxQuant(:)
 INTEGER                       :: iDOF,iPolyatMole, iSpec
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
-IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
   Ec = Coll_pData(iPair)%Ec
@@ -771,7 +771,7 @@ SUBROUTINE DSMC_VibRelaxPoly_MH(iPair, iPart,FakXi)
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData, RadialWeighting
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -789,7 +789,7 @@ INTEGER,ALLOCATABLE           :: iQuant(:), iMaxQuant(:)
 INTEGER                       :: iDOF,iPolyatMole, iWalk, iSpec
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
-IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
   Ec = Coll_pData(iPair)%Ec
@@ -838,7 +838,7 @@ SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling(iPair, iPart, FakXi)
 ! MODULES
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData, RadialWeighting
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -855,7 +855,7 @@ INTEGER,ALLOCATABLE           :: iQuant(:), iMaxQuant(:)
 INTEGER                       :: iDOF, iDOF2, iPolyatMole, iSpec, iLoop
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
-IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
   Ec = Coll_pData(iPair)%Ec

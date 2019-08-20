@@ -69,7 +69,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,NumDens)
   USE MOD_DSMC_PolyAtomicModel,   ONLY : Calc_Beta_Poly
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
   USE MOD_DSMC_Vars,              ONLY : RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : PartState, Species, PartSpecies, nSpecies, VarTimeStep
+  USE MOD_Particle_Vars,          ONLY : PartState, Species, PartSpecies, nSpecies, VarTimeStep, usevMPF
   USE MOD_DSMC_Analyze,           ONLY : CalcTVibPoly, CalcTelec
   USE MOD_Globals_Vars,           ONLY : Pi
 USE MOD_part_tools                ,ONLY: GetParticleWeight
@@ -125,7 +125,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   Weight2 = GetParticleWeight(React2Inx)
   IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(iPart_p3)
 
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ReducedMass = (Species(EductReac(1))%MassIC *Weight1  * Species(EductReac(2))%MassIC * Weight2) &
       / (Species(EductReac(1))%MassIC * Weight1+ Species(EductReac(2))%MassIC * Weight2)
   ELSE
@@ -417,7 +417,7 @@ USE MOD_Globals                ,ONLY: abort
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
-USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
 USE MOD_vmpf_collision         ,ONLY: vMPF_AfterSplitting
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange, CalcXiElec
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
@@ -497,7 +497,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
   Weight2 = GetParticleWeight(React2Inx)
   IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(iPart_p3)
 
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ReducedMass = Species(EductReac(1))%MassIC*Weight1 * Species(EductReac(2))%MassIC*Weight2 &
                / (Species(EductReac(1))%MassIC*Weight1 + Species(EductReac(2))%MassIC*Weight2)
   ELSE
@@ -526,7 +526,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
       PartStateIntEn(React3Inx, 2) = 0.
       IF ( DSMC%ElectronicModel )  PartStateIntEn(React3Inx, 3) = 0.
       PEM%Element(React3Inx) = PEM%Element(React1Inx)
-      IF(RadialWeighting%DoRadialWeighting) PartMPF(React3Inx) = PartMPF(React1Inx)
+      IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) PartMPF(React3Inx) = PartMPF(React1Inx)
       IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(React3Inx) = VarTimeStep%ParticleTimeStep(React1Inx)
       WeightProd = Weight1
       NumWeightProd = 3.
@@ -557,7 +557,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
   Coll_pData(iPair)%Ec = 0.5 * ReducedMass *Coll_pData(iPair)%CRela2 &
          + ChemReac%EForm(iReac)/NumWeightProd*(Weight1+Weight2+WeightProd)
 
-  IF(RadialWeighting%DoRadialWeighting) THEN
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
     ! Weighting factor already included in the weights
     ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)/NumWeightProd*(Weight1+Weight2+WeightProd)
   ELSE

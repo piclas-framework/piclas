@@ -752,7 +752,7 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: Pi
-USE MOD_Particle_Vars ,ONLY: Species, nSpecies
+USE MOD_Particle_Vars ,ONLY: Species, nSpecies, usevMPF
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, RadialWeighting
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -771,7 +771,7 @@ REAL                            :: DrefMixture, omega, Temp, MFP_Tmp, MacroParti
 DrefMixture = 0.0
 CalcMeanFreePath = 0.0
 
-IF(RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   MacroParticleFactor = 1.
 ELSE
   MacroParticleFactor = Species(1)%MacroParticleFactor

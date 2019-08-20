@@ -1,5 +1,5 @@
 !==================================================================================================================================
-! Copyright (c) 2018 - 2019 Marcel Pfeiffer
+! Copyright (c) 2018 - 2019 Marcel Pfeiffer and Asim Mirza
 !
 ! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
@@ -14,7 +14,7 @@
 
 MODULE MOD_vMPF
 !===================================================================================================================================
-! Module approximating the collision operator using the Bhatnagar-Gross-Krook model
+! Module controlling particle number by merge and split routines
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -32,9 +32,10 @@ CONTAINS
 
 SUBROUTINE SplitMerge_main()
 !===================================================================================================================================
-!> Main routine for the BGK model
-!> 1.) Loop over all elements, call of octree refinement or directly of the collision operator
-!> 2.) Sampling of macroscopic variables with DSMC routines
+!> Main routine for split and merge particles
+!> Loop over all elements:
+!> 1.) build partindx list
+!> 2.) Call split or merge routine
 !===================================================================================================================================
 ! MODULES
 USE MOD_PARTICLE_Vars         ,ONLY: vMPFNewPartNum, PEM
@@ -55,23 +56,29 @@ INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 DO iElem = 1, nElems
   nPart = PEM%pNumber(iElem)
   IF (nPart.LT.vMPFNewPartNum) CYCLE
+! 1.) build partindx list
   ALLOCATE(iPartIndx_Node(nPart))
   iPart = PEM%pStart(iElem)
   DO iLoop = 1, nPart
     iPartIndx_Node(iLoop) = iPart
     iPart = PEM%pNext(iPart)
   END DO
-
+! 2.) Call split or merge routine
   CALL MergeParticles(iPartIndx_Node, nPart, vMPFNewPartNum)
   DEALLOCATE(iPartIndx_Node)
 END DO
-
 
 END SUBROUTINE SplitMerge_main
 
 SUBROUTINE MergeParticles(iPartIndx_Node, nPart, nPartNew)
 !===================================================================================================================================
-!
+!> Routine for merge particles
+!> 1.) Calc bulkvelocity (for momentum conservation)
+!> 2.) Calc energy (for energy conservation)
+!> 3.) Delete particles randomly (until nPartNew is reached)
+!> 4.) Calc bulkvelocity after deleting
+!> 5.) Calc energy after deleting
+!> 6.) Ensuring momentum and energy conservation
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF
@@ -91,6 +98,8 @@ INTEGER               :: iLoop,fillMa1, fillMa2, nDelete, nTemp, iPart, iPartInd
 REAL                  :: partWeight, totalWeight, vBulkTmp(3), ENew, alpha
 !===================================================================================================================================
 vBulk = 0.0; totalWeight = 0.0; Energy = 0.
+
+! 1.) calc bulkvelocity (for momentum conservation)
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   totalWeight = totalWeight + partWeight
@@ -98,7 +107,7 @@ DO iLoop = 1, nPart
 END DO
 vBulk(1:3) = vBulk(1:3)/ totalWeight
 
-! 1.) Summing up the relative velocities and their square to calculate the moments
+! 2.) calc energy (for energy conservation)
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulk(1:3)
@@ -107,6 +116,7 @@ DO iLoop = 1, nPart
   ! sample inner energies here!
 END DO
 
+! 3.) delete particles randomly (until nPartNew is reached)
 iPartIndx_NodeTMP = iPartIndx_Node
 nTemp = nPart
 nDelete = nPart - nPartNew
@@ -118,19 +128,8 @@ DO iLoop = 1, nDelete
   nTemp = nTemp - 1
 END DO
 
-joa = 0
-DO iLoop = 1, nPart
-  IF (PDM%ParticleInside(iPartIndx_NodeTMP(iLoop))) THEN
-    joa(1) = joa(1) + 1
-  ELSE
-    joa(2) = joa(2) + 1
-  END IF
-END DO
-print*, joa
-read*
-
+! 4.) calc bulkvelocity after deleting
 vBulkTmp = 0.
-print*, nPartNew, totalWeight
 DO iLoop = 1, nPartNew
   PartMPF(iPartIndx_Node(iLoop)) = totalWeight / nPartNew
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
@@ -138,6 +137,7 @@ DO iLoop = 1, nPartNew
 END DO
 vBulkTmp(1:3) = vBulkTmp(1:3) / totalWeight
 
+! 5.) calc energy after deleting
 ENew = 0.
 totalWeight=0.0
 DO iLoop = 1, nPartNew
@@ -148,8 +148,8 @@ DO iLoop = 1, nPartNew
   ENew = ENew + 0.5 * vmag2 * partWeight
   ! sample inner energies here!
 END DO
-print*, totalWeight
-print*, Energy, ENew
+
+! 6.) ensuring momentum and energy conservation
 alpha = SQRT(Energy/ENew)
 DO iLoop = 1, nPartNew
   PartState(iPartIndx_Node(iLoop),4:6) = vBulk(1:3) + alpha*(PartState(iPartIndx_Node(iLoop),4:6)-vBulkTmp(1:3))
@@ -157,9 +157,12 @@ END DO
 
 END SUBROUTINE MergeParticles
 
-SUBROUTINE CalculateDistMomements(iPartIndx_Node, nPart, vBulk, Vtherm2, PressTens, HeatVec, Energy)
+SUBROUTINE CalculateDistMoments(iPartIndx_Node, nPart, vBulk, Vtherm2, PressTens, HeatVec, Energy)
 !===================================================================================================================================
-!
+!> Calculation of distribution moments
+!> 1.) Calc bulkvelocity
+!> 2.) Summing up the relative velocities and their square to calculate the moments (PressTens, HeatVec)
+!> 3.) Fill missing entries in PressTens
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartState
@@ -181,6 +184,8 @@ REAL                  :: partWeight, totalWeight
 !===================================================================================================================================
 Vtherm2 = 0.0; PressTens = 0.0; HeatVec = 0.0
 vBulk = 0.0; totalWeight = 0.0; Energy = 0.
+
+! 1.) calc bulkvelocity
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   totalWeight = totalWeight + partWeight
@@ -188,7 +193,7 @@ DO iLoop = 1, nPart
 END DO
 vBulk(1:3) = vBulk(1:3)/ totalWeight
 
-! 1.) Summing up the relative velocities and their square to calculate the moments
+! 2.) Summing up the relative velocities and their square to calculate the moments (PressTens, HeatVec)
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulk(1:3)
@@ -203,24 +208,23 @@ DO iLoop = 1, nPart
   Energy = Energy + 0.5 * vmag2 * partWeight
   ! sample inner energies here!
 END DO
-
 IF(nPart.GT.2) THEN
   HeatVec = HeatVec*nPart*nPart/((nPart-1.)*(nPart-2.)*totalWeight)
 ELSE
   HeatVec = 0.0
 END IF
-
 Vtherm2 = Vtherm2*nPart/((nPart-1.)*totalWeight)
+! 3.) Fill missing entries in PressTens
 PressTens(2,1)=PressTens(1,2)
 PressTens(3,1)=PressTens(1,3)
 PressTens(3,2)=PressTens(2,3)
 PressTens = PressTens/totalWeight
 
-END SUBROUTINE CalculateDistMomements
+END SUBROUTINE CalculateDistMoments
 
 SUBROUTINE ARChapEnsk(nPart, iRanPart, Vtherm, HeatVec, PressTens)
 !===================================================================================================================================
-!> description
+!> Acceptance rejection method for reconstruct distribution moments (according Chapman Enskog)
 !===================================================================================================================================
 ! MODULES
 USE Ziggurat

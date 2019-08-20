@@ -68,7 +68,7 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
   iSpec1 = PartSpecies(iPart1)
   iSpec2 = PartSpecies(iPart2)
 
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     FracMassCent1 = Species(iSpec1)%MassIC *GetParticleWeight(iPart1)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
           + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
     FracMassCent2 = Species(iSpec2)%MassIC *GetParticleWeight(iPart2)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
@@ -86,13 +86,13 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
   VeloMz = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 6) &
          + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 6)
 
-  IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-    IF (iPair.EQ.PairE_vMPF(1)) THEN
-      Coll_pData(iPair)%CRela2 = Coll_pData(iPair)%CRela2 + 2 * GEO%DeltaEvMPF(iElem) &
-                               / CollInf%MassRed(Coll_pData(iPair)%PairType) &
-                               / PartMPF(PairE_vMPF(2))
-    END IF
-  END IF
+!  IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!    IF (iPair.EQ.PairE_vMPF(1)) THEN
+!      Coll_pData(iPair)%CRela2 = Coll_pData(iPair)%CRela2 + 2 * GEO%DeltaEvMPF(iElem) &
+!                               / CollInf%MassRed(Coll_pData(iPair)%PairType) &
+!                               / PartMPF(PairE_vMPF(2))
+!    END IF
+!  END IF
 
   !calculate random vec
   RanVec(1:3) = DiceUnitVector()
@@ -115,7 +115,7 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
   DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = VeloMz - FracMassCent1*RanVeloz &
           - PartState(Coll_pData(iPair)%iPart_p2, 6)
 
-  IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL vMPF_PostVelo(iPair, iElem)
+!  IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL vMPF_PostVelo(iPair, iElem)
 
 END SUBROUTINE DSMC_Elastic_Col
 
@@ -364,7 +364,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   iSpec1 = PartSpecies(iPart1)
   iSpec2 = PartSpecies(iPart2)
 
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ReducedMass = (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) * Species(iSpec2)%MassIC*GetParticleWeight(iPart2))  &
                 / (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) + Species(iSpec2)%MassIC*GetParticleWeight(iPart2))
   ELSE
@@ -469,11 +469,11 @@ END IF
 #if (PP_TimeDiscMethod == 42)
     CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2)
 #else
-    IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-      CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2,iElem)
-    ELSE
+!    IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!      CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2,iElem)
+!    ELSE
       CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi)
-    END IF
+!    END IF
 #endif
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,3) * GetParticleWeight(iPart1)
   END IF
@@ -485,11 +485,11 @@ END IF
 #if (PP_TimeDiscMethod == 42)
     CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1)
 #else
-    IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-      CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1,iElem)
-    ELSE
+!    IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!      CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1,iElem)
+!    ELSE
       CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi )
-    END IF
+!    END IF
 #endif
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,3) * GetParticleWeight(iPart2)
   END IF
@@ -534,22 +534,22 @@ END IF
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
     ELSE
       CALL RANDOM_NUMBER(iRan)
-      IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-        IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
-          Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
-          PartStateIntEnTemp = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-          FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
-          PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) = (1-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) &
-                                                       + Phi * PartStateIntEnTemp
-        END IF
-      ELSE
+!      IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!        IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
+!          Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
+!          PartStateIntEnTemp = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+!          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
+!          FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
+!          PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) = (1-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) &
+!                                                       + Phi * PartStateIntEnTemp
+!        END IF
+!      ELSE
         PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
         FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
-      END IF
+!      END IF
     END IF
-    IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
       PartStateIntEn(iPart1,2) = PartStateIntEn(iPart1,2)/GetParticleWeight(iPart1)
     END IF
   END IF
@@ -562,20 +562,20 @@ END IF
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
     ELSE
       CALL RANDOM_NUMBER(iRan)
-      IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-        IF (PartMPF(Coll_pData(iPair)%iPart_p2).GT.PartMPF(Coll_pData(iPair)%iPart_p1)) THEN
-          Phi = PartMPF(Coll_pData(iPair)%iPart_p1) / PartMPF(Coll_pData(iPair)%iPart_p2)
-          PartStateIntEnTemp = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-          PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) = (1-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) &
-                                                       + Phi * PartStateIntEnTemp
-        END IF
-      ELSE
+!      IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!        IF (PartMPF(Coll_pData(iPair)%iPart_p2).GT.PartMPF(Coll_pData(iPair)%iPart_p1)) THEN
+!          Phi = PartMPF(Coll_pData(iPair)%iPart_p1) / PartMPF(Coll_pData(iPair)%iPart_p2)
+!          PartStateIntEnTemp = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+!          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
+!          PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) = (1-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) &
+!                                                       + Phi * PartStateIntEnTemp
+!        END IF
+!      ELSE
         PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-      END IF
+!      END IF
     END IF
-    IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
       PartStateIntEn(iPart2,2) = PartStateIntEn(iPart2,2)/GetParticleWeight(iPart2)
     END IF
   END IF
@@ -584,14 +584,14 @@ END IF
 ! Calculation of new particle velocities
 !--------------------------------------------------------------------------------------------------!
 
-  IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-    IF (iPair.EQ.PairE_vMPF(1)) THEN         ! adding energy lost due to vMPF
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + GEO%DeltaEvMPF(iElem) / PartMPF(PairE_vMPF(2))
-      GEO%DeltaEvMPF(iElem) = 0.0
-    END IF
-  END IF
+!  IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!    IF (iPair.EQ.PairE_vMPF(1)) THEN         ! adding energy lost due to vMPF
+!      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + GEO%DeltaEvMPF(iElem) / PartMPF(PairE_vMPF(2))
+!      GEO%DeltaEvMPF(iElem) = 0.0
+!    END IF
+!  END IF
 
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     FracMassCent1 = Species(iSpec1)%MassIC *GetParticleWeight(iPart1)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
           + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
     FracMassCent2 = Species(iSpec2)%MassIC *GetParticleWeight(iPart2)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
@@ -632,7 +632,7 @@ END IF
   DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = VeloMz - FracMassCent1*RanVeloz &
           - PartState(Coll_pData(iPair)%iPart_p2, 6)
 
-  IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL vMPF_PostVelo(iPair, iElem)
+!  IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL vMPF_PostVelo(iPair, iElem)
 
 #if (PP_TimeDiscMethod==42)
   ! for TimeDisc 42 & only transition counting: prohibit relaxation and energy exchange
@@ -919,16 +919,16 @@ __STAMP__&
     ELSE
      CALL RANDOM_NUMBER(iRan)
       ! variable MPF
-      IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-        IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
-          Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
-          PartStateIntEnTemp = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-          PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) = (1-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) &
-                                                       + Phi * PartStateIntEnTemp
-        END IF
-      ! standartd MPF
-      ELSE
+!      IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!        IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
+!          Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
+!          PartStateIntEnTemp = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+!          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
+!          PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) = (1-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) &
+!                                                       + Phi * PartStateIntEnTemp
+!        END IF
+!      ! standartd MPF
+!      ELSE
         PartStateIntEnTemp = iRan * Coll_pData(iPair)%Ec
         CALL RANDOM_NUMBER(iRan)
         DO WHILE(iRan.GT.(1. - PartStateIntEnTemp/Coll_pData(iPair)%Ec)**FakXi*BLCorrFact)      ! FakXi hier nur 0.5*Xi_rel - 1 !
@@ -938,7 +938,7 @@ __STAMP__&
         END DO
         PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) = PartStateIntEnTemp
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
-      END IF
+!      END IF
     END IF
   END IF
 
@@ -956,15 +956,15 @@ __STAMP__&
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
     ELSE
       CALL RANDOM_NUMBER(iRan)
-      IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-        IF (PartMPF(Coll_pData(iPair)%iPart_p2).GT.PartMPF(Coll_pData(iPair)%iPart_p1)) THEN
-          Phi = PartMPF(Coll_pData(iPair)%iPart_p1) / PartMPF(Coll_pData(iPair)%iPart_p2)
-          PartStateIntEnTemp = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-          PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) = (1-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) &
-                                                       + Phi * PartStateIntEnTemp
-        END IF
-      ELSE
+!      IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!        IF (PartMPF(Coll_pData(iPair)%iPart_p2).GT.PartMPF(Coll_pData(iPair)%iPart_p1)) THEN
+!          Phi = PartMPF(Coll_pData(iPair)%iPart_p1) / PartMPF(Coll_pData(iPair)%iPart_p2)
+!          PartStateIntEnTemp = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+!          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
+!          PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) = (1-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) &
+!                                                       + Phi * PartStateIntEnTemp
+!        END IF
+!      ELSE
         PartStateIntEnTemp = iRan * Coll_pData(iPair)%Ec
         CALL RANDOM_NUMBER(iRan)
         DO WHILE(iRan.GT.(1. - PartStateIntEnTemp/Coll_pData(iPair)%Ec)**FakXi*BLCorrFact)       ! FakXi hier nur 0.5*Xi_rel -1 !
@@ -974,7 +974,7 @@ __STAMP__&
         END DO
         PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) = PartStateIntEnTemp
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-      END IF
+!      END IF
     END IF
   END IF
 
@@ -982,12 +982,12 @@ __STAMP__&
 ! Calculation of new particle velocities
 !--------------------------------------------------------------------------------------------------!
 
-  IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-    IF (iPair.EQ.PairE_vMPF(1)) THEN         ! adding energy lost due to vMPF
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + GEO%DeltaEvMPF(iElem) / PartMPF(PairE_vMPF(2))
-      GEO%DeltaEvMPF(iElem) = 0.0
-    END IF
-  END IF
+!  IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!    IF (iPair.EQ.PairE_vMPF(1)) THEN         ! adding energy lost due to vMPF
+!      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + GEO%DeltaEvMPF(iElem) / PartMPF(PairE_vMPF(2))
+!      GEO%DeltaEvMPF(iElem) = 0.0
+!    END IF
+!  END IF
 
   FracMassCent1 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p1), Coll_pData(iPair)%PairType)
   FracMassCent2 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p2), Coll_pData(iPair)%PairType)
@@ -1023,7 +1023,7 @@ __STAMP__&
   DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = VeloMz - FracMassCent1*RanVeloz &
             - PartState(Coll_pData(iPair)%iPart_p2, 6)
 
-  IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL vMPF_PostVelo(iPair, iElem)
+!  IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL vMPF_PostVelo(iPair, iElem)
 
 END SUBROUTINE DSMC_Relax_Col_Gimelshein
 
@@ -1034,7 +1034,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
-  USE MOD_DSMC_Vars,          ONLY : CollisMode, Coll_pData, SelectionProc
+  USE MOD_DSMC_Vars,          ONLY : CollisMode, Coll_pData, SelectionProc, BGGas
   USE MOD_DSMC_Vars,          ONLY : DSMC
   USE MOD_Particle_Vars,      ONLY : PartState, WriteMacroVolumeValues, Symmetry2D
   USE MOD_TimeDisc_Vars,      ONLY : TEnd, Time
@@ -1054,7 +1054,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
   REAL                          :: Distance
 !===================================================================================================================================
 
-  IF(DSMC%CalcQualityFactors) THEN
+  IF(DSMC%CalcQualityFactors.AND.(BGGas%BGGasSpecies.EQ.0)) THEN
     IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
       IF(Symmetry2D) THEN
         Distance = SQRT((PartState(Coll_pData(iPair)%iPart_p1,1) - PartState(Coll_pData(iPair)%iPart_p2,1))**2 &
@@ -1182,7 +1182,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
     nPartNode = PEM%pNumber(iElem)
   END IF
   nPair = INT(nPartNode/2)
-  IF(RadialWeighting%DoRadialWeighting) THEN
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
     NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume
   ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
     NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume * Species(1)%MacroParticleFactor
@@ -1234,9 +1234,9 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
             ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-              IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-                CALL AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
-              ELSE
+!              IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!                CALL AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
+!              ELSE
                 CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
                 IF(ChemReac%RecombParticle.EQ. 0) THEN
                   Coll_pData(PairForRec)%NeedForRec = .TRUE.
@@ -1245,7 +1245,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
                 ELSE
                   ChemReac%RecombParticle = 0
                 END IF
-              END IF
+!              END IF
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -2732,11 +2732,11 @@ __STAMP__&
             ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-              IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-                CALL Abort(&
-                 __STAMP__,&
-                ' ERROR! IonRecomb not possible using vMPF.')
-              ELSE
+!              IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!                CALL Abort(&
+!                 __STAMP__,&
+!                ' ERROR! IonRecomb not possible using vMPF.')
+!              ELSE
                 CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
                 IF(ChemReac%RecombParticle.EQ. 0) THEN
                   Coll_pData(PairForRec)%NeedForRec = .TRUE.
@@ -2745,7 +2745,7 @@ __STAMP__&
                 ELSE
                   ChemReac%RecombParticle = 0
                 END IF
-              END IF
+!              END IF
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN

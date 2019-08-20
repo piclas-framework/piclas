@@ -142,11 +142,11 @@ SUBROUTINE DSMC_main(DoElement)
 
         DO iPair = 1, nPair
           IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-            IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN            ! calculation of collision prob
-              CALL DSMC_vmpf_prob(iElem, iPair)
-            ELSE
+!            IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN            ! calculation of collision prob
+!              CALL DSMC_vmpf_prob(iElem, iPair)
+!            ELSE
               CALL DSMC_prob_calc(iElem, iPair)
-            END IF
+!            END IF
             CALL RANDOM_NUMBER(iRan)
             IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
 #if (PP_TimeDiscMethod==42)
@@ -161,7 +161,7 @@ SUBROUTINE DSMC_main(DoElement)
             END IF
           END IF
         END DO
-        IF(DSMC%CalcQualityFactors) THEN
+        IF(DSMC%CalcQualityFactors.AND.(BGGas%BGGasSpecies.EQ.0)) THEN
           IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
             ! Calculation of the mean free path
             DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),GEO%Volume(iElem), &

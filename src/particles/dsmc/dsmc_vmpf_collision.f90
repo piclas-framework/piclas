@@ -68,6 +68,10 @@ REAL                                :: MaxMPF, BGGasDensity_new
 INTEGER, INTENT(IN)                :: iElem, iPair
 REAL,INTENT(IN), OPTIONAL         :: NodeVolume
 !--------------------------------------------------------------------------------------------------!
+
+print*,'1'
+read*
+
   iPType = SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%InterID &
          + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%InterID !definition of col case
   IF (PRESENT(NodeVolume)) THEN
@@ -181,6 +185,10 @@ SUBROUTINE vMPF_PostVelo(iPair, iElem)
 ! input variable declaration                                                                       !
   INTEGER, INTENT(IN)                 :: iPair, iElem                                            !
 !--------------------------------------------------------------------------------------------------!
+
+print*,'2'
+read*
+
   IF(PartMPF(Coll_pData(iPair)%iPart_p1).gt.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
     Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
     GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + 0.5 * PartMPF(Coll_pData(iPair)%iPart_p1) &
@@ -228,6 +236,10 @@ SUBROUTINE vMPF_AfterSplitting(OrgPartIndex, W_Part, W_Spec)
   REAL, INTENT(IN)                    :: W_Part, W_Spec                                          !
   INTEGER, INTENT(IN)                 :: OrgPartIndex
 !--------------------------------------------------------------------------------------------------!
+
+
+print*,'3'
+read*
 
   NumOfPart = INT(W_Part / W_Spec)
   PartMPF(OrgPartIndex) = W_Part + (1 - NumOfPart) * W_Spec
@@ -297,6 +309,10 @@ IMPLICIT NONE                                                                   
   INTEGER, INTENT(IN)           :: iPair, iReac, iPart_p3
   INTEGER, INTENT(IN)           :: iElem
 !--------------------------------------------------------------------------------------------------!
+
+print*,'4'
+read*
+
 
   IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%DefinedReact(iReac,1,1)) THEN
     React1Inx = Coll_pData(iPair)%iPart_p1
@@ -587,6 +603,10 @@ SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
 ! output variable declaration
   INTEGER, INTENT(IN)           :: iElem
 !--------------------------------------------------------------------------------------------------!
+
+print*,'6'
+read*
+
 
   DoRot2 = .FALSE.
   DoVib2 = .FALSE.

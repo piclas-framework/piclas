@@ -1370,7 +1370,7 @@ USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, &
-                                WriteMacroSurfaceValues, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
+                                WriteMacroSurfaceValues, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep,usevMPF
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
@@ -1534,11 +1534,12 @@ REAL                  :: tLBStart
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_UNFP,tLBStart)
 #endif /*USE_LOADBALANCE*/
-  
-  IF (iter.EQ.1) THEN
+
+  IF ((iter.EQ.1).AND.(usevMPF)) THEN
     CALL SplitMerge_main()
     CALL UpdateNextFreePosition()    
   END IF
+
   CALL DSMC_main()
 
 #if USE_LOADBALANCE

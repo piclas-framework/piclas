@@ -54,7 +54,7 @@ REAL, INTENT(IN)              :: FakXi
 REAL                          :: MaxColQua, iRan, Ec, Phi, PartStateIntEnTemp, DeltaPartStateIntEn
 INTEGER                       :: iQuaMax, iQua, iElem
 !===================================================================================================================================
-IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
   Ec = Coll_pData(iPair)%Ec
@@ -72,33 +72,33 @@ DO WHILE (iRan.GT.(1 - REAL(iQua)/REAL(MaxColQua))**FakXi)
   iQua = INT(iRan * iQuaMax)
   CALL RANDOM_NUMBER(iRan)
 END DO
-IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-  IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
-    iElem = PEM%Element(iPart)
-    Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
-    PartStateIntEnTemp = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                  * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-    PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + Phi * PartStateIntEnTemp
-    ! search for new vib quant
-    iQua = INT(PartStateIntEnTemp/ &
-            (BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant)
-    CALL RANDOM_NUMBER(iRan)
-    IF(iRan .LT. PartStateIntEnTemp/(BoltzmannConst &
-                * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant &
-                - DBLE(iQua)) THEN
-      iQua = iQua + 1
-    END IF
-    PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                  * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
-    DeltaPartStateIntEn = PartMPF(Coll_pData(iPair)%iPart_p1) &
-                        * (PartStateIntEnTemp - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1))
-    GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
-  END IF
-ELSE
+!IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+!  IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
+!    iElem = PEM%Element(iPart)
+!    Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
+!    PartStateIntEnTemp = (iQua + DSMC%GammaQuant) * BoltzmannConst &
+!                  * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
+!    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
+!    PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + Phi * PartStateIntEnTemp
+!    ! search for new vib quant
+!    iQua = INT(PartStateIntEnTemp/ &
+!            (BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant)
+!    CALL RANDOM_NUMBER(iRan)
+!    IF(iRan .LT. PartStateIntEnTemp/(BoltzmannConst &
+!                * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant &
+!                - DBLE(iQua)) THEN
+!      iQua = iQua + 1
+!    END IF
+!    PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
+!                  * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
+!    DeltaPartStateIntEn = PartMPF(Coll_pData(iPair)%iPart_p1) &
+!                        * (PartStateIntEnTemp - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1))
+!    GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
+!  END IF
+!ELSE
   PartStateIntEn(iPart,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
               * SpecDSMC(PartSpecies(iPart))%CharaTVib
-END IF
+!END IF
 
 END SUBROUTINE DSMC_VibRelaxDiatomic
 

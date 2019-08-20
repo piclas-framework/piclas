@@ -645,7 +645,7 @@ USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues,PartLorentzType
-USE MOD_Particle_Vars,          ONLY:VarTimeStep
+USE MOD_Particle_Vars,          ONLY:VarTimeStep, usevMPF, PartMPF
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:DSMC, RadialWeighting
@@ -862,6 +862,8 @@ IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the sym
       END IF
     ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
       MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor*VarTimeStep%ParticleTimeStep(PartID)
+    ELSE IF (usevMPF) THEN
+      MacroParticleFactor = PartMPF(PartID)
     ELSE
       MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor
     END IF
@@ -966,7 +968,7 @@ USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry2D
-USE MOD_Particle_Vars,          ONLY:Symmetry2DAxisymmetric, VarTimeStep
+USE MOD_Particle_Vars,          ONLY:Symmetry2DAxisymmetric, VarTimeStep, usevMPF, PartMPF
 #if defined(LSERK) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars,          ONLY:PDM
 #endif
@@ -1226,6 +1228,8 @@ IF(RadialWeighting%DoRadialWeighting) THEN
   END IF
 ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
   MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor*VarTimeStep%ParticleTimeStep(PartID)
+ELSE IF (usevMPF) THEN
+  MacroParticleFactor = PartMPF(PartID)
 ELSE
   MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor
 END IF
@@ -1494,7 +1498,7 @@ SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,A
 USE MOD_Globals,                ONLY:abort
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SampWall,dXiEQ_SurfSample,SurfMesh,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PartSpecies,PDM,VarTimeStep
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PartSpecies,PDM,VarTimeStep, usevMPF, PartMPF
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
@@ -1652,6 +1656,8 @@ __STAMP__&
       END IF
     ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
       MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor*VarTimeStep%ParticleTimeStep(PartID)
+    ELSE IF (usevMPF) THEN
+      MacroParticleFactor = PartMPF(PartID)
     ELSE
       MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor
     END IF
