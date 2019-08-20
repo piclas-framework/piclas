@@ -32,7 +32,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_StringTools
 USE MOD_Commandline_Arguments
-USE MOD_IO_HDF5,             ONLY: InitIO,DefineParametersIO
+USE MOD_IO_HDF5,             ONLY: InitIOHDF5,DefineParametersIO
 USE MOD_MPI,                 ONLY: InitMPI!,DefineParametersMPI
 USE MOD_ReadInTools ,        ONLY: prms,PrintDefaultParameterFile
 USE MOD_ReadInTools,         ONLY: GETINT,GETSTR,GETLOGICAL
@@ -246,7 +246,7 @@ END IF
 VisuSource    = GETLOGICAL('VisuSource','.FALSE.')
 VisuParticles    = GETLOGICAL('VisuParticles','.FALSE.')
 ! Initialization of I/O routines
-CALL InitIO()
+CALL InitIOHDF5()
 ! Get length of the floating number time stamp
 TimeStampLength = GETINT('TimeStampLength')
 IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(&

@@ -40,7 +40,7 @@ USE MOD_Piclas_Init            ,ONLY: InitPiclas
 USE MOD_Restart_Vars           ,ONLY: RestartFile
 USE MOD_Restart                ,ONLY: Restart
 USE MOD_Interpolation          ,ONLY: InitInterpolation
-USE MOD_IO_HDF5                ,ONLY: InitIO
+USE MOD_IO_HDF5                ,ONLY: InitIOHDF5
 USE MOD_TimeDisc               ,ONLY: InitTimeDisc
 USE MOD_MPI                    ,ONLY: InitMPI
 USE MOD_Mesh_Vars              ,ONLY: DoSwapMesh
@@ -151,7 +151,7 @@ IF(nArgs.GE.2)THEN
 END IF
 
 CALL InitOutput()
-CALL InitIO()
+CALL InitIOHDF5()
 
 CALL InitGlobals()
 #if USE_MPI
