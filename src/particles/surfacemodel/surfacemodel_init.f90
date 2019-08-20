@@ -1340,8 +1340,8 @@ SDEALLOCATE(PDM%ParticleAtWall)
 SDEALLOCATE(PDM%PartAdsorbSideIndx)
 SDEALLOCATE(PEM%wNumber)
 ! generaly used adsorption variables
-#if (PP_TimeDiscMethod==42)
 SDEALLOCATE(SurfModel%Info)
+#if (PP_TimeDiscMethod==42)
 SDEALLOCATE(SurfModel%ProperInfo)
 #endif
 SDEALLOCATE(SpecSurf)
@@ -1388,6 +1388,10 @@ SDEALLOCATE(Adsorption%DiCoord)
 SDEALLOCATE(Adsorption%Ads_Powerfactor)
 SDEALLOCATE(Adsorption%Ads_Prefactor)
 SDEALLOCATE(Adsorption%TST_calc)
+
+SDEALLOCATE(Adsorption%IncidentNormalVeloAtSurf)
+SDEALLOCATE(Adsorption%SurfaceNormalVelo)
+SDEALLOCATE(Adsorption%CollSpecPartNum)
 ! surfaces distribution variables (currently surfacemodel=3)
 IF (ALLOCATED(SurfDistInfo)) THEN
 DO iSurfSide=1,SurfMesh%nMasterSides

@@ -27,7 +27,7 @@ INTERFACE ExchangeSurfaceHaloToOrigin
 END INTERFACE
 
 INTERFACE ExchangeSurfaceOriginToHalo
-  MODULE PROCEDURE ExchangeSurfaceHaloToOrigin
+  MODULE PROCEDURE ExchangeSurfaceOriginToHalo
 END INTERFACE
 
 INTERFACE MapHaloInnerToOriginInnerSurf
@@ -204,7 +204,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   IF (PRESENT(IntDataIN))  SurfModelExchange%H2OSendBuf(iProc)%content_int = 0
   IF (PRESENT(RealDataIN)) SurfModelExchange%H2OSendBuf(iProc)%content = 0.
   DO iSurfSide=1,SurfModelExchange%nH2OSidesSend(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%H2OSendList(iSurfSide)
     DO q=1,nSurfSample
       DO p=1,nSurfSample
         iPos=iPos+1
@@ -280,10 +280,10 @@ END DO ! iProc
 ! add data do my list
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfModelExchange%nH2OSidesRecv(iProc).EQ.0) CYCLE
-  MessageSize=SurfModelExchange%nH2OSidesSend(iProc)*(nSurfSample)**2
+  MessageSize=SurfModelExchange%nH2OSidesRecv(iProc)*(nSurfSample)**2
   iPos=0
   DO iSurfSide=1,SurfModelExchange%nH2OSidesRecv(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%H2ORecvList(iSurfSide)
     DO q=1,nSurfSample
       DO p=1,nSurfSample
         iPos=iPos+1
@@ -300,7 +300,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         END IF
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
-  END DO ! iSurfSide=1,nSurfModelExchange%nH2OSidesSend(iProc)
+  END DO ! iSurfSide=1,nSurfModelExchange%nH2OSidesRecv(iProc)
   IF (PRESENT(IntDataIN))  SurfModelExchange%H2ORecvBuf(iProc)%content_int = 0
   IF (PRESENT(RealDataIN)) SurfModelExchange%H2ORecvBuf(iProc)%content = 0.
 END DO ! iProc
@@ -376,7 +376,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   IF (PRESENT(IntDataIN))  SurfModelExchange%O2HSendBuf(iProc)%content_int = 0
   IF (PRESENT(RealDataIN)) SurfModelExchange%O2HSendBuf(iProc)%content = 0.
   DO iSurfSide=1,SurfModelExchange%nO2HSidesSend(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%O2HSendList(iSurfSide)
     DO q=1,nSurfSample
       DO p=1,nSurfSample
         iPos=iPos+1
@@ -452,10 +452,10 @@ END DO ! iProc
 ! add data do my list
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfModelExchange%nO2HSidesRecv(iProc).EQ.0) CYCLE
-  MessageSize=SurfModelExchange%nO2HSidesSend(iProc)*(nSurfSample)**2
+  MessageSize=SurfModelExchange%nO2HSidesRecv(iProc)*(nSurfSample)**2
   iPos=0
   DO iSurfSide=1,SurfModelExchange%nO2HSidesRecv(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%O2HRecvList(iSurfSide)
     DO q=1,nSurfSample
       DO p=1,nSurfSample
         iPos=iPos+1
@@ -472,7 +472,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         END IF
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
-  END DO ! iSurfSide=1,nSurfModelExchange%nO2HSidesSend(iProc)
+  END DO ! iSurfSide=1,nSurfModelExchange%nO2HSidesRecv(iProc)
   IF (PRESENT(IntDataIN))  SurfModelExchange%O2HRecvBuf(iProc)%content_int = 0
   IF (PRESENT(RealDataIN)) SurfModelExchange%O2HRecvBuf(iProc)%content = 0.
 END DO ! iProc

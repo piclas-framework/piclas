@@ -260,10 +260,10 @@ END DO ; END DO ; END DO
 #if USE_MPI
 ! communicate coverage and probabilities to halo sides of neighbour procs
 DO iSpec = 1,nSpecies
-  CALL ExchangeSurfaceOriginTohalo(RealDataIN=Adsorption%Coverage(:,:,:,iSpec),AddFlag=.FALSE.)
-  CALL ExchangeSurfaceOriginTohalo(RealDataIN=Adsorption%ProbAds(:,:,:,iSpec),AddFlag=.FALSE.)
-  CALL ExchangeSurfaceOriginTohalo(RealDataIN=Adsorption%ProbDes(:,:,:,iSpec),AddFlag=.FALSE.)
-  CALL ExchangeSurfaceOriginTohalo(RealDataIN=Adsorption%IncidentNormalVeloAtSurf(:,:,:,iSpec),AddFlag=.FALSE.)
+  CALL ExchangeSurfaceOriginToHalo(RealDataIN=Adsorption%Coverage(:,:,:,iSpec),AddFlag=.FALSE.)
+  CALL ExchangeSurfaceOriginToHalo(RealDataIN=Adsorption%ProbAds(:,:,:,iSpec),AddFlag=.FALSE.)
+  CALL ExchangeSurfaceOriginToHalo(RealDataIN=Adsorption%ProbDes(:,:,:,iSpec),AddFlag=.FALSE.)
+  CALL ExchangeSurfaceOriginToHalo(RealDataIN=Adsorption%IncidentNormalVeloAtSurf(:,:,:,iSpec),AddFlag=.FALSE.)
   IF(SurfCOMM%InnerBCs) THEN
     CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%Coverage(:,:,:,iSpec),AddFlag=.FALSE.,Reverse=.TRUE.)
     CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%ProbAds(:,:,:,iSpec),AddFlag=.FALSE.,Reverse=.TRUE.)

@@ -126,7 +126,7 @@ INTEGER                          :: ElemID
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 
 DO iSpec = 1,nSpecies
-  DO iSurfSide = 1,SurfMesh%nBCSides + SurfMesh%nInnerSides
+  DO iSurfSide = 1,SurfMesh%nMasterSides
 
 #if USE_LOADBALANCE
     IF(PerformLBSample) THEN
@@ -237,7 +237,7 @@ REAL                             :: Theta_req, Kfactor, S_0
 INTEGER                          :: PartBoundID
 !===================================================================================================================================
 DO iSpec=1,nSpecies
-  DO SurfSide=1,SurfMesh%nBCSides + SurfMesh%nInnerSides
+  DO SurfSide=1,SurfMesh%nMasterSides
     PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
     IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
     DO q = 1,nSurfSample
@@ -299,8 +299,7 @@ REAL                             :: Theta, nu_des, rate, WallTemp
 REAL                             :: E_des
 INTEGER                          :: PartBoundID, iReactNum, RecombReactID, jSpec, kSpec
 !===================================================================================================================================
-! CALL CalcSurfDistInteraction()
-DO SurfSide=1,SurfMesh%nBCSides + SurfMesh%nInnerSides
+DO SurfSide=1,SurfMesh%nMasterSides
   PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
   IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
 ! special TPD (temperature programmed desorption) temperature adjustment routine
@@ -337,6 +336,7 @@ DO SurfSide=1,SurfMesh%nBCSides + SurfMesh%nInnerSides
 !----------------------------------------------------------------------------------------------------------------------------------!
         CASE (2) ! Recombination Model described by Fasoulas/Laux
 !----------------------------------------------------------------------------------------------------------------------------------!
+          jSpec = 0 ! initialize reaction partner with zero
           DO iReactNum = Adsorption%DissNum+1,(Adsorption%ReactNum)
             RecombReactID = iReactNum-Adsorption%DissNum
             ! resulting species

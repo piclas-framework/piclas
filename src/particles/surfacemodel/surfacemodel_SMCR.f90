@@ -606,11 +606,11 @@ END DO
 ! loop over all surfaces and decide if catalytic boundary of modeltype 3
 DO iSurf = 1,SurfMesh%nMasterSides
   IF (SurfaceHasModelNum(iSurf).NE.3) CYCLE
+  globSide = SurfMesh%SurfIDToSideID(iSurf)
+  PartBoundID = PartBound%MapToPartBC(BC(globSide))
 #if USE_LOADBALANCE
   IF(PerformLBSample) ElemID = PartSideToElem(S2E_ELEM_ID,globSide)
 #endif /*USE_LOADBALANCE*/
-  globSide = SurfMesh%SurfIDToSideID(iSurf)
-  PartBoundID = PartBound%MapToPartBC(BC(globSide))
 ! special TPD (temperature programmed desorption) surface temperature adjustment part
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
