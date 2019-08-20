@@ -30,7 +30,7 @@ INTERFACE InitParticleMPI
   MODULE PROCEDURE InitParticleMPI
 END INTERFACE
 
-#ifdef MPI
+#if USE_MPI
 INTERFACE IRecvNbOfParticles
   MODULE PROCEDURE IRecvNbOfParticles
 END INTERFACE
@@ -82,7 +82,7 @@ PUBLIC :: ExchangeBezierControlPoints3D
 PUBLIC :: AddHaloNodeData
 #else
 PUBLIC :: InitParticleMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 !===================================================================================================================================
 
@@ -106,7 +106,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !REAL                             :: myRealTestValue
+#if USE_MPI
 INTEGER                         :: color
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -116,7 +118,7 @@ IF(ParticleMPIInitIsDone) &
     __STAMP__&
   ,' Particle MPI already initialized!')
 
-#ifdef MPI
+#if USE_MPI
 PartMPI%myRank = myRank
 color = 999
 CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,PartMPI%MyRank,PartMPI%COMM,iERROR)
@@ -136,7 +138,7 @@ iMessage=0
 PartMPI%myRank = 0
 PartMPI%nProcs = 1
 PartMPI%MPIRoot=.TRUE.
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 !! determine datatype length for variables to be sent
 !myRealKind = KIND(myRealTestValue)
 !IF (myRealKind.EQ.4) THEN
@@ -154,7 +156,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitParticleMPI
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE InitParticleCommSize()
 !===================================================================================================================================
 ! get size of Particle-MPI-Message. Unfortunately, this subroutine have to be called after particle_init because
@@ -407,7 +409,7 @@ IF(DoExternalParts)THEN
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral external particles!
-    IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
     ! Don't deposit external shape function particles in cells where local deposition is used (only when DoSFLocalDepoAtBounds=T)
     IF(SkipExternalSFParticles(iPart)) CYCLE
     ! Get indices of background mesh cells
@@ -1241,6 +1243,8 @@ USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,ExtPartCommSize
 USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF
+USE MOD_Mesh_Vars,                ONLY:nGlobalMortarSides
+USE MOD_Particle_Mesh_Vars,       ONLY:PartElemIsMortar
 #if defined(ROS) || defined(IMPA)
 USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage,PartDtFrac,PartQ
 USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
@@ -1258,6 +1262,8 @@ USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
 USE MOD_DSMC_Vars,               ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry2D,         ONLY: DSMC_2D_RadialWeighting
+USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
+USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D_MortarMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1589,6 +1595,17 @@ IF(RadialWeighting%DoRadialWeighting) THEN
   END DO
 END IF
 
+IF(TriaTracking) THEN
+  IF(nGlobalMortarSides.GT.0) THEN
+    DO iPart = 1,nrecv
+      PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
+      IF(PartElemIsMortar(PEM%Element(PartID))) THEN
+        CALL ParticleInsideQuad3D_MortarMPI(PartState(PartID,1:3),PEM%Element(PartID),PDM%ParticleInside(PartID))
+      END IF
+    END DO
+  END IF
+END IF
+
 ! validate solution and check
 ! debug
 ! ProcID=PartMPI%MyRank
@@ -1839,7 +1856,7 @@ DO iSide=firstMPISide_YOUR,lastMPISide_YOUR
 END DO
 
 ! build the bounding box for missing MPI-mortar sides, or YOUR mortar sides
-! actually, I do not know, if this is requried
+! actually, I do not know, if this is required
 DO iSide=firstMortarMPISide,lastMortarMPISide
   ElemID=SideToElem(S2E_ELEM_ID,iSide)
   SideID=MortarSlave2MasterInfo(iSide)
@@ -2000,9 +2017,9 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
 USE MOD_Particle_Vars,          ONLY:Species,nSpecies
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_CalcTimeStep,           ONLY:CalcTimeStep
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_Particle_MPI_Vars,      ONLY:halo_eps
 !USE MOD_Particle_Mesh,          ONLY:BoxInProc
 ! IMPLICIT VARIABLE HANDLING
@@ -2104,9 +2121,9 @@ DO iSpec=1,nSpecies
       IF(Species(iSpec)%Init(iInit)%initialParticleNumber.NE.0)THEN
         lineVector(1:3)=(/0.,0.,Species(iSpec)%Init(iInit)%CuboidHeightIC/)
       ELSE
-#ifndef PP_HDG
+#if !(USE_HDG)
         dt = CALCTIMESTEP()
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
         lineVector(1:3)= dt* Species(iSpec)%Init(iInit)%VeloIC/Species(iSpec)%Init(iInit)%alpha
         zlen=0.
       END IF
@@ -2759,6 +2776,6 @@ DO iProc=1,PartMPI%nMPINodeNeighbors
 END DO ! iProc
 
 END SUBROUTINE AddHaloNodeData
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END MODULE MOD_Particle_MPI

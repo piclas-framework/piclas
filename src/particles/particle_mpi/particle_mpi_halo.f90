@@ -26,7 +26,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 
-#ifdef MPI
+#if USE_MPI
 INTERFACE IdentifyHaloMPINeighborhood
   MODULE PROCEDURE IdentifyHaloMPINeighborhood
 END INTERFACE
@@ -56,12 +56,11 @@ SUBROUTINE IdentifyHaloMPINeighborhood(iProc,SideIndex,ElemIndex)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,         ONLY:GEO,SidePeriodicType,nPartSides,PartElemToSide
-USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
-USE MOD_Particle_Surfaces_Vars,     ONLY:BezierControlPoints3D
-USE MOD_Particle_MPI_Vars,          ONLY:halo_eps
-!USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                  ONLY:NGeo,firstMPISide_MINE,MortarSlave2MasterInfo,BC,BoundaryType
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,SidePeriodicType,nPartSides,PartElemToSide,PartSideToElem
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
+USE MOD_Mesh_Vars              ,ONLY: NGeo,firstMPISide_MINE,MortarSlave2MasterInfo,BC,BoundaryType,MortarType,MortarInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -85,10 +84,10 @@ TYPE tMPISideMessage
 END TYPE
 TYPE(tMPISideMessage)       :: SendMsg
 TYPE(tMPISideMessage)       :: RecvMsg
-INTEGER                     :: ALLOCSTAT,PVID,iDir
+INTEGER                     :: ALLOCSTAT,PVID,iDir,ind,nbSideID,nMortarElems,SideIDMortar
 REAL                        :: MinMax(2),Vec1(1:3)
 LOGICAL                     :: SideisDone(1:nPartSides)
-LOGICAL                     :: SideInside
+LOGICAL                     :: SideInside, CycleMortarInnerSides
 !=================================================================================================================================
 
 ! 1) Exchange Sides:
@@ -124,7 +123,6 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
 END IF
 
 SideisDone=.FALSE.
-SideisDone(1:firstMPISide_MINE-1)=.TRUE.
 DO iElem=1,PP_nElems
   DO ilocSide=1,6
     SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
@@ -132,8 +130,31 @@ DO iElem=1,PP_nElems
     IF(SideID.LT.1) CYCLE
     IF(SideID.GT.nPartSides) CYCLE ! only MY sides are checked, no HALO sides of other processes
     IF(SideID.LT.firstMPISide_MINE)THEN ! for my-inner-sides, we have to check the periodic sides
-      IF(BC(SideID).LE.0) CYCLE ! no boundary side, cycle
-      IF(BoundaryType(BC(SideID),BC_TYPE).NE.1) CYCLE  ! not a periodic BC, cycle
+      ! HDG: MortarMPISides have been moved to MortarInnerSides
+      IF(MortarType(1,SideID).LT.1) THEN
+        ! Cycle over inner sides which are not mortars
+        IF(BC(SideID).LE.0) CYCLE ! no boundary side, cycle
+        IF(BoundaryType(BC(SideID),BC_TYPE).NE.1) CYCLE  ! not a periodic BC, cycle
+      ELSE
+        ! Cycle over inner mortar sides which do have defined neighbors and thus are not a former MortarMPISide
+        SideIDMortar = MortarType(2,SideID)
+        IF (MortarType(1,SideID).EQ.1) THEN
+          nMortarElems = 4
+        ELSE
+          nMortarElems = 2
+        END IF
+        CycleMortarInnerSides = .TRUE.
+        DO ind = 1, nMortarElems
+          nbSideID=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
+          IF(PartSideToElem(S2E_NB_ELEM_ID,nbSideID).LT.1) THEN
+            CycleMortarInnerSides = .FALSE.
+          END IF
+        END DO
+        IF(CycleMortarInnerSides) THEN
+          IF(BC(SideID).LE.0) CYCLE ! no boundary side, cycle
+          IF(BoundaryType(BC(SideID),BC_TYPE).NE.1) CYCLE  ! not a periodic BC, cycle
+        END IF
+      END IF
     END IF
     ! side is already checked
     IF(SideIsDone(SideID)) CYCLE
@@ -303,15 +324,13 @@ SUBROUTINE CheckMPINeighborhoodByFIBGM(BezierSides3D,nExternalSides,SideIndex,El
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToElemGlob,OffSetElem, MortarType, MortarInfo
-USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding,NbrOfCases,casematrix,nPartSides,PartElemToSide,PartSideToElem &
+USE MOD_Mesh_Vars              ,ONLY: NGeo,ElemToElemGlob,OffSetElem, MortarType, MortarInfo
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, FIBGMCellPadding,NbrOfCases,casematrix,nPartSides,PartElemToSide,PartSideToElem &
                                        ,SidePeriodicType
-USE MOD_Particle_MPI_Vars,         ONLY:halo_eps
-USE MOD_Particle_Surfaces_Vars,    ONLY:BezierControlPoints3D
-USE MOD_Mappings,                  ONLY:SideToAdjointLocSide
-USE MOD_Particle_Tracking_Vars,    ONLY:CartesianPeriodic, TriaTracking
-!USE MOD_Particle_Tracking_Vars,    ONLY:DoRefMapping
-
+USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+USE MOD_Mappings               ,ONLY: SideToAdjointLocSide
+USE MOD_Particle_Tracking_Vars ,ONLY: CartesianPeriodic, TriaTracking
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -757,16 +776,16 @@ SUBROUTINE ExchangeHaloGeometry(iProc,ElemList)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloElemToProc, PartHaloNodeToProc
-USE MOD_Mesh_Vars,              ONLY:nElems, nBCSides, BC,nGeo,ElemBaryNGeo,CurvedElem, nNodes
-USE MOD_Particle_Mesh_Vars,     ONLY:nTotalNodes,nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nPartSides,ElemHasAuxBCs
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,nTotalBCSides,ElemType
-USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo,MortarType
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,SideDistance,SideNormVec
-USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemGlob,GEO
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
-USE MOD_Particle_Boundary_Vars, ONLY:nAuxBCs,UseAuxBCs
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartHaloElemToProc, PartHaloNodeToProc
+USE MOD_Mesh_Vars              ,ONLY: nElems, nBCSides, BC,nGeo,ElemBaryNGeo,CurvedElem, nNodes
+USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalNodes,nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nPartSides,ElemHasAuxBCs
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide,PartSideToElem,PartElemToElemGlob,nTotalBCSides,ElemType
+USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo,dXCL_NGeo,MortarType
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideType,SideDistance,SideNormVec
+USE MOD_Particle_Surfaces_Vars ,ONLY: SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToElemGlob,GEO
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,UseAuxBCs
 ! should not be needed annymore
 !USE MOD_Particle_MPI_Vars,      ONLY:nNbProcs,offsetMPISides_MINE, offsetMPISides_YOUR
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1946,14 +1965,14 @@ SUBROUTINE ResizeParticleMeshData(nOldSides,nOldElems,nTotalSides,nTotalElems,nO
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc, PartHaloNodeToProc
-USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType,ElemBaryNGeo,CurvedElem,nNodes
-USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList,GEO,ElemType,ElemHasAuxBCs
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,SideNormVec,SideDistance
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
-USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
-USE MOD_Particle_Boundary_Vars, ONLY:nAuxBCs,UseAuxBCs
+USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc, PartHaloNodeToProc
+USE MOD_Mesh_Vars              ,ONLY: BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType,ElemBaryNGeo,CurvedElem,nNodes
+USE MOD_Particle_Mesh_Vars     ,ONLY: SidePeriodicType,PartBCSideList,GEO,ElemType,ElemHasAuxBCs
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide,PartSideToElem,PartElemToElemGlob
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideType,SideNormVec,SideDistance
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Surfaces_Vars ,ONLY: SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
+USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,UseAuxBCs
 !USE MOD_Particle_Surfaces_Vars, ONLY:ElemSlabNormals,ElemSlabIntervals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2141,11 +2160,11 @@ IF(DoRefMapping)THEN
    ,'Could not allocate DummyBezierControlPoints3D')
   DummyBezierControlPoints3D=BezierControlPoints3D
   DEALLOCATE(BezierControlPoints3D)
-  ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides),STAT=ALLOCSTAT)
+  ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-   ,'Could not reallocate BezierControlPoints3d')
-  BezierControlPoints3d(:,:,:,1:nOldSides) =DummyBezierControlPoints3D(:,:,:,1:nOldSides)
+   ,'Could not reallocate BezierControlPoints3D')
+  BezierControlPoints3D(:,:,:,1:nOldSides) =DummyBezierControlPoints3D(:,:,:,1:nOldSides)
   DEALLOCATE(DummyBezierControlPoints3D)
   ! SideSlabNormals
   ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldSides))
@@ -2525,11 +2544,11 @@ SUBROUTINE WriteParticlePartitionInformation(nPlanar,nBilinear,nCurved,nPlanarHa
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,              ONLY:nSides,nElems
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
-USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems
-USE MOD_LoadBalance_Vars,       ONLY:DoLoadBalance,nLoadBalanceSteps, writePartitionInfo
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Mesh_Vars              ,ONLY: nSides,nElems
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,nTotalElems
+USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,nLoadBalanceSteps, writePartitionInfo
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2782,10 +2801,10 @@ SUBROUTINE WriteParticleMappingPartitionInformation(nPlanar,nBilinear,nCurved,nT
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,            ONLY:nSides,nElems
-USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
-USE MOD_Particle_Mesh_Vars,   ONLY:nTotalSides,nTotalElems
-USE MOD_LoadBalance_Vars,     ONLY:DoLoadBalance,nLoadBalanceSteps, writePartitionInfo
+USE MOD_Mesh_Vars          ,ONLY: nSides,nElems
+USE MOD_Particle_MPI_Vars  ,ONLY: PartMPI
+USE MOD_Particle_Mesh_Vars ,ONLY: nTotalSides,nTotalElems
+USE MOD_LoadBalance_Vars   ,ONLY: DoLoadBalance,nLoadBalanceSteps, writePartitionInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2929,6 +2948,6 @@ END IF !MPIroot
 DEALLOCATE(NBinfo_glob,nNBProcs_glob,ProcInfo_glob)
 
 END SUBROUTINE WriteParticleMappingPartitionInformation
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END MODULE MOD_Particle_MPI_Halo

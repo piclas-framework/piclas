@@ -43,10 +43,10 @@ LOGICAL             :: useDielectricMinMax            ! Switch between 'xyzPhysi
 CHARACTER(255)      :: DielectricTestCase             ! Special test cases, e.g., "fish eye lens" Maxwell 1860
 REAL                :: DielectricEpsR                 ! For Dielectric region shift
 REAL                :: DielectricEpsR_inv             ! 1./EpsR
-#ifdef PP_HDG
+#if USE_HDG
 REAL                :: DielectricRatio                ! Set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere
 REAL                :: Dielectric_E_0                 ! Axial electric field strength in x-direction of the dielectric sphere setup
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 REAL                :: DielectricMuR                  ! MuR
 REAL                :: DielectricRmax                 ! Maximum radius for dielectric material distribution
 REAL                :: DielectricConstant_RootInv     ! 1./sqrt(EpsR*MuR)

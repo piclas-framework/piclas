@@ -457,7 +457,13 @@ The second flag allows to enable/disable the adaptation of the time step distrib
 
 The parameters `TargetMCSoverMFP` (ratio of the mean collision separation distance over mean free path) and `TargetMaxCollProb` (maximum collision probability) allow to modify the target values for the adaptation. The `MaxFactor` and `MinFactor` allow to limit the adapted time step within a range of $f_\mathrm{min} \Delta t$ and $f_\mathrm{max} \Delta t$. Finally, the time step adaptation can be used to increase the number of particles by defining a minimum particle number (e.g `MinPartNum` = 10, optional).
 
-The last two flags enable to initialize the particles distribution from the given DSMC state file, using the macroscopic properties such as flow velocity, number density and temperature (see Section \ref{sec:macro_restart}). Strictly speaking, the VTS procedure only requires the `Filename` for the read-in of aforementioned parameters, however, it is recommended to perform a macroscopic restart to initialize the correct particle number per cells. Otherwise, cells with a decreased/increased time step will require some time until the additional particles has reached/left the cell.
+The last two flags enable to initialize the particles distribution from the given DSMC state file, using the macroscopic properties such as flow velocity, number density and temperature (see Section \ref{sec:macro_restart}). Strictly speaking, the VTS procedure only requires the `Filename` for the read-in of the aforementioned parameters, however, it is recommended to perform a macroscopic restart to initialize the correct particle number per cells. Otherwise, cells with a decreased/increased time step will require some time until the additional particles have reached/left the cell.
+
+For the BGK method, the time step can be adapted according to a target maximal relaxation factor, analogous to the maximal collision probability in DSMC
+
+    Part-VariableTimeStep-Distribution-TargetMaxRelaxFactor = 0.8
+
+The time step adaptation can also be utilized in coupled BGK-DSMC simulations, where the time step will be adapted in both regions according to the respective criteria as the BGK factors are zero in the DSMC region and vice versa. Attention should be payed in the transitional region between BGK and DSMC, where the factors are potentially calculated for both methods. Here, the time step required to fulfil the maximal collision probability criteria will be utilized as it is the more stringent one.
 
 #### Linear scaling
 
@@ -473,7 +479,15 @@ Besides DSMC, the linear scaling is available for the BGK method. Finally, speci
 
 ### 2D/Axisymmetric Simulation \label{sec:2DAxi}
 
-For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_\mathrm{min}|=|z_\mathrm{max}|$.
+For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_\mathrm{min}|=|z_\mathrm{max}|$. The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
+
+Part-Boundary4-SourceName=SYMAXIS
+Part-Boundary4-Condition=symmetric_axis
+
+The boundaries (or a single boundary definition for both boundary sides) in the $z$-direction should be defined as symmetry sides with the `symmetric` condition
+
+Part-Boundary5-SourceName=SYM
+Part-Boundary5-Condition=symmetric
 
 To enable two-dimensional simulations, the following flag is required
 
@@ -506,6 +520,10 @@ For the cloning procedure, two methods are implemented, where the information of
     Particles-RadialWeighting-CloneDelay=10
 
 This serves the purpose to avoid the so-called particle avalanche phenomenon [@Galitzine2015], where clones travel on the exactly same path as the original in the direction of a decreasing weight. They have a zero relative velocity (due to the same velocity vector) and thus a collision probability of zero. Combined with the nearest neighbor pairing, this would lead to an ever-increasing number of identical particles travelling on the same path. An indicator how often identical particle pairs are encountered per time step during collisions is given as an output (`2D_IdenticalParticles`, to enable the output see Section \ref{sec:dsmc_quality}). Additionally, it should be noted that a large delay of the clone insertion might be problematic for time-accurate simulations. However, for the most cases, values for the clone delay between 2 and 10 should be sufficient to avoid the avalance phenomenon.
+
+Another issue is the particle emission on large sides in $y$-dimension close to the rotational axis. As particles are inserted linearly along the $y$-direction of the side, a higher number density is inserted closer to the axis. This effect is directly visible in the free-stream in the cells downstream, when using mortar elements, or in the heatflux (unrealistic peak) close to the rotational axis. It can be avoided by splitting the surface flux emission side into multiple subsides with the following flag (default value is 20)
+
+    Particles-RadialWeighting-SurfFluxSubSides = 20
 
 An alternative to the particle position-based weighting is the cell-local radial weighting, which can be enabled by
 
@@ -732,6 +750,8 @@ The current implementation supports:
 - 4 different methods (i.e. different target distribution functions): Ellipsoidal Statistical, Shakov, standard BGK, and Unified
 - Single species, monoatomic and diatomic gases
 - Thermal non-equilibrium with rotational and vibrational excitation (continuous or quantized treatment)
+- 2D/Axisymmetric simulations
+- Variable time step (adaption of the distribution according to the maximal relaxation factor and linear scaling)
 
 Relevant publications of the developers:
 
@@ -821,3 +841,90 @@ Example: The simulation end time is $T_\mathrm{end}=1$ with a time step of $\Del
 ### Integral Variables
 
 PartAnalyze/FieldAnalyze
+
+### Element-constant properties
+The determined properties are given by a single value within each cell.
+
+#### Analysis of particle properties via *Particle Analyze*
+
+**Plasma Frequency**
+The (cold) plasma frequency can be calculated via
+
+$$\omega_{p}=\omega_{e}=\frac{e^{2}n_{e}}{\varepsilon_{0}m_{e}}$$
+
+which is the frequency with which the charge density of the electrons oscillates, where
+$\varepsilon_{0}$ is the permittivity of vacuum, $e$ is the elementary charge, $n_{e}$ and $m_{e}$ 
+are the electron density and mass, respectively.
+The calculation is activated by
+
+    CalcPlasmaFreqeuncy = T
+
+**PIC Particle Time Step**
+The maximum allowed time step within the PIC schemes can be estimated by
+
+$$\Delta_{t,\mathrm{PIC}}<\frac{0.2}{\omega_{p}}$$
+
+where $\omega_{p}$ is the (cold) plasma frequency.
+The calculation is activated by
+
+    CalcPICTimeStep = T
+
+**Debye length**
+The Debye length can be calculated via
+
+$$\lambda_{D}=\sqrt{\frac{\varepsilon_{0}k_{B}T_{e}}{e^{2}n_{e}}}$$
+
+where $\varepsilon_{0}$ is the permittivity of vacuum, $k_{B}$ is the Boltzmann constant, $e$ is the
+elementary charge and $T_{e}$ and $n_{e}$ are the electron temperature and density, respectively. 
+The Debye length measures the distance after which the magnitude of the electrostatic
+potential of a single charge drops by $1/\text{e}$.
+The calculation is activated by
+
+    CalcDebyeLength = T
+
+**Points per Debye Length**
+The spatial resolution in terms of grid points per Debye length can be estimated via
+
+$$\mathrm{PPD}=\frac{\lambda_{D}}{\Delta x}=\frac{(p+1)\lambda_{D}}{L}\sim 1$$
+
+where $\Delta x$ is the grid spacing (average spacing between grid points), 
+$p$ is the polynomial degree of the solution, $\lambda_{D}$ is the Debye length and $L=V^{1/3}$ 
+is the characteristic cell length, which is determined from the volume $V$ of the grid cell.
+Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting 
+$L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of 
+each cell. These values are especially useful when dealing with Cartesian grids.
+The calculation is activated by
+
+    CalcPointsPerDebyeLength = T
+
+**PIC CFL Condition**
+The plasma frequency time step restriction and the spatial Debye length restriction can be merged
+into a single parameter
+
+$$\frac{\Delta t}{0.4 \Delta x}\sqrt{\frac{k_{b}T_{e}}{m_{e}}}= \frac{(p+1)\Delta t}{0.4 L}\sqrt{\frac{k_{b}T_{e}}{m_{e}}} \lesssim 1$$
+
+where $\Delta t$ is the time step, $\Delta x$ is the grid spacing (average spacing between grid
+points), $p$ is the polynomial degree of the solution, $k_{B}$ is the Boltzmann constant, $T_{e}$ 
+and $m_{e}$ are the electron temperature and mass, respectively. Furthermore, the calculation in 
+each direction $x$, $y$ and $z$ is performed by setting $L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, 
+which are the average distances of the bounding box of each cell. 
+These values are especially useful when dealing with Cartesian grids.
+The calculation is activated by
+
+    CalcPICCFLCondition = T
+
+**Maximum Particle Displacement**
+The largest displacement of a particle within one time step $\Delta t$ is estimated for each cell
+via
+
+$$\frac{\mathrm{max}(v_{\mathrm{iPart}})\Delta t}{\Delta x}=\frac{(p+1)\mathrm{max}(v_{\mathrm{iPart}})\Delta t}{L} < 1$$
+
+which means that the fastest particle is not allowed to travel over the length of two grid points
+separated by $\Delta x$.
+Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting 
+$L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of 
+each cell. 
+These values are especially useful when dealing with Cartesian grids.
+The calculation is activated by
+
+    CalcMaxPartDisplacement = T

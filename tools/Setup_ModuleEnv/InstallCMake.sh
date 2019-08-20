@@ -1,7 +1,7 @@
 #!/bin/bash
 INSTALLDIR=/opt
 SOURCESDIR=/opt/Installsources
-templatedir=/opt/Installsources/moduletemplates
+TEMPLATEDIR=/opt/Installsources/moduletemplates
 
 if [ ! -d ${SOURCESDIR} ]; then
   mkdir -p ${SOURCESDIR}
@@ -13,6 +13,12 @@ CMAKEVERSION='3.13.3'
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}-d
 
+if [[ -n ${1} ]]; then
+  if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
+    rm ${MODULEFILE}
+  fi
+fi
+
 if [ ! -e ${MODULEFILE} ]; then
   echo "creating CMake-${CMAKEVERSION}"
   cd ${SOURCESDIR}
@@ -23,9 +29,12 @@ if [ ! -e ${MODULEFILE} ]; then
   if [ ! -d ${SOURCESDIR}/cmake-${CMAKEVERSION}/build ]; then
     mkdir -p ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
   fi
+  if [[ ${1} =~ ^-r(erun)?$ ]] ; then
+    rm ${SOURCESDIR}/cmake-${CMAKEVERSION}/build/*
+  fi
   cd ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
   ../bootstrap --prefix=${CMAKEDIR}
-  make -j 2>&1 | tee make.out
+  make -j 2 2>&1 | tee make.out
   make install 2>&1 | tee install.out
 
   if [ -e ${CMAKEDIR}/bin/cmake ] && [ -e ${CMAKEDIR}/bin/ccmake ]; then
@@ -38,10 +47,10 @@ if [ ! -e ${MODULEFILE} ]; then
     rm -rf cmake-${CMAKEVERSION}.tar.gz
   else
     echo "ERROR in cmake installation, no modulefile created"
-    if [ -e ${CMAKEDIR}/bin/cmake ]; then
+    if [ ! -e ${CMAKEDIR}/bin/cmake ]; then
       echo "ERROR: cmake not installed"
     fi
-    if [ -e ${CMAKEDIR}/bin/ccmake ]; then
+    if [ ! -e ${CMAKEDIR}/bin/ccmake ]; then
       echo "ERROR: cmake-curses-gui not installed"
     fi
   fi

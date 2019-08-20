@@ -243,9 +243,9 @@ TYPE tInit                                                                   ! P
   TYPE(tConstPressure)                   :: ConstPress!(:)           =>NULL() !
   INTEGER                                :: NumberOfExcludeRegions           ! Number of different regions to be excluded
   TYPE(tExcludeRegion), ALLOCATABLE      :: ExcludeRegion(:)
-#ifdef MPI
+#if USE_MPI
   INTEGER                                :: InitComm                          ! number of init-communicator
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData
@@ -312,6 +312,7 @@ TYPE typeSurfaceflux
                                                                              ! through Monte Carlo integration (initially)
   INTEGER                                :: AdaptivePartNumOut               ! Adaptive, Type 4: Number of particles exiting through
                                                                              ! the adaptive boundary condition
+  REAL, ALLOCATABLE                      :: nVFRSub(:,:)                     ! normal volume flow rate through subsubside
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -489,6 +490,7 @@ TYPE tVariableTimeStep
   LOGICAL                              :: AdaptDistribution
   REAL                                 :: TargetMCSoverMFP
   REAL                                 :: TargetMaxCollProb
+  REAL                                 :: TargetMaxRelaxFactor
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
 

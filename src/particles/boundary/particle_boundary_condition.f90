@@ -132,6 +132,10 @@ CASE(1) !PartBound%OpenBC)
       END IF
     END DO
   END IF
+
+  ! Particle has left the element over an open BC
+  crossedBC    =.TRUE.
+
   IF(CalcPartBalance) THEN
       nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
       PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
@@ -266,7 +270,7 @@ CALL abort(&
 __STAMP__&
 ,' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(10) !PartBound%SymmetryBC
+CASE(10,11) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL  PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
                             ,opt_Symmetry=.TRUE.,opt_Reflected=crossedBC,TriNum=TriNum,opt_LocalSide= locSideID,opt_ElemID=ElemID)
@@ -359,6 +363,9 @@ CASE(1) !PartBound%OpenBC)
     IF(flip.NE.0) n_loc=-n_loc
     IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
   END IF
+
+  ! Particle has left the element over an open BC
+  crossedBC    =.TRUE.
 
   IF(CalcPartBalance) THEN
       nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
@@ -499,7 +506,7 @@ CALL abort(&
 __STAMP__&
 ,' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(10) !PartBound%SymmetryBC
+CASE(10,11) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   BCSideID=PartBCSideList(SideID)
   CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
@@ -1813,13 +1820,13 @@ PEM%PeriodicMoved(PartID)=.TRUE.
 locSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
 Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
 ElemID    = Moved(1)
-#ifdef MPI
+#if USE_MPI
 IF(ElemID.EQ.-1)THEN
   CALL abort(&
 __STAMP__&
 ,' Halo region to small. Neighbor element is missing!')
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !ElemID   =PEM%Element(PartID)
 IF (DoRefMapping) PEM%LastElement(PartID) = 0
 
@@ -1951,13 +1958,13 @@ __STAMP__&
 ! move particle from old element to new element
 Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
 ElemID    = Moved(1)
-#ifdef MPI
+#if USE_MPI
 IF(ElemID.EQ.-1)THEN
   CALL abort(&
 __STAMP__&
 ,' Mesh-connectivity broken or halo region to small. Neighbor element is missing!')
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE SideAnalysis
 

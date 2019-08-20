@@ -61,6 +61,7 @@ REAL              :: k_refl ! Coefficient for reflection of bombarding electron
 !===================================================================================================================================
 ! Default 0
 outSpec = 0
+Adsorption_prob_OUT = 0. ! default
 ! Select particle surface modeling
 SELECT CASE(PartSurfaceModel_IN)
 CASE(5) ! 5: SEE by Levko2015 for copper electrodes
