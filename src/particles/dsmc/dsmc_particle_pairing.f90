@@ -653,7 +653,6 @@ SUBROUTINE DSMC_pairing_octree(iElem)
   USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
   USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
   USE MOD_part_tools,             ONLY : GetParticleWeight
-  USE MOD_TimeDisc_Vars,          ONLY : iter
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -670,7 +669,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
-IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+IF(DSMC%VibRelaxProb.EQ.2.0) THEN ! Set summs for variable vibrational relaxation to zero
   DO iSpec=1,nSpecies
     VarVibRelaxProb%ProbVibAvNew(iSpec) = 0
     VarVibRelaxProb%nCollis(iSpec) = 0
@@ -738,14 +737,11 @@ END IF !nPart > 0
 
 IF(DSMC%VibRelaxProb.EQ.2.0) THEN
   DO iSpec=1,nSpecies
-    IF(VarVibRelaxProb%nCollis(iSpec).NE.0) THEN
+    IF(VarVibRelaxProb%nCollis(iSpec).NE.0) THEN ! Calc new vibrational relaxation probability
       VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VarVibRelaxProb%ProbVibAv(iElem,iSpec) &
                                              * VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec)) &
                                              + (1.-VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec))) &
-                                             / (VarVibRelaxProb%nCollis(iSpec)) * VarVibRelaxProb%ProbVibAvNew(iSpec) 
-      ! open(unit=226,file='ProbVibAv.csv',action='write',position='append')
-      !   WRITE(226,*) Iter,',',ProbVibAv(iElem),',',2*nCollis
-      ! CLOSE(Unit=226)
+                                             / (VarVibRelaxProb%nCollis(iSpec)) * VarVibRelaxProb%ProbVibAvNew(iSpec)
     END IF
   END DO
 END IF
@@ -964,7 +960,7 @@ TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
   Volume = GEO%Volume(iElem)
-  IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+  IF(DSMC%VibRelaxProb.EQ.2.0) THEN ! Set summs for variable vibrational relaxation to zero
     DO iSpec=1,nSpecies
       VarVibRelaxProb%ProbVibAvNew(iSpec) = 0
       VarVibRelaxProb%nCollis(iSpec) = 0
@@ -1029,14 +1025,11 @@ TYPE(tTreeNode), POINTER      :: TreeNode
 
   IF(DSMC%VibRelaxProb.EQ.2.0) THEN
     DO iSpec=1,nSpecies
-      IF(VarVibRelaxProb%nCollis(iSpec).NE.0) THEN
+      IF(VarVibRelaxProb%nCollis(iSpec).NE.0) THEN ! Calc new vibrational relaxation probability
         VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VarVibRelaxProb%ProbVibAv(iElem,iSpec) &
                                                * VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec)) &
                                                + (1.-VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec))) &
-                                               / (VarVibRelaxProb%nCollis(iSpec)) * VarVibRelaxProb%ProbVibAvNew(iSpec) 
-        ! open(unit=226,file='ProbVibAv.csv',action='write',position='append')
-        !   WRITE(226,*) Iter,',',ProbVibAv(iElem),',',2*nCollis
-        ! CLOSE(Unit=226)
+                                               / (VarVibRelaxProb%nCollis(iSpec)) * VarVibRelaxProb%ProbVibAvNew(iSpec)
       END IF
     END DO
   END IF

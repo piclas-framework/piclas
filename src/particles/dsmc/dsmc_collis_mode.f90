@@ -353,7 +353,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   REAL                          :: RanVec(3)                        ! Max. Quantum Number
   REAL                          :: PartStateIntEnTemp, Phi!, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
   REAL                          :: ReducedMass
-  REAL                          :: ProbRot1, ProbRotMax1, ProbRot2, ProbRotMax2, ProbVib1, ProbVib2, ProbVibMax1, ProbVibMax2
+  REAL                          :: ProbRot1, ProbRotMax1, ProbRot2, ProbRotMax2, ProbVib1, ProbVib2
   INTEGER                       :: iSpec1, iSpec2, iPart1, iPart2
   ! variables for electronic level relaxation and transition
   LOGICAL                       :: DoElec1, DoElec2
@@ -403,7 +403,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
       Xi = Xi + SpecDSMC(iSpec1)%Xi_Rot
     END IF
     CALL RANDOM_NUMBER(iRan)
-    CALL DSMC_calc_P_vib(iSpec1, iSpec2, Xi_rel, iElem, ProbVib1)
+    CALL DSMC_calc_P_vib(iSpec1, Xi_rel, iElem, ProbVib1)
     IF(ProbVib1.GT.iRan) DoVib1 = .TRUE.
   END IF
   IF ( DSMC%ElectronicModel ) THEN
@@ -424,7 +424,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
       Xi = Xi + SpecDSMC(iSpec2)%Xi_Rot
     END IF
     CALL RANDOM_NUMBER(iRan)
-    CALL DSMC_calc_P_vib(iSpec2, iSpec1, Xi_rel, iElem, ProbVib2)
+    CALL DSMC_calc_P_vib(iSpec2, Xi_rel, iElem, ProbVib2)
     IF(ProbVib2.GT.iRan) DoVib2 = .TRUE.
   END IF
   IF ( DSMC%ElectronicModel ) THEN
@@ -697,7 +697,6 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   REAL                          :: ProbFrac1, ProbFrac2, ProbFrac3, ProbFrac4   ! probability-fractions according to Zhang
   REAL                          :: ProbRot1, ProbRot2, ProbVib1, ProbVib2       ! probabilities for rot-/vib-relax for part 1/2
   REAL                          :: BLCorrFact, ProbRotMax1, ProbRotMax2         ! Correction factor for BL-redistribution of energy
-  REAL                          :: ProbVibMax1, ProbVibMax2                     ! according to Zhang (see paper, NDD-RotRelax-Model)
 
 !===================================================================================================================================
 
@@ -725,14 +724,14 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
 
   ! calculate probability for rotational/vibrational relaxation for both particles
   IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    CALL DSMC_calc_P_vib(iSpec, jSpec, Xi_rel, iElem, ProbVib1)
+    CALL DSMC_calc_P_vib(iSpec, Xi_rel, iElem, ProbVib1)
     CALL DSMC_calc_P_rot(iSpec, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
   ELSE
     ProbVib1 = 0.
     ProbRot1 = 0.
   END IF
   IF ((SpecDSMC(jSpec)%InterID.EQ.2).OR.(SpecDSMC(jSpec)%InterID.EQ.20)) THEN
-    CALL DSMC_calc_P_vib(jSpec, iSpec, Xi_rel, iElem, ProbVib2)
+    CALL DSMC_calc_P_vib(jSpec, Xi_rel, iElem, ProbVib2)
     CALL DSMC_calc_P_rot(jSpec, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
   ELSE
     ProbVib2 = 0.
@@ -2938,7 +2937,7 @@ __STAMP__&
 END SUBROUTINE DSMC_calc_P_rot
 
 
-SUBROUTINE DSMC_calc_P_vib(iSpec, jSpec, Xi_rel, iElem, ProbVib)
+SUBROUTINE DSMC_calc_P_vib(iSpec, Xi_rel, iElem, ProbVib)
 !===================================================================================================================================
 ! Calculation of probability for vibrational relaxation. Different Models implemented:
 ! 0 - Constant Probability
@@ -2947,22 +2946,22 @@ SUBROUTINE DSMC_calc_P_vib(iSpec, jSpec, Xi_rel, iElem, ProbVib)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals            ,ONLY : Abort
-  USE MOD_Globals_Vars       ,ONLY : Pi, BoltzmannConst
-  USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, DSMC, CollInf, VarVibRelaxProb
+  USE MOD_Globals_Vars       ,ONLY : BoltzmannConst
+  USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, DSMC, VarVibRelaxProb
   USE MOD_DSMC_Vars          ,ONLY : PolyatomMolDSMC
 
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)       :: iSpec, jSpec, iElem
+INTEGER, INTENT(IN)       :: iSpec, iElem
 REAL, INTENT(IN)          :: Xi_rel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)         :: ProbVib
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                      :: CorrFact, TempCorr, DrefVHS, CRela, TColl, CRelaAv       ! CorrFact: To correct sample Bias 
+REAL                      :: CorrFact       ! CorrFact: To correct sample Bias 
                                                                       ! (fewer DSMC particles than natural ones)
 INTEGER                   :: iPolyatMole, iDOF
 !===================================================================================================================================
@@ -3008,9 +3007,7 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
 ! MODULES
     USE MOD_Globals            !,ONLY : Abort
     USE MOD_Globals_Vars       ,ONLY : Pi, BoltzmannConst
-    USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, DSMC, CollInf, CRelaAv
-    USE MOD_DSMC_Vars          ,ONLY : PolyatomMolDSMC
-    USE MOD_DSMC_Vars          ,ONLY : PartStateIntEn
+    USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, CollInf
   
 ! IMPLICIT VARIABLE HANDLING
     IMPLICIT NONE
