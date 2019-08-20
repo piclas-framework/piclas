@@ -333,16 +333,17 @@ DO iSurfSide=1,SurfMesh%nMasterSides
   DO q=1,nSurfSample
     DO p=1,nSurfSample
       CounterSum = SUM(SampWall(iSurfSide)%State(SAMPWALL_NVARS+1:SAMPWALL_NVARS+nSpecies,p,q))
-      IF(CounterSum.GT.0.0) THEN
-        IF(VarTimeStep%UseVariableTimeStep) THEN
+      ! even if no impacts happened, sampling is necessary due to surfacemodels -> DO NOT CYCLE
+      !IF(CounterSum.GT.0.0) THEN
+        IF(VarTimeStep%UseVariableTimeStep .AND. CounterSum.GT.0.0) THEN
           TimeSampleTemp = TimeSample * SampWall(iSurfSide)%State(SAMPWALL_NVARS+nSpecies+1,p,q) / CounterSum
         ELSE
           TimeSampleTemp = TimeSample
         END IF
-      ELSE
-        ! No impacts on that surface -> skip the element
-        CYCLE
-      END IF
+      !ELSE
+      !   No impacts on that surface -> skip the element
+      !  CYCLE
+      !END IF
       ! Force per area in x,y,z-direction
       MacroSurfaceVal(1:3,p,q,iSurfSide) = SampWall(iSurfSide)%State(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q) &
                                            / (SurfMesh%SurfaceArea(p,q,iSurfSide)*TimeSampleTemp)
