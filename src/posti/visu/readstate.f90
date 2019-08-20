@@ -84,9 +84,10 @@ USE MOD_MPI,                 ONLY: DefineParametersMPI
 #if USE_MPI
 USE MOD_MPI,                 ONLY: FinalizeMPI
 #endif
-USE MOD_IO_HDF5,             ONLY: DefineParametersIO,InitIO
+USE MOD_IO_HDF5,             ONLY: DefineParametersIO,InitIOHDF5
 USE MOD_Mesh                ,ONLY: DefineParametersMesh,InitMesh,FinalizeMesh
 USE MOD_ReadInTools         ,ONLY: prms
+USE MOD_ReadInTools         ,ONLY: FinalizeParameters
 USE MOD_Mesh_Vars           ,ONLY: nElems,offsetElem
 USE MOD_HDF5_Input,          ONLY: OpenDataFile,ReadArray,CloseDataFile
 USE MOD_DG_Vars             ,ONLY: U
@@ -127,7 +128,7 @@ CALL DefineParametersMesh()
 CALL prms%read_options(prmfile)
 
 ! Initialization of I/O routines
-CALL InitIO()
+CALL InitIOHDF5()
 
 CALL InitInterpolation()
 

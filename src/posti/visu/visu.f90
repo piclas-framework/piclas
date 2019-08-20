@@ -227,6 +227,7 @@ CALL prms%read_options(postifile)
 NVisu             = GETINT("NVisu")
 ! again read MeshFile from posti prm file (this overwrites the MeshFile read from the state file)
 
+write(*,*) "XXXXXXXXXXXXXXx -- 0192"
 Meshfile          =  GETSTR("MeshFile",MeshFile_state)
 IF (.NOT.FILEEXISTS(MeshFile)) THEN
   !!!!!!
@@ -315,6 +316,7 @@ USE MOD_StringTools         ,ONLY: STRICMP
 USE MOD_Posti_VisuMesh      ,ONLY: BuildVisuCoords
 USE MOD_Posti_Mappings      ,ONLY: Build_mapBCSides
 USE MOD_Interpolation_Vars  ,ONLY: NodeType
+USE MOD_IO_HDF5             ,ONLY: InitMPIInfo
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)               :: mpi_comm_IN
@@ -325,9 +327,6 @@ CHARACTER(LEN=255),INTENT(IN)    :: statefile
 ! LOCAL VARIABLES
 LOGICAL                          :: changedPrmFile
 !===================================================================================================================================
-CALL SetStackSizeUnlimited()
-CALL InitMPI(mpi_comm_IN)
-SWRITE (*,*) "READING FROM: ", TRIM(statefile)
 
 !**********************************************************************************************
 ! General workflow / principles of the visu ParaView-plugin
@@ -355,7 +354,7 @@ SWRITE (*,*) "READING FROM: ", TRIM(statefile)
 !                    reconstruction of the FV subcell method.
 !                    This requires the initialization of several modules of the FLEXI.
 !                    U is read via a call of 'Restart'. In the DGTimeDerivative_weakForm the
-!                    primitive quantities U_Prim and gradUx/y/z as well as gradUxi/eta/zet are
+!                    primitive quantities U_Prim and gradUx/y/z as well as gradUxi/eta/zeta are
 !                    filled. These are used to calculate the visu-quantities.
 !
 ! * The whole calculation of derived quantities is performed on PP_N and afterwards
@@ -390,6 +389,8 @@ SWRITE (*,*) "READING FROM: ", TRIM(statefile)
 !   - changedNVisu:         new NVisu, new Nodetype
 !   - changedFV_Elems:      new distribution of FV/DG elements (only if changedStateFile==TRUE)
 !   - changedWithDGOperator: different mode, with/without gradients
+!   - changedDGonly:        the visualization of FV elements as DG elements was set or unset
+!   - changedNCalc:         the polynomial degree used for calculations changed
 !
 ! WORKFLOW:
 ! * The main steps are:
@@ -398,13 +399,16 @@ SWRITE (*,*) "READING FROM: ", TRIM(statefile)
 !   3. build mapping for BC sides that should be visualized (done after read solution since some
 !      mesh infos are needed)
 !   4. read Mesh              (if changedMeshFile)
-!   5. compute UCalc          (if changedStateFile or changedVarNames or changedDGonly)
-!   6. convert to UVisu       (if changedStateFile or changedVarNames or changedNVisu or changedDGonly)
+!   5. compute UCalc          (if changedStateFile or changedVarNames or changedDGonly or changedNCalc)
+!   6. convert to UVisu       (if changedStateFile or changedVarNames or changedNVisu or changedDGonly or changedNCalc)
 !   7. build visu mesh        (if changedMeshFile  or changedNVisu or changedFV_Elems or changedDGonly)
 !   5. - 7. are done seperately for surface variables if surface visualization is turned on
 !   8. write VTK arrays       (always!)
 !
 !**********************************************************************************************
+CALL SetStackSizeUnlimited()
+CALL InitMPI(mpi_comm_IN)
+CALL InitMPIInfo()
 
 CALL FinalizeParameters()
 ! Read Varnames to visualize and build calc and visu dependencies
@@ -415,11 +419,14 @@ CALL prms%CreateIntOption(    "NVisu"           , "Polynomial degree at which so
 CALL prms%CreateStringOption( "NodeTypeVisu"    , "NodeType for visualization. Visu, Gauss,Gauss-Lobatto,Visu_inner"    ,"VISU")
 CALL prms%CreateStringOption( "BoundaryName"    , "Names of boundaries for surfaces, which should be visualized.", multiple=.TRUE.)
 
+SWRITE (*,*) "READING FROM: ", TRIM(statefile)
+
 changedStateFile      = .FALSE.
 changedMeshFile       = .FALSE.
 changedNVisu          = .FALSE.
 changedVarNames       = .FALSE.
 changedWithDGOperator = .FALSE.
+
 
 IF (ISVALIDMESHFILE(statefile)) THEN ! visualize mesh
   SWRITE(*,*) "MeshFile Mode"

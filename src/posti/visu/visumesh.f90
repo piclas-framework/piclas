@@ -88,6 +88,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Visu_Vars
 USE MOD_ReadInTools   ,ONLY: prms,GETINT
+USE MOD_ReadInTools   ,ONLY: FinalizeParameters
 #if USE_MPI
 USE MOD_MPI           ,ONLY: FinalizeMPI
 #endif
@@ -126,12 +127,14 @@ ELSE
   NVisu = 2*NGeo ! TODO: correct?
 END IF
 
+
 ! read mesh
 CALL InitInterpolation(Ngeo)
 CALL InitMesh(meshMode=0, MeshFile_IN=meshfile_in)
 
 ! convert to visu grid
 nElems_DG = nElems
+
 SDEALLOCATE(mapDGElemsToAllElems)
 ALLOCATE(mapDGElemsToAllElems(nElems))
 DO iElem=1,nElems
@@ -141,7 +144,7 @@ CALL BuildVisuCoords()
 DEALLOCATE(mapDGElemsToAllElems)
 
 CALL FinalizeInterpolation()
-CALL prms%finalize(.FALSE.)
+CALL FinalizeParameters()
 
 END SUBROUTINE VisualizeMesh
 

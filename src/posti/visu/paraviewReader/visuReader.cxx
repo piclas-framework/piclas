@@ -87,7 +87,7 @@ int visuReader::RequestInformation(vtkInformation *,
       vtkInformationVector *outputVector)
 {
    // We take the first state file and use it to read the varnames
-   SWRITE("RequestInformation: State file: " << FileNames[0]);
+   SWRITE("RequestInformation");
 
    // Set up MPI communicator
    this->Controller = NULL;
@@ -114,6 +114,13 @@ int visuReader::RequestInformation(vtkInformation *,
    outInfoVolume->Set(CAN_HANDLE_PIECE_REQUEST(), 1);
    outInfoSurface->Set(CAN_HANDLE_PIECE_REQUEST(), 1);
 
+   // RequestInformation may be called before AddFileName, thus the arrays with timesteps and
+   // file names may be empty.  In this case, simply leave the function. It will be called again
+   // and with the files loaded. This does not make any sense...
+   if (Timesteps.empty()) {
+      std::cout << "No Filenames given, skipping...\n";
+      return 1; 
+   }
    // if we have more then one file loaded at once (timeseries)
    // we have to set the number and range of the timesteps
    double timeRange[2] = {Timesteps[0], Timesteps[Timesteps.size()-1]};
@@ -192,7 +199,7 @@ int visuReader::RequestInformation(vtkInformation *,
  * Attention: For multiple files, we assume a timeseries.
  */
 void visuReader::AddFileName(const char* filename_in) {
-   SWRITE("AddFileName");
+   SWRITE("AddFileName "<<filename_in);
    // append the filename to the list of filenames
    this->FileNames.push_back(filename_in);
    this->Modified();
@@ -266,13 +273,12 @@ int visuReader::RequestData(
       // get the requested time
       double requestedTimeValue = outInfoVolume->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP());
       timestepToLoad = FindClosestTimeStep(requestedTimeValue);
-      FileToLoad = FileNames[timestepToLoad];
    }
+   FileToLoad = FileNames[timestepToLoad];
+   SWRITE("File to load "<<FileToLoad);
    if (outInfoSurface->Has(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP())) {
       // get the requested time
       double requestedTimeValue = outInfoSurface->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP());
-      timestepToLoad = FindClosestTimeStep(requestedTimeValue);
-      FileToLoad = FileNames[timestepToLoad];
    }
 
 
@@ -326,12 +332,18 @@ int visuReader::RequestData(
    }
 
    // write selected state varnames to the parameter file
+   // if no varnames are selected, write flag to suppress standard vars to be visualized
+   int noVisuVars = true;
    for (int i = 0; i< nVars; ++i)
    {
       if (VarNames_selected[i]) {
+         noVisuVars = false;
          const char* name = VarDataArraySelection->GetArrayName(i);
          dprintf(posti_unit, "VarName = %s\n", name) ;
       }
+   }
+   if (noVisuVars) {
+      dprintf(posti_unit, "noVisuVars = T") ;
    }
    for (int i = 0; i< nBCs; ++i)
    {
@@ -398,9 +410,6 @@ int visuReader::RequestData(
       //mb->SetBlock(3, vtkUnstructuredGrid::New());
    }
 
-
-    // Insert Surface DG data into output
-   InsertData(mb, 0, &coordsSurf_DG, &valuesSurf_DG, &nodeidsSurf_DG, &varnamesSurf);
 
    __mod_visu_cwrapper_MOD_visu_dealloc_nodeids();
 

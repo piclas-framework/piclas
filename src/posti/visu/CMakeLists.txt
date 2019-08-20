@@ -44,7 +44,7 @@ IF (POSTI_USE_PARAVIEW AND ParaView_FOUND)
    INCLUDE_DIRECTORIES(${TOOL_DIR}/paraviewReader/)
    ADD_PARAVIEW_PLUGIN(visuReader "1.0"
      SERVER_MANAGER_XML     ${TOOL_DIR}/paraviewReader/visuReader.xml
-     SERVER_MANAGER_SOURCES ${TOOL_DIR}/paraviewReader/visuReader.cpp
+     SERVER_MANAGER_SOURCES ${TOOL_DIR}/paraviewReader/visuReader.cxx
      REQUIRED_ON_SERVER
      DEPENDS               "${TOOL_DIR}/paraviewReader/visuReader.h"
      )
