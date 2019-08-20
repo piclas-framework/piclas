@@ -81,8 +81,9 @@ SUBROUTINE MergeParticles(iPartIndx_Node, nPart, nPartNew)
 !> 6.) Ensuring momentum and energy conservation
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF
+USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies
 USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -94,7 +95,7 @@ INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: V_rel(3), vmag2, iRan, vBulk(3), Energy
-INTEGER               :: iLoop,fillMa1, fillMa2, nDelete, nTemp, iPart, iPartIndx_NodeTMP(nPart), joa(2)
+INTEGER               :: iLoop,fillMa1, fillMa2, nDelete, nTemp, iPart, iPartIndx_NodeTMP(nPart),iSpec
 REAL                  :: partWeight, totalWeight, vBulkTmp(3), ENew, alpha
 !===================================================================================================================================
 vBulk = 0.0; totalWeight = 0.0; Energy = 0.
@@ -110,10 +111,20 @@ vBulk(1:3) = vBulk(1:3)/ totalWeight
 ! 2.) calc energy (for energy conservation)
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+  iSpec = PartSpecies(iPartIndx_Node(iLoop))
   V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulk(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   Energy = Energy + 0.5 * vmag2 * partWeight
-  ! sample inner energies here!
+  IF(CollisMode.GT.1) THEN
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      Energy = Energy + partWeight  &
+             * (PartStateIntEn(iPartIndx_Node(iLoop),1) &  ! Evib
+             +  PartStateIntEn(iPartIndx_Node(iLoop),2) &  ! Erot
+             +  PartStateIntEn(iPartIndx_Node(iLoop),3) )  ! Eel
+    ELSE IF((SpecDSMC(iSpec)%InterID.EQ.1).OR.(SpecDSMC(iSpec)%InterID.EQ.10)) THEN
+      Energy = Energy + partWeight * PartStateIntEn(iPartIndx_Node(iLoop),3)   ! Eel
+    END IF
+  END IF
 END DO
 
 ! 3.) delete particles randomly (until nPartNew is reached)
@@ -142,11 +153,21 @@ ENew = 0.
 totalWeight=0.0
 DO iLoop = 1, nPartNew
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+  iSpec = PartSpecies(iPartIndx_Node(iLoop))
   totalWeight = totalWeight + partWeight
   V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulkTmp(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   ENew = ENew + 0.5 * vmag2 * partWeight
-  ! sample inner energies here!
+  IF(CollisMode.GT.1) THEN
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      ENew = ENew + partWeight  &
+             * (PartStateIntEn(iPartIndx_Node(iLoop),1) &  ! Evib
+             +  PartStateIntEn(iPartIndx_Node(iLoop),2) &  ! Erot
+             +  PartStateIntEn(iPartIndx_Node(iLoop),3) )  ! Eel
+    ELSE IF((SpecDSMC(iSpec)%InterID.EQ.1).OR.(SpecDSMC(iSpec)%InterID.EQ.10)) THEN
+      ENew = ENew + partWeight * PartStateIntEn(iPartIndx_Node(iLoop),3)   ! Eel
+    END IF
+  END IF
 END DO
 
 ! 6.) ensuring momentum and energy conservation
