@@ -507,8 +507,8 @@ ALLOCATE(SurfModelExchange%nSurfDistSidesSend(1:SurfCOMM%nMPINeighbors) &
 ALLOCATE(SurfDistSendBuf(SurfCOMM%nMPINeighbors))
 ALLOCATE(SurfDistRecvBuf(SurfCOMM%nMPINeighbors))
 DO iProc=1,SurfCOMM%nMPINeighbors
-  SurfModelExchange%nSurfDistSidesSend(iProc) = SurfModelExchange%nO2HSidesRecv(iProc)
-  SurfModelExchange%nSurfDistSidesRecv(iProc) = SurfModelExchange%nO2HSidesSend(iProc)
+  SurfModelExchange%nSurfDistSidesSend(iProc) = SurfModelExchange%nO2HSidesSend(iProc)
+  SurfModelExchange%nSurfDistSidesRecv(iProc) = SurfModelExchange%nO2HSidesRecv(iProc)
   IF(SurfModelExchange%nSurfDistSidesRecv(iProc).NE.0) THEN
     ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(SurfModelExchange%nSurfDistSidesRecv(iProc)))
     SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
