@@ -1425,7 +1425,7 @@ END IF
 
 
 ! init varibale MPF per particle
-IF (usevMPF) THEN
+IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
   vMPFNewPartNum = GETINT('Part-vMPFNewPartNum')
   enableParticleMerge = GETLOGICAL('Part-vMPFPartMerge','.FALSE.')
   IF (enableParticleMerge) THEN
@@ -1445,6 +1445,8 @@ __STAMP__&
     END IF
     ALLOCATE(vMPF_SpecNumElem(1:nElems,1:nSpecies))
   END IF
+END IF
+IF (usevMPF) THEN
   ALLOCATE(PartMPF(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
@@ -1452,7 +1454,6 @@ __STAMP__&
     ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
   END IF
 END IF
-
 ! output of macroscopic values
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
 IF(WriteMacroValues)THEN

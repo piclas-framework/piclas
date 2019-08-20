@@ -1347,7 +1347,7 @@ USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, &
                                 WriteMacroSurfaceValues, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep,usevMPF
-USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode,RadialWeighting
+USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode, RadialWeighting
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
