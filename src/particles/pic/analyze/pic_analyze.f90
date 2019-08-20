@@ -166,7 +166,7 @@ DO iElem=1,PP_nElems
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if defined(IMPA)
-#ifdef PP_HDG
+#if USE_HDG
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(1,i,j,k,iElem) * J_N(1,i,j,k)
 #else /* DG */
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
@@ -221,7 +221,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,            ONLY:sJ
 USE MOD_Interpolation_Vars,   ONLY:wGP
 USE MOD_Particle_Vars,        ONLY:RegionElectronRef
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
 USE MOD_DG_Vars,              ONLY:U
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -241,7 +241,7 @@ REAL              :: source_e
 ElectronNumberCell=0.
 J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
 DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
   source_e = U(1,i,j,k,iElem)-RegionElectronRef(2,RegionID)
 #else
   CALL abort(&

@@ -128,7 +128,6 @@ TYPE tBCdata_auxSF
   INTEGER                , ALLOCATABLE   :: SideList(:)                 ! List of Sides in BC (1:SideNumber)
   TYPE(tTriaSwapGeo)     , ALLOCATABLE   :: TriaSwapGeo(:,:,:)             ! data for tria-swapping in surfflux (:,:,1:SideNumber)
   TYPE(tTriaSideGeo)     , ALLOCATABLE   :: TriaSideGeo(:)                 ! data for trias in surfflux (1:SideNumber)
-  REAL                   , ALLOCATABLE   :: WeightingFactor(:)
 END TYPE tBCdata_auxSF
 TYPE(tBCdata_auxSF),ALLOCATABLE          :: BCdata_auxSF(:)             !aux. data of BCs for surfacefluxes, (1:nPartBound) (!!!)
 

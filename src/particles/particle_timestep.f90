@@ -52,9 +52,13 @@ CALL prms%CreateLogicalOption('Part-VariableTimeStep-Distribution-Adapt', &
                               'Particles-MacroscopicRestart = T\n'//&
                               'Particles-MacroscopicRestart-Filename = DSMCState.h5', '.FALSE.')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMCSoverMFP', &
-                              'Target ratio of the mean collision separation distance over the mean free path', '0.25')
+                              'DSMC: Target ratio of the mean collision separation distance over the mean free path', '0.25')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMaxCollProb', &
-                              'Target maximum collision probability', '0.8')
+                              'DSMC: Target maximum collision probability', '0.8')
+#if (PP_TimeDiscMethod==400)
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMaxRelaxFactor', &
+                              'BGK: Target maximum relaxation factor', '0.8')
+#endif
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MaxFactor', &
                               'Maximum time factor to avoid too large time steps and problems with halo region/particle cloning')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MinFactor', &
@@ -150,6 +154,10 @@ IF(VarTimeStep%UseDistribution) THEN
   VarTimeStep%DistributionMinTimeFactor = GETREAL('Part-VariableTimeStep-Distribution-MinFactor')
   ! Optional: Increase number of particles by decreasing the time step
   VarTimeStep%DistributionMinPartNum = GETINT('Part-VariableTimeStep-Distribution-MinPartNum')
+#if (PP_TimeDiscMethod==400)
+  ! BGK: Read-in of the target maximal relaxation factor
+  VarTimeStep%TargetMaxRelaxFactor = GETREAL('Part-VariableTimeStep-Distribution-TargetMaxRelaxFactor')
+#endif
 END IF
 IF((.NOT.VarTimeStep%UseLinearScaling).AND.(.NOT.VarTimeStep%UseDistribution)) THEN
   CALL abort(&
@@ -191,6 +199,10 @@ REAL                              :: TimeFracTemp
 CHARACTER(LEN=255),ALLOCATABLE    :: VarNames_tmp(:)
 INTEGER                           :: nVar_HDF5, N_HDF5, nVar_MaxCollProb, nVar_MCSoverMFP, nVar_TotalPartNum
 REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
+#if (PP_TimeDiscMethod==400)
+INTEGER                           :: nVar_BGK_MaxRelaxFac
+REAL, ALLOCATABLE                 :: BGKMaxRelaxFactor(:)
+#endif
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT VARIABLE TIME STEP DISTRIBUTION...'
@@ -272,6 +284,11 @@ IF(VarTimeStep%AdaptDistribution) THEN
     IF (STRICMP(VarNames_tmp(iVar),"Total_SimPartNum")) THEN
       nVar_TotalPartNum = iVar
     END IF
+#if (PP_TimeDiscMethod==400)
+    IF (STRICMP(VarNames_tmp(iVar),"BGK_MaxRelaxationFactor")) THEN
+      nVar_BGK_MaxRelaxFac = iVar
+    END IF
+#endif
   END DO
 
   ALLOCATE(ElemData_HDF5(1:nVar_HDF5,1:nGlobalElems))
@@ -285,6 +302,10 @@ IF(VarTimeStep%AdaptDistribution) THEN
   DSMCQualityFactors(:,1) = ElemData_HDF5(nVar_MaxCollProb,:)
   DSMCQualityFactors(:,2) = ElemData_HDF5(nVar_MCSoverMFP,:)
   PartNum(:)              = ElemData_HDF5(nVar_TotalPartNum,:)
+#if (PP_TimeDiscMethod==400)
+  ALLOCATE(BGKMaxRelaxFactor(nGlobalElems))
+  BGKMaxRelaxFactor(:) = ElemData_HDF5(nVar_BGK_MaxRelaxFac,:)
+#endif
   DEALLOCATE(ElemData_HDF5)
 
   ! Calculating the time step per element based on the read-in max collision prob and mean collision separation
@@ -298,6 +319,13 @@ IF(VarTimeStep%AdaptDistribution) THEN
 #endif
     ! Storing either a 1 or the read-in time step factor in a temporary variable
     TimeFracTemp = VarTimeStep%ElemFac(iElem)
+#if (PP_TimeDiscMethod==400)
+    ! Adapting the time step in order to achieve a maximal relaxation factor < 0.8
+    IF(BGKMaxRelaxFactor(iElem).GT.VarTimeStep%TargetMaxRelaxFactor) THEN
+      TimeFracTemp = VarTimeStep%TargetMaxRelaxFactor*VarTimeStep%ElemFac(iElem) / BGKMaxRelaxFactor(iElem)
+      TimeStepModified = .TRUE.
+    END IF
+#endif
     ! Adapting the time step in order to achieve MaxCollProb < 0.8
     IF(DSMCQualityFactors(iElem,1).GT.VarTimeStep%TargetMaxCollProb) THEN
       TimeFracTemp = VarTimeStep%TargetMaxCollProb*VarTimeStep%ElemFac(iElem) / DSMCQualityFactors(iElem,1)
@@ -324,7 +352,14 @@ IF(VarTimeStep%AdaptDistribution) THEN
     ! If time step was not adapted due to particle number, collision probability or mean collision separation
     ! Choose appropriate time step to satisfy target MCSoverMFP, MaxCollProb and MinPartNum
     IF(.NOT.TimeStepModified) THEN
-      TimeFracTemp = VarTimeStep%TargetMaxCollProb*VarTimeStep%ElemFac(iElem) / DSMCQualityFactors(iElem,1)
+#if (PP_TimeDiscMethod==400)
+      IF(BGKMaxRelaxFactor(iElem).GT.0.0) THEN
+        TimeFracTemp = VarTimeStep%TargetMaxRelaxFactor*VarTimeStep%ElemFac(iElem) / BGKMaxRelaxFactor(iElem)
+      END IF
+#endif
+      IF(DSMCQualityFactors(iElem,1).GT.0.0) THEN
+        TimeFracTemp = VarTimeStep%TargetMaxCollProb*VarTimeStep%ElemFac(iElem) / DSMCQualityFactors(iElem,1)
+      END IF
       IF(DSMCQualityFactors(iElem,2).GT.0.0) THEN
         IF(Symmetry2D) THEN
           TimeFracTemp = MIN(TimeFracTemp,VarTimeStep%ElemFac(iElem)*(VarTimeStep%TargetMCSoverMFP/DSMCQualityFactors(iElem,2))**2)
@@ -349,6 +384,9 @@ IF(VarTimeStep%AdaptDistribution) THEN
   CALL CloseDataFile()
   SDEALLOCATE(DSMCQualityFactors)
   SDEALLOCATE(PartNum)
+#if (PP_TimeDiscMethod==400)
+  SDEALLOCATE(BGKMaxRelaxFactor)
+#endif
 END IF      ! Adapt Distribution
 
 SWRITE(UNIT_StdOut,'(132("-"))')

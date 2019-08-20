@@ -245,7 +245,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: nSkipAnalyze
 USE MOD_TimeDisc_Vars          ,ONLY: dt_temp, MaximumIterNum
 USE MOD_Particle_Vars          ,ONLY: dt_max_particles, dt_maxwell,dt_part_ratio,maxwelliternum
 #endif
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_PML_Vars               ,ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
 #if USE_LOADBALANCE
@@ -255,7 +255,7 @@ USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
 #endif /*USE_LOADBALANCE*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #ifdef PP_POIS
 USE MOD_Equation               ,ONLY: EvalGradient
 #endif /*PP_POIS*/
@@ -263,7 +263,7 @@ USE MOD_Equation               ,ONLY: EvalGradient
 #if USE_LOADBALANCE
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
-USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance,LoadBalanceMaxSteps,nLoadBalanceSteps
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample,IAR_PerformPartWeightLB
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
@@ -549,13 +549,13 @@ DO !iter_t=0,MaxIter
 
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
 
-#ifndef PP_HDG
+#if !(USE_HDG)
   IF(DoPML)THEN
     IF(DoPMLTimeRamp)THEN
       CALL PMLTimeRamping(time,PMLTimeRamp)
     END IF
   END IF
-#endif /*NOT PP_HDG*/
+#endif /*NOT USE_HDG*/
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
@@ -601,7 +601,7 @@ DO !iter_t=0,MaxIter
 #elif (PP_TimeDiscMethod==400)
   CALL TimeStep_BGK()
 #elif (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
-#ifdef PP_HDG
+#if USE_HDG
 #if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
   CALL TimeStepPoisson() ! Euler Explicit or leapfrog, Poisson
 #else
@@ -611,7 +611,7 @@ DO !iter_t=0,MaxIter
   CALL abort(&
   __STAMP__&
   ,'Timedisc 50x only available for EQNSYS Poisson!',PP_N,999.)
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #elif (PP_TimeDiscMethod==1000)
   CALL TimeStep_LD()
 #elif (PP_TimeDiscMethod==1001)
@@ -701,7 +701,8 @@ DO !iter_t=0,MaxIter
     END IF ! actual analyze is done
     iter_PID=0
 #if USE_LOADBALANCE
-    IF((DoLoadBalance.AND.PerformLBSample))THEN
+    ! Check if load balancing must be performed
+    IF(DoLoadBalance.AND.PerformLBSample.AND.(LoadBalanceMaxSteps.GT.nLoadBalanceSteps))THEN
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
         IF(PerformLoadBalance) THEN
           ! DO NOT DELETE THIS: ONLY recalculate the timestep when the mesh is changed!
@@ -862,7 +863,7 @@ IF (time.GE.DelayTime) THEN
   CALL CalcPartRHS()
 END IF
 #if USE_LOADBALANCE
-    CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
+    CALL LBPauseTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
@@ -889,9 +890,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   CALL Deposition(doInnerParts=.FALSE.)
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DEPOSITION,tLBStart)
-#endif /*USE_LOADBALANCE*/
+
 #endif /*PARTICLES*/
 
 ! field solver
@@ -1040,14 +1039,11 @@ DO iStage=2,nRKStages
     CALL MPIParticleSend()
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-    CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+    CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
     !    ! deposition
     CALL Deposition(doInnerParts=.TRUE.)
-#if USE_LOADBALANCE
-    CALL LBSplitTime(LB_DEPOSITION,tLBStart)
-#endif /*USE_LOADBALANCE*/
 #if USE_MPI
     CALL MPIParticleRecv()
 #endif /*USE_MPI*/
@@ -1057,14 +1053,11 @@ DO iStage=2,nRKStages
     CALL InterpolateFieldToParticle(doInnerParts=.FALSE.)
     CALL CalcPartRHS()
 #if USE_LOADBALANCE
-    CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
+    CALL LBPauseTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
     CALL Deposition(doInnerParts=.FALSE.)
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_DEPOSITION,tLBStart)
-#endif /*USE_LOADBALANCE*/
 #if USE_MPI
     ! null here, careful
     PartMPIExchange%nMPIParticles=0
@@ -1232,34 +1225,23 @@ IF (time.GE.DelayTime) THEN
 END IF
 
 IF (doParticleMerge) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
              PEM%pNumber(1:PP_nElems)          , &
              PEM%pNext(1:PDM%maxParticleNumber), &
              PEM%pEnd(1:PP_nElems) )
-  END IF
 #if USE_LOADBALANCE
-  CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
+    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
 #endif /*USE_LOADBALANCE*/
+  END IF
 END IF
 
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-IF ((time.GE.DelayTime).OR.(time.EQ.0)) THEN
-  CALL UpdateNextFreePosition()
-END IF
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
+IF ((time.GE.DelayTime).OR.(time.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL StartParticleMerge()
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
     DEALLOCATE(PEM%pStart , &
@@ -1267,13 +1249,7 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_SPLITMERGE,tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END IF
 
 IF (useDSMC) THEN
@@ -1516,7 +1492,7 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
   CALL ParticleInserting()
 #if USE_LOADBALANCE
-  CALL LBSplitTime(LB_EMISSION,tLBStart)
+  CALL LBPauseTime(LB_EMISSION,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
   IF (CollisMode.NE.0) THEN
@@ -1531,9 +1507,6 @@ REAL                  :: tLBStart
     __STAMP__&
     ,'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
   END IF
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
 
   IF ((iter.EQ.1).AND.(usevMPF)) THEN
     CALL SplitMerge_main()
@@ -1717,10 +1690,16 @@ END DO
 
 IF (doParticleMerge) THEN
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
              PEM%pNumber(1:PP_nElems)          , &
              PEM%pNext(1:PDM%maxParticleNumber), &
              PEM%pEnd(1:PP_nElems) )
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
 END IF
 
@@ -2038,7 +2017,7 @@ USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,dt_old, time
 USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, DoPrintConvInfo,FieldStage
 USE MOD_DG_Vars,                 ONLY:U,Un
-#ifdef PP_HDG
+#if USE_HDG
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
 USE MOD_DG_Vars,                 ONLY:Ut
@@ -2051,7 +2030,7 @@ USE MOD_Equation,                ONLY:CalcSource
 USE MOD_Precond,                 ONLY:BuildPrecond
 USE MOD_Precond_Vars,            ONLY:UpdatePrecond
 #endif /*maxwell*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
 #ifdef PARTICLES
 USE MOD_TimeDisc_Vars,           ONLY:RK_fillSF
@@ -2138,7 +2117,7 @@ LOGICAL            :: UpdatePrecondLoc
 #endif /*maxwell*/
 !===================================================================================================================================
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 #ifdef maxwell
 ! caution hard coded
 IF (iter==0)THEN
@@ -2214,9 +2193,6 @@ IF((time.GE.DelayTime).OR.(iter.EQ.0))THEN
 #endif /*USE_MPI*/
 END IF
 
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
 ! simulation with delay-time, compute the
 IF(DelayTime.GT.0.)THEN
   IF((iter.EQ.0).AND.(time.LT.DelayTime))THEN
@@ -2245,15 +2221,12 @@ IF (time.GE.DelayTime) THEN
 #endif /*USE_MPI*/
   CALL Deposition(doInnerParts=.FALSE.)
 END IF
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DEPOSITION,tLBStart)
-#endif /*USE_LOADBALANCE*/
 
 ImplicitSource=0.
 #ifdef PARTICLES
 ExplicitPartSource=0.
 #endif /*PARTICLES*/
-#ifndef PP_HDG
+#if !(USE_HDG)
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -2383,7 +2356,7 @@ IF(time.GE.DelayTime)THEN
 END IF ! time.GE. DelayTime
 #endif /*PARTICLES*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 ! LoadBalance Time-Measurement is in DGTimeDerivative_weakForm
 IF(iter.EQ.0) CALL DGTimeDerivative_weakForm(time, time, 0,doSource=.FALSE.)
 iStage=0
@@ -2410,7 +2383,7 @@ DO iStage=2,nRKStages
     SWRITE(UNIT_StdOut,'(A)')    '-----------------------------'
     SWRITE(UNIT_StdOut,'(A,I2)') 'istage:',istage
   END IF
-#ifndef PP_HDG
+#if !(USE_HDG)
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -2610,7 +2583,7 @@ DO iStage=2,nRKStages
     ! map particle from gamma*v to velocity
     CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
 #if USE_LOADBALANCE
-    CALL LBSplitTime(LB_PUSH,tLBStart)
+    CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
     ! deposit explicit, local particles
     CALL Deposition(doInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
@@ -2623,9 +2596,6 @@ DO iStage=2,nRKStages
         END DO; END DO; END DO !i,j,k
       END DO !iElem
     END IF
-#if USE_LOADBALANCE
-    CALL LBSplitTime(LB_DEPOSITION,tLBStart)
-#endif /*USE_LOADBALANCE*/
     ! map particle from v to gamma*v
     CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
 #if USE_LOADBALANCE
@@ -2638,7 +2608,7 @@ DO iStage=2,nRKStages
   ! implicit - particle pusher & Maxwell's field
   !--------------------------------------------------------------------------------------------------------------------------------
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -2771,20 +2741,12 @@ DO iStage=2,nRKStages
 #endif /*PARTICLES*/
   ! full newton for particles and fields
   CALL FullNewton(time,tStage,alpha)
-#ifndef PP_HDG
+#if !(USE_HDG)
   CALL DivCleaningDamping()
 #endif /*DG*/
 #ifdef PARTICLES
   IF (time.GE.DelayTime) THEN
-    IF(DoUpdateInStage)THEN
-#if USE_LOADBALANCE
-      CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-      CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-      CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
-    END IF
+    IF(DoUpdateInStage) CALL UpdateNextFreePosition()
   END IF
 
 #ifdef CODE_ANALYZE
@@ -2951,54 +2913,37 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
 IF (useDSMC) THEN ! UpdateNextFreePosition is only required for DSMC
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
- CALL DSMC_main()
- PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
-                                        + DSMC_RHS(1:PDM%ParticleVecLength,1)
- PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
-                                        + DSMC_RHS(1:PDM%ParticleVecLength,2)
- PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
-                                        + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  CALL UpdateNextFreePosition()
+  CALL DSMC_main()
+  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+      + DSMC_RHS(1:PDM%ParticleVecLength,1)
+  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+      + DSMC_RHS(1:PDM%ParticleVecLength,2)
+  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+      + DSMC_RHS(1:PDM%ParticleVecLength,3)
 END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! split and merge
 !----------------------------------------------------------------------------------------------------------------------------------
 IF (doParticleMerge) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
              PEM%pNumber(1:PP_nElems)          , &
              PEM%pNext(1:PDM%maxParticleNumber), &
              PEM%pEnd(1:PP_nElems) )
-  END IF
 #if USE_LOADBALANCE
-  CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
+    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
 #endif /*USE_LOADBALANCE*/
+  END IF
 END IF
 
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-  CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
-END IF
+IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL StartParticleMerge()
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
     DEALLOCATE(PEM%pStart , &
@@ -3006,13 +2951,7 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_SPLITMERGE,tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END IF
 #endif /*PARTICLES*/
 
@@ -3036,7 +2975,7 @@ USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,dt_inv,dt_old, t
 USE MOD_TimeDisc_Vars,           ONLY:RK_a,RK_c,RK_g,RK_b,RK_gamma
 USE MOD_LinearSolver_Vars,       ONLY:FieldStage,DoPrintConvInfo
 USE MOD_DG_Vars,                 ONLY:U,Un
-#ifdef PP_HDG
+#if USE_HDG
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
 USE MOD_Precond_Vars,            ONLY:UpdatePrecond
@@ -3050,7 +2989,7 @@ USE MOD_Equation,                ONLY:CalcSource
 #ifdef maxwell
 USE MOD_Precond,                 ONLY:BuildPrecond
 #endif /*maxwell*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #ifdef PARTICLES
 USE MOD_Equation_Vars,           ONLY:c2_inv
 USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
@@ -3133,7 +3072,7 @@ LOGICAL            :: UpdatePrecondLoc
 coeff=dt*RK_gamma
 coeff_inv=1./coeff
 dt_inv=1.
-#ifndef PP_HDG
+#if !(USE_HDG)
 #ifdef maxwell
 ! caution hard coded
 IF (iter==0)THEN
@@ -3279,9 +3218,6 @@ IF((time.GE.DelayTime).OR.(iter.EQ.0))THEN
 #endif /*USE_MPI*/
 END IF
 
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
 ! simulation with delay-time, compute the
 IF(DelayTime.GT.0.)THEN
   IF((iter.EQ.0).AND.(time.LT.DelayTime))THEN
@@ -3310,11 +3246,8 @@ IF (time.GE.DelayTime) THEN
 #endif /*USE_MPI*/
   CALL Deposition(doInnerParts=.FALSE.)
 END IF
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DEPOSITION,tLBStart)
-#endif /*USE_LOADBALANCE*/
 
-#ifdef PP_HDG
+#if USE_HDG
 ! update the fields due to changed particle number: emission or velocity change in DSMC
 ! LB measurement is performed within HDG
 IF(DoFieldUpdate) CALL HDG(time,U,iter)
@@ -3416,7 +3349,7 @@ END IF ! time.GE. DelayTime
 IF(DoFieldUpdate)THEN
 #endif /*PARTICLES*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 ! LB measurement is performed within DGTimeDerivative_weakForm and LinearSolver (again DGTimeDerivative_weakForm)
 ! the copy time of the arrays is ignored within this measurement
 Un = U
@@ -3446,7 +3379,7 @@ DO iStage=2,nRKStages
   ! DGSolver: explicit contribution and 1/dt_inv sum_ij RK_g FieldStage
   ! is the state before the linear system is solved
   !--------------------------------------------------------------------------------------------------------------------------------
-#ifndef PP_HDG
+#if !(USE_HDG)
 #ifdef PARTICLES
   IF(DoFieldUpdate) THEN
 #endif /*PARTICLES*/
@@ -3546,9 +3479,6 @@ DO iStage=2,nRKStages
         CALL ParticleTracing()
       END IF
     END IF
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
 #if USE_MPI
     ! send number of particles
     CALL SendNbOfParticles()
@@ -3564,10 +3494,7 @@ DO iStage=2,nRKStages
     CALL Deposition(doInnerParts=.TRUE.)
     CALL Deposition(doInnerParts=.FALSE.)
     ! map particle from v to gamma v
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_DEPOSITION,tLBStart)
-#endif /*USE_LOADBALANCE*/
-#ifdef PP_HDG
+#if USE_HDG
     ! update the fields due to changed particle position and velocity/momentum
     ! LB-TimeMeasurement is performed within HDG
     IF(DoFieldUpdate) CALL HDG(time,U,iter)
@@ -3677,7 +3604,7 @@ DO iStage=2,nRKStages
   ! LB-TimeMeasurement is performed in DGTimeDerivative_weakForm and LinearSolver (DGTimeDerivative_weakForm), hence,
   ! it is neglected here, array copy assumed to be zero
   !--------------------------------------------------------------------------------------------------------------------------------
-#ifndef PP_HDG
+#if !(USE_HDG)
     ! next DG call is f(u^n + dt sum_j^i-1 a_ij k_j) + source terms
     CALL DGTimeDerivative_weakForm(time, time, 0,doSource=.TRUE.) ! source terms are not-added in linear solver
     ! CAUTION: invert sign of Ut
@@ -3692,7 +3619,7 @@ DO iStage=2,nRKStages
 END DO
 
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 #ifdef PARTICLES
 IF(DoFieldUpdate)THEN
 #endif /*PARTICLES*/
@@ -3787,54 +3714,37 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
 IF (useDSMC) THEN
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
- CALL DSMC_main()
- PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
-                                        + DSMC_RHS(1:PDM%ParticleVecLength,1)
- PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
-                                        + DSMC_RHS(1:PDM%ParticleVecLength,2)
- PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
-                                        + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  CALL UpdateNextFreePosition()
+  CALL DSMC_main()
+  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+      + DSMC_RHS(1:PDM%ParticleVecLength,1)
+  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+      + DSMC_RHS(1:PDM%ParticleVecLength,2)
+  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+      + DSMC_RHS(1:PDM%ParticleVecLength,3)
 END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! split and merge
 !----------------------------------------------------------------------------------------------------------------------------------
 IF (doParticleMerge) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
              PEM%pNumber(1:PP_nElems)          , &
              PEM%pNext(1:PDM%maxParticleNumber), &
              PEM%pEnd(1:PP_nElems) )
-  END IF
 #if USE_LOADBALANCE
-  CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
+    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
 #endif /*USE_LOADBALANCE*/
+  END IF
 END IF
 
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-  CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
-END IF
+IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL StartParticleMerge()
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
     DEALLOCATE(PEM%pStart , &
@@ -3842,13 +3752,7 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_SPLITMERGE,tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END IF
 #endif /*PARTICLES*/
 
@@ -3863,35 +3767,35 @@ SUBROUTINE TimeStepByEulerStaticExp()
 ! Field is propagated until steady, then particle is moved
 !===================================================================================================================================
 ! MODULES
-USE MOD_DG_Vars,                 ONLY: U,Ut
+USE MOD_DG_Vars                ,ONLY: U,Ut
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY: dt,IterDisplayStep,iter,IterDisplayStepUser,time
-USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c
-USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
-USE MOD_Filter,                  ONLY:Filter
-USE MOD_Equation,                ONLY:DivCleaningDamping
+USE MOD_TimeDisc_Vars          ,ONLY: dt,IterDisplayStep,iter,IterDisplayStepUser,time
+USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c
+USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
+USE MOD_Filter                 ,ONLY: Filter
+USE MOD_Equation               ,ONLY: DivCleaningDamping
 USE MOD_Globals
 #ifdef PP_POIS
-USE MOD_Equation,                ONLY:DivCleaningDamping_Pois,EvalGradient
-USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm_Pois
-USE MOD_Equation_Vars,           ONLY:Phi,Phit,nTotalPhi
+USE MOD_Equation               ,ONLY: DivCleaningDamping_Pois,EvalGradient
+USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm_Pois
+USE MOD_Equation_Vars          ,ONLY: Phi,Phit,nTotalPhi
 #endif
 #ifdef PARTICLES
-USE MOD_PICDepo,                 ONLY : Deposition!, DepositionMPF
-USE MOD_PICInterpolation,        ONLY : InterpolateFieldToParticle
-USE MOD_Particle_Vars,           ONLY : PartState, Pt, LastPartPos, DelayTime, PEM, PDM, dt_maxwell, MaxwellIterNum
-USE MOD_part_RHS,                ONLY : CalcPartRHS
-USE MOD_part_emission,           ONLY : ParticleInserting
-USE MOD_DSMC,                    ONLY : DSMC_main
-USE MOD_DSMC_Vars,               ONLY : useDSMC, DSMC_RHS
-USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
-USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
-USE MOD_part_tools,              ONLY : UpdateNextFreePosition
-USE MOD_Particle_Tracking_vars,  ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
-USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
+USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos, DelayTime, PEM, PDM, dt_maxwell, MaxwellIterNum
+USE MOD_part_RHS               ,ONLY: CalcPartRHS
+USE MOD_part_emission          ,ONLY: ParticleInserting
+USE MOD_DSMC                   ,ONLY: DSMC_main
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #if USE_MPI
-USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif /*USE_MPI*/
 #endif /*Particles*/
 ! IMPLICIT VARIABLE HANDLING
@@ -4531,53 +4435,52 @@ PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
 END SUBROUTINE TimeStep_BGK
 #endif
 
-#ifdef PP_HDG
+#if USE_HDG
 #if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
 SUBROUTINE TimeStepPoisson()
 !===================================================================================================================================
 ! Euler (500) or Leapfrog (509) -push with HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                 ONLY: Abort, LocalTime
-USE MOD_DG_Vars,                 ONLY: U
+USE MOD_Globals                ,ONLY: Abort, LocalTime
+USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY: dt,iter,time
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
 #if (PP_TimeDiscMethod==509)
-USE MOD_TimeDisc_Vars,           ONLY: dt_old
+USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 #endif /*(PP_TimeDiscMethod==509)*/
-USE MOD_HDG,                     ONLY: HDG
-USE MOD_Particle_Tracking_vars,  ONLY: DoRefMapping!,MeasureTrackTime
+USE MOD_HDG                    ,ONLY: HDG
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 #ifdef PARTICLES
-USE MOD_PICDepo,                 ONLY: Deposition
-USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell!, usevMPF
-USE MOD_Particle_Vars,           ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
-USE MOD_Particle_Vars,           ONLY: Species,PartSpecies
-USE MOD_Particle_Analyze_Vars,   ONLY: CalcCoupledPower,PCoupl, PCouplAverage
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
+USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell ! , usevMPF
+USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
+USE MOD_Particle_Vars          ,ONLY: Species,PartSpecies
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl, PCouplAverage, PCouplSpec
 #if (PP_TimeDiscMethod==509)
-USE MOD_Particle_Vars,           ONLY: velocityAtTime, velocityOutputAtTime
+USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
-USE MOD_part_RHS,                ONLY: CalcPartRHS
-!USE MOD_part_boundary,           ONLY : ParticleBoundary
-USE MOD_part_emission,           ONLY: ParticleInserting, ParticleSurfaceflux
-USE MOD_DSMC,                    ONLY: DSMC_main
-USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS
-USE MOD_part_MPFtools,           ONLY: StartParticleMerge
-USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
-USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge,PartAnalyzeStep
+USE MOD_part_RHS               ,ONLY: CalcPartRHS
+USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_DSMC                   ,ONLY: DSMC_main
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
+USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge,PartAnalyzeStep
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 #if USE_MPI
-USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars,       ONLY:  DoExternalParts
-USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
+USE MOD_Particle_MPI_Vars      ,ONLY:  DoExternalParts
+USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif
-!USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
-USE MOD_part_tools,              ONLY: UpdateNextFreePosition
-USE MOD_Particle_Tracking_vars,  ONLY: DoRefMapping,TriaTracking !,MeasureTrackTime
-USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -4585,13 +4488,14 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iPart
-REAL    :: RandVal, dtFrac
+INTEGER                    :: iPart
+REAL                       :: RandVal, dtFrac
 #if USE_LOADBALANCE
-REAL                          :: tLBStart ! load balance
+REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
-REAL           :: EDiff
+REAL                       :: EDiff
+INTEGER                    :: iElem,iSpec
 #endif /*PARTICLES*/
 !===================================================================================================================================
 #ifdef PARTICLES
@@ -4613,13 +4517,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
     CALL MPIParticleSend()
   END IF
 #endif /*USE_MPI*/
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL Deposition(doInnerParts=.TRUE.) ! because of emmision and UpdateParticlePosition
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DEPOSITION,tLBStart)
-#endif /*USE_LOADBALANCE*/
 #if USE_MPI
   IF(DoExternalParts)THEN
     ! finish communication
@@ -4630,16 +4528,10 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! ALWAYS require
   PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
   IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
   END IF
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DEPOSITION,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END IF
 #endif /*PARTICLES*/
 
@@ -4665,14 +4557,13 @@ IF (time.GE.DelayTime) THEN
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
   CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)   ! forces on particles
-  !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
+  !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communication changes the number of parts
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
   CALL CalcPartRHS()
   IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
   DO iPart=1,PDM%ParticleVecLength
-    !WRITE (*,*) "Pt(iPart,1:3) =", Pt(iPart,1:3)
     IF (PDM%ParticleInside(iPart)) THEN
       IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN ! if output of coupled power is active and particle carries charge
         EDiff = (-1.) * 0.5 * Species(PartSpecies(iPart))%MassIC & ! kinetic energy before Particle Push (negative)
@@ -4758,17 +4649,19 @@ IF (time.GE.DelayTime) THEN
       END IF
 #endif /*(PP_TimeDiscMethod==509)*/
       IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN  ! if output of coupled power is active and particle carries charge
-        EDiff = EDiff &       ! kinetic energy after Particle Push (positive)
+        EDiff = ABS(EDiff &       ! kinetic energy after Particle Push (positive)
                + 0.5 * Species(PartSpecies(iPart))%MassIC &
                * ( PartState(iPart,4) * PartState(iPart,4) &
                  + PartState(iPart,5) * PartState(iPart,5) &
-                 + PartState(iPart,6) * PartState(iPart,6) )
-        PCoupl = PCoupl + ABS(EDiff)
-        PCouplAverage = PCouplAverage + ABS(EDiff)
+                 + PartState(iPart,6) * PartState(iPart,6) ))
+        PCoupl = PCoupl + EDiff
+        PCouplAverage = PCouplAverage + EDiff
+        iElem = PEM%Element(iPart)
+        iSpec = PartSpecies(iPart)
+        PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
       END IF
     END IF
   END DO
-  !read*
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4796,17 +4689,11 @@ IF (time.GE.DelayTime) THEN
 #if USE_MPI
     PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
     CALL Deposition(doInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
     CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
     IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
       IF(DoVerifyCharge) CALL VerifyDepositedCharge()
     END IF
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_DEPOSITION,tLBStart)
-#endif /*USE_LOADBALANCE*/
     CALL HDG(time,U,iter)
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
@@ -4836,22 +4723,20 @@ PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero f
 #endif
 IF (doParticleMerge) THEN
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
              PEM%pNumber(1:PP_nElems)          , &
              PEM%pNext(1:PDM%maxParticleNumber), &
              PEM%pEnd(1:PP_nElems) )
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
 END IF
 
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-  CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
-END IF
+IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
   CALL StartParticleMerge()
@@ -4861,13 +4746,7 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END IF
 
 IF (useDSMC) THEN
@@ -4921,7 +4800,7 @@ USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl,PCouplAverage
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl,PCouplAverage,PCouplSpec
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -4933,6 +4812,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
 USE MOD_SurfaceModel           ,ONLY: UpdateSurfModelVars, SurfaceModel_main
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
@@ -4950,6 +4830,7 @@ INTEGER        :: iPart, iStage_loc
 REAL           :: RandVal
 #ifdef PARTICLES
 REAL           :: EDiff
+INTEGER        :: iElem,iSpec
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
 REAL           :: tLBStart
@@ -4994,13 +4875,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
     CALL MPIParticleSend()
   END IF
 #endif /*USE_MPI*/
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL Deposition(doInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DEPOSITION,tLBStart)
-#endif /*USE_LOADBALANCE*/
 #if USE_MPI
   IF(DoExternalParts)THEN
     ! finish communication
@@ -5011,16 +4886,10 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! ALWAYS require
   PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
   IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
   END IF
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DEPOSITION,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END IF
 #endif /*PARTICLES*/
 
@@ -5139,13 +5008,16 @@ __STAMP__&
         IF (.NOT.DoForceFreeSurfaceFlux) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
       END IF !IsNewPart
       IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN  ! if output of coupled power is active and particle carries charge
-        EDiff = EDiff &       ! kinetic energy after Particle Push (positive)
+        EDiff = ABS(EDiff &       ! kinetic energy after Particle Push (positive)
                + 0.5 * Species(PartSpecies(iPart))%MassIC &
                * ( PartState(iPart,4) * PartState(iPart,4) &
                  + PartState(iPart,5) * PartState(iPart,5) &
-                 + PartState(iPart,6) * PartState(iPart,6) )
-        PCoupl = PCoupl + ABS(EDiff)
-        PCouplAverage = PCouplAverage + ABS(EDiff)
+                 + PartState(iPart,6) * PartState(iPart,6) ))
+        PCoupl = PCoupl + EDiff
+        PCouplAverage = PCouplAverage + EDiff
+        iElem = PEM%Element(iPart)
+        iSpec = PartSpecies(iPart)
+        PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
       END IF
     END IF
   END DO
@@ -5201,9 +5073,6 @@ DO iStage=2,nRKStages
 
   ! deposition
   IF (time.GE.DelayTime) THEN
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
     CALL Deposition(doInnerParts=.TRUE.) ! because of emission and UpdateParticlePosition
 #if USE_MPI
     ! here: finish deposition with delta kernel
@@ -5215,9 +5084,6 @@ DO iStage=2,nRKStages
   IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
   END IF
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_DEPOSITION,tLBStart)
-#endif /*USE_LOADBALANCE*/
   END IF
 #endif /*PARTICLES*/
 
@@ -5328,13 +5194,16 @@ DO iStage=2,nRKStages
           IF (.NOT.DoForceFreeSurfaceFlux .OR. iStage.EQ.nRKStages) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
         END IF !IsNewPart
         IF (CalcCoupledPower) THEN  ! if output of coupled power is active
-          EDiff = EDiff &       ! kinetic energy after Particle Push (positive)
+          EDiff = ABS(EDiff &       ! kinetic energy after Particle Push (positive)
                  + 0.5 * Species(PartSpecies(iPart))%MassIC &
                  * ( PartState(iPart,4) * PartState(iPart,4) &
                    + PartState(iPart,5) * PartState(iPart,5) &
-                   + PartState(iPart,6) * PartState(iPart,6) )
-          PCoupl = PCoupl + ABS(EDiff)
-          PCouplAverage = PCouplAverage + ABS(EDiff)
+                   + PartState(iPart,6) * PartState(iPart,6) ))
+          PCoupl = PCoupl + EDiff
+          PCouplAverage = PCouplAverage + EDiff
+          iElem = PEM%Element(iPart)
+          iSpec = PartSpecies(iPart)
+          PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
         END IF
       END IF
     END DO
@@ -5381,22 +5250,20 @@ PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero f
 #endif
 IF (doParticleMerge) THEN
   IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
              PEM%pNumber(1:PP_nElems)          , &
              PEM%pNext(1:PDM%maxParticleNumber), &
              PEM%pEnd(1:PP_nElems) )
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
 END IF
 
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-  CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
-END IF
+IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
   CALL StartParticleMerge()
@@ -5406,13 +5273,7 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   CALL UpdateNextFreePosition()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_UNFP,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END IF
 
 IF (useDSMC) THEN
@@ -5436,7 +5297,7 @@ END IF
 
 END SUBROUTINE TimeStepPoissonByLSERK
 #endif /*(PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 #if (PP_TimeDiscMethod==1000)
 SUBROUTINE TimeStep_LD()
@@ -5679,7 +5540,7 @@ SUBROUTINE InitTimeStep()
 USE MOD_Globals
 USE MOD_TimeDisc_Vars,      ONLY: dt, dt_Min
 USE MOD_TimeDisc_Vars,      ONLY: sdtCFLOne
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_CalcTimeStep,       ONLY:CalcTimeStep
 USE MOD_TimeDisc_Vars,      ONLY: CFLtoOne
 #endif
@@ -5732,13 +5593,13 @@ ELSE ! .NO. ManualTimeStep
 #endif /*PARTICLES*/
   ! time step is calculated by the solver
   ! first Maxwell time step for explicit LSRK
-#ifndef PP_HDG
+#if !(USE_HDG)
   dt_Min=CalcTimeStep()
   sdtCFLOne  = 1.0/(dt_Min*CFLtoOne)
 #else
   dt_Min=0
   sdtCFLOne  = -1.0 !dummy for HDG!!!
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
   dt=dt_Min
   ! calculate time step for sub-cycling of divergence correction

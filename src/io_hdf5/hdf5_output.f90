@@ -67,11 +67,11 @@ INTERFACE WriteIMDStateToHDF5
 END INTERFACE
 #endif /*PARTICLES*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTERFACE WritePMLzetaGlobalToHDF5
   MODULE PROCEDURE WritePMLzetaGlobalToHDF5
 END INTERFACE
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 INTERFACE WriteDielectricGlobalToHDF5
   MODULE PROCEDURE WriteDielectricGlobalToHDF5
@@ -87,9 +87,9 @@ PUBLIC :: WriteQDSToHDF5
 PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header,GatheredWriteArray
 PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
 PUBLIC :: WriteTimeAverage
-#ifndef PP_HDG
+#if !(USE_HDG)
 PUBLIC :: WritePMLzetaGlobalToHDF5
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 PUBLIC :: WriteDielectricGlobalToHDF5
 #ifdef PARTICLES
 PUBLIC :: WriteIMDStateToHDF5
@@ -106,32 +106,36 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_DG_Vars       ,ONLY: U
-USE MOD_Globals_Vars  ,ONLY: ProjectName
-USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems
-USE MOD_Equation_Vars ,ONLY: StrVarNames
-USE MOD_Restart_Vars  ,ONLY: RestartFile
+USE MOD_DG_Vars                ,ONLY: U
+USE MOD_Globals_Vars           ,ONLY: ProjectName
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+USE MOD_Restart_Vars           ,ONLY: RestartFile
 #ifdef PARTICLES
-USE MOD_DSMC_Vars     ,ONLY:RadialWeighting
-USE MOD_PICDepo_Vars  ,ONLY: OutputSource,PartSource
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
 USE MOD_Particle_Vars          ,ONLY: UseAdaptive
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
 #endif /*PARTICLES*/
 #ifdef PP_POIS
-USE MOD_Equation_Vars ,ONLY: E,Phi
+USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
-#ifdef PP_HDG
-USE MOD_Mesh_Vars     ,ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
-USE MOD_HDG_Vars      ,ONLY: lambda, nGP_face
+#if USE_HDG
+USE MOD_Mesh_Vars              ,ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
+USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
 #if PP_nVar==1
-USE MOD_Equation_Vars ,ONLY: E
+USE MOD_Equation_Vars          ,ONLY: E
 #elif PP_nVar==3
-USE MOD_Equation_Vars ,ONLY: B
+USE MOD_Equation_Vars          ,ONLY: B
 #else
-USE MOD_Equation_Vars ,ONLY: E,B
+USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
-#endif /*PP_HDG*/
-USE MOD_Analyze_Vars  ,ONLY: OutputTimeFixed
+#endif /*USE_HDG*/
+USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
+USE MOD_TimeDisc_Vars          ,ONLY: Time
+USE MOD_Restart_Vars           ,ONLY: RestartTime
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCouplSpec
+USE MOD_Particle_Vars          ,ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -147,12 +151,13 @@ CHARACTER(LEN=255)             :: FileName
 #ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
+INTEGER                        :: iSpec
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
 REAL                           :: Utemp(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #elif PP_nVar==3
@@ -189,7 +194,7 @@ END IF
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'.h5'
 RestartFile=Filename
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==1
 IF(MPIRoot) CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc)
 #elif PP_nVar==3
@@ -199,7 +204,7 @@ IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputT
 #endif
 #else
 IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
   IF(MPIRoot .AND. PreviousTime_loc.LT.OutputTime_loc) CALL GenerateNextFileInfo('State',OutputTime_loc,PreviousTime_loc)
@@ -279,7 +284,7 @@ ASSOCIATE (&
       collective=.TRUE.,RealArray=Phi)
 #endif /*(PP_nVar==4)*/
   DEALLOCATE(Utemp)
-#elif defined PP_HDG
+#elif USE_HDG
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_SolutionLambda', rank=3,&
       nValGlobal=(/PP_nVarTmp,nGP_face,nGlobalUniqueSides/),&
@@ -374,9 +379,41 @@ IF(RadialWeighting%DoRadialWeighting) CALL WriteClonesToHDF5(FileName)
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
-#endif /*Particles*/
+#endif /*PARTICLES*/
 
+#if USE_LOADBALANCE
+! Write 'ElemTime' to a separate container in the state.h5 file
+CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElemTime')
+#endif /*USE_LOADBALANCE*/
+
+#ifdef PARTICLES
+! Set coupled power to particles if output of coupled power is active
+IF (CalcCoupledPower) THEN
+  ASSOCIATE( timediff => (Time-RestartTime) )
+    IF(timediff.GT.0.)THEN
+      DO iSpec = 1, nSpecies
+        PCouplSpec(iSpec)%DensityAvgElem = PCouplSpec(iSpec)%DensityAvgElem / timediff
+      END DO ! iSpec = 1, nSpecies
+    END IF ! timediff.GT.0.
+  END ASSOCIATE
+END IF
+#endif /*PARTICLES*/
+
+! Write all 'ElemData' arrays to a single container in the state.h5 file
 CALL WriteAdditionalElemData(FileName,ElementOut)
+
+#ifdef PARTICLES
+! Reset coupled power to particles if output of coupled power is active
+IF (CalcCoupledPower) THEN
+  ASSOCIATE( timediff => (Time-RestartTime) )
+    IF(timediff.GT.0.)THEN
+      DO iSpec = 1, nSpecies
+        PCouplSpec(iSpec)%DensityAvgElem = PCouplSpec(iSpec)%DensityAvgElem * timediff
+      END DO ! iSpec = 1, nSpecies
+    END IF ! timediff.GT.0.
+  END ASSOCIATE
+END IF
+#endif /*PARTICLES*/
 
 #if (PP_nVar==8)
 CALL WritePMLDataToHDF5(FileName)
@@ -479,6 +516,128 @@ END ASSOCIATE
 DEALLOCATE(ElemData,StrVarNames)
 
 END SUBROUTINE WriteAdditionalElemData
+
+
+#if USE_LOADBALANCE
+SUBROUTINE WriteElemDataToSeparateContainer(FileName,ElemList,ElemDataName)
+!===================================================================================================================================
+!> Similar to WriteAdditionalElemData() but only writes one of the fields to a separate container
+!> ----------------
+!> Write additional data for analyze purpose to HDF5.
+!> The data is taken from a lists, containing either pointers to data arrays or pointers
+!> to functions to generate the data, along with the respective varnames.
+!>
+!> Two options are available:
+!>    1. WriteAdditionalElemData:
+!>       Element-wise scalar data, e.g. the timestep or indicators.
+!>       The data is collected in a single array and written out in one step.
+!>       DO NOT MISUSE NODAL DATA FOR THIS! IT WILL DRASTICALLY INCREASE FILE SIZE AND SLOW DOWN IO!
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Mesh_Vars        ,ONLY: nElems
+USE MOD_HDF5_Input       ,ONLY: ReadArray
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: ElemTime,ElemTime_tmp
+USE MOD_Restart_Vars     ,ONLY: DoRestart
+USE MOD_Mesh_Vars        ,ONLY: nGlobalElems,offsetelem
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)        :: FileName
+TYPE(tElementOut),POINTER,INTENT(IN) :: ElemList !< Linked list of arrays to write to file
+CHARACTER(LEN=*),INTENT(IN)          :: ElemDataName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)                   :: StrVarNames
+REAL,ALLOCATABLE                     :: ElemData(:,:)
+INTEGER                              :: nVar,iElem
+TYPE(tElementOut),POINTER            :: e
+!===================================================================================================================================
+
+IF(.NOT. ASSOCIATED(ElemList)) RETURN
+
+! Allocate variable names and data array
+ALLOCATE(ElemData(1,nElems))
+
+! Fill the arrays
+nVar = 0
+e=>ElemList
+DO WHILE(ASSOCIATED(e))
+  StrVarNames=e%VarName
+  IF(StrVarNames.EQ.TRIM(ElemDataName))THEN
+    nVar=nVar+1
+    IF(ASSOCIATED(e%RealArray))    ElemData(nVar,:)=e%RealArray(1:nElems)
+    IF(ASSOCIATED(e%RealScalar))   ElemData(nVar,:)=e%RealScalar
+    IF(ASSOCIATED(e%IntArray))     ElemData(nVar,:)=REAL(e%IntArray(1:nElems))
+    IF(ASSOCIATED(e%IntScalar))    ElemData(nVar,:)=REAL(e%IntScalar)
+    IF(ASSOCIATED(e%LongIntArray)) ElemData(nVar,:)=REAL(e%LongIntArray(1:nElems))
+    IF(ASSOCIATED(e%LogArray)) THEN
+      DO iElem=1,nElems
+        IF(e%LogArray(iElem))THEN
+          ElemData(nVar,iElem)=1.
+        ELSE
+          ElemData(nVar,iElem)=0.
+        END IF
+      END DO ! iElem=1,PP_nElems
+    END IF
+    IF(ASSOCIATED(e%eval))       CALL e%eval(ElemData(nVar,:)) ! function fills elemdata
+    EXIT
+  END IF ! StrVarNames.EQ.TRIM(ElemDataName)
+  e=>e%next
+END DO
+
+IF(nVar.NE.1) CALL abort(&
+    __STAMP__&
+    ,'WriteElemDataToSeparateContainer: Array not found in ElemData = '//TRIM(ElemDataName))
+
+#if USE_LOADBALANCE
+! Check if ElemTime is all zeros and if this is a restart (save the old values)
+IF((MAXVAL(ElemData).LE.0.0)          .AND.& ! Restart
+    DoRestart                         .AND.& ! Restart
+    (TRIM(ElemDataName).EQ.'ElemTime').AND.& ! only for ElemTime array
+    ALLOCATED(ElemTime_tmp))THEN             ! only allocated when not starting simulation from zero
+  ! Additionally, store old values in ElemData container
+  ElemTime = ElemTime_tmp
+
+  ! Write 'ElemTime' container
+  ASSOCIATE (&
+        nVar         => INT(nVar,IK)         ,&
+        nGlobalElems => INT(nGlobalElems,IK) ,&
+        PP_nElems    => INT(PP_nElems,IK)    ,&
+        offsetElem   => INT(offsetElem,IK)   )
+    CALL GatheredWriteArray(FileName,create = .FALSE.,&
+                            DataSetName     = TRIM(ElemDataName), rank = 2,  &
+                            nValGlobal      = (/nVar,nGlobalElems/),&
+                            nVal            = (/nVar,PP_nElems   /),&
+                            offset          = (/0_IK,offsetElem  /),&
+                            collective      = .TRUE.,RealArray        = ElemTime_tmp)
+  END ASSOCIATE
+ELSE
+  ASSOCIATE (&
+        nVar         => INT(nVar,IK)         ,&
+        nGlobalElems => INT(nGlobalElems,IK) ,&
+        PP_nElems    => INT(PP_nElems,IK)    ,&
+        offsetElem   => INT(offsetElem,IK)   )
+    CALL GatheredWriteArray(FileName,create = .FALSE.,&
+                            DataSetName     = TRIM(ElemDataName), rank = 2,  &
+                            nValGlobal      = (/nVar,nGlobalElems/),&
+                            nVal            = (/nVar,PP_nElems   /),&
+                            offset          = (/0_IK,offsetElem  /),&
+                            collective      = .TRUE.,RealArray        = ElemData)
+  END ASSOCIATE
+END IF ! (MAXVAL(ElemData).LE.0.0).AND.DoRestart.AND.(TRIM(ElemDataName).EQ.'ElemTime')
+#endif /*USE_LOADBALANCE*/
+
+DEALLOCATE(ElemData)
+
+END SUBROUTINE WriteElemDataToSeparateContainer
+#endif /*USE_LOADBALANCE*/
 
 
 #if (PP_nVar==8)
@@ -2674,7 +2833,7 @@ END SUBROUTINE WriteIMDStateToHDF5
 
 
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 SUBROUTINE WritePMLzetaGlobalToHDF5()
 !===================================================================================================================================
 ! write PMLzetaGlobal field to HDF5 file
@@ -2765,7 +2924,7 @@ WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 SDEALLOCATE(PMLzetaGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WritePMLzetaGlobalToHDF5
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 
 SUBROUTINE WriteDielectricGlobalToHDF5()
