@@ -443,11 +443,7 @@ END IF
   IF ( DoElec2 ) THEN
     ! calculate energy for electronic relaxation of particle 2
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,3) * GetParticleWeight(iPart2)
-#if (PP_TimeDiscMethod == 42)
-    CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1)
-#else
     CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi)
-#endif
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,3) * GetParticleWeight(iPart2)
   END IF
 
@@ -582,7 +578,6 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, PolyatomMolDSMC, VibQuantsPar, &
                                          SpecDSMC, PartStateIntEn
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState
-  USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
   USE MOD_part_tools,             ONLY : DiceUnitVector
