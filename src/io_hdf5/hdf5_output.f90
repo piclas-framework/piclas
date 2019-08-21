@@ -147,7 +147,6 @@ CHARACTER(LEN=255)             :: FileName
 #ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
-INTEGER                        :: iSpec
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
@@ -425,6 +424,8 @@ INTEGER,INTENT(IN) :: mode ! 1: before WriteAdditionalElemData() is called
 REAL              :: timediff
 INTEGER           :: iSpec
 !===================================================================================================================================
+
+IF(ABS(Time-RestartTime).LE.0.0) RETURN
 
 #ifdef PARTICLES
 IF(mode.EQ.1)THEN
