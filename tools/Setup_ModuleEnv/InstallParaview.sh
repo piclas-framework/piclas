@@ -10,7 +10,7 @@ MODULESDIR=/opt/modules/modulefiles
 MODULETEMPLATESDIR=/opt/Installsources/moduletemplates
 MODULETEMPLATENAME=paraview_temp
 
-if [ ! -d ${SOURCEDIR} ]; then
+if [ ! -d "${SOURCEDIR}" ]; then
   mkdir -p ${SOURCEDIR}
 fi
 
@@ -22,7 +22,7 @@ HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]
 PARAVIEWMODULEFILEDIR=${MODULESDIR}/utilities/paraview
 PARAVIEWMODULEFILE=${PARAVIEWMODULEFILEDIR}/${PARAVIEWVERSION}
 # if no paraview module for this compiler found, install paraview and create module
-if [ ! -e ${PARAVIEWMODULEFILE} ]; then
+if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   echo "creating Paraview-${PARAVIEWVERSION} for GCC-${GCCVERSION}"
   module purge
   module load cmake/${CMAKEVERSION}
@@ -34,16 +34,16 @@ if [ ! -e ${PARAVIEWMODULEFILE} ]; then
 
   # build and installation
   cd ${SOURCEDIR}
-  if [ ! -e ${SOURCEDIR}/paraview-${PARAVIEWVERSION}.tar.gz ]; then
+  if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}.tar.gz" ]; then
     wget --output-document=paraview-${PARAVIEWVERSION}-source.tar.gz "https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSIONTAG}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}.tar.gz"
   fi
-  if [ ! -e ${SOURCEDIR}/paraview-${PARAVIEWVERSION}-source.tar.gz ]; then
+  if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}-source.tar.gz" ]; then
     echo "no source-file downloaded for Paraview-${PARAVIEWVERSION}"
     echo "check if https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSIONTAG}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}-source.tar.gz"
     break
   fi
   tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz paraview-${PARAVIEWVERSION} && rm -rf paraview-${PARAVIEWVERSION}-source.tar.gz
-  if [ ! -e ${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION} ]; then
+  if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}" ]; then
     mkdir -p ${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}
   fi
   cd ${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}
@@ -61,16 +61,16 @@ if [ ! -e ${PARAVIEWMODULEFILE} ]; then
   make install 2>&1 | tee install.out
 
   # create modulefile if installation seems succesfull (check if mpicc, mpicxx, mpifort exists in installdir)
-  if [ -e ${PARAVIEWINSTALLDIR}/bin/paraview ] then
+  if [ -e "${PARAVIEWINSTALLDIR}/bin/paraview" ] then
     if [ ! -d ${PARAVIEWMODULEFILEDIR} ]; then
       mkdir -p ${PARAVIEWMODULEFILEDIR}
     fi
     cp ${MODULETEMPLATESDIR}/utilities/paraview/${MODULETEMPLATENAME} ${PARAVIEWMODULEFILE}
-    sed -i 's/paraviewversion/'${PARAVIEWVERSION}'/g' ${PARAVIEWMODULEFILE}
-    sed -i 's/CMAKEVERSIONFLAG/'${CMAKEVERSION}'/g' ${PARAVIEWMODULEFILE}
-    sed -i 's/GCCVERSIONFLAG/'${GCCVERSION}'/g' ${PARAVIEWMODULEFILE}
-    sed -i 's/MPIVERSIONFLAG/'${MPIVERSION}'/g' ${PARAVIEWMODULEFILE}
-    sed -i 's/HDF5VERSIONFLAG/'${HDF5VERSION}'/g' ${PARAVIEWMODULEFILE}
+    sed -i 's/paraviewversion/'${PARAVIEWVERSION}'/gI' ${PARAVIEWMODULEFILE}
+    sed -i 's/CMAKEVERSIONFLAG/'${CMAKEVERSION}'/gI' ${PARAVIEWMODULEFILE}
+    sed -i 's/GCCVERSIONFLAG/'${GCCVERSION}'/gI' ${PARAVIEWMODULEFILE}
+    sed -i 's/MPIVERSIONFLAG/'${MPIVERSION}'/gI' ${PARAVIEWMODULEFILE}
+    sed -i 's/HDF5VERSIONFLAG/'${HDF5VERSION}'/gI' ${PARAVIEWMODULEFILE}
   else
     echo "No module file created for Paraview-${PARAVIEWVERSION} for GCC-${GCCVERSION}"
     echo "no installation found in ${PARAVIEWINSTALLDIR}/bin"
