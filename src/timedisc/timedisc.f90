@@ -4474,7 +4474,8 @@ USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell ! , usevMPF
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: Species,PartSpecies
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl, PCouplAverage, PCouplSpec
+USE MOD_Particle_Analyze       ,ONLY: CalcCoupledPowerPart
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 #if (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
@@ -4485,7 +4486,6 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge,PartAnalyzeStep
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -4512,7 +4512,6 @@ REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
 REAL                       :: EDiff
-INTEGER                    :: iElem,iSpec
 #endif /*PARTICLES*/
 !===================================================================================================================================
 #ifdef PARTICLES
@@ -4582,12 +4581,8 @@ IF (time.GE.DelayTime) THEN
   IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
-      IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN ! if output of coupled power is active and particle carries charge
-        EDiff = (-1.) * 0.5 * Species(PartSpecies(iPart))%MassIC & ! kinetic energy before Particle Push (negative)
-              * ( PartState(iPart,4) * PartState(iPart,4) &
-                + PartState(iPart,5) * PartState(iPart,5) &
-                + PartState(iPart,6) * PartState(iPart,6) )
-      END IF
+      ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
+      IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before',EDiff)
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoSurfaceFlux for compiler-optimization if .FALSE.
         CALL RANDOM_NUMBER(RandVal)
         dtFrac = dt * RandVal
@@ -4665,18 +4660,8 @@ IF (time.GE.DelayTime) THEN
         END IF
       END IF
 #endif /*(PP_TimeDiscMethod==509)*/
-      IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN  ! if output of coupled power is active and particle carries charge
-        EDiff = ABS(EDiff &       ! kinetic energy after Particle Push (positive)
-               + 0.5 * Species(PartSpecies(iPart))%MassIC &
-               * ( PartState(iPart,4) * PartState(iPart,4) &
-                 + PartState(iPart,5) * PartState(iPart,5) &
-                 + PartState(iPart,6) * PartState(iPart,6) ))
-        PCoupl = PCoupl + EDiff
-        PCouplAverage = PCouplAverage + EDiff
-        iElem = PEM%Element(iPart)
-        iSpec = PartSpecies(iPart)
-        PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
-      END IF
+      ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
+      IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after',EDiff)
     END IF
   END DO
 #if USE_LOADBALANCE
@@ -4817,7 +4802,8 @@ USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl,PCouplAverage,PCouplSpec
+USE MOD_Particle_Analyze       ,ONLY: CalcCoupledPowerPart
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -4829,7 +4815,6 @@ USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
 USE MOD_SurfaceModel           ,ONLY: UpdateSurfModelVars, SurfaceModel_main
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
@@ -4847,7 +4832,6 @@ INTEGER        :: iPart, iStage_loc
 REAL           :: RandVal
 #ifdef PARTICLES
 REAL           :: EDiff
-INTEGER        :: iElem,iSpec
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
 REAL           :: tLBStart
@@ -4949,12 +4933,8 @@ IF (time.GE.DelayTime) THEN
   IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
-      IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN ! if output of coupled power is active and particle carries charge
-        EDiff = (-1.) * 0.5 * Species(PartSpecies(iPart))%MassIC & ! kinetic energy before Particle Push (negative)
-              * ( PartState(iPart,4) * PartState(iPart,4) &
-                + PartState(iPart,5) * PartState(iPart,5) &
-                + PartState(iPart,6) * PartState(iPart,6) )
-      END IF
+      ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
+      IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before',EDiff)
       !-- Pt is not known only for new Surfaceflux-Parts -> change IsNewPart back to F for other Parts
       IF (.NOT.DoSurfaceFlux) THEN
         PDM%IsNewPart(iPart)=.FALSE.
@@ -5024,18 +5004,8 @@ __STAMP__&
         PDM%dtFracPush(iPart) = .FALSE.
         IF (.NOT.DoForceFreeSurfaceFlux) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
       END IF !IsNewPart
-      IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN  ! if output of coupled power is active and particle carries charge
-        EDiff = ABS(EDiff &       ! kinetic energy after Particle Push (positive)
-               + 0.5 * Species(PartSpecies(iPart))%MassIC &
-               * ( PartState(iPart,4) * PartState(iPart,4) &
-                 + PartState(iPart,5) * PartState(iPart,5) &
-                 + PartState(iPart,6) * PartState(iPart,6) ))
-        PCoupl = PCoupl + EDiff
-        PCouplAverage = PCouplAverage + EDiff
-        iElem = PEM%Element(iPart)
-        iSpec = PartSpecies(iPart)
-        PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
-      END IF
+      ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
+      IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after',EDiff)
     END IF
   END DO
 #if USE_LOADBALANCE
@@ -5139,16 +5109,11 @@ DO iStage=2,nRKStages
     CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
     CALL CalcPartRHS()
-
     ! particle step
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
-        IF (CalcCoupledPower) THEN                                     ! if output of coupled power is active
-          EDiff = (-1.) * 0.5 * Species(PartSpecies(iPart))%MassIC & ! kinetic energy before Particle Push (negative)
-                * ( PartState(iPart,4) * PartState(iPart,4) &
-                  + PartState(iPart,5) * PartState(iPart,5) &
-                  + PartState(iPart,6) * PartState(iPart,6) )
-        END IF
+        ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
+        IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before',EDiff)
         IF (.NOT.PDM%IsNewPart(iPart)) THEN
           Pt_temp(iPart,1) = PartState(iPart,4) - RK_a(iStage) * Pt_temp(iPart,1)
           Pt_temp(iPart,2) = PartState(iPart,5) - RK_a(iStage) * Pt_temp(iPart,2)
@@ -5210,18 +5175,8 @@ DO iStage=2,nRKStages
           END IF
           IF (.NOT.DoForceFreeSurfaceFlux .OR. iStage.EQ.nRKStages) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
         END IF !IsNewPart
-        IF (CalcCoupledPower) THEN  ! if output of coupled power is active
-          EDiff = ABS(EDiff &       ! kinetic energy after Particle Push (positive)
-                 + 0.5 * Species(PartSpecies(iPart))%MassIC &
-                 * ( PartState(iPart,4) * PartState(iPart,4) &
-                   + PartState(iPart,5) * PartState(iPart,5) &
-                   + PartState(iPart,6) * PartState(iPart,6) ))
-          PCoupl = PCoupl + EDiff
-          PCouplAverage = PCouplAverage + EDiff
-          iElem = PEM%Element(iPart)
-          iSpec = PartSpecies(iPart)
-          PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
-        END IF
+        ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
+        IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after',EDiff)
       END IF
     END DO
 #if USE_LOADBALANCE

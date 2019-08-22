@@ -58,6 +58,10 @@ INTERFACE WriteParticleTrackingData
   MODULE PROCEDURE WriteParticleTrackingData
 END INTERFACE
 
+INTERFACE CalcCoupledPowerPart
+  MODULE PROCEDURE CalcCoupledPowerPart
+END INTERFACE
+
 #ifdef CODE_ANALYZE
 INTERFACE AnalyticParticleMovement
   MODULE PROCEDURE AnalyticParticleMovement
@@ -75,6 +79,7 @@ PUBLIC:: AnalyticParticleMovement
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
 #endif /*CODE_ANALYZE*/
+PUBLIC :: CalcCoupledPowerPart
 !===================================================================================================================================
 PUBLIC::DefineParametersParticleAnalyze
 
@@ -1223,6 +1228,7 @@ IF(PartMPI%MPIRoot) THEN
       IF(BGK_MeanRelaxFactorCounter.GT.0) BGK_MeanRelaxFactor = BGK_MeanRelaxFactor / REAL(BGK_MeanRelaxFactorCounter)
     END IF
   END IF
+    ! Moving Average of PCoupl:
   IF(CalcCoupledPower) THEN
     ! Moving Average of PCoupl:
     IF(ABS(Time-RestartTime).GT.0.0) PCouplAverage = PCouplAverage / (Time-RestartTime)
@@ -1726,7 +1732,7 @@ END SUBROUTINE CalcParticleBalance
 SUBROUTINE CalcKineticEnergy(Ekin)
 !===================================================================================================================================
 ! compute the kinetic energy of particles
-! for velocity <1e3 non-relativistic formula is used, for larger velocities the relativistic kinetic energy is computed
+! for velocity <1e6 non-relativistic formula is used, for larger velocities the relativistic kinetic energy is computed
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1772,7 +1778,7 @@ IF (nSpecAnalyze.GT.1) THEN
       partV2 = PartState(i,4) * PartState(i,4) &
               + PartState(i,5) * PartState(i,5) &
               + PartState(i,6) * PartState(i,6)
-      IF ( partV2 .LT. 1e6) THEN  ! |v| < 1000000
+      IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           ! %MacroParticleFactor is included in the case of RadialWeighting (also in combination with variable time step)
@@ -1783,7 +1789,7 @@ IF (nSpecAnalyze.GT.1) THEN
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF != usevMPF
-      ELSE ! partV2 > 1e6
+      ELSE ! partV2 > 1E12
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
@@ -1814,14 +1820,14 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
       partV2 = PartState(i,4) * PartState(i,4) &
              + PartState(i,5) * PartState(i,5) &
              + PartState(i,6) * PartState(i,6)
-      IF ( partV2 .LT. 1e6) THEN  ! |v| < 1000000
+      IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF ! usevMPF
-      ELSE ! partV2 > 1e6
+      ELSE ! partV2 > 1E12
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
@@ -1849,7 +1855,7 @@ END SUBROUTINE CalcKineticEnergy
 SUBROUTINE CalcKineticEnergyAndMaximum(Ekin,EkinMax)
 !===================================================================================================================================
 ! compute the kinetic energy of particles
-! for velocity <1e3 non-relativistic formula is used, for larger velocities the relativistic kinetic energy is computed
+! for velocity <1e6 non-relativistic formula is used, for larger velocities the relativistic kinetic energy is computed
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1899,7 +1905,7 @@ IF (nSpecAnalyze.GT.1) THEN
       partV2 = PartState(i,4) * PartState(i,4) &
               + PartState(i,5) * PartState(i,5) &
               + PartState(i,6) * PartState(i,6)
-      IF ( partV2 .LT. 1e6) THEN  ! |v| < 1000000
+      IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           ! %MacroParticleFactor is included in the case of RadialWeighting (also in combination with variable time step)
@@ -1910,7 +1916,7 @@ IF (nSpecAnalyze.GT.1) THEN
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF != usevMPF
-      ELSE ! partV2 > 1e6
+      ELSE ! partV2 > 1E12
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
@@ -1944,14 +1950,14 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
       partV2 = PartState(i,4) * PartState(i,4) &
              + PartState(i,5) * PartState(i,5) &
              + PartState(i,6) * PartState(i,6)
-      IF ( partV2 .LT. 1e6) THEN  ! |v| < 1000000
+      IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF ! usevMPF
-      ELSE ! partV2 > 1e6
+      ELSE ! partV2 > 1E12
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
@@ -3163,7 +3169,7 @@ END SUBROUTINE WriteParticleTrackingDataAnalytic
 #endif /* CODE_ANALYZE */
 
 
-PURE Function CalcEkinPart(iPart)
+PURE FUNCTION CalcEkinPart(iPart)
 !===================================================================================================================================
 ! computes the kinetic energy of one particle
 !===================================================================================================================================
@@ -3204,7 +3210,7 @@ ELSE
   partV2 = PartState(iPart,4) * PartState(iPart,4) &
          + PartState(iPart,5) * PartState(iPart,5) &
          + PartState(iPart,6) * PartState(iPart,6)
-  IF (partV2.LT.1e6)THEN
+  IF (partV2.LT.1E12)THEN
     CalcEkinPart= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * WeightingFactor
   ELSE
     gamma1=partV2*c2_inv
@@ -4148,6 +4154,47 @@ IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartS
 
 END SUBROUTINE AnalyticParticleMovement
 #endif /*CODE_ANALYZE*/
+
+
+!===================================================================================================================================
+!> Determines the kinetic energy of a (charged) particle before and after the push, the difference is stored as the coupled power
+!===================================================================================================================================
+SUBROUTINE CalcCoupledPowerPart(iPart,mode,EDiff)
+! MODULES
+USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies, PEM
+USE MOD_Particle_Analyze_Vars  ,ONLY: PCoupl, PCouplAverage, PCouplSpec
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)              :: iPart                        !< Particle index
+CHARACTER(LEN=*),INTENT(IN)     :: mode                         !< Mode: 'before' or 'after' the particle push
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)              :: EDiff                        !< Kinetic energy
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iElem, iSpec
+!===================================================================================================================================
+
+IF(.NOT.CHARGEDPARTICLE(iPart)) RETURN
+
+SELECT CASE(TRIM(mode))
+CASE('before')
+  ! Kinetic energy before particle push (negative)
+  EDiff = (-1.) * CalcEkinPart(iPart)
+CASE('after')
+  ! Kinetic energy after particle push (positive)
+  EDiff = ABS(EDiff + CalcEkinPart(iPart))
+  PCoupl = PCoupl + EDiff
+  PCouplAverage = PCouplAverage + EDiff
+  iElem = PEM%Element(iPart)
+  iSpec = PartSpecies(iPart)
+  PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
+END SELECT
+
+END SUBROUTINE CalcCoupledPowerPart
 
 
 SUBROUTINE FinalizeParticleAnalyze()
