@@ -187,7 +187,6 @@ USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem
 USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem,nPartsPerBCElem,nSurfacePartsPerElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
-USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
 USE MOD_LoadBalance_Vars       ,ONLY: ParticleMPIWeight
 #endif /*PARTICLES*/
 USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
@@ -426,7 +425,7 @@ SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE LoadBalance
 
-
+#if USE_LOADBALANCE
 SUBROUTINE ComputeImbalance()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! subroutine to compute the imbalance
@@ -489,7 +488,7 @@ ELSE
 END IF
 
 END SUBROUTINE ComputeImbalance
-
+#endif /*USE_LOADBALANCE*/
 
 #endif /*USE_MPI*/
 

@@ -240,11 +240,10 @@ USE MOD_LoadBalance_Vars     ,ONLY: ElemHDGSides,TotalHDGSides
 USE MOD_Analyze_Vars         ,ONLY: CalcMeshInfo
 #endif /*USE_HDG && USE_LOADBALANCE*/
 #ifdef PARTICLES
-USE MOD_LoadBalance_Vars     ,ONLY: nTracksPerElem,nPartsPerBCElem
+USE MOD_LoadBalance_Vars     ,ONLY: nTracksPerElem,nPartsPerBCElem,nPartsPerElem,nSurfacefluxPerElem
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem,nSurfacefluxPerElem,nDeposPerElem
-USE MOD_LoadBalance_Vars     ,ONLY: nSurfacePartsPerElem
-#endif
+USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 USE MOD_LoadDistribution     ,ONLY: ApplyWeightDistributionMethod
 USE MOD_MPI_Vars             ,ONLY: offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
@@ -429,6 +428,7 @@ LOGWRITE(*,'(4(A,I8))')'offsetElem = ',offsetElem,' ,nElems = ', nElems, &
 ! Read the ElemTime again, but this time with every proc, depending on the domain decomposition in order to write the data
 ! to the state file (keep ElemTime on restart, if no new ElemTime is calculated during the run or replace with newly measured values
 ! if LoadBalance is on)
+#if USE_LOADBALANCE
 IF(ElemTimeExists)THEN
   SDEALLOCATE(ElemTime_tmp)
   ALLOCATE(ElemTime_tmp(1:nElems))
@@ -437,6 +437,7 @@ IF(ElemTimeExists)THEN
   CALL ReadArray('ElemTime',2,(/1_IK,INT(nElems,IK)/),INT(OffsetElem,IK),2,RealArray=ElemTime_tmp)
   CALL CloseDataFile()
 END IF ! ElemTimeExists
+#endif /*USE_LOADBALANCE*/
 
 #if USE_HDG && USE_LOADBALANCE
 ! Allocate container for number of master sides for the HDG solver for each element

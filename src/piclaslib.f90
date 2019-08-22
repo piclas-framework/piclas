@@ -41,7 +41,7 @@ USE MOD_Restart_Vars           ,ONLY: RestartFile
 USE MOD_Restart                ,ONLY: Restart
 USE MOD_Interpolation          ,ONLY: InitInterpolation
 USE MOD_IO_HDF5                ,ONLY: InitIOHDF5
-USE MOD_TimeDisc               ,ONLY: InitTimeDisc
+USE MOD_TimeDisc               ,ONLY: InitTime,InitTimeDisc
 USE MOD_MPI                    ,ONLY: InitMPI
 USE MOD_Mesh_Vars              ,ONLY: DoSwapMesh
 USE MOD_Mesh                   ,ONLY: SwapMesh
@@ -60,7 +60,7 @@ USE MOD_ParticleInit           ,ONLY: InitialIonization
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: Time
+REAL                    :: SystemTime
 LOGICAL                 :: userblockFound
 !===================================================================================================================================
 CALL SetStackSizeUnlimited()
@@ -132,9 +132,9 @@ END IF
 StartTime=PICLASTIME()
 CALL prms%read_options(ParameterFile)
 ! Measure init duration
-Time=PICLASTIME()
+SystemTime=PICLASTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING INI DONE! [',Time-StartTime,' sec ] NOW '&
+SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING INI DONE! [',SystemTime-StartTime,' sec ] NOW '&
 ,prms%count_setentries(),' PARAMETERS ARE SET'
 SWRITE(UNIT_stdOut,'(132("="))')
 ! Check if we want to read in DSMC.ini
@@ -142,9 +142,9 @@ IF(nArgs.GE.2)THEN
   IF(STRICMP(GetFileExtension(ParameterDSMCFile), "ini")) THEN
     CALL prms%read_options(ParameterDSMCFile,furtherini=.TRUE.)
     ! Measure init duration
-    Time=PICLASTIME()
+    SystemTime=PICLASTIME()
     SWRITE(UNIT_stdOut,'(132("="))')
-    SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING FURTHER INI DONE! [',Time-StartTime,' sec ] NOW '&
+    SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING FURTHER INI DONE! [',SystemTime-StartTime,' sec ] NOW '&
     ,prms%count_setentries(),' PARAMETERS ARE SET'
     SWRITE(UNIT_stdOut,'(132("="))')
   END IF
@@ -170,11 +170,11 @@ CALL InitPiclas(IsLoadBalance=.FALSE.)
 ! Do SwapMesh
 IF(DoSwapMesh)THEN
   ! Measure init duration
-  Time=PICLASTIME()
+  SystemTime=PICLASTIME()
   IF(MPIroot)THEN
     Call SwapMesh()
     SWRITE(UNIT_stdOut,'(132("="))')
-    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' SWAPMESH DONE! PICLAS DONE! [',Time-StartTime,' sec ]'
+    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' SWAPMESH DONE! PICLAS DONE! [',SystemTime-StartTime,' sec ]'
     SWRITE(UNIT_stdOut,'(132("="))')
     STOP
   ELSE
@@ -185,6 +185,9 @@ IF(DoSwapMesh)THEN
 END IF
 LOGWRITE_BARRIER
 
+! The beginning of time
+CALL InitTime()
+
 ! RESTART
 CALL Restart()
 
@@ -194,8 +197,8 @@ IF(DoInitialIonization) CALL InitialIonization()
 #endif /*PARTICLES*/
 
 ! Measure init duration
-Time=PICLASTIME()
-InitializationWallTime=Time-StartTime
+SystemTime=PICLASTIME()
+InitializationWallTime=SystemTime-StartTime
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
