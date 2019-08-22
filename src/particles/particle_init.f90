@@ -2445,7 +2445,7 @@ IF (ALLOCSTAT.NE.0) THEN
 __STAMP__&
   ,' Cannot allocate PEM arrays!')
 END IF
-IF (useDSMC.OR.PartPressureCell) THEN
+IF (useDSMC.OR.PartPressureCell.OR.usevMPF) THEN
   ALLOCATE(PEM%pStart(1:nElems)                         , &
            PEM%pNumber(1:nElems)                        , &
            PEM%pEnd(1:nElems)                           , &

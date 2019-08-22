@@ -169,7 +169,6 @@ DO iLoop = 1, nPartNew
     END IF
   END IF
 END DO
-
 ! 6.) ensuring momentum and energy conservation
 alpha = SQRT(Energy/ENew)
 DO iLoop = 1, nPartNew

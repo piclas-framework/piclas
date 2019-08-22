@@ -778,13 +778,13 @@ USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, PEM, PDM, &
                                       doParticleMerge,PartPressureCell,DoFieldIonization, &
-                                      Species,PartSpecies
+                                      Species,PartSpecies, usevMPF
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_DSMC                   ,ONLY: DSMC_main
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS, RadialWeighting
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
@@ -801,6 +801,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,Ext
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+USE MOD_vMPF,             ONLY: SplitMerge_main
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1251,6 +1252,13 @@ IF (doParticleMerge) THEN
   END IF
   CALL UpdateNextFreePosition()
 END IF
+
+
+  IF ((iter.EQ.1).AND.(usevMPF).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+    CALL SplitMerge_main()
+    CALL UpdateNextFreePosition()    
+  END IF
+
 
 IF (useDSMC) THEN
   IF (time.GE.DelayTime) THEN
