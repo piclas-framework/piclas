@@ -111,14 +111,13 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 END SUBROUTINE InitElectronShell
 
 
-SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
+SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi)
 !===================================================================================================================================
 ! Electronic energy exchange
 !===================================================================================================================================
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, usevMPF,PartMPF, VarTimeStep
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, VarTimeStep
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_part_tools              ,ONLY: GetParticleWeight
 #if (PP_TimeDiscMethod==42)
   USE MOD_DSMC_Vars,              ONLY : DSMC
@@ -128,14 +127,11 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iPair, iPart1
-  INTEGER, INTENT(IN), OPTIONAL :: iPart2,iElem
   REAL, INTENT(IN)              :: FakXi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                       :: iQuaMax, MaxElecQuant, iQua
   REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp, CollisionEnergy
-! vMPF
-  REAL                          :: DeltaPartStateIntEn, Phi, PartStateIntEnTemp
 !===================================================================================================================================
 
   IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
@@ -191,20 +187,18 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
 END SUBROUTINE ElectronicEnergyExchange
 
 
-SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
+SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi)
 !===================================================================================================================================
 ! Electronic energy exchange
 !===================================================================================================================================
-  USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PartStateIntEn, RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, usevMPF,PartMPF
+  USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PartStateIntEn
+  USE MOD_Particle_Vars,          ONLY : PartSpecies
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iPart1
-  INTEGER, INTENT(IN), OPTIONAL :: iPart2,iElem
   REAL, INTENT(IN)              :: FakXi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -214,8 +208,6 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
   INTEGER                       :: iQuaMax, MaxElecQuant, iQua   ! , iQuaMax3
   INTEGER                       :: jQVib, QMaxVib
   REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp, iRanVib
-  ! vMPF
-  REAL                          :: DeltaPartStateIntEn, Phi, PartStateIntEnTemp
 !#if ( PP_TimeDiscMethod==42 )
 !  INTEGER                       :: iQuaold
 !#endif
@@ -286,33 +278,6 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
     END IF
     CALL RANDOM_NUMBER(iRan2)
   END DO
-
-  !vmpf muss noch gemacht werden !!!!
-  IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-    IF (PartMPF( iPart1).GT.PartMPF( iPart2)) THEN
-      Phi = PartMPF( iPart2) / PartMPF( iPart1)
-      PartStateIntEnTemp = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
-      CollisionEnergy = CollisionEnergy - PartStateIntEnTemp
-      PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn( iPart1,3) + Phi * PartStateIntEnTemp
-      PartStateTemp = PartStateIntEnTemp / BoltzmannConst
-      ! searche for new vib quant
-      iQuaMax = 0
-      DO iQua = 0, MaxElecQuant
-        IF ( PartStateTemp .ge. &
-          SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) ) THEN
-          iQuaMax = iQua
-        ELSE
-        ! exit loop
-          EXIT
-        END IF
-      END DO
-      iQua = iQuaMax
-      PartStateIntEn( iPart1,3) = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
-      DeltaPartStateIntEn = PartMPF( iPart1) &
-                          * (PartStateIntEnTemp - PartStateIntEn( iPart1,3))
-      GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
-    END IF
-  ELSE
 #if (PP_TimeDiscMethod==42)
 ! Reservoir simulation for obtaining the reaction rate at one given point does not require to performe the reaction
   IF (.NOT.DSMC%ReservoirSimuRate) THEN
@@ -323,7 +288,6 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
 #if (PP_TimeDiscMethod==42)
   END IF
 #endif
-  END IF
 
 !#if (PP_TimeDiscMethod==42)
 !    ! list of number of particles in each energy level

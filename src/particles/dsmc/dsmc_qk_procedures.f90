@@ -104,7 +104,7 @@ END IF
 END SUBROUTINE QK_dissociation
 
 
-SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
+SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,NodeVolume,NodePartNum)
 !===================================================================================================================================
 ! tests for molecular recombination of two colliding atoms by the use of Birds QK theory
 !===================================================================================================================================
@@ -112,17 +112,15 @@ SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,Node
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
-USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PEM, PartState,  usevMPF
+USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PEM, PartState
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_DSMC_ChemReact,         ONLY: DSMC_Chemistry
-USE MOD_vmpf_collision,         ONLY: AtomRecomb_vMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARiABLES
 INTEGER, INTENT(IN)           :: iPair, iReac,iPart_p3
 LOGICAL, INTENT(INOUT)        :: RelaxToDo
-INTEGER, INTENT(IN)           :: iElem
 REAL, INTENT(IN), OPTIONAL    :: NodeVolume
 INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -181,11 +179,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
                              + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * &
                                  ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 ) &
                              + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
-        IF (usevMPF) THEN
-          CALL AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
-        ELSE
-          CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
-        END IF
+        CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
 #if (PP_TimeDiscMethod==42)
       END IF
       IF ( DSMC%ReservoirRateStatistic ) THEN
@@ -235,11 +229,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
                               + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * &
                               ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 ) &
                               + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
-        IF (usevMPF) THEN
-          CALL AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
-        ELSE
-          CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
-        END IF
+        CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
         RelaxToDo = .FALSE.
 #if (PP_TimeDiscMethod==42)
       END IF

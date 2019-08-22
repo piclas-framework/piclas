@@ -46,10 +46,10 @@ SUBROUTINE DSMC_main(DoElement)
   USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
   USE MOD_Mesh_Vars,             ONLY : nElems
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-  USE MOD_DSMC_Vars,             ONLY : ChemReac, SpecDSMC, RadialWeighting
+  USE MOD_DSMC_Vars,             ONLY : ChemReac, SpecDSMC
   USE MOD_DSMC_Analyze,          ONLY : CalcMeanFreePath
   USE MOD_DSMC_SteadyState,      ONLY : QCrit_evaluation, SteadyStateDetection_main
-  USE MOD_Particle_Vars,         ONLY : PEM, PDM, usevMPF, WriteMacroVolumeValues, nSpecies, Symmetry2D
+  USE MOD_Particle_Vars,         ONLY : PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D
   USE MOD_Particle_Mesh_Vars,    ONLY : GEO
   USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
   USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
@@ -57,7 +57,6 @@ SUBROUTINE DSMC_main(DoElement)
   USE MOD_DSMC_ParticlePairing,  ONLY : DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
   USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
   USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
-  USE MOD_vmpf_collision,        ONLY : DSMC_vmpf_prob
   USE MOD_Particle_Vars,         ONLY : KeepWallParticles
 #if (PP_TimeDiscMethod==1001)
   USE MOD_LD_Vars,               ONLY : BulkValues, LD_DSMC_RHS
@@ -142,11 +141,7 @@ SUBROUTINE DSMC_main(DoElement)
 
         DO iPair = 1, nPair
           IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-!            IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN            ! calculation of collision prob
-!              CALL DSMC_vmpf_prob(iElem, iPair)
-!            ELSE
-              CALL DSMC_prob_calc(iElem, iPair)
-!            END IF
+            CALL DSMC_prob_calc(iElem, iPair)
             CALL RANDOM_NUMBER(iRan)
             IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
 #if (PP_TimeDiscMethod==42)
