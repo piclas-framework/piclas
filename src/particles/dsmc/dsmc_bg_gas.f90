@@ -122,8 +122,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 ! MODULES
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
-  USE MOD_Particle_Vars,          ONLY : PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,Species
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+  USE MOD_Particle_Vars,          ONLY : PEM,PartSpecies,nSpecies,PartState,Species,Species
   USE MOD_part_tools,             ONLY : GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

@@ -116,7 +116,7 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi)
 ! Electronic energy exchange
 !===================================================================================================================================
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, VarTimeStep
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, VarTimeStep, usevMPF
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_part_tools              ,ONLY: GetParticleWeight
 #if (PP_TimeDiscMethod==42)

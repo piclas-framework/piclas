@@ -206,7 +206,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac, CRelaMax, CRelaAv
   USE MOD_DSMC_Vars,              ONLY : DSMC, SelectionProc, RadialWeighting
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp
-  USE MOD_Particle_Vars,          ONLY : PEM, PartSpecies, nSpecies, PartState, VarTimeStep
+  USE MOD_Particle_Vars,          ONLY : PEM, PartSpecies, nSpecies, PartState, VarTimeStep, usevMPF
   USE MOD_Particle_Vars,          ONLY : KeepWallParticles, PDM
   USE MOD_part_tools,             ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -323,7 +323,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars,              ONLY: CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
 USE MOD_DSMC_Vars,              ONLY: DSMC, RadialWeighting, SamplingActive, SpecDSMC
 USE MOD_DSMC_Symmetry2D,        ONLY: CalcRadWeightMPF
-USE MOD_Particle_Vars,          ONLY: PartState, nSpecies, PartSpecies, PartMPF, WriteMacroVolumeValues, VarTimeStep
+USE MOD_Particle_Vars,          ONLY: PartState, nSpecies, PartSpecies, PartMPF, WriteMacroVolumeValues, VarTimeStep, usevMPF
 USE MOD_DSMC_Relaxation,        ONLY: SetMeanVibQua
 USE MOD_DSMC_Analyze,           ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
 USE MOD_Particle_Analyze_Vars,  ONLY: CalcEkin
@@ -1505,7 +1505,7 @@ USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
 USE MOD_DSMC_Vars             ,ONLY: SamplingActive, SelectionProc, SpecDSMC
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -1562,7 +1562,7 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%B
   ! 3. Case: Temperature required for the mean free path with the VHS model
   CALL CalcInstantTransTemp(iPartIndx_Node,PartNum)
   IF(SelectionProc.EQ.2) CALL CalcGammaVib()
-
+END IF
 IF (CollInf%ProhibitDoubleColl.AND.(nPair.EQ.1)) THEN
 ! Do not get stuck in an endless loop if only two particles/one pair are present in the cell
   CollInf%OldCollPartner(iPartIndx_Node(1)) = 0

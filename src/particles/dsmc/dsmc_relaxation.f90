@@ -38,7 +38,7 @@ SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PartStateIntEn, Coll_pData, RadialWeighting
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

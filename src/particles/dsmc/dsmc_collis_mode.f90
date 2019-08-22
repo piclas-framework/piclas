@@ -41,7 +41,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, VarTimeStep, Species
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, VarTimeStep, Species, usevMPF
   USE MOD_part_tools,             ONLY : DiceUnitVector
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -306,7 +306,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, &
                                          SpecDSMC, PartStateIntEn, RadialWeighting
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, Species, VarTimeStep
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, Species, VarTimeStep, usevMPF
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
@@ -1028,7 +1028,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
   USE MOD_Globals,                ONLY : Abort
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst, ElementaryCharge
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep
+  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep, usevMPF
   USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb
   USE MOD_Globals,                ONLY : Unit_stdOut
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
