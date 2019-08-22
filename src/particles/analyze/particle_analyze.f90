@@ -472,6 +472,7 @@ CalcCoupledPower = GETLOGICAL('CalcCoupledPower','.FALSE.')
 
 IF(CalcCoupledPower) THEN
   DoPartAnalyze = .TRUE.
+  PCouplAverage = 0.0
 #if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==509))
   CALL abort(__STAMP__,&
       'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
@@ -1223,12 +1224,8 @@ IF(PartMPI%MPIRoot) THEN
     END IF
   END IF
   IF(CalcCoupledPower) THEN
-  ! Moving Average of PCoupl:
-    IF(iter.EQ.0) THEN
-      PCouplAverage = 0.0
-    ELSE
-      PCouplAverage = PCouplAverage / (Time-RestartTime)
-    END IF
+    ! Moving Average of PCoupl:
+    IF(ABS(Time-RestartTime).GT.0.0) PCouplAverage = PCouplAverage / (Time-RestartTime)
     ! current PCoupl (Delta_E / Timestep)
     PCoupl = PCoupl / dt
   END IF
