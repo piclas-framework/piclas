@@ -477,6 +477,7 @@ CalcCoupledPower = GETLOGICAL('CalcCoupledPower','.FALSE.')
 
 IF(CalcCoupledPower) THEN
   DoPartAnalyze = .TRUE.
+  PCouplAverage = 0.0
 #if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==509))
   CALL abort(__STAMP__,&
       'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
@@ -1229,13 +1230,8 @@ IF(PartMPI%MPIRoot) THEN
   END IF
     ! Moving Average of PCoupl:
   IF(CalcCoupledPower) THEN
-    ASSOCIATE( timediff => (Time-RestartTime) )
-      IF((iter.EQ.0).OR.ABS(timediff).LE.0.) THEN
-        PCouplAverage = 0.0
-      ELSE
-        PCouplAverage = PCouplAverage / timediff
-      END IF
-    END ASSOCIATE
+    ! Moving Average of PCoupl:
+    IF(ABS(Time-RestartTime).GT.0.0) PCouplAverage = PCouplAverage / (Time-RestartTime)
     ! current PCoupl (Delta_E / Timestep)
     PCoupl = PCoupl / dt
   END IF
@@ -3735,7 +3731,7 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE CalculatePICCFL
 
 
-SUBROUTINE CalculateCalcMaxPartDisplacement()
+SUBROUTINE CalculateMaxPartDisplacement()
 !===================================================================================================================================
 ! Compute the maximum displacement of the fastest particle in each cell
 ! MaxPartDisplacement = max(v_iPart)*dT/L_cell <  1.0
@@ -3769,14 +3765,16 @@ MaxVelo(1:nElems,1:3) = 0.0
 MaxVeloAbs(1:nElems,1:3) = 0.0
 ! loop over all particles
 DO iPart = 1, PDM%ParticleVecLength
-  iElem = PEM%Element(iPart)
-  ! Check velocity of each particle in each direction at get the highest value
-  MaxVelo(iElem,1) = MAX(MaxVelo(iElem,1),PartState(iPart,4))
-  MaxVelo(iElem,2) = MAX(MaxVelo(iElem,2),PartState(iPart,5))
-  MaxVelo(iElem,3) = MAX(MaxVelo(iElem,3),PartState(iPart,6))
-  ! Check for fastest particle in cell
-  IF(VECNORM(PartState(iPart,4:6)).GT.VECNORM(MaxVeloAbs(iElem,1:3)))THEN
-    MaxVeloAbs(iElem,1:3) = PartState(iPart,4:6)
+  IF(PDM%ParticleInside(iPart)) THEN
+    iElem = PEM%Element(iPart)
+    ! Check velocity of each particle in each direction at get the highest value
+    MaxVelo(iElem,1) = MAX(MaxVelo(iElem,1),PartState(iPart,4))
+    MaxVelo(iElem,2) = MAX(MaxVelo(iElem,2),PartState(iPart,5))
+    MaxVelo(iElem,3) = MAX(MaxVelo(iElem,3),PartState(iPart,6))
+    ! Check for fastest particle in cell
+    IF(VECNORM(PartState(iPart,4:6)).GT.VECNORM(MaxVeloAbs(iElem,1:3)))THEN
+      MaxVeloAbs(iElem,1:3) = PartState(iPart,4:6)
+    END IF
   END IF
 END DO ! iPart = 1, PDM%ParticleVecLength
 
@@ -3796,7 +3794,7 @@ DO iElem=1,PP_nElems
   END ASSOCIATE
 END DO ! iElem=1,PP_nElems
 
-END SUBROUTINE CalculateCalcMaxPartDisplacement
+END SUBROUTINE CalculateMaxPartDisplacement
 
 
 SUBROUTINE CalculateIonizationCell()
@@ -3946,7 +3944,7 @@ IF(CalcPICCFLCondition) CALL CalculatePICCFL()
 
 ! Compute the maximum displacement of the fastest particle
 ! MaxPartDisplacement = max(v_iPart)*dT/L_cell <  1.0
-IF(CalcMaxPartDisplacement) CALL CalculateCalcMaxPartDisplacement()
+IF(CalcMaxPartDisplacement) CALL CalculateMaxPartDisplacement()
 
 END SUBROUTINE CalculatePartElemData
 

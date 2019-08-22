@@ -22,6 +22,10 @@ MODULE MOD_TimeDisc
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
+INTERFACE InitTime
+  MODULE PROCEDURE InitTime
+END INTERFACE
+
 INTERFACE InitTimeDisc
   MODULE PROCEDURE InitTimeDisc
 END INTERFACE
@@ -34,7 +38,7 @@ INTERFACE FinalizeTimeDisc
   MODULE PROCEDURE FinalizeTimeDisc
 END INTERFACE
 
-PUBLIC :: InitTimeDisc,FinalizeTimeDisc
+PUBLIC :: InitTime,InitTimeDisc,FinalizeTimeDisc
 PUBLIC :: TimeDisc
 !===================================================================================================================================
 PUBLIC :: DefineParametersTimeDisc
@@ -63,6 +67,47 @@ CALL prms%CreateIntOption(   'NCalcTimeStepMax',"Compute dt at least after every
 CALL prms%CreateIntOption(   'IterDisplayStep',"Step size of iteration that are displayed.", value='1')
 
 END SUBROUTINE DefineParametersTimeDisc
+
+
+SUBROUTINE InitTime()
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,tAnalyze,tEndDiff,tAnalyzeDiff
+USE MOD_Restart_Vars           ,ONLY: RestartTime
+#ifdef PARTICLES
+USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout
+USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
+#endif /*PARTICLES*/
+USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+! Setting the time variable, RestartTime is either zero or the actual restart time
+time=RestartTime
+#ifdef PARTICLES
+iter_macvalout=0
+iter_macsurfvalout=0
+IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) MacroValSampTime = Time
+#endif /*PARTICLES*/
+iAnalyze=1
+! Determine analyze time
+tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd)
+
+! fill initial analyze stuff
+tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
+tEndDiff=tEnd-time            ! dito for end time
+
+END SUBROUTINE InitTime
+
 
 SUBROUTINE InitTimeDisc()
 !===================================================================================================================================
@@ -235,7 +280,7 @@ USE MOD_TimeAverage_vars       ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage            ,ONLY: CalcTimeAverage
 USE MOD_Analyze                ,ONLY: PerformAnalyze
 USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze
-USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime,RestartWallTime
+USE MOD_Restart_Vars           ,ONLY: RestartTime,RestartWallTime
 USE MOD_HDF5_output            ,ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
@@ -257,6 +302,7 @@ USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
 #ifdef PP_POIS
+USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Equation               ,ONLY: EvalGradient
 #endif /*PP_POIS*/
 #if USE_MPI
@@ -285,7 +331,6 @@ USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime,DoImportIMDFile
 USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter, UseAdaptive
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
-USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout
 #if (USE_MPI) && (USE_LOADBALANCE) && defined(PARTICLES)
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 #endif /* USE_LOADBALANCE && PARTICLES*/
@@ -304,7 +349,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                         :: tZero                    !> initial time of current simulation (zero or restarttime)
 REAL                         :: tPreviousAnalyze         !> time of previous analyze.
                                                          !> Used for Nextfile info written into previous file if greater tAnalyze
 REAL                         :: tPreviousAverageAnalyze  !> time of previous Average analyze.
@@ -324,24 +368,6 @@ LOGICAL                      :: NoPartInside
 #endif
 LOGICAL                      :: finalIter
 !===================================================================================================================================
-! init
-SWRITE(UNIT_StdOut,'(132("-"))')
-IF(.NOT.DoRestart)THEN
-  time=0.
-  SWRITE(UNIT_StdOut,*)'INITIAL PROJECTION:'
-ELSE
-  time=RestartTime
-  SWRITE(UNIT_StdOut,*)'REWRITING SOLUTION:'
-END IF
-#ifdef PARTICLES
-iter_macvalout=0
-iter_macsurfvalout=0
-IF (WriteMacroVolumeValues .OR. WriteMacroSurfaceValues) MacroValSampTime = Time
-#endif /*PARTICLES*/
-tZero=time
-iAnalyze=1
-! Determine analyze time
-tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd)
 tPreviousAnalyze=RestartTime
 ! first average analyze is not written at start but at first tAnalyze
 tPreviousAverageAnalyze=tAnalyze
@@ -391,9 +417,6 @@ iter_PID=0
 ! fill recordpoints buffer (first iteration)
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.)
 
-! fill initial analyze stuff
-tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
-tEndDiff=tEnd-time            ! dito for end time
 dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/)) ! quick fix: set dt for initial write DSMCHOState (WriteMacroVolumeValues=T)
 
 #if USE_LOADBALANCE
@@ -406,8 +429,8 @@ IF (DoInitialAutoRestart) THEN
   ! LoadBalanceSample still needs to be zero
   IF (IAR_PerformPartWeightLB) InitialAutoRestartSample=1
   ! correction for first analyzetime due to auto initial restart
-  IF (MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd,tZero+InitialAutoRestartSample*dt).LT.tAnalyze) THEN
-    tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd,tZero+LoadBalanceSample*dt)
+  IF (MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd,RestartTime+InitialAutoRestartSample*dt).LT.tAnalyze) THEN
+    tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd,RestartTime+LoadBalanceSample*dt)
     tAnalyzeDiff=tAnalyze-time
     dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
   END IF
@@ -734,7 +757,7 @@ DO !iter_t=0,MaxIter
 #endif /*USE_LOADBALANCE*/
     ! count analyze dts passed
     iAnalyze=iAnalyze+1
-    tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd)
+    tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd)
     WallTimeStart=PICLASTIME()
   END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
