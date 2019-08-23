@@ -1032,7 +1032,7 @@ SUBROUTINE InitSurfCoverage()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_IO_HDF5
-USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,GetDataProps,ReadAttribute,ReadArray,GetDataSize
+USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray,GetDataSize
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
@@ -1047,14 +1047,14 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)               :: SurfaceFileName, Type_HDF5, NodeType_HDF5
+CHARACTER(LEN=255)               :: SurfaceFileName, Type_HDF5
 CHARACTER(32)                    :: hilf, hilf2
 INTEGER                          :: iSpec, iSurfSide, iPartBound, iSubSurf, jSubSurf, iName, iVar
 INTEGER                          :: SideID, PartBoundID
 REAL , ALLOCATABLE               :: Coverage_tmp(:,:)
 REAL , ALLOCATABLE               :: SurfState_HDF5(:,:,:,:)
 LOGICAL                          :: exists
-INTEGER                          :: nSpecies_HDF5, nVarSurf_HDF5, nSurfSides_HDF5, N_HDF5, nSurfBC_HDF5
+INTEGER                          :: nSpecies_HDF5, nVarSurf_HDF5, nSurfSides_HDF5, nSurfBC_HDF5
 INTEGER                          :: nVar2D, nVar2D_Spec, nVar2D_Total
 CHARACTER(LEN=255),ALLOCATABLE   :: SurfBCName_HDF5(:)
 REAL                             :: Version_HDF5
@@ -1067,10 +1067,11 @@ IF (DoRestart) THEN
   WallModelExists(:)=.TRUE.
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=PartMPI%COMM)!MPI_COMM_WORLD)
   SurfModelTypeExists=.FALSE.
-  CALL DatasetExists(File_ID,'SurfModelType',SurfModelTypeExists)
+  CALL DatasetExists(File_ID,'SurfaceModelType',SurfModelTypeExists)
   IF (SurfModelTypeExists) THEN
     SWRITE(UNIT_stdOut,'(A,A)')' GET NUMBER OF SURFACE-SIDES IN RESTART FILE... '
-    CALL GetDataProps('SurfModelType',nVarSurf_HDF5,N_HDF5,nSurfSides_HDF5,NodeType_HDF5)
+    CALL GetDataSize(File_ID,'SurfaceModelType',nDims,HSize,attrib=.FALSE.)
+    nSurfSides_HDF5=INT(HSize(nDims),4)
     SWRITE(UNIT_stdOut,'(A)')' DONE!'
     IF (nSurfSides_HDF5.NE.SurfMesh%nGlobalSides) THEN
       SWRITE(UNIT_stdOut,'(A,A)') ' NUMBER OF SURFACE-SIDES IN RESTART FILE NOT EQUAL TO CALCULATION ... RESTARTING FROM INI'
@@ -1182,7 +1183,9 @@ __STAMP__&
   ! check if Dataset SurfaceData exists and read from container
   CALL DatasetExists(File_ID,'SurfaceData',exists)
   IF (exists) THEN
-    CALL GetDataProps('SurfaceData',nVarSurf_HDF5,N_HDF5,nSurfSides_HDF5,NodeType_HDF5)
+    CALL GetDataSize(File_ID,'SurfaceData',nDims,HSize,attrib=.FALSE.)
+    nVarSurf_HDF5=INT(HSize(1),4)
+    nSurfSides_HDF5=INT(HSize(nDims),4)
     SWRITE(UNIT_stdOut,'(A,A)')' GET NUMBER AND NAMES OF SURFACE-BC-SIDES IN COVERAGE-INIT FILE... '
     CALL GetDataSize(File_ID,'BC_Surf',nDims,HSize,attrib=.TRUE.)
     nSurfBC_HDF5 = INT(HSize(1),4)

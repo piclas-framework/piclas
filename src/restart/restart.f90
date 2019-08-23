@@ -304,7 +304,7 @@ USE MOD_HDG,                     ONLY:RestartHDG
 USE MOD_QDS_DG_Vars,             ONLY:DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesMass
 #endif /*USE_QDS_DG*/
 #if (USE_QDS_DG) || (PARTICLES) || (USE_HDG)
-USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists,GetDataProps,nDims,HSize
+USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists,nDims,HSize
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -362,8 +362,7 @@ INTEGER                            :: Coordinations, SurfPartIntSize, SurfPartDa
 INTEGER                            :: UsedSiteMapPos, nVar, nfreeArrayindeces, lastfreeIndx, current
 INTEGER                            :: xpos, ypos, firstpart, lastpart, PartBoundID, SideID
 INTEGER                            :: iCoord, SpecID, iSurfSide, isubsurf, jsubsurf, iInterAtom
-INTEGER                            :: nSpecies_HDF5, nSurfSample_HDF5, nVarSurf_HDF5, nSurfBC_HDF5, nSurfSides_HDF5, N_HDF5
-CHARACTER(LEN=255)                 :: NodeType_HDF5
+INTEGER                            :: nSpecies_HDF5, nSurfSample_HDF5, nSurfBC_HDF5, nSurfSides_HDF5
 LOGICAL                            :: SurfCalcDataExists, SurfPartIntExists, SurfPartDataExists, MoveToLastFree, implemented
 LOGICAL,ALLOCATABLE                :: readVarFromState(:)
 LOGICAL                            :: WallmodelExists(1:nPartBound), SurfModelTypeExists
@@ -1240,10 +1239,11 @@ END IF
   IF (ANY(PartBound%Reactive)) THEN
     ! check if datasets for restarting of surface model from state exists in state file used for restart
     SurfModelTypeExists=.FALSE.
-    CALL DatasetExists(File_ID,'SurfModelType',SurfModelTypeExists)
+    CALL DatasetExists(File_ID,'SurfaceModelType',SurfModelTypeExists)
     IF (SurfModelTypeExists) THEN
       SWRITE(UNIT_stdOut,'(A,A)')' GET NUMBER OF SURFACE-SIDES IN RESTART FILE... '
-      CALL GetDataProps('SurfModelType',nVarSurf_HDF5,N_HDF5,nSurfSides_HDF5,NodeType_HDF5)
+      CALL GetDataSize(File_ID,'SurfaceModelType',nDims,HSize,attrib=.FALSE.)
+      nSurfSides_HDF5 = INT(HSize(1),4)
       IF (nSurfSides_HDF5.NE.SurfMesh%nGlobalSides) THEN
         SWRITE(UNIT_stdOut,'(A,A)') ' NUMBER OF SURFACE-SIDES IN RESTART FILE NOT EQUAL TO CALCULATION ... RESTARTING FROM INI'
       ELSE
@@ -1613,11 +1613,12 @@ SUBROUTINE MacroscopicRestart()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_io_hdf5
-USE MOD_HDF5_Input                ,ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray,GetDataProps
-USE MOD_Restart_Vars              ,ONLY: MacroRestartFileName, MacroRestartValues
-USE MOD_Mesh_Vars                 ,ONLY: offsetElem, nElems
-USE MOD_Particle_Vars             ,ONLY: nSpecies
-USE MOD_part_emission             ,ONLY: MacroRestart_InsertParticles
+USE MOD_HDF5_Input    ,ONLY: OpenDataFile,CloseDataFile,ReadArray,GetDataSize
+USE MOD_HDF5_Input    ,ONLY: nDims,HSize,File_ID
+USE MOD_Restart_Vars  ,ONLY: MacroRestartFileName, MacroRestartValues
+USE MOD_Mesh_Vars     ,ONLY: offsetElem, nElems
+USE MOD_Particle_Vars ,ONLY: nSpecies
+USE MOD_part_emission ,ONLY: MacroRestart_InsertParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1626,7 +1627,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: nVar_HDF5, N_HDF5, nElems_HDF5, iVar, iSpec, iElem
+INTEGER                           :: nVar_HDF5, iVar, iSpec, iElem
 REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
 !===================================================================================================================================
 
@@ -1634,7 +1635,8 @@ SWRITE(UNIT_stdOut,*) 'Using macroscopic values from file: ',TRIM(MacroRestartFi
 
 CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
-CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nElems_HDF5)
+CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)
+nVar_HDF5=INT(HSize(1),4)
 
 ALLOCATE(MacroRestartValues(1:nElems,1:nSpecies+1,1:DSMC_NVARS))
 MacroRestartValues = 0.

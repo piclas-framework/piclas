@@ -2996,7 +2996,7 @@ SUBROUTINE ReadMacroRestartFiles(MacroRestartData)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_IO_HDF5
-USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,GetDataProps,ReadAttribute,ReadArray,GetDataSize
+USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray,GetDataSize,HSize,nDims
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, nElems, offsetElem
 USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, nMacroRestartFiles
 USE MOD_ReadInTools            ,ONLY: GETSTR
@@ -3011,7 +3011,7 @@ CHARACTER(LEN=255)               :: FileName, Type_HDF5, NodeType_HDF5
 CHARACTER(32)                    :: hilf
 REAL , ALLOCATABLE               :: State_HDF5(:,:)
 LOGICAL                          :: exists
-INTEGER                          :: nSpecies_HDF5, nVar_HDF5, nElems_HDF5, N_HDF5
+INTEGER                          :: nSpecies_HDF5, nVar_HDF5, nElems_HDF5
 INTEGER                          :: iFile, iSpec, iElem, iVar
 !===================================================================================================================================
 DO iFile = 1, nMacroRestartFiles
@@ -3059,16 +3059,23 @@ __STAMP__&
   ! check if Dataset SurfaceData exists and read from container
   CALL DatasetExists(File_ID,'ElemData',exists)
   IF (exists) THEN
-    CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nElems_HDF5,NodeType_HDF5)
+    CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)
+    nVar_HDF5=INT(HSize(1),4)
+    nElems_HDF5=INT(HSize(nDims),4)
     IF (nElems_HDF5.NE.nGlobalElems) CALL abort(&
 __STAMP__&
 ,'Error in Macrofile read in: number of global elements in HDF5-file does not match!')
-    IF (N_HDF5.NE.1) CALL abort(&
-__STAMP__&
-,'Error in Macrofile read in: N!=1 !')
-    IF (NodeType_HDF5.NE.'VISU') CALL abort(&
+    CALL DatasetExists(File_ID,'NodeType',exists,attrib=.TRUE.)
+    IF (exists) THEN
+      CALL ReadAttribute(File_ID,'NodeType',1,StrScalar=NodeType_HDF5)
+      IF (NodeType_HDF5.NE.'VISU') CALL abort(&
 __STAMP__&
 ,'Error in Macrofile read in: wrong Nodetype !')
+    ELSE
+      CALL abort(&
+__STAMP__&
+,'Error in Macrofile read in: Attribute Nodetype does not exist!')
+    END IF
     SDEALLOCATE(State_HDF5)
     ALLOCATE(State_HDF5(1:nVar_HDF5,nElems))
 
