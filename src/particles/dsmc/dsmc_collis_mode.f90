@@ -2860,8 +2860,6 @@ INTEGER                   :: iPolyatMole, iDOF
     CorrFact = 1.
   END IF
 
-  WRITE(*,*) CorrFact
-
   IF((DSMC%VibRelaxProb.GE.0.0).AND.(DSMC%VibRelaxProb.LE.1.0)) THEN
     IF (SpecDSMC(iSpec)%PolyatomicMol.AND.(DSMC%PolySingleMode)) THEN
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
@@ -2927,7 +2925,7 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
   ProbVib = ProbVib * TempCorr / (ProbVib + TempCorr)        ! TauVib = TauVibStd + TauTempCorr
   IF(ProbVib.NE.ProbVib) THEN !If is NAN
     ProbVib=0.
-    SWRITE(*,*) 'WARNING: Vibrational relaxation probability is NAN and is set to zero. CRela:', CRela
+    WRITE(UNIT_StdOut,*) 'WARNING: Vibrational relaxation probability is NAN and is set to zero. CRela:', CRela
     ! CALL Abort(&
     ! __STAMP__&
     ! ,'Error! Vibrational relaxation probability is NAN (CRela);',RealInfoOpt=CRela)!, jSpec, CRela
