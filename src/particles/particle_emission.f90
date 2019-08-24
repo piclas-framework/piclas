@@ -4419,6 +4419,7 @@ DO iBC=1,nDataBC
   IF(RadialWeighting%DoRadialWeighting) THEN
     ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(1:TmpSideNumber(iBC)))
     ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
+    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight = 1.
     ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
   END IF
   DO iSpec=1,nSpecies
