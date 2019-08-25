@@ -803,17 +803,17 @@ USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
 #if ! defined(LSERK)
 USE MOD_DSMC_Vars                 ,ONLY: useDSMC
 #endif
-#if (PP_TimeDiscMethod ! =1000) && (PP_TimeDiscMethod!=1001)
+#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
 USE MOD_Particle_Vars             ,ONLY: PartSurfaceModel
 USE MOD_Particle_Boundary_Vars    ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh, SampWall
 USE MOD_DSMC_Analyze              ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 #endif
-#if (PP_TimeDiscMethod ! =42) && !defined(LSERK)
+#if (PP_TimeDiscMethod!=42) && !defined(LSERK)
 USE MOD_LD_Vars                   ,ONLY: useLD
 USE MOD_Particle_Vars             ,ONLY: DelayTime
-#endif /*PP_TimeDiscMethod ! =42 && !defined(LSERK)*/
+#endif /*PP_TimeDiscMethod!=42 && !defined(LSERK)*/
 #endif /*PARTICLES*/
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField              ,ONLY: CalcPoyntingIntegral

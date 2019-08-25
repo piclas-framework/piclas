@@ -61,7 +61,7 @@ USE MOD_Particle_Vars         ,ONLY: KeepWallParticles
 #if (PP_TimeDiscMethod==1001)
 USE MOD_LD_Vars               ,ONLY: BulkValues, LD_DSMC_RHS
 #endif
-#if (PP_TimeDiscMethod ! =1001) /* --- LD-DSMC Output in timedisc */
+#if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_Mesh_Vars             ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars         ,ONLY: iter
