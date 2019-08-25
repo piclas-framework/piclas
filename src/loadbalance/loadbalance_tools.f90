@@ -95,6 +95,9 @@ IF (DoRestart) THEN
   !--------------------------------------------------------------------------------------------------------------------------------!
   ! Readin of ElemTime: Read in only by MPIRoot in single mode, only communicate logical ElemTimeExists
   ! because the root performs the distribution of elements (domain decomposition) due to the load distribution scheme
+  SDEALLOCATE(ElemGlobalTime)
+  ALLOCATE(ElemGlobalTime(1:nGlobalElems)) ! Allocate ElemGlobalTime for all MPI ranks
+  ElemGlobalTime = 0.
 
   ! 1) Only MPIRoot does readin of ElemTime
   IF(MPIRoot)THEN
@@ -140,7 +143,7 @@ LOGWRITE(*,'(4(A,I8))')'offsetElem = ',offsetElem,' ,nElems = ', nElems, &
 #if USE_LOADBALANCE
 IF(ElemTimeExists)THEN
   ! read ElemTime by all ranks
-  CALL ReadElemTime(single=.TRUE.)
+  CALL ReadElemTime(single=.FALSE.)
 END IF ! ElemTimeExists
 #endif /*USE_LOADBALANCE*/
 
@@ -223,9 +226,6 @@ LOGICAL             :: ElemTimeExists
 !===================================================================================================================================
 ! Read data file either single=.TRUE. (only MPI root) or single=.FALSE. (all ranks)
 IF(single)THEN
-  SDEALLOCATE(ElemGlobalTime)
-  ALLOCATE(ElemGlobalTime(1:nGlobalElems))
-  ElemGlobalTime = 0.
   nElems         = nGlobalElems ! Temporarily set nElems as nGlobalElems for GetArrayAndName
   offsetElem     = 0            ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
 
