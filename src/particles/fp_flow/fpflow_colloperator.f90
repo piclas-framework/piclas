@@ -547,6 +547,7 @@ IF(FPDoVibRelaxation) THEN
         END DO
       ELSE
         DO iLoop = 1, nVibRelax
+          partWeight = GetParticleWeight(iPartIndx_NodeRelaxVib(iLoop))
           betaV = alpha*PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1)/(SpecDSMC(1)%CharaTVib*BoltzmannConst)
           CALL RANDOM_NUMBER(iRan)
           iQuant = INT(betaV+iRan)
@@ -567,12 +568,13 @@ IF(FPDoVibRelaxation) THEN
             END IF
             PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1)  = (iQuant + DSMC%GammaQuant)*SpecDSMC(1)%CharaTVib*BoltzmannConst
           END IF
-          OldEn = OldEn - PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) +  SpecDSMC(1)%EZeroPoint
+          OldEn = OldEn - (PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) - SpecDSMC(1)%EZeroPoint)*partWeight
         END DO
       END IF
     ELSE
       alpha = OldEn/NewEnVib*(Xi_Vib*nVibRelax/(3.*(nPart-1.)+Xi_Vib*nVibRelax))
       DO iLoop = 1, nVibRelax
+        partWeight = GetParticleWeight(iPartIndx_NodeRelaxVib(iLoop))
         PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) = alpha*PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) &
           + SpecDSMC(1)%EZeroPoint
         OldEn = OldEn - (PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) - SpecDSMC(1)%EZeroPoint)*partWeight
@@ -589,6 +591,7 @@ OldEn = OldEn + OldEnRot
 vBulk(1:3) = 0.0
 
 DO iLoop = 1, nPart
+  partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulkAll(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   DSMC_RHS(iPartIndx_Node(iLoop),1:3) = 0.0
@@ -614,7 +617,7 @@ DO iLoop = 1, nPart
     DSMC_RHS(iPartIndx_Node(iLoop),1:3) = DSMC_RHS(iPartIndx_Node(iLoop),1:3) &
               + V_rel(1:3)*FP_FakA + FP_FakC*iRanPart(1:3,iLoop)
   END IF
-  vBulk(1:3) = vBulk(1:3) + DSMC_RHS(iPartIndx_Node(iLoop),1:3)
+  vBulk(1:3) = vBulk(1:3) + DSMC_RHS(iPartIndx_Node(iLoop),1:3) * partWeight
 END DO
 
 vBulk(1:3) = vBulk(1:3) / totalWeight
@@ -667,7 +670,7 @@ IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
 END IF
 ! Check for momentum difference
 DO iMom=1,3
-  IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),1.0e-8)) THEN
+  IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),1.0e-7)) THEN
     WRITE(UNIT_StdOut,*) '\n'
     IPWRITE(UNIT_StdOut,'(I0,A,I0)')           " Direction (x,y,z)        : ",iMom
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_old             : ",Momentum_old(iMom)
@@ -678,7 +681,7 @@ DO iMom=1,3
         IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Momentum difference : ",(Momentum_old(iMom)-Momentum_new(iMom))/Momentum
       END IF
     END ASSOCIATE
-    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance        : ",1.0e-8
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance        : ",1.0e-7
     IPWRITE(UNIT_StdOut,*)                     " OldEn, alpha, nPart      : ", OldEn, alpha, nPart
     CALL abort(&
         __STAMP__&
