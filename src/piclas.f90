@@ -27,7 +27,7 @@ USE MOD_Restart_Vars           ,ONLY: RestartFile
 USE MOD_Restart                ,ONLY: Restart
 USE MOD_Interpolation          ,ONLY: InitInterpolation
 USE MOD_IO_HDF5                ,ONLY: InitIO
-USE MOD_TimeDisc               ,ONLY: InitTimeDisc,FinalizeTimeDisc,TimeDisc
+USE MOD_TimeDisc               ,ONLY: InitTime,InitTimeDisc,FinalizeTimeDisc,TimeDisc
 USE MOD_MPI                    ,ONLY: InitMPI
 USE MOD_RecordPoints_Vars      ,ONLY: RP_Data
 USE MOD_Mesh_Vars              ,ONLY: DoSwapMesh
@@ -47,7 +47,7 @@ USE MOD_ParticleInit           ,ONLY: InitialIonization
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: Time
+REAL                    :: SystemTime
 LOGICAL                 :: userblockFound
 !===================================================================================================================================
 
@@ -118,9 +118,9 @@ END IF
 StartTime=PICLASTIME()
 CALL prms%read_options(ParameterFile)
 ! Measure init duration
-Time=PICLASTIME()
+SystemTime=PICLASTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING INI DONE! [',Time-StartTime,' sec ] NOW '&
+SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING INI DONE! [',SystemTime-StartTime,' sec ] NOW '&
 ,prms%count_setentries(),' PARAMETERS ARE SET'
 SWRITE(UNIT_stdOut,'(132("="))')
 ! Check if we want to read in DSMC.ini
@@ -128,9 +128,9 @@ IF(nArgs.GE.2)THEN
   IF(STRICMP(GetFileExtension(ParameterDSMCFile), "ini")) THEN
     CALL prms%read_options(ParameterDSMCFile,furtherini=.TRUE.)
     ! Measure init duration
-    Time=PICLASTIME()
+    SystemTime=PICLASTIME()
     SWRITE(UNIT_stdOut,'(132("="))')
-    SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING FURTHER INI DONE! [',Time-StartTime,' sec ] NOW '&
+    SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING FURTHER INI DONE! [',SystemTime-StartTime,' sec ] NOW '&
     ,prms%count_setentries(),' PARAMETERS ARE SET'
     SWRITE(UNIT_stdOut,'(132("="))')
   END IF
@@ -156,11 +156,11 @@ CALL InitPiclas(IsLoadBalance=.FALSE.)
 ! Do SwapMesh
 IF(DoSwapMesh)THEN
   ! Measure init duration
-  Time=PICLASTIME()
+  SystemTime=PICLASTIME()
   IF(MPIroot)THEN
     Call SwapMesh()
     SWRITE(UNIT_stdOut,'(132("="))')
-    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' SWAPMESH DONE! PICLAS DONE! [',Time-StartTime,' sec ]'
+    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' SWAPMESH DONE! PICLAS DONE! [',SystemTime-StartTime,' sec ]'
     SWRITE(UNIT_stdOut,'(132("="))')
     STOP
   ELSE
@@ -171,6 +171,9 @@ IF(DoSwapMesh)THEN
 END IF
 LOGWRITE_BARRIER
 
+! The beginning of time
+CALL InitTime()
+
 ! RESTART
 CALL Restart()
 
@@ -180,8 +183,8 @@ IF(DoInitialIonization) CALL InitialIonization()
 #endif /*PARTICLES*/
 
 ! Measure init duration
-Time=PICLASTIME()
-InitializationWallTime=Time-StartTime
+SystemTime=PICLASTIME()
+InitializationWallTime=SystemTime-StartTime
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
@@ -198,7 +201,7 @@ CALL FinalizeTimeDisc()
 SDEALLOCATE(RP_Data)
 
 !Measure simulation duration
-Time=PICLASTIME()
+SystemTime=PICLASTIME()
 
 #if USE_MPI
 !! and additional required for restart with load balance
@@ -213,7 +216,7 @@ IF(iError .NE. 0) &
   ,'MPI finalize error',iError,999.)
 #endif /*USE_MPI*/
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',SystemTime-StartTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
 END PROGRAM Piclas
