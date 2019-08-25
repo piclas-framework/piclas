@@ -5004,36 +5004,29 @@ SUBROUTINE ParticleSurfaceflux()
 !===================================================================================================================================
 ! Modules
 #if USE_MPI
-USE MOD_Particle_MPI_Vars,ONLY: PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Globals
-USE MOD_Globals_Vars          , ONLY: PI, BoltzmannConst
-!commented out in code
-!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-!USE MOD_Timedisc_Vars         , ONLY : iter
-!#endif
+USE MOD_Globals_Vars           ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
-USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
-USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, RadialWeighting
-USE MOD_SurfaceModel_Vars      ,ONLY : Adsorption, Liquid
-USE MOD_DSMC_Analyze           ,ONLY : CalcWallSample
-USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
-USE MOD_DSMC_Symmetry2D,        ONLY : CalcRadWeightMPF
-USE MOD_Particle_VarTimeStep,   ONLY : CalcVarTimeStep
-USE MOD_Particle_Boundary_Vars ,ONLY : SurfMesh, PartBound, nAdaptiveBC, nSurfSample
-USE MOD_TimeDisc_Vars          ,ONLY : TEnd, time
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, RadialWeighting
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, Liquid
+USE MOD_DSMC_Analyze           ,ONLY: CalcWallSample
+USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_DSMC_Symmetry2D        ,ONLY: CalcRadWeightMPF
+USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, PartBound, nAdaptiveBC, nSurfSample
+USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance
-! #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-! USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
-! #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartIn,PartEkinIn
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars              ,ONLY: SideToElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide, GEO
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, SurfMeshSubSideData!, SideType
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, SurfMeshSubSideData
 USE MOD_Timedisc_Vars          ,ONLY: dt
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 #if defined(IMPA) || defined(ROS)
@@ -5041,9 +5034,8 @@ USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #endif /*IMPA*/
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
 USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
-USE MOD_Mesh_Vars              ,ONLY: NGeo!,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-!USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem!, TensorProductInterpolation
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut, MPIRankOut
 #if  defined(IMPA) || defined(ROS)
@@ -5051,13 +5043,13 @@ USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
 #endif
 #endif /*CODE_ANALYZE*/
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
+USE MOD_LD_Init                ,ONLY: CalcDegreeOfFreedom
 USE MOD_LD_Vars
 #endif
-USE MOD_Mesh_Vars,              ONLY : BC!, ElemBaryNGeo
+USE MOD_Mesh_Vars              ,ONLY: BC
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars,       ONLY:nSurfacefluxPerElem
-USE MOD_LoadBalance_tools,      ONLY:LBStartTime, LBElemSplitTime, LBPauseTime
+USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -6921,19 +6913,19 @@ SUBROUTINE AdaptiveBCAnalyze(initSampling_opt)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY:BoltzmannConst
-USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, DSMC, CollisMode, SpecDSMC, useDSMC, RadialWeighting
-USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, AdaptiveWeightFac
-USE MOD_Particle_Vars,          ONLY:usevMPF
-USE MOD_Particle_Boundary_Vars, ONLY:PorousBCSampIter, PorousBCMacroVal
-USE MOD_Mesh_Vars,              ONLY:nElems
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO,IsTracingBCElem
-USE MOD_DSMC_Analyze,           ONLY:CalcTVib,CalcTVibPoly,CalcTelec
-USE MOD_Timedisc_Vars,          ONLY:iter
-USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMC, CollisMode, SpecDSMC, useDSMC, RadialWeighting
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, AdaptiveWeightFac
+USE MOD_Particle_Vars          ,ONLY: usevMPF
+USE MOD_Particle_Boundary_Vars ,ONLY: PorousBCSampIter, PorousBCMacroVal
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,IsTracingBCElem
+USE MOD_DSMC_Analyze           ,ONLY: CalcTVib,CalcTVibPoly,CalcTelec
+USE MOD_Timedisc_Vars          ,ONLY: iter
+USE MOD_part_tools             ,ONLY: GetParticleWeight
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,      ONLY:LBStartTime, LBElemSplitTime, LBPauseTime
-USE MOD_LoadBalance_vars,       ONLY:nPartsPerBCElem
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
+USE MOD_LoadBalance_vars       ,ONLY: nPartsPerBCElem
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

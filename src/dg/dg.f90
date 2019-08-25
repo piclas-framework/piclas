@@ -250,7 +250,7 @@ USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
 USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -379,17 +379,17 @@ SUBROUTINE DGTimeDerivative_weakForm_Pois(t,tStage,tDeriv)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Vector
-USE MOD_Equation,      ONLY: VolInt_Pois,FillFlux_Pois,ProlongToFace_Pois, SurfInt_Pois
-USE MOD_GetBoundaryFlux, ONLY: FillFlux_BC_Pois
-USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides
-USE MOD_Equation,      ONLY: CalcSource_Pois
-USE MOD_Equation_Vars, ONLY: IniExactFunc,Phi,Phit,Phi_master,Phi_slave,FluxPhi,nTotalPhi
-USE MOD_Interpolation, ONLY: ApplyJacobian
+USE MOD_Equation           ,ONLY: VolInt_Pois,FillFlux_Pois,ProlongToFace_Pois, SurfInt_Pois
+USE MOD_GetBoundaryFlux    ,ONLY: FillFlux_BC_Pois
+USE MOD_Mesh_Vars          ,ONLY: sJ,Elem_xGP,nSides
+USE MOD_Equation           ,ONLY: CalcSource_Pois
+USE MOD_Equation_Vars      ,ONLY: IniExactFunc,Phi,Phit,Phi_master,Phi_slave,FluxPhi,nTotalPhi
+USE MOD_Interpolation      ,ONLY: ApplyJacobian
 #if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,ONLY:LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #endif
 ! IMPLICIT VARIABLE HANDLING

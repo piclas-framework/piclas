@@ -15,7 +15,7 @@
 !===================================================================================================================================
 !> Module contains the tools for load_balancing
 !===================================================================================================================================
-MODULE MOD_LoadBalance_Tools
+MODULE MOD_LoadBalance_Timers
 !----------------------------------------------------------------------------------------------------------------------------------
 ! MODULES
 IMPLICIT NONE
@@ -237,4 +237,4 @@ tLBStart = tLBEnd !LOCALTIME() ! LB Time Start
 END SUBROUTINE LBElemSplitTime_avg
 
 
-END MODULE MOD_LoadBalance_Tools
+END MODULE MOD_LoadBalance_Timers
