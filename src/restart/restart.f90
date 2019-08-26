@@ -277,7 +277,7 @@ USE MOD_Equation_Vars,           ONLY:Phi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
 USE MOD_Restart_Vars,            ONLY:DoMacroscopicRestart
-USE MOD_Particle_Vars,           ONLY:PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset
+USE MOD_Particle_Vars,           ONLY:PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset, Species
 USE MOD_Particle_Vars,           ONLY:PartSurfaceModel
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 USE MOD_DSMC_Vars,               ONLY:UseDSMC,CollisMode,PartStateIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC,RadialWeighting
@@ -604,12 +604,14 @@ IF(.NOT.DoMacroscopicRestart) THEN
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='Electronic'
       StrVarNames(11)='MPF'
+      implemented = .TRUE.
     ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
       PartDataSize=10
       ALLOCATE(StrVarNames(PartDataSize))
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='MPF'
+      implemented = .TRUE.
     ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
       PartDataSize=10
       ALLOCATE(StrVarNames(PartDataSize))
@@ -626,6 +628,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
       PartDataSize=8 !+ 1 vmpf
       ALLOCATE(StrVarNames(PartDataSize))
       StrVarNames( 8)='MPF'
+      implemented = .TRUE.
     ELSE
       PartDataSize=7 !+ 0
       ALLOCATE(StrVarNames(PartDataSize))
@@ -773,6 +776,8 @@ __STAMP__&
           IF (.NOT.readVarFromState(iVar)) THEN
             IF (TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational') THEN
               SWRITE(*,*) 'WARNING: The following VarNamesParticles will be set to zero: '//TRIM(StrVarNames(iVar))
+            ELSE IF(TRIM(StrVarNames(iVar)).EQ.'MPF') THEN
+              SWRITE(*,*) 'WARNING: The particle weighting factor will be initialized with the given globale weighting factor!'
             ELSE
               CALL Abort(&
 __STAMP__&
@@ -813,11 +818,19 @@ __STAMP__&
             PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
             PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
             PartStateIntEn(iPart,3)=PartData(offsetnPart+iLoop,10)
-            PartMPF(iPart)=PartData(offsetnPart+iLoop,11)
+            IF(readVarFromState(11)) THEN
+              PartMPF(iPart) = PartData(offsetnPart+iLoop,11)
+            ELSE
+              PartMPF(iPart) = Species(PartSpecies(iPart))%MacroParticleFactor
+            END IF
           ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
             PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
             PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
-            PartMPF(iPart)=PartData(offsetnPart+iLoop,10)
+            IF(readVarFromState(10))  THEN
+              PartMPF(iPart) = PartData(offsetnPart+iLoop,10)
+            ELSE
+              PartMPF(iPart) = Species(PartSpecies(iPart))%MacroParticleFactor
+            END IF
           ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
             PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
             PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
@@ -839,7 +852,11 @@ __STAMP__&
 ,SpecDSMC(PartSpecies(iPart))%InterID , PartData(offsetnPart+iLoop,7))
             END IF
           ELSE IF (usevMPF) THEN
-            PartMPF(iPart)=PartData(offsetnPart+iLoop,8)
+            IF(readVarFromState(8)) THEN
+              PartMPF(iPart) = PartData(offsetnPart+iLoop,8)
+            ELSE
+              PartMPF(iPart) = Species(PartSpecies(iPart))%MacroParticleFactor
+            END IF
           END IF
         ELSE IF (useLD) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN

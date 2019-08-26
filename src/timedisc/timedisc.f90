@@ -4471,7 +4471,7 @@ SUBROUTINE TimeStepPoisson()
 ! Euler (500) or Leapfrog (509) -push with HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort, LocalTime
+USE MOD_Globals                ,ONLY: Abort, LocalTime, MPIRoot
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
@@ -4483,7 +4483,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell ! , usevMPF
+USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell, usevMPF
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: Species,PartSpecies
 USE MOD_Particle_Analyze       ,ONLY: CalcCoupledPowerPart
@@ -4494,7 +4494,7 @@ USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS, RadialWeighting
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge,PartAnalyzeStep
@@ -4507,6 +4507,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,Ext
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
+USE MOD_vMPF                   ,ONLY: SplitMerge_main
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -4760,6 +4761,13 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
+  CALL UpdateNextFreePosition()
+END IF
+
+IF ((iter.EQ.1).AND.(usevMPF).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+  SWRITE(*,*) 'Merging particles...'
+  CALL SplitMerge_main()
+  SWRITE(*,*) 'Merged particles to target number!'
   CALL UpdateNextFreePosition()
 END IF
 
