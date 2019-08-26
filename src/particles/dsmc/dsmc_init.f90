@@ -341,6 +341,13 @@ CALL prms%CreateStringOption(     'DSMC-Reaction[$]-TLU_FileName'  &
                                 , 'with DoScat=F: No TLU-File needed '//&
                                 '(def.: )', '0' , numberedmulti=.TRUE.)
 
+CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
+                                                               'should be named with species pair (e.g. "Ar-electron"). The '//&
+                                                               'first column shall contain the energy in eV and the second '//&
+                                                               'column the cross-section in m^2', 'none')
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
+                                           ,'Utilize collision cross sections for the determination of collision probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersDSMC
 
 SUBROUTINE InitDSMC()
@@ -609,7 +616,8 @@ __STAMP__&
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading BG Gas stuff (required for the temperature definition in iInit=0)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  !...moved to InitializeVariables!!!
+
+CALL MCC_Init()
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading/writing molecular stuff
@@ -1523,6 +1531,195 @@ __STAMP__&
 #endif
 
 END SUBROUTINE DSMC_SetInternalEnr_LauxVFD
+
+
+SUBROUTINE ReadCollXSec(iSpec,dsetname)
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! use module
+USE MOD_io_hdf5
+USE MOD_Globals
+USE MOD_Globals_Vars,         ONLY: BoltzmannConst
+USE MOD_DSMC_Vars,            ONLY: MCC, SpecMCC
+USE MOD_HDF5_Input,           ONLY: DatasetExists
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                                    :: iSpec
+CHARACTER(LEN=64),INTENT(IN)                          :: dsetname
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                               :: err, iDim
+INTEGER(HSIZE_T), DIMENSION(2)                        :: dims,sizeMax
+INTEGER(HID_T)                                        :: file_id_dsmc                       ! File identifier
+INTEGER(HID_T)                                        :: dset_id_dsmc                       ! Dataset identifier
+INTEGER(HID_T)                                        :: filespace                          ! filespace identifier
+REAL                                                  :: tempEnergyDiff, tempEnergy
+LOGICAL                                               :: DataSetFound
+!===================================================================================================================================
+SWRITE(UNIT_StdOut,'(A)') 'Read collision cross section for '//TRIM(dsetname)//' from '//TRIM(MCC%Database)
+
+! Initialize FORTRAN interface.
+CALL H5OPEN_F(err)
+! Open the file.
+CALL H5FOPEN_F (TRIM(MCC%Database), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
+
+IF(.NOT.DataSetFound) THEN
+  CALL abort(&
+  __STAMP__&
+  ,'DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(MCC%Database)//']')
+END IF
+
+! Open the  dataset.
+CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
+! Get the file space of the dataset.
+CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
+! get size
+CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+
+ALLOCATE(SpecMCC(iSpec)%CollXSec(dims(1),dims(2)))
+! read data
+CALL H5dread_f(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecMCC(iSpec)%CollXSec, dims, err)
+
+! Close the file.
+CALL H5FCLOSE_F(file_id_dsmc, err)
+! Close FORTRAN interface.
+CALL H5CLOSE_F(err)
+
+END SUBROUTINE ReadCollXSec
+
+
+SUBROUTINE MCC_Init()
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
+USE MOD_PARTICLE_Vars         ,ONLY: nSpecies
+USE MOD_DSMC_Vars             ,ONLY: MCC, BGGas, SpecDSMC, SpecMCC
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(64) :: hilf
+INTEGER       :: iSpec
+LOGICAL       :: DatasetFound
+!===================================================================================================================================
+
+MCC%Database = TRIM(GETSTR('Particles-CollXSec-Database'))
+
+IF(TRIM(MCC%Database).EQ.'none') RETURN
+
+ALLOCATE(SpecMCC(nSpecies))
+DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
+  SpecMCC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
+END DO
+
+IF(.NOT.ANY(SpecMCC(:)%UseCollXSec)) RETURN
+
+IF (BGGas%BGGasSpecies.EQ.0) THEN
+  CALL abort(&
+  __STAMP__&
+  ,'ERROR: Usage of collision cross-section only possible with a backgroung gas!')
+END IF
+
+DO iSpec = 1,nSpecies
+  IF(iSpec.NE.BGGas%BGGasSpecies) THEN
+    IF(SpecMCC(iSpec)%UseCollXSec) THEN
+      ! Read-in cross-section data for collisions of particles from the background gas and the current species
+      hilf = TRIM(SpecDSMC(BGGas%BGGasSpecies)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
+      CALL ReadCollXSec(iSpec, hilf)
+      ! Store the energy value in J (read-in was in eV)
+      SpecMCC(iSpec)%CollXSec(1,:) = SpecMCC(iSpec)%CollXSec(1,:) * ElementaryCharge
+      ! Determine the maximum collision frequency for the null collision method
+      CALL DetermineNullCollProb(iSpec)
+    END IF
+  END IF
+END DO
+
+END SUBROUTINE MCC_Init
+
+
+PURE REAL FUNCTION InterpolateCrossSection(iSpec,CollisionEnergy)
+!===================================================================================================================================
+!> Interpolate the collision cross-section [m^2] from the available data at the given collision energy [J]
+!> Requires the data to be sorted by ascending energy values
+!===================================================================================================================================
+! MODULES
+USE MOD_ReadInTools
+USE MOD_PARTICLE_Vars ,ONLY: nSpecies
+USE MOD_DSMC_Vars     ,ONLY: MCC, BGGas, SpecDSMC, SpecMCC
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(IN)            :: iSpec                            !< Species index colliding with the background gas
+REAL,INTENT(IN)               :: CollisionEnergy                  !< Collision energy in [J]
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iDOF, MaxDOF
+!===================================================================================================================================
+
+MaxDOF = SIZE(SpecMCC(iSpec)%CollXSec,2)
+
+DO iDOF = 1, MaxDOF
+  IF(SpecMCC(iSpec)%CollXSec(1,iDOF).GT.CollisionEnergy) THEN
+    ! If collision energy is below the available data, chose the lowest value
+    IF(iDOF.EQ.1) InterpolateCrossSection = SpecMCC(iSpec)%CollXSec(2,iDOF)
+    ! Interpolate the cross-section from the data set
+    InterpolateCrossSection = SpecMCC(iSpec)%CollXSec(2,iDOF-1) + (CollisionEnergy - SpecMCC(iSpec)%CollXSec(1,iDOF-1)) &
+                                                     / (SpecMCC(iSpec)%CollXSec(1,iDOF) - SpecMCC(iSpec)%CollXSec(1,iDOF-1)) &
+                                                     * (SpecMCC(iSpec)%CollXSec(2,iDOF) - SpecMCC(iSpec)%CollXSec(2,iDOF-1))
+    ! Leave routine and do not finish do loop
+    RETURN
+  END IF
+END DO
+
+END FUNCTION InterpolateCrossSection
+
+
+SUBROUTINE DetermineNullCollProb(iSpec)
+!===================================================================================================================================
+!> 
+!===================================================================================================================================
+! MODULES
+USE MOD_ReadInTools
+USE MOD_Globals_Vars          ,ONLY: Pi
+USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, ManualTimeStep
+USE MOD_DSMC_Vars             ,ONLY: MCC, BGGas, SpecMCC
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(IN)            :: iSpec                            !< Species index colliding with the background gas
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iDOF, MaxDOF
+REAL                          :: MaxCollFreq
+REAL,ALLOCATABLE              :: Velocity(:)
+!===================================================================================================================================
+
+MaxDOF = SIZE(SpecMCC(iSpec)%CollXSec,2)
+ALLOCATE(Velocity(MaxDOF))
+
+! Determine the mean relative velocity at the given energy level
+Velocity(1:MaxDOF) = SQRT(2.) * SQRT(8.*SpecMCC(iSpec)%CollXSec(1,1:MaxDOF)/(Pi*Species(iSpec)%MassIC))
+
+! Calculate the maximal collision frequency
+MaxCollFreq = MAXVAL(Velocity(1:MaxDOF) * SpecMCC(iSpec)%CollXSec(2,1:MaxDOF) * BGGas%BGGasDensity)
+
+! Determine the collision probability
+SpecMCC(iSpec)%ProbNull = 1. - EXP(-MaxCollFreq*ManualTimeStep)
+
+DEALLOCATE(Velocity)
+
+END SUBROUTINE DetermineNullCollProb
 
 
 SUBROUTINE FinalizeDSMC()

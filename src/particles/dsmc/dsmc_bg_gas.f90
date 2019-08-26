@@ -59,7 +59,7 @@ SUBROUTINE DSMC_InitBGGas()
 ! MODULES
 USE MOD_Globals,                ONLY: Abort
 USE MOD_DSMC_Init,              ONLY: DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_Vars,              ONLY: BGGas, SpecDSMC
+USE MOD_DSMC_Vars,              ONLY: BGGas, SpecDSMC, SpecMCC
 USE MOD_DSMC_PolyAtomicModel,   ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_PARTICLE_Vars,          ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef
 USE MOD_part_emission,          ONLY: SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF
@@ -79,6 +79,7 @@ iNewPart=0
 PositionNbr = 0
 DO iPart = 1, PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart).AND.(PartSpecies(iPart).NE.BGGas%BGGasSpecies)) THEN
+    IF(SpecMCC(PartSpecies(iPart))%UseCollXSec) CYCLE
     iNewPart = iNewPart + 1
     PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
     IF (PositionNbr.EQ.0) THEN
@@ -117,10 +118,11 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 ! Building of pairs for the background gas
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
-  USE MOD_Particle_Vars,          ONLY : PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+USE MOD_Globals
+USE MOD_DSMC_Analyze        ,ONLY: CalcGammaVib
+USE MOD_DSMC_Vars           ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc,SpecMCC
+USE MOD_Particle_Vars       ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species
+USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -130,7 +132,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: nPair, iPair, iPart, iLoop, nPart
+  INTEGER                       :: nPair, iPair, iPart, iLoop, nPart, iSpec
   INTEGER                       :: cSpec1, cSpec2, iCase
 !===================================================================================================================================
   nPart = PEM%pNumber(iElem)
@@ -147,6 +149,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 
   iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
   DO iLoop = 1, nPart
+    IF(SpecMCC(PartSpecies(iPart))%UseCollXSec) CYCLE
     CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + 1
           ! counter for part num of spec per cell
     IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = &
@@ -158,6 +161,17 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
       iPair = iPair + 1
     END IF
     iPart = PEM%pNext(iPart)
+  END DO
+
+  DO iSpec = 1,nSpecies
+    IF(SpecMCC(iSpec)%UseCollXSec) THEN
+      SpecMCC(iSpec)%PairNum = NINT(CollInf%Coll_SpecPartNum(iSpec) * SpecMCC(iSpec)%ProbNull)
+      print*, SpecMCC(iSpec)%PairNum, SpecMCC(iSpec)%ProbNull
+      IF(SpecMCC(iSpec)%PairNum.EQ.0) THEN
+        IPWRITE(*,*) 'WARNING: Zero collision pairs!'
+      END IF
+      read*
+    END IF
   END DO
 
   ! Setting Number of BGGas Particles per Cell
