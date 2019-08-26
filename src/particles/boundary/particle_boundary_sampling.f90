@@ -114,14 +114,21 @@ LOGICAL,ALLOCATABLE                    :: IsSlaveSide(:)
 SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
 WRITE(UNIT=hilf,FMT='(I0)') NGeo
 nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
+
+IF((nSurfSample.GT.1).AND.(TriaTracking)) CALL abort(&
+    __STAMP__&
+    ,'nSurfSample cannot be >1 if TriaTracking=T')
+
 ! IF (NGeo.GT.nSurfSample) THEN
 !   nSurfSample = NGeo
 ! END IF
 IF (ANY(PartBound%Reactive)) THEN
   IF (nSurfSample.NE.BezierSampleN) THEN
-  CALL abort(&
-__STAMP__&
-,'Error: nSurfSample not equal to BezierSampleN. Problem for Desorption + Surfflux')
+    SWRITE (*,*) "nSurfSample   =", nSurfSample
+    SWRITE (*,*) "BezierSampleN =", BezierSampleN
+    CALL abort(&
+        __STAMP__&
+        ,'Error: nSurfSample not equal to BezierSampleN. Problem for Desorption + Surfflux')
   END IF
 END IF
 
