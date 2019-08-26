@@ -397,11 +397,6 @@ Time=PICLASTIME()
 !ParticleMPIInitIsDone=.FALSE.
 !ParticlesInitIsDone=.FALSE.
 CALL FinalizeLoadBalance()
-CALL MPI_FINALIZE(iError)
-IF(iError .NE. 0) &
-  CALL abort(&
-  __STAMP__&
-  ,'MPI finalize error',iError,999.)
 #endif /*USE_MPI*/
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',Time-StartTime,' sec ]'
