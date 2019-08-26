@@ -55,9 +55,9 @@ USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource
 #else
 USE MOD_PICDepo_Vars,         ONLY:PartSource
 #endif
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -68,7 +68,7 @@ INTEGER           :: iElem
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: ChargeNumerical, ChargeLoc, ChargeAnalytical
-#ifdef MPI
+#if USE_MPI
 REAL              :: ChargeAnalytical_sum, ChargeNumerical_sum
 #endif
 !===================================================================================================================================
@@ -102,7 +102,7 @@ DO i=1,PDM%ParticleVecLength
   END IF
 END DO
 
-#ifdef MPI
+#if USE_MPI
    CALL MPI_ALLREDUCE(ChargeAnalytical, ChargeAnalytical_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)
    CALL MPI_ALLREDUCE(ChargeNumerical, ChargeNumerical_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)
    ChargeAnalytical = ChargeAnalytical_sum
@@ -151,9 +151,9 @@ INTEGER           :: iElem
 INTEGER           :: i,j,k,iPart
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: Charge(2)
-#ifdef MPI
+#if USE_MPI
 REAL              :: RECBR(2)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 
@@ -166,7 +166,7 @@ DO iElem=1,PP_nElems
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if defined(IMPA)
-#ifdef PP_HDG
+#if USE_HDG
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(1,i,j,k,iElem) * J_N(1,i,j,k)
 #else /* DG */
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
@@ -188,7 +188,7 @@ DO iPart=1,PDM%ParticleVecLength
 END DO
 
 ! MPI Communication
-#ifdef MPI
+#if USE_MPI
 IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,Charge , 2 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
 ELSE ! no Root
@@ -221,7 +221,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,            ONLY:sJ
 USE MOD_Interpolation_Vars,   ONLY:wGP
 USE MOD_Particle_Vars,        ONLY:RegionElectronRef
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
 USE MOD_DG_Vars,              ONLY:U
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -241,7 +241,7 @@ REAL              :: source_e
 ElectronNumberCell=0.
 J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
 DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
   source_e = U(1,i,j,k,iElem)-RegionElectronRef(2,RegionID)
 #else
   CALL abort(&

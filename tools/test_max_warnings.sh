@@ -3,9 +3,9 @@
 # Run this script in the upper most folder of the PICLas repository.
 
 # 1. Run script
-rm -r build_test_warnings
-mkdir build_test_warnings
-cd build_test_warnings
+rm -r build_test_max_warnings
+mkdir build_test_max_warnings
+cd build_test_max_warnings
 ccmake tee -DCMAKE_BUILD_TYPE=DEBUG ..
 make -j 2>&1 | tee compile_output.txt
 WARNINGS=$(grep "Warning:" compile_output.txt | wc -l)

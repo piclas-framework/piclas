@@ -69,7 +69,7 @@ IMPLICIT NONE
 PredictorType = GETINT('Predictor','0')
 dtOld=1.
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 IF(PredictorType.GE.6)THEN
   ALLOCATE(Upredict(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,2:nRKStages))
   Upredict=0.

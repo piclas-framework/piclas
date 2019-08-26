@@ -48,17 +48,15 @@ SUBROUTINE DSMC_main(DoElement)
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
   USE MOD_DSMC_Vars,             ONLY : ChemReac, SpecDSMC
   USE MOD_DSMC_Analyze,          ONLY : CalcMeanFreePath
-
   USE MOD_DSMC_SteadyState,      ONLY : QCrit_evaluation, SteadyStateDetection_main
-  USE MOD_Particle_Vars,         ONLY : PEM, PDM, usevMPF, WriteMacroVolumeValues, nSpecies
+  USE MOD_Particle_Vars,         ONLY : PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D
   USE MOD_Particle_Mesh_Vars,    ONLY : GEO
   USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
   USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
   USE MOD_DSMC_Relaxation,       ONLY : SetMeanVibQua
-  USE MOD_DSMC_ParticlePairing,  ONLY : DSMC_pairing_octree, DSMC_pairing_statistical
+  USE MOD_DSMC_ParticlePairing,  ONLY : DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
   USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
   USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
-  USE MOD_vmpf_collision,        ONLY : DSMC_vmpf_prob
   USE MOD_Particle_Vars,         ONLY : KeepWallParticles
 #if (PP_TimeDiscMethod==1001)
   USE MOD_LD_Vars,               ONLY : BulkValues, LD_DSMC_RHS
@@ -111,20 +109,19 @@ SUBROUTINE DSMC_main(DoElement)
     IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN  ! --- DSMC Cell ?
 #endif
     IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CollProbMax = 0.0
-      DSMC%CollProbMean = 0.0
-      DSMC%CollProbMeanCount = 0
-      DSMC%CollSepDist = 0.0
-      DSMC%CollSepCount = 0
-      DSMC%MeanFreePath = 0.0
-      DSMC%MCSoverMFP = 0.0
+      DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
+      DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
     END IF
     IF (CollisMode.NE.0) THEN
       ChemReac%nPairForRec = 0
       IF(BGGas%BGGasSpecies.NE.0) THEN
         CALL DSMC_pairing_bggas(iElem)
       ELSE IF (DSMC%UseOctree) THEN
-        CALL DSMC_pairing_octree(iElem)
+        IF(Symmetry2D) THEN
+          CALL DSMC_pairing_quadtree(iElem)
+        ELSE
+          CALL DSMC_pairing_octree(iElem)
+        END IF
       ELSE
         CALL DSMC_pairing_statistical(iElem)  ! pairing of particles per cell
       END IF
@@ -144,11 +141,7 @@ SUBROUTINE DSMC_main(DoElement)
 
         DO iPair = 1, nPair
           IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-            IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0)) THEN            ! calculation of collision prob
-              CALL DSMC_vmpf_prob(iElem, iPair)
-            ELSE
-              CALL DSMC_prob_calc(iElem, iPair)
-            END IF
+            CALL DSMC_prob_calc(iElem, iPair)
             CALL RANDOM_NUMBER(iRan)
             IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
 #if (PP_TimeDiscMethod==42)

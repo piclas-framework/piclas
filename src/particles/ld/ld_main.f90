@@ -366,9 +366,9 @@ DO iElem=1,PP_nElems
   END DO ! k
   TimeStepConv=MIN(TimeStepConv,CFLScale*2./SQRT(Max_Lambda1**2+Max_Lambda2**2+Max_Lambda3**2))
 END DO ! iElem
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,TimeStepConv,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 !PRINT*,'delta_t for given CFL-number:',TimeStepConv
 

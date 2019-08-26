@@ -65,10 +65,10 @@ USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
 USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_SurfaceModel_MPI       ,ONLY: InitSMCR_MPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -496,7 +496,7 @@ IF (MAXVAL(Adsorption%Coverage(:,:,:,:)).GT.0) THEN
   END DO
 END IF
 
-#ifdef MPI
+#if USE_MPI
 #ifdef CODE_ANALYZE
 ! write out the number of sites on all surface of the proc, that are considered for adsorption
 WRITE(UNIT_stdOut,'(A,I3,I13,A,I13,A,I13)')' | Maximum number of surface sites on proc: ',myRank,Max_Surfsites_num,&
@@ -508,7 +508,7 @@ SWRITE(UNIT_stdOut,'(A3,A,I0)') ' > ','Surface sites for all catalytic boundarie
 IF (SurfMesh%SurfOnProc) THEN
   CALL InitSMCR_MPI()
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION DONE!'
 
@@ -925,12 +925,15 @@ SUBROUTINE Init_TST_Coeff(TST_Case)
 !> Initializion of the Transition state theory (TST) factors for surface chemistry
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: abort, MPIRoot, UNIT_StdOut
+USE MOD_Globals                ,ONLY: abort,UNIT_StdOut
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
 USE MOD_ReadInTools            ,ONLY: GETREAL
+#if USE_MPI
+USE MOD_Globals                ,ONLY: MPIRoot
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

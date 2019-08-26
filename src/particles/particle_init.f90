@@ -1006,7 +1006,7 @@ USE MOD_SurfaceModel_Init,          ONLY: InitSurfaceModel, InitLiquidSurfaceMod
 USE MOD_Particle_Boundary_Vars,     ONLY: nPorousBC
 USE MOD_Particle_Boundary_Porous,   ONLY: InitPorousBoundaryCondition
 USE MOD_Restart_Vars,               ONLY: DoRestart
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI,               ONLY: InitParticleCommSize
 #endif
 #if (PP_TimeDiscMethod==300)
@@ -1090,7 +1090,7 @@ ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
   DSMC%OutputMeshSamp  = .FALSE.
 END IF
 
-#ifdef MPI
+#if USE_MPI
 ! has to be called AFTER InitializeVariables and InitDSMC
 CALL InitParticleCommSize()
 #endif
@@ -1119,25 +1119,28 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
 USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO
 USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, TriaSurfaceFlux
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas, RadialWeighting
 USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
 USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_Particle_Mesh          ,ONLY: GetMeshMinMax,InitFIBGM,MapRegionToElem,MarkAuxBCElems
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo
 USE MOD_part_pressure          ,ONLY: ParticlePressureIni,ParticlePressureCellIni
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd
 #if defined(ROS) || defined (IMPA)
 USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
 #endif /*ROS*/
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_ReadInTools            ,ONLY: PrintOption
+USE MOD_Particle_Vars           ,ONLY: VarTimeStep
+USE MOD_Particle_VarTimeStep    ,ONLY: VarTimeStep_CalcElemFacs  !, VarTimeStep_SmoothDistribution
+USE MOD_DSMC_Symmetry2D         ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1156,7 +1159,7 @@ LOGICAL               :: PartDens_OnlyInit
 REAL                  :: lineVector(3), v_drift_line, A_ins, n_vec(3), cos2, rmax
 INTEGER               :: MaxNbrOfSpeciesSwaps,iIMDSpec
 LOGICAL               :: exitTrue,IsIMDSpecies
-REAL, DIMENSION(3,1)  :: n,n1,n2
+REAL, DIMENSION(3,1)  :: norm,norm1,norm2
 REAL, DIMENSION(3,3)  :: rot1, rot2
 REAL                  :: alpha1, alpha2
 INTEGER               :: dummy_int
@@ -1506,6 +1509,11 @@ ALLOCATE(SpecReset(1:nSpecies))
 SpecReset=.FALSE.
 nMacroRestartFiles = GETINT('Part-nMacroRestartFiles')
 IF (nMacroRestartFiles.GT.0) THEN
+  IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+    CALL abort(__STAMP__&
+        ,'ERROR: Symmetry2D/Variable Time Step: Restart with a given DSMCHOState (Macroscopic restart) only possible with:\n'//&
+         ' Particles-MacroscopicRestart = T \n Particles-MacroscopicRestart-Filename = Test_DSMCHOState.h5')
+  END IF
   ALLOCATE(MacroRestartFileUsed(1:nMacroRestartFiles))
   MacroRestartFileUsed(:)=.FALSE.
   ALLOCATE(MacroRestartData_tmp(1:DSMC_NVARS,1:nElems,1:nSpecies,1:nMacroRestartFiles))
@@ -1523,13 +1531,13 @@ END IF
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits','0')
-#ifdef MPI
+#if USE_MPI
   IF(.NOT.PerformLoadBalance) THEN
-#endif /*MPI*/
+#endif /*USE_MPI*/
     SpecReset(iSpec)                     = GETLOGICAL('Part-Species'//TRIM(hilf)//'-Reset','.FALSE.')
-#ifdef MPI
+#if USE_MPI
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
   ALLOCATE(Species(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
   DO iInit = 0, Species(iSpec)%NumberOfInits
     ! set help characters
@@ -1586,16 +1594,16 @@ DO iSpec = 1, nSpecies
           Species(iSpec)%Init(iInit)%ElemTVibFileID.GT.0 .OR. &
           Species(iSpec)%Init(iInit)%ElemTRotFileID.GT.0 .OR. &
           Species(iSpec)%Init(iInit)%ElemTElecFileID.GT.0 ) THEN
-#ifdef MPI
+#if USE_MPI
         IF(.NOT.PerformLoadBalance) THEN
-#endif /*MPI*/
+#endif /*USE_MPI*/
           IF(.NOT.SpecReset(iSpec)) THEN
             SWRITE(*,*) "WARNING: Species-",iSpec," will be reset from macroscopic values."
           END IF
           SpecReset(iSpec)=.TRUE.
-#ifdef MPI
+#if USE_MPI
         END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
         FileID = Species(iSpec)%Init(iInit)%ElemTemperatureFileID
         IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
           MacroRestartFileUsed(FileID) = .TRUE.
@@ -1666,6 +1674,11 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%ElemTVibFileID       = 0
       Species(iSpec)%Init(iInit)%ElemTRotFileID       = 0
       Species(iSpec)%Init(iInit)%ElemTElecFileID      = 0
+      IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+        CALL abort(__STAMP__&
+            ,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
+             'cell_local-SpaceIC and/or surface flux!')
+      END IF
     END IF
     !-------------------------------------------------------------------------------------------------------------------------------
     IF (Species(iSpec)%Init(iInit)%ElemTemperatureFileID.EQ.0) THEN
@@ -2350,6 +2363,9 @@ __STAMP__&
 #endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
      PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
+  CASE('symmetric_axis')
+     PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryAxis
+     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('analyze')
      PartBound%TargetBoundCond(iPartBound) = PartBound%AnalyzeBC
      IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
@@ -2723,27 +2739,25 @@ IF (nAuxBCs.GT.0) THEN
       AuxBC_parabol(AuxBCMap(iAuxBC))%zfac  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-zfac','1.')
       AuxBC_parabol(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
 
-      n(:,1)=AuxBC_parabol(AuxBCMap(iAuxBC))%axis
-      IF (.NOT.ALMOSTZERO(SQRT(n(1,1)**2+n(3,1)**2))) THEN !collinear with y?
-        alpha1=ATAN2(n(1,1),n(3,1))
+      norm(:,1)=AuxBC_parabol(AuxBCMap(iAuxBC))%axis
+      IF (.NOT.ALMOSTZERO(SQRT(norm(1,1)**2+norm(3,1)**2))) THEN !collinear with y?
+        alpha1=ATAN2(norm(1,1),norm(3,1))
         CALL roty(rot1,alpha1)
-        n1=MATMUL(rot1,n)
+        norm1=MATMUL(rot1,norm)
       ELSE
         alpha1=0.
         CALL ident(rot1)
-        n1=n
+        norm1=norm
       END IF
-      !print*,'alpha1=',alpha1/PI*180.,'n1=',n1
-      IF (.NOT.ALMOSTZERO(SQRT(n1(2,1)**2+n1(3,1)**2))) THEN !collinear with x?
-        alpha2=-ATAN2(n1(2,1),n1(3,1))
+      IF (.NOT.ALMOSTZERO(SQRT(norm1(2,1)**2+norm1(3,1)**2))) THEN !collinear with x?
+        alpha2=-ATAN2(norm1(2,1),norm1(3,1))
         CALL rotx(rot2,alpha2)
-        n2=MATMUL(rot2,n1)
+        norm2=MATMUL(rot2,norm1)
       ELSE
         CALL abort(&
           __STAMP__&
           ,'vector is collinear with x-axis. this should not be possible... AuxBC:',iAuxBC)
       END IF
-      !print*,'alpha2=',alpha2/PI*180.,'n2=',n2
       AuxBC_parabol(AuxBCMap(iAuxBC))%rotmatrix(:,:)=MATMUL(rot2,rot1)
       AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(:,:)=0.
       AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(1,1)=1.
@@ -2763,9 +2777,9 @@ ELSE
   UseAuxBCs=.FALSE.
 END IF
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! get new min max
 SWRITE(UNIT_stdOut,'(A)')' Getting Mesh min-max ...'
@@ -2778,12 +2792,28 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 CALL InitFIBGM()
-#ifdef MPI
+!CALL InitSFIBGM()
+
+! === 2D/Axisymmetric initialization
+! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
+IF(Symmetry2D) CALL DSMC_2D_InitVolumes()
+IF(Symmetry2DAxisymmetric) THEN
+  IF(RadialWeighting%DoRadialWeighting) THEN
+  ! Initialization of RadialWeighting in 2D axisymmetric simulations
+    CALL DSMC_2D_InitRadialWeighting()
+  END IF
+  IF(.NOT.TriaTracking) CALL abort(&
+    __STAMP__&
+    ,'ERROR: Axisymmetric simulation only supported with TriaTracking = T')
+  IF(.NOT.TriaSurfaceFlux) CALL abort(&
+    __STAMP__&
+    ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
+END IF
+
+#if USE_MPI
 CALL InitEmissionComm()
-#endif /*MPI*/
-#ifdef MPI
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 
@@ -2854,7 +2884,7 @@ END DO
 nDataBC_CollectCharges=0
 nCollectChargesBCs = GETINT('PIC-nCollectChargesBCs','0')
 IF (nCollectChargesBCs .GT. 0) THEN
-#if !(defined (PP_HDG) && (PP_nVar==1))
+#if !((USE_HDG) && (PP_nVar==1))
   CALL abort(__STAMP__&
     , 'CollectCharges only implemented for electrostatic HDG!')
 #endif
@@ -2880,6 +2910,11 @@ END IF !nCollectChargesBCs .GT. 0
 IF (useDSMC) THEN
   BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
   IF (BGGas%BGGasSpecies.NE.0) THEN
+    IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+      CALL abort(&
+      __STAMP__&
+      ,'ERROR: 2D/Axisymmetric and variable timestep are not implemented with a background gas yet!')
+    END IF
     IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
       .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0) CALL abort(&
 __STAMP__&
@@ -2933,6 +2968,35 @@ __STAMP__&
     BGGas%PairingPartner = 0
   END IF !BGGas%BGGasSpecies.NE.0
 END IF !useDSMC
+
+! ------- Variable Time Step Initialization (parts requiring completed particle_init and readMesh)
+IF(VarTimeStep%UseVariableTimeStep) THEN
+  ! Initializing the particle time step array used during calculation for the distribution (after maxParticleNumber was read-in)
+  ALLOCATE(VarTimeStep%ParticleTimeStep(1:PDM%maxParticleNumber))
+  VarTimeStep%ParticleTimeStep = 1.
+  IF(.NOT.TriaTracking) THEN
+    CALL abort(&
+      __STAMP__&
+      ,'ERROR: Variable time step is only supported with TriaTracking = T')
+  END IF
+  IF(VarTimeStep%UseLinearScaling) THEN
+    IF(Symmetry2D) THEN
+      ! 2D: particle-wise scaling in the radial direction, ElemFac array only utilized for the output of the time step
+      ALLOCATE(VarTimeStep%ElemFac(nElems))
+      VarTimeStep%ElemFac = 1.0
+    ELSE
+      ! 3D: The time step for each cell is precomputed, ElemFac is allocated in the routine
+      CALL VarTimeStep_CalcElemFacs()
+    END IF
+  END IF
+  IF(VarTimeStep%UseDistribution) THEN
+    ! ! Apply a min-mean filter combo if the distribution was adapted
+    ! ! (is performed here to have the element neighbours already defined)
+    ! IF(VarTimeStep%AdaptDistribution) CALL VarTimeStep_SmoothDistribution()
+    ! Disable AdaptDistribution to avoid adapting during a load balance restart
+    IF(VarTimeStep%AdaptDistribution) VarTimeStep%AdaptDistribution = .FALSE.
+  END IF
+END IF
 
 END SUBROUTINE InitializeVariables
 
@@ -3271,6 +3335,9 @@ SDEALLOCATE(Species)
 SDEALLOCATE(SpecReset)
 SDEALLOCATE(IMDSpeciesID)
 SDEALLOCATE(IMDSpeciesCharge)
+SDEALLOCATE(VarTimeStep%ParticleTimeStep)
+SDEALLOCATE(VarTimeStep%ElemFac)
+SDEALLOCATE(VarTimeStep%ElemWeight)
 SDEALLOCATE(PartBound%SourceBoundName)
 SDEALLOCATE(PartBound%TargetBoundCond)
 SDEALLOCATE(PartBound%MomentumACC)
@@ -3364,7 +3431,7 @@ SUBROUTINE InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 !> Initialize pseudo random numbers: Create Random_seed array
 !===================================================================================================================================
 ! MODULES
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars,     ONLY:PartMPI
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -3415,7 +3482,7 @@ IF(.NOT. uRandomExists) THEN
   Clock = IEOR(Clock, INT(ProcessID, KIND(Clock)))
   AuxilaryClock=Clock
   DO iSeed = 1, SeedSize
-#ifdef MPI
+#if USE_MPI
     IF (nRandomSeeds.EQ.0) THEN
       AuxilaryClock=AuxilaryClock+PartMPI%MyRank
     ELSE IF(nRandomSeeds.GT.0) THEN

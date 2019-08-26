@@ -26,7 +26,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTERFACE MatrixVector
   MODULE PROCEDURE MatrixVector
 END INTERFACE
@@ -58,7 +58,7 @@ END INTERFACE
 #endif /*ROS OR IMPA*/
 #endif /*PARTICLES*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 PUBLIC :: MatrixVector, MatrixVectorSource, VectorDotProduct, ElementVectorDotProduct, DENSE_MATMUL
 #ifdef IMPA
 PUBLIC :: EvalResidual
@@ -73,7 +73,7 @@ PUBLIC:: PartVectorDotProduct,PartMatrixVector
 
 CONTAINS
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 SUBROUTINE MatrixVector(t,Coeff,X,Y)
 !===================================================================================================================================
 ! Computes Matrix Vector Product y=A*x for linear Equations only
@@ -168,7 +168,7 @@ USE MOD_Equation,          ONLY:DivCleaningDamping
 USE MOD_LinearSolver_Vars, ONLY:LinSolverRHS,mass
 USE MOD_Equation_Vars,     ONLY:DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars,     ONLY:sdtCFLOne
-#if !defined(PP_HDG) && !defined(ROS)
+#if !(USE_HDG) && !defined(ROS)
 USE MOD_LinearSolver_Vars, ONLY:ImplicitSource
 #endif /*NO ROSENBROCK and no HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -191,7 +191,7 @@ INTEGER          :: i,j,k,iElem,iVar
 
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 !Y = LinSolverRHS - X0 +coeff*ut
-#if !defined(PP_HDG) && !defined(ROS)
+#if !(USE_HDG) && !defined(ROS)
 CALL CalcSource(t,1.0,ImplicitSource)
 #endif /*NO ROSENBROCK and no HDG*/
 
@@ -291,7 +291,7 @@ REAL,INTENT(OUT)  :: resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iVar,i,j,k,iElem
-#ifdef MPI
+#if USE_MPI
 REAL              :: ResuSend
 #endif
 !===================================================================================================================================
@@ -309,7 +309,7 @@ DO iElem=1,PP_nElems
   END DO
 END DO
 
-#ifdef MPI
+#if USE_MPI
   ResuSend=Resu
   CALL MPI_ALLREDUCE(ResuSend,resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif

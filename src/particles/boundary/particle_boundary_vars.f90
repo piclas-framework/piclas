@@ -30,12 +30,12 @@ INTEGER                                 :: OffSetSurfSide                ! offse
 INTEGER                                 :: OffSetInnerSurfSide           ! offset of local inner surf side
 INTEGER                                 :: nSurfBC                       ! number of surface side BCs
 CHARACTER(LEN=255),ALLOCATABLE          :: SurfBCName(:)                 ! names of belonging surface BC
-#ifdef MPI
+#if USE_MPI
 INTEGER,ALLOCATABLE                     :: OffSetSurfSideMPI(:)          ! integer offset for particle boundary sampling
 INTEGER,ALLOCATABLE                     :: OffSetInnerSurfSideMPI(:)     ! integer offset for particle boundary sampling (innerBC)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
-#ifdef MPI
+#if USE_MPI
 TYPE tSurfaceSendList
   INTEGER                               :: NativeProcID
   INTEGER,ALLOCATABLE                   :: SendList(:)                   ! list containing surfsideid of sides to send to proc
@@ -47,7 +47,7 @@ TYPE tSurfaceSendList
   INTEGER,ALLOCATABLE                   :: CoverageRecvList(:)           ! list containing surfsideid of sides to recv from proc
 
 END TYPE
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 TYPE tSurfaceCOMM
   LOGICAL                               :: MPIRoot                       ! if root of mpi communicator
@@ -56,12 +56,12 @@ TYPE tSurfaceCOMM
   LOGICAL                               :: MPIOutputRoot                 ! if root of mpi communicator
   INTEGER                               :: MyOutputRank                  ! local rank in new group
   INTEGER                               :: nOutputProcs                  ! number of output processes
-#ifdef MPI
+#if USE_MPI
   LOGICAL                               :: InnerBCs                      ! are there InnerSides with reflective properties
   INTEGER                               :: COMM                          ! communicator
   INTEGER                               :: nMPINeighbors                 ! number of processes to communicate with
   TYPE(tSurfaceSendList),ALLOCATABLE    :: MPINeighbor(:)                ! list containing all mpi neighbors
-#endif /*MPI*/
+#endif /*USE_MPI*/
   INTEGER                               :: OutputCOMM                    ! communicator for output
 END TYPE
 TYPE (tSurfaceCOMM)                     :: SurfCOMM
@@ -131,7 +131,7 @@ TYPE tPorousBC
   REAL                                  :: rmin                   ! min radius of to-be inserted particles
   INTEGER                               :: SideNumber             ! Number of BC sides for the BC
   INTEGER, ALLOCATABLE                  :: SideList(:)            ! Mapping from porous BC side list to the BC side list
-  INTEGER, ALLOCATABLE                  :: Sample(:,:)            ! Allocated with SideNumber and nPorousBCVars
+  REAL, ALLOCATABLE                     :: Sample(:,:)            ! Allocated with SideNumber and nPorousBCVars
   INTEGER, ALLOCATABLE                  :: RegionSideType(:)      ! 0: side is completely inside porous region
                                                                   ! 1: side is completely outside porous region
                                                                   ! 2: side is partially inside porous region
@@ -181,6 +181,7 @@ TYPE tPartBoundary
   INTEGER                                :: SimpleAnodeBC           = 4      ! = 4 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SimpleCathodeBC         = 5      ! = 5 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SymmetryBC              = 10     ! = 10 (s.u.) Boundary Condition Integer Definition
+  INTEGER                                :: SymmetryAxis            = 11     ! = 10 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: AnalyzeBC               = 100    ! = 100 (s.u.) Boundary Condition Integer Definition
   CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)          ! Link part 1 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)          ! Link part 2 for mapping PICLas BCs to Particle BC

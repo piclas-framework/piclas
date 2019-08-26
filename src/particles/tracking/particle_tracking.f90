@@ -76,7 +76,8 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleInsideQuad3D
+USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement
+USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem, PartSideToElem, PartElemToElemAndSide
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts, TrackInfo
 USE MOD_Mesh_Vars,                   ONLY:MortarType
@@ -84,6 +85,8 @@ USE MOD_Mesh_Vars,                   ONLY:BC
 USE MOD_Particle_Boundary_Vars,      ONLY:PartBound
 USE MOD_Particle_Intersection,       ONLY:IntersectionWithWall
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
+USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -124,6 +127,9 @@ REAL                             :: tLBStart
 doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
+
+IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_SetInClones()
+
 ! 1) Loop over all particles that are still inside
 DO i = 1,PDM%ParticleVecLength
 #ifdef IMPA
@@ -178,11 +184,9 @@ DO i = 1,PDM%ParticleVecLength
             END IF
             DO ind = 1, nMortarElems
               NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
-              IF (NbElemID.LT.1) THEN
-                CALL abort(&
-                 __STAMP__ &
-                 ,'ERROR: Mortar Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
-              END IF
+              ! If small mortar element not defined, skip it for now, likely not inside the halo region (additional check is
+              ! performed after the MPI communication: ParticleInsideQuad3D_MortarMPI)
+              IF (NbElemID.LT.1) CYCLE
               NblocSideID = PartElemToElemAndSide(ind+4,iLocSide,ElemID)
               nbSideID = PartElemToSide(E2S_SIDE_ID,NblocSideID,NbElemID)
               DO TriNum = 1,2
@@ -391,7 +395,13 @@ DO i = 1,PDM%ParticleVecLength
     IF (PEM%Element(i).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(i),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF
-END DO
+  ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    IF(PDM%ParticleInside(i)) THEN
+      IF (PEM%Element(i).LE.PP_nElems) CALL DSMC_2D_RadialWeighting(i,PEM%Element(i))
+    END IF
+  END IF
+END DO ! i = 1,PDM%ParticleVecLength
 
 END SUBROUTINE ParticleTriaTracking
 
@@ -424,10 +434,13 @@ USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputeAuxBCIntersection
 USE MOD_Mesh_Vars,                   ONLY:OffSetElem
 USE MOD_Eval_xyz,                    ONLY:GetPositionInRefElem
-#ifdef MPI
+! USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
+! USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
+! USE MOD_TimeDisc_Vars               ,ONLY: iter
+#if USE_MPI
 USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
 #ifdef IMPA
 USE MOD_Particle_Vars,               ONLY:PartIsImplicit,PartDtFrac
@@ -473,7 +486,7 @@ REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 INTEGER                       :: PartDoubleCheck
 REAL                          :: alphaOld
-#ifdef MPI
+#if USE_MPI
 INTEGER                       :: inElem
 #endif
 #ifdef CODE_ANALYZE
@@ -490,6 +503,8 @@ END IF
 doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
+
+! IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_SetInClones()
 
 DO iPart=1,PDM%ParticleVecLength
   PartDoubleCheck=0
@@ -554,7 +569,7 @@ DO iPart=1,PDM%ParticleVecLength
         WRITE(UNIT_stdout,'(A32)')         ' ---------------------------------------------------------------'
         WRITE(UNIT_stdout,'(A)')         '     | Output of Particle information '
         CALL OutputTrajectory(iPart,PartState(iPart,1:3),PartTrajectory,lengthPartTrajectory)
-#ifdef MPI
+#if USE_MPI
         InElem=PEM%LastElement(iPart)
         IF(InElem.LE.PP_nElems)THEN
           WRITE(UNIT_stdOut,'(A,I0)') '     | global ElemID       ', InElem+offSetElem
@@ -564,7 +579,7 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
 #else
         WRITE(UNIT_stdOut,'(A,I0)') '     | global ElemID         ', PEM%LastElement(iPart)+offSetElem
-#endif /*MPI*/
+#endif /*USE_MPI*/
       END IF
     END IF
     ! caution: reuse of variable, isHit=TRUE == inside
@@ -578,10 +593,10 @@ DO iPart=1,PDM%ParticleVecLength
      IF(ElemID.LE.PP_nElems)THEN
        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', ElemID+offSetElem
      ELSE
-#ifdef MPI
+#if USE_MPI
        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,ElemID)) &
                                                  + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
-#endif /*MPI*/
+#endif /*USE_MPI*/
      END IF
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' ElemBaryNGeo:      ', ElemBaryNGeo(1:3,ElemID)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' IntersectionPoint: ', IntersectionPoint
@@ -985,7 +1000,7 @@ DO iPart=1,PDM%ParticleVecLength
                   ' Particle tracking done: ',PartisDone
           IF(SwitchedElement) THEN
             WRITE(UNIT_stdout,'(A,I0,A,I0)') '     | First_ElemID: ',PEM%LastElement(iPart),' | new Element: ',ElemID
-#ifdef MPI
+#if USE_MPI
             InElem=PEM%LastElement(iPart)
             IF(InElem.LE.PP_nElems)THEN
               WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID       ', InElem+offSetElem
@@ -996,7 +1011,7 @@ DO iPart=1,PDM%ParticleVecLength
 #else
             WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID         ', PEM%LastElement(iPart)+offSetElem
 #endif
-#ifdef MPI
+#if USE_MPI
             InElem=ElemID
             IF(InElem.LE.PP_nElems)THEN
               WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID       ', InElem+offSetElem
@@ -1044,7 +1059,7 @@ DO iPart=1,PDM%ParticleVecLength
         CALL GetPositionInRefElem(PartState(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') '     |     PartRefPos: ',refpos
         !WRITE(UNIT_stdOut,'(20(=))')
-#ifdef MPI
+#if USE_MPI
         InElem=PEM%Element(iPart)
         IF(InElem.LE.PP_nElems)THEN
           IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | ElemID       ', InElem+offSetElem
@@ -1056,7 +1071,7 @@ DO iPart=1,PDM%ParticleVecLength
         !IPWRITE(UNIT_stdOut,*) ' ElemID         ', InElem+offSetElem  ! old
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | ElemID         ', ElemID+offSetElem   ! new
 #endif
-#ifdef MPI
+#if USE_MPI
         InElem=PEM%LastElement(iPart)
         IF(InElem.LE.PP_nElems)THEN
           IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | Last-ElemID  ', InElem+offSetElem
@@ -1074,13 +1089,19 @@ DO iPart=1,PDM%ParticleVecLength
     IF (PEM%Element(iPart).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(iPart),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF ! Part inside
+  ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
+  ! IF(RadialWeighting%DoRadialWeighting) THEN
+  !   IF(PDM%ParticleInside(iPart)) THEN
+  !     CALL DSMC_2D_RadialWeighting(iPart,PEM%Element(iPart))
+  !   END IF
+  ! END IF
 END DO ! iPart
 
 #ifdef CODE_ANALYZE
 ! check if particle is still inside of bounding box of domain and in element
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 DO iPart=1,PDM%ParticleVecLength
 #ifdef IMPA
   IF(doPartInExists)THEN
@@ -1125,10 +1146,10 @@ DO iPart=1,PDM%ParticleVecLength
      IF(ElemID.LE.PP_nElems)THEN
        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', ElemID+offSetElem
      ELSE
-#ifdef MPI
+#if USE_MPI
        IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,ElemID)) &
                                                  + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
-#endif /*MPI*/
+#endif /*USE_MPI*/
      END IF
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' ElemBaryNGeo:      ', ElemBaryNGeo(1:3,ElemID)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' IntersectionPoint: ', IntersectionPoint
@@ -1175,10 +1196,10 @@ USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemRadius2NGeo
 USE MOD_Particle_MPI_Vars,       ONLY:halo_eps2
 USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,PartInElemCheck
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars,                ONLY:offsetElemMPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars,           ONLY:PartStateN
 USE MOD_TimeDisc_Vars,           ONLY:iStage
@@ -1209,7 +1230,7 @@ INTEGER                           :: iPart, ElemID,oldElemID,newElemID
 INTEGER                           :: CellX,CellY,CellZ,iBGMElem,nBGMElems
 REAL                              :: oldXi(3),newXi(3), LastPos(3),vec(3)!,loc_distance
 !REAL                              :: epsOne
-#ifdef MPI
+#if USE_MPI
 INTEGER                           :: InElem
 #endif
 INTEGER                           :: TestElem,LastElemID
@@ -1454,7 +1475,7 @@ DO iPart=1,PDM%ParticleVecLength
           Vec=PartState(iPart,1:3)-PartStateN(iPart,1:3)
           IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' displacementN/halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartStateN             ', PartStateN(iPart,1:3)
-#ifdef MPI
+#if USE_MPI
           inelem=PEM%ElementN(ipart)
           IF(inelem.LE.PP_nElems)THEN
             IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = F'
@@ -1468,7 +1489,7 @@ DO iPart=1,PDM%ParticleVecLength
           IPWRITE(UNIt_stdOut,'(I0,A,I0)') ' elemid-N                 ', pem%element(ipart)+offsetelem
 #endif
 #endif /*ROS or IMPA*/
-#ifdef MPI
+#if USE_MPI
           InElem=PEM%Element(iPart)
           IF(InElem.LE.PP_nElems)THEN
             IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
@@ -1481,7 +1502,7 @@ DO iPart=1,PDM%ParticleVecLength
 #else
           IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID       ', PEM%Element(iPart)+offSetElem
 #endif
-#ifdef MPI
+#if USE_MPI
           InElem=PEM%LastElement(iPart)
           IF(InElem.LE.PP_nElems)THEN
             IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
@@ -1543,7 +1564,7 @@ __STAMP__ &
               Vec=PartState(iPart,1:3)-PartStateN(iPart,1:3)
               IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' displacementN/halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
               IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartStateN             ', PartStateN(iPart,1:3)
-#ifdef MPI
+#if USE_MPI
               inelem=PEM%ElementN(ipart)
               IF(inelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = F'
@@ -1569,7 +1590,7 @@ __STAMP__ &
 #if defined(IMPA)
               IPWRITE(UNIT_stdOut,'(I0,A,X,L)') ' Implicit               ', PartIsImplicit(iPart)
 #endif
-#ifdef MPI
+#if USE_MPI
               inelem=PEM%Element(ipart)
               IF(inelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
@@ -1945,9 +1966,9 @@ USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars,          ONLY:GEO
 USE MOD_Particle_Tracking_Vars,      ONLY:FastPeriodic
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars,           ONLY:PartShiftVector
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #ifdef IMPA
 USE MOD_Particle_Vars,               ONLY: PEM
 #endif /*IMPA*/
@@ -1968,9 +1989,9 @@ REAL                            :: MoveVector(1:3)
 LOGICAL                         :: isMoved
 !===================================================================================================================================
 
-#ifdef MPI
+#if USE_MPI
 PartShiftVector(1:3,PartID)=PartState(PartID,1:3)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 isMoved=.FALSE.
 IF(FastPeriodic)THEN
   ! x direction
@@ -2217,9 +2238,9 @@ ELSE
   END IF
 END IF
 
-#ifdef MPI
+#if USE_MPI
 PartShiftVector(1:3,PartID)=-PartState(PartID,1:3)+PartShiftvector(1:3,PartID)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 IF(isMoved)THEN
 #if defined(IMPA) || defined(ROS)
@@ -2623,9 +2644,9 @@ USE MOD_Particle_Vars,           ONLY : RegionElectronRef
 USE MOD_Mesh_Vars,               ONLY : SideToElem
 USE MOD_Particle_Vars,           ONLY : nCollectChargesBCs,CollectCharges
 USE MOD_Particle_Boundary_Vars,  ONLY : PartBound
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars,       ONLY : PartMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2635,9 +2656,9 @@ LOGICAL,INTENT(IN),OPTIONAL      :: initialCall_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: iCC, currentBC
-#ifdef MPI
+#if USE_MPI
 REAL, ALLOCATABLE                :: NewRealChargesGlob(:)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 REAL, ALLOCATABLE                :: NewRealChargesLoc(:)
 INTEGER                          :: iSide, SideID, RegionID, iSample,jSample
 REAL                             :: source_e, area
@@ -2652,10 +2673,10 @@ IF (nCollectChargesBCs .GT. 0) THEN
   IF (.NOT.InitialCall) THEN !-- normal call during timedisc
     ALLOCATE( NewRealChargesLoc(1:nCollectChargesBCs) )
     NewRealChargesLoc=0.
-#ifdef MPI
+#if USE_MPI
     ALLOCATE( NewRealChargesGlob(1:nCollectChargesBCs) )
     NewRealChargesGlob=0.
-#endif /* MPI */
+#endif /*USE_MPI*/
     DO iCC=1,nCollectChargesBCs
       NewRealChargesLoc(iCC)=CollectCharges(iCC)%NumOfNewRealCharges
       !--adding BR-electrons if corresponding regions exist: go through sides/trias if present in proc
@@ -2699,7 +2720,7 @@ __STAMP__&
       END IF ! NbrOfRegions .GT. 0
       !--
     END DO
-#ifdef MPI
+#if USE_MPI
     CALL MPI_ALLREDUCE(NewRealChargesLoc,NewRealChargesGlob,nCollectChargesBCs,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
     DO iCC=1,nCollectChargesBCs
       CollectCharges(iCC)%NumOfNewRealCharges=NewRealChargesGlob(iCC)
@@ -2709,7 +2730,7 @@ __STAMP__&
     DO iCC=1,nCollectChargesBCs
       CollectCharges(iCC)%NumOfNewRealCharges=NewRealChargesLoc(iCC)
     END DO
-#endif /* MPI */
+#endif /*USE_MPI*/
     DEALLOCATE(NewRealChargesLoc)
     DO iCC=1,nCollectChargesBCs
       CollectCharges(iCC)%NumOfRealCharges=CollectCharges(iCC)%NumOfRealCharges+CollectCharges(iCC)%NumOfNewRealCharges
@@ -2783,10 +2804,10 @@ USE MOD_Particle_Mesh,          ONLY:PartInElemCheck
 #ifdef IMPA
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit,PartDtFrac
 #endif /*IMPA*/
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
 USE MOD_MPI_Vars,               ONLY:offsetElemMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_Mesh_Vars,              ONLY:offsetelem,ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2856,10 +2877,10 @@ IF(.NOT.DoRefMapping)THEN
     IF(ElemID.LE.PP_nElems)THEN
       IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', ElemID+offSetElem
     ELSE
-#ifdef MPI
+#if USE_MPI
           IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,ElemID)) &
                                                     + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
-#endif /*MPI*/
+#endif /*USE_MPI*/
     END IF
     IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' ElemBaryNGeo:      ', ElemBaryNGeo(1:3,ElemID)
     IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' IntersectionPoint: ', IntersectionPoint

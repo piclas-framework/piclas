@@ -172,9 +172,9 @@ USE MOD_DG                ,ONLY: DGTimeDerivative_WeakForm
 USE MOD_SparseILU         ,ONLY: BuildILU0
 USE MOD_ILU               ,ONLY: BuildBILU0BCSR
 USE MOD_CSR               ,ONLY: CSR
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars  ,ONLY: PerformLBSample
 USE MOD_LoadBalance_Vars  ,ONLY: ElemTime
@@ -196,9 +196,9 @@ REAL               :: delta(0:PP_N,0:PP_N)
 INTEGER            :: i,j,k,p,q
 INTEGER            :: oo,mm,nn,ll,v1,v2
 REAL               :: coeff
-#ifdef MPI
+#if USE_MPI
 REAL               :: TotalTimeMPI(3)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 IF(PrecondType.EQ.0) RETURN !NO PRECONDITIONER
@@ -372,13 +372,13 @@ DO iElem=1,PP_nElems
   END IF ! DebugMatrix
 END DO ! ! iELEM
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_REDUCE(TotalTime,TotalTimeMPI ,3,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,IERROR)
 IF(MPIRoot) THEN
   TotalTime=TotalTimeMPI
 END IF
 
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_stdOut,'(A,F11.3,A)')' TOTAL DERIVATING TIME =[',TotalTime(1),' ]'
 SWRITE(UNIT_stdOut,'(A,F11.3,A)')' TOTAL INVERTING  TIME =[',TotalTime(2),' ]'
@@ -405,9 +405,9 @@ SUBROUTINE CheckBJPrecond(Ploc1,Ploc,invPloc,iElem,Time)
 USE MOD_Globals
 USE MOD_LinearSolver_Vars,      ONLY:nDOFelem
 USE MOD_Precond_Vars,       ONLY:PrecondType,DebugMatrix
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -431,11 +431,11 @@ ALLOCATE( diff(1:nDOFElem,1:nDOFElem))
 
 ! output of BlockJac  | only derivativ
 IF(DebugMatrix.GE.1)THEN
-#ifdef MPI
+#if USE_MPI
   WRITE(Filename,'(A,I2.2,A,I2.2,A,I4.4,A)')'BlockJac_Rank_',MyRank,'_Type_',PreCondType,'_Mat_', iElem,'.dat'
 #else
   WRITE(Filename,'(A,I2.2,A,I4.4,A)')'BlockJac_',PreCondType,'_Mat_', iElem,'.dat'
-#endif /*MPI*/
+#endif /*USE_MPI*/
   WRITE(strfmt,'(A1,I4,A12)')'(',nDOFelem,'(1X,E23.16))'
   WRITE(UNIT_stdOut,*)'Debug Block Jacobian to:',TRIM(Filename)
   OPEN (UNIT=103,FILE=TRIM(Filename),STATUS='REPLACE')
@@ -448,11 +448,11 @@ END IF !DebugMatrix >1
 ! output of BlockPrecond, no inverse
 IF(DebugMatrix.GE.2)THEN
 
-#ifdef MPI
+#if USE_MPI
   WRITE(Filename,'(A,I2.2,A,I2.2,A,I4.4,A)')'Precond_Rank_',MyRank,'_Type_',PreCondType,'_Mat_', iElem,'.dat'
 #else
   WRITE(Filename,'(A,I2.2,A,I4.4,A)')'Precond_',PreCondType,'_Mat_', iElem,'.dat'
-#endif /*MPI*/
+#endif /*USE_MPI*/
   WRITE(strfmt,'(A1,I4,A12)')'(',nDOFelem,'(1X,E23.16))'
   WRITE(UNIT_stdOut,*)'Debug Precond (no Inverse) to:',TRIM(Filename)
   OPEN (UNIT=103,FILE=TRIM(Filename),STATUS='REPLACE')
@@ -464,11 +464,11 @@ END IF !DebugMatrix >1
 
 ! output of Inverse
 IF(DebugMatrix.GE.3)THEN
-#ifdef MPI
+#if USE_MPI
   WRITE(Filename,'(A,I2.2,A,I2.2,A,I4.4,A)')'Precond_Rank_',MyRank,'_Type__',PreCondType,'_InvMat_', iElem,'.dat'
 #else
   WRITE(Filename,'(A,I2.2,A,I4.4,A)')'Precond_',PreCondType,'_InvMat_', iElem,'.dat'
-#endif /*MPI*/
+#endif /*USE_MPI*/
   WRITE(strfmt,'(A1,I4,A12)')'(',nDOFelem,'(1X,E23.16))'
   WRITE(UNIT_stdOut,*)'Debug Precond to:',TRIM(Filename)
   OPEN (UNIT=103,FILE=TRIM(Filename),STATUS='REPLACE')

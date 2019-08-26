@@ -114,9 +114,9 @@ USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_TTM_Vars
 USE MOD_Restart_Vars      ,ONLY: DoRestart
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
-#endif /* MPI*/
+#endif /*USE_MPI*/
 USE MOD_Mesh_Vars         ,ONLY: ElemBaryNGeo
 USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
 USE MOD_Equation_Vars     ,ONLY: eps0
@@ -193,13 +193,13 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         ALLOCATE( ElemIsDone(FD_nElems) )
         ElemIsDone=.FALSE.
         SWRITE(UNIT_stdOut,'(A,A)') " Reading TTM data from file (TTMFile): ",TRIM(TTMFile)
-#ifdef MPI
+#if USE_MPI
         IF(.NOT.PartMPI%MPIROOT)THEN
           CALL abort(&
               __STAMP__&
               ,'ERROR: Cannot SetParticlePosition in multi-core environment for SpaceIC=IMD!')
         END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
         OPEN(NEWUNIT=ioUnit,FILE=TRIM(TTMFile),STATUS='OLD',ACTION='READ',IOSTAT=io_error)
         IF(io_error.NE.0)THEN
           CALL abort(&

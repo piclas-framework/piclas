@@ -25,6 +25,8 @@ SAVE
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
+LOGICAL               :: Symmetry2D                                          ! Enables 2D simulation: symmetry in xy-Plane
+LOGICAL               :: Symmetry2DAxisymmetric                              ! Enables axisymmetric simulation around z-axis
 LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization by quantum tunneling
 INTEGER               :: FieldIonizationModel                                !'Field Ionization models. Implemented models are:
 !                                                                            ! * Ammosov-Delone-Krainov (ADK) model
@@ -241,9 +243,9 @@ TYPE tInit                                                                   ! P
   TYPE(tConstPressure)                   :: ConstPress!(:)           =>NULL() !
   INTEGER                                :: NumberOfExcludeRegions           ! Number of different regions to be excluded
   TYPE(tExcludeRegion), ALLOCATABLE      :: ExcludeRegion(:)
-#ifdef MPI
+#if USE_MPI
   INTEGER                                :: InitComm                          ! number of init-communicator
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData
@@ -310,6 +312,7 @@ TYPE typeSurfaceflux
                                                                              ! through Monte Carlo integration (initially)
   INTEGER                                :: AdaptivePartNumOut               ! Adaptive, Type 4: Number of particles exiting through
                                                                              ! the adaptive boundary condition
+  REAL, ALLOCATABLE                      :: nVFRSub(:,:)                     ! normal volume flow rate through subsubside
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -465,6 +468,32 @@ TYPE tCollectCharges
   REAL                                 :: ChargeDist
 END TYPE
 TYPE(tCollectCharges), ALLOCATABLE     :: CollectCharges(:)
+
+TYPE tVariableTimeStep
+  LOGICAL                              :: UseVariableTimeStep
+  LOGICAL                              :: UseLinearScaling
+  LOGICAL                              :: UseDistribution
+  REAL, ALLOCATABLE                    :: ParticleTimeStep(:)
+  REAL, ALLOCATABLE                    :: ElemFac(:)
+  REAL, ALLOCATABLE                    :: ElemWeight(:)
+  REAL                                 :: StartPoint(3)
+  REAL                                 :: EndPoint(3)
+  REAL                                 :: Direction(3)
+  REAL                                 :: ScaleFac
+  LOGICAL                              :: Use2DTimeFunc
+  REAL                                 :: StagnationPoint
+  REAL                                 :: TimeScaleFac2DFront
+  REAL                                 :: TimeScaleFac2DBack
+  REAL                                 :: DistributionMaxTimeFactor
+  REAL                                 :: DistributionMinTimeFactor
+  INTEGER                              :: DistributionMinPartNum
+  LOGICAL                              :: AdaptDistribution
+  REAL                                 :: TargetMCSoverMFP
+  REAL                                 :: TargetMaxCollProb
+  REAL                                 :: TargetMaxRelaxFactor
+END TYPE
+TYPE(tVariableTimeStep)                :: VarTimeStep
+
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars
