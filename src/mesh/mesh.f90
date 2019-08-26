@@ -120,7 +120,7 @@ USE MOD_HDF5_Input
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------                                                                                             ! -----------------------------------------------------------------------------------------------------------------------------------
-USE MOD_Mesh_ReadIn            ,ONLY: readMesh
+USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D

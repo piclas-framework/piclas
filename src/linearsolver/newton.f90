@@ -197,43 +197,43 @@ SUBROUTINE FullNewton(t,tStage,coeff)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Globals_Vars,            ONLY:EpsMach
-USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
-#if !(USE_HDG)
-USE MOD_LinearSolver,            ONLY:LinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:FieldStage
-USE MOD_LinearOperator,          ONLY:EvalResidual
-USE MOD_Predictor,               ONLY:Predictor,PredictorType
+USE MOD_Globals_Vars           ,ONLY: EpsMach
+USE MOD_TimeDisc_Vars          ,ONLY: iStage,ESDIRK_a,dt
+#if ! (USE_HDG)
+USE MOD_LinearSolver           ,ONLY: LinearSolver
+USE MOD_LinearSolver_Vars      ,ONLY: FieldStage
+USE MOD_LinearOperator         ,ONLY: EvalResidual
+USE MOD_Predictor              ,ONLY: Predictor,PredictorType
 #else
-USE MOD_HDG,                     ONLY:HDG
-USE MOD_HDG_Vars,                ONLY:EpsCG,useRelativeAbortCrit
+USE MOD_HDG                    ,ONLY: HDG
+USE MOD_HDG_Vars               ,ONLY: EpsCG,useRelativeAbortCrit
 #endif /*USE_HDG*/
-USE MOD_DG_Vars,                 ONLY:U
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver,nDOFGlobalMPI_inv
-USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:FullEisenstatWalker,FullgammaEW,DoPrintConvInfo,Eps_FullNewton,fulletamax
+USE MOD_DG_Vars                ,ONLY: U
+USE MOD_LinearSolver_Vars      ,ONLY: ImplicitSource, eps_LinearSolver,nDOFGlobalMPI_inv
+USE MOD_LinearSolver_Vars      ,ONLY: maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
+USE MOD_LinearSolver_Vars      ,ONLY: FullEisenstatWalker,FullgammaEW,DoPrintConvInfo,Eps_FullNewton,fulletamax
 #ifdef PARTICLES
-USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,DoFieldUpdate,PartNewtonLinTolerance
-USE MOD_LinearSolver_Vars,       ONLY:PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation,AdaptIterRelaxation0
-USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping,TriaTracking
-USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton,UpdateInIter
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit
-USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage
-USE MOD_Particle_Vars,           ONLY:PartState, LastPartPos, DelayTime, PEM, PDM
-USE MOD_Part_RHS,                ONLY:PartVeloToImp
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-USE MOD_Part_MPFtools,           ONLY:StartParticleMerge
-USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
-USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
-USE MOD_PICDepo,                 ONLY:Deposition
-USE MOD_ParticleSolver,          ONLY:ParticleNewton
-USE MOD_part_tools,              ONLY:UpdateNextFreePosition
+USE MOD_LinearSolver_Vars      ,ONLY: DoFullNewton,DoFieldUpdate,PartNewtonLinTolerance
+USE MOD_LinearSolver_Vars      ,ONLY: PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation,AdaptIterRelaxation0
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_LinearSolver_Vars      ,ONLY: Eps2PartNewton,UpdateInIter
+USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
+USE MOD_Particle_Vars          ,ONLY: PartStateN,PartStage
+USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, DelayTime, PEM, PDM
+USE MOD_Part_RHS               ,ONLY: PartVeloToImp
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
+USE MOD_Part_MPFtools          ,ONLY: StartParticleMerge
+USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
+USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_ParticleSolver         ,ONLY: ParticleNewton
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 #if USE_MPI
-USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY:LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/

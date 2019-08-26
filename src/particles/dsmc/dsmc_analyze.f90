@@ -1224,7 +1224,7 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_Globals
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime, LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

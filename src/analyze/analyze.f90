@@ -777,61 +777,61 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
-USE MOD_Analyze_Vars           ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
-USE MOD_Restart_Vars           ,ONLY: DoRestart
-USE MOD_TimeDisc_Vars          ,ONLY: iter,tEnd
-USE MOD_RecordPoints           ,ONLY: RecordPoints
-USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
-USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_AnalyzeField           ,ONLY: AnalyzeField
+USE MOD_Analyze_Vars              ,ONLY: DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
+USE MOD_Analyze_Vars              ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
+USE MOD_Restart_Vars              ,ONLY: DoRestart
+USE MOD_TimeDisc_Vars             ,ONLY: iter,tEnd
+USE MOD_RecordPoints              ,ONLY: RecordPoints
+USE MOD_LoadDistribution          ,ONLY: WriteElemTimeStatistics
+USE MOD_Globals_Vars              ,ONLY: ProjectName
+USE MOD_AnalyzeField              ,ONLY: AnalyzeField
 #ifdef PARTICLES
-USE MOD_Mesh_Vars              ,ONLY: MeshFile
-USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,PartSurfaceModel
-USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
-USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
-USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
-USE MOD_SurfaceModel_Analyze_Vars,ONLY: SurfaceAnalyzeStep
-USE MOD_SurfaceModel_Analyze   ,ONLY: AnalyzeSurface
-USE MOD_DSMC_Vars              ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
-USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution
-USE MOD_Particle_Tracking_vars ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
-USE MOD_LD_Analyze             ,ONLY: LD_data_sampling, LD_output_calc
-USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
-USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
-USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
-#if !defined(LSERK)
-USE MOD_DSMC_Vars              ,ONLY: useDSMC
+USE MOD_Mesh_Vars                 ,ONLY: MeshFile
+USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,PartSurfaceModel
+USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
+USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
+USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfaceAnalyzeStep
+USE MOD_SurfaceModel_Analyze      ,ONLY: AnalyzeSurface
+USE MOD_DSMC_Vars                 ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
+USE MOD_DSMC_Vars                 ,ONLY: DSMC_HOSolution
+USE MOD_Particle_Tracking_vars    ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
+USE MOD_LD_Analyze                ,ONLY: LD_data_sampling, LD_output_calc
+USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep
+USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
+USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
+#if ! defined(LSERK)
+USE MOD_DSMC_Vars                 ,ONLY: useDSMC
 #endif
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
-USE MOD_Particle_Vars          ,ONLY: PartSurfaceModel
-USE MOD_Particle_Boundary_Vars ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall
-USE MOD_DSMC_Analyze           ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
-USE MOD_DSMC_Analyze           ,ONLY: CalcSurfaceValues
+USE MOD_Particle_Vars             ,ONLY: PartSurfaceModel
+USE MOD_Particle_Boundary_Vars    ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh, SampWall
+USE MOD_DSMC_Analyze              ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
+USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 #endif
 #if (PP_TimeDiscMethod!=42) && !defined(LSERK)
-USE MOD_LD_Vars                ,ONLY: useLD
-USE MOD_Particle_Vars          ,ONLY: DelayTime
+USE MOD_LD_Vars                   ,ONLY: useLD
+USE MOD_Particle_Vars             ,ONLY: DelayTime
 #endif /*PP_TimeDiscMethod!=42 && !defined(LSERK)*/
 #endif /*PARTICLES*/
 #if (PP_nVar>=6)
-USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
+USE MOD_AnalyzeField              ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
 #if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
-USE MOD_Analyze_Vars           ,ONLY: DoFieldAnalyze
-USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
+USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
+USE MOD_RecordPoints_Vars         ,ONLY: RP_onProc
 #endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS) || USE_HDG*/
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
-USE MOD_Particle_Analyze       ,ONLY: AnalyticParticleMovement
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
+USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
+USE MOD_Particle_Analyze          ,ONLY: AnalyticParticleMovement
+USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime
+USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition
+USE MOD_PICDepo_Vars              ,ONLY: DoDeposition, RelaxDeposition
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

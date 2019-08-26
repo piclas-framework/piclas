@@ -84,7 +84,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall, PartBound
 USE MOD_TimeDisc_Vars          ,ONLY: tend,time
 USE MOD_Mesh_Vars              ,ONLY: BC
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
 USE MOD_SurfaceModel_Tools     ,ONLY: CalcAdsorbProb, CalcDesorbProb
