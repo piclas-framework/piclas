@@ -383,7 +383,8 @@ CALL FinalizeInterfaces()
 #if USE_QDS_DG
 CALL FinalizeQDS()
 #endif /*USE_QDS_DG*/
-CALL prms%finalize(IsLoadBalance)
+CALL prms%finalize(IsLoadBalance) ! is the same as CALL FinalizeParameters(), but considers load balancing
+CALL FinalizeCommandlineArguments()
 
 CALL FinalizeTimeDisc()
 ! mssing arrays to deallocate
@@ -392,8 +393,6 @@ SDEALLOCATE(RP_Data)
 !Measure simulation duration
 Time=PICLASTIME()
 
-CALL FinalizeParameters()
-CALL FinalizeCommandlineArguments()
 #if USE_MPI
 !! and additional required for restart with load balance
 !ReadInDone=.FALSE.
