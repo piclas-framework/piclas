@@ -34,11 +34,12 @@ SUBROUTINE SplitMerge_main()
 !===================================================================================================================================
 !> Main routine for split and merge particles
 !> Loop over all elements:
-!> 1.) build partindx list
-!> 2.) Call split or merge routine
+!> 1.) build partindx list for cell
+!> 2.) build partindx list for species
+!> 3.) Call split or merge routine
 !===================================================================================================================================
 ! MODULES
-USE MOD_PARTICLE_Vars         ,ONLY: vMPFNewPartNum, PEM
+USE MOD_PARTICLE_Vars         ,ONLY: vMPFNewPartNum, PEM, nSpecies, PartSpecies
 USE MOD_Mesh_Vars             ,ONLY: nElems
 
 ! IMPLICIT VARIABLE HANDLING
@@ -49,24 +50,38 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart
-INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
+INTEGER               :: iElem, iLoop, iPart, nPartCell, iSpec
+INTEGER, ALLOCATABLE  :: iPartIndx_Node(:), nPart(:),iPartIndx_Node_Temp(:,:)
 !===================================================================================================================================
-
+ALLOCATE(nPart(nSpecies))
 DO iElem = 1, nElems
-  nPart = PEM%pNumber(iElem)
-  IF (nPart.LT.vMPFNewPartNum) CYCLE
-! 1.) build partindx list
-  ALLOCATE(iPartIndx_Node(nPart))
+  nPart(:) = 0
+  nPartCell = PEM%pNumber(iElem)
+  ALLOCATE(iPartIndx_Node_Temp(nSpecies,nPartCell))
+  DO iSpec = 1, nSpecies
+    iPartIndx_Node_Temp(iSpec,1:nPartCell) = 0
+  END DO
   iPart = PEM%pStart(iElem)
-  DO iLoop = 1, nPart
-    iPartIndx_Node(iLoop) = iPart
+  ! 1.) build partindx list for cell
+  DO iLoop = 1, nPartCell
+    nPart(PartSpecies(iPart)) = nPart(PartSpecies(iPart)) + 1
+    iPartIndx_Node_Temp(PartSpecies(iPart),iLoop) = iPart
     iPart = PEM%pNext(iPart)
   END DO
-! 2.) Call split or merge routine
-  CALL MergeParticles(iPartIndx_Node, nPart, vMPFNewPartNum)
-  DEALLOCATE(iPartIndx_Node)
+  DO iSpec = 1, nSpecies
+    IF (nPart(iSpec).LT.vMPFNewPartNum) CYCLE
+  ! 2.) build partindx list for species
+    ALLOCATE(iPartIndx_Node(nPart(iSpec)))
+    DO iLoop = 1, nPart(iSpec)
+      iPartIndx_Node(iLoop) = iPartIndx_Node_Temp(iSpec,iLoop)
+    END DO
+  ! 3.) Call split or merge routine
+    CALL MergeParticles(iPartIndx_Node, nPart(iSpec), vMPFNewPartNum)
+    DEALLOCATE(iPartIndx_Node)
+  END DO
+  DEALLOCATE(iPartIndx_Node_Temp)
 END DO
+DEALLOCATE(nPart)
 
 END SUBROUTINE SplitMerge_main
 
