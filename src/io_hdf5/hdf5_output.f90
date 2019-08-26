@@ -1296,10 +1296,10 @@ LOGICAL                        :: doDistributionData
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 IF(.NOT.(ANY(PartBound%Reactive))) RETURN
 
-#if USE_MPI
-CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
 ! only pocs with real surfaces (not halo) in own proc write out
 IF(SurfMesh%nMasterSides.EQ.0) RETURN
+#if USE_MPI
+CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
 #endif /*USE_MPI*/
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
@@ -1485,8 +1485,7 @@ DO iSurfSide = 1,SurfMesh%nMasterSides
             nSites = SurfDistInfo(isubsurf,jsubsurf,iSurfSide)%nSites(iCoord)
             nSitesRemain = SurfDistInfo(isubsurf,jsubsurf,iSurfSide)%SitesRemain(iCoord)
             ! set surfpartint array values
-            SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,1) = &
-                SurfDistInfo(isubsurf,jsubsurf,iSurfSide)%nSites(iCoord)
+            SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,1) = nSites
             SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,2) = iOffset
             SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,3) = iOffset + (nSites - nSitesRemain)
             ! set the surfpartdata array values
