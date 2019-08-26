@@ -256,8 +256,9 @@ SUBROUTINE FinalizePiclas(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Commandline_Arguments      ,ONLY: FinalizeCommandlineArguments
 USE MOD_Globals
-USE MOD_ReadInTools                ,ONLY: prms
+USE MOD_ReadInTools                ,ONLY: prms,FinalizeParameters
 USE MOD_Restart                    ,ONLY: FinalizeRestart
 USE MOD_Interpolation              ,ONLY: FinalizeInterpolation
 USE MOD_Mesh                       ,ONLY: FinalizeMesh
@@ -391,6 +392,8 @@ SDEALLOCATE(RP_Data)
 !Measure simulation duration
 Time=PICLASTIME()
 
+CALL FinalizeParameters()
+CALL FinalizeCommandlineArguments()
 #if USE_MPI
 !! and additional required for restart with load balance
 !ReadInDone=.FALSE.
