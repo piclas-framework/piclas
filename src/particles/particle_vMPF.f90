@@ -65,7 +65,7 @@ DO iElem = 1, nElems
   ! 1.) build partindx list for cell
   DO iLoop = 1, nPartCell
     nPart(PartSpecies(iPart)) = nPart(PartSpecies(iPart)) + 1
-    iPartIndx_Node_Temp(PartSpecies(iPart),iLoop) = iPart
+    iPartIndx_Node_Temp(PartSpecies(iPart),nPart(PartSpecies(iPart))) = iPart
     iPart = PEM%pNext(iPart)
   END DO
   DO iSpec = 1, nSpecies
