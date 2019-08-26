@@ -101,12 +101,11 @@ USE MOD_Visu_Vars
 USE MOD_IO_HDF5            ,ONLY: HSize
 USE MOD_HDF5_Input         ,ONLY: File_ID,GetVarNames
 USE MOD_HDF5_Input         ,ONLY: OpenDataFile,ReadArray,CloseDataFile,DatasetExists,ReadAttribute,GetDataSize
-USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,nBCSides,ElemToSide
+USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem
 USE MOD_StringTools        ,ONLY: STRICMP,split_string
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D,ChangeBasis2D
 USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVisu
-USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus
 !USE MOD_ProlongToFace      ,ONLY: EvalElemFace
 !USE MOD_Mappings           ,ONLY: buildMappings
 IMPLICIT NONE
@@ -116,9 +115,8 @@ INTEGER,INTENT(IN)           :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(IN)  :: statefile   !< HDF5 state file
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iVarVisu,iElem_DG,iElem,iVarDataset,iVar,iVar2,ii,jj
-INTEGER                        :: substring_count,nDims,nVal,nSize,nSizeZ,p,q
-INTEGER                        :: iSide,iSide_DG,locSide
+INTEGER                        :: iVarVisu,iElem_DG,iElem,iVarDataset,iVar,iVar2
+INTEGER                        :: substring_count,nDims,nVal,nSize,nSizeZ
 CHARACTER(LEN=255)             :: substrings(2),DatasetName,VariableName,DataSetOld
 LOGICAL                        :: datasetFound,varnamesExist,datasetChanged
 REAL,ALLOCATABLE               :: ElemData(:,:),FieldData(:,:,:,:,:)
@@ -126,8 +124,6 @@ REAL,ALLOCATABLE               :: Vdm_DG_Visu(:,:)
 REAL,ALLOCATABLE               :: Uface_tmp(:,:,:),Uface(:,:)
 CHARACTER(LEN=255),ALLOCATABLE :: DatasetVarNames(:)
 INTEGER,ALLOCATABLE            :: S2V2(:,:,:,:,:)
-REAL,ALLOCATABLE               :: FieldData_DG(:,:,:,:,:)
-REAL,ALLOCATABLE               :: FVdouble(:,:)
 !===================================================================================================================================
 SWRITE(*,*) "Convert generic datasets to Visu grid"
 ! Open HDF5 file

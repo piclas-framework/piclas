@@ -61,7 +61,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER             :: iVar,iVar2
 CHARACTER(LEN=255)  :: VarName
-CHARACTER(LEN=255)  :: BoundaryName
+!CHARACTER(LEN=255)  :: BoundaryName
 CHARACTER(LEN=20)   :: format
 !===================================================================================================================================
 ! Read Varnames from parameter file and fill

@@ -51,13 +51,12 @@ USE MOD_Interpolation_Vars ,ONLY: NodeTypeVisu,NodeType
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Mesh_Vars          ,ONLY: nElems,Elem_xGP
+USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: iElem, iElem_DG
 REAL,ALLOCATABLE   :: Vdm_N_NVisu(:,:)
-INTEGER            :: iElemAvg,ii,jj,kk
 !===================================================================================================================================
 ! Convert coordinates to visu grid
 SWRITE (*,*) "[MESH] Convert coordinates to visu grid (DG)"
