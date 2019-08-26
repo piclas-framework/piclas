@@ -368,7 +368,7 @@ DO iSurfSide=1,SurfMesh%nMasterSides
         DO iAdsSampl=1, nAdsSamples
           ! Note: the if-statement is required to prevent the output of "-0" in the .h5 file!
           IF(ABS(SampWall(iSurfSide)%SurfModelState(iAdssampl,p,q)).GT.0.0)THEN
-            MacroSurfaceVal(nVarCount+iAdsSampl,p,q,iSurfSide) = (SampWall(iSurfSide)%SurfModelState(iAdssampl,p,q))&
+            MacroSurfaceVal(nVarCount+iAdsSampl,p,q,iSurfSide) = (-SampWall(iSurfSide)%SurfModelState(iAdssampl,p,q))&
                                              /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSampleTemp)
           END IF ! ABS(SampWall(iSurfSide)%SurfModelState(iAdssampl,p,q)).GT.0.0
         END DO
