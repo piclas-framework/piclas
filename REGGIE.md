@@ -62,6 +62,8 @@ Overview of the test cases performed during the nightly regression testing.
 | -       | [NIG_PIC_poisson_RK3](#nig_pic_poisson_rk3)        | poisson, PIC, RK3                               |                                                       |                                             |                                  |                                                                                                         |
 | -       | [NIG_PIC_maxwell_RK4](#nig_pic_maxwell_rk4)        | maxwell, PIC, RK4                               |                                                       |                                             |                                  |                                                                                                         |
 | -       | [NIG_maxwell_RK4](#nig_maxwell_rk4)                | maxwell, RK4, Particles=OFF                     |                                                       |                                             |                                  |                                                                                                         |
+| -       | [NIG_Surfacemodel](#nig_surfacemodel)              | maxwell, RESERVOIR, Particles=ON                | Surface model tests                                   |                                             |                                  |                                                                                                         |
+| -       | [NIG_LoadBalance](#nig_loadbalance)                | maxwell, DSMC, Particles=ON                     | Loadbalance                                           |                                             |                                  |                                                                                                         |
 |  1      | NIG_PIC_maxwell_bgfield                            | maxwell,PIC,RK4                                 | External Background-field,h5                          | nProcs=2                                    | DG_Solution                      |                                                                                                         |
 |  2      | NIG_poisson_powerdensity                           | Poisson, Crank-Nicolson                         | Implicit, CalcTimeAvg                                 | DoRefMapping=T/F, nProcs=2                  | Final TimeAvg, h5diff            |                                                                                                         |
 |  3      | feature_emission_gyrotron                          | maxwell,RK4                                     | Part-Inflow,TimeDep                                   | N=1,3,6,9,10, nProcs=1,2,10,25, gyro-circle | LineIntegration of nPartIn       |                                                                                                         |
@@ -187,6 +189,26 @@ Testing the field solver (without compiling particle related routines) with Rung
 | 1       | dipole_cylinder_PML |                  |             | nProcs=1,4        | L2 error, DG_Solution    |                                                                          |
 | 2       | ExactFlux_PML       |                  |             | nProcs=1,4,8      | L2 error, FieldAnalyze   |                                                                          |
 | 3       | MortarPlaneWave     |                  | Mortars     | nProcs=1,2,5,7,12 | DG_Solution,FieldAnalyze | [Link](regressioncheck/checks/NIG_maxwell_RK4/MortarPlaneWave/readme.md) |
+
+#### NIG_SurfaceModel
+
+Testing the surface models with RESERVOIR timedisc: [Link to build](regressioncheck/checks/NIG_SurfaceModel/builds.ini).
+
+| **No.** | **Case**            | **CMAKE-CONFIG** |        **Feature**        | **Execution**                 | **Comparing**     | **Readme**                                                               |
+| :-----: | :-----------------: | :--------------: | :-----------------------: | :---------------------------: | :-------------:   | :--------:                                                               |
+| 1       | AdsorbHeat          |                  | surfacemodel=3            | nProcs=1, LateralInactive=T,F | SurfaceAnalyze    | [Link](regressioncheck/checks/NIG_SurfaceModel/AdsorbHeat/readme.md)     |
+| 2       | TPD_reggie          |                  | surfacemodel=3            | nProcs=1                      | SurfaceAnalyze    | [Link](regressioncheck/checks/NIG_SurfaceModel/TPD_reggies/readme.md)    |
+
+#### NIG_LoadBalance
+
+Testing the LoadBalance feature with different timediscs: [Link to build](regressioncheck/checks/NIG_LoadBalance/builds.ini).
+
+| **No.** | **Case**                        | **CMAKE-CONFIG** |        **Feature**                                  | **Execution**                                                                                                                 | **Comparing**     | **Readme**                                                               |
+| :-----: | :-----------------:             | :--------------: | :-----------------------:                           | :---------------------------:                                                                                                 | :-------------:   | :--------:                                                               |
+| 1       | sphere_soft_DSMC                |                  |                                                     |                                                                                                                               |                   |                                                                          |
+| 1       | sphere_soft_RK4_with_DSMC       |                  |                                                     |                                                                                                                               |                   |                                                                          |
+| 1       | sphere_soft_RK4_without_DSMC    |                  |                                                     |                                                                                                                               |                   |                                                                          |
+| 1       | SurfaceModel                    |                  | LoadBalance with surfacemodels 0, 2 and 3 with DSMC | nProcs=4, DoLoadBalance=T,F ,PartWeightLoadBalance=F,T ,DoInitialAutRestart=T,T ,InitialAutoRestart-PartWeightLoadBalance=F,F |                   | [Link](regressioncheck/checks/NIG_LoadBalance/SurfaceModel/readme.md)    |
 
 ## Weekly
 
