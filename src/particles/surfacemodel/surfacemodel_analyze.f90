@@ -577,19 +577,21 @@ IF (doDistributionData) THEN
 END IF
 #endif
 ! ResetAllInfo
-DO iSpec = 1,nSpecies
-  SurfModel%Info(iSpec)%WallCollCount = 0
-  SurfModel%Info(iSpec)%NumOfAds = 0
-  SurfModel%Info(iSpec)%NumOfDes = 0
-  SurfModel%Info(iSpec)%MeanProbAds = 0.
-  SurfModel%Info(iSpec)%MeanProbAdsCount = 0
-  SurfModel%Info(iSpec)%MeanProbDes = 0.
-  SurfModel%Info(iSpec)%MeanProbDesCount = 0
+IF (ALLOCATED(SurfModel%Info)) THEN
+  DO iSpec = 1,nSpecies
+    SurfModel%Info(iSpec)%WallCollCount = 0
+    SurfModel%Info(iSpec)%NumOfAds = 0
+    SurfModel%Info(iSpec)%NumOfDes = 0
+    SurfModel%Info(iSpec)%MeanProbAds = 0.
+    SurfModel%Info(iSpec)%MeanProbAdsCount = 0
+    SurfModel%Info(iSpec)%MeanProbDes = 0.
+    SurfModel%Info(iSpec)%MeanProbDesCount = 0
 #if (PP_TimeDiscMethod==42)
-  SurfModel%Info(iSpec)%WallSpecNumCount = 0
-  SurfModel%Info(iSpec)%Accomodation = 0.
+    SurfModel%Info(iSpec)%WallSpecNumCount = 0
+    SurfModel%Info(iSpec)%Accomodation = 0.
 #endif
-END DO
+  END DO
+END IF
 !===================================================================================================================================
 ! Output Analyzed variables
 !===================================================================================================================================
