@@ -613,7 +613,7 @@ CASE(3) ! reactive interaction case
     oldVelo(1:3) = PartState(PartID,4:6)
     IF(TRIM(velocityDistribution(1)).NE.'') THEN
       ! sample new velocity for reflected particle
-      NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(1),SpecID,TempErgy(1))
+      NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(1),ProductSpec(1),TempErgy(1))
       ! important: n_loc points outwards
       PartState(PartID,4:6) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
@@ -686,7 +686,7 @@ CASE(3) ! reactive interaction case
       SurfModel%Info(ProductSpec(2))%NumOfDes = SurfModel%Info(ProductSpec(2))%NumOfDes + 1
       ! create new particle and assign correct energies
       ! sample newly created velocity
-      NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),SpecID,TempErgy(2))
+      NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),ProductSpec(2),TempErgy(2))
       ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
       NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
@@ -694,7 +694,7 @@ CASE(3) ! reactive interaction case
 
       CALL CreateParticle(ProductSpec(2),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
       ! Adding the energy that is transferred from the surface onto the internal energies of the particle
-      CALL SurfaceToPartEnergyInternal(PartID,WallTemp)
+      CALL SurfaceToPartEnergyInternal(NewPartID,WallTemp)
 
       CALL AddPartInfoToSample(NewPartID,TransArray,IntArray,'new')
       CALL CalcWallSample(NewPartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap,emission_opt=.TRUE.)
