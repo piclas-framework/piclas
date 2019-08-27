@@ -1421,12 +1421,12 @@ SDEALLOCATE(SurfCalcData)
 ! next stuff is only relevant if surfacemodel=3 is used
 doDistributionData=.FALSE.
 DO iPB=1,nPartBound
-  IF (PartBound%SurfaceModel(PartboundID).EQ.3) THEN
+  IF (PartBound%SurfaceModel(iPB).EQ.3) THEN
     doDistributionData=.TRUE.
     EXIT
   END IF
 END DO
-!IF (.NOT.doDistributionData) RETURN
+IF (.NOT.doDistributionData) RETURN
 
 ! save number and positions of binded particles for all coordinations
 Coordinations    = 3
@@ -1477,34 +1477,32 @@ iOffset = offsetnSurfPart
 DO iSurfSide = 1,SurfMesh%nMasterSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
-  IF (PartBound%Reactive(PartboundID)) THEN
-    DO jsubsurf = 1,nSurfSample
-      DO isubsurf = 1,nSurfSample
-        DO iCoord = 1,Coordinations
-          IF (PartBound%SurfaceModel(PartboundID).EQ.3) THEN
-            nSites = SurfDistInfo(isubsurf,jsubsurf,iSurfSide)%nSites(iCoord)
-            nSitesRemain = SurfDistInfo(isubsurf,jsubsurf,iSurfSide)%SitesRemain(iCoord)
-            ! set surfpartint array values
-            SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,1) = nSites
-            SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,2) = iOffset
-            SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,3) = iOffset + (nSites - nSitesRemain)
-            ! set the surfpartdata array values
-            DO iPart = 1, (nSites - nSitesRemain)
-              UsedSiteMapPos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(nSites+1-iPart)
-              SurfPartData(iOffset+iPart,1) = UsedSiteMapPos
-              SurfPartData(iOffset+iPart,2) = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos)
-            END DO
-            iOffset = iOffset + nSites - nSitesRemain
-          ELSE
-            ! set blank surfpartint array values for other surfacemodel
-            SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,1) = 0
-            SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,2) = 0
-            SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,3) = 0
-          END IF
-        END DO
+  DO jsubsurf = 1,nSurfSample
+    DO isubsurf = 1,nSurfSample
+      DO iCoord = 1,Coordinations
+        IF (PartBound%SurfaceModel(PartboundID).EQ.3) THEN
+          nSites = SurfDistInfo(isubsurf,jsubsurf,iSurfSide)%nSites(iCoord)
+          nSitesRemain = SurfDistInfo(isubsurf,jsubsurf,iSurfSide)%SitesRemain(iCoord)
+          ! set surfpartint array values
+          SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,1) = nSites
+          SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,2) = iOffset
+          SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,3) = iOffset + (nSites - nSitesRemain)
+          ! set the surfpartdata array values
+          DO iPart = 1, (nSites - nSitesRemain)
+            UsedSiteMapPos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(nSites+1-iPart)
+            SurfPartData(iOffset+iPart,1) = UsedSiteMapPos
+            SurfPartData(iOffset+iPart,2) = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos)
+          END DO
+          iOffset = iOffset + nSites - nSitesRemain
+        ELSE
+          ! set blank surfpartint array values for other surfacemodel
+          SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,1) = 0
+          SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,2) = iOffset
+          SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,3) = iOffset
+        END IF
       END DO
     END DO
-  END IF
+  END DO
 END DO
 
 ! set names and write attributes in hdf5 files
@@ -1538,26 +1536,6 @@ END IF
 CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
 #endif
 
-! write array with data into state file
-!#if USE_MPI
-!  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-!                          DataSetName='SurfPartInt', rank=5,&
-!                          nValGlobal=(/SurfMesh%nGlobalSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&
-!                          nVal=      (/SurfMesh%nMasterSides      ,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&
-!                          offset=    (/offsetSurfSide       ,0          ,0          ,0            ,0              /),&
-!                          collective=.TRUE.,IntegerArray=SurfPartInt(:,:,:,:,:))
-!
-!  CALL DistributedWriteArray(FileName,&
-!                             DataSetName='SurfPartData', rank=2              ,&
-!                             nValGlobal=(/nSurfPart_glob ,SurfPartDataSize/) ,&
-!                             nVal=      (/locnSurfPart   ,SurfPartDataSize/) ,&
-!                             offset=    (/offsetnSurfPart,0               /) ,&
-!                             collective=.FALSE.,offSetDim=1                   ,&
-!                             communicator=SurfCOMM%OutputCOMM,IntegerArray=SurfPartData(:,:))
-!#else
-CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
-!CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       Coordinations    => INT(Coordinations,IK)        ,&
@@ -1565,29 +1543,43 @@ ASSOCIATE (&
       nSurfSample      => INT(nSurfSample,IK)          ,&
       nGlobalSides     => INT(SurfMesh%nGlobalSides,IK),&
       nSides           => INT(SurfMesh%nMasterSides,IK),&
-      offsetSurfSide   => INT(offsetSurfSide,IK)       ,&
-      nSurfPart_glob   => INT(nSurfPart_glob,IK)       ,&
-      locnSurfPart     => INT(locnSurfPart,IK)         ,&
-      offsetnSurfPart  => INT(offsetnSurfPart,IK)      ,&
-      SurfPartDataSize => INT(SurfPartDataSize,IK) )
+      offsetSurfSide   => INT(offsetSurfSide,IK))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
   CALL WriteArrayToHDF5(DataSetName = 'SurfPartInt'    , rank = 5                                                      , &
                         nValGlobal  = (/nGlobalSides   , nSurfSample , nSurfSample , Coordinations , SurfPartIntSize/) , &
                         nVal        = (/nSides         , nSurfSample , nSurfSample , Coordinations , SurfPartIntSize/) , &
                         offset      = (/offsetSurfSide , 0_IK        , 0_IK        , 0_IK          , 0_IK           /) , &
                         collective  = .TRUE.                  , IntegerArray_i4 = SurfPartInt(:,:,:,:,:))
+  CALL CloseDataFile()
+END ASSOCIATE
+
+ASSOCIATE (&
+      nSurfPart_glob   => INT(nSurfPart_glob,IK)       ,&
+      locnSurfPart     => INT(locnSurfPart,IK)         ,&
+      offsetnSurfPart  => INT(offsetnSurfPart,IK)      ,&
+      SurfPartDataSize => INT(SurfPartDataSize,IK) )
+#if USE_MPI
+  CALL DistributedWriteArray(FileName                                              , &
+                             DataSetName  = 'SurfPartData'    , rank = 2           , &
+                             nValGlobal   = (/nSurfPart_glob  , SurfPartDataSize/) , &
+                             nVal         = (/locnSurfPart    , SurfPartDataSize/) , &
+                             offset       = (/offsetnSurfPart , 0_IK/)             , &
+                             collective   = .FALSE.       , offSetDim = 1          , &
+                             communicator = SurfCOMM%OutputCOMM  , IntegerArray_i4 = SurfPartData(:,:))
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
   CALL WriteArrayToHDF5(DataSetName = 'SurfPartData'    , rank = 2                          , &
                         nValGlobal  = (/nSurfPart_glob  , SurfPartDataSize/)                , &
                         nVal        = (/locnSurfPart    , SurfPartDataSize/)                , &
                         offset      = (/offsetnSurfPart , 0_IK            /)                , &
                         collective  = .TRUE.            , IntegerArray_i4 = SurfPartData(: , :))
+  CALL CloseDataFile()
+#endif
 END ASSOCIATE
-CALL CloseDataFile()
 SDEALLOCATE(StrVarNames)
 SDEALLOCATE(StrVarNamesData)
 SDEALLOCATE(SurfPartInt)
 SDEALLOCATE(SurfPartData)
-
-
 
 END SUBROUTINE WriteSurfStateToHDF5
 
