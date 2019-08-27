@@ -197,6 +197,7 @@ Adsorption%CollSpecPartNum(subsurfxi,subsurfeta,SurfID,SpecID) = Adsorption%Coll
     RETURN
   END IF
 !END IF
+adsorption_case = 2
 
 !! if no trapping return and perform elastic reflection
 !CALL RANDOM_NUMBER(RanNum)
