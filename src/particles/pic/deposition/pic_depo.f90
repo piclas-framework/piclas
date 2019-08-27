@@ -1354,7 +1354,7 @@ USE MOD_Particle_MPI           ,ONLY: AddHaloNodeData
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: nDeposPerElem
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg,LBElemSplitTime_avg
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg,LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
 #if ((USE_HDG) && (PP_nVar==1))
 USE MOD_TimeDisc_Vars          ,ONLY: dt,tAnalyzeDiff,tEndDiff
@@ -2182,9 +2182,9 @@ CASE('shape_function_1d')
                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
                 IF(ElemID.GT.nElems) CYCLE
                 IF (.NOT.chargedone(ElemID)) THEN
-#if USE_MPI
+#if USE_LOADBALANCE
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
                   !--- go through all gauss points
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -2334,9 +2334,9 @@ CASE('shape_function_2d')
               ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
               IF(ElemID.GT.nElems) CYCLE
               IF (.NOT.chargedone(ElemID)) THEN
-#if USE_MPI
+#if USE_LOADBALANCE
                 nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
                 ! Check whether the SF particle has to be locally deposited (set DepoLoc=T/F)
                 CALL DepoSFParticleLocally(DepoLoc,ElemID,iPart)
 
@@ -2473,9 +2473,9 @@ CASE('shape_function_2d')
                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
                 IF(ElemID.GT.nElems) CYCLE
                 IF (.NOT.chargedone(ElemID)) THEN
-#if USE_MPI
+#if USE_LOADBALANCE
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
                   !--- go through all gauss points
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -2591,9 +2591,9 @@ CASE('shape_function_cylindrical','shape_function_spherical')
               ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
               IF(ElemID.GT.nElems) CYCLE
               IF (.NOT.chargedone(ElemID)) THEN
-#if USE_MPI
+#if USE_LOADBALANCE
                 nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
                 !--- go through all gauss points
                 !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                 DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -2687,9 +2687,9 @@ CASE('shape_function_cylindrical','shape_function_spherical')
                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
                 IF(ElemID.GT.nElems) CYCLE
                 IF (.NOT.chargedone(ElemID)) THEN
-#if USE_MPI
+#if USE_LOADBALANCE
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
                   !--- go through all gauss points
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -4316,9 +4316,9 @@ USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_s
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 USE MOD_PreProc,                ONLY:PP_N
-#if USE_MPI
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
-#endif  /*USE_MPI*/
+#endif  /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4368,9 +4368,9 @@ DO kk = kmin,kmax
         ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
         IF(ElemID.GT.nElems) CYCLE
         IF (.NOT.chargedone(ElemID)) THEN
-#if USE_MPI
+#if USE_LOADBALANCE
           nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
           !--- go through all gauss points
           DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
             !-- calculate distance between gauss and particle
@@ -4427,9 +4427,9 @@ USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, ElemRadius2_sf, PartSourceConst
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
 USE MOD_PreProc,                ONLY:PP_N, PP_nElems
-#if USE_MPI
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
-#endif  /*USE_MPI*/
+#endif  /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4463,9 +4463,9 @@ DO ElemID=1,PP_nElems
   IF(dZ.GT.r_sf+ElemRadiusNGeo(ElemID)) CYCLE
   radius2 = dX*dX+dY*dY+dZ*dZ
   IF(radius2.GT.ElemRadius2_sf(ElemID)) CYCLE
-#if USE_MPI
+#if USE_LOADBALANCE
   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
     !-- calculate distance between gauss and particle
     dX = ABS(Position(1) - ElemDepo_xGP(1,k,l,m,ElemID))

@@ -112,7 +112,7 @@ USE MOD_HDF5_Input
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------                                                                                             ! -----------------------------------------------------------------------------------------------------------------------------------
-USE MOD_Mesh_ReadIn            ,ONLY: readMesh
+USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
@@ -845,15 +845,7 @@ IF(RadialWeighting%DoRadialWeighting) THEN
 ELSE
   usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
 END IF
-IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-  ALLOCATE(GEO%DeltaEvMPF(nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-,'ERROR in InitParticleGeometry: Cannot allocate GEO%DeltaEvMPF!')
-  END IF
-  GEO%DeltaEvMPF(:) = 0.0
-END IF
+
 #endif /* PARTICLES */
 
 ! Calculate element volumes and characteristic lengths
