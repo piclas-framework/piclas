@@ -5051,7 +5051,6 @@ USE MOD_Timedisc_Vars           ,ONLY: iStage,nRKStages
 USE MOD_LD_Init                 ,ONLY: CalcDegreeOfFreedom
 USE MOD_LD_Vars
 #endif
-USE MOD_Mesh_Vars               ,ONLY: BC
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
