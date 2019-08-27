@@ -1184,6 +1184,7 @@ SUBROUTINE ParticleRefTracking()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
+USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,LastPartPos,PartSpecies
 USE MOD_Mesh_Vars              ,ONLY: OffSetElem,useCurveds,NGeo,ElemBaryNGeo
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
