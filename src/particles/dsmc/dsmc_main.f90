@@ -80,8 +80,8 @@ SUBROUTINE DSMC_main(DoElement)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER           :: iElem, nPart, nPair, iPair
-  REAL              :: iRan
+  INTEGER           :: iElem, nPart, nPair, iPair, iSpec
+  REAL              :: iRan, MeanProb, MaxProb, PartNum
 #if (PP_TimeDiscMethod!=1001)
   INTEGER           :: nOutput
 #endif
@@ -111,6 +111,14 @@ SUBROUTINE DSMC_main(DoElement)
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
       DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
+      IF(CollisMode.GE.2) THEN
+        IF(DSMC%RotRelaxProb.EQ.2) THEN
+          DSMC%CalcRotProb = 0.
+        END IF
+        IF(DSMC%VibRelaxProb.EQ.2) THEN
+          DSMC%CalcVibProb = 0.
+        END IF
+      END IF
     END IF
     IF (CollisMode.NE.0) THEN
       ChemReac%nPairForRec = 0
@@ -179,6 +187,50 @@ SUBROUTINE DSMC_main(DoElement)
             IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
             ! Counting sample size
             DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
+            ! Sample rotation relaxation probability
+            IF(DSMC%RotRelaxProb.EQ.2) THEN
+              MeanProb = 0
+              MaxProb = 0
+              PartNum = 0.
+              DO iSpec=1,nSpecies
+                IF(DSMC%CalcRotProb(iSpec,3).GT.0) THEN
+                  DSMC%QualityFacSampRot(iElem,iSpec,2) = DSMC%QualityFacSampRot(iElem,iSpec,2) + DSMC%CalcRotProb(iSpec,2)
+                  DSMC%QualityFacSampRot(iElem,iSpec,1) = DSMC%QualityFacSampRot(iElem,iSpec,1) &
+                                                        + DSMC%CalcRotProb(iSpec,1) / DSMC%CalcRotProb(iSpec,3)
+                  DSMC%QualityFacSampRotSamp(iElem,iSpec) = DSMC%QualityFacSampRotSamp(iElem,iSpec) + 1
+                  MaxProb = MAX(MaxProb,DSMC%CalcRotProb(iSpec,2))
+                  MeanProb = MeanProb + DSMC%CalcRotProb(iSpec,1) * DSMC%CalcRotProb(iSpec,3)
+                  PartNum = PartNum + DSMC%CalcRotProb(iSpec,3)
+                END IF
+              END DO
+              IF((nSpecies.GT.1).AND.(PartNum.GT.0)) THEN
+                DSMC%QualityFacSampRot(iElem,nSpecies+1,2) = DSMC%QualityFacSampRot(iElem,nSpecies+1,2) + MaxProb
+                DSMC%QualityFacSampRot(iElem,nSpecies+1,1) = DSMC%QualityFacSampRot(iElem,nSpecies+1,1) + MeanProb / PartNum
+                DSMC%QualityFacSampRotSamp(iElem,nSpecies+1) = DSMC%QualityFacSampRotSamp(iElem,nSpecies+1) + 1
+              END IF
+            END IF
+            ! Sample vibration relaxation probability
+            IF(DSMC%VibRelaxProb.EQ.2) THEN
+              MeanProb = 0
+              MaxProb = 0
+              PartNum = 0
+              DO iSpec=1,nSpecies
+                IF(DSMC%CalcVibProb(iSpec,3).GT.0) THEN
+                  DSMC%QualityFacSampVib(iElem,iSpec,2) = DSMC%QualityFacSampVib(iElem,iSpec,2) + DSMC%CalcVibProb(iSpec,2)
+                  DSMC%QualityFacSampVib(iElem,iSpec,1) = DSMC%QualityFacSampVib(iElem,iSpec,1) &
+                                                        + DSMC%CalcVibProb(iSpec,1) / DSMC%CalcVibProb(iSpec,3)
+                  DSMC%QualityFacSampVibSamp(iElem,iSpec) = DSMC%QualityFacSampVibSamp(iElem,iSpec) + 1
+                  MaxProb = MAX(MaxProb,DSMC%CalcVibProb(iSpec,2))
+                  MeanProb = MeanProb + DSMC%CalcVibProb(iSpec,1) * DSMC%CalcVibProb(iSpec,3)
+                  PartNum = PartNum + DSMC%CalcVibProb(iSpec,3)
+                END IF
+              END DO
+              IF((nSpecies.GT.1).AND.(PartNum.GT.0)) THEN
+                DSMC%QualityFacSampVib(iElem,nSpecies+1,2) = DSMC%QualityFacSampVib(iElem,nSpecies+1,2) + MaxProb
+                DSMC%QualityFacSampVib(iElem,nSpecies+1,1) = DSMC%QualityFacSampVib(iElem,nSpecies+1,1) + MeanProb / PartNum
+                DSMC%QualityFacSampVibSamp(iElem,nSpecies+1) = DSMC%QualityFacSampVibSamp(iElem,nSpecies+1) + 1
+              END IF
+            END IF
         END IF
       END IF
     END IF  ! --- CollisMode.NE.0

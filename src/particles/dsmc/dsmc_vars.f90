@@ -210,6 +210,14 @@ TYPE tDSMC
   REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
   REAL                          :: CollProbMean             ! Summation of collision probability
   REAL                          :: CollProbMax              ! Maximal collision probability per cell
+  REAL, ALLOCATABLE             :: CalcRotProb(:,:)         ! Summation of rotation relaxation probability (nSpecies + 1,3)
+                                                            !     1: Mean Prob
+                                                            !     2: Max Prob
+                                                            !     3: Sample size
+  REAL, ALLOCATABLE             :: CalcVibProb(:,:)         ! Summation of vibration relaxation probability (nSpecies + 1,3)
+                                                            !     1: Mean Prob
+                                                            !     2: Max Prob
+                                                            !     3: Sample size
   REAL                          :: MeanFreePath
   REAL                          :: MCSoverMFP               ! Subcell local mean collision distance over mean free path
   INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
@@ -220,6 +228,16 @@ TYPE tDSMC
                                                             !     1: Maximal collision prob
                                                             !     2: Time-averaged mean collision prob
                                                             !     3: Mean collision separation distance over mean free path
+                                                            !     4: Sample size
+  REAL, ALLOCATABLE             :: QualityFacSampRot(:,:,:) ! Sampling of quality rot relax factors (nElem,nSpec+1,2)
+                                                            !     1: Time-averaged mean rot relax prob
+                                                            !     2: Maximal rot relax prob
+  INTEGER, ALLOCATABLE          :: QualityFacSampRotSamp(:,:)!Sample size for QualityFacSampRot
+  REAL, ALLOCATABLE             :: QualityFacSampVib(:,:,:) ! Sampling of quality vib relax factors (nElem,nSpec+1,2)
+                                                            !     1: Instantanious time-averaged mean vib relax prob
+                                                            !     2: Instantanious maximal vib relax prob
+  INTEGER, ALLOCATABLE          :: QualityFacSampVibSamp(:,:)!Sample size for QualityFacSampVib
+  REAL, ALLOCATABLE             :: QualityFacSampRelaxSize(:,:)! Samplie size of quality relax factors (nElem,nSpec+1)
   LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules

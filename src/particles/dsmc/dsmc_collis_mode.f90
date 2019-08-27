@@ -380,6 +380,12 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,2) * GetParticleWeight(iPart1)
       Xi = Xi + SpecDSMC(iSpec1)%Xi_Rot
     END IF
+    IF(DSMC%CalcQualityFactors.AND.(DSMC%RotRelaxProb.GE.2)) THEN
+      DSMC%CalcRotProb(iSpec1,2) = MAX(DSMC%CalcRotProb(iSpec1,2),ProbRot1)
+      DSMC%CalcRotProb(iSpec1,1) = DSMC%CalcRotProb(iSpec1,1) + ProbRot1
+      DSMC%CalcRotProb(iSpec1,3) = DSMC%CalcRotProb(iSpec1,3) + 1
+    END IF
+  
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_vib(iSpec1, Xi_rel, iElem, ProbVib1)
     IF(ProbVib1.GT.iRan) DoVib1 = .TRUE.
@@ -401,6 +407,11 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,2) * GetParticleWeight(iPart2)
       Xi = Xi + SpecDSMC(iSpec2)%Xi_Rot
     END IF
+    IF(DSMC%CalcQualityFactors.AND.(DSMC%RotRelaxProb.GE.2)) THEN
+      DSMC%CalcRotProb(iSpec2,2) = MAX(DSMC%CalcRotProb(iSpec2,2),ProbRot2)
+      DSMC%CalcRotProb(iSpec2,1) = DSMC%CalcRotProb(iSpec2,1) + ProbRot2
+      DSMC%CalcRotProb(iSpec2,3) = DSMC%CalcRotProb(iSpec2,3) + 1
+    END IF
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_vib(iSpec2, Xi_rel, iElem, ProbVib2)
     IF(ProbVib2.GT.iRan) DoVib2 = .TRUE.
@@ -415,6 +426,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   END IF
 
   FakXi = 0.5*Xi  - 1  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
+
 
 !--------------------------------------------------------------------------------------------------!
 ! Electronic Relaxation / Transition
@@ -2845,7 +2857,7 @@ REAL, INTENT(OUT)         :: ProbVib
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                      :: CorrFact       ! CorrFact: To correct sample Bias 
-                                                                      ! (fewer DSMC particles than natural ones)
+                                            ! (fewer DSMC particles than natural ones)
 INTEGER                   :: iPolyatMole, iDOF
 !===================================================================================================================================
 
@@ -2867,7 +2879,7 @@ INTEGER                   :: iPolyatMole, iDOF
                                                    * (1. + PolyatomMolDSMC(iPolyatMole)%GammaVib(1)/Xi_rel)
       DO iDOF = 2, PolyatomMolDSMC(iPolyatMole)%VibDOF
         PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(iDOF) = PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(iDOF - 1)   &
-                                                   + DSMC%VibRelaxProb * (1. + PolyatomMolDSMC(iPolyatMole)%GammaVib(1)/Xi_rel)
+                                                        + DSMC%VibRelaxProb * (1. + PolyatomMolDSMC(iPolyatMole)%GammaVib(1)/Xi_rel)
       END DO
     ELSE
       ProbVib = DSMC%VibRelaxProb * CorrFact
@@ -2881,7 +2893,6 @@ INTEGER                   :: iPolyatMole, iDOF
     CALL Abort(&
     __STAMP__&
     ,'Error! Model for vibrational relaxation undefined:',RealInfoOpt=DSMC%VibRelaxProb)
-
   END IF
 
 END SUBROUTINE DSMC_calc_P_vib
@@ -2892,7 +2903,7 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
   ! No instantanious variable probability calculateable
 !===================================================================================================================================
 ! MODULES
-    USE MOD_Globals            !,ONLY : Abort
+    USE MOD_Globals            ,ONLY : Abort
     USE MOD_Globals_Vars       ,ONLY : Pi, BoltzmannConst
     USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, CollInf
   
@@ -2919,13 +2930,13 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
           * EXP(-1.*SpecDSMC(iSpec)%CharaVelo(jSpec)/CRela)
   ! calculate high temperature correction
   TempCorr = SpecDSMC(iSpec)%VibCrossSec / (SQRT(2.)*PI*DrefVHS**2.) &
-          * (  CollInf%MassRed(Coll_pData(iPair)%PairType)*CRela & !**2
-              / (2.*(2.-SpecDSMC(iSpec)%omegaVHS)*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS))**SpecDSMC(iSpec)%omegaVHS
+           * (  CollInf%MassRed(Coll_pData(iPair)%PairType)*CRela & !**2
+           / (2.*(2.-SpecDSMC(iSpec)%omegaVHS)*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS))**SpecDSMC(iSpec)%omegaVHS
   ! determine corrected probabilities
   ProbVib = ProbVib * TempCorr / (ProbVib + TempCorr)        ! TauVib = TauVibStd + TauTempCorr
   IF(ProbVib.NE.ProbVib) THEN !If is NAN
     ProbVib=0.
-    WRITE(UNIT_StdOut,*) 'WARNING: Vibrational relaxation probability is NAN and is set to zero. CRela:', CRela
+    WRITE(*,*) 'WARNING: Vibrational relaxation probability is NAN and is set to zero. CRela:', CRela
     ! CALL Abort(&
     ! __STAMP__&
     ! ,'Error! Vibrational relaxation probability is NAN (CRela);',RealInfoOpt=CRela)!, jSpec, CRela

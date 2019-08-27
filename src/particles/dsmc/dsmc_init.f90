@@ -370,6 +370,7 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal, Symmetry2D, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: LiquidSimFlag, PartSurfaceModel
+USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
 USE MOD_DSMC_Analyze           ,ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState       ,ONLY: DSMC_SteadyStateInit
@@ -377,7 +378,6 @@ USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, PartBound
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
-USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -387,7 +387,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf , hilf2
-  INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, iElem
+  INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
   REAL                  :: BGGasEVib
   INTEGER               :: currentBC, ElemID, iSide, BCSideID, VarNum
@@ -629,7 +629,8 @@ __STAMP__&
 ! reading/writing molecular stuff
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Check whether calculation of instantaneous translational temperature is required
-  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
+  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
+            .OR.(DSMC%VibRelaxProb.GE.2)) THEN
     ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
     !           relaxation probability (CalcGammaVib)
     ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
@@ -1235,11 +1236,6 @@ __STAMP__&
       __STAMP__&
       ,'ERROR: Particles-DSMC-alpha has to be in the range between 0 and 1')
     END IF
-    ! IF(Symmetry2D) THEN
-    !   CALL abort(&
-    !   __STAMP__&
-    !   ,'Variable vibrational relaxation is not implemented with 2D yet')
-    ! END IF
     DO iSpec = 1, nSpecies
       IF(.NOT.((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20))) CYCLE
       ALLOCATE(SpecDSMC(iSpec)%CharaVelo(1:nSpecies))
@@ -1251,23 +1247,47 @@ __STAMP__&
                                                 * (2./3.*SpecDSMC(iSpec)%MW_ConstA(jSpec))**3.)
         ! Calculation Of CollNumVib (Z_0) according to Abe (doi:10.1063/1.868094)
         SpecDSMC(iSpec)%CollNumVib(jSpec) = (2.* (SpecDSMC(iSpec)%CharaVelo(jSpec)**2) * EXP(SpecDSMC(iSpec)%MW_ConstB(jSpec)) &
-                                   / (SQRT(3.) * CollInf%MassRed(iCase)) ) &
-                                   * pi/4.*(0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(jSpec)%DrefVHS) )**2 &
-                                   * ( 2.* (2.-SpecDSMC(iSpec)%omegaVHS) * BoltzmannConst * SpecDSMC(iSpec)%TrefVHS &
-                                   / CollInf%MassRed(iCase) ) ** SpecDSMC(iSpec)%omegaVHS
-
+                                  / (SQRT(3.) * CollInf%MassRed(iCase)) ) &
+                                  * pi/4.*(0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(jSpec)%DrefVHS) )**2 &
+                                  * ( 2.* (2.-SpecDSMC(iSpec)%omegaVHS) * BoltzmannConst * SpecDSMC(iSpec)%TrefVHS &
+                                  / CollInf%MassRed(iCase) ) ** SpecDSMC(iSpec)%omegaVHS
       END DO ! jSpec
       DEALLOCATE(SpecDSMC(iSpec)%MW_ConstA)
       DEALLOCATE(SpecDSMC(iSpec)%MW_ConstB)
     END DO ! iSpec
-    ALLOCATE(VarVibRelaxProb%ProbVibAv(1:NElems,1:nSpecies))
-    ALLOCATE(VarVibRelaxProb%ProbVibAvNew(1:nSpecies))
-    ALLOCATE(VarVibRelaxProb%nCollis(1:nSpecies))
-    DO iElem = 1, nElems
-      DO iSpec = 1, nSpecies
-        VarVibRelaxProb%ProbVibAv(iElem,iSpec) = 0.
-      END DO
-    END DO
+    IF(DSMC%CalcQualityFactors) THEN
+      IF(nSpecies.GT.1) THEN
+        ALLOCATE(DSMC%QualityFacSampVib(1:nElems,1:nSpecies+1,1:2))
+        ALLOCATE(DSMC%QualityFacSampVibSamp(1:nElems,1:nSpecies+1))
+      ELSE
+        ALLOCATE(DSMC%QualityFacSampVib(1:nElems,1,1:2))
+        ALLOCATE(DSMC%QualityFacSampVibSamp(1:nElems,1))
+      END IF
+      ALLOCATE(DSMC%CalcVibProb(1:nSpecies,1:3))
+      DSMC%QualityFacSampVib = 0.
+      DSMC%QualityFacSampVibSamp = 0.
+      DSMC%CalcVibProb = 0.
+    END IF
+    CALL SetVarVibProb2Elems()
+    ! CHeck if DSMC%InstantTransTemp is still needed
+    IF(.NOT.(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate) &
+            .OR.DSMC%CalcQualityFactors)) THEN
+      SDEALLOCATE(DSMC%InstantTransTemp)
+    END IF
+  END IF ! VibRelaxProb = 2
+
+  IF((DSMC%RotRelaxProb.GE.2).AND.DSMC%CalcQualityFactors) THEN
+    IF(nSpecies.GT.1) THEN
+      ALLOCATE(DSMC%QualityFacSampRot(1:nElems,1:nSpecies+1,1:2))
+      ALLOCATE(DSMC%QualityFacSampRotSamp(1:nElems,1:nSpecies+1))
+    ELSE
+      ALLOCATE(DSMC%QualityFacSampRot(1:nElems,1,1:2))
+      ALLOCATE(DSMC%QualityFacSampRotSamp(1:nElems,1))
+    END IF
+    ALLOCATE(DSMC%CalcRotProb(1:nSpecies,1:3))
+    DSMC%QualityFacSampRot = 0.
+    DSMC%QualityFacSampRotSamp = 0.
+    DSMC%CalcRotProb = 0.
   END IF
 
   END IF !CollisMode.GT.0
@@ -1579,6 +1599,147 @@ __STAMP__&
 END SUBROUTINE DSMC_SetInternalEnr_LauxVFD
 
 
+SUBROUTINE SetVarVibProb2Elems()
+!===================================================================================================================================
+! Set initial vibrational relaxation probability to all elements
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals                ,ONLY: abort,UNIT_stdOut, IK, MPI_COMM_WORLD
+USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, Species
+USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
+USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSpecies
+USE MOD_part_tools             ,ONLY: GetParticleWeight
+USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray
+USE MOD_IO_HDF5
+USE MOD_DSMC_Vars              ,ONLY: VarVibRelaxProb, CollInf, SpecDSMC, Coll_pData, DSMC
+USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
+USE MOD_DSMC_Analyze           ,ONLY: CalcInstantTransTemp
+USE MOD_Particle_Vars          ,ONLY: PEM
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, PI
+USE MOD_DSMC_Collis,            ONLY: DSMC_calc_var_P_vib
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER               :: iSpec, jSpec, iPart, iElem, dim, n
+  REAL                  :: VibProb, Rand(2), Ti, Tj, CRela2
+  INTEGER               :: nPart, iLoop, nLoop
+  INTEGER, ALLOCATABLE  :: iPartIndx(:), nPerSpec(:)
+  LOGICAL               :: VibProbInitDone, VibProbDataExists
+
+!===================================================================================================================================
+  ALLOCATE(VarVibRelaxProb%ProbVibAv(1:nElems,1:nSpecies))
+  ALLOCATE(VarVibRelaxProb%ProbVibAvNew(1:nSpecies))
+  ALLOCATE(VarVibRelaxProb%nCollis(1:nSpecies))
+  VarVibRelaxProb%ProbVibAv = 0
+  VibProbInitDone = .FALSE.
+  IF (DoRestart) THEN
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+    ! read local ParticleInfo from HDF5
+    CALL DatasetExists(File_ID,'VibProbInfo',VibProbDataExists)
+    IF(VibProbDataExists)THEN
+      VibProbInitDone = .TRUE.
+      ! Associate construct for integer KIND=8 possibility
+      ASSOCIATE (&
+            nSpecies   => INT(nSpecies,IK) ,&
+            offsetElem => INT(offsetElem,IK),&
+            nElems     => INT(nElems,IK)    )
+        CALL ReadArray('VibProbInfo',2,(/nElems, nSpecies/),offsetElem,2,RealArray=VarVibRelaxProb%ProbVibAv(:,:))
+      END ASSOCIATE
+    END IF ! If 'VibProbInfo' exists
+    CALL DatasetExists(File_ID,'VibProbConstInfo',VibProbDataExists,attrib=.TRUE.)
+    IF((.NOT.VibProbInitDone).AND.VibProbDataExists) THEN
+      VibProbInitDone = .TRUE.
+      CALL ReadAttribute(File_ID,'VibProbConstInfo',1,RealScalar=VibProb)
+      ! Set vibrational relaxation probability to former value
+      DO iElem = 1, nElems
+        DO iSpec = 1, nSpecies
+          VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VibProb
+        END DO
+      END DO
+    END IF ! If 'VibProbConstInfo' exists
+    IF(.NOT.VibProbInitDone) THEN
+      ! Set vibrational relaxation probability to default value
+      DO iElem = 1, nElems
+        DO iSpec = 1, nSpecies
+          VarVibRelaxProb%ProbVibAv(iElem,iSpec) = 0.004
+        END DO
+      END DO
+    END IF ! No restart information exist
+    CALL CloseDataFile()
+  ELSE ! If not DoRestart
+    ALLOCATE(Coll_pData(1))
+    ALLOCATE(nPerSpec(nSpecies))  
+    DO iElem = 1, nElems
+      nPerSpec = 0
+      nPart = PEM%pNumber(iElem)
+      ! List of particles in the cell neccessary
+      ALLOCATE(iPartIndx(nPart))
+      iPartIndx(1:nPart) = 0
+      ! create particle index list
+      iPart = PEM%pStart(iElem)
+      DO iLoop = 1, nPart
+        iPartIndx(iLoop) = iPart
+        iPart = PEM%pNext(iPart)
+      END DO
+      CollInf%Coll_SpecPartNum = 0
+      DO iPart = 1, nPart
+        CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx(iPart))) = &
+                  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx(iPart))) + GetParticleWeight(iPartIndx(iPart))
+        nPerSpec(PartSpecies(iPartIndx(iPart))) = nPerSpec(PartSpecies(iPartIndx(iPart))) + 1
+      END DO
+      CALL CalcInstantTransTemp(iPartIndx,nPart)
+      DO iSpec = 1, nSpecies
+        IF(.NOT.((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)))CYCLE
+        IF((DSMC%InstantTransTemp(iSpec).NE.0).AND.(nPerSpec(iSpec).GE.5)) THEN
+          Ti = DSMC%InstantTransTemp(iSpec)
+        ELSE
+          IF(DSMC%InstantTransTemp(nSpecies + 1).NE.0) THEN
+            Ti = DSMC%InstantTransTemp(nSpecies + 1)
+          ELSE
+            Ti = Species(iSpec)%Init(0)%MWTemperatureIC
+          END IF
+        END IF
+        n = 1
+        DO jSpec = 1, nSpecies
+          IF((DSMC%InstantTransTemp(jSpec).NE.0).AND.(nPerSpec(jSpec).GE.5)) THEN
+            Tj = DSMC%InstantTransTemp(jSpec)
+          ELSE
+            IF(DSMC%InstantTransTemp(nSpecies + 1).NE.0) THEN
+              Tj = DSMC%InstantTransTemp(nSpecies + 1)
+            ELSE
+              Tj = Species(jSpec)%Init(0)%MWTemperatureIC
+            END IF
+          END IF
+          Coll_pData(1)%PairType = CollInf%Coll_Case(iSpec, jSpec)
+          ! Calculate number of samples vor each collision pair dependent to alpha and the mole fraction in the cell
+          nLoop = INT( 1. / (1.-VarVibRelaxProb%alpha) * nPerSpec(jSpec)/nSpecies )
+          DO iLoop = 1,nLoop
+            ! Calculate random relative velocity
+            CRela2 = 0
+            DO dim = 1,3
+              CALL Random_Number(Rand)
+              CRela2 = CRela2 + ( SQRT(-2.*LOG(Rand(1))) * COS(2.*PI*Rand(2)) * SQRT(BoltzmannConst * Ti / Species(iSpec)%MassIC) &
+                              - SQRT(-2.*LOG(Rand(1))) * SIN(2.*PI*Rand(2)) * SQRT(BoltzmannConst * Tj / Species(jSpec)%MassIC) )**2
+            END DO ! dim = 3
+            Coll_pData(1)%CRela2 = CRela2
+            CALL DSMC_calc_var_P_vib(iSpec,jSpec,1,VibProb)
+            VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VarVibRelaxProb%ProbVibAv(iElem,iSpec) & 
+                                                   + (VibProb - VarVibRelaxProb%ProbVibAv(iElem,iSpec)) / n
+            n = n + 1
+          END DO ! iLoop = nLoop
+        END DO ! jSpec = nSpecies
+      END DO ! iSpec = nSpecies
+      SDEALLOCATE(iPartIndx)
+    END DO ! iElem = nElems
+    SDEALLOCATE(Coll_pData)
+    SDEALLOCATE(nPerSpec)
+  END IF
+
+END SUBROUTINE SetVarVibProb2Elems
+
+
 SUBROUTINE FinalizeDSMC()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! finalize dsmc variables
@@ -1601,6 +1762,8 @@ IF(DSMC%VibRelaxProb.EQ.2) THEN
   SDEALLOCATE(VarVibRelaxProb%ProbVibAv)
   SDEALLOCATE(VarVibRelaxProb%ProbVibAvNew)
   SDEALLOCATE(VarVibRelaxProb%nCollis)
+  SDEALLOCATE(DSMC%QualityFacSampRot)
+  SDEALLOCATE(DSMC%QualityFacSampVib)
 END IF
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(DSMC_RHS)

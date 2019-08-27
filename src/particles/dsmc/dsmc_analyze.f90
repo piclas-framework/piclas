@@ -1599,18 +1599,18 @@ SUBROUTINE DSMCHO_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
 !> Subroutine to calculate the solution U for writing into HDF5 format DSMC_output
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars          ,ONLY: HODSMC, DSMC_HOSolution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: HODSMC, DSMC_HOSolution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars          ,ONLY: nElems
-USE MOD_Globals_Vars       ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars      ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry2D
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-USE MOD_TimeDisc_Vars      ,ONLY: time,TEnd,iter,dt
-USE MOD_Restart_Vars       ,ONLY: RestartTime
-USE MOD_FPFlow_Vars        ,ONLY: FPInitDone, FP_QualityFacSamp
-USE MOD_BGK_Vars           ,ONLY: BGKInitDone, BGK_QualityFacSamp
-  USE MOD_Particle_VarTimeStep  ,ONLY: CalcVarTimeStep
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry2D
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_TimeDisc_Vars         ,ONLY: time,TEnd,iter,dt
+USE MOD_Restart_Vars          ,ONLY: RestartTime
+USE MOD_FPFlow_Vars           ,ONLY: FPInitDone, FP_QualityFacSamp
+USE MOD_BGK_Vars              ,ONLY: BGKInitDone, BGK_QualityFacSamp
+USE MOD_Particle_VarTimeStep  ,ONLY: CalcVarTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1828,6 +1828,41 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
         ! Ratio between BGK and DSMC usage per cell
         DSMC_MacroVal(nVarCount+4,kk,ll,mm,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
         nVarCount = nVarCount + 4
+      END IF
+      ! variable rotation and vibration relaxation
+      IF(Collismode.GT.1) THEN
+        IF((DSMC%RotRelaxProb.GE.2).OR.(DSMC%VibRelaxProb.GE.2)) THEN
+          IF(nSpecies.EQ.1) THEN
+            nSpecTemp = 0
+          ELSE
+            nSpecTemp = nSpecies
+          END IF
+          DO iSpec=0,nSpecTemp
+            IF(DSMC%RotRelaxProb.GE.2) THEN
+              IF(DSMC%QualityFacSampRotSamp(iElem,iSpec+1).GT.0) THEN
+                DSMC_MacroVal(nVarLoc*(iSpec)+13,kk,ll,mm, iElem) = DSMC%QualityFacSampRot(iElem,iSpec+1,2) &
+                                                                  / REAL(DSMC%QualityFacSampRotSamp(iElem,iSpec+1))
+                DSMC_MacroVal(nVarLoc*(iSpec)+14,kk,ll,mm, iElem) = DSMC%QualityFacSampRot(iElem,iSpec+1,1) &
+                                                                  / REAL(DSMC%QualityFacSampRotSamp(iElem,iSpec+1))
+              END IF
+            END IF
+            IF((DSMC%VibRelaxProb.GE.2).AND..NOT.(DSMC%RotRelaxProb.GE.2)) THEN
+              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1).GT.0) THEN
+                DSMC_MacroVal(nVarLoc*(iSpec)+13,kk,ll,mm, iElem) = DSMC%QualityFacSampVib(iElem,iSpec+1,2) &
+                                                                  / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1))
+                DSMC_MacroVal(nVarLoc*(iSpec)+14,kk,ll,mm, iElem) = DSMC%QualityFacSampVib(iElem,iSpec+1,1) &
+                                                                  / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1))
+              END IF
+            ELSE IF((DSMC%VibRelaxProb.GE.2).AND.(DSMC%RotRelaxProb.GE.2)) THEN
+              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1).GT.0) THEN
+                DSMC_MacroVal(nVarLoc*(iSpec)+15,kk,ll,mm, iElem) = DSMC%QualityFacSampVib(iElem,iSpec+1,2) &
+                                                                  / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1))
+                DSMC_MacroVal(nVarLoc*(iSpec)+16,kk,ll,mm, iElem) = DSMC%QualityFacSampVib(iElem,iSpec+1,1) &
+                                                                  / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1))
+              END IF
+            END IF
+          END DO
+        END IF
       END IF
     END DO
   END IF
@@ -2060,7 +2095,7 @@ SUBROUTINE WriteDSMCHOToHDF5(MeshFileName,OutputTime, FutureTime)
 !> Is used for postprocessing and for restart
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: HODSMC, DSMC, RadialWeighting
+USE MOD_DSMC_Vars     ,ONLY: HODSMC, DSMC, RadialWeighting, CollisMode
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: ProjectName
@@ -2097,6 +2132,10 @@ REAL                           :: StartT,EndT
 
 ! Create dataset attribute "VarNames"
 nVarloc=DSMC_NVARS
+IF(DSMC%CalcQualityFactors.AND.(CollisMode.GE.2)) THEN
+  IF(DSMC%RotRelaxProb.GE.2) nVarloc = nVarloc + 2
+  IF(DSMC%VibRelaxProb.GE.2) nVarloc = nVarloc + 2
+END IF
 IF(nSpecies.EQ.1) THEN
   nVar=nVarloc
 ELSE
@@ -2129,6 +2168,19 @@ IF(nSpecies.GT.1) THEN
     StrVarNames(nVarCount+DSMC_TELEC      )='Spec'//TRIM(SpecID)//'_TempElec'
     StrVarNames(nVarCount+DSMC_SIMPARTNUM )='Spec'//TRIM(SpecID)//'_SimPartNum'
     StrVarNames(nVarCount+DSMC_TEMPMEAN   )='Spec'//TRIM(SpecID)//'_TempTransMean'
+    IF(DSMC%CalcQualityFactors.AND.(CollisMode.GE.2)) THEN
+      IF(DSMC%RotRelaxProb.GE.2) THEN
+        StrVarNames(nVarCount+13              )='Spec'//TRIM(SpecID)//'_DSMC_MaxRotRelaxProb'
+        StrVarNames(nVarCount+14              )='Spec'//TRIM(SpecID)//'_DSMC_MeanRotRelaxProb'
+      END IF
+      IF((DSMC%VibRelaxProb.GE.2).AND..NOT.(DSMC%RotRelaxProb.GE.2)) THEN
+        StrVarNames(nVarCount+13              )='Spec'//TRIM(SpecID)//'_DSMC_MaxVibRelaxProb'
+        StrVarNames(nVarCount+14              )='Spec'//TRIM(SpecID)//'_DSMC_MeanVibRelaxProb'
+      ELSE IF((DSMC%VibRelaxProb.GE.2).AND.(DSMC%RotRelaxProb.GE.2)) THEN
+        StrVarNames(nVarCount+15              )='Spec'//TRIM(SpecID)//'_DSMC_MaxVibRelaxProb'
+        StrVarNames(nVarCount+16              )='Spec'//TRIM(SpecID)//'_DSMC_MeanVibRelaxProb'
+      END IF
+    END IF
     nVarCount=nVarCount+nVarloc
   END DO ! iSpec=1,nSpecies
 END IF
@@ -2145,6 +2197,19 @@ StrVarNames(nVarCount+DSMC_TROT       )='Total_TempRot'
 StrVarNames(nVarCount+DSMC_TELEC      )='Total_TempElec'
 StrVarNames(nVarCount+DSMC_SIMPARTNUM )='Total_SimPartNum'
 StrVarNames(nVarCount+DSMC_TEMPMEAN   )='Total_TempTransMean'
+IF(DSMC%CalcQualityFactors.AND.(CollisMode.GE.2)) THEN
+  IF(DSMC%RotRelaxProb.GE.2) THEN
+    StrVarNames(nVarCount+13              )='Total_DSMC_MaxRotRelaxProb'
+    StrVarNames(nVarCount+14              )='Total_DSMC_MeanRotRelaxProb'
+  END IF
+  IF((DSMC%VibRelaxProb.GE.2).AND..NOT.(DSMC%RotRelaxProb.GE.2)) THEN
+    StrVarNames(nVarCount+13              )='Total_DSMC_MaxVibRelaxProb'
+    StrVarNames(nVarCount+14              )='Total_DSMC_MeanVibRelaxProb'
+  ELSE IF((DSMC%VibRelaxProb.GE.2).AND.(DSMC%RotRelaxProb.GE.2)) THEN
+    StrVarNames(nVarCount+15              )='Total_DSMC_MaxVibRelaxProb'
+    StrVarNames(nVarCount+16              )='Total_DSMC_MeanVibRelaxProb'
+  END IF
+END IF
 nVarCount=nVarCount+nVarloc
 
 IF (DSMC%CalcQualityFactors) THEN

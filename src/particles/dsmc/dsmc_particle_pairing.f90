@@ -176,11 +176,21 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
           CALL DSMC_calc_var_P_vib(cSpec1,cSpec2,iPair,VibProb)
           VarVibRelaxProb%ProbVibAvNew(cSpec1) = VarVibRelaxProb%ProbVibAvNew(cSpec1) + VibProb
           VarVibRelaxProb%nCollis(cSpec1) = VarVibRelaxProb%nCollis(cSpec1) + 1
+          IF(DSMC%CalcQualityFactors) THEN
+            DSMC%CalcVibProb(cSpec1,2) = MAX(DSMC%CalcVibProb(cSpec1,2),VibProb)
+            DSMC%CalcVibProb(cSpec1,1) = DSMC%CalcVibProb(cSpec1,1) + VibProb
+            DSMC%CalcVibProb(cSpec1,3) = DSMC%CalcVibProb(cSpec1,3) + 1
+          END IF
         END IF
         IF((SpecDSMC(cSpec2)%InterID.EQ.2).OR.(SpecDSMC(cSpec2)%InterID.EQ.20)) THEN
           CALL DSMC_calc_var_P_vib(cSpec2,cSpec1,iPair,VibProb)
           VarVibRelaxProb%ProbVibAvNew(cSpec2) = VarVibRelaxProb%ProbVibAvNew(cSpec2) + VibProb
           VarVibRelaxProb%nCollis(cSpec2) = VarVibRelaxProb%nCollis(cSpec2) + 1
+          IF(DSMC%CalcQualityFactors) THEN
+            DSMC%CalcVibProb(cSpec2,2) = MAX(DSMC%CalcVibProb(cSpec2,2),VibProb)
+            DSMC%CalcVibProb(cSpec2,1) = DSMC%CalcVibProb(cSpec2,1) + VibProb
+            DSMC%CalcVibProb(cSpec2,3) = DSMC%CalcVibProb(cSpec2,3) + 1
+          END IF
         END IF
       END IF
       CALL RANDOM_NUMBER(iRan)
@@ -548,11 +558,21 @@ DO iPair = 1,  PairNum_Node
         CALL DSMC_calc_var_P_vib(cSpec1,cSpec2,iPair,VibProb)
         VarVibRelaxProb%ProbVibAvNew(cSpec1) = VarVibRelaxProb%ProbVibAvNew(cSpec1) + VibProb
         VarVibRelaxProb%nCollis(cSpec1) = VarVibRelaxProb%nCollis(cSpec1) + 1
+        IF(DSMC%CalcQualityFactors) THEN
+          DSMC%CalcVibProb(cSpec1,2) = MAX(DSMC%CalcVibProb(cSpec1,2),VibProb)
+          DSMC%CalcVibProb(cSpec1,1) = DSMC%CalcVibProb(cSpec1,1) + VibProb
+          DSMC%CalcVibProb(cSpec1,3) = DSMC%CalcVibProb(cSpec1,3) + 1
+        END IF
       END IF
       IF((SpecDSMC(cSpec2)%InterID.EQ.2).OR.(SpecDSMC(cSpec2)%InterID.EQ.20)) THEN
         CALL DSMC_calc_var_P_vib(cSpec2,cSpec1,iPair,VibProb)
         VarVibRelaxProb%ProbVibAvNew(cSpec2) = VarVibRelaxProb%ProbVibAvNew(cSpec2) + VibProb
         VarVibRelaxProb%nCollis(cSpec2) = VarVibRelaxProb%nCollis(cSpec2) + 1
+        IF(DSMC%CalcQualityFactors) THEN
+          DSMC%CalcVibProb(cSpec2,2) = MAX(DSMC%CalcVibProb(cSpec2,2),VibProb)
+          DSMC%CalcVibProb(cSpec2,1) = DSMC%CalcVibProb(cSpec2,1) + VibProb
+          DSMC%CalcVibProb(cSpec2,3) = DSMC%CalcVibProb(cSpec2,3) + 1
+        END IF
       END IF
     END IF
     CALL RANDOM_NUMBER(iRan)

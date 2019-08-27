@@ -27,6 +27,7 @@ LOGICAL                       :: CalcNumSpec                         !< Calculat
 LOGICAL                       :: CalcNumDens                         !< Calculate the number density per species within the domain
 LOGICAL                       :: CalcCollRates                       !< Calculate the collision rates per collision pair
 LOGICAL                       :: CalcReacRates                       !< Calculate the reaction rate per reaction
+LOGICAL                       :: CalcRelaxProb                       !< Calculate relaxation probabilities
 LOGICAL                       :: CalcEkin                            !< Compute the kinetic energy of each species
 LOGICAL                       :: CalcEtot                            !< Compute the total energy as sum of potential and kin eng
 LOGICAL                       :: CalcEint                            !< Compute the internal energy of each species
