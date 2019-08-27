@@ -96,11 +96,18 @@ TYPE tSampWall             ! DSMC sample for Wall
                                                                        ! 13-12+nSpecies Wall-Collision counter
   REAL,ALLOCATABLE                      :: SurfModelState(:,:,:)       ! Sampling of reaction enthalpies and coverage
                                                                        ! first index represents
-                                                                       ! 1: Enthalpy recombination reaction on surface
-                                                                       ! 2: Enthalpy dissociative reaction on surface
-                                                                       ! 3: Enthalpy recombination reaction via collision
-                                                                       ! 4: Enthalpy dissociative reaction via collision
-                                                                       ! 5: Enthalpy additional enthalpy (eq. adsorption)
+                                                                       ! 1: Heatflux from recombination reactions of two or
+                                                                       !    species on the surface.
+                                                                       ! 2: Heatflux from dissociation reactions of two or
+                                                                       !    species on the surface.
+                                                                       ! 3: Heatflux from recombination reactions of one gas
+                                                                       !    species reacting at collision with another species
+                                                                       !    on the surface.
+                                                                       ! 4: Heatflux from dissociation reactions of one gas
+                                                                       !    species reacting at collision to another species
+                                                                       !    on the surface.
+                                                                       ! 5: additional heatflux e.g. surface coverage 
+                                                                       !    reconstruction or none of the above
                                                                        ! 5+iSpecies: Coverage of iSpecies
                                                                        !    adsorption%coverage added in updatesurfacevars
   REAL,ALLOCATABLE                      :: SurfModelReactCount(:,:,:,:)! 1-2*nReact,1-nSpecies: E-R + LHrecombination coefficient

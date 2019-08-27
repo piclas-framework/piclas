@@ -86,7 +86,7 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall, PartBound, SurfCOMM
 USE MOD_TimeDisc_Vars          ,ONLY: tend,time
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo, SurfModel
 USE MOD_SurfaceModel_Tools     ,ONLY: CalcAdsorbProb, CalcDesorbProb
@@ -455,7 +455,9 @@ SELECT CASE(PartBound%SurfaceModel(locBCID))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (1)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ReflectionIndex = 1
+  ReflectionIndex = 2
+  CALL RANDOM_NUMBER(RanNum)
+  IF(RanNum.GE.PartBound%MomentumACC(locBCID)) ReflectionIndex = 1
   Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
   CALL RANDOM_NUMBER(RanNum)
   IF ( (Adsorption_prob.GE.RanNum) .AND. &
@@ -466,7 +468,9 @@ CASE (1)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (2)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ReflectionIndex = 1
+  ReflectionIndex = 2
+  CALL RANDOM_NUMBER(RanNum)
+  IF(RanNum.GE.PartBound%MomentumACC(locBCID)) ReflectionIndex = 1
   ! Set probabilities
   Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
   Recombination_prob = Adsorption%ProbDes(p,q,SurfSideID,SpecID)
@@ -498,7 +502,6 @@ CASE (2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (3)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ReflectionIndex = 1
   Norm_velo = DOT_PRODUCT(PartState(PartID,4:6),n_loc(1:3))
   !Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
   CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_velo,ReflectionIndex,ProductSpec,reactionEnthalpy)
@@ -517,7 +520,9 @@ CASE (5,6) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (101) ! constant condensation coefficient
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ReflectionIndex = 1
+  ReflectionIndex = 2
+  CALL RANDOM_NUMBER(RanNum)
+  IF(RanNum.GE.PartBound%MomentumACC(locBCID)) ReflectionIndex = 1
   Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
   CALL RANDOM_NUMBER(RanNum)
   IF ( (Adsorption_prob.GE.RanNum) ) THEN

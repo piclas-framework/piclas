@@ -132,10 +132,6 @@ USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
-USE MOD_TimeDisc_Vars          ,ONLY: Time
-USE MOD_Restart_Vars           ,ONLY: RestartTime
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCouplSpec
-USE MOD_Particle_Vars          ,ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -151,7 +147,6 @@ CHARACTER(LEN=255)             :: FileName
 #ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
-INTEGER                        :: iSpec
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
@@ -386,34 +381,15 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElemTime')
 #endif /*USE_LOADBALANCE*/
 
-#ifdef PARTICLES
-! Set coupled power to particles if output of coupled power is active
-IF (CalcCoupledPower) THEN
-  ASSOCIATE( timediff => (Time-RestartTime) )
-    IF(timediff.GT.0.)THEN
-      DO iSpec = 1, nSpecies
-        PCouplSpec(iSpec)%DensityAvgElem = PCouplSpec(iSpec)%DensityAvgElem / timediff
-      END DO ! iSpec = 1, nSpecies
-    END IF ! timediff.GT.0.
-  END ASSOCIATE
-END IF
-#endif /*PARTICLES*/
+
+! Adjust values before WriteAdditionalElemData() is called
+CALL ModifyElemData(mode=1)
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
 CALL WriteAdditionalElemData(FileName,ElementOut)
 
-#ifdef PARTICLES
-! Reset coupled power to particles if output of coupled power is active
-IF (CalcCoupledPower) THEN
-  ASSOCIATE( timediff => (Time-RestartTime) )
-    IF(timediff.GT.0.)THEN
-      DO iSpec = 1, nSpecies
-        PCouplSpec(iSpec)%DensityAvgElem = PCouplSpec(iSpec)%DensityAvgElem * timediff
-      END DO ! iSpec = 1, nSpecies
-    END IF ! timediff.GT.0.
-  END ASSOCIATE
-END IF
-#endif /*PARTICLES*/
+! Adjust values after WriteAdditionalElemData() is called
+CALL ModifyElemData(mode=2)
 
 #if (PP_nVar==8)
 CALL WritePMLDataToHDF5(FileName)
@@ -423,6 +399,56 @@ EndT=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
 
 END SUBROUTINE WriteStateToHDF5
+
+
+SUBROUTINE ModifyElemData(mode)
+!===================================================================================================================================
+!> Modify ElemData fields before/after WriteAdditionalElemData() is called
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals                ,ONLY: abort
+USE MOD_TimeDisc_Vars          ,ONLY: Time
+USE MOD_Restart_Vars           ,ONLY: RestartTime
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCouplSpec
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: mode ! 1: before WriteAdditionalElemData() is called
+!                          ! 2: after WriteAdditionalElemData() is called
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL              :: timediff
+INTEGER           :: iSpec
+!===================================================================================================================================
+
+IF(ABS(Time-RestartTime).LE.0.0) RETURN
+
+#ifdef PARTICLES
+IF(mode.EQ.1)THEN
+  timediff = 1.0 / (Time-RestartTime)
+ELSEIF(mode.EQ.2)THEN
+  timediff = (Time-RestartTime)
+ELSE
+  CALL abort(&
+  __STAMP__&
+  ,'ModifyElemData: mode must be 1 or 2')
+END IF ! mode.EQ.1
+
+! Set coupled power to particles if output of coupled power is active
+IF (CalcCoupledPower) THEN
+  IF(timediff.GT.0.)THEN
+    DO iSpec = 1, nSpecies
+      PCouplSpec(iSpec)%DensityAvgElem = PCouplSpec(iSpec)%DensityAvgElem * timediff
+    END DO ! iSpec = 1, nSpecies
+  END IF ! timediff.GT.0.
+END IF
+#endif /*PARTICLES*/
+
+END SUBROUTINE ModifyElemData
 
 
 SUBROUTINE WriteAdditionalElemData(FileName,ElemList)
@@ -2606,9 +2632,11 @@ END SUBROUTINE GatheredWriteArray
 SUBROUTINE DistributedWriteArray(FileName,DataSetName,rank,nValGlobal,nVal,offset,collective,&
                                  offSetDim,communicator,RealArray,IntegerArray,StrArray,IntegerArray_i4)
 !===================================================================================================================================
-! Write distributed data to proc, e.g. particles which are not hosted by each proc
-! a new output-communicator is build and afterwards killed
-! offset is in the last dimension
+!> Write distributed data, that is not present in each proc of given communicator 
+!>   e.g. master surfaces that are not hosted by each proc
+!> 1: check if every proc of given communicator has data
+!> 2: if any proc has no data, split the communicator and write only with the new communicator
+!> 3: else write with all procs of the given communicator 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -2637,11 +2665,12 @@ LOGICAL                        :: DataOnProc, DoNotSplit
 !===================================================================================================================================
 
 DataOnProc=.FALSE.
+! 1: check if every proc of given communicator has data
 IF(nVal(offSetDim).GT.0) DataOnProc=.TRUE.
 CALL MPI_ALLREDUCE(DataOnProc,DoNotSplit, 1, MPI_LOGICAL, MPI_LAND, COMMUNICATOR, IERROR)
 
-
 IF(.NOT.DoNotSplit)THEN
+! 2: if any proc has no data, split the communicator and write only with the new communicator
   color=MPI_UNDEFINED
   IF(DataOnProc) color=87
   MyOutputRank=0
@@ -2680,7 +2709,11 @@ IF(.NOT.DoNotSplit)THEN
   OutputCOMM=MPI_UNDEFINED
 ELSE
 #endif
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+! 3: else write with all procs of the given communicator 
+  ! communicator_opt has to be the given communicator or else procs that are not in the given communicator might block the write out
+  ! e.g. surface communicator contains only procs with physical surface and MPI_COMM_WORLD contains every proc
+  !      Consequently, MPI_COMM_WORLD would block communication
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=communicator)
   IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal           , nVal , &
                                                offset      , collective , RealArray=RealArray)
   IF(PRESENT(IntegerArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
