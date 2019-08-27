@@ -1354,7 +1354,7 @@ USE MOD_Particle_MPI           ,ONLY: AddHaloNodeData
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: nDeposPerElem
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg,LBElemSplitTime_avg
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg,LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
 #if ((USE_HDG) && (PP_nVar==1))
 USE MOD_TimeDisc_Vars          ,ONLY: dt,tAnalyzeDiff,tEndDiff
