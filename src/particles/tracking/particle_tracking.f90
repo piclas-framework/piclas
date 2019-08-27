@@ -421,24 +421,24 @@ SUBROUTINE ParticleTracing()
 #endif /*NOT IMPA*/
 !===================================================================================================================================
 !> Routine for tracking of moving particles using polynomial description of sides. 
-!> Routine calculates intersection and boundary interaction for (dorefmapping = false) and (TriTracking = false)
+!> Routine calculates intersection and boundary interaction for (dorefmapping = false) and (TriaTracking = false)
 !>----------------------------------------------------------------------------------------------------------------------------------
 !> - Loop over all particles, which are in own proc --> PDM%ParticleInside(1:PDM%ParticleVecLength)
 !> -- 1. Track particle vector up to final particle position
-!> -- 2. Check if particle intersected a side and which
+!> -- 2. Check if particle intersected a side and also which side (also MacroSpheres and AuxBCs)
 !> -- 2-1. For each side only one intersection is chosen, but particle might insersect more than one side. Decide: n=0 / n=1 / n>1 
 !> -- 2-2. Check wether inner side or BC and calculate interaction
 !> -- 2-3. Update particle position
-!> -- repeat until exact final location is reached for all particles
-!> -- time is sampled for LoadBalancing purposes for each element independently because elements with e.g. surface are more costly
+!> -- Process is repeated until exact final location is reached for all particles
+!> -- Time is sampled for LoadBalancing purposes for each element independently because elements with e.g. surface are more costly
 !> -- 3 If tolerance was marked, check if particle is inside of proc volume
 !>----------------------------------------------------------------------------------------------------------------------------------
 !> - DoubleCheck:
-!> -- If Particle hits bilinear side but parttrajectory points inside of element, the second alpha for this side might have been
-!>    the actual intersection, which has been dropped in intersection routine.
-!> -- Therefore, alpha for doublecheck side is saved and dropped in second check of intersection.
-!> -- This can occur for surfaceflux or periodic particles moving almost in tangential direction to bilinear side.
-!> -- DoubleCheck replaces the need of tolerances
+!> -- If a tracked particle hits a bilinear side but the PartTrajectory points inside of the element, 
+!>    then the second alpha for this side might have been the actual intersection, which has been dropped in intersection routine.
+!> -- Consequently, alpha for doublecheck side is saved and neglected during the second check of intersections.
+!> -- This occurs after surfaceflux, reflection, or for periodic particles moving almost in tangential direction to bilinear side.
+!> -- The DoubleCheck replaces the need of tolerances
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
