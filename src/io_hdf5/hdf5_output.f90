@@ -2606,9 +2606,11 @@ END SUBROUTINE GatheredWriteArray
 SUBROUTINE DistributedWriteArray(FileName,DataSetName,rank,nValGlobal,nVal,offset,collective,&
                                  offSetDim,communicator,RealArray,IntegerArray,StrArray,IntegerArray_i4)
 !===================================================================================================================================
-! Write distributed data to proc, e.g. particles which are not hosted by each proc
-! a new output-communicator is build and afterwards killed
-! offset is in the last dimension
+!> Write distributed data, that is not present in each proc of given communicator 
+!>   e.g. master surfaces that are not hosted by each proc
+!> 1: check if every proc of given communicator has data
+!> 2: if any proc has no data, split the communicator and write only with the new communicator
+!> 3: else write with all procs of the given communicator 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -2637,11 +2639,12 @@ LOGICAL                        :: DataOnProc, DoNotSplit
 !===================================================================================================================================
 
 DataOnProc=.FALSE.
+! 1: check if every proc of given communicator has data
 IF(nVal(offSetDim).GT.0) DataOnProc=.TRUE.
 CALL MPI_ALLREDUCE(DataOnProc,DoNotSplit, 1, MPI_LOGICAL, MPI_LAND, COMMUNICATOR, IERROR)
 
-
 IF(.NOT.DoNotSplit)THEN
+! 2: if any proc has no data, split the communicator and write only with the new communicator
   color=MPI_UNDEFINED
   IF(DataOnProc) color=87
   MyOutputRank=0
@@ -2680,7 +2683,11 @@ IF(.NOT.DoNotSplit)THEN
   OutputCOMM=MPI_UNDEFINED
 ELSE
 #endif
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+! 3: else write with all procs of the given communicator 
+  ! communicator_opt has to be the given communicator or else procs that are not in the given communicator might block the write out
+  ! e.g. surface communicator contains only procs with physical surface and MPI_COMM_WORLD contains every proc
+  !      Consequently, MPI_COMM_WORLD would block communication
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=communicator)
   IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal           , nVal , &
                                                offset      , collective , RealArray=RealArray)
   IF(PRESENT(IntegerArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
