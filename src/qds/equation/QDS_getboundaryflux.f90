@@ -24,7 +24,7 @@ MODULE MOD_QDS_GetBoundaryFlux
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -106,14 +106,14 @@ DO iBC=1,nBCs
       CALL RiemannQDS(Flux(1:QDSnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
    END DO
 
-  CASE(3) ! 1st order absorbing BC 
+  CASE(3) ! 1st order absorbing BC
     ! U_Face_loc=0.
     ! CALL RiemannQDS(Flux(1:QDSnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
     ! Flux = 0.0
     U_Face_loc               = 0.5*(U_Minus(:,:,:,SideID)+U_Face_old(:,:,:,SideID))
     U_Face_old(:,:,:,SideID) = U_Minus(:,:,:,SideID)
     CALL RiemannQDS(Flux(1:QDSnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
-  
+
   CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
 !    ! Determine the exact BC state
     DO iSide=1,nBCLoc
@@ -153,7 +153,7 @@ DO iBC=1,nBCs
 !    END DO
 
       DO q=0,PP_N; DO p=0,PP_N
-        locPartNum = 0    
+        locPartNum = 0
         DO iPart1=1,2; DO iPart2=1,2; DO iPart3=1,2
           Temp = NormVec(1,p,q,SideID)*U_Minus(2+locPartNum*5,p,q,SideID) &
                 +NormVec(2,p,q,SideID)*U_Minus(3+locPartNum*5,p,q,SideID) &
@@ -163,8 +163,8 @@ DO iBC=1,nBCs
           Flux(3+locPartNum*5,p,q,SideID) =  U_Minus(3+locPartNum*5,p,q,SideID)*Temp
           Flux(4+locPartNum*5,p,q,SideID) =  U_Minus(4+locPartNum*5,p,q,SideID)*Temp
           Flux(5+locPartNum*5,p,q,SideID) =  U_Minus(5+locPartNum*5,p,q,SideID)*Temp
-    
-    
+
+
     !      U_Face_loc(1+locPartNum*5,p,q) =  U_Minus(1+locPartNum*5,p,q,SideID)
     !      U_Face_loc(2+locPartNum*5,p,q) =  U_Minus(2+locPartNum*5,p,q,SideID)
     !      U_Face_loc(3+locPartNum*5,p,q) =  U_Minus(3+locPartNum*5,p,q,SideID)
@@ -175,7 +175,7 @@ DO iBC=1,nBCs
       END DO; END DO
     END DO
 
-  
+
   CASE DEFAULT ! unknown BCType
     CALL abort(&
 __STAMP__&

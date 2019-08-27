@@ -117,7 +117,7 @@ IF(iError.EQ.0) THEN
   IF(TRIM(ProgramName) .EQ. 'Boltzplatz') help=.TRUE.
   IF(TRIM(ProgramName) .EQ. 'Flexi') help=.TRUE.
   IF(.NOT.help) isValidHDF5File=.FALSE.
- 
+
   ! Check file version -------------------------------------------------------------------------------------------------------------
   ! Open the attribute "File_Version" of root group
   CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersion)
@@ -160,10 +160,10 @@ CALL H5ESET_AUTO_F(0, iError)
 CALL H5OPEN_F(iError)
 ! Create property list
 CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_ID, iError)
-#ifdef MPI
+#if USE_MPI
 ! Setup file access property list with parallel I/O access (MPI)
 CALL H5PSET_FAPL_MPIO_F(Plist_ID,MPI_COMM_WORLD, MPIInfo, iError)
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 ! Check if file exists
 IF(.NOT.FILEEXISTS(MeshFileName)) THEN
@@ -197,24 +197,21 @@ END IF
 END FUNCTION ISVALIDMESHFILE
 
 !==================================================================================================================================
-!> Subroutine to determine HDF5 datasize
+!> Subroutine to determine HDF5 data size
 !==================================================================================================================================
 SUBROUTINE GetDataSize(Loc_ID,DSetName,nDims,IntSize,attrib)
-!===================================================================================================================================
-! Subroutine to determine HDF5 datasize
-!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=*)                     :: DSetName  !< name if dataset to be checked
-INTEGER(HID_T),INTENT(IN)            :: Loc_ID    !< ID of datase
-LOGICAL,INTENT(IN),OPTIONAL          :: attrib    !< logical wether atrtibute or dataset
+CHARACTER(LEN=*)                     :: DSetName   !< name if dataset to be checked
+INTEGER(HID_T),INTENT(IN)            :: Loc_ID     !< ID of datase
+LOGICAL,INTENT(IN),OPTIONAL          :: attrib     !< logical wether atrtibute or dataset
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER,INTENT(OUT)                  :: nDims     !< found data size dimensions
-INTEGER(HSIZE_T),POINTER,INTENT(OUT) :: IntSize(:)   !< found data size
+INTEGER,INTENT(OUT)                  :: nDims      !< found data size dimensions
+INTEGER(HSIZE_T),POINTER,INTENT(OUT) :: IntSize(:) !< found data size
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                       :: DSet_ID,FileSpace
@@ -251,14 +248,15 @@ ELSE
   CALL H5SCLOSE_F(FileSpace, iError)
   CALL H5DCLOSE_F(DSet_ID, iError)
 END IF
+DEALLOCATE(SizeMax)
 END SUBROUTINE GetDataSize
 
 
 !==================================================================================================================================
-!> @brief Subroutine to check wheter a dataset in the hdf5 file exists
+!> @brief Subroutine to check whether a dataset in the HDF5 file exists
 !>
 !> We have no "h5dexists_f", so we use the error given by h5dopen_f.
-!> this produces hdf5 error messages even if everything is ok, so we turn the error msgs off
+!> this produces HDF5 error messages even if everything is okay, so we turn the error msgs off
 !> during this operation.
 !> auto error messages off
 !==================================================================================================================================
@@ -269,7 +267,7 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 CHARACTER(LEN=*)                     :: DSetName !< name if dataset to be checked
 INTEGER(HID_T),INTENT(IN)            :: Loc_ID   !< ID of dataset
-LOGICAL,INTENT(IN),OPTIONAL          :: attrib   !< check dataset or attribute 
+LOGICAL,INTENT(IN),OPTIONAL          :: attrib   !< check dataset or attribute
 LOGICAL,INTENT(OUT)                  :: Exists   !< result: dataset exists
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -366,7 +364,7 @@ END SUBROUTINE GetDataProps
 
 !===================================================================================================================================
 !> High level wrapper to ReadArray and ReadAttrib. Check if array exists and directly
-!> allocate, read array and attribs
+!> allocate, read array and attributes
 !> Assume that the array to be read is of size (nVar,.,.,.,.,nElems) and that an associated
 !> attribute containing the variable names exists
 !===================================================================================================================================
@@ -399,16 +397,15 @@ IF (found) THEN
   IF(nVal(dims).NE.nGlobalElems) STOP 'Last array dimension != nElems !'
   nVal(dims)=nElems
   DEALLOCATE(HSize)
-  ALLOCATE(array(PRODUCT(nVal(1:dims))))
+  ALLOCATE(Array(PRODUCT(nVal(1:dims))))
   ALLOCATE(VarNames(nVal(1)))
-
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
         nVal       => INT(nVal(1:dims),IK)    ,&
         OffsetElem => INT(OffsetElem,IK) )
     ! read array
-    CALL ReadArray(TRIM(ArrayName),dims,nVal,OffsetElem,dims,RealArray=array)
+    CALL ReadArray(TRIM(ArrayName),dims,nVal,OffsetElem,dims,RealArray=Array)
   END ASSOCIATE
 
   ! read variable names
@@ -421,7 +418,7 @@ END SUBROUTINE GetArrayAndName
 !==================================================================================================================================
 !> Subroutine to read arrays of rank "Rank" with dimensions "Dimsf(1:Rank)".
 !==================================================================================================================================
-SUBROUTINE ReadArray(ArrayName,Rank,nVal,Offset_in,Offset_dim,RealArray,IntegerArray,StrArray,IntegerArray_i4)
+SUBROUTINE ReadArray(ArrayName,Rank,nVal,Offset_in,offset_dim,RealArray,IntegerArray,StrArray,IntegerArray_i4)
 ! MODULES
 USE MOD_Globals
 USE,INTRINSIC :: ISO_C_BINDING
@@ -438,7 +435,7 @@ REAL,&
 INTEGER(KIND=IK),&
     DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: IntegerArray !< only if integer array shall be read of KIND=IK
 INTEGER,&
-    DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: IntegerArray_i4 !< only if integer array shall be 
+    DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: IntegerArray_i4 !< only if integer array shall be
 !                                                                            !< read of KIND=4
 CHARACTER(LEN=255),&
     DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: StrArray        !< only if string shall be read
@@ -449,7 +446,9 @@ INTEGER(HSIZE_T)               :: Offset(Rank),Dimsf(Rank)
 #ifndef HDF5_F90 /* HDF5 compiled with fortran2003 flag */
 TYPE(C_PTR)                    :: buf
 #endif
+#if USE_MPI
 INTEGER(HID_T)                 :: driver
+#endif /*USE_MPI*/
 !==================================================================================================================================
 LOGWRITE(*,'(A,I1.1,A,A,A)')'    READ ',Rank,'D ARRAY "',TRIM(ArrayName),'"'
 Dimsf=nVal
@@ -467,12 +466,12 @@ Offset(offset_dim)=Offset_in
 CALL H5SSELECT_HYPERSLAB_F(FileSpace, H5S_SELECT_SET_F, Offset, Dimsf, iError)
 ! Create property list
 CALL H5PCREATE_F(H5P_DATASET_XFER_F, PList_ID, iError)
-#ifdef MPI
+#if USE_MPI
 ! Set property list to collective dataset read
 !CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE_F, iError) ! old
 CALL H5PGET_DRIVER_F(Plist_File_ID, driver, iError) ! remove error "collective access for MPI-based drivers only"
 IF(driver.EQ.H5FD_MPIO_F) CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE_F, iError)
-#endif
+#endif /*USE_MPI*/
 CALL H5DGET_TYPE_F(DSet_ID, Type_ID, iError)
 
 ! Read the data
@@ -599,7 +598,7 @@ LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE ReadAttribute
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE GetHDF5NextFileName(FileName,NextFileName_HDF5,single)
 #else
 SUBROUTINE GetHDF5NextFileName(FileName,NextFileName_HDF5)
@@ -614,7 +613,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)    :: FileName
-#ifdef MPI
+#if USE_MPI
 LOGICAL,INTENT(IN)             :: single
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -634,12 +633,12 @@ CALL H5ESET_AUTO_F(0, iError)
 CALL H5OPEN_F(iError)
 ! Setup file access property list
 CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_ID, iError)
-#ifdef MPI
+#if USE_MPI
 IF(.NOT.single)THEN
   ! Set property list to MPI IO
   CALL H5PSET_FAPL_MPIO_F(Plist_ID, MPI_COMM_WORLD, MPI_INFO_NULL, iError)
 END IF
-#endif /* MPI */
+#endif /*USE_MPI*/
 ! Open file
 CALL H5FOPEN_F(TRIM(FileName), H5F_ACC_RDONLY_F, File_ID_loc, iError,access_prp = Plist_ID)
 ReadError=iError

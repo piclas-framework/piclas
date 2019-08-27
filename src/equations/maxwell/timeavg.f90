@@ -14,8 +14,8 @@
 
 !==================================================================================================================================
 !> Routine performing time averaging of variables and the preparation to computing fluctuations
-!> The terms computed in this routine are therefore the TimeAvg: \f$ \overline{U} \f$ and 
-!> the squared solution denoted by Fluc: \f$ \overline{U^2} \f$ 
+!> The terms computed in this routine are therefore the TimeAvg: \f$ \overline{U} \f$ and
+!> the squared solution denoted by Fluc: \f$ \overline{U^2} \f$
 !> the fluctuations are the RMS values
 !> list structure: 1:PP_nVar - Varnames of equationsystem
 !>                 PP_nVar+  - additional variables
@@ -56,11 +56,11 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools,    ONLY: CNTSTR,GETSTR,GETLOGICAL,GETINT
 USE MOD_Mesh_Vars,      ONLY: nElems
-USE MOD_Timeaverage_Vars 
+USE MOD_Timeaverage_Vars
 USE MOD_Equation_Vars,  ONLY: StrVarNames
 #ifdef PARTICLES
 USE MOD_Particle_Vars,  ONLY: nSpecies
-USE MOD_PICDepo_Vars,   ONLY: DoDeposition
+USE MOD_PICDepo_Vars,   ONLY: DoDeposition, RelaxDeposition
 #endif /*PARTICLES*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -213,7 +213,7 @@ iCounter=PP_nVar+2
 ALLOCATE(DoPowerDensity(1:nSpecies))
 DoPowerDensity=.FALSE.
 nSpecPowerDensity=0
-IF(DoDeposition)THEN ! compute powerdensity only if particles are deposited
+IF(DoDeposition .AND. .NOT.RelaxDeposition)THEN ! compute powerdensity only if particles are deposited and not relaxed
   DO iSpec=1,nSpecies
     IF(ANY(CalcAvg(iCounter+1:iCounter+9))) THEN
       DoPowerDensity(iSpec)=.TRUE.
@@ -373,14 +373,14 @@ DO iElem=1,nElems
   END DO ! iVar=1,PP_nVar
 
   ! ElectricFieldMagnitude
-  IF(CalcAvg(9))THEN  
+  IF(CalcAvg(9))THEN
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       tmpVars(iAvg(9),i,j,k)=SQRT(SUM(U(1:3,i,j,k,iElem)**2))
     END DO; END DO; END DO
   END IF
 
   ! MagneticFieldMagnitude
-  IF(CalcAvg(10))THEN  
+  IF(CalcAvg(10))THEN
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       tmpVars(iAvg(10),i,j,k)=SQRT(SUM(U(4:6,i,j,k,iElem)**2))
     END DO; END DO; END DO

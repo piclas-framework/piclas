@@ -14,7 +14,7 @@
 
 MODULE MOD_ILU
 !===================================================================================================================================
-! LU SGS preconditioner 
+! LU SGS preconditioner
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -61,7 +61,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER              :: iHelp,i,j,k,mm,nn,oo,r,s
 INTEGER              :: delta(0:PP_N,0:PP_N)
 LOGICAL              :: first
@@ -89,8 +89,8 @@ ELSE ! use block csr format
   print*,'nBlockEntries',nBlockEntries
   print*,'nBDOF',nBDOF
   ALLOCATE( BlockAA(PP_nVar,PP_nVar,nBlockEntries,PP_nElems) &
-          , BlockJA(1:nBlockEntries)                         & 
-          , BlockIA(1:nBDOF+1)                               & 
+          , BlockJA(1:nBlockEntries)                         &
+          , BlockIA(1:nBDOF+1)                               &
           , BlockDiag(1:nBDOF)                               )
   ! precompute structure
   ALLOCATE(TestMat(1:nBDOF,1:nBDOF))
@@ -119,7 +119,7 @@ ELSE ! use block csr format
               r=r+1
             END DO !i
           END DO !j
-        END DO !k 
+        END DO !k
         s=s+1
       END DO ! m
     END DO ! n
@@ -155,7 +155,7 @@ ELSE ! use block csr format
 !    END DO
 !    CLOSE(103)
 !  END IF
-  
+
   DEALLOCATE(TestMat)
 
 END IF
@@ -177,7 +177,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 
 
@@ -203,7 +203,7 @@ INTEGER,INTENT(IN) :: iElem
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT) :: BJ(nDOFELem,nDOFElem)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER            :: s,r,t
 REAL               :: epsZero
 REAL               :: dummy(PP_nVar,PP_nVar)
@@ -224,7 +224,7 @@ DO s=PP_nVar,nDOFElem-PP_nVar,PP_nVar
                                           - MATMUL(BJ(s+1:s+PP_nVar,r+1:r+PP_nVar),BJ(r+1:r+PP_nVar,t+1:t+PP_nVar))
         END IF
       END DO ! t
-    END IF ! 
+    END IF !
   END DO ! r
 END DO ! s
 

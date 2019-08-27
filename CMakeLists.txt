@@ -99,26 +99,28 @@ SUBDIRLIST(EQNSYSTEMS ${CMAKE_CURRENT_SOURCE_DIR}/src/equations/)
 OPTION(PICLAS_PARTICLES "Particles" ON)
 SET(PICLAS_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
 SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
-                                                          Leapfrog
-                                                          RK3
-                                                          RK4
-                                                          RK14
-                                                          ParticleEuler-FieldRK4
-                                                          DSMC
-                                                          RESERVOIR
-                                                          CN
-                                                          ImplicitO3
-                                                          ImplicitO4
-                                                          Ascher3
-                                                          ROS2
-                                                          ROS3
-                                                          ROS4
-                                                          ROS46
-                                                          ROS6
-                                                          FieldRelaxation
-                                                          FieldRelaxation-AdaptiveTimeStep
-                                                          LD
-                                                          LD-DSMC)
+                                                              Leapfrog
+                                                              RK3
+                                                              RK4
+                                                              RK14
+                                                              ParticleEuler-FieldRK4
+                                                              DSMC
+                                                              RESERVOIR
+                                                              CN
+                                                              ImplicitO3
+                                                              ImplicitO4
+                                                              Ascher3
+                                                              ROS2
+                                                              ROS3
+                                                              ROS4
+                                                              ROS46
+                                                              ROS6
+                                                              FP-Flow
+                                                              BGK
+                                                              FieldRelaxation
+                                                              FieldRelaxation-AdaptiveTimeStep
+                                                              LD
+                                                              LD-DSMC)
 
 OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
 OPTION(PICLAS_BUILDPOSTI "Build POSTI toolset" OFF)
@@ -193,6 +195,20 @@ ENDIF()
 
 IF(PICLAS_PARTICLES)
   ADD_DEFINITIONS(-DPARTICLES)
+ELSE()
+  IF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
+    MESSAGE(ERROR " Not allowed to used DSMC without particles.")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
+    MESSAGE(ERROR " Not allowed to used RESERVOIR without particles.")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK")
+    MESSAGE(ERROR " Not allowed to used BGK without particles.")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
+    MESSAGE(ERROR " Not allowed to used FP-Flow without particles.")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "LD")
+    MESSAGE(ERROR " Not allowed to used LD without particles.")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "LD-DSMC")
+    MESSAGE(ERROR " Not allowed to used LD-DSMC without particles.")
+  ENDIF()
 ENDIF(PICLAS_PARTICLES)
 
 # =========================================================================
@@ -209,31 +225,31 @@ ENDIF(PICLAS_CODE_ANALYZE)
 SET(PICLAS_IMPLICIT OFF)
 IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
   IF(PICLAS_HDG)
-      ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=500)
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=500)
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Leapfrog")
   IF(PICLAS_HDG)
-      ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=509)
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=509)
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK3")
   IF(PICLAS_HDG)
-      ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=501 -DLSERK)
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=501 -DLSERK)
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=1 -DLSERK)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK4")
   IF(PICLAS_HDG)
-      ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=502 -DLSERK)
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=502 -DLSERK)
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=2 -DLSERK)
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK14")
   IF(PICLAS_HDG)
-      ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=506 -DLSERK)
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=506 -DLSERK)
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=6 -DLSERK)
   ENDIF()
@@ -246,57 +262,34 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "CN")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=120 -DIMPA)
    SET(PICLAS_IMPLICIT ON)
-   IF(PICLAS_HDG)
-      ADD_DEFINITIONS(-DPP_HDG)
-   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=121 -DIMPA)
    SET(PICLAS_IMPLICIT ON)
-   IF(PICLAS_HDG)
-      ADD_DEFINITIONS(-DPP_HDG)
-   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO4")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=122 -DIMPA)
    SET(PICLAS_IMPLICIT ON)
-   IF(PICLAS_HDG)
-      ADD_DEFINITIONS(-DPP_HDG)
-   ENDIF()
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Ascher3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=123 -DIMPA)
    SET(PICLAS_IMPLICIT ON)
-   IF(PICLAS_HDG)
-      ADD_DEFINITIONS(-DPP_HDG)
-   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS2")
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=130 -DROS)
   SET(PICLAS_IMPLICIT ON)
-  IF(PICLAS_HDG)
-      ADD_DEFINITIONS(-DPP_HDG)
-   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS3")
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=131 -DROS)
   SET(PICLAS_IMPLICIT ON)
-  IF(PICLAS_HDG)
-      ADD_DEFINITIONS(-DPP_HDG)
-   ENDIF()
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS4")
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=132 -DROS)
   SET(PICLAS_IMPLICIT ON)
-  IF(PICLAS_HDG)
-      ADD_DEFINITIONS(-DPP_HDG)
-   ENDIF()
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS46")
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=133 -DROS)
   SET(PICLAS_IMPLICIT ON)
-  IF(PICLAS_HDG)
-      ADD_DEFINITIONS(-DPP_HDG)
-   ENDIF()
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS6")
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=134 -DROS)
   SET(PICLAS_IMPLICIT ON)
-  IF(PICLAS_HDG)
-      ADD_DEFINITIONS(-DPP_HDG)
-   ENDIF()
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
+   ADD_DEFINITIONS(-DPP_TimeDiscMethod=300)
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK")
+   ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=200)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation-AdaptiveTimeStep")
@@ -317,7 +310,7 @@ ENDIF(PICLAS_IMPLICIT_ANALYZE)
 # =========================================================================
 
 IF(PICLAS_HDG)
-  ADD_DEFINITIONS(-DPP_HDG)
+  ADD_DEFINITIONS(-DUSE_HDG=1)
   IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
       MESSAGE(STATUS "use HDG with Euler-Explicit")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Leapfrog")
@@ -334,6 +327,8 @@ IF(PICLAS_HDG)
      MESSAGE(STATUS "use HDG with ImplicitO3")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO4")
      MESSAGE(STATUS "use HDG with ImplicitO4")
+   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Ascher3")
+     MESSAGE(STATUS "use HDG with Ascher3")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS2")
      MESSAGE(STATUS "use HDG with ROS2")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS4")
@@ -345,6 +340,8 @@ IF(PICLAS_HDG)
   ELSE()
       MESSAGE(ERROR ": Unknown timedisc method system for HDG.")
   ENDIF()
+ELSE()
+  ADD_DEFINITIONS(-DUSE_HDG=0)
 ENDIF(PICLAS_HDG)
 
 # =========================================================================
@@ -591,9 +588,11 @@ IF(PICLAS_MPI)
     LIST(APPEND linkedlibs ${MPI_Fortran_LIBRARIES})
   ENDIF()
   MARK_AS_ADVANCED(MPI_LIBRARY MPI_EXTRA_LIBRARY) # don't show these ones
-  ADD_DEFINITIONS(-DMPI)
   MESSAGE(STATUS "Building PICLas with MPI")
   MESSAGE(STATUS "MPI Compiler: " ${MPI_Fortran_COMPILER})
+  ADD_DEFINITIONS(-DUSE_MPI=1)
+ELSE()
+  ADD_DEFINITIONS(-DUSE_MPI=0)
 ENDIF()
 
 # ========================================================================
@@ -615,7 +614,7 @@ ENDIF()
 # ========================================================================= 
 IF(PICLAS_PAPI)
   FIND_PACKAGE(PAPI REQUIRED)
-  ADD_DEFINITIONS(-DPAPI) 
+  ADD_DEFINITIONS(-DPAPI)
   LIST(APPEND linkedlibs ${PAPI_LIBRARIES})
   INCLUDE_DIRECTORIES(${PAPI_INCLUDE_DIRS})
   MESSAGE(STATUS "Building PICLas with PAPI benchmark support.") 
@@ -727,7 +726,7 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
 FILE(GLOB_RECURSE QDSF90 ./src/qds/*.f90
                          ./src/interpolation/prolongtoface.f90)
 
-                       IF(PICLAS_HDG)
+IF(PICLAS_HDG)
   LIST(APPEND piclasF90 ${hdgF90})
   IF(PICLAS_IMPLICIT)
     LIST(APPEND piclasF90 ${implicitF90})

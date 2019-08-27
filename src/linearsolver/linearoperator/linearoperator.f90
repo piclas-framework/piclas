@@ -21,12 +21,12 @@ MODULE MOD_LinearOperator
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTERFACE MatrixVector
   MODULE PROCEDURE MatrixVector
 END INTERFACE
@@ -46,7 +46,7 @@ END INTERFACE
 #endif
 #endif /*NOT HDG*/
 
-#if defined(PARTICLES) 
+#if defined(PARTICLES)
 #if defined(IMPA) || defined(ROS)
 INTERFACE PartVectorDotProduct
   MODULE PROCEDURE PartVectorDotProduct
@@ -58,7 +58,7 @@ END INTERFACE
 #endif /*ROS OR IMPA*/
 #endif /*PARTICLES*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 PUBLIC :: MatrixVector, MatrixVectorSource, VectorDotProduct, ElementVectorDotProduct, DENSE_MATMUL
 #ifdef IMPA
 PUBLIC :: EvalResidual
@@ -68,17 +68,17 @@ PUBLIC :: EvalResidual
 #if defined(IMPA) || defined(ROS)
 PUBLIC:: PartVectorDotProduct,PartMatrixVector
 #endif /*ROS OR IMPA*/
-#endif 
+#endif
 !===================================================================================================================================
 
 CONTAINS
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 SUBROUTINE MatrixVector(t,Coeff,X,Y)
 !===================================================================================================================================
 ! Computes Matrix Vector Product y=A*x for linear Equations only
 ! Matrix A = I - Coeff*R
-! Attention: Vector x is always U 
+! Attention: Vector x is always U
 ! Attention: Result y is always stored in Ut
 !===================================================================================================================================
 ! MODULES
@@ -105,7 +105,7 @@ INTEGER          :: i,j,k,iElem,iVar
 !===================================================================================================================================
 U=X
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
-! y = (I-Coeff*R)*x = x - Coeff*R*x 
+! y = (I-Coeff*R)*x = x - Coeff*R*x
 IF(DoParabolicDamping)THEN
   !rTmp=1.0-(fDamping-1.0)*dt*sdTCFLOne
 #ifdef IMPA
@@ -126,7 +126,7 @@ IF(DoParabolicDamping)THEN
           DO iVar=7,PP_nVar
             Y(iVar,i,j,k,iElem) = locMass*(rTmp*U(iVar,i,j,k,iElem) - Coeff*Ut(iVar,i,j,k,iElem))
           END DO ! iVar=7,PP_nVar
-#else 
+#else
           ! Rosenbrock, CAUTION: coeff = coeff_inv
           DO iVar=1,6
             Y(iVar,i,j,k,iElem) = locMass*(     coeff*U(iVar,i,j,k,iElem) - Ut(iVar,i,j,k,iElem))
@@ -154,7 +154,7 @@ SUBROUTINE MatrixVectorSource(t,Coeff,Y)
 !===================================================================================================================================
 ! Computes Matrix Vector Product y=A*x for linear Equations only
 ! Matrix A = I - Coeff*R
-! Attention: Vector x is always U 
+! Attention: Vector x is always U
 ! Attention: Result y is always stored in Ut
 ! Attention: Is only Required for the calculation of the residuum
 !            THEREFORE: coeff*DG_Operator(U) is the output pf this routine
@@ -168,7 +168,7 @@ USE MOD_Equation,          ONLY:DivCleaningDamping
 USE MOD_LinearSolver_Vars, ONLY:LinSolverRHS,mass
 USE MOD_Equation_Vars,     ONLY:DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars,     ONLY:sdtCFLOne
-#if !defined(PP_HDG) && !defined(ROS)
+#if !(USE_HDG) && !defined(ROS)
 USE MOD_LinearSolver_Vars, ONLY:ImplicitSource
 #endif /*NO ROSENBROCK and no HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -186,12 +186,12 @@ INTEGER          :: i,j,k,iElem,iVar
 !===================================================================================================================================
 
 ! y =  Coeff*Ut+source
-! Residual = b - A x0 
+! Residual = b - A x0
 !          = b - x0 + coeff*ut + coeff*Source^n+1
 
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 !Y = LinSolverRHS - X0 +coeff*ut
-#if !defined(PP_HDG) && !defined(ROS)
+#if !(USE_HDG) && !defined(ROS)
 CALL CalcSource(t,1.0,ImplicitSource)
 #endif /*NO ROSENBROCK and no HDG*/
 
@@ -203,7 +203,7 @@ IF(DoParabolicDamping)THEN
 #else
   rTmp(1:6)=1.0
   ! Here, we have to use the inverse because the coeff is the inverse
-  rTmp( 7 )=(1.0-(fDamping-1.0)/coeff*sdTCFLOne) 
+  rTmp( 7 )=(1.0-(fDamping-1.0)/coeff*sdTCFLOne)
   rTmp( 8 )=(1.0-(fDamping-1.0)/coeff*sdTCFLOne)
 #endif
 ELSE
@@ -217,7 +217,7 @@ DO iElem=1,PP_nElems
         locMass=mass(1,i,j,k,iElem)
         DO iVar=1,PP_nVar
 #if ROS
-          ! matrix vector for rosenbrock-type RK. 
+          ! matrix vector for rosenbrock-type RK.
           Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
                                          -rTmp(iVar)*coeff*U(iVar,i,j,k,iElem)   &
                                          +                 Ut(iVar,i,j,k,iElem)  )
@@ -241,7 +241,7 @@ SUBROUTINE EvalResidual(t,Coeff,Norm_R0)
 !===================================================================================================================================
 ! Compute Initial norm for linear solver by calling MatrixVectorSource and VectorDotProduct
 ! Matrix A = I - Coeff*R
-! Attention: Vector x is always U 
+! Attention: Vector x is always U
 ! Attention: Result y is always stored in Ut
 ! Attention: Is only Required for the calculation of the residuum
 !            THEREFORE: coeff*DG_Operator(U) is the output pf this routine
@@ -262,14 +262,14 @@ REAL             :: Y(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !===================================================================================================================================
 
 ! y =  Coeff*Ut+source
-! Residual = b - A x0 
+! Residual = b - A x0
 !          = b - x0 + coeff*ut + coeff*Source^n+1
 CALL MatrixVectorSource(t,Coeff,Y)
 CALL VectorDotProduct(Y,Y,Norm_R0)
 Norm_R0=SQRT(Norm_R0)
 
 END SUBROUTINE EvalResidual
-#endif 
+#endif
 
 
 SUBROUTINE VectorDotProduct(a,b,resu)
@@ -291,7 +291,7 @@ REAL,INTENT(OUT)  :: resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iVar,i,j,k,iElem
-#ifdef MPI
+#if USE_MPI
 REAL              :: ResuSend
 #endif
 !===================================================================================================================================
@@ -309,7 +309,7 @@ DO iElem=1,PP_nElems
   END DO
 END DO
 
-#ifdef MPI
+#if USE_MPI
   ResuSend=Resu
   CALL MPI_ALLREDUCE(ResuSend,resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
@@ -366,7 +366,7 @@ INTEGER,INTENT(IN)    :: n
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)      :: y(n) !
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER               :: i,j
 !===================================================================================================================================
 
@@ -384,7 +384,7 @@ END SUBROUTINE DENSE_MATMUL
 #endif /*NOT HDG*/
 
 
-#if defined(PARTICLES) 
+#if defined(PARTICLES)
 #if defined(IMPA) || defined(ROS)
 SUBROUTINE PartVectorDotProduct(a,b,resu)
 !===================================================================================================================================
@@ -419,7 +419,7 @@ SUBROUTINE PartMatrixVector(t,Coeff,PartID,X,Y)
 !===================================================================================================================================
 ! Computes Matrix Vector Product y=A*x for linear Equations only
 ! Matrix A = I - Coeff*R
-! Attention: Vector x is always U 
+! Attention: Vector x is always U
 ! Attention: Result y is always stored in Ut
 !===================================================================================================================================
 ! MODULES
@@ -436,7 +436,7 @@ USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_Particle_Vars,           ONLY:PartState!,PEM,PartPosRef
 #ifndef ROS
 USE MOD_Particle_Vars,           ONLY:PartDtFrac
-#endif 
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -473,7 +473,7 @@ END IF
 !   EpsFD= rEps0*0.1
 ! END IF
 
-! ! Bassi gang 
+! ! Bassi gang
 ! CALL PartVectorDotProduct(PartXK(1:6,PartID),PartXK(1:6,PartID),Xk_v)
 ! CALL PartVectorDotProduct(X,X,X_abs)
 ! EpsFD=rEps0  * SQRT(1.+XK_V)/X_abs
@@ -494,7 +494,7 @@ CASE(3)
   PartT(4:6) = FAST_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
   LorentzFacInv = 1.0
 CASE(5)
-  LorentzFacInv=1.0+DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6))*c2_inv      
+  LorentzFacInv=1.0+DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6))*c2_inv
   LorentzFacInv=1.0/SQRT(LorentzFacInv)
   PartT(4:6) = RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6),LorentzFacInvIn=LorentzFacInv)
 CASE DEFAULT

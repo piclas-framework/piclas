@@ -24,7 +24,7 @@ PRIVATE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-#ifdef MPI
+#if USE_MPI
 INTERFACE InitLoadBalance
   MODULE PROCEDURE InitLoadBalance
 END INTERFACE
@@ -47,7 +47,7 @@ PUBLIC::InitLoadBalance,FinalizeLoadBalance,LoadBalance
 #if USE_LOADBALANCE
 PUBLIC::ComputeElemLoad
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 PUBLIC::DefineParametersLoadBalance
 !===================================================================================================================================
@@ -55,7 +55,7 @@ PUBLIC::DefineParametersLoadBalance
 CONTAINS
 
 !==================================================================================================================================
-!> Define parameters 
+!> Define parameters
 !==================================================================================================================================
 SUBROUTINE DefineParametersLoadBalance()
 ! MODULES
@@ -65,30 +65,34 @@ IMPLICIT NONE
 CALL prms%SetSection("LoadBalance")
 
 #if USE_LOADBALANCE
-CALL prms%CreateLogicalOption( 'DoLoadBalance'                ,  "Set flag for doing dynamic LoadBalance.", '.FALSE.')
-CALL prms%CreateIntOption(     'LoadBalanceSample'            ,  "Define number of iterations (before analyze_dt)"//&
-  " that are used for calculation of elemtime information"    , value='1')
-CALL prms%CreateLogicalOption( 'PartWeightLoadBalance'        ,  "Set flag for doing LoadBalance with partMPIWeight instead of"//&
-  " elemtimes. Elemtime array in state file is filled with nParts*PartMPIWeight for each Elem. "//&
-  " If Flag [TRUE] LoadBalanceSample is set to 0 and vice versa.", '.FALSE.')
-CALL prms%CreateRealOption(    'Load-DeviationThreshold'       ,  "Define threshold for dynamic load-balancing.\n"//&
-  "Restart performed if (Maxweight-Targetweight)/Targetweight > defined value." , value='0.10')
+CALL prms%CreateLogicalOption('DoLoadBalance'           , 'Set flag for doing dynamic LoadBalance.', '.FALSE.')
+CALL prms%CreateIntOption(    'LoadBalanceSample'       , 'Define number of iterations (before analyze_dt)'//&
+                                                          ' that are used for calculation of elemtime information', value='1')
+CALL prms%CreateIntOption(    'LoadBalanceMaxSteps'     , 'Define number of maximum load balacing steps'//&
+                                                          ' that are allowed.', value='1')
+CALL prms%CreateLogicalOption('PartWeightLoadBalance'   , 'Set flag for doing LoadBalance with partMPIWeight instead of '//&
+                                                          'elemtimes. Elemtime array in state file is filled with '//&
+                                                          'nParts*PartMPIWeight for each Elem. '//&
+                                                          ' If Flag [TRUE] LoadBalanceSample is set to 0 and vice versa.', '.FALSE.')
+CALL prms%CreateRealOption(   'Load-DeviationThreshold' , 'Define threshold for dynamic load-balancing.\n'//&
+                                                          'Restart performed if (Maxweight-Targetweight)/Targetweight '//&
+                                                          '> defined value.' , value='0.10')
 #endif /*USE_LOADBALANCE*/
-CALL prms%CreateRealOption(    'Particles-MPIWeight'          ,  "Define weight of particles for elem loads.\n"//&
-  "(only used if ElemTime does not exist or DoLoadBalance=F).", value='0.02')
-CALL prms%CreateIntOption(     'WeightDistributionMethod'     ,  "Method for distributing the elem to procs.\n"//&
-  "DEFAULT: 1 if Elemtime exits else -1\n"//&
-  "-1: elements are equally distributed\n"//&
-  " 0: distribute to procs using elemloads\n"//&
-  " 1: distribute to procs using elemloads, last proc recieves least\n"//&
-  " 2: NOT WORKING\n"//&
-  " 3: TODO DEFINE\n"//&
-  " 4: TODO DEFINE\n"//&
-  " 5/6: iterative smoothing of loads towards last proc\n")
+CALL prms%CreateRealOption(   'Particles-MPIWeight'     , 'Define weight of particles for elem loads.\n'//&
+                                                          '(only used if ElemTime does not exist or DoLoadBalance=F).', value='0.02')
+CALL prms%CreateIntOption(    'WeightDistributionMethod', 'Method for distributing the elem to procs.\n'//&
+                                                          'DEFAULT: 1 if Elemtime exits else -1\n'//&
+                                                          '-1: elements are equally distributed\n'//&
+                                                          ' 0: distribute to procs using elemloads\n'//&
+                                                          ' 1: distribute to procs using elemloads, last proc recieves least\n'//&
+                                                          ' 2: NOT WORKING\n'//&
+                                                          ' 3: TODO DEFINE\n'//&
+                                                          ' 4: TODO DEFINE\n'//&
+                                                          ' 5/6: iterative smoothing of loads towards last proc\n')
 
 END SUBROUTINE DefineParametersLoadBalance
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE InitLoadBalance()
 !===================================================================================================================================
 ! init load balancing, new initialization of variables for load balancing
@@ -114,7 +118,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
 #ifdef PARTICLES
 ! Read particle MPI weight in order to determine the ElemTime when no time measurement is performed
 ! Must be read in init (only once) and before the first load balance is determined because if no ElemTimes are used they are
-! calculated with ParticleMPIWeight 
+! calculated with ParticleMPIWeight
 ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
 IF (ParticleMPIWeight.LT.0.0) THEN
   CALL abort(&
@@ -129,10 +133,11 @@ IF(nProcessors.EQ.1)THEN
   CALL PrintOption('No LoadBalance (nProcessors=1): DoLoadBalance','INFO',LogOpt=DoLoadBalance)
   DeviationThreshold=HUGE(1.0)
 ELSE
-  DoLoadBalance = GETLOGICAL('DoLoadBalance','F')
+  DoLoadBalance       = GETLOGICAL('DoLoadBalance','F')
   DeviationThreshold  = GETREAL('Load-DeviationThreshold','0.10')
 END IF
 LoadBalanceSample   = GETINT('LoadBalanceSample')
+LoadBalanceMaxSteps = GETINT('LoadBalanceMaxSteps')
 PerformPartWeightLB = GETLOGICAL('PartWeightLoadBalance','F')
 IF (PerformPartWeightLB) THEN
   LoadBalanceSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
@@ -175,23 +180,24 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_TimeDisc_Vars          ,ONLY: time
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTime,nLoadBalance,tCurrent
-#ifndef PP_HDG
+#if USE_HDG
+USE MOD_LoadBalance_Vars       ,ONLY: ElemHDGSides,TotalHDGSides
+#else
 USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold, PerformLoadBalance, LoadBalanceSample
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem
 USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem,nPartsPerBCElem,nSurfacePartsPerElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
-USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
 USE MOD_LoadBalance_Vars       ,ONLY: ParticleMPIWeight
 #endif /*PARTICLES*/
 USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 USE MOD_LoadBalance_Vars       ,ONLY: CurrentImbalance,PerformLBSample
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -261,26 +267,31 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
   ! distribute times of different routines on elements with respective weightings
   DO iElem=1,PP_nElems
     ! time used in dg routines
+#if USE_HDG
+    ElemTime(iElem) = ElemTime(iElem) + tCurrent(LB_DG)*REAL(ElemHDGSides(iElem))/REAL(TotalHDGSides) &
+                                      + tCurrent(LB_DGANALYZE)/REAL(PP_nElems)
+#else
     ElemTime(iElem) = ElemTime(iElem) + (tCurrent(LB_DG) + tCurrent(LB_DGANALYZE))/REAL(PP_nElems)
-#ifndef PP_HDG
+#endif /*USE_HDG*/
+#if !(USE_HDG)
     ! time used in pml routines
     IF(DoPML)THEN
       IF(ElemToPML(iElem).GT.0 ) ElemTime(iElem) = ElemTime(iElem) + tCurrent(LB_PML)/REAL(nPMLElems)
     END IF
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 #ifdef PARTICLES
     ! add particle LB times to elements with respective weightings
-    ElemTime(iElem) = ElemTime(iElem)                                            &
-        + tCurrent(LB_ADAPTIVE) * nPartsPerBCElem(iElem)*sTotalBCParts           &
-        + tCurrent(LB_INTERPOLATION) * nPartsPerElem(iElem)*sTotalParts          &
-        + tCurrent(LB_PUSH) * nPartsPerElem(iElem)*sTotalParts                   &
-        + tCurrent(LB_UNFP) * nPartsPerElem(iElem)*sTotalParts                   &
-        + tCurrent(LB_DSMC) * nPartsPerElem(iElem)*sTotalParts                   &
-        + tCurrent(LB_CARTMESHDEPO) * nPartsPerElem(iElem)*sTotalParts           &
-        + tCurrent(LB_TRACK) * nTracksPerElem(iElem)*sTotalTracks                &
-        + tCurrent(LB_SURFFLUX) * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes &
-        + tCurrent(LB_SURF) * nSurfacePartsPerElem(iElem)*stotalSurfaceParts
+    ElemTime(iElem) = ElemTime(iElem)                                             &
+        + tCurrent(LB_ADAPTIVE)      * nPartsPerBCElem(iElem)*sTotalBCParts       &
+        + tCurrent(LB_INTERPOLATION)   * nPartsPerElem(iElem)*sTotalParts         &
+        + tCurrent(LB_PUSH)            * nPartsPerElem(iElem)*sTotalParts         &
+        + tCurrent(LB_UNFP)            * nPartsPerElem(iElem)*sTotalParts         &
+        + tCurrent(LB_DSMC)            * nPartsPerElem(iElem)*sTotalParts         &
+        + tCurrent(LB_CARTMESHDEPO)    * nPartsPerElem(iElem)*sTotalParts         &
+        + tCurrent(LB_TRACK)          * nTracksPerElem(iElem)*sTotalTracks        &
+        + tCurrent(LB_SURFFLUX)  * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes &
+        + tCurrent(LB_SURF)     * nSurfacePartsPerElem(iElem)*stotalSurfaceParts
     ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
     IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
       ElemTime(iElem) = ElemTime(iElem)                              &
@@ -318,12 +329,12 @@ PerformLoadBalance=.FALSE.
 IF(CurrentImbalance.GT.DeviationThreshold) PerformLoadBalance=.TRUE.
 
 #ifdef PARTICLES
-nTracksPerElem=0
-nDeposPerElem=0
-nPartsPerElem=0
-nSurfacefluxPerElem=0
-nPartsPerBCElem=0
-nSurfacePartsPerElem=0
+nTracksPerElem       = 0
+nDeposPerElem        = 0
+nPartsPerElem        = 0
+nSurfacefluxPerElem  = 0
+nPartsPerBCElem      = 0
+nSurfacePartsPerElem = 0
 #endif /*PARTICLES*/
 tCurrent = 0.
 
@@ -380,7 +391,7 @@ CALL InitPiclas(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -
 ! restart
 CALL Restart()
 
-! compute imbalance 
+! compute imbalance
 !CALL ComputeImbalance(NewImbalance,MaxWeight,MinWeight,ElemTime)  ! --> new imbalance has already been calculated in mesh_readin
 
 ! zero ElemTime, the measurement starts again
@@ -418,7 +429,7 @@ SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE LoadBalance
 
-
+#if USE_LOADBALANCE
 SUBROUTINE ComputeImbalance()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! subroutine to compute the imbalance
@@ -431,11 +442,11 @@ SUBROUTINE ComputeImbalance()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_LoadBalance_Vars,    ONLY:WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars,    ONLY:ElemTime, PerformLBSample, PerformPartWeightLB
+USE MOD_LoadBalance_Vars,    ONLY:ElemTime, PerformLBSample, PerformPartWeightLB, DeviationThreshold
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -473,15 +484,15 @@ ELSE
   ELSE
     CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
   END IF
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MaxWeight:        ', MaxWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:        ', MinWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' TargetWeight:     ', TargetWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' CurrentImbalance: ', CurrentImbalance
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)')             ' MaxWeight:        ', MaxWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)')             ' MinWeight:        ', MinWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)')             ' TargetWeight:     ', TargetWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7,A,ES15.7,A1)') ' CurrentImbalance: ', CurrentImbalance, ' (Threshold: ', DeviationThreshold, ')'
 
 END IF
 
 END SUBROUTINE ComputeImbalance
-
+#endif /*USE_LOADBALANCE*/
 
 SUBROUTINE FinalizeLoadBalance()
 !===================================================================================================================================
@@ -503,6 +514,6 @@ SDEALLOCATE( tCurrent  )
 InitLoadBalanceIsDone = .FALSE.
 
 END SUBROUTINE FinalizeLoadBalance
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END MODULE MOD_LoadBalance

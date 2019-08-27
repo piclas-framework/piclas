@@ -21,7 +21,7 @@ MODULE MOD_GetBoundaryFlux
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
@@ -98,9 +98,9 @@ DO iSide=1,nBCSides
   !             'No inflow refstate (dens,v1,v2,v3,pressure) in refstate defined for BC_TYPE',locType)
 END DO
 MaxBCStateGLobal=MaxBCState
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,MaxBCStateGlobal,1,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! Sanity check for BCs
 !IF(MaxBCState.GT.nRefState)&
@@ -118,7 +118,7 @@ DO i=1,nBCs
     !CALL ReadBCFlow(BCStateFile)
     !CALL abort(__STAMP__,&
     !     'no BC defined in maxwell/getboundaryflux.f90!')
-    EXIT    
+    EXIT
   END IF
 END DO
 

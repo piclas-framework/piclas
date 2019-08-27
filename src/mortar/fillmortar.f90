@@ -21,7 +21,7 @@ MODULE MOD_FillMortar
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -29,12 +29,12 @@ INTERFACE U_Mortar
   MODULE PROCEDURE U_Mortar
 END INTERFACE
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTERFACE Flux_Mortar
   MODULE PROCEDURE Flux_Mortar
 END INTERFACE
 PUBLIC:: Flux_Mortar
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 PUBLIC::U_Mortar
 
@@ -52,7 +52,7 @@ CONTAINS
 
 SUBROUTINE U_Mortar(U_in_master,U_in_slave,doMPISides)
 !===================================================================================================================================
-!> fills small non-conforming sides with data for master side with data from the corresponding large side, using 1D interpolation 
+!> fills small non-conforming sides with data for master side with data from the corresponding large side, using 1D interpolation
 !> operators M_0_1,M_0_2
 !
 !     Type 1               Type 2              Type3
@@ -72,7 +72,7 @@ USE MOD_Mortar_Vars, ONLY: M_0_1,M_0_2
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
-USE MOD_Mesh_Vars,   ONLY: FS2M,nSides 
+USE MOD_Mesh_Vars,   ONLY: FS2M,nSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -83,7 +83,7 @@ REAL,INTENT(INOUT) :: U_in_master(1:PP_nVar,0:PP_N,0:PP_N,1:nSides) !< (INOUT) c
 REAL,INTENT(INOUT) :: U_in_slave( 1:PP_nVar,0:PP_N,0:PP_N,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
 LOGICAL,INTENT(IN) :: doMPISides                                 !< flag whether MPI sides are processed
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER      :: p,q,l
 INTEGER      :: iMortar,nMortars
 INTEGER      :: firstMortarSideID,lastMortarSideID
@@ -93,8 +93,8 @@ REAL     :: U_tmp2(PP_nVar,0:PP_N,0:PP_N,1:2)
 REAL,POINTER :: M1(:,:),M2(:,:)
 !===================================================================================================================================
 
-firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides) 
- lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides) 
+firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
+ lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
 
 M1=>M_0_1; M2=>M_0_2
 
@@ -107,7 +107,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
     !    U_tmp2(iVar,p,:,1)  =  M1 * U_in_master(iVar,p,:,MortarSideID)
     !    U_tmp2(iVar,p,:,2)  =  M2 * U_in_master(iVar,p,:,MortarSideID)
     DO q=0,PP_N
-      DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction 
+      DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
         U_tmp2(:,p,q,1)=                  M1(0,q)*U_in_master(:,p,0,MortarSideID)
         U_tmp2(:,p,q,2)=                  M2(0,q)*U_in_master(:,p,0,MortarSideID)
         DO l=1,PP_N
@@ -117,7 +117,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
       END DO
     END DO
     ! then in xi
-    DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction 
+    DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction
       ! The following p- and l-loop are four MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
       !    U_tmp(iVar,:,q,1)  =  M1 * U_tmp2(iVar,:,q,1)
       !    U_tmp(iVar,:,q,2)  =  M2 * U_tmp2(iVar,:,q,1)
@@ -135,14 +135,14 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
           U_tmp(:,p,q,4)=U_tmp(:,p,q,4)+M2(l,p)*U_tmp2(:,l,q,2)
         END DO !l=1,PP_N
       END DO
-    END DO 
+    END DO
 
   CASE(2) !1->2 in eta
     ! The following q- and l-loop are two MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
     !    U_tmp(iVar,p,:,1)  =  M1 * U_in_master(iVar,p,:,MortarSideID)
     !    U_tmp(iVar,p,:,2)  =  M2 * U_in_master(iVar,p,:,MortarSideID)
     DO q=0,PP_N
-      DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction 
+      DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
         U_tmp(:,p,q,1)=                 M1(0,q)*U_in_master(:,p,0,MortarSideID)
         U_tmp(:,p,q,2)=                 M2(0,q)*U_in_master(:,p,0,MortarSideID)
         DO l=1,PP_N
@@ -186,7 +186,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
 END DO !MortarSideID
 END SUBROUTINE U_Mortar
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 SUBROUTINE Flux_Mortar(Flux_Master,Flux_Slave,doMPISides)
 !===================================================================================================================================
 ! fills master side from small non-conforming sides, Using 1D projection operators M_1_0,M_2_0
@@ -222,7 +222,7 @@ LOGICAL,INTENT(IN) :: doMPISides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER  :: p,q,l
 INTEGER  :: iMortar,nMortars
 INTEGER  :: firstMortarSideID,lastMortarSideID
@@ -256,7 +256,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
   SELECT CASE(MortarType(1,MortarSideID))
   CASE(1) !1->4
     ! first in xi
-    DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction 
+    DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction
       ! The following p- and l-loop are four MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
       !    Flux_tmp2(iVar,:,q,1)  =  M1 * Flux_tmp(iVar,:,q,1) + M2 * Flux_tmp(iVar,:,q,2)
       !    Flux_tmp2(iVar,:,q,2)  =  M1 * Flux_tmp(iVar,:,q,1) + M2 * Flux_tmp(iVar,:,q,2)
@@ -273,7 +273,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
     ! The following q- and l-loop are two MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
     !    Flux(iVar,p,:,MortarSideID)  =  M1 * Flux_tmp2(iVar,p,:,1) + M2 * Flux_tmp2(iVar,p,:,2)
     DO q=0,PP_N
-      DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction 
+      DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
         Flux_Master(:,p,q,MortarSideID)=                               M1(0,q)*Flux_tmp2(:,p,0,1)+M2(0,q)*Flux_tmp2(:,p,0,2)
         DO l=1,PP_N
           Flux_Master(:,p,q,MortarSideID)=Flux_Master(:,p,q,MortarSideID) + M1(l,q)*Flux_tmp2(:,p,l,1)+M2(l,q)*Flux_tmp2(:,p,l,2)
@@ -283,10 +283,10 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
 
   CASE(2) !1->2 in eta
     ! TODO why not q-loop first?
-    DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction 
+    DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
       ! The following q- and l-loop are two MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
       !    Flux(iVar,p,:,MortarSideID)  =  M1 * Flux_tmp(iVar,p,:,1) + M2 * Flux_tmp(iVar,p,:,2)
-      DO q=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction 
+      DO q=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
         Flux_Master(:,p,q,MortarSideID)=                                  M1(0,q)*Flux_tmp(:,p,0,1)+M2(0,q)*Flux_tmp(:,p,0,2)
         DO l=1,PP_N
           Flux_Master(:,p,q,MortarSideID)=Flux_Master(:,p,q,MortarSideID) + M1(l,q)*Flux_tmp(:,p,l,1)+M2(l,q)*Flux_tmp(:,p,l,2)
@@ -295,7 +295,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
     END DO
 
   CASE(3) !1->2 in xi
-    DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction 
+    DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction
       ! The following p- and l-loop are two MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
       !    Flux(iVar,:,q,MortarSideID)  =   M1 * Flux_tmp(iVar,:,q,1) + M2 * Flux_tmp(iVar,:,q,2)
       DO p=0,PP_N
@@ -309,6 +309,6 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
   END SELECT ! mortarType(MortarSideID)
 END DO !MortarSideID
 END SUBROUTINE Flux_Mortar
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 END MODULE MOD_FillMortar

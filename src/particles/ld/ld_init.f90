@@ -80,7 +80,7 @@ USE MOD_DSMC_Vars,             ONLY : SpecDSMC, CollisMode
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars,ONLY: DoRefMapping
 USE MOD_Particle_Mesh_Vars,    ONLY: PartElemToElemAndSide!,Geo
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -92,7 +92,7 @@ USE MOD_MPI_Vars
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: iElem, trinum, iLocSide, iPart, iInit, iSpec, Elem2
-#ifdef MPI
+#if USE_MPI
 INTEGER                 :: SumOfMPISides, EndOfMPINeighbor, iProc, OffsetInnerAndBCSides
 #endif
 CHARACTER(32)           :: hilf
@@ -131,8 +131,8 @@ __STAMP__&
   BulkValues(1:nElems)%CellV(1)        = 0.0
   BulkValues(1:nElems)%CellV(2)        = 0.0
   BulkValues(1:nElems)%CellV(3)        = 0.0
-  BulkValues(1:nElems)%DegreeOfFreedom = 0.0 
-  BulkValues(1:nElems)%Beta            = 0.0  
+  BulkValues(1:nElems)%DegreeOfFreedom = 0.0
+  BulkValues(1:nElems)%Beta            = 0.0
   BulkValues(1:nElems)%MassDens        = 0.0
   BulkValues(1:nElems)%BulkTemperature = 0.0
   BulkValues(1:nElems)%DynamicVisc     = 0.0
@@ -142,8 +142,8 @@ __STAMP__&
   BulkValuesOpenBC(1:nElems)%CellV(1)        = 0.0
   BulkValuesOpenBC(1:nElems)%CellV(2)        = 0.0
   BulkValuesOpenBC(1:nElems)%CellV(3)        = 0.0
-  BulkValuesOpenBC(1:nElems)%DegreeOfFreedom = 0.0 
-  BulkValuesOpenBC(1:nElems)%Beta            = 0.0  
+  BulkValuesOpenBC(1:nElems)%DegreeOfFreedom = 0.0
+  BulkValuesOpenBC(1:nElems)%Beta            = 0.0
   BulkValuesOpenBC(1:nElems)%MassDens        = 0.0
   BulkValuesOpenBC(1:nElems)%DynamicVisc     = 0.0
   BulkValuesOpenBC(1:nElems)%ThermalCond     = 0.0
@@ -193,12 +193,12 @@ __STAMP__&
       DO trinum=1, 2
         CALL CalcLagNormVec(iLocSide, iElem, trinum)
 !--- calculate cellcenter distance for viscousity terms
-        Elem2=PartElemToElemAndSide(1,ilocSide,iElem) 
+        Elem2=PartElemToElemAndSide(1,ilocSide,iElem)
         IF(Elem2.EQ.-1) CYCLE
         MeanSurfValues(iLocSide, iElem)%CellCentDist(1) = ElemBaryNGeo(1,iElem) - ElemBaryNGeo(1,Elem2)
         MeanSurfValues(iLocSide, iElem)%CellCentDist(2) = ElemBaryNGeo(2,iElem) - ElemBaryNGeo(2,Elem2)
         MeanSurfValues(iLocSide, iElem)%CellCentDist(3) = ElemBaryNGeo(3,iElem) - ElemBaryNGeo(3,Elem2)
-!--- end calculate cellcenter distance for viscousity terms  
+!--- end calculate cellcenter distance for viscousity terms
       END DO
       CALL SetMeanSurfValues(iLocSide, iElem)
     END DO
@@ -214,7 +214,7 @@ __STAMP__&
     IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
       IF (.NOT.((CollisMode.EQ.2).OR.(CollisMode.EQ.3))) THEN
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
-        SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib','0.')  
+        SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib','0.')
         SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV','0.')
       END IF
     END IF
@@ -234,7 +234,7 @@ __STAMP__&
     END IF
   END DO
 
-#ifdef MPI
+#if USE_MPI
   SumOfMPISides = 0
   DO iProc =1, nNbProcs
     SumOfMPISides =SumOfMPISides + nMPISides_MINE_Proc(iProc) + nMPISides_YOUR_Proc(iProc)
@@ -267,7 +267,7 @@ REAL FUNCTION CalcDegreeOfFreedom(iPart)
 !--------------------------------------------------------------------------------------------------!
 ! perform chemical init
 !--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE 
+   IMPLICIT NONE
 ! LOCAL VARIABLES
 !--------------------------------------------------------------------------------------------------!
   REAL                          :: ZetaRot, ZetaVib, TvibToTemp
@@ -277,7 +277,7 @@ REAL FUNCTION CalcDegreeOfFreedom(iPart)
 ! INPUT VARIABLES
 !--------------------------------------------------------------------------------------------------!
   INTEGER, INTENT(IN)           :: iPart
-!#ifdef MPI
+!#if USE_MPI
 !#endif
 !===================================================================================================
   iSpec = PartSpecies(iPart)
@@ -286,13 +286,13 @@ REAL FUNCTION CalcDegreeOfFreedom(iPart)
     IF (CollisMode.GT.1) THEN
 !!!!!!!!      PartTvib = CalcTVib(SpecDSMC(iSpec)%CharaTVib, PartStateIntEn(iPart,1), SpecDSMC(iSpec)%MaxVibQuant)
 
-!!!!!!!      PartTvib = SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(PartStateIntEn(iPart,1) & 
+!!!!!!!      PartTvib = SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(PartStateIntEn(iPart,1) &
 !!!!!!!               / (BoltzmannConst * SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant))
 
       TvibToTemp = PartStateIntEn(iPart,1)/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
       IF (TvibToTemp.LE.DSMC%GammaQuant) THEN
-        TvibToTemp = 0.0    
-        ZetaVib = 0.0     
+        TvibToTemp = 0.0
+        ZetaVib = 0.0
       ELSE
         TvibToTemp = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TvibToTemp-DSMC%GammaQuant))
 !!!!!!!      ModTvibToTemp = SpecDSMC(iSpec)%Ediss_eV * ElementaryCharge / (BoltzmannConst * PartTvib)
@@ -576,7 +576,7 @@ END IF
    IF (NVecTest.LT.0.0) THEN
      SurfLagValues(iLocSide, Element,trinum)%LagTangVec(:,:) = -SurfLagValues(iLocSide, Element,trinum)%LagTangVec(:,:)
      SurfLagValues(iLocSide, Element,trinum)%LagNormVec      = -SurfLagValues(iLocSide, Element,trinum)%LagNormVec
-   END IF  
+   END IF
 
    SurfLagValues(iLocSide, Element, trinum)%Area = CalcTriNumArea(Vector1,Vector2)
 
@@ -597,7 +597,7 @@ SUBROUTINE SetMeanSurfValues(iLocSide, Element)
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
-! Local variable declaration  
+! Local variable declaration
   REAL                        :: Vector1(3), Vector2(3),BaseVectorS(3),nVectest
   REAL                        :: SideCoord(1:3,0:1,0:1)!,SideCenter(1:3)
 !--------------------------------------------------------------------------------------------------!

@@ -70,10 +70,10 @@ DO iElem=1,PP_nElems
         maxLambda_v=MAX(maxLambda_v,(Lambda_v1+Lambda_v2+Lambda_v3))
       END DO ! i
     END DO ! j
-  END DO ! k          
+  END DO ! k
 END DO ! iElem=1,PP_nElems
 TimeStep(2)=MIN(TimeStep(2),4./maxLambda_v)
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,TimeStep,2,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
 #endif
 CalcTimeStep=MINVAL(TimeStep)

@@ -22,7 +22,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
   LOGICAL                           :: UseLD
   REAL  , ALLOCATABLE               :: LD_RHS(:,:)  ! RHS of the LD Method/ deltaV (npartmax, direction)
@@ -30,12 +30,12 @@ SAVE
   REAL                              :: LD_RepositionFak
   REAL                              :: LD_DSMC_RelaxationFak_BufferA
   REAL                              :: LD_RelaxationFak
-  LOGICAL  , ALLOCATABLE           :: IsDoneLagVelo(:)  ! (nSides) 
+  LOGICAL  , ALLOCATABLE           :: IsDoneLagVelo(:)  ! (nSides)
   REAL  , ALLOCATABLE              :: TempDens(:)
 !!!  REAL  , ALLOCATABLE               :: NewNodePosIndx(:,:) ! (1:nDim,1:nNodes)  !!! nur für "Tetra-Methode"
   LOGICAL                           :: LD_CalcDelta_t
   LOGICAL                           :: LD_CalcResidual
-  REAL, ALLOCATABLE                :: LD_Residual(:,:) ! Def. for LD Residual (number of Elements, 2nd index: 
+  REAL, ALLOCATABLE                :: LD_Residual(:,:) ! Def. for LD Residual (number of Elements, 2nd index:
                                                                                                   ! 1.Velocity ux
                                                                                                   ! 2.Velocity uy
                                                                                                   ! 3.Velocity uz
@@ -95,15 +95,15 @@ TYPE tMeanSurfValues                                              ! LD Lagrangia
   REAL                              :: CellCentDist(3)            ! vector difference between cell center for viscousity term
 END TYPE
 TYPE(tMeanSurfValues), ALLOCATABLE  :: MeanSurfValues(:,:)          ! Mean Surface for LD-Particle push (iLocSide, iElem)
- 
-REAL    , ALLOCATABLE               :: PartStateBulkValues(:,:)   ! LD particle values (npartmax, with 2nd index: 
+
+REAL    , ALLOCATABLE               :: PartStateBulkValues(:,:)   ! LD particle values (npartmax, with 2nd index:
                                                                                                   ! 1.Velocity ux
                                                                                                   ! 2.Velocity uy
                                                                                                   ! 3.Velocity uz
                                                                                                   ! 4.Temperature
                                                                                                   ! 5.Degree of freedom
-#ifdef MPI
-  REAL  , ALLOCATABLE               :: MPINeighborBulkVal(:,:) ! LD values for cells on other procs (SideID, with 2nd index: 
+#if USE_MPI
+  REAL  , ALLOCATABLE               :: MPINeighborBulkVal(:,:) ! LD values for cells on other procs (SideID, with 2nd index:
                                                                                                   ! 1.Velocity ux
                                                                                                   ! 2.Velocity uy
                                                                                                   ! 3.Velocity uz

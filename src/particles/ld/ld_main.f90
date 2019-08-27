@@ -147,7 +147,7 @@ SUBROUTINE LD_reposition
   IMPLICIT NONE                                                                                    !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
-! Local variable declaration  
+! Local variable declaration
 INTEGER               :: iElem
 INTEGER               :: iPart, iPartIndx,nPart
 REAL                  :: RandVec(3), iRan
@@ -161,7 +161,7 @@ REAL                  :: RandVec(3), iRan
     iPartIndx = PEM%pStart(iElem)
     DO iPart = 1, nPart
       CALL RANDOM_NUMBER(iRan)
-      IF (iRan.LT. LD_RepositionFak) THEN     
+      IF (iRan.LT. LD_RepositionFak) THEN
         CALL RANDOM_NUMBER(RandVec)
         RandVec = RandVec * 2.0 - 1.0
         CALL TensorProductInterpolation(RandVec,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),PartState(iPartIndx,1:3))
@@ -245,7 +245,7 @@ SUBROUTINE LD_PerfectReflection(nx,ny,nz,xNod,yNod,zNod,PoldStarX,PoldStarY,Pold
 
    !---- Assign new values to "old" variables to continue loop
 
-   PartStateBulkValues(i,1)   = VelX 
+   PartStateBulkValues(i,1)   = VelX
    PartStateBulkValues(i,2)   = VelY
    PartStateBulkValues(i,3)   = VelZ
 
@@ -299,7 +299,7 @@ REAL,ALLOCATABLE, INTENT(OUT)    :: particle_positions_Temp(:)
     ELSE
       nPart = INT(AINT(PartDens * GEO%Volume(iElem))) + 1
     END IF
-    DO iPart = 1, nPart   
+    DO iPart = 1, nPart
       CALL RANDOM_NUMBER(RandVec)
       RandVec = RandVec * 2.0 - 1.0
       CALL TensorProductInterpolation(RandVec,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),RandomPos)
@@ -366,9 +366,9 @@ DO iElem=1,PP_nElems
   END DO ! k
   TimeStepConv=MIN(TimeStepConv,CFLScale*2./SQRT(Max_Lambda1**2+Max_Lambda2**2+Max_Lambda3**2))
 END DO ! iElem
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,TimeStepConv,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 !PRINT*,'delta_t for given CFL-number:',TimeStepConv
 

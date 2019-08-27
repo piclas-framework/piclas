@@ -21,12 +21,12 @@ MODULE MOD_LinearSolver
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTERFACE LinearSolver
   MODULE PROCEDURE LinearSolver
 END INTERFACE
@@ -100,7 +100,7 @@ END SUBROUTINE DefineParametersLinearSolver
 
 SUBROUTINE InitLinearSolver()
 !===================================================================================================================================
-! Allocate global variable 
+! Allocate global variable
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -109,8 +109,8 @@ USE MOD_LinearSolver_Vars
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL,GETLOGICAL
 USE MOD_Mesh_Vars,            ONLY:MeshInitIsDone
 USE MOD_Interpolation_Vars,   ONLY:InterpolationInitIsDone
-USE MOD_Mesh_Vars,            ONLY:nGlobalElems  
-#ifndef PP_HDG
+USE MOD_Mesh_Vars,            ONLY:nGlobalElems
+#if !(USE_HDG)
 USE MOD_Interpolation_Vars,   ONLY:wGP
 USE MOD_Mesh_Vars,            ONLY:sJ
 USE MOD_Precond,              ONLY:InitPrecond
@@ -124,8 +124,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-#ifndef PP_HDG
+! LOCAL VARIABLES
+#if !(USE_HDG)
 INTEGER    :: i,j,k,iElem
 #endif
 !===================================================================================================================================
@@ -138,7 +138,7 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT LINEAR SOLVER...'
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 nGP2D=(PP_N+1)**2
 nGP3D=nGP2D*(PP_N+1)
 nDOFLine=PP_nVar*(PP_N+1)
@@ -147,7 +147,7 @@ nDOFelem=PP_nVar*nGP3D
 nDOFGlobal=nDOFelem*PP_nElems
 #endif /*NOT HDG*/
 ! compute this value with DG and HDG. The use within HDG requires the volume DOF identically to the Maxwell case
-nDOFGlobalMPI_inv = 1./(REAL(PP_nVar)*((PP_N+1)**3)*REAL(nGlobalElems))  
+nDOFGlobalMPI_inv = 1./(REAL(PP_nVar)*((PP_N+1)**3)*REAL(nGlobalElems))
 
 ALLOCATE(ImplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ImplicitSource=0.
@@ -167,15 +167,15 @@ gammaEW=GETREAL('gammaEW','0.9')
 #endif
 
 nRestarts             = GETINT('nRestarts','1')
-#ifndef PP_HDG
+#if !(USE_HDG)
 nDofGlobalMPI=nDofGlobal
-#ifdef MPI
+#if USE_MPI
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,nDofGlobalMPI,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
 
 eps_LinearSolver      = GETREAL('eps_LinearSolver','1e-3')
 epsTilde_LinearSolver = eps_LinearSolver!GETREAL('epsTilde_LinearSolver')
-eps2_LinearSolver     = eps_LinearSolver *eps_LinearSolver 
+eps2_LinearSolver     = eps_LinearSolver *eps_LinearSolver
 maxIter_LinearSolver  = GETINT('maxIter_LinearSolver','60')
 #endif /*NOT HDG*/
 
@@ -184,7 +184,7 @@ nInnerIter=0
 totalIterLinearSolver = 0
 
 DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
-#if defined(ROS) && !defined(PP_HDG) 
+#if defined(ROS) && !(USE_HDG)
 ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))
 #endif /*ROS and NOT HDG*/
 #if IMPA
@@ -195,7 +195,7 @@ Eps2_FullNewton      = Eps_FullNewton*Eps_FullNewton
 FullEisenstatWalker  = GETINT('FullEisenstatWalker','0')
 FullgammaEW          = GETREAL('FullgammaEW','0.9')
 Fulletamax           = GETREAL('Fulletamax','0.9999')
-#ifndef PP_HDG
+#if !(USE_HDG)
 ALLOCATE(FieldStage(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nRKStages-1))
 #endif /*NOT HDG*/
 #ifdef PARTICLES
@@ -224,7 +224,7 @@ DoFieldUpdate        = GETLOGICAL('DoFieldUpdate','.TRUE.')
 #endif /*ROS or IMPA*/
 #endif /*PARTICLES*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 ALLOCATE(Mass(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 DO iElem=1,PP_nElems
   DO k=0,PP_N
@@ -265,7 +265,7 @@ END SELECT
 ! init predictor
 CALL InitPredictor()
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 ! init preconditoner
 CALL InitPrecond()
 #endif /*NOT HDG*/
@@ -275,7 +275,7 @@ SWRITE(UNIT_stdOut,'(A)')' INIT LINEAR SOLVER DONE!'
 
 END SUBROUTINE InitLinearSolver
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 SUBROUTINE LinearSolver(t,Coeff,relTolerance,Norm_R0)
 !==================================================================================================================================
 ! Selection between different linear solvers
@@ -353,8 +353,8 @@ SUBROUTINE LinearSolver_CGS(t,Coeff,relTolerance,Norm_R0_in)
 !==================================================================================================================================
 ! Solves Linear system Ax=b using CGS
 ! Matrix A = I - Coeff*R
-! Attention: Vector x is U^n+1, initial guess set to U^n 
-! Attention: Vector b is U^n 
+! Attention: Vector x is U^n+1, initial guess set to U^n
+! Attention: Vector b is U^n
 !==================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -403,12 +403,12 @@ CALL CPU_TIME(tS)
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
 ! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
 !       A                x   = b
-! 
+!
 ! Residuum
 ! for initial guess, x0 is set to U^n
 ! R0 = b - A x0
 !    = U^n + dt*Sources^n+1 -( I - dt*DG_Operator ) U^n
-!    = dt*Source^n+1  + dt*DG_Operator U^n 
+!    = dt*Source^n+1  + dt*DG_Operator U^n
 !    = dt*Ut + dt*Source^n+1
 
 ! store here for later use
@@ -426,7 +426,7 @@ ELSE
   CALL VectorDotProduct(R0,R0,Norm_R0)
   Norm_R0=SQRT(Norm_R0)
 END IF
-! absolute tolerance check, if initial solution already matches old solution or 
+! absolute tolerance check, if initial solution already matches old solution or
 ! RHS is zero. Maybe it is here better to use relTolerance?
 IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-14) RETURN
 
@@ -523,7 +523,7 @@ DO WHILE (Restart.LT.nRestarts) ! maximum number of trials with CGS
   Tvec= R0
   nInnerIter=nInnerIter+iterLinSolver
   Restart = Restart + 1
-END DO ! while chance < 2 
+END DO ! while chance < 2
 
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
@@ -537,8 +537,8 @@ SUBROUTINE LinearSolver_BiCGStab_PM(t,Coeff,relTolerance,Norm_R0_in)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using BiCGStab with right preconditioner P_r
 ! Matrix A = I - Coeff*R
-! Attention: Vector x is U^n+1, initial guess set to U^n 
-! Attention: Vector b is U^n 
+! Attention: Vector x is U^n+1, initial guess set to U^n
+! Attention: Vector b is U^n
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -588,12 +588,12 @@ CALL CPU_TIME(tS)
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
 ! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
 !       A                x   = b
-! 
+!
 ! Residuum
 ! for initial guess, x0 is set to U^n
 ! R0 = b - A x0
 !    = U^n + dt*Sources^n+1 -( I - dt*DG_Operator ) U^n
-!    = dt*Source^n+1  + dt*DG_Operator U^n 
+!    = dt*Source^n+1  + dt*DG_Operator U^n
 !    = dt*Ut + dt*Source^n+1
 
 ! store here for later use
@@ -611,7 +611,7 @@ IF(PRESENT(Norm_R0_in))THEN
 ELSE
   Norm_R0=SQRT(alpha)
 END IF
-! absolute tolerance check, if initial solution already matches old solution or 
+! absolute tolerance check, if initial solution already matches old solution or
 ! RHS is zero. Maybe it is here better to use relTolerance?
 IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-14) RETURN
 
@@ -707,7 +707,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
   R  = R0
   nInnerIter=nInnerIter+iterLinSolver
   Restart = Restart + 1
-END DO ! while chance < 2 
+END DO ! while chance < 2
 
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
@@ -720,10 +720,10 @@ END SUBROUTINE LinearSolver_BiCGSTAB_PM
 
 SUBROUTINE LinearSolver_StabBiCGSTAB_P(t,Coeff,relTolerance,Norm_R0_in)
 !===================================================================================================================================
-! Solves Linear system Ax=b using stabilized BiCGStab 
+! Solves Linear system Ax=b using stabilized BiCGStab
 ! Matrix A = I - Coeff*R
-! Attention: Vector x is U^n+1, initial guess set to U^n 
-! Attention: Vector b is U^n 
+! Attention: Vector x is U^n+1, initial guess set to U^n
+! Attention: Vector b is U^n
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -773,12 +773,12 @@ CALL CPU_TIME(tS)
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
 ! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
 !       A                x   = b
-! 
+!
 ! Residuum
 ! for initial guess, x0 is set to U^n
 ! R0 = b - A x0
 !    = U^n + dt*Sources^n -( I - dt*DG_Operator ) U^n
-!    = dt*DG_Operator U^n 
+!    = dt*DG_Operator U^n
 !    = dt * Ut
 
 ! store here for later use
@@ -799,7 +799,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
     ELSE
       Norm_R0=SQRT(alpha)
     END IF
-    ! absolute tolerance check, if initial solution already matches old solution or 
+    ! absolute tolerance check, if initial solution already matches old solution or
     ! RHS is zero. Maybe it is here better to use relTolerance?
     IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-14) RETURN
   END IF
@@ -811,7 +811,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
     AbortCrit = Norm_R0*eps_LinearSolver
   END IF
   AbortCrit2 = AbortCrit*AbortCrit
-  
+
   DO iter=1,maxIter_LinearSolver
     ! Preconditioner
 #ifdef IMPLICIT_ANALYZE
@@ -830,8 +830,8 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
     CALL CPU_TIME(tend)
     tDG=tDG+tend-tStart
 #endif /* IMPLICIT_ANALYZE */
-    CALL VectorDotProduct(V,R0,sigma) 
-!    CALL VectorDotProduct(V,V,Norm_V) 
+    CALL VectorDotProduct(V,R0,sigma)
+!    CALL VectorDotProduct(V,V,Norm_V)
 !    Norm_V = SQRT(Norm_V)
 !    AbortCrit2 = epsTilde_LinearSolver*Norm_V*Norm_R0
 !    IF((sigma.GT.AbortCrit2).AND.(iter.GT.10)) THEN
@@ -870,7 +870,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
         CALL VectorDotProduct(R,R,Norm_R)
         Norm_R=SQRT(Norm_R)
         IF((Norm_R.LE.AbortCrit).OR.(Norm_R*nDOFGlobalMPI_inv.LT.1.E-14)) THEN
-          U=Un 
+          U=Un
           totalIterLinearSolver=totalIterLinearSolver+iter
 #ifdef IMPLICIT_ANALYZE
           CALL CPU_TIME(tE)
@@ -911,7 +911,7 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
 !      totalIterLinearSolver=totalIterLinearSolver+iter
 !    END IF ! Norm_Sigma
   END DO !iter
- ! restart with new U 
+ ! restart with new U
   Un   = 0.5*(Uold+Un)
   Uold = U
   LinSolverRHS = U
@@ -985,19 +985,19 @@ tDG=0.
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
 ! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
 !       A                x   = b
-! 
+!
 ! Residuum
 ! for initial guess, x0 is set to U^n
 ! R0 = b - A x0
 !    = U^n + dt*Sources^n -( I - dt*DG_Operator ) U^n
-!    = dt*DG_Operator U^n 
+!    = dt*DG_Operator U^n
 !    = dt * Ut
 
 Restart=0
 nInnerIter=0
-Un=U 
+Un=U
 
-! compute starting residual 
+! compute starting residual
 CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 CALL VectorDotProduct(R0,R0,Norm_R)
 Norm_R=SQRT(Norm_R) ! Norm_r is already computed
@@ -1009,7 +1009,7 @@ ELSE
   Norm_R0=Norm_R
 END IF
 
-! absolute tolerance check, if initial solution already matches old solution or 
+! absolute tolerance check, if initial solution already matches old solution or
 ! RHS is zero. Maybe it is here better to use relTolerance?
 IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-12) RETURN
 
@@ -1058,14 +1058,14 @@ DO WHILE (Restart<nRestarts)
     END DO !nn
     Bet=SQRT(H(m,m)*H(m,m)+H(m+1,m)*H(m+1,m))
     S(m)=H(m+1,m)/Bet
-    C(m)=H(m,m)/Bet 
+    C(m)=H(m,m)/Bet
     H(m,m)=Bet
     Gam(m+1)=-S(m)*Gam(m)
     Gam(m)=C(m)*Gam(m)
     ! converge or max Krylov reached
-    IF ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim) .OR. (ABS(Gam(m+1))*nDOFGlobalMPI_inv.LE.1e-14))THEN 
+    IF ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim) .OR. (ABS(Gam(m+1))*nDOFGlobalMPI_inv.LE.1e-14))THEN
       DO nn=m,1,-1
-         Alp(nn)=Gam(nn) 
+         Alp(nn)=Gam(nn)
          DO o=nn+1,m
            Alp(nn)=Alp(nn) - H(nn,o)*Alp(o)
          END DO !o
@@ -1089,10 +1089,10 @@ DO WHILE (Restart<nRestarts)
 #endif /* IMPLICIT_ANALYZE */
         RETURN
       END IF  ! converged
-    ELSE ! no convergence, next iteration   ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim)) 
+    ELSE ! no convergence, next iteration   ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim))
       V(:,:,:,:,:,m+1)=W/H(m+1,m)
     END IF ! ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim))
-  END DO ! m 
+  END DO ! m
   ! Restart needed
   Restart=Restart+1
   ! new settings for source
@@ -1121,8 +1121,8 @@ SUBROUTINE LinearSolver_BiCGStab_LRP(t,Coeff,relTolerance,Norm_R0_in)
 ! left preconditioner is right preconditioner
 ! alogrithm from Meister, p. 228 with direct residual control for left preconditoned algorithm
 ! Matrix A = I - Coeff*R
-! Attention: Vector x is U^n+1, initial guess set to U^n 
-! Attention: Vector b is U^n 
+! Attention: Vector x is U^n+1, initial guess set to U^n
+! Attention: Vector b is U^n
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -1176,12 +1176,12 @@ CALL CPU_TIME(tS)
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
 ! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
 !       A                x   = b
-! 
+!
 ! Residuum
 ! for initial guess, x0 is set to U^n
 ! R0 = b - A x0
 !    = U^n + dt*Sources^n+1 -( I - dt*DG_Operator ) U^n
-!    = dt*Source^n+1  + dt*DG_Operator U^n 
+!    = dt*Source^n+1  + dt*DG_Operator U^n
 !    = dt*Ut + dt*Source^n+1
 
 ! store here for later use
@@ -1200,7 +1200,7 @@ ELSE
   CALL VectorDotProduct(R0,R0,Norm_R0)
   Norm_R0=SQRT(Norm_R0)
 END IF
-! absolute tolerance check, if initial solution already matches old solution or 
+! absolute tolerance check, if initial solution already matches old solution or
 ! RHS is zero. Maybe it is here better to use relTolerance?
 IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-14) RETURN
 
@@ -1253,7 +1253,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     CALL VectorDotProduct(Rt,R0t,alpha)
     CALL VectorDotProduct(Vt,R0t,sigma)
     alpha=alpha/sigma
-    S = R - alpha*V ! requires to save v 
+    S = R - alpha*V ! requires to save v
     ! left preconditoner
     !CALL Preconditioner(S,St)
     ! or does not require the application of the preconditioner, Meister,p.227,EQ.5.9.3
@@ -1264,7 +1264,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
 #ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tStart)
 #endif /* IMPLICIT_ANALYZE */
-    CALL Preconditioner(St,Tvec) 
+    CALL Preconditioner(St,Tvec)
 #ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tend)
     tPrecond=tPrecond+tend-tStart
@@ -1343,7 +1343,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
   Norm_R = Norm_R0
   nInnerIter=nInnerIter+iterLinSolver
   Restart = Restart + 1
-END DO ! while chance < 2 
+END DO ! while chance < 2
 
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
@@ -1360,8 +1360,8 @@ SUBROUTINE LinearSolver_BiCGStab_LP(t,Coeff,relTolerance,Norm_R0_in)
 ! left preconditioner is right preconditioner
 ! alogrithm from Meister, p. 228 with direct residual control for left preconditoned algorithm
 ! Matrix A = I - Coeff*R
-! Attention: Vector x is U^n+1, initial guess set to U^n 
-! Attention: Vector b is U^n 
+! Attention: Vector x is U^n+1, initial guess set to U^n
+! Attention: Vector b is U^n
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -1416,12 +1416,12 @@ CALL CPU_TIME(tS)
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
 ! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
 !       A                x   = b
-! 
+!
 ! Residuum
 ! for initial guess, x0 is set to U^n
 ! R0 = b - A x0
 !    = U^n + dt*Sources^n+1 -( I - dt*DG_Operator ) U^n
-!    = dt*Source^n+1  + dt*DG_Operator U^n 
+!    = dt*Source^n+1  + dt*DG_Operator U^n
 !    = dt*Ut + dt*Source^n+1
 
 ! store here for later use
@@ -1439,7 +1439,7 @@ ELSE
   CALL VectorDotProduct(R0,R0,Norm_R0)
   Norm_R0=SQRT(Norm_R0)
 END IF
-! absolute tolerance check, if initial solution already matches old solution or 
+! absolute tolerance check, if initial solution already matches old solution or
 ! RHS is zero. Maybe it is here better to use relTolerance?
 IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-14) RETURN
 
@@ -1481,7 +1481,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     CALL VectorDotProduct(Rt,R0t,alpha)
     CALL VectorDotProduct(Vt,R0t,sigma)
     alpha=alpha/sigma
-    S = R - alpha*V ! requires to save v 
+    S = R - alpha*V ! requires to save v
     ! left preconditoner
     !CALL Preconditioner(S,St)
     ! or does not require the application of the preconditioner, Meister,p.227,EQ.5.9.3
@@ -1559,7 +1559,7 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
   Norm_R = Norm_R0
   nInnerIter=nInnerIter+iterLinSolver
   Restart = Restart + 1
-END DO ! while chance < 2 
+END DO ! while chance < 2
 
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
@@ -1574,8 +1574,8 @@ SUBROUTINE LinearSolver_BiCGSTABl(t,Coeff,relTolerance,Norm_R0_in)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using BiCGStab(l) with right preconditioner P_r
 ! Matrix A = I - Coeff*R
-! Attention: Vector x is U^n+1, initial guess set to U^n 
-! Attention: Vector b is U^n 
+! Attention: Vector x is U^n+1, initial guess set to U^n
+! Attention: Vector b is U^n
 ! Sleijpen 1993: BiCGSTAB(l) for linear equations involving unsymmetric matrices with complex spectrum
 !===================================================================================================================================
 ! MODULES
@@ -1626,12 +1626,12 @@ CALL CPU_TIME(tS)
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
 ! (I - dt*DG_Operator) U^n+1 = U^n + dt*Sources^n+1
 !       A                x   = b
-! 
+!
 ! Residuum
 ! for initial guess, x0 is set to U^n
 ! R0 = b - A x0
 !    = U^n + dt*Sources^n+1 -( I - dt*DG_Operator ) U^n
-!    = dt*Source^n+1  + dt*DG_Operator U^n 
+!    = dt*Source^n+1  + dt*DG_Operator U^n
 !    = dt*Ut + dt*Source^n+1
 
 ! store here for later use
@@ -1649,7 +1649,7 @@ ELSE
   CALL VectorDotProduct(R0,R0,Norm_R0)
   Norm_R0=SQRT(Norm_R0)
 END IF
-! absolute tolerance check, if initial solution already matches old solution or 
+! absolute tolerance check, if initial solution already matches old solution or
 ! RHS is zero. Maybe it is here better to use relTolerance?
 IF(Norm_R0*nDOFGlobalMPI_inv.LT.1e-14) RETURN
 
@@ -1794,7 +1794,7 @@ DO WHILE(Restart.LT.nRestarts)
   omega=1.
   nInnerIter=nInnerIter+iterLinSolver*ldim
   Restart = Restart + 1
-END DO ! while chance < 2 
+END DO ! while chance < 2
 
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
@@ -1819,7 +1819,7 @@ USE MOD_ParticleSolver,       ONLY:FinalizePartSolver
 USE MOD_LinearSolver_Vars,ONLY:ExplicitPartSource
 #endif
 #endif /*PARTICLES*/
-#ifndef PP_HDG
+#if !(USE_HDG)
 #if defined(ROS) || defined(IMPA)
 USE MOD_Precond,              ONLY:FinalizePrecond
 USE MOD_LinearSolver_Vars,ONLY:FieldStage,mass
@@ -1833,7 +1833,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 
 LinearSolverInitIsDone = .FALSE.
@@ -1848,7 +1848,7 @@ SDEALLOCATE(ExplicitPartSource)
 CALL FinalizePartSolver()
 #endif
 #endif /*PARTICLES*/
-#ifndef PP_HDG
+#if !(USE_HDG)
 #if defined(ROS) || defined(IMPA)
 SDEALLOCATE(FieldStage)
 SDEALLOCATE(mass)

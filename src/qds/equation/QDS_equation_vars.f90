@@ -21,7 +21,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,PARAMETER :: QDSnVar=40          ! number of QDS variables: 40
 INTEGER           :: QDSIniExactFunc     ! initial condition: exact function

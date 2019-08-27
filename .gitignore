@@ -21,3 +21,6 @@ regressioncheck/reggie/*
 tmp*/
 output_dir_gitlab_tool/
 .tags
+userguide.pdf
+developerguide.pdf
+*.pvsm

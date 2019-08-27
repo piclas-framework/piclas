@@ -17,7 +17,7 @@ MODULE MOD_PIC_Analyze
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -39,7 +39,7 @@ PUBLIC:: VerifyDepositedCharge, CalcDepositedCharge, CalculateBRElectronsPerCell
 
 CONTAINS
 
-SUBROUTINE VerifyDepositedCharge() 
+SUBROUTINE VerifyDepositedCharge()
 !===================================================================================================================================
 ! calcs the deposited chrages
 !===================================================================================================================================
@@ -55,9 +55,9 @@ USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource
 #else
 USE MOD_PICDepo_Vars,         ONLY:PartSource
 #endif
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -67,18 +67,18 @@ IMPLICIT NONE
 INTEGER           :: iElem
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-REAL              :: Charge, ChargeLoc, PartCharge
-#ifdef MPI
-REAL              :: PartCharge_sum, Charge_sum
+REAL              :: ChargeNumerical, ChargeLoc, ChargeAnalytical
+#if USE_MPI
+REAL              :: ChargeAnalytical_sum, ChargeNumerical_sum
 #endif
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' PERFORMING CHARGE DEPOSITION PLAUSIBILITY CHECK...'
 
-Charge=0.
+ChargeNumerical=0.
 DO iElem=1,nElems
   !--- Calculate and save volume of element iElem
-  ChargeLoc=0. 
+  ChargeLoc=0.
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if defined(IMPA)
@@ -87,31 +87,35 @@ DO iElem=1,nElems
     ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,iElem) * J_N(1,i,j,k)
 #endif
   END DO; END DO; END DO
-  Charge = Charge + ChargeLoc
+  ChargeNumerical = ChargeNumerical + ChargeLoc
 END DO
 
 
-PartCharge=0.
+ChargeAnalytical=0.
 DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
     IF(usevMPF)THEN
-      PartCharge = PartCharge + Species(PartSpecies(i))%ChargeIC * PartMPF(i)
+      ChargeAnalytical = ChargeAnalytical + Species(PartSpecies(i))%ChargeIC * PartMPF(i)
     ELSE
-      PartCharge = PartCharge + Species(PartSpecies(i))%ChargeIC * Species(PartSpecies(i))%MacroParticleFactor
+      ChargeAnalytical = ChargeAnalytical + Species(PartSpecies(i))%ChargeIC * Species(PartSpecies(i))%MacroParticleFactor
     END IF
   END IF
 END DO
 
-#ifdef MPI
-   CALL MPI_ALLREDUCE(PartCharge, PartCharge_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)
-   CALL MPI_ALLREDUCE(Charge, Charge_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)
-   PartCharge = PartCharge_sum
-   Charge = Charge_sum
+#if USE_MPI
+   CALL MPI_ALLREDUCE(ChargeAnalytical, ChargeAnalytical_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)
+   CALL MPI_ALLREDUCE(ChargeNumerical, ChargeNumerical_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)
+   ChargeAnalytical = ChargeAnalytical_sum
+   ChargeNumerical = ChargeNumerical_sum
 #endif
-SWRITE(*,*) "On the grid deposited charge", Charge
-SWRITE(*,*) "Charge by the particles:", PartCharge
-SWRITE(*,*) "Absolute deposition error:", ABS(PartCharge-Charge)
-SWRITE(*,*) "Relative deposition error in percent:", ABS(PartCharge-Charge)/PartCharge*100
+SWRITE(*,*) "On the grid deposited charge (numerical) : ", ChargeNumerical
+SWRITE(*,*) "Charge by the particles (analytical)     : ", ChargeAnalytical
+SWRITE(*,*) "Absolute deposition error                : ", ABS(ChargeAnalytical-ChargeNumerical)
+IF(ABS(ChargeAnalytical).GT.0.0)THEN
+  SWRITE(*,*) "Relative deposition error in percent     : ", ABS(ChargeAnalytical-ChargeNumerical)/ChargeAnalytical*100,"%"
+ELSE
+  SWRITE(*,*) "Relative deposition error in percent     : 100%"
+END IF
 SWRITE(UNIT_stdOut,'(A)')' CHARGE DEPOSITION PLAUSIBILITY CHECK DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 ChargeCalcDone = .TRUE.
@@ -119,7 +123,7 @@ ChargeCalcDone = .TRUE.
 END SUBROUTINE VerifyDepositedCharge
 
 
-SUBROUTINE CalcDepositedCharge() 
+SUBROUTINE CalcDepositedCharge()
 !===================================================================================================================================
 ! Calculation of deposited charge and compute the absolute and relative error
 !===================================================================================================================================
@@ -147,9 +151,9 @@ INTEGER           :: iElem
 INTEGER           :: i,j,k,iPart
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: Charge(2)
-#ifdef MPI
+#if USE_MPI
 REAL              :: RECBR(2)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 
@@ -162,7 +166,7 @@ DO iElem=1,PP_nElems
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if defined(IMPA)
-#ifdef PP_HDG
+#if USE_HDG
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(1,i,j,k,iElem) * J_N(1,i,j,k)
 #else /* DG */
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
@@ -184,7 +188,7 @@ DO iPart=1,PDM%ParticleVecLength
 END DO
 
 ! MPI Communication
-#ifdef MPI
+#if USE_MPI
 IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,Charge , 2 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
 ELSE ! no Root
@@ -206,7 +210,7 @@ END IF
 
 END SUBROUTINE CalcDepositedCharge
 
-SUBROUTINE CalculateBRElectronsPerCell(iElem,RegionID,ElectronNumberCell) 
+SUBROUTINE CalculateBRElectronsPerCell(iElem,RegionID,ElectronNumberCell)
 !===================================================================================================================================
 ! calcs integrated (physical) number of BR electrons in cell
 !===================================================================================================================================
@@ -217,7 +221,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,            ONLY:sJ
 USE MOD_Interpolation_Vars,   ONLY:wGP
 USE MOD_Particle_Vars,        ONLY:RegionElectronRef
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
 USE MOD_DG_Vars,              ONLY:U
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -237,7 +241,7 @@ REAL              :: source_e
 ElectronNumberCell=0.
 J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
 DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
   source_e = U(1,i,j,k,iElem)-RegionElectronRef(2,RegionID)
 #else
   CALL abort(&

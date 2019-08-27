@@ -21,13 +21,13 @@ MODULE MOD_ParticleSolver
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#if defined(PARTICLES) 
-#if defined(IMPA) 
+#if defined(PARTICLES)
+#if defined(IMPA)
 INTERFACE ParticleNewton
   MODULE PROCEDURE ParticleNewton
 END INTERFACE
@@ -65,7 +65,7 @@ CONTAINS
 
 #if defined(PARTICLES)
 #if defined(IMPA) || defined(ROS)
-SUBROUTINE InitPartSolver() 
+SUBROUTINE InitPartSolver()
 !===================================================================================================================================
 ! read in and allocation of required global variables for implicit particle treatment
 !===================================================================================================================================
@@ -79,7 +79,7 @@ USE MOD_LinearSolver_Vars
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -103,7 +103,7 @@ PartNewtonLinTolerance  = GETLOGICAL('PartNewtonLinTolerance','.FALSE.')
 EisenstatWalker = .FALSE.
 #endif /*IMPA*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 EpsPartLinSolver   =GETREAL('EpsPartLinSolver','0.')
 IF(EpsPartLinSolver.EQ.0.) EpsPartLinSolver=Eps_LinearSolver
 #else
@@ -143,7 +143,7 @@ END SUBROUTINE InitPartSolver
 
 
 #if IMPA
-SUBROUTINE SelectImplicitParticles() 
+SUBROUTINE SelectImplicitParticles()
 !===================================================================================================================================
 ! select if particle is treated implicitly or explicitly, has to be called, after particle are created/emitted
 ! currently only one criterion is used: the species
@@ -156,13 +156,13 @@ USE MOD_Linearsolver_Vars, ONLY:PartImplicitMethod
 USE MOD_TimeDisc_Vars,     ONLY:dt,nRKStages,iter!,time
 USE MOD_Equation_Vars,     ONLY:c2_inv
 USE MOD_LinearSolver_Vars, ONLY:DoPrintConvInfo
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars, ONLY:PartMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -212,7 +212,7 @@ CASE(2) ! if gamma exceeds a certain treshold
       IF(PartGamma.GT.0.3) PartIsImplicit(iPart)=.TRUE.
     END DO ! iPart
   END IF
-! CASE(3) 
+! CASE(3)
 ! use the dense output to compute error, if to large, switch to implicit
 CASE DEFAULT
   IF(MPIRoot)  CALL abort(&
@@ -228,7 +228,7 @@ IF(DoPrintConvInfo)THEN
     IF(PartIsImplicit(iPart)) nImp=nImp+1
     IF(.NOT.PartIsImplicit(iPart)) nExp=nExp+1
   END DO
-#ifdef MPI
+#if USE_MPI
   IF(PartMPI%MPIRoot)THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,nExp,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(MPI_IN_PLACE,nImp,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
@@ -236,42 +236,42 @@ IF(DoPrintConvInfo)THEN
     CALL MPI_REDUCE(nExp       ,iPart,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(nImp       ,iPart,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM, IERROR)
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
   SWRITE(UNIT_StdOut,'(A,I0,x,I0)') ' Particles explicit/implicit ', nExp, nImp
 END IF
-  
+
 END SUBROUTINE SelectImplicitParticles
 
 
 SUBROUTINE ParticleNewton(t,coeff,Mode,doParticle_In,opt_In,AbortTol_In)
 !===================================================================================================================================
-! Allocate global variable 
+! Allocate global variable
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
-USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton    &
+USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK,PartNewtonRelaxation
+USE MOD_Particle_Vars          ,ONLY: PartQ,F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton    &
                                      ,PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType,PartDeltaX,PartDtFrac,PartStateN  &
                                      ,PartMeshHasReflectiveBCs
-USE MOD_LinearOperator,          ONLY:PartVectorDotProduct
-USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_Part_RHS,                ONLY:CalcPartRHS
-#ifdef MPI
-USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
+USE MOD_LinearOperator         ,ONLY: PartVectorDotProduct
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Part_RHS               ,ONLY: CalcPartRHS
+#if USE_MPI
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY:LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
-USE MOD_LinearSolver_vars,       ONLY:Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,DoPrintConvInfo
-USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
+#endif /*USE_MPI*/
+USE MOD_LinearSolver_vars      ,ONLY: Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,DoPrintConvInfo
+USE MOD_Part_RHS               ,ONLY: SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
-USE MOD_Equation_vars,           ONLY:c2_inv
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
+USE MOD_Equation_vars          ,ONLY: c2_inv
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
+USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 !USE MOD_Equation,       ONLY: CalcImplicitSource
 ! IMPLICIT VARIABLE HANDLING
@@ -286,7 +286,7 @@ REAL,INTENT(IN),OPTIONAL      :: AbortTol_In
 ! OUTPUT VARIABLES
 INTEGER,INTENT(OUT)           :: Mode
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 LOGICAL                      :: opt
 REAL                         :: time
 INTEGER                      :: iPart
@@ -374,17 +374,17 @@ IF(opt)THEN ! compute zero state
         Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
         LorentzFacInv = 1.0
       CASE(5)
-        LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv      
+        LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
         LorentzFacInv=1.0/SQRT(LorentzFacInv)
         Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
       CASE DEFAULT
       END SELECT
       ! PartStateN has to be exchanged by PartQ
-      Pt_tmp(1) = LorentzFacInv*PartState(iPart,4) 
-      Pt_tmp(2) = LorentzFacInv*PartState(iPart,5) 
-      Pt_tmp(3) = LorentzFacInv*PartState(iPart,6) 
-      Pt_tmp(4) = Pt(iPart,1) 
-      Pt_tmp(5) = Pt(iPart,2) 
+      Pt_tmp(1) = LorentzFacInv*PartState(iPart,4)
+      Pt_tmp(2) = LorentzFacInv*PartState(iPart,5)
+      Pt_tmp(3) = LorentzFacInv*PartState(iPart,6)
+      Pt_tmp(4) = Pt(iPart,1)
+      Pt_tmp(5) = Pt(iPart,2)
       Pt_tmp(6) = Pt(iPart,3)
       F_PartX0(1:6,iPart) =   PartState(iPart,1:6)-PartQ(1:6,iPart)-PartDtFrac(iPart)*coeff*Pt_tmp(1:6)
       PartXK(1:6,iPart)   =   PartState(iPart,1:6)
@@ -434,23 +434,23 @@ CALL LBPauseTime(LB_PUSH,tLBStart)
 DoNewton=.FALSE.
 Mode=0
 IF(ANY(DoPartInNewton)) DoNewton=.TRUE.
-#ifdef MPI
+#if USE_MPI
 !set T if at least 1 proc has to do newton
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 IF(DoPrintConvInfo)THEN
-  ! newton per particle 
+  ! newton per particle
   Counter=0
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
-      Counter=Counter+1      
+      Counter=Counter+1
     END IF ! ParticleInside
   END DO ! iPart
-#ifdef MPI
+#if USE_MPI
   !set T if at least 1 proc has to do newton
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
-#endif /*MPI*/
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
+#endif /*USE_MPI*/
   SWRITE(UNIT_StdOut,'(A,I0)') ' Initial particle number in newton: ',Counter
 END IF
 
@@ -471,7 +471,7 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
   END IF
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
-      ! set abort crit      
+      ! set abort crit
       IF (nInnerPartNewton.EQ.1) THEN
         AbortCritLinSolver=0.999
       ELSE
@@ -482,9 +482,10 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
           gammaB = MIN(0.999, MAX(gammaA,PartgammaEW*AbortCritLinSolver*AbortCritLinSolver))
         ENDIF
         AbortCritLinSolver = MIN(0.999,MAX(gammaB,0.5*(AbortTol)/(Norm_F_PartXk(iPart))))
-      END IF 
+      END IF
       Norm_F_PartXk_old(iPart)=Norm_F_PartXk(iPart)
       CALL Particle_GMRES(t,coeff,iPart,-F_PartXK(:,iPart),(Norm_F_PartXk(iPart)),AbortCritLinSolver,PartDeltaX(1:6,iPart))
+      PartDeltaX(1:6,iPart)=PartDeltaX(1:6,iPart)*PartNewtonRelaxation
       ! everything else is done in Particle_Armijo
     END IF ! ParticleInside
   END DO ! iPart
@@ -493,26 +494,26 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
 #endif /*USE_LOADBALANCE*/
 
   ! DeltaX is going to be global
-  CALL Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton) 
+  CALL Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton)
 
   ! check if all particles are converged
   DoNewton=.FALSE.
   IF(ANY(DoPartInNewton)) DoNewton=.TRUE.
-#ifdef MPI
+#if USE_MPI
   !set T if at least 1 proc has to do newton
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) 
-#endif /*MPI*/
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
+#endif /*USE_MPI*/
   IF(DoPrintConvInfo)THEN
     Counter=0
     DO iPart=1,PDM%ParticleVecLength
       IF(DoPartInNewton(iPart))THEN
-        Counter=Counter+1      
+        Counter=Counter+1
       END IF ! ParticleInside
     END DO ! iPart
-#ifdef MPI
+#if USE_MPI
     !set T if at least 1 proc has to do newton
-    CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
-#endif /*MPI*/
+    CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
+#endif /*USE_MPI*/
   END IF
 END DO
 
@@ -628,14 +629,14 @@ DO WHILE (Restart<nRestarts)
     END DO !nn
     Bet=SQRT(H(m,m)*H(m,m)+H(m+1,m)*H(m+1,m))
     S(m)=H(m+1,m)/Bet
-    C(m)=H(m,m)/Bet 
+    C(m)=H(m,m)/Bet
     H(m,m)=Bet
     Gam(m+1)=-S(m)*Gam(m)
     Gam(m)=C(m)*Gam(m)
     IF ((ABS(Gam(m+1)).LE.AbortCritloc) .OR. (m.EQ.nKDimPart)) THEN !converge or max Krylov reached
     !IF (m.EQ.nKDimPart) THEN !converge or max Krylov reached
       DO nn=m,1,-1
-         Alp(nn)=Gam(nn) 
+         Alp(nn)=Gam(nn)
          DO o=nn+1,m
            Alp(nn)=Alp(nn) - H(nn,o)*Alp(o)
          END DO !o
@@ -660,10 +661,10 @@ DO WHILE (Restart<nRestarts)
 #endif /* DLINANALYZE */
         RETURN
       !END IF  ! converged
-    ELSE ! no convergence, next iteration   ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim)) 
+    ELSE ! no convergence, next iteration   ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim))
       V(:,m+1)=W/H(m+1,m)
     END IF ! ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim))
-  END DO ! m 
+  END DO ! m
   ! Restart needed
 #ifdef ROS
 CALL abort(&
@@ -692,7 +693,7 @@ END SUBROUTINE Particle_GMRES
 #endif /*ROS or IMPA*/
 
 #ifdef IMPA
-SUBROUTINE Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton) 
+SUBROUTINE Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton)
 !===================================================================================================================================
 ! an intermediate Armijo step to ensure global convergence
 ! search direction is d = - F'(U)^-1 F(U), e.g. result of Newton-Step
@@ -702,35 +703,35 @@ SUBROUTINE Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
-USE MOD_Particle_Vars,           ONLY:PartState,F_PartXK,Norm_F_PartXK,PartQ,PartLorentzType,DoPartInNewton,PartLambdaAccept &
+USE MOD_LinearOperator         ,ONLY: PartMatrixVector, PartVectorDotProduct
+USE MOD_Particle_Vars          ,ONLY: PartState,F_PartXK,Norm_F_PartXK,PartQ,PartLorentzType,DoPartInNewton,PartLambdaAccept &
                                      ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm_F_PartX0,PartDtFrac,PartStateN &
-                                     ,PartMeshHasReflectiveBCs!,StagePartPos
-USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,DoPrintConvInfo
-USE MOD_LinearSolver_Vars,       ONLY:Part_alpha, Part_sigma
-USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
+                                     ,PartMeshHasReflectiveBCs
+USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK,DoPrintConvInfo
+USE MOD_LinearSolver_Vars      ,ONLY: Part_alpha, Part_sigma
+USE MOD_Part_RHS               ,ONLY: SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
-USE MOD_Equation_Vars,           ONLY:c2_inv
-USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping,TriaTracking
-USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,PartNewtonRelaxation
-#ifdef MPI
-USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
-USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+USE MOD_Equation_Vars          ,ONLY: c2_inv
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_LinearSolver_Vars      ,ONLY: DoFullNewton,PartNewtonRelaxation
+#if USE_MPI
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY:LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
+USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 REAL,INTENT(IN)              :: t
 REAL,INTENT(IN)              :: coeff
 REAL,INTENT(IN)              :: AbortTol
@@ -744,11 +745,11 @@ REAL                         :: lambda, Norm_PartX,DeltaX_Norm
 REAL                         :: LorentzFacInv,Xtilde(1:6), DeltaX(1:6)
 LOGICAL                      :: DoSetLambda
 INTEGER                      :: nLambdaReduce,nMaxLambdaReduce=10
-#ifdef MPI
+#if USE_MPI
 #if USE_LOADBALANCE
 REAL                         :: tLBStart
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
 REAL                         :: n_loc(1:3), PartStateTmp(1:6)
 LOGICAL                      :: ReMap
 !===================================================================================================================================
@@ -756,7 +757,7 @@ LOGICAL                      :: ReMap
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-lambda=1.*PartNewtonRelaxation
+lambda=1. !*PartNewtonRelaxation
 DoSetLambda=.TRUE.
 PartLambdaAccept=.TRUE.
 DO iPart=1,PDM%ParticleVecLength
@@ -789,7 +790,7 @@ DO iPart=1,PDM%ParticleVecLength
 !        IPWRITE(UNIT_stdOut,'(I0,A,6(X,E24.12))') ' found wrong search direction', PartDeltaX(1:6,iPart)
 !        CALL abort(&
 !  __STAMP__&
-!  ,' Found wrond search direction! Particle, Monitored decrease: ', iPart, Norm2_PartX) 
+!  ,' Found wrond search direction! Particle, Monitored decrease: ', iPart, Norm2_PartX)
 !     END IF
     END IF
 #ifdef CODE_ANALYZE
@@ -809,20 +810,20 @@ CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 ! move particle
-#ifdef MPI
+#if USE_MPI
 ! open receive buffer for number of particles
 CALL IRecvNbofParticles() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
 IF(DoRefMapping)THEN
-  CALL ParticleRefTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength)) 
+  CALL ParticleRefTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
 ELSE
   IF (TriaTracking) THEN
     CALL ParticleTriaTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
   ELSE
-    CALL ParticleTracing(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength)) 
+    CALL ParticleTracing(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
   END IF
 END IF
 
@@ -838,12 +839,12 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
   END IF
 END DO
-#ifdef MPI
+#if USE_MPI
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 ! send number of particles
-CALL SendNbOfParticles(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength)) 
+CALL SendNbOfParticles(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
 ! finish communication of number of particles and send particles
 CALL MPIParticleSend() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
 ! finish communication
@@ -861,13 +862,13 @@ CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 
 DO iPart=1,PDM%ParticleVecLength
   IF(.NOT.PartLambdaAccept(iPart))THEN
-#ifdef MPI
+#if USE_MPI
     IF(.NOT.PDM%ParticleInside(iPart))THEN
       DoPartInNewton(iPart)=.FALSE.
       PartLambdaAccept(iPart)=.TRUE.
       CYCLE
     END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
     ! compute lorentz force at particles position
     CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
     reMap=.FALSE.
@@ -899,7 +900,7 @@ DO iPart=1,PDM%ParticleVecLength
       Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       LorentzFacInv = 1.0
     CASE(5)
-      LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv      
+      LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
       LorentzFacInv=1.0/SQRT(LorentzFacInv)
       Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
     CASE DEFAULT
@@ -965,7 +966,7 @@ __STAMP__&
         END IF
   !    END IF ! nInnerPartNewton>1
     END IF
-    IF(reMap) PartState(iPart,1:6) = PartStateTmp(1:6) 
+    IF(reMap) PartState(iPart,1:6) = PartStateTmp(1:6)
   END IF
 END DO ! iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
@@ -973,11 +974,11 @@ CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 ! disable Armijo iteration and use only one fixed value
-IF(PartNewtonRelaxation.LT.1.)  PartLambdaAccept=.TRUE.
+!IF(PartNewtonRelaxation.LT.1.)  PartLambdaAccept=.TRUE.
 
 DoSetLambda=.FALSE.
 IF(ANY(.NOT.PartLambdaAccept)) DoSetLambda=.TRUE.
-#ifdef MPI
+#if USE_MPI
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -986,7 +987,7 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSetLambda,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,i
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
 IF(DoPrintConvInfo)THEN
   SWRITE(UNIT_stdOut,'(A20,2x,L)') ' Lambda-Accept: ', DoSetLambda
 END IF
@@ -994,7 +995,7 @@ END IF
 nLambdaReduce=1
 DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   nLambdaReduce=nLambdaReduce+1
-  lambda=0.1*lambda
+  lambda=0.5*lambda
   IF(DoPrintConvInfo)THEN
     SWRITE(UNIT_stdOut,'(A20,2x,E24.12)') ' lambda: ', lambda
   END IF
@@ -1003,13 +1004,13 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
 #endif /*USE_LOADBALANCE*/
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PartLambdaAccept(iPart))THEN
-#ifdef MPI
+#if USE_MPI
     IF(.NOT.PDM%ParticleInside(iPart))THEN
       DoPartInNewton(iPart)=.FALSE.
       PartLambdaAccept(iPart)=.TRUE.
       CYCLE
     END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
       ! update the last part pos and element for particle movement
       LastPartPos(iPart,1)=PartStateN(iPart,1)
       LastPartPos(iPart,2)=PartStateN(iPart,2)
@@ -1023,20 +1024,20 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
     END IF ! ParticleInside
   END DO ! iPart
   ! move particle
-#ifdef MPI
+#if USE_MPI
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
-#endif /*MPI*/
+#endif /*USE_MPI*/
   IF(DoRefMapping)THEN
-    CALL ParticleRefTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength)) 
+    CALL ParticleRefTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
   ELSE
     IF (TriaTracking) THEN
       CALL ParticleTriaTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
     ELSE
-      CALL ParticleTracing(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength)) 
+      CALL ParticleTracing(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
     END IF
   END IF
   DO iPart=1,PDM%ParticleVecLength
@@ -1051,12 +1052,12 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       END IF
     END IF
   END DO
-#ifdef MPI
+#if USE_MPI
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
   ! send number of particles
-  CALL SendNbOfParticles(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength)) 
+  CALL SendNbOfParticles(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
   ! finish communication of number of particles and send particles
   CALL MPIParticleSend() ! input value: which list:PartLambdaAccept or PDM%ParticleInisde?
   ! finish communication
@@ -1077,13 +1078,13 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
 #endif /*USE_LOADBALANCE*/
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PartLambdaAccept(iPart))THEN
-#ifdef MPI
+#if USE_MPI
       IF(.NOT.PDM%ParticleInside(iPart))THEN
         DoPartInNewton(iPart)=.FALSE.
         PartLambdaAccept(iPart)=.TRUE.
         CYCLE
       END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
       ! compute lorentz-force at particle's position
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       reMap=.FALSE.
@@ -1112,7 +1113,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
         Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
         LorentzFacInv = 1.0
       CASE(5)
-        LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv      
+        LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
         LorentzFacInv=1.0/SQRT(LorentzFacInv)
         Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
       CASE DEFAULT
@@ -1127,7 +1128,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       R_PartXK(5,iPart)=Pt(iPart,2)
       R_PartXK(6,iPart)=Pt(iPart,3)
       F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:6,iPart)
-      ! vector dot product 
+      ! vector dot product
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm_PartX)
       Norm_PartX=SQRT(Norm_PartX)
       !IF(Norm2_PartX .LT. (1.-Part_alpha*lambda)*Norm2_F_PartXK(iPart))THEN
@@ -1169,7 +1170,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
         END IF
       END IF ! DoFullNewton
       ! remap is performed for deposition
-      IF(reMap) PartState(iPart,1:6) = PartStateTmp(1:6) 
+      IF(reMap) PartState(iPart,1:6) = PartStateTmp(1:6)
     END IF
   END DO ! iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
@@ -1178,10 +1179,10 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   ! detect  convergence
   DoSetLambda=.FALSE.
   IF(ANY(.NOT.PartLambdaAccept)) DoSetLambda=.TRUE.
-#ifdef MPI
+#if USE_MPI
   !set T if at least 1 proc has to do newton
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSetLambda,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
   iCounter=0
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PartLambdaAccept(iPart))THEN
@@ -1190,10 +1191,10 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
     END IF ! ParticleInside
   END DO ! iPart
   IF(DoPrintConvInfo)THEN
-#ifdef MPI
+#if USE_MPI
     !set T if at least 1 proc has to do newton
-    CALL MPI_ALLREDUCE(MPI_IN_PLACE,iCounter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
-#endif /*MPI*/
+    CALL MPI_ALLREDUCE(MPI_IN_PLACE,iCounter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
+#endif /*USE_MPI*/
     SWRITE(UNIT_stdOut,'(A20,2x,L,2x,I10)') ' Accept?: ', DoSetLambda,iCounter
   END IF
 #if USE_LOADBALANCE
@@ -1209,7 +1210,7 @@ END SUBROUTINE Particle_Armijo
 #endif /*IMPA*/
 
 #if defined(IMPA) || defined(ROS)
-SUBROUTINE FinalizePartSolver() 
+SUBROUTINE FinalizePartSolver()
 !===================================================================================================================================
 ! deallocate global variables
 !===================================================================================================================================
@@ -1226,7 +1227,7 @@ USE MOD_Particle_Vars,           ONLY:PartQ
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

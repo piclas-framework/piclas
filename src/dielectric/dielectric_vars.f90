@@ -12,7 +12,7 @@
 !==================================================================================================================================
 MODULE MOD_Dielectric_Vars
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -20,13 +20,14 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Dielectric region damping factor
 LOGICAL             :: DoDielectric                   ! True/false switch for Dielectric calculation procedures
 LOGICAL             :: DielectricFluxNonConserving    ! True/false switch for using conserving or non-conserving fluxes at
 !                                                     !dielectric interfaces between a dielectric region and vacuum
 LOGICAL             :: DielectricInitIsDone           ! Initialization flag
+LOGICAL             :: DielectricNoParticles          ! Do not insert/emit particles into dielectric regions (default=F).
 LOGICAL,ALLOCATABLE :: isDielectricElem(:)            ! True if iElem is an element located within the Dielectric.
 !                                                     ! This vector is allocated to (region.1:PP_nElems)
 LOGICAL,ALLOCATABLE :: isDielectricFace(:)            ! True if iFace is a Face located within or on the boarder (interface) of the
@@ -42,10 +43,10 @@ LOGICAL             :: useDielectricMinMax            ! Switch between 'xyzPhysi
 CHARACTER(255)      :: DielectricTestCase             ! Special test cases, e.g., "fish eye lens" Maxwell 1860
 REAL                :: DielectricEpsR                 ! For Dielectric region shift
 REAL                :: DielectricEpsR_inv             ! 1./EpsR
-#ifdef PP_HDG
+#if USE_HDG
 REAL                :: DielectricRatio                ! Set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere
 REAL                :: Dielectric_E_0                 ! Axial electric field strength in x-direction of the dielectric sphere setup
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 REAL                :: DielectricMuR                  ! MuR
 REAL                :: DielectricRmax                 ! Maximum radius for dielectric material distribution
 REAL                :: DielectricConstant_RootInv     ! 1./sqrt(EpsR*MuR)

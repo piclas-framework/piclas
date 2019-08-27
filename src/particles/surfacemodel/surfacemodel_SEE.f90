@@ -25,46 +25,63 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: SEE_PartDesorb
+PUBLIC :: SecondaryElectronEmission
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE SEE_PartDesorb(PartSurfaceModel_IN,PartID_IN,Adsorption_prob_OUT,adsorption_case,outSpec) 
+SUBROUTINE SecondaryElectronEmission(PartSurfaceModel_IN,PartID_IN,locBCID,Adsorption_prob_OUT,interactionCase,ProductSpec,ProductSpecNbr,&
+           v_new,velocityDistribution)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Determine the probability of an electron being emitted due to an impacting particles (ion/electron bombardment)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Vars    ,ONLY: PartState,Species,PartSpecies
-USE MOD_Particle_Analyze ,ONLY: PartIsElectron
-USE MOD_Globals_Vars     ,ONLY: BoltzmannConst,ElementaryCharge,ElectronMass
+USE MOD_Globals           ,ONLY: abort
+USE MOD_Equation_vars     ,ONLY: c
+USE MOD_Particle_Vars     ,ONLY: PartState,Species,PartSpecies
+USE MOD_Particle_Analyze  ,ONLY: PartIsElectron
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst,ElementaryCharge,ElectronMass
+USE MOD_SurfaceModel_Vars ,ONLY: Adsorption
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)      :: PartSurfaceModel_IN !< which SEE model?
                                                !< 5: SEE by Levko2015
                                                !< 6: SEE by Pagonakis2016 (originally from Harrower1956)
 INTEGER,INTENT(IN)      :: PartID_IN           !< Bombarding Particle ID
-REAL   ,INTENT(OUT)     :: Adsorption_prob_OUT !< probability of an electron being emitted due to an impacting particles 
+REAL   ,INTENT(OUT)     :: Adsorption_prob_OUT !< probability of an electron being emitted due to an impacting particles
                                                !< (ion/electron bombardment)
-INTEGER,INTENT(OUT)     :: adsorption_case     !< what happens to the bombarding particle and is a new one created?
-INTEGER,INTENT(OUT)     :: outSpec(2)          !< outSpec(1) currently not used
-                                               !< outSpec(2) ID of created particle
+INTEGER,INTENT(OUT)     :: interactionCase     !< what happens to the bombarding particle and is a new one created?
+INTEGER,INTENT(OUT)     :: ProductSpec(2)      !< ProductSpec(1) new ID of impacting particle (the old one can change)
+                                               !< ProductSpec(2) new ID of newly released electron
+INTEGER,INTENT(OUT)     :: ProductSpecNbr      !< number of species for ProductSpec(1)
+REAL,INTENT(OUT)        :: v_new  ! Velocity of emitted secondary electron
+CHARACTER(LEN=*),INTENT(OUT)   :: velocityDistribution(2) !< Name of veloctiy distribution of reflected and newly created electron
+INTEGER,INTENT(IN)             :: locBCID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL              :: eps_e  ! Energy of bombarding electron in eV
-REAL              :: v_new  ! Velocity of emitted secondary electron
 REAL              :: iRan   ! Random number
 REAL              :: k_ee   ! Coefficient of emission of secondary electron
-REAL              :: k_refl ! Coefficient for reflection of bombarding electron 
+REAL              :: k_refl ! Coefficient for reflection of bombarding electron
 !===================================================================================================================================
 ! Default 0
-outSpec = 0
+ProductSpec    = 0
+ProductSpecNbr = 0
+v_new          = 0.0
+Adsorption_prob_OUT = 0. ! default
 ! Select particle surface modeling
 SELECT CASE(PartSurfaceModel_IN)
 CASE(5) ! 5: SEE by Levko2015 for copper electrodes
   !     ! D. Levko and L. L. Raja, Breakdown of atmospheric pressure microgaps at high excitation, J. Appl. Phys. 117, 173303 (2015)
+
+  ProductSpec(1)  = PartSpecies(PartID_IN) ! old particle
+  interactionCase = 3
+  velocityDistribution(1) = ''
+  velocityDistribution(2) = 'deltadistribution'
+
+
   ASSOCIATE (&
         phi            => 4.4  ,& ! eV -> cathode work function phi Ref. [20] Y. P. Raizer, Gas Discharge Physics (Springer, 1991)
         I              => 15.6  & ! eV -> ionization threshold of N2
@@ -93,54 +110,87 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
         IF(iRan.LT.(k_ee+k_refl))THEN ! Either SEE-E or reflection
           CALL RANDOM_NUMBER(iRan)
           IF(iRan.LT.k_ee/(k_ee+k_refl))THEN ! SEE
-            adsorption_case = -2 ! SEE + perfect elastic scattering of the bombarding electron
-            outSpec(2)      = 4  ! Species of the injected electron (TODO: make this variable)
-            v_new           = SQRT(2.*(eps_e-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
+            !interactionCase = 3 ! SEE + perfect elastic scattering of the bombarding electron
+            ProductSpec(2)  = Adsorption%ResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+            ProductSpecNbr = 1
+            v_new           = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
             eps_e           = 0.5*mass*(v_new**2)/ElementaryCharge               ! Energy of the injected electron
-          ELSE
-            adsorption_case = -1 ! Only perfect elastic scattering of the bombarding electron
+!WRITE (*,*) CHAR(27) // "[0;34mPartID_IN                  =", PartID_IN,CHAR(27),"[m"
+!WRITE (*,*) CHAR(27) // "[0;34mPartState(PartID_IN,1:3)   =", PartState(PartID_IN,1:3),CHAR(27),"[m"
+!WRITE (*,*) CHAR(27) // "[0;34mPartState(PartID_IN,4:6)   =", PartState(PartID_IN,4:6),CHAR(27),"[m"
+!WRITE (*,*) CHAR(27) // "[0;34mBombarding electron: v_new =", v_new,CHAR(27),"[m"
+!WRITE (*,*) CHAR(27) // "[0;34m                     eps_e =", eps_e,CHAR(27),"[m"
+          ELSE ! Only perfect elastic scattering of the bombarding electron
+            interactionCase = 2 ! Only perfect elastic scattering of the bombarding electron
+            ProductSpecNbr = 0 ! do not create new particle
           END IF
+          ! Original Code as described in the paper by Levko (2015)
           !   IF(k_refl.LT.k_ee)THEN ! -> region with a high chance of SEE
           !     IF(iRan.LT.k_refl/(k_ee+k_refl))THEN ! Reflection
-          !       adsorption_case = -1 ! only perfect elastic scattering of the bombarding electron
+          !       interactionCase = -1 ! only perfect elastic scattering of the bombarding electron
           !     ELSE ! SEE-E
-          !       adsorption_case = -2 ! SEE + perfect elastic scattering of the bombarding electron
-          !       outSpec(2)      = 4
+          !       interactionCase = -2 ! SEE + perfect elastic scattering of the bombarding electron
+          !       ProductSpec(2)      = 4
           !     END IF
           !   ELSE ! (k_ee.LE.k_refl) -> region with a high chance of reflection
           !     IF(iRan.LT.k_ee/(k_ee+k_refl))THEN ! SEE
-          !       adsorption_case = -2 ! SEE + perfect elastic scattering of the bombarding electron
-          !       outSpec(2)      = 4
+          !       interactionCase = -2 ! SEE + perfect elastic scattering of the bombarding electron
+          !       ProductSpec(2)      = 4
           !     ELSE ! Reflection
-          !       adsorption_case = -1 ! only perfect elastic scattering of the bombarding electron
+          !       interactionCase = -1 ! only perfect elastic scattering of the bombarding electron
           !     END IF
           !   END IF
-        ELSE
-          adsorption_case = -4 ! Removal of the bombarding electron
+        ELSE ! Removal of the bombarding electron
+          !interactionCase = 3 ! Removal of the bombarding electron
+          ProductSpec(1) = 0 ! just for sanity check
         END IF
       END ASSOCIATE
     ELSEIF(Species(PartSpecies(PartID_IN))%ChargeIC.NE.0.0)THEN ! Positive bombarding ion
       CALL RANDOM_NUMBER(iRan)
+      !IF(iRan.LT.1.)THEN ! SEE-I: gamma=0.02 for the N2^+ ions and copper material
       IF(iRan.LT.0.02)THEN ! SEE-I: gamma=0.02 for the N2^+ ions and copper material
-        adsorption_case = -2       ! SEE + perfect elastic scattering of the bombarding electron
-        outSpec(2)      = 4        ! Species of the injected electron (TODO: make this variable)
-        eps_e           = I-2.*phi ! Energy of the injected electron 
-      ELSE
-        adsorption_case = -1 ! Only perfect elastic scattering of the bombarding electron
+        !interactionCase = -2       ! SEE + perfect elastic scattering of the bombarding electron
+        ProductSpec(2)  = Adsorption%ResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+        ProductSpecNbr = 1
+        eps_e           = I-2.*phi ! Energy of the injected electron
+        v_new           = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
+!WRITE (*,*) CHAR(27) // "[0;34mPartID_IN                  =", PartID_IN,CHAR(27),"[m"
+!WRITE (*,*) CHAR(27) // "[0;31mPartState(PartID_IN,1:3) =", PartState(PartID_IN,1:3),CHAR(27),"[m"
+!WRITE (*,*) CHAR(27) // "[0;31mPartState(PartID_IN,4:6) =", PartState(PartID_IN,4:6),CHAR(27),"[m"
+!WRITE (*,*) CHAR(27) // "[0;31mPositive bombarding ion: v_new =", v_new,CHAR(27),"[m"
+!WRITE (*,*) CHAR(27) // "[0;31m                         eps_e =", eps_e,CHAR(27),"[m"
+      ELSE ! Removal of the bombarding ion
+        !interactionCase = -1 ! Only perfect elastic scattering of the bombarding electron
+        ProductSpec(1)  = -PartSpecies(PartID_IN) ! remove and sample
+        interactionCase = 3 ! Removal of the bombarding ion
+        ProductSpecNbr = 0 ! do not create new particle
       END IF
     ELSE ! Neutral bombarding particle
-      IF(iRan.LT.0.1)THEN ! SEE-N: from svn-trunk PICLas version
-        adsorption_case = -2 ! SEE + perfect elastic scattering of the bombarding electron
-        outSpec(2)      = 4  ! Species of the injected electron (TODO: make this variable)
-      ELSE
-        adsorption_case = -1 ! Only perfect elastic scattering of the bombarding electron
-      END IF
+    !  IF(iRan.LT.0.1)THEN ! SEE-N: from svn-trunk PICLas version
+    !    !interactionCase = -2 ! SEE + perfect elastic scattering of the bombarding electron
+    !    ProductSpec(2)  = Adsorption%ResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+    !    ProductSpecNbr = 1
+    !  ELSE
+    !    !interactionCase = -1 ! Only perfect elastic scattering of the bombarding electron
+    !    interactionCase = -1 ! Removal of the bombarding neutral
+        ProductSpecNbr = 0 ! do not create new particle
+    !    WRITE (*,*) "Neutral bombarding particle =", PartID_IN
+    !    stop "stop"
+    !  END IF
     END IF
   END ASSOCIATE
 CASE(6) ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
 END SELECT
 
-END SUBROUTINE SEE_PartDesorb
+! Sanity check: is the newly created particle faster than c
+IF(v_new.GT.c)THEN
+  CALL abort(&
+      __STAMP__&
+      ,'SecondaryElectronEmission: Particle is faster than the speed of light: '&
+      ,RealInfoOpt=v_new)
+END IF
+
+END SUBROUTINE SecondaryElectronEmission
 
 
 END MODULE MOD_SEE

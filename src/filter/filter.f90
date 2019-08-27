@@ -144,8 +144,8 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                :: alpha,s,eta,etac ! etac is the modal cutoff. Example: 
-                                        !   filtering all DOF from x ORDER to highest ORDER: alpha<0,s arbitrary, param(3)=x-1 
+REAL                :: alpha,s,eta,etac ! etac is the modal cutoff. Example:
+                                        !   filtering all DOF from x ORDER to highest ORDER: alpha<0,s arbitrary, param(3)=x-1
                                         ! good start set of parameters: alpha=36, s=12, etac=1
                                         !   HestFilterParam=(/36.,12.,1./) for ini file
                                         !   Default is HestFilterParam(1)=0.
@@ -173,7 +173,7 @@ END SUBROUTINE HestFilter
 SUBROUTINE Filter(U_in)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions xi_In(0:N_In)
-! to another 3D tensor product node positions (number of nodes N_out+1) 
+! to another 3D tensor product node positions (number of nodes N_out+1)
 ! defined by (N_out+1) interpolation point  positions xi_Out(0:N_Out)
 !  xi is defined in the 1DrefElem xi=[-1,1]
 !===================================================================================================================================
@@ -188,7 +188,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)  :: U_in(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER             :: i,j,k,l,iElem
 REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N) :: U_Xi,U_Eta
 !===================================================================================================================================
@@ -210,9 +210,9 @@ DO iElem=1,PP_nElems
   DO k=0,PP_N
     DO j=0,PP_N
       DO i=0,PP_N
-        U_Eta(:,i,j,k)      = FilterMat(j,0)*U_Xi(:,i,0,k) 
+        U_Eta(:,i,j,k)      = FilterMat(j,0)*U_Xi(:,i,0,k)
         DO l=1,PP_N
-          U_Eta(:,i,j,k)      = U_Eta(:,i,j,k)      + FilterMat(j,l)*U_Xi(:,i,l,k) 
+          U_Eta(:,i,j,k)      = U_Eta(:,i,j,k)      + FilterMat(j,l)*U_Xi(:,i,l,k)
         END DO !l
       END DO !i
     END DO !j
@@ -221,16 +221,16 @@ DO iElem=1,PP_nElems
   DO k=0,PP_N
     DO j=0,PP_N
       DO i=0,PP_N
-        U_in(:,i,j,k,iElem) = FilterMat(k,0)*U_Eta(:,i,j,0) 
+        U_in(:,i,j,k,iElem) = FilterMat(k,0)*U_Eta(:,i,j,0)
         DO l=1,PP_N
-          U_in(:,i,j,k,iElem) = U_in(:,i,j,k,iElem) + FilterMat(k,l)*U_Eta(:,i,j,l) 
+          U_in(:,i,j,k,iElem) = U_in(:,i,j,k,iElem) + FilterMat(k,l)*U_Eta(:,i,j,l)
         END DO !l
       END DO !i
     END DO !j
   END DO !k
 END DO !iElem
 END SUBROUTINE Filter
- 
+
 SUBROUTINE FinalizeFilter()
 !===================================================================================================================================
 ! Deallocate global variable U (solution) and Ut (dg time derivative).
@@ -244,7 +244,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 
 SDEALLOCATE(Vdm_Leg)

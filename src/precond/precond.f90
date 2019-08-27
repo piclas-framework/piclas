@@ -14,7 +14,7 @@
 
 MODULE MOD_Precond
 !===================================================================================================================================
-! Module for the Block-Jacobi Preconditioner  
+! Module for the Block-Jacobi Preconditioner
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -27,7 +27,7 @@ END INTERFACE
 
 #ifdef maxwell
 INTERFACE BuildPrecond
-  MODULE PROCEDURE BuildPrecond 
+  MODULE PROCEDURE BuildPrecond
 END INTERFACE
 #endif /*maxwell*/
 
@@ -156,7 +156,7 @@ END SUBROUTINE InitPrecond
 #ifdef maxwell
 SUBROUTINE BuildPrecond(t,tStage,tDeriv,alpha,dt)
 !===================================================================================================================================
-! Build preconditioner for each element, calls a type of preconditioner 
+! Build preconditioner for each element, calls a type of preconditioner
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -166,15 +166,15 @@ USE MOD_Precond_Vars      ,ONLY: invXi,invEta,invZeta,dRdXi,dRdZeta,dRdEta
 USE MOD_LinearSolver_Vars ,ONLY: nDOFelem,mass,nDOFLine
 USE MOD_Precond_Vars      ,ONLY: invP,PrecondType,DebugMatrix
 USE MOD_Jac_ex            ,ONLY: Jac_ex, Jac_Ex_Neighbor,Jac_ex1D
-USE MOD_Jac_FD            ,ONLY: Jac_FD_slow                               
+USE MOD_Jac_FD            ,ONLY: Jac_FD_slow
 USE MOD_JacDG             ,ONLY: BuildJacDG
 USE MOD_DG                ,ONLY: DGTimeDerivative_WeakForm
 USE MOD_SparseILU         ,ONLY: BuildILU0
 USE MOD_ILU               ,ONLY: BuildBILU0BCSR
 USE MOD_CSR               ,ONLY: CSR
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars  ,ONLY: PerformLBSample
 USE MOD_LoadBalance_Vars  ,ONLY: ElemTime
@@ -196,9 +196,9 @@ REAL               :: delta(0:PP_N,0:PP_N)
 INTEGER            :: i,j,k,p,q
 INTEGER            :: oo,mm,nn,ll,v1,v2
 REAL               :: coeff
-#ifdef MPI
+#if USE_MPI
 REAL               :: TotalTimeMPI(3)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 IF(PrecondType.EQ.0) RETURN !NO PRECONDITIONER
@@ -214,7 +214,7 @@ SELECT CASE(PrecondType)
   CASE(1,2)
     ALLOCATE( Ploc (1:nDOFElem,1:nDOFElem), &
               Ploc1(1:nDOFElem,1:nDOFElem) )
-  CASE(3,4) 
+  CASE(3,4)
     ALLOCATE( Ploc (1:nDOFElem,1:nDOFElem))
   CASE(204,215)
     ALLOCATE( Ploc (1:nDOFElem,1:nDOFElem), &
@@ -238,18 +238,18 @@ DO iElem=1,PP_nElems
         Ploc(r,s)=0.
       END DO !r
     END DO !s
-    IF(PrecondType.EQ.1) THEN 
+    IF(PrecondType.EQ.1) THEN
       ! obtained by finite difference
-      !Prepare Linearisation State 
+      !Prepare Linearisation State
       CALL DGTimeDerivative_WeakForm(t,tStage,tDeriv,doSource=.FALSE.)
-      ! finit differences per Element ! never to use ... 
+      ! finit differences per Element ! never to use ...
       CALL Jac_FD_slow(t,tStage,tDeriv,iElem,Ploc)
     ELSE
       ! analytic per Element
       CALL Jac_ex(iElem,Ploc)
-    END IF 
+    END IF
     IF(DebugMatrix.NE.0) Ploc1=Ploc
-  
+
     !IF(PrecondType.NE.60)THEN
     ! add contibution I-alpha*dt*dRdU
 #ifdef IMPA
@@ -332,10 +332,10 @@ DO iElem=1,PP_nElems
                                                               *Mass(1,ll,nn,oo,iElem)
         v2=nn*PP_nVar
         dRdEta (v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,oo,iElem)=dRdEta (v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,oo,iElem) &
-                                                              *Mass(1,mm,ll,oo,iElem) 
+                                                              *Mass(1,mm,ll,oo,iElem)
         v2=oo*PP_nVar
         dRdZeta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,nn,iElem)=dRdZeta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,nn,iElem) &
-                                                            *Mass(1,mm,nn,ll,iElem) 
+                                                            *Mass(1,mm,nn,ll,iElem)
         v1=v1+PP_nVar
       END DO !ll
     END DO; END DO; END DO! mm,nn,oo=0,PP_N
@@ -350,8 +350,8 @@ DO iElem=1,PP_nElems
     CALL BuildILU0(Ploc,iElem)
   CASE(4)
     CALL BuildBILU0BCSR(Ploc,iElem)
-  CASE(201) 
-    ! compute the inverse of the 1D preconditioner 
+  CASE(201)
+    ! compute the inverse of the 1D preconditioner
     DO q=0,PP_N
       DO p=0,PP_N
         invXi  (:,:,p,q,iElem)=getInverse(nDOFLine,dRdXi  (:,:,p,q,iElem))
@@ -372,13 +372,13 @@ DO iElem=1,PP_nElems
   END IF ! DebugMatrix
 END DO ! ! iELEM
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_REDUCE(TotalTime,TotalTimeMPI ,3,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,IERROR)
 IF(MPIRoot) THEN
   TotalTime=TotalTimeMPI
 END IF
 
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_stdOut,'(A,F11.3,A)')' TOTAL DERIVATING TIME =[',TotalTime(1),' ]'
 SWRITE(UNIT_stdOut,'(A,F11.3,A)')' TOTAL INVERTING  TIME =[',TotalTime(2),' ]'
@@ -388,7 +388,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 
 
 SELECT CASE(PrecondType)
-  CASE(1,2) 
+  CASE(1,2)
     DEALLOCATE( Ploc, Ploc1)
   CASE(3,4)
     DEALLOCATE( Ploc )
@@ -405,9 +405,9 @@ SUBROUTINE CheckBJPrecond(Ploc1,Ploc,invPloc,iElem,Time)
 USE MOD_Globals
 USE MOD_LinearSolver_Vars,      ONLY:nDOFelem
 USE MOD_Precond_Vars,       ONLY:PrecondType,DebugMatrix
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -431,11 +431,11 @@ ALLOCATE( diff(1:nDOFElem,1:nDOFElem))
 
 ! output of BlockJac  | only derivativ
 IF(DebugMatrix.GE.1)THEN
-#ifdef MPI
+#if USE_MPI
   WRITE(Filename,'(A,I2.2,A,I2.2,A,I4.4,A)')'BlockJac_Rank_',MyRank,'_Type_',PreCondType,'_Mat_', iElem,'.dat'
 #else
   WRITE(Filename,'(A,I2.2,A,I4.4,A)')'BlockJac_',PreCondType,'_Mat_', iElem,'.dat'
-#endif /*MPI*/
+#endif /*USE_MPI*/
   WRITE(strfmt,'(A1,I4,A12)')'(',nDOFelem,'(1X,E23.16))'
   WRITE(UNIT_stdOut,*)'Debug Block Jacobian to:',TRIM(Filename)
   OPEN (UNIT=103,FILE=TRIM(Filename),STATUS='REPLACE')
@@ -448,11 +448,11 @@ END IF !DebugMatrix >1
 ! output of BlockPrecond, no inverse
 IF(DebugMatrix.GE.2)THEN
 
-#ifdef MPI
+#if USE_MPI
   WRITE(Filename,'(A,I2.2,A,I2.2,A,I4.4,A)')'Precond_Rank_',MyRank,'_Type_',PreCondType,'_Mat_', iElem,'.dat'
 #else
   WRITE(Filename,'(A,I2.2,A,I4.4,A)')'Precond_',PreCondType,'_Mat_', iElem,'.dat'
-#endif /*MPI*/
+#endif /*USE_MPI*/
   WRITE(strfmt,'(A1,I4,A12)')'(',nDOFelem,'(1X,E23.16))'
   WRITE(UNIT_stdOut,*)'Debug Precond (no Inverse) to:',TRIM(Filename)
   OPEN (UNIT=103,FILE=TRIM(Filename),STATUS='REPLACE')
@@ -464,11 +464,11 @@ END IF !DebugMatrix >1
 
 ! output of Inverse
 IF(DebugMatrix.GE.3)THEN
-#ifdef MPI
+#if USE_MPI
   WRITE(Filename,'(A,I2.2,A,I2.2,A,I4.4,A)')'Precond_Rank_',MyRank,'_Type__',PreCondType,'_InvMat_', iElem,'.dat'
 #else
   WRITE(Filename,'(A,I2.2,A,I4.4,A)')'Precond_',PreCondType,'_InvMat_', iElem,'.dat'
-#endif /*MPI*/
+#endif /*USE_MPI*/
   WRITE(strfmt,'(A1,I4,A12)')'(',nDOFelem,'(1X,E23.16))'
   WRITE(UNIT_stdOut,*)'Debug Precond to:',TRIM(Filename)
   OPEN (UNIT=103,FILE=TRIM(Filename),STATUS='REPLACE')
@@ -513,7 +513,7 @@ END SUBROUTINE CheckBJPrecond
 
 SUBROUTINE FinalizePrecond()
 !===================================================================================================================================
-! Finalizes variables 
+! Finalizes variables
 !===================================================================================================================================
 ! MODULES
 USE MOD_Precond_Vars,ONLY:invP,PrecondInitIsDone,PrecondType,neighborElemID

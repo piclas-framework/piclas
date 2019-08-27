@@ -14,7 +14,7 @@
 
 MODULE MOD_RecordPoints
 !===================================================================================================================================
-! Module contains the record points 
+! Module contains the record points
 ! tracking of state variable at certain predefined points
 !===================================================================================================================================
 ! MODULES
@@ -50,7 +50,7 @@ CONTAINS
 
 
 !==================================================================================================================================
-!> Define parameters 
+!> Define parameters
 !==================================================================================================================================
 SUBROUTINE DefineParametersRecordPoints()
 ! MODULES
@@ -68,7 +68,7 @@ END SUBROUTINE DefineParametersRecordPoints
 
 SUBROUTINE InitRecordPoints()
 !===================================================================================================================================
-! Read RP parameters from ini file and RP definitions from HDF5 
+! Read RP parameters from ini file and RP definitions from HDF5
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -78,7 +78,7 @@ USE MOD_Interpolation_Vars  ,ONLY: InterpolationInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RPDefFile,RP_inUse,RP_onProc,RecordpointsInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RP_MaxBuffersize
 USE MOD_RecordPoints_Vars   ,ONLY: nRP,nGlobalRP,lastSample,iSample,nSamples,RP_fileExists
-#ifdef MPI
+#if USE_MPI
 USE MOD_Recordpoints_Vars ,ONLY: RP_COMM
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -90,9 +90,9 @@ USE MOD_Recordpoints_Vars ,ONLY: RP_COMM
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: RP_maxMemory
-INTEGER               :: maxRP 
+INTEGER               :: maxRP
 !===================================================================================================================================
-! check if recordpoints are activated 
+! check if recordpoints are activated
 RP_inUse=GETLOGICAL('RP_inUse','.FALSE.')
 IF(.NOT.RP_inUse) RETURN
 IF((.NOT.InterpolationInitIsDone) .OR. RecordPointsInitIsDone)THEN
@@ -108,16 +108,16 @@ nSamples=0
 RPDefFile=GETSTR('RP_DefFile')                        ! Filename with RP coords
 CALL ReadRPList(RPDefFile) ! RP_inUse is set to FALSE by ReadRPList if no RP is on proc.
 maxRP=nGlobalRP
-#ifdef MPI
+#if USE_MPI
   CALL InitRPCommunicator()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 IF(RP_onProc)THEN
   RP_maxMemory=GETREAL('RP_MaxMemory','100.')         ! Max buffer (100MB)
   maxRP=nGlobalRP
-# ifdef MPI
+#if USE_MPI
   CALL MPI_ALLREDUCE(nRP,maxRP,1,MPI_INTEGER,MPI_MAX,RP_COMM,iError)
-# endif /*MPI*/
+#endif /*USE_MPI*/
   RP_MaxBufferSize = CEILING(RP_MaxMemory)*131072/(maxRP*(PP_nVar+1)) != size in bytes/(real*maxRP*nVar)
   SDEALLOCATE(lastSample)
   ALLOCATE(lastSample(0:PP_nVar,nRP))
@@ -130,10 +130,10 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitRecordPoints
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE InitRPCommunicator()
 !===================================================================================================================================
-! Read RP parameters from ini file and RP definitions from HDF5 
+! Read RP parameters from ini file and RP definitions from HDF5
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -148,7 +148,7 @@ USE MOD_RecordPoints_Vars   ,ONLY: RP_onProc,myRPrank,RP_COMM,nRP_Procs
 ! LOCAL VARIABLES
 INTEGER                   :: color,iProc
 INTEGER                   :: noRPrank,RPrank
-LOGICAL                   :: hasRP 
+LOGICAL                   :: hasRP
 !===================================================================================================================================
 color=MPI_UNDEFINED
 IF(RP_onProc) color=2
@@ -160,7 +160,7 @@ IF(MPIRoot) THEN
   myRPRank=0
   IF(RP_onProc) THEN
     RPrank=0
-  ELSE 
+  ELSE
     noRPrank=0
   END IF
   DO iProc=1,nProcessors-1
@@ -184,12 +184,12 @@ IF(RP_onProc) CALL MPI_COMM_SIZE(RP_COMM, nRP_Procs,iError)
 IF(myRPrank.EQ.0 .AND. RP_onProc) WRITE(*,*) 'RP COMM:',nRP_Procs,'procs'
 
 END SUBROUTINE InitRPCommunicator
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 SUBROUTINE ReadRPList(FileString)
 !===================================================================================================================================
-! Read RP HDF5 
+! Read RP HDF5
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -230,7 +230,7 @@ IF(TRIM(MeshFile_RPList).NE.TRIM(MeshFile)) THEN
   SWRITE(UNIT_stdOut,*) ' WARNING: MeshFileName from RPList differs from Mesh File specified in parameterfile!'
 END IF
 
-! Readin OffsetRP 
+! Readin OffsetRP
 CALL GetDataSize(File_ID,'OffsetRP',nDims,HSize)
 nGlobalElems_RPList=HSize(2) !global number of elements
 DEALLOCATE(HSize)
@@ -241,7 +241,7 @@ __STAMP__&
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       PP_nElems     => INT(PP_nElems,IK) ,&
-      OffsetElem    => INT(OffsetElem,IK) ) 
+      OffsetElem    => INT(OffsetElem,IK) )
   CALL ReadArray('OffsetRP',2,(/2_IK,PP_nElems/),OffsetElem,2,IntegerArray_i4=OffsetRPArray)
 END ASSOCIATE
 
@@ -261,18 +261,18 @@ ELSE
   nGlobalRP=INT(HSize(2),4) !global number of RecordPoints
 END IF
 DEALLOCATE(HSize)
-ALLOCATE(xi_RP(3,nRP)) 
+ALLOCATE(xi_RP(3,nRP))
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       nRP      => INT(nRP,IK) ,&
-      offsetRP => INT(offsetRP,IK) ) 
+      offsetRP => INT(offsetRP,IK) )
   CALL ReadArray('xi_RP',2,(/3_IK,nRP/),offsetRP,2,RealArray=xi_RP)
 END ASSOCIATE
 
 IF(nRP.LT.1) THEN
   RP_onProc=.FALSE.
-ELSE  
+ELSE
   RP_onProc=.TRUE.
   ! create mapping to elements
   ALLOCATE(RP_ElemID(nRP))
@@ -284,7 +284,7 @@ ELSE
     END DO
   END DO
 END IF
-CALL CloseDataFile() 
+CALL CloseDataFile()
 
 IF(RP_onProc) CALL InitRPBasis(xi_RP)
 DEALLOCATE(xi_RP)
@@ -295,7 +295,7 @@ END SUBROUTINE ReadRPList
 
 SUBROUTINE InitRPBasis(xi_RP)
 !===================================================================================================================================
-! Precalculate basis function values at recordpoint positions 
+! Precalculate basis function values at recordpoint positions
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -315,7 +315,7 @@ INTEGER                       :: iRP
 !===================================================================================================================================
 ! build local basis for Recordpoints
 ALLOCATE(L_xi_RP(0:PP_N,nRP), L_eta_RP(0:PP_N,nRP), L_zeta_RP(0:PP_N,nRP))
-DO iRP=1,nRP 
+DO iRP=1,nRP
   CALL LagrangeInterpolationPolys(xi_RP(1,iRP),PP_N,xGP,wBary,L_xi_RP(:,iRP))
   CALL LagrangeInterpolationPolys(xi_RP(2,iRP),PP_N,xGP,wBary,L_eta_RP(:,iRP))
   CALL LagrangeInterpolationPolys(xi_RP(3,iRP),PP_N,xGP,wBary,L_zeta_RP(:,iRP))
@@ -325,19 +325,19 @@ END SUBROUTINE InitRPBasis
 
 SUBROUTINE RecordPoints(t,Output)
 !===================================================================================================================================
-! Interpolate solution at time t to RecordPoint positions and fill output buffer 
+! Interpolate solution at time t to RecordPoint positions and fill output buffer
 ! The decision if an analysis is performed is done in PerformAnalysis.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_DG_Vars          ,ONLY:U
-USE MOD_Timedisc_Vars,    ONLY:dt!, iter
-USE MOD_TimeDisc_Vars    ,ONLY:tAnalyze
-USE MOD_Analyze_Vars     ,ONLY:Analyze_dt,FieldAnalyzeStep
-USE MOD_RecordPoints_Vars,ONLY:RP_Data,RP_ElemID
-USE MOD_RecordPoints_Vars,ONLY:RP_Buffersize,RP_MaxBuffersize,iSample
-USE MOD_RecordPoints_Vars,ONLY:l_xi_RP,l_eta_RP,l_zeta_RP,nRP
+USE MOD_DG_Vars           ,ONLY: U
+USE MOD_Timedisc_Vars     ,ONLY: dt
+USE MOD_TimeDisc_Vars     ,ONLY: tAnalyze
+USE MOD_Analyze_Vars      ,ONLY: Analyze_dt,FieldAnalyzeStep
+USE MOD_RecordPoints_Vars ,ONLY: RP_Data,RP_ElemID
+USE MOD_RecordPoints_Vars ,ONLY: RP_Buffersize,RP_MaxBuffersize,iSample
+USE MOD_RecordPoints_Vars ,ONLY: l_xi_RP,l_eta_RP,l_zeta_RP,nRP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -350,7 +350,7 @@ LOGICAL,INTENT(IN)             :: Output ! force sampling (e.g. first/last times
 ! LOCAL VARIABLES
 INTEGER                 :: i,j,k,iRP
 REAL                    :: u_RP(PP_nVar,nRP)
-REAL                    :: l_eta_zeta_RP 
+REAL                    :: l_eta_zeta_RP
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 ! selection criterion for analysis is performed within PerformAnalysis
@@ -371,7 +371,7 @@ END IF
 ! evaluate state at RP
 iSample=iSample+1
 !IPWRITE(*,*) 'Sampling ...',iSample,size(U_RP),size(RP_Data),nRP,RP_BufferSize
-U_RP=0.  
+U_RP=0.
 DO iRP=1,nRP
   DO k=0,PP_N
     DO j=0,PP_N
@@ -391,6 +391,10 @@ IF(iSample.EQ.RP_Buffersize) THEN
   SWRITE(UNIT_StdOut,*) ' BufferSize reached!'
   CALL WriteRPToHDF5(tAnalyze,.FALSE.)
 END IF
+
+! Suppress compiler warnings
+RETURN
+write(*,*) Output
 
 END SUBROUTINE RecordPoints
 
@@ -417,7 +421,7 @@ USE MOD_Recordpoints_Vars ,ONLY: myRPrank,lastSample
 USE MOD_Recordpoints_Vars ,ONLY: RPDefFile,RP_Data,iSample,nSamples
 USE MOD_Recordpoints_Vars ,ONLY: offsetRP,nRP,nGlobalRP,lastSample
 USE MOD_Recordpoints_Vars ,ONLY: RP_Buffersize,RP_Maxbuffersize,RP_fileExists,chunkSamples
-#ifdef MPI
+#if USE_MPI
 USE MOD_Recordpoints_Vars ,ONLY: RP_COMM,nRP_Procs
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -429,12 +433,12 @@ LOGICAL,INTENT(IN)             :: finalizeFile
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileString
-#ifdef MPI
+#if USE_MPI
 REAL                           :: startT,endT
 #endif
 !===================================================================================================================================
 IF(myRPrank.EQ.0) WRITE(UNIT_stdOut,'(a)')' WRITE RECORDPOINT DATA TO HDF5 FILE...'
-#ifdef MPI
+#if USE_MPI
 startT=MPI_WTIME()
 #endif
 
@@ -453,7 +457,7 @@ IF(myRPrank.EQ.0)THEN
   CALL CloseDataFile()
 END IF
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(RP_COMM,iError)
 IF(nRP_Procs.EQ.1)THEN
   CALL OpenDataFile(Filestring,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
@@ -463,7 +467,7 @@ END IF
 #else
 CALL OpenDataFile(Filestring,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #endif
-  
+
 IF(iSample.GT.0)THEN
   IF(.NOT.RP_fileExists) chunkSamples=iSample
   ! write buffer into file, we need two offset dimensions (one buffer, one processor)
@@ -477,7 +481,7 @@ IF(iSample.GT.0)THEN
         iSample      => INT(iSample,IK)      ,&
         offsetRP     => INT(offsetRP,IK)     )
 
-#ifdef MPI
+#if USE_MPI
     IF(nRP_Procs.EQ.1)THEN
 #endif
       CALL WriteArrayToHDF5(DataSetName = 'RP_Data'   , rank= 3       , &
@@ -488,7 +492,7 @@ IF(iSample.GT.0)THEN
                             chunkSize   = (/PP_nVar+1 , nGlobalRP     , chunkSamples      /) , &
                             RealArray   = RP_Data(:,:,1:iSample),&
                             collective  = .FALSE.)
-#ifdef MPI
+#if USE_MPI
     ELSE
       CALL WriteArrayToHDF5(DataSetName = 'RP_Data'   , rank = 3      , &
                             nValGlobal  = (/PP_nVarP1 , INT(nGlobalRP , IK)                  , nSamples/) , &
@@ -526,7 +530,7 @@ IF(finalizeFile)THEN
   RP_Data(:,:,1)=lastSample
 END IF
 
-#ifdef MPI
+#if USE_MPI
 endT=MPI_WTIME()
 IF(myRPrank.EQ.0) WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' DONE  [',EndT-StartT,'s]'
 #else
@@ -537,7 +541,7 @@ END SUBROUTINE WriteRPToHDF5
 
 SUBROUTINE FinalizeRecordPoints()
 !===================================================================================================================================
-! Deallocate RP arrays 
+! Deallocate RP arrays
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -555,9 +559,9 @@ IMPLICIT NONE
 IF(DoLoadBalance)THEN
   IF(RP_onProc)THEN
     SDEALLOCATE(RP_Data)
-#ifdef MPI
+#if USE_MPI
     CALL MPI_COMM_FREE(RP_Comm,iERROR)
-#endif /*MPI*/
+#endif /*USE_MPI*/
   END IF
   nRP=0
   RP_onProc=.FALSE.

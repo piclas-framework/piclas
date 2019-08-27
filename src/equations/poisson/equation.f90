@@ -21,7 +21,7 @@ MODULE MOD_Equation
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -29,7 +29,7 @@ INTERFACE InitEquation
   MODULE PROCEDURE InitEquation
 END INTERFACE
 INTERFACE ExactFunc
-  MODULE PROCEDURE ExactFunc 
+  MODULE PROCEDURE ExactFunc
 END INTERFACE
 INTERFACE CalcSource
   MODULE PROCEDURE CalcSource
@@ -117,7 +117,7 @@ USE MOD_TimeDisc_Vars,           ONLY:TEnd
 REAL                         :: chitensValue,chitensRadius  ! Deprecated variables, remove in future (by the end of 2017)
 INTEGER                      :: chitensWhichField           ! Deprecated variables, remove in future (by the end of 2017)
 !===================================================================================================================================
-TEnd=GetReal('TEnd') 
+TEnd=GetReal('TEnd')
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    SWRITE(*,*) "InitPoisson not ready to be called or already called."
    RETURN
@@ -198,7 +198,7 @@ USE MOD_Mesh_Vars,       ONLY:ElemBaryNGeo
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                 :: x(3)              
+REAL,INTENT(IN)                 :: x(3)
 INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
 INTEGER,INTENT(IN),OPTIONAL     :: ElemID           ! ElemID
 REAL,INTENT(IN),OPTIONAl        :: t ! time
@@ -206,11 +206,11 @@ REAL,INTENT(IN),OPTIONAl        :: t ! time
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL                            :: Frequency,Amplitude,Omega
 REAL                            :: Cent(3)
 REAL                            :: r1,r2
-REAL                            :: r_2D,r_3D,varphi,r_bary
+REAL                            :: r_2D,r_3D,r_bary
 REAL                            :: cos_theta
 REAL                            :: eps1,eps2
 !===================================================================================================================================
@@ -245,14 +245,14 @@ CASE(103) ! dipole
   resu(:)=IniAmplitude*(1/r2-1/r1)
 CASE(104) ! solution to Laplace's equation: Phi_xx + Phi_yy + Phi_zz = 0
   resu(1) = ( COS(x(1))+SIN(x(1)) )*( COS(x(2))+SIN(x(2)) )*( COSH(SQRT(2.0)*x(3))+SINH(SQRT(2.0)*x(3)) )
-CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from book: 
+CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from book:
   ! John David Jackson, Classical Electrodynamics, 3rd edition, New York: Wiley, 1999.
   ! E_0       : constant electric field in z-direction far away from sphere
   ! R         : constant radius of the sphere
-  ! eps_outer : dielectric constant of surrouding medium
+  ! eps_outer : dielectric constant of surrounding medium
   ! eps_inner : dielectric constant of sphere
   ! DielectricRatio = eps_inner / eps_outer (set in dielectric init)
-  
+
   ! set radius and angle for DOF position x(1:3)
   r_2D   = SQRT(x(1)**2+x(2)**2)
   r_3D   = SQRT(x(1)**2+x(2)**2+x(3)**2)
@@ -276,7 +276,7 @@ CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from bo
     ! Phi_outer = ( (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^3 )   - 1 ) * E_0 * z
     resu(1:PP_nVar) =  ( (DielectricRatio-1)        / (DielectricRatio+2)       ) *&
                        Dielectric_E_0*(DielectricRadiusValue**3/r_3D**2)*cos_theta-Dielectric_E_0 * r_3D*cos_theta
-                         
+
                        !( (DielectricRadiusValue**3) / (r_3D**3) ) - 1 )*(Dielectric_E_0 * x(3))
                        !( (DielectricRadiusValue**3) / ((r_2D**2+x(3)**2)**(3./2.)) ) - 1 )*(Dielectric_E_0 * x(3))
   ELSE
@@ -294,7 +294,7 @@ CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from bo
   ! varphi = ATAN2(x(2),x(1)) ! only needed for the electric field
   !   E_r,inner = 0
   !   E_z,inner = (3 / (2 + eps_inner / eps_outer)) * E_0
-  !  
+  !
   !   E_r,outer = 3 * ( (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^4 ) ) * E_0 * z
   !   E_z,inner =   ( - (eps_inner / eps_outer - 1 )/( eps_inner / eps_outer + 2 ) * ( R^3/r^3 )   + 1 ) * E_0
 CASE(300) ! Dielectric Slab in z-direction of half width R in constant electric field E_0: adjusted from CASE(200)
@@ -382,7 +382,7 @@ CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum
   ! DielectricRadiusValue is used as distance between dielectric interface and position of chargeed point particle
   ! set radius and angle for DOF position x(1:3)
   ! Limitations:
-  ! only valid for eps_2 = 1 
+  ! only valid for eps_2 = 1
   ! and q = 1
   r_2D   = SQRT(x(1)**2+x(2)**2)
   r1 = SQRT(r_2D**2 + (DielectricRadiusValue-x(3))**2)
@@ -428,7 +428,7 @@ END SUBROUTINE ExactFunc
 
 SUBROUTINE CalcSource(Ut)
 !===================================================================================================================================
-! Specifies all the initial conditions. The state in conservative variables is returned.
+! 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,ONLY:Abort
@@ -444,7 +444,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem
 REAL                             :: r1,r2
 REAL,DIMENSION(3)                :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
@@ -453,10 +453,10 @@ SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
 #ifdef PARTICLES
 !  DO iElem=1,PP_nElems
-!    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+!    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 !      !  Get source from Particles
 !      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * PartSource(1:3,i,j,k,iElem)
-!      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv * PartSource(  4,i,j,k,iElem) * c_corr 
+!      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv * PartSource(  4,i,j,k,iElem) * c_corr
 !    END DO; END DO; END DO
 !  END DO
 #endif /*PARTICLES*/
@@ -503,12 +503,12 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
 IF(DoParabolicDamping) RETURN
 DO iElem=1,PP_nElems
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     !  Get source from Particles
     U(7:8,i,j,k,iElem) = U(7:8,i,j,k,iElem) * fDamping
   END DO; END DO; END DO
@@ -540,7 +540,6 @@ USE MOD_LinearSolver_Vars  ,ONLY: ExplicitPartSource
 #endif /*PARTICLES*/
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_Dielectric_vars    ,ONLY: DoDielectric,DielectricEpsR,isDielectricElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -552,7 +551,7 @@ REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative vari
 LOGICAL,INTENT(INOUT),OPTIONAL  :: warning_linear
 REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL                            :: x(3)
 REAL                            :: r1,r2, source_e
 REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
@@ -561,7 +560,7 @@ INTEGER                         :: RegionID
 ! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
 SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
-  ! empty
+  resu=0. ! empty
 CASE(103)
   x(1:3) = Elem_xGP(1:3,i,j,k,iElem)
   dx1=(x(:)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))
@@ -614,7 +613,7 @@ END SUBROUTINE CalcSourceHDG
 
 FUNCTION shapefunc(r)
 !===================================================================================================================================
-! Implementation of (possibly several different) shapefunctions 
+! Implementation of (possibly several different) shapefunctions
 !===================================================================================================================================
 ! MODULES
   USE MOD_Equation_Vars, ONLY : shapeFuncPrefix, alpha_shape, rCutoff
@@ -627,7 +626,7 @@ FUNCTION shapefunc(r)
 ! OUTPUT VARIABLES
     REAL                 :: shapefunc ! sort of a weight for the source
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
    IF (r.GE.rCutoff) THEN
      shapefunc = 0.0
@@ -636,13 +635,13 @@ FUNCTION shapefunc(r)
    END IF
 END FUNCTION shapefunc
 
-FUNCTION beta(z,w)                                                                                                
+FUNCTION beta(z,w)
   ! USE nr
    IMPLICIT NONE
-   REAL beta, w, z                                                                                                  
+   REAL beta, w, z
    !beta = exp(gammln(z)+gammln(w)-gammln(z+w))  ! old - kind=6
    beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)           ! n   - kind=8
-END FUNCTION beta 
+END FUNCTION beta
 
 SUBROUTINE FinalizeEquation()
 !===================================================================================================================================

@@ -23,7 +23,7 @@ MODULE MOD_Interfaces
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -75,12 +75,15 @@ SUBROUTINE InitInterfaces
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars,       ONLY:nSides
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_PML_vars,        ONLY:DoPML,isPMLFace
 #endif /*NOT HDG*/
 USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem,DielectricFluxNonConserving
 USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann,InterfacesInitIsDone
-USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot
+USE MOD_Globals,         ONLY:abort,UNIT_stdOut
+#if USE_MPI
+USE MOD_Globals,         ONLY:mpiroot
+#endif
 USE MOD_Mesh_Vars,       ONLY:SideToElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -93,12 +96,12 @@ IMPLICIT NONE
 INTEGER            :: SideID,ElemID
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT INTERFACES...' 
+SWRITE(UNIT_stdOut,'(A)') ' INIT INTERFACES...'
 ALLOCATE(InterfaceRiemann(1:nSides))
 DO SideID=1,nSides
   InterfaceRiemann(SideID)=-1 ! set default to invalid number: check later
   ! 0.) Sanity: It is forbidden to connect a PML to a dielectric region because it is not implemented!
-#ifndef PP_HDG /*pure Maxwell simulations*/
+#if !(USE_HDG) /*pure Maxwell simulations*/
   IF(DoPML.AND.DoDielectric)THEN
     IF(isPMLFace(SideID).AND.isDielectricFace(SideID))THEN
       CALL abort(&
@@ -111,7 +114,7 @@ DO SideID=1,nSides
   ! - PML <-> vacuum              : RIEMANN_PML            = 1
   ! - PML <-> PML                 : RIEMANN_PML            = 1
   IF(DoPML) THEN
-    IF (isPMLFace(SideID))THEN ! 1.) RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations 
+    IF (isPMLFace(SideID))THEN ! 1.) RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations
                                  !     (flux-splitting!)
       InterfaceRiemann(SideID)=RIEMANN_PML
       CYCLE ! don't check the following if the flux has already been calculated here -> continue with next side
@@ -120,15 +123,16 @@ DO SideID=1,nSides
 #endif /*NOT HDG*/
 
   ! 2.) Check Dielectric Medium
-  ! c), d) - vaccuum    <-> vacuum       : RIEMANN_VACUUM         = 0
+  ! c), d) - vacuum     <-> vacuum       : RIEMANN_VACUUM         = 0
   ! b)     - dielectric <-> dielectric   : RIEMANN_DIELECTRIC     = 2
   ! a1)    - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC = 3 or 5 (when using non-conservative fluxes)
-  ! a2)    - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC = 4 or 6 (when using non-conservative fluxes)
+  ! a2)    - vacuum      -> dielectric   : RIEMANN_VAC2DIELECTRIC = 4 or 6 (when using non-conservative fluxes)
   IF(DoDielectric) THEN
     IF (isDielectricFace(SideID))THEN ! 1.) RiemannDielectric
       IF(isDielectricInterFace(SideID))THEN
         ! a) physical <-> dielectric region: for Riemann solver, select A+ and A- as functions of f(Eps0,Mu0) or f(EpsR,MuR)
         ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
+        IF(ElemID.EQ.-1) CYCLE ! skip
         IF(isDielectricElem(ElemID))THEN
           ! a1) master is DIELECTRIC and slave PHYSICAL
           IF(DielectricFluxNonConserving)THEN ! use one flux (conserving) or two fluxes (non-conserving) at the interface
@@ -136,7 +140,7 @@ DO SideID=1,nSides
           ELSE
             InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC ! A+(Eps0,Mu0) and A-(EpsR,MuR)
           END IF
-        ELSE 
+        ELSE
           ! a2) master is PHYSICAL and slave DIELECTRIC
           IF(DielectricFluxNonConserving)THEN
             InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC_NC ! use two different Riemann solvers
@@ -144,15 +148,15 @@ DO SideID=1,nSides
             InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC ! A+(EpsR,MuR) and A-(Eps0,Mu0)
           END IF
         END IF
-      ELSE 
+      ELSE
         ! b) dielectric region <-> dielectric region
         InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC
       END IF
-    ELSE 
+    ELSE
       ! c) no Dielectric, standard flux
       InterfaceRiemann(SideID)=RIEMANN_VACUUM
     END IF ! IF(isDielectricFace(SideID))
-  ELSE 
+  ELSE
     ! d) no Dielectric, standard flux
     InterfaceRiemann(SideID)=RIEMANN_VACUUM
   END IF ! DoDielectric
@@ -174,16 +178,16 @@ SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,Dis
 !===================================================================================================================================
 !> Determine whether an element resides within or outside of a special region (e.g. PML or dielectric region)
 !> Additionally, a radius can be supplied for determining if an element belongs to a special region or not
-!> Note: As soon as only one DOF is not inside/outside of the region, the complete element is excluded 
+!> Note: As soon as only one DOF is not inside/outside of the region, the complete element is excluded
 !> Method 1.) check DOF by using a bounding box
 !> Method 2.) Additionally check radius (e.g. when creating dielectric regions in form of a half sphere)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,              ONLY:abort,UNIT_stdOut,mpiroot
-#ifdef MPI
-USE MOD_Globals,              ONLY:MPI_COMM_WORLD
-#endif /*MPI*/
+USE MOD_Globals,              ONLY:abort,UNIT_stdOut
+#if USE_MPI
+USE MOD_Globals,              ONLY:MPI_COMM_WORLD,mpiroot
+#endif /*USE_MPI*/
 USE MOD_Mesh_Vars,            ONLY:Elem_xGP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -194,7 +198,7 @@ REAL,INTENT(IN)                        :: region(1:6)     ! MIN/MAX for x,y,z of
 LOGICAL,INTENT(IN)                     :: DoRadius        ! Check if DOF is inside/outside of radius
 REAL,INTENT(IN)                        :: Radius          ! Check if DOF is inside/outside of radius
 LOGICAL,INTENT(IN),OPTIONAL            :: DisplayInfo     ! Output to stdOut with region size info
-CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: GeometryName    ! Name of special geometry with user-defined coordinates 
+CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: GeometryName    ! Name of special geometry with user-defined coordinates
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
@@ -265,8 +269,8 @@ IF(PRESENT(GeometryName))THEN
   ! Set the geometrical coordinates (e.g. Axial symmetric with r(x) dependency)
   CALL SetGeometry(GeometryName)
 
-  ! inquire if DOFs/Elems are within/outside of a region 
-  SELECT CASE(TRIM(GeometryName)) 
+  ! inquire if DOFs/Elems are within/outside of a region
+  SELECT CASE(TRIM(GeometryName))
   CASE('FH_lens')
     ! loop every element and compare the DOF position
     DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -303,7 +307,7 @@ IF(PRESENT(GeometryName))THEN
         END IF
       END IF
     END DO; END DO; END DO; END DO !iElem,k,j,i
-  CASE('default') 
+  CASE('default')
     ! Nothing to do, because the geometry is set by using the box coordinates
   CASE DEFAULT
     SWRITE(UNIT_stdOut,'(A)') ' '
@@ -333,7 +337,7 @@ SUBROUTINE FindInterfacesInRegion(isFace,isInterFace,isElem)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,             ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif
@@ -356,7 +360,7 @@ INTEGER                                 :: iSide
 ! 1.  initialize Master, Slave and combined side array (it is a dummy array for which only a scalar value is communicated)
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
 ! 3.  MPI: communicate slave sides to master
-! 4.  calculate combinded value 'isFace_combined' which determines the type of the interface on the master side, where the 
+! 4.  calculate combinded value 'isFace_combined' which determines the type of the interface on the master side, where the
 !     information is later used when fluxes are determined
 ! 5.  comminucate the calculated value 'isFace_combined' to the slave sides (currently done but not used anywhere)
 ! 6.  loop over all sides and use the calculated value 'isFace_combined' to determine 'isFace' and 'interFace'
@@ -372,8 +376,8 @@ isFace_Master=-3.
 isFace_combined=-3.
 
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
-CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.) ! Includes Mortar sides 
-#ifdef MPI
+CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.) ! Includes Mortar sides
+#if USE_MPI
 CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)  ! Includes Mortar sides
 
 ! 3.  MPI: communicate slave sides to master
@@ -381,11 +385,11 @@ CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRU
 CALL StartReceiveMPIData(1,isFace_Slave,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
 CALL StartSendMPIData(   1,isFace_Slave,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
 CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -receive YOUR
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 
-! 4.  Calculate combined value 'isFace_combined' which determines the type of the interface on the master side, where the 
+! 4.  Calculate combined value 'isFace_combined' which determines the type of the interface on the master side, where the
 !     information is later used when fluxes are determined
 !         add isFace_Master to isFace_Slave and send
 ! Build four-states-array for the 4 different combinations phy/phy(0), spec/phy(1), phy/spec(2) and spec/spec(3) a face can be.
@@ -402,13 +406,13 @@ isFace_combined=2*isFace_Slave+isFace_Master
 !         CURRENTLY NOT NEEDED!
 CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.FALSE.)
 
-#ifdef MPI
+#if USE_MPI
 CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.TRUE.)
 ! send Master special region info (real with [0=no special region] or [1=special region] as (N+1)*(N+1) array) to Slave procs
 CALL StartReceiveMPIData(1,isFace_Master,1,nSides ,RecRequest_U,SendID=1) ! Receive YOUR
 CALL StartSendMPIData(   1,isFace_Master,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=1) !Send YOUR -receive MINE
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 ! 6.  loop over all sides and use the calculated value 'isFace_combined' to determine 'isFace' and 'interFace'
@@ -447,14 +451,14 @@ USE MOD_Mesh_Vars,          ONLY: firstMortarMPISide,lastMortarMPISide
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE 
-LOGICAL,INTENT(IN)              :: isElem(1:PP_nElems) 
+LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
+LOGICAL,INTENT(IN)              :: isElem(1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: isFace_Master(1,0:PP_N,0:PP_N,1:nSides)
 REAL,INTENT(INOUT)              :: isFace_Slave( 1,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: i,ElemID(2),SideID,flip(2),LocSideID(2)
 INTEGER                         :: MortarSideID,locSide
 INTEGER                         :: iMortar,nMortars
@@ -466,10 +470,10 @@ IF(.NOT.doMPISides)THEN
   DO SideID=1,nSides
 
     ! master side, flip=0
-    ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)  
+    ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)
     locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
     flip(1)=0 ! <<<<<<<<<<< THIS was not set! WHY? SELECT CASE(Flip(i)) produces random integer because memory is not set correctly
-    
+
     ! neighbor side !ElemID,locSideID and flip =-1 if not existing
     ElemID(2)    = SideToElem(S2E_NB_ELEM_ID,SideID)
     locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
@@ -485,18 +489,18 @@ IF(.NOT.doMPISides)THEN
             isFace_Slave( :,:,:,SideID)=MERGE(1.,0.,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
         END SELECT
       END IF
-    END DO !i=1,2, masterside & slave side 
+    END DO !i=1,2, masterside & slave side
   END DO !SideID
   isFace_Slave(:,:,:,1:nBCSides)=isFace_Master(:,:,:,1:nBCSides)
 END IF
 
 
 ! 2.) Mortar sides (Compare to U_mortar subroutine.)
-! Map the solution values from the large side of the mortar interface (which is always stored in master array) to the smaller 
-! mortar sides (either slave or master) 
+! Map the solution values from the large side of the mortar interface (which is always stored in master array) to the smaller
+! mortar sides (either slave or master)
 ! get 1st and last SideID depeding on doMPISides=T/F
-firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides) 
- lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides) 
+firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
+ lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
 
 ! loop over all mortar sides
 DO MortarSideID=firstMortarSideID,lastMortarSideID
@@ -526,7 +530,7 @@ END SUBROUTINE ProlongToFace_ElementInfo
 
 SUBROUTINE Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides)
 !===================================================================================================================================
-!> Map the flux values from the small mortar sides (either slave or master) to the larger side (which is always stored in master 
+!> Map the flux values from the small mortar sides (either slave or master) to the larger side (which is always stored in master
 !> array)
 !===================================================================================================================================
 ! MODULES
@@ -593,7 +597,10 @@ SUBROUTINE CountAndCreateMappings(TypeName,&
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars,     ONLY: nSides,ElemToSide,nGlobalElems
+USE MOD_Mesh_Vars,     ONLY: nSides,nGlobalElems
+#if USE_MPI
+USE MOD_Mesh_Vars,     ONLY: ElemToSide
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -608,8 +615,10 @@ INTEGER,ALLOCATABLE,INTENT(INOUT) :: ElemToX(:),XToElem(:),FaceToX(:),XToFace(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                           :: iElem,iSide,nGlobalSpecialElems,nGlobalFaces,nGlobalInterFaces
-INTEGER                           :: iXElem,iXFace,iXInterFace
-INTEGER                           :: SideID,nMasterfaces,nMasterInterFaces,sumGlobalFaces,sumGlobalInterFaces
+INTEGER                           :: iXElem,iXFace,iXInterFace,sumGlobalFaces,sumGlobalInterFaces
+#if USE_MPI
+INTEGER                           :: SideID,nMasterfaces,nMasterInterFaces
+#endif
 !===================================================================================================================================
 ! Get number of Elems
 nFaces = 0
@@ -635,8 +644,8 @@ END DO ! iElem
 ! display face number infos
 !===================================================================================================================================
 IF(PRESENT(DisplayInfo))THEN
-  IF(DisplayInfo)THEN 
-#ifdef MPI
+  IF(DisplayInfo)THEN
+#if USE_MPI
     nMasterFaces      = 0
     nMasterInterFaces = 0
     DO iElem=1,nElems ! loop over all local elems
@@ -661,7 +670,7 @@ IF(PRESENT(DisplayInfo))THEN
     nGlobalSpecialElems = nElems
     sumGlobalFaces      = nFaces
     sumGlobalInterFaces = nInterFaces
-#endif /* MPI */
+#endif /*USE_MPI*/
     SWRITE(UNIT_stdOut,'(A,I10,A,I10,A,F6.2,A)')&
     '  Found [',nGlobalSpecialElems,'] nGlobal'//TRIM(TypeName)//'-Elems      inside of '//TRIM(TypeName)//'-region of ['&
     ,nGlobalElems,'] elems in complete domain [',REAL(nGlobalSpecialElems)/REAL(nGlobalElems)*100.,' %]'
@@ -725,7 +734,10 @@ SUBROUTINE DisplayRanges(useMinMax_Name,useMinMax,xyzMinMax_name,xyzMinMax,Physi
 ! usually a, e.g., PML/dielectric region is specified or the inverse region, i.e., the physical region is specified
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY:UNIT_stdOut,mpiroot
+USE MOD_Globals,               ONLY:UNIT_stdOut
+#if USE_MPI
+USE MOD_Globals,               ONLY:MPIRoot
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -755,7 +767,10 @@ SUBROUTINE DisplayMinMax(MinMax)
 ! Display the ranges of a x-y-z min-max region in the vector MinMax(xmin,xmax,ymin,ymax,zmin,zmax)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY:UNIT_stdOut,mpiroot
+USE MOD_Globals,               ONLY:UNIT_stdOut
+#if USE_MPI
+USE MOD_Globals,               ONLY:MPIRoot
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -784,10 +799,13 @@ END SUBROUTINE DisplayMinMax
 SUBROUTINE SelectMinMaxRegion(TypeName,useMinMax,region1_name,region1,region2_name,region2)
 !===================================================================================================================================
 ! check whether a MinMax region was defined by the user.
-! 
+!
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY:UNIT_stdOut,mpiroot
+USE MOD_Globals,               ONLY:UNIT_stdOut
+#if USE_MPI
+USE MOD_Globals,               ONLY:MPIRoot
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -847,7 +865,7 @@ USE MOD_Interfaces_Vars, ONLY:GeometryIsSet,Geometry,GeometryMin,GeometryMax,Geo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL,ALLOCATABLE                :: temp_array(:)            !< temporary array
 REAL                            :: array_shift
 INTEGER                         :: I
@@ -861,7 +879,7 @@ CHARACTER(LEN=*)  ,INTENT(IN)   :: GeometryName             !< name of the pre-d
 IF(GeometryIsSet)RETURN
 
 SWRITE(UNIT_stdOut,'(A)') 'Selecting geometry: ['//TRIM(GeometryName)//']'
-SELECT CASE(TRIM(GeometryName)) 
+SELECT CASE(TRIM(GeometryName))
 CASE('FH_lens')
   array_shift=0.0 !-0.038812
   !array_shift=347.6000
@@ -869,7 +887,7 @@ CASE('FH_lens')
   dim_2=2
   ALLOCATE(Geometry(1:GeometryNPoints,1:dim_2)) ! 385 radial- and axis-coordinates for gyrotron tube radius along the axis
   ALLOCATE(temp_array(1:GeometryNPoints*dim_2))
-  temp_array=(/&            ! this array will be re-shaped into [385,2] = [z,r] 
+  temp_array=(/&            ! this array will be re-shaped into [385,2] = [z,r]
     !-0.038812,0.000531 ,&
     !-0.038415,0.010012 ,&
     !-0.037116,0.018273 ,&
@@ -1041,7 +1059,7 @@ CASE('FishEyeLens')
   ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
 CASE('DielectricResonatorAntenna') ! radius only in x-y (not z)
   ! nothing to set, because rotationally symmetry (defined by a radius in x-y)
-CASE('default') 
+CASE('default')
   ! Nothing to do, because the geometry is set by using the box coordinates
 CASE DEFAULT
   SWRITE(UNIT_stdOut,'(A)') ' '
@@ -1067,7 +1085,7 @@ USE MOD_Interfaces_Vars, ONLY:Geometry,GeometryMin,GeometryMax,GeometryNPoints
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !REAL,ALLOCATABLE                :: temp_array(:)            !< temporary array
 INTEGER                         :: location
 REAL                            :: x1,x2,y1,y2,m

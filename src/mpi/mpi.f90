@@ -21,7 +21,7 @@ MODULE MOD_MPI
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -31,7 +31,7 @@ END INTERFACE
 
 PUBLIC::InitMPI
 
-#ifdef MPI
+#if USE_MPI
 INTERFACE InitMPIvars
   MODULE PROCEDURE InitMPIvars
 END INTERFACE
@@ -63,7 +63,7 @@ PUBLIC::DefineParametersMPI
 CONTAINS
 
 !==================================================================================================================================
-!> Define parameters 
+!> Define parameters
 !==================================================================================================================================
 SUBROUTINE DefineParametersMPI()
 ! MODULES
@@ -72,7 +72,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !==================================================================================================================================
 CALL prms%SetSection("MPI")
 CALL prms%CreateIntOption('GroupSize', "Define size of MPI subgroups, used to e.g. perform grouped IO, where group master\n"//&
@@ -82,7 +82,7 @@ END SUBROUTINE DefineParametersMPI
 
 SUBROUTINE InitMPI()
 !===================================================================================================================================
-! Basic MPI initialization. 
+! Basic MPI initialization.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -93,9 +93,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
-#ifdef MPI
+#if USE_MPI
 CALL MPI_INIT(iError)
 IF(iError .NE. 0) &
   CALL Abort(&
@@ -109,23 +109,23 @@ IF(iError .NE. 0) &
   __STAMP__&
   ,'Could not get rank and number of processors',iError)
 MPIRoot=(myRank .EQ. 0)
-#else  /*MPI*/
-myRank      = 0 
+#else  /*USE_MPI*/
+myRank      = 0
 myLocalRank = 0
-nProcessors = 1 
+nProcessors = 1
 MPIRoot     =.TRUE.
 MPILocalRoot=.TRUE.
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 
 ! At this point the initialization is not completed. We first have to create a new MPI communicator. MPIInitIsDone will be set
 END SUBROUTINE InitMPI
 
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE InitMPIvars()
 !===================================================================================================================================
-! Initialize derived MPI types used for communication and allocate HALO data. 
+! Initialize derived MPI types used for communication and allocate HALO data.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -201,7 +201,7 @@ DataSizeSide  =(PP_N+1)*(PP_N+1)
 ! split communicator into smaller groups (e.g. for local nodes)
 GroupSize=GETINT('GroupSize','0')
 IF(GroupSize.LT.1)THEN ! group procs by node
-#ifdef MPI3
+#if USE_MPI3
   ! MPI3 directly gives you shared memory groups
   CALL MPI_INFO_CREATE(info,iError)
   CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,MPI_COMM_TYPE_SHARED,myRank,info,MPI_COMM_NODE,iError)
@@ -353,7 +353,7 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE FinishExchangeMPIData
 
 
-SUBROUTINE FinalizeMPI() 
+SUBROUTINE FinalizeMPI()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Finalize DG MPI-Stuff, deallocate arrays with neighbor connections, etc.
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -363,7 +363,7 @@ USE MOD_Globals
 USE MOD_MPI_Vars
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -402,6 +402,6 @@ SDEALLOCATE(OffsetMPISides_rec)
 
 
 END SUBROUTINE FinalizeMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END MODULE MOD_MPI

@@ -20,7 +20,7 @@ MODULE MOD_Output
 USE ISO_C_BINDING
 ! IMPLICIT VARIABLE HANDLING
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,PARAMETER :: OUTPUTFORMAT_NONE         = 0
 INTEGER,PARAMETER :: OUTPUTFORMAT_TECPLOT      = 1
@@ -36,7 +36,7 @@ INTEGER,PARAMETER :: ASCIIOUTPUTFORMAT_TECPLOT = 1
 INTERFACE
   FUNCTION get_userblock_size()
       INTEGER :: get_userblock_size
-  END FUNCTION 
+  END FUNCTION
 END INTERFACE
 
 INTERFACE
@@ -72,7 +72,7 @@ PUBLIC::DefineParametersOutput
 CONTAINS
 
 !==================================================================================================================================
-!> Define parameters 
+!> Define parameters
 !==================================================================================================================================
 SUBROUTINE DefineParametersOutput()
 ! MODULES
@@ -96,7 +96,7 @@ CALL prms%CreateIntFromStringOption('ASCIIOutputFormat',"File format for ASCII f
 CALL addStrListEntry('ASCIIOutputFormat','csv',    ASCIIOUTPUTFORMAT_CSV)
 CALL addStrListEntry('ASCIIOutputFormat','tecplot',ASCIIOUTPUTFORMAT_TECPLOT)
 CALL prms%CreateLogicalOption(      'doPrintStatusLine','Print: percentage of time, ...', '.FALSE.')
-CALL prms%CreateLogicalOption(      'WriteStateFiles','Write HDF5 state files. Disable this only for debugging issues. \n'// & 
+CALL prms%CreateLogicalOption(      'WriteStateFiles','Write HDF5 state files. Disable this only for debugging issues. \n'// &
                                                       'NO SOLUTION WILL BE WRITTEN!', '.TRUE.')
 END SUBROUTINE DefineParametersOutput
 
@@ -106,11 +106,11 @@ SUBROUTINE InitOutput()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars, ONLY: ParameterFile,ProjectName,ParameterDSMCFile
+USE MOD_Globals_Vars ,ONLY: ParameterFile,ProjectName,ParameterDSMCFile
 USE MOD_Preproc
-USE MOD_ReadInTools,ONLY:GetStr,GetLogical,GETINT
-USE MOD_Output_Vars,ONLY:OutputInitIsDone,OutputFormat 
-USE MOD_Output_Vars,ONLY:userblock_len, userblock_total_len, UserBlockTmpFile
+USE MOD_ReadInTools  ,ONLY: GetStr,GetLogical,GETINT
+USE MOD_Output_Vars  ,ONLY: OutputInitIsDone,OutputFormat
+USE MOD_Output_Vars  ,ONLY: userblock_len, userblock_total_len, UserBlockTmpFile
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -120,8 +120,8 @@ IMPLICIT NONE
 INTEGER                        :: OpenStat
 CHARACTER(LEN=8)               :: StrDate
 CHARACTER(LEN=10)              :: StrTime
-CHARACTER(LEN=255)             :: LogFile
 LOGICAL                        :: WriteErrorFiles
+LOGICAL                        :: LogIsOpen 
 INTEGER                        :: inifile_len
 !===================================================================================================================================
 IF (OutputInitIsDone) THEN
@@ -132,7 +132,7 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT OUTPUT...'
 
-ProjectName=GETSTR('ProjectName') 
+ProjectName=GETSTR('ProjectName')
 Logging    =GETLOGICAL('Logging','.FALSE.')
 
 WriteErrorFiles=GETLOGICAL('WriteErrorFiles','.FALSE.')
@@ -160,19 +160,21 @@ END IF
 OutputFormat = GETINT('OutputFormat','1')
 ! Open file for logging
 IF(Logging)THEN
-  WRITE(LogFile,'(A,A1,I6.6,A4)')TRIM(ProjectName),'_',myRank,'.log'
-  OPEN(UNIT=UNIT_logOut,  &
-       FILE=LogFile,      &
-       STATUS='UNKNOWN',  &
-       ACTION='WRITE',    &
-       POSITION='APPEND', &
-       IOSTAT=OpenStat)
-  CALL DATE_AND_TIME(StrDate,StrTime)
-  WRITE(UNIT_logOut,*)
-  WRITE(UNIT_logOut,'(132("#"))')
-  WRITE(UNIT_logOut,*)
-  WRITE(UNIT_logOut,*)'STARTED LOGGING FOR PROC',myRank,' ON ',StrDate(7:8),'.',StrDate(5:6),'.',StrDate(1:4),' | ',&
-                      StrTime(1:2),':',StrTime(3:4),':',StrTime(5:10)
+  INQUIRE(UNIT=UNIT_LogOut,OPENED=LogIsOpen)
+  IF(.NOT.LogIsOpen)THEN
+    WRITE(LogFile,'(A,A1,I6.6,A4)')TRIM(ProjectName),'_',myRank,'.log'
+    OPEN(UNIT=UNIT_logOut,  &
+         FILE=LogFile,      &
+         STATUS='REPLACE',  &
+         ACTION='WRITE',    &
+         IOSTAT=OpenStat)
+    CALL DATE_AND_TIME(StrDate,StrTime)
+    WRITE(UNIT_logOut,*)
+    WRITE(UNIT_logOut,'(132("#"))')
+    WRITE(UNIT_logOut,*)
+    WRITE(UNIT_logOut,*)'STARTED LOGGING FOR PROC',myRank,' ON ',StrDate(7:8),'.',StrDate(5:6),'.',StrDate(1:4),' | ',&
+                        StrTime(1:2),':',StrTime(3:4),':',StrTime(5:10)
+  END IF !logIsOpen
 END IF  ! Logging
 
 OutputInitIsDone =.TRUE.
@@ -187,8 +189,8 @@ SUBROUTINE InitOutputBasis(N_in,NVisu_in,xGP,wBary)
 ! Initialize all output variables.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Output_Vars, ONLY:Vdm_GaussN_NVisu
-USE MOD_Basis,       ONLY:InitializeVandermonde
+USE MOD_Output_Vars ,ONLY: Vdm_GaussN_NVisu
+USE MOD_Basis       ,ONLY: InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -202,7 +204,7 @@ INTEGER                     :: i
 !===================================================================================================================================
 !equidistant visu points
 DO i=0,NVisu_in
-  XiVisu(i) = 2./REAL(NVisu_in) * REAL(i) - 1. 
+  XiVisu(i) = 2./REAL(NVisu_in) * REAL(i) - 1.
 END DO
 ! Gauss/Gl -> Visu : computation -> visualization
 ALLOCATE(Vdm_GaussN_NVisu(0:NVisu_in,0:N_in))
@@ -216,7 +218,7 @@ SUBROUTINE FinalizeOutput()
 ! Deallocate global variables
 !===================================================================================================================================
 ! MODULES
-USE MOD_Output_Vars,ONLY:Vdm_GaussN_NVisu,OutputInitIsDone
+USE MOD_Output_Vars ,ONLY: Vdm_GaussN_NVisu,OutputInitIsDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

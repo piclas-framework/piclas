@@ -43,7 +43,7 @@ USE MOD_Mesh_Vars,             ONLY : nElems, SideToElem, BC, ElemToSide,nBCSide
 USE MOD_Particle_Mesh_Vars,    ONLY : SidePeriodicType
 USE MOD_Particle_Boundary_Vars,ONLY:PartBound
 USE MOD_TimeDisc_Vars,         ONLY : iter
-#ifdef MPI
+#if USE_MPI
 USE MOD_Mesh_Vars,             ONLY : nInnerSides
 #endif
 !--------------------------------------------------------------------------------------------------!
@@ -85,11 +85,11 @@ USE MOD_Mesh_Vars,             ONLY : nInnerSides
       IF (.NOT.IsDoneLagVelo(SideID)) THEN
         IsDoneLagVelo(SideID) = .TRUE.
         IsStationary = .FALSE.
-#ifdef MPI
+#if USE_MPI
         IF (SideID.GT.nBCSides+nInnerSides) THEN ! it must be a MPI Side
           Elem2 = -1
           Velo2(1) = MPINeighborBulkVal(SideID,1)
-          Velo2(2) = MPINeighborBulkVal(SideID,2) 
+          Velo2(2) = MPINeighborBulkVal(SideID,2)
           Velo2(3) = MPINeighborBulkVal(SideID,3)
           Beta2 = MPINeighborBulkVal(SideID,4)
           Dens2 = MPINeighborBulkVal(SideID,5)
@@ -103,7 +103,7 @@ USE MOD_Mesh_Vars,             ONLY : nInnerSides
             IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).EQ.PartBound%OpenBC) THEN ! open => copy cell values
               Elem2 = -1
               IF (iter.GE. 1) THEN
-                IF (PartBound%AmbientCondition(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))) THEN  
+                IF (PartBound%AmbientCondition(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))) THEN
                   Velo2(1) = PartBound%AmbientVelo(1,PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
                   Velo2(2) = PartBound%AmbientVelo(2,PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
                   Velo2(3) = PartBound%AmbientVelo(3,PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
@@ -112,16 +112,16 @@ USE MOD_Mesh_Vars,             ONLY : nInnerSides
 !                  DynamicVisc2 = PartBound%AmbientDynamicVisc(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !                  ThermalCond2 = PartBound%AmbientThermalCond(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !                  LocalBulkTemp2 = PartBound%AmbientTemp(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
-                ELSE  
+                ELSE
                   BulkValuesOpenBC(iElem)%CellV = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%CellV &
                                                 + LD_RelaxationFak * BulkValues(iElem)%CellV
                   BulkValuesOpenBC(iElem)%Beta = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%Beta &
                                                + LD_RelaxationFak * BulkValues(iElem)%Beta
-                  BulkValuesOpenBC(iElem)%MassDens = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%MassDens & 
+                  BulkValuesOpenBC(iElem)%MassDens = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%MassDens &
                                                    + LD_RelaxationFak * BulkValues(iElem)%MassDens
-!                  BulkValuesOpenBC(iElem)%DynamicVisc = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%DynamicVisc & 
+!                  BulkValuesOpenBC(iElem)%DynamicVisc = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%DynamicVisc &
 !                                                   + LD_RelaxationFak * BulkValues(iElem)%DynamicVisc
-!                  BulkValuesOpenBC(iElem)%ThermalCond = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%ThermalCond & 
+!                  BulkValuesOpenBC(iElem)%ThermalCond = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%ThermalCond &
 !                                                   + LD_RelaxationFak * BulkValues(iElem)%ThermalCond
                   Velo2 = BulkValuesOpenBC(iElem)%CellV
                   Beta2 = BulkValuesOpenBC(iElem)%Beta
@@ -130,7 +130,7 @@ USE MOD_Mesh_Vars,             ONLY : nInnerSides
 !                  ThermalCond2 = BulkValuesOpenBC(iElem)%ThermalCond
                 END IF
               ELSE
-                IF (PartBound%AmbientCondition(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))) THEN  
+                IF (PartBound%AmbientCondition(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))) THEN
                   Velo2(1) = PartBound%AmbientVelo(1,PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
                   Velo2(2) = PartBound%AmbientVelo(2,PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
                   Velo2(3) = PartBound%AmbientVelo(3,PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
@@ -138,7 +138,7 @@ USE MOD_Mesh_Vars,             ONLY : nInnerSides
                   Dens2 = PartBound%AmbientDens(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !                  DynamicVisc2 = PartBound%AmbientDynamicVisc(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !                  ThermalCond2 = PartBound%AmbientThermalCond(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
-                ELSE  
+                ELSE
                   BulkValuesOpenBC(iElem)%CellV    = BulkValues(iElem)%CellV
                   BulkValuesOpenBC(iElem)%Beta     = BulkValues(iElem)%Beta
                   BulkValuesOpenBC(iElem)%MassDens = BulkValues(iElem)%MassDens
@@ -195,11 +195,11 @@ __STAMP__&
               LocalBulkTemp2 = BulkValues(Elem2)%BulkTemperature
             END IF
           END IF
-        ELSE         
+        ELSE
           IF (SideToElem(1,SideID) .LT. 1) THEN ! it must be a BC
             IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).EQ.PartBound%OpenBC) THEN ! open => copy cell values
               Elem2 = -1
-              IF (PartBound%AmbientCondition(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))) THEN  
+              IF (PartBound%AmbientCondition(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))) THEN
                 Velo2(1) = PartBound%AmbientVelo(1,PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
                 Velo2(2) = PartBound%AmbientVelo(2,PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
                 Velo2(3) = PartBound%AmbientVelo(3,PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
@@ -207,12 +207,12 @@ __STAMP__&
                 Dens2 = PartBound%AmbientDens(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !                DynamicVisc2 = PartBound%AmbientDynamicVisc(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !                ThermalCond2 = PartBound%AmbientThermalCond(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
-              ELSE 
+              ELSE
                 Velo2 = BulkValues(iElem)%CellV
                 Beta2 = BulkValues(iElem)%Beta
                 Dens2 = BulkValues(iElem)%MassDens
 !                DynamicVisc2 = BulkValues(iElem)%DynamicVisc
-!                ThermalCond2 = BulkValues(iElem)%ThermalCond 
+!                ThermalCond2 = BulkValues(iElem)%ThermalCond
               END IF
             ELSE IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).EQ.PartBound%ReflectiveBC) THEN
               IsStationary = .TRUE.
@@ -234,10 +234,10 @@ __STAMP__&
             Dens2 = BulkValues(Elem2)%MassDens
             DynamicVisc2 = BulkValues(Elem2)%DynamicVisc
             ThermalCond2 = BulkValues(Elem2)%ThermalCond
-            LocalBulkTemp2 = BulkValues(Elem2)%BulkTemperature 
+            LocalBulkTemp2 = BulkValues(Elem2)%BulkTemperature
           END IF
         END IF
-#ifdef MPI
+#if USE_MPI
         END IF
 #endif
         IF (.NOT.IsStationary) THEN
@@ -250,11 +250,11 @@ __STAMP__&
             kon1 = Dens1 / Beta1**2
             kon2 = Dens2 / Beta2**2
             VeloDir1 = Velo1(1) * NVec(1) &
-                     + Velo1(2) * NVec(2) &  
-                     + Velo1(3) * NVec(3) 
+                     + Velo1(2) * NVec(2) &
+                     + Velo1(3) * NVec(3)
             VeloDir2 = Velo2(1) * NVec(1) &
                      + Velo2(2) * NVec(2) &
-                     + Velo2(3) * NVec(3) 
+                     + Velo2(3) * NVec(3)
             IF (trinum.EQ.3) THEN
               vLAG_old = MeanSurfValues(iLocSide, iElem)%MeanLagVelo   ! 1st guess, former velocity, [m/s]
               vLAG_new = MeanSurfValues(iLocSide, iElem)%MeanLagVelo &
@@ -279,7 +279,7 @@ __STAMP__&
               IterForSecant = IterForSecant + 1                                   ! increase local iteration counter
               VeloDiff1_new =  Beta1 * ( VeloDir1 - vLAG_new )
               VeloDiff2_new = -Beta2 * ( VeloDir2 - vLAG_new ) !
-              VeloDiff1_old =  Beta1 * ( VeloDir1 - vLAG_old ) 
+              VeloDiff1_old =  Beta1 * ( VeloDir1 - vLAG_old )
               VeloDiff2_old = -Beta2 * ( VeloDir2 - vLAG_old ) !
               G_old  = kon1 * ( VeloDiff1_old * EXP(-VeloDiff1_old**2) + SQRT(PI) &
                      * ( 1. + ERF(VeloDiff1_old) ) * ( 0.5 + VeloDiff1_old**2 ) ) &
@@ -288,7 +288,7 @@ __STAMP__&
               G_new  = kon1 * ( VeloDiff1_new * EXP(-VeloDiff1_new**2) + SQRT(PI) &
                      * ( 1. + ERF(VeloDiff1_new) ) * ( 0.5 + VeloDiff1_new**2 ) ) &
                      - kon2 * ( VeloDiff2_new * EXP(-VeloDiff2_new**2) + SQRT(PI) &
-                     * ( 1. + ERF(VeloDiff2_new) ) * ( 0.5 + VeloDiff2_new**2) ) 
+                     * ( 1. + ERF(VeloDiff2_new) ) * ( 0.5 + VeloDiff2_new**2) )
               IF ( ( G_new - G_old ) .NE. 0.0 ) THEN
                 vLAG  = vLAG_new + ( vLAG_old - vLAG_new ) * ( G_new / ( G_new - G_old ) )
               ELSE
