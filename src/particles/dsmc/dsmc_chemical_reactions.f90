@@ -906,7 +906,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     VzPseuMolec = (VeloMz + FracMassCent2*RanVeloz)
 
     ! Scattering of (AB)
-    IF (RadialWeighting%DoRadialWeighting) THEN
+    IF (usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
       FracMassCent1 = Species(ProductReac(1))%MassIC *Weight1 &
           /(Species(ProductReac(1))%MassIC* Weight1 + Species(ProductReac(3))%MassIC * WeightProd)
       FracMassCent2 = Species(ProductReac(3))%MassIC *WeightProd &
@@ -993,7 +993,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     END IF
     ERel_React1_React3 = Coll_pData(iPair)%Ec
 
-    IF (RadialWeighting%DoRadialWeighting) THEN
+    IF (usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
       FracMassCent1 = Species(ProductReac(1))%MassIC *Weight1 &
           /(Species(ProductReac(1))%MassIC* Weight1 + Species(ProductReac(2))%MassIC * Weight2)
       FracMassCent2 = Species(ProductReac(2))%MassIC *Weight2 &
@@ -1001,9 +1001,9 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
       ReducedMass = Species(ProductReac(1))%MassIC *Weight1* Species(ProductReac(2))%MassIC *Weight2 &
           / (Species(ProductReac(1))%MassIC*Weight1 + Species(ProductReac(2))%MassIC *Weight2)
     ELSE
-    ! Scattering of (AB)
-    FracMassCent1 = CollInf%FracMassCent(ProductReac(1),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
-    FracMassCent2 = CollInf%FracMassCent(ProductReac(2),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
+      ! Scattering of (AB)
+      FracMassCent1 = CollInf%FracMassCent(ProductReac(1),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
+      FracMassCent2 = CollInf%FracMassCent(ProductReac(2),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
       ReducedMass = CollInf%MassRed(CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
     END IF
 
