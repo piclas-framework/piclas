@@ -787,10 +787,11 @@ USE MOD_Globals_Vars              ,ONLY: ProjectName
 USE MOD_AnalyzeField              ,ONLY: AnalyzeField
 #ifdef PARTICLES
 USE MOD_Mesh_Vars                 ,ONLY: MeshFile
-USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,PartSurfaceModel
+USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
 USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
+USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfaceAnalyzeStep
 USE MOD_SurfaceModel_Analyze      ,ONLY: AnalyzeSurface
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
@@ -800,13 +801,12 @@ USE MOD_LD_Analyze                ,ONLY: LD_data_sampling, LD_output_calc
 USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep
 USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
-#if ! defined(LSERK)
+#if !defined(LSERK)
 USE MOD_DSMC_Vars                 ,ONLY: useDSMC
 #endif
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
-USE MOD_Particle_Vars             ,ONLY: PartSurfaceModel
 USE MOD_Particle_Boundary_Vars    ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
-USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh, SampWall
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh, SampWall, PartBound
 USE MOD_DSMC_Analyze              ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 #endif
@@ -1110,15 +1110,16 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
     CALL CalcSurfaceValues
     DO iSide=1,SurfMesh%nTotalSides
       SampWall(iSide)%State=0.
-      IF (PartSurfaceModel.GT.0) THEN
-        SampWall(iSide)%Adsorption=0.
+      IF (ANY(PartBound%Reactive)) THEN
+        SampWall(iSide)%SurfModelState=0.
         SampWall(iSide)%Accomodation=0.
-        SampWall(iSide)%Reaction=0.
+        SampWall(iSide)%SurfModelReactCount=0.
       END IF
       IF(nPorousBC.GT.0) THEN
         SampWall(iSide)%PumpCapacity=0.
       END IF
     END DO
+    Adsorption%NumCovsamples=0
     IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
       AnalyzeSurfCollis%Data=0.
       AnalyzeSurfCollis%Spec=0

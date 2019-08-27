@@ -148,6 +148,7 @@ DO i = 1,PDM%ParticleVecLength
     IF (MeasureTrackTime) nTracks=nTracks+1
     PartisDone = .FALSE.
     ElemID = PEM%lastElement(i)
+    TrackInfo%CurrElem=ElemID
     SideID = 0
     DoneLastElem(:,:) = 0
     ! 2) Loop tracking until particle is considered "done" (either localized or deleted)
@@ -343,10 +344,8 @@ DO i = 1,PDM%ParticleVecLength
         flip =PartElemToSide(E2S_FLIP,LocalSide,ElemID)
         IF(BC(SideID).GT.0) THEN
           OldElemID=ElemID
-          TrackInfo%CurrElem = ElemID
           BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID)))
-          IF(BCType.NE.1) &
-             CALL IntersectionWithWall(PartTrajectory,alpha,i,LocalSide,ElemID,TriNum)
+          IF(BCType.NE.1) CALL IntersectionWithWall(PartTrajectory,alpha,i,LocalSide,ElemID,TriNum)
           CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
                                                                        ,xi    &
                                                                        ,eta   ,i,SideID,flip,LocalSide,ElemID,crossedBC&
@@ -385,10 +384,12 @@ DO i = 1,PDM%ParticleVecLength
           END IF
         END IF  ! BC(SideID).GT./.LE. 0
         IF (ElemID.LT.1) THEN
+          IPWRITE(UNIT_stdout,*) 'Particle Velocity: ',SQRT(DOT_PRODUCT(PartState(i,4:6),PartState(i,4:6)))
           CALL abort(&
            __STAMP__ &
            ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
         END IF
+        TrackInfo%CurrElem = ElemID
       END IF  ! InElementCheck = T/F
     END DO  ! .NOT.PartisDone
 #if USE_LOADBALANCE
@@ -1544,6 +1545,7 @@ __STAMP__ &
             CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.FALSE.)
             IF(.NOT.PDM%ParticleInside(iPart)) THEN
               IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with BC element '
+              IPWRITE(UNIT_stdOut,'(I0,A,3(X,I0))')    ' iPart                  ', ipart
               IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' xi                     ', partposref(1:3,ipart)
               IPWRITE(UNIT_stdOut,'(I0,A,1(X,E15.8))') ' epsonecell             ', epsonecell(TestElem)
               IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' oldxi                  ', oldxi
@@ -1941,6 +1943,9 @@ ELSE
   ! update particle element
   dolocSide=.TRUE.
   Moved = PARTSWITCHELEMENT(xi,eta,hitlocSide,SideID,ElemID)
+  IF (Moved(1).LT.1 .OR. Moved(2).LT.1) CALL abort(&
+__STAMP__ &
+,'ERROR in SelectInterSectionType. No Neighbour Elem or Neighbour Side found --> increase haloregion')
   ElemID=Moved(1)
   TrackInfo%CurrElem=ElemID
   dolocSide(Moved(2))=.FALSE.
