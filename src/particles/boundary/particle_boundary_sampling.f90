@@ -1083,7 +1083,7 @@ END SUBROUTINE GetHaloSurfMapping
 SUBROUTINE ExchangeSurfData()
 !===================================================================================================================================
 ! exchange the surface data
-! only processes with samling sides in their halo region and the original process participate on the communication
+! only processes with sampling sides in their halo region and the original process participate on the communication
 ! structure is similar to particle communication
 ! each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
 ! the receiving process adds the new data to his own sides
