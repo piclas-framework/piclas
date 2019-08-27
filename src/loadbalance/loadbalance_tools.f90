@@ -108,6 +108,8 @@ IF (DoRestart) THEN
     IF(MAXVAL(ElemGlobalTime).LE.0.0) THEN
       ElemGlobalTime = 1.0
       ElemTimeExists = .FALSE.
+    ELSE
+      ElemTimeExists = .TRUE.
     END IF
   END IF
 
