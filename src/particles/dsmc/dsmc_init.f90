@@ -428,8 +428,13 @@ IMPLICIT NONE
     CALL abort(__STAMP__&
 ,'ERROR: Merging of subcells only supported within a 2D/axisymmetric simulation!')
   END IF
-  DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb','0.2')
-  DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb','0.004')
+  IF(CollisMode.GE.2) THEN
+    DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb','0.2')
+    DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb','0.004')
+  ELSE
+    DSMC%RotRelaxProb = 0.
+    DSMC%VibRelaxProb = 0.
+  END IF
   DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
   DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
   ALLOCATE(DSMC%veloMinColl(nSpecies))
@@ -1229,7 +1234,7 @@ __STAMP__&
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate vib collision numbers and characteristic velocity, according to Abe
 !-----------------------------------------------------------------------------------------------------------------------------------
-  IF(DSMC%VibRelaxProb.EQ.2) THEN
+  IF((DSMC%VibRelaxProb.EQ.2).AND.(CollisMode.GE.2)) THEN
     VarVibRelaxProb%alpha = GETREAL('Particles-DSMC-alpha','0.99')
     IF ((VarVibRelaxProb%alpha.LT.0).OR.(VarVibRelaxProb%alpha.GE.1)) THEN
       CALL abort(&
@@ -1276,7 +1281,7 @@ __STAMP__&
     END IF
   END IF ! VibRelaxProb = 2
 
-  IF((DSMC%RotRelaxProb.GE.2).AND.DSMC%CalcQualityFactors) THEN
+  IF((DSMC%RotRelaxProb.GE.2).AND.DSMC%CalcQualityFactors.AND.(CollisMode.GE.2)) THEN
     IF(nSpecies.GT.1) THEN
       ALLOCATE(DSMC%QualityFacSampRot(1:nElems,1:nSpecies+1,1:2))
       ALLOCATE(DSMC%QualityFacSampRotSamp(1:nElems,1:nSpecies+1))
