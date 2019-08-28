@@ -61,7 +61,7 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   make install 2>&1 | tee install.out
 
   # create modulefile if installation seems succesfull (check if mpicc, mpicxx, mpifort exists in installdir)
-  if [ -e "${PARAVIEWINSTALLDIR}/bin/paraview" ] then
+  if [ -e "${PARAVIEWINSTALLDIR}/bin/paraview" ]; then
     if [ ! -d "${PARAVIEWMODULEFILEDIR}" ]; then
       mkdir -p ${PARAVIEWMODULEFILEDIR}
     fi
