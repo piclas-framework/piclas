@@ -7,8 +7,10 @@ WHICHCOMPILER=gcc
 
 if [ "${WHICHMPI}" == "openmpi" ]; then
   # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
-  MPIVERSION=2.1.6
-  MPIVERSIONTAG=2.1
+  #MPIVERSION=2.1.6
+  MPIVERSION=3.1.3
+  #MPIVERSIONTAG=2.1
+  MPIVERSIONTAG=3.1
 elif [ "${WHICHMPI}" == "mpich" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
   MPIVERSION=3.2

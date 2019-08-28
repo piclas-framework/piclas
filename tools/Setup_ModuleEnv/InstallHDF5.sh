@@ -9,8 +9,11 @@ fi
 
 # DOWNLOAD and INSTALL HDF5 for every compiler openmpi / mpich combination (example HDF5-1.8.18)
 # 1.8.18 , 1.10.4
-HDF5VERSION=1.8.18
-HDF5VERSIONtag=1.8
+#HDF5VERSION=1.8.18
+#HDF5VERSIONtag=1.8
+
+HDF5VERSION=1.10.5
+HDF5VERSIONtag=1.10
 HDF5DIR=${INSTALLDIR}'/hdf5/'${HDF5VERSION}
 
 COMPILERNAMES='gcc intel'
