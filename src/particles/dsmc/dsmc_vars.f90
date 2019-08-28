@@ -236,7 +236,7 @@ TYPE tDSMC
   REAL, ALLOCATABLE             :: QualityFacSampVib(:,:,:) ! Sampling of quality vib relax factors (nElem,nSpec+1,2)
                                                             !     1: Instantanious time-averaged mean vib relax prob
                                                             !     2: Instantanious maximal vib relax prob
-  INTEGER, ALLOCATABLE          :: QualityFacSampVibSamp(:,:)!Sample size for QualityFacSampVib
+  INTEGER, ALLOCATABLE          :: QualityFacSampVibSamp(:,:,:)!Sample size for QualityFacSampVib
   REAL, ALLOCATABLE             :: QualityFacSampRelaxSize(:,:)! Samplie size of quality relax factors (nElem,nSpec+1)
   LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file

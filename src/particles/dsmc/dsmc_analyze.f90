@@ -57,6 +57,10 @@ INTERFACE CalcInstantTransTemp
   MODULE PROCEDURE CalcInstantTransTemp
 END INTERFACE
 
+INTERFACE SamplingRotVibRelaxProb
+  MODULE PROCEDURE SamplingRotVibRelaxProb
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -64,7 +68,7 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMCHO_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
 PUBLIC :: CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly, InitHODSMC, WriteDSMCHOToHDF5, CalcGammaVib
-PUBLIC :: CalcInstantTransTemp, CalcWallSample
+PUBLIC :: CalcInstantTransTemp, CalcWallSample, SamplingRotVibRelaxProb
 !===================================================================================================================================
 
 CONTAINS
@@ -1847,24 +1851,24 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
               END IF
             END IF
             IF((DSMC%VibRelaxProb.GE.2).AND..NOT.(DSMC%RotRelaxProb.GE.2)) THEN
-              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1).GT.0) THEN
-                DSMC_MacroVal(nVarLoc*(iSpec)+13,kk,ll,mm, iElem) = DSMC%QualityFacSampVib(iElem,iSpec+1,2) &
-                                                                  / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1))
-                DSMC_MacroVal(nVarLoc*(iSpec)+14,kk,ll,mm, iElem) = DSMC%QualityFacSampVib(iElem,iSpec+1,1) &
-                                                                  / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1))
-              END IF
+              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,2).GT.0)  DSMC_MacroVal(nVarLoc*(iSpec)+13,kk,ll,mm, iElem) = & 
+                                         DSMC%QualityFacSampVib(iElem,iSpec+1,2) / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,2))
+              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,1).GT.0)  DSMC_MacroVal(nVarLoc*(iSpec)+14,kk,ll,mm, iElem) = &
+                                         DSMC%QualityFacSampVib(iElem,iSpec+1,1) / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,1))
             ELSE IF((DSMC%VibRelaxProb.GE.2).AND.(DSMC%RotRelaxProb.GE.2)) THEN
-              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1).GT.0) THEN
-                DSMC_MacroVal(nVarLoc*(iSpec)+15,kk,ll,mm, iElem) = DSMC%QualityFacSampVib(iElem,iSpec+1,2) &
-                                                                  / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1))
-                DSMC_MacroVal(nVarLoc*(iSpec)+16,kk,ll,mm, iElem) = DSMC%QualityFacSampVib(iElem,iSpec+1,1) &
-                                                                  / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1))
-              END IF
+              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,2).GT.0)  DSMC_MacroVal(nVarLoc*(iSpec)+15,kk,ll,mm, iElem) = &
+                                         DSMC%QualityFacSampVib(iElem,iSpec+1,2) / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,2))
+              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,1).GT.0)  DSMC_MacroVal(nVarLoc*(iSpec)+16,kk,ll,mm, iElem) = &
+                                         DSMC%QualityFacSampVib(iElem,iSpec+1,1) / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,1))
             END IF
           END DO
         END IF
       END IF
     END DO
+    IF (ALLOCATED(DSMC%QualityFacSampRot)) DSMC%QualityFacSampRot = 0.
+    IF (ALLOCATED(DSMC%QualityFacSampRotSamp)) DSMC%QualityFacSampRotSamp = 0
+    IF (ALLOCATED(DSMC%QualityFacSampVib)) DSMC%QualityFacSampVib = 0.
+    IF (ALLOCATED(DSMC%QualityFacSampVibSamp)) DSMC%QualityFacSampVibSamp = 0
   END IF
 ELSE ! all other sampling types
   nVarCount=0
@@ -3509,6 +3513,76 @@ DEALLOCATE(SpeciesPositions)
 DEALLOCATE(StrVarNames)
 
 END SUBROUTINE WriteAnalyzeSurfCollisToHDF5
+
+SUBROUTINE SamplingRotVibRelaxProb(iElem)
+!===================================================================================================================================
+!> Update sampling arrays for rotational and vibrational relaxation probability for DSMCHO Output
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars              ,ONLY: DSMC
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)            :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: MeanProb, MaxProb, PartNum
+INTEGER                       :: iSpec
+!===================================================================================================================================
+  IF(DSMC%RotRelaxProb.EQ.2) THEN
+    MeanProb = 0
+    MaxProb = 0
+    PartNum = 0.
+    DO iSpec=1,nSpecies
+      IF(DSMC%CalcRotProb(iSpec,3).GT.0) THEN
+        DSMC%QualityFacSampRot(iElem,iSpec,2) = DSMC%QualityFacSampRot(iElem,iSpec,2) + DSMC%CalcRotProb(iSpec,2)
+        DSMC%QualityFacSampRot(iElem,iSpec,1) = DSMC%QualityFacSampRot(iElem,iSpec,1) &
+                                              + DSMC%CalcRotProb(iSpec,1) / DSMC%CalcRotProb(iSpec,3)
+        DSMC%QualityFacSampRotSamp(iElem,iSpec) = DSMC%QualityFacSampRotSamp(iElem,iSpec) + 1
+        MaxProb = MAX(MaxProb,DSMC%CalcRotProb(iSpec,2))
+        MeanProb = MeanProb + DSMC%CalcRotProb(iSpec,1) * DSMC%CalcRotProb(iSpec,3)
+        PartNum = PartNum + DSMC%CalcRotProb(iSpec,3)
+      END IF
+    END DO
+    IF((nSpecies.GT.1).AND.(PartNum.GT.0)) THEN
+      DSMC%QualityFacSampRot(iElem,nSpecies+1,2) = DSMC%QualityFacSampRot(iElem,nSpecies+1,2) + MaxProb
+      DSMC%QualityFacSampRot(iElem,nSpecies+1,1) = DSMC%QualityFacSampRot(iElem,nSpecies+1,1) + MeanProb / PartNum
+      DSMC%QualityFacSampRotSamp(iElem,nSpecies+1) = DSMC%QualityFacSampRotSamp(iElem,nSpecies+1) + 1
+    END IF
+  END IF
+  ! Sample vibration relaxation probability
+  IF(DSMC%VibRelaxProb.EQ.2) THEN
+    MeanProb = 0
+    MaxProb = 0
+    PartNum = 0
+    DO iSpec=1,nSpecies
+      IF(DSMC%CalcVibProb(iSpec,2).GT.0) THEN
+        DSMC%QualityFacSampVib(iElem,iSpec,2) = DSMC%QualityFacSampVib(iElem,iSpec,2) + DSMC%CalcVibProb(iSpec,2)
+        DSMC%QualityFacSampVibSamp(iElem,iSpec,2) = DSMC%QualityFacSampVibSamp(iElem,iSpec,2) + 1
+        MaxProb = MAX(MaxProb,DSMC%CalcVibProb(iSpec,2))
+      END IF
+      IF(DSMC%CalcVibProb(iSpec,3).GT.0) THEN
+        DSMC%QualityFacSampVib(iElem,iSpec,1) = DSMC%QualityFacSampVib(iElem,iSpec,1) &
+                                              + DSMC%CalcVibProb(iSpec,1) / DSMC%CalcVibProb(iSpec,3)
+        DSMC%QualityFacSampVibSamp(iElem,iSpec,1) = DSMC%QualityFacSampVibSamp(iElem,iSpec,1) + 1
+        MeanProb = MeanProb + DSMC%CalcVibProb(iSpec,1) * DSMC%CalcVibProb(iSpec,3)
+        PartNum = PartNum + DSMC%CalcVibProb(iSpec,3)
+      END IF
+    END DO
+    IF(MaxProb.GT.0.) THEN
+      DSMC%QualityFacSampVib(iElem,nSpecies+1,2) = DSMC%QualityFacSampVib(iElem,nSpecies+1,2) + MaxProb
+      DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,2) = DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,2) + 1
+    END IF
+    IF((nSpecies.GT.1).AND.(PartNum.GT.0)) THEN
+      DSMC%QualityFacSampVib(iElem,nSpecies+1,1) = DSMC%QualityFacSampVib(iElem,nSpecies+1,1) + MeanProb / PartNum
+      DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,1) = DSMC%QualityFacSampVibSamp(iElem,nSpecies+1,1) + 1
+    END IF
+  END IF
+END SUBROUTINE SamplingRotVibRelaxProb
 
 
 END MODULE MOD_DSMC_Analyze

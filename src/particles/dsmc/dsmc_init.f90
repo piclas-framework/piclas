@@ -1258,10 +1258,10 @@ __STAMP__&
     IF(DSMC%CalcQualityFactors) THEN
       IF(nSpecies.GT.1) THEN
         ALLOCATE(DSMC%QualityFacSampVib(1:nElems,1:nSpecies+1,1:2))
-        ALLOCATE(DSMC%QualityFacSampVibSamp(1:nElems,1:nSpecies+1))
+        ALLOCATE(DSMC%QualityFacSampVibSamp(1:nElems,1:nSpecies+1,2))
       ELSE
         ALLOCATE(DSMC%QualityFacSampVib(1:nElems,1,1:2))
-        ALLOCATE(DSMC%QualityFacSampVibSamp(1:nElems,1))
+        ALLOCATE(DSMC%QualityFacSampVibSamp(1:nElems,1,2))
       END IF
       ALLOCATE(DSMC%CalcVibProb(1:nSpecies,1:3))
       DSMC%QualityFacSampVib = 0.
@@ -1604,7 +1604,7 @@ SUBROUTINE SetVarVibProb2Elems()
 ! Set initial vibrational relaxation probability to all elements
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals                ,ONLY: abort,UNIT_stdOut, IK, MPI_COMM_WORLD
+USE MOD_Globals                ,ONLY: abort,UNIT_stdOut, IK, MPI_COMM_WORLD, MPIRoot
 USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, Species
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
 USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSpecies
@@ -1641,11 +1641,12 @@ IMPLICIT NONE
     IF(VibProbDataExists)THEN
       VibProbInitDone = .TRUE.
       ! Associate construct for integer KIND=8 possibility
+      SWRITE(*,*) 'Set variable vibrational relaxation probability from restart file'
       ASSOCIATE (&
             nSpecies   => INT(nSpecies,IK) ,&
             offsetElem => INT(offsetElem,IK),&
             nElems     => INT(nElems,IK)    )
-        CALL ReadArray('VibProbInfo',2,(/nElems, nSpecies/),offsetElem,2,RealArray=VarVibRelaxProb%ProbVibAv(:,:))
+        CALL ReadArray('VibProbInfo',2,(/nElems, nSpecies/),offsetElem,1,RealArray=VarVibRelaxProb%ProbVibAv(:,:))
       END ASSOCIATE
     END IF ! If 'VibProbInfo' exists
     CALL DatasetExists(File_ID,'VibProbConstInfo',VibProbDataExists,attrib=.TRUE.)
@@ -1653,6 +1654,7 @@ IMPLICIT NONE
       VibProbInitDone = .TRUE.
       CALL ReadAttribute(File_ID,'VibProbConstInfo',1,RealScalar=VibProb)
       ! Set vibrational relaxation probability to former value
+      SWRITE(*,*) 'Set uniform vibrational relaxation probability from restart file'
       DO iElem = 1, nElems
         DO iSpec = 1, nSpecies
           VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VibProb
@@ -1661,6 +1663,8 @@ IMPLICIT NONE
     END IF ! If 'VibProbConstInfo' exists
     IF(.NOT.VibProbInitDone) THEN
       ! Set vibrational relaxation probability to default value
+      SWRITE(*,*) 'No vibrational relaxation probability data in restart file\n', &
+                  'Set uniform vibrational relaxation probability of', 0.004
       DO iElem = 1, nElems
         DO iSpec = 1, nSpecies
           VarVibRelaxProb%ProbVibAv(iElem,iSpec) = 0.004
@@ -1671,6 +1675,7 @@ IMPLICIT NONE
   ELSE ! If not DoRestart
     ALLOCATE(Coll_pData(1))
     ALLOCATE(nPerSpec(nSpecies))  
+    SWRITE(*,*) 'Set vibrational relaxation probability based on temperature in the cell'
     DO iElem = 1, nElems
       nPerSpec = 0
       nPart = PEM%pNumber(iElem)
@@ -1714,7 +1719,11 @@ IMPLICIT NONE
           END IF
           Coll_pData(1)%PairType = CollInf%Coll_Case(iSpec, jSpec)
           ! Calculate number of samples vor each collision pair dependent to alpha and the mole fraction in the cell
-          nLoop = INT( 1. / (1.-VarVibRelaxProb%alpha) * nPerSpec(jSpec)/nSpecies )
+          IF(nPart.GT.0) THEN
+            nLoop = INT( 1. / (1.-VarVibRelaxProb%alpha) * nPerSpec(jSpec)/nPart )
+          ELSE
+            nLoop = INT( 1. / (1.-VarVibRelaxProb%alpha) / nSpecies )
+          END IF
           DO iLoop = 1,nLoop
             ! Calculate random relative velocity
             CRela2 = 0

@@ -178,8 +178,6 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
           VarVibRelaxProb%nCollis(cSpec1) = VarVibRelaxProb%nCollis(cSpec1) + 1
           IF(DSMC%CalcQualityFactors) THEN
             DSMC%CalcVibProb(cSpec1,2) = MAX(DSMC%CalcVibProb(cSpec1,2),VibProb)
-            DSMC%CalcVibProb(cSpec1,1) = DSMC%CalcVibProb(cSpec1,1) + VibProb
-            DSMC%CalcVibProb(cSpec1,3) = DSMC%CalcVibProb(cSpec1,3) + 1
           END IF
         END IF
         IF((SpecDSMC(cSpec2)%InterID.EQ.2).OR.(SpecDSMC(cSpec2)%InterID.EQ.20)) THEN
@@ -188,8 +186,6 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
           VarVibRelaxProb%nCollis(cSpec2) = VarVibRelaxProb%nCollis(cSpec2) + 1
           IF(DSMC%CalcQualityFactors) THEN
             DSMC%CalcVibProb(cSpec2,2) = MAX(DSMC%CalcVibProb(cSpec2,2),VibProb)
-            DSMC%CalcVibProb(cSpec2,1) = DSMC%CalcVibProb(cSpec2,1) + VibProb
-            DSMC%CalcVibProb(cSpec2,3) = DSMC%CalcVibProb(cSpec2,3) + 1
           END IF
         END IF
       END IF
@@ -560,8 +556,6 @@ DO iPair = 1,  PairNum_Node
         VarVibRelaxProb%nCollis(cSpec1) = VarVibRelaxProb%nCollis(cSpec1) + 1
         IF(DSMC%CalcQualityFactors) THEN
           DSMC%CalcVibProb(cSpec1,2) = MAX(DSMC%CalcVibProb(cSpec1,2),VibProb)
-          DSMC%CalcVibProb(cSpec1,1) = DSMC%CalcVibProb(cSpec1,1) + VibProb
-          DSMC%CalcVibProb(cSpec1,3) = DSMC%CalcVibProb(cSpec1,3) + 1
         END IF
       END IF
       IF((SpecDSMC(cSpec2)%InterID.EQ.2).OR.(SpecDSMC(cSpec2)%InterID.EQ.20)) THEN
@@ -570,8 +564,6 @@ DO iPair = 1,  PairNum_Node
         VarVibRelaxProb%nCollis(cSpec2) = VarVibRelaxProb%nCollis(cSpec2) + 1
         IF(DSMC%CalcQualityFactors) THEN
           DSMC%CalcVibProb(cSpec2,2) = MAX(DSMC%CalcVibProb(cSpec2,2),VibProb)
-          DSMC%CalcVibProb(cSpec2,1) = DSMC%CalcVibProb(cSpec2,1) + VibProb
-          DSMC%CalcVibProb(cSpec2,3) = DSMC%CalcVibProb(cSpec2,3) + 1
         END IF
       END IF
     END IF

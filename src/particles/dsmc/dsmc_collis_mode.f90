@@ -389,6 +389,10 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_vib(iSpec1, Xi_rel, iElem, ProbVib1)
     IF(ProbVib1.GT.iRan) DoVib1 = .TRUE.
+    IF(DSMC%CalcQualityFactors.AND.(DSMC%VibRelaxProb.GE.2)) THEN
+      DSMC%CalcVibProb(iSpec1,1) = DSMC%CalcVibProb(iSpec1,1) + ProbVib1
+      DSMC%CalcVibProb(iSpec1,3) = DSMC%CalcVibProb(iSpec1,3) + 1
+    END IF
   END IF
   IF ( DSMC%ElectronicModel ) THEN
     IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
@@ -415,6 +419,10 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_vib(iSpec2, Xi_rel, iElem, ProbVib2)
     IF(ProbVib2.GT.iRan) DoVib2 = .TRUE.
+    IF(DSMC%CalcQualityFactors.AND.(DSMC%VibRelaxProb.GE.2)) THEN
+      DSMC%CalcVibProb(iSpec2,1) = DSMC%CalcVibProb(iSpec2,1) + ProbVib2
+      DSMC%CalcVibProb(iSpec2,3) = DSMC%CalcVibProb(iSpec2,3) + 1
+    END IF
   END IF
   IF ( DSMC%ElectronicModel ) THEN
     IF((SpecDSMC(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) THEN
