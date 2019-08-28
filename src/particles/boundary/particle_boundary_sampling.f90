@@ -55,13 +55,43 @@ PUBLIC::FinalizeParticleBoundarySampling
 PUBLIC::ExchangeSurfData
 PUBLIC::MapInnerSurfData
 #endif /*USE_MPI*/
+PUBLIC::DefineParametersParticlesBoundarySampling
 !===================================================================================================================================
 
 CONTAINS
 
+!==================================================================================================================================
+!> Define parameters for particles
+!==================================================================================================================================
+SUBROUTINE DefineParametersParticlesBoundarySampling()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("Particle Boundary Sampling")
+CALL prms%CreateIntOption(      'DSMC-nSurfSample'  , 'Define polynomial degree of particle BC sampling. Default: NGeo', '1')
+CALL prms%CreateLogicalOption(  'CalcSurfaceImpact' , 'Sample average impact energy of particles for each species (trans, rot, '//&
+                                                      'vib), impact vector and angle.','.FALSE.')
+
+CALL prms%SetSection("Particle SurfCollis")
+CALL prms%CreateLogicalOption(  'Particles-CalcSurfCollis_OnlySwaps'    , 'Count only wall collisions being SpeciesSwaps','.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-CalcSurfCollis_Only0Swaps'   , 'Count only wall collisions being delete-SpeciesSwaps'&
+                                                                          , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-CalcSurfCollis_Output'       , 'Print sums of all counted wall collisions','.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-AnalyzeSurfCollis'           , 'Output of collided/swaped particles during Sampling'//&
+                                                                          ' period? ', '.FALSE.')
+CALL prms%CreateIntOption(      'Particles-DSMC-maxSurfCollisNumber'    , 'Max. number of collided/swaped particles during'//&
+                                                                          ' Sampling', '0')
+CALL prms%CreateIntOption(      'Particles-DSMC-NumberOfBCs'            , 'Count of BC to be analyzed', '1')
+CALL prms%CreateIntArrayOption( 'Particles-DSMC-SurfCollisBC'           , 'BCs to be analyzed (def.: 0 = all)')
+CALL prms%CreateIntOption(      'Particles-CalcSurfCollis_NbrOfSpecies' , 'Count of Species for wall  collisions (0: all)' , '0')
+CALL prms%CreateIntArrayOption( 'Particles-CalcSurfCollis_Species'      , 'Help array for reading surface stuff')
+
+END SUBROUTINE DefineParametersParticlesBoundarySampling
+
 SUBROUTINE InitParticleBoundarySampling()
 !===================================================================================================================================
-! init of particle boundary sampling
+! Initialization of particle boundary sampling
 ! default: use for sampling same polynomial degree as NGeo
 ! 1) mark sides for sampling
 ! 2) build special MPI communicator
@@ -72,7 +102,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides,nBCs,BoundaryName
 USE MOD_ReadInTools             ,ONLY:GETINT,GETLOGICAL,GETINTARRAY
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
-USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis,nPorousBC
+USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis,nPorousBC,CalcSurfaceImpact
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides,PartSideToElem,GEO
 USE MOD_Particle_Vars           ,ONLY:nSpecies, VarTimeStep, Symmetry2D
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
@@ -131,6 +161,10 @@ IF (ANY(PartBound%Reactive)) THEN
         ,'Error: nSurfSample not equal to BezierSampleN. Problem for Desorption + Surfflux')
   END IF
 END IF
+
+! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
+
 
 ALLOCATE(XiEQ_SurfSample(0:nSurfSample))
 
@@ -381,6 +415,18 @@ DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   ALLOCATE(SampWall(iSide)%State(1:SurfMesh%SampSize,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%State=0.
   IF(nPorousBC.GT.0) SampWall(iSide)%PumpCapacity = 0.
+
+  ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+  IF(CalcSurfaceImpact)THEN
+    ALLOCATE(SampWall(iSide)%ImpactEnergy(1:nSpecies,1:3,1:nSurfSample,1:nSurfSample))
+    SampWall(iSide)%ImpactEnergy=0.
+    ALLOCATE(SampWall(iSide)%ImpactVector(1:nSpecies,1:3,1:nSurfSample,1:nSurfSample))
+    SampWall(iSide)%ImpactVector=0.
+    ALLOCATE(SampWall(iSide)%ImpactAngle(1:nSpecies,1:nSurfSample,1:nSurfSample))
+    SampWall(iSide)%ImpactAngle=0.
+    ALLOCATE(SampWall(iSide)%ImpactNumber(1:nSpecies,1:nSurfSample,1:nSurfSample))
+    SampWall(iSide)%ImpactNumber=0
+  END IF ! CalcSurfaceImpact
 END DO
 
 ALLOCATE(SurfMesh%SurfaceArea(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides))
@@ -659,11 +705,12 @@ SUBROUTINE GetHaloSurfMapping()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars                   ,ONLY:nSides,nBCSides
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample, nPorousBC, nPorousBCVars
-USE MOD_Particle_MPI_Vars           ,ONLY:PartHaloSideToProc,PartHaloElemToProc,SurfSendBuf,SurfRecvBuf,SurfExchange
-USE MOD_Particle_Mesh_Vars          ,ONLY:nTotalSides,PartSideToElem,PartElemToSide
-USE MOD_Particle_MPI_Vars           ,ONLY:PorousBCSendBuf,PorousBCRecvBuf
+USE MOD_Mesh_Vars              ,ONLY: nSides,nBCSides
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh,SurfComm,nSurfSample, nPorousBC, nPorousBCVars,CalcSurfaceImpact
+USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloSideToProc,PartHaloElemToProc,SurfSendBuf,SurfRecvBuf,SurfExchange
+USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,PartSideToElem,PartElemToSide
+USE MOD_Particle_MPI_Vars      ,ONLY: PorousBCSendBuf,PorousBCRecvBuf
+USE MOD_Particle_Vars          ,ONLY: nSpecies
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -679,10 +726,10 @@ INTEGER                           :: iProc, GlobalProcID,iSide,ElemID,SurfSideID
 INTEGER,ALLOCATABLE               :: recv_status_list(:,:)
 INTEGER                           :: RecvRequest(0:SurfCOMM%nProcs-1),SendRequest(0:SurfCOMM%nProcs-1)
 INTEGER                           :: SurfToGlobal(0:SurfCOMM%nProcs-1)
-INTEGER                           :: NativeElemID, NativeLocSideID, LocSideID
+INTEGER                           :: NativeElemID, NativeLocSideID, LocSideID, SampSizeAllocate
 !===================================================================================================================================
 
-nDOF=(nSurfSample)*(nSurfSample)
+nDOF=nSurfSample**2
 
 ! get mapping from local rank to global rank...
 CALL MPI_ALLGATHER(MyRank,1, MPI_INTEGER, SurfToGlobal(0:SurfCOMM%nProcs-1), 1, MPI_INTEGER, SurfCOMM%COMM, IERROR)
@@ -1048,12 +1095,16 @@ END DO ! iProc
 DO iProc=1,SurfCOMM%nMPINeighbors
   SDEALLOCATE(SurfSendBuf(iProc)%content)
   SDEALLOCATE(SurfRecvBuf(iProc)%content)
+  SampSizeAllocate = SurfMesh%SampSize
+  ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8*nSpecies to the 
+  ! buffer length
+  IF(CalcSurfaceImpact) SampSizeAllocate = SampSizeAllocate + 8*nSpecies
   IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
-    ALLOCATE(SurfSendBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesSend(iProc)))
+    ALLOCATE(SurfSendBuf(iProc)%content(SampSizeAllocate*nDOF*SurfExchange%nSidesSend(iProc)))
     SurfSendBuf(iProc)%content=0.
   END IF
   IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
-    ALLOCATE(SurfRecvBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesRecv(iProc)))
+    ALLOCATE(SurfRecvBuf(iProc)%content(SampSizeAllocate*nDOF*SurfExchange%nSidesRecv(iProc)))
     SurfRecvBuf(iProc)%content=0.
   END IF
 END DO ! iProc
@@ -1093,7 +1144,7 @@ SUBROUTINE ExchangeSurfData()
 USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY:nSpecies
 USE MOD_SurfaceModel_Vars           ,ONLY:Adsorption
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,SampWall,PartBound
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,SampWall,PartBound,CalcSurfaceImpact
 USE MOD_Particle_MPI_Vars           ,ONLY:SurfSendBuf,SurfRecvBuf,SurfExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1115,6 +1166,10 @@ nReactiveValues=0
 IF(ANY(PartBound%Reactive)) nReactiveValues = SurfMesh%ReactiveSampSize*(nSurfSample)**2
 
 nValues=nValues+nReactiveValues
+
+! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8*nSpecies to the 
+! buffer length
+IF(CalcSurfaceImpact) nValues=nValues+8*nSpecies
 
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -1151,6 +1206,34 @@ DO iProc=1,SurfCOMM%nMPINeighbors
             iPos=iPos+nSpecies
           END DO
         END IF
+
+        ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+        IF(CalcSurfaceImpact)THEN
+          ! Add average impact energy for each species (trans, rot, vib)
+          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%ImpactEnergy(:,1,p,q)
+          iPos=iPos+nSpecies                                                                     
+          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%ImpactEnergy(:,2,p,q)
+          iPos=iPos+nSpecies                                                                     
+          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%ImpactEnergy(:,3,p,q)
+          iPos=iPos+nSpecies
+
+          ! Add average impact vector (x,y,z) for each species
+          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%ImpactVector(:,1,p,q)
+          iPos=iPos+nSpecies
+          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%ImpactVector(:,2,p,q)
+          iPos=iPos+nSpecies
+          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%ImpactVector(:,3,p,q)
+          iPos=iPos+nSpecies
+
+          ! Add average impact angle for each species
+          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%ImpactAngle(:,p,q)
+          iPos=iPos+nSpecies
+
+          ! Add number of particle impacts
+          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%ImpactNumber(:,p,q)
+          iPos=iPos+nSpecies
+        END IF ! CalcSurfaceImpact
+
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
     SampWall(SurfSideID)%State(:,:,:)=0.
@@ -1159,6 +1242,10 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       SampWall(SurfSideID)%Accomodation(:,:,:)=0.
       SampWall(SurfSideID)%SurfModelReactCount(:,:,:,:)=0.
     END IF
+    SampWall(SurfSideID)%ImpactEnergy(:,:,:,:)=0.
+    SampWall(SurfSideID)%ImpactVector(:,:,:,:)=0.
+    SampWall(SurfSideID)%ImpactAngle(:,:,:)=0.
+    SampWall(SurfSideID)%ImpactNumber(:,:,:)=0
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
 END DO
 
@@ -1216,6 +1303,42 @@ DO iProc=1,SurfCOMM%nMPINeighbors
             iPos=iPos+nSpecies
           END DO
         END IF
+
+        ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+        IF(CalcSurfaceImpact)THEN
+          ! Add average impact energy for each species (trans, rot, vib)
+          SampWall(SurfSideID)%ImpactEnergy(:,1,p,q)=SampWall(SurfSideID)%ImpactEnergy(:,1,p,q) &
+                                                    +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+          iPos=iPos+nSpecies                   
+          SampWall(SurfSideID)%ImpactEnergy(:,2,p,q)=SampWall(SurfSideID)%ImpactEnergy(:,2,p,q) &
+                                                    +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+          iPos=iPos+nSpecies                   
+          SampWall(SurfSideID)%ImpactEnergy(:,3,p,q)=SampWall(SurfSideID)%ImpactEnergy(:,3,p,q) &
+                                                    +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+          iPos=iPos+nSpecies
+
+          ! Add average impact vector (x,y,z) for each species
+          SampWall(SurfSideID)%ImpactVector(:,1,p,q)=SampWall(SurfSideID)%ImpactVector(:,1,p,q) &
+                                                    +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+          iPos=iPos+nSpecies                   
+          SampWall(SurfSideID)%ImpactVector(:,2,p,q)=SampWall(SurfSideID)%ImpactVector(:,2,p,q) &
+                                                    +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+          iPos=iPos+nSpecies                   
+          SampWall(SurfSideID)%ImpactVector(:,3,p,q)=SampWall(SurfSideID)%ImpactVector(:,3,p,q) &
+                                                    +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+          iPos=iPos+nSpecies
+
+          ! Add average impact angle for each species
+          SampWall(SurfSideID)%ImpactAngle(:,p,q)=SampWall(SurfSideID)%ImpactAngle(:,p,q) &
+                                                    +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+          iPos=iPos+nSpecies
+
+          ! Add number of particle impacts
+          SampWall(SurfSideID)%ImpactNumber(:,p,q)=SampWall(SurfSideID)%ImpactNumber(:,p,q) &
+                                                    +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
+          iPos=iPos+nSpecies
+        END IF ! CalcSurfaceImpact
+
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
@@ -1234,7 +1357,7 @@ SUBROUTINE MapInnerSurfData()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall,PartBound
+USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall,PartBound,CalcSurfaceImpact
 USE MOD_Mesh_Vars,                  ONLY:nBCSides,nSides,BC
 USE MOD_Particle_Mesh_Vars,         ONLY:PartSideToElem
 USE MOD_SurfaceModel_Vars,          ONLY:Adsorption
@@ -1263,9 +1386,9 @@ IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner B
                                                   +SampWall(SurfSideID)%State(:,p,q)
             IF (ANY(PartBound%Reactive)) THEN
               SampWall(SurfSideHaloID)%SurfModelState(:,p,q)=SampWall(SurfSideHaloID)%SurfModelState(:,p,q) &
-                  +SampWall(SurfSideID)%SurfModelState(:,p,q)
+                                                            +SampWall(SurfSideID)%SurfModelState(:,p,q)
               SampWall(SurfSideHaloID)%Accomodation(:,p,q)=SampWall(SurfSideHaloID)%Accomodation(:,p,q) &
-                  +SampWall(SurfSideID)%Accomodation(:,p,q)
+                                                          +SampWall(SurfSideID)%Accomodation(:,p,q)
               DO iReact=1,2*Adsorption%ReactNum
                 SampWall(SurfSideHaloID)%SurfModelReactCount(iReact,:,p,q) = &
                     SampWall(SurfSideHaloID)%SurfModelReactCount(iReact,:,p,q) &
@@ -1274,6 +1397,23 @@ IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner B
             END IF
           END DO
         END DO
+
+        ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+        IF(CalcSurfaceImpact)THEN
+          DO q=1,nSurfSample
+            DO p=1,nSurfSample
+              ASSOCIATE( energy => SampWall(SurfSideHaloID)%ImpactEnergy(:,:,q,p) ,&
+                         vector => SampWall(SurfSideHaloID)%ImpactVector(:,:,q,p) ,&
+                         angle  => SampWall(SurfSideHaloID)%ImpactAngle(:,q,p)    ,&
+                         num    => SampWall(SurfSideHaloID)%Impactnumber(:,q,p)   )
+                energy = energy + SampWall(SurfSideID)%ImpactEnergy(:,:,q,p)
+                vector = vector + SampWall(SurfSideID)%ImpactVector(:,:,q,p)
+                angle  = angle  + SampWall(SurfSideID)%ImpactAngle(:,q,p)
+                num    = num    + SampWall(SurfSideID)%ImpactNumber(:,q,p)
+              END ASSOCIATE
+            END DO
+          END DO
+        END IF ! CalcSurfaceImpact
       END IF
     END IF
   END DO
@@ -1291,13 +1431,13 @@ SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_IO_HDF5
-USE MOD_Globals_Vars,               ONLY:ProjectName
-USE MOD_SurfaceModel_Vars,          ONLY:Adsorption
-USE MOD_Particle_Boundary_Vars,     ONLY:nSurfSample,SurfMesh,offSetSurfSide,offsetInnerSurfSide,nPorousBC
-USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode
-USE MOD_Particle_Vars,              ONLY:nSpecies
-USE MOD_HDF5_Output,                ONLY:WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
-USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM,nSurfBC,SurfBCName, PartBound
+USE MOD_Globals_Vars           ,ONLY: ProjectName
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample,SurfMesh,offSetSurfSide,offsetInnerSurfSide,nPorousBC,CalcSurfaceImpact
+USE MOD_DSMC_Vars              ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_HDF5_Output            ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM,nSurfBC,SurfBCName, PartBound
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1338,6 +1478,9 @@ IF(ANY(PartBound%Reactive)) THEN
   nVar2D_Spec = nVar2D_Spec + 2 + 2*Adsorption%ReactNum
 END IF
 
+! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8 variables
+IF(CalcSurfaceImpact) nVar2D_Spec = nVar2D_Spec + 8
+
 IF(nPorousBC.GT.0)  nVar2D = nVar2D + nPorousBC
 
 nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
@@ -1362,23 +1505,56 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeTypeTemp/))
 
   ALLOCATE(Str2DVarNames(1:nVar2D_Total))
+  Str2DVarNames(:)=''
   nVarCount=0
   DO iSpec=1,nSpecies
     WRITE(SpecID,'(I3.3)') iSpec
-    Str2DVarNames(nVarCount+1) ='Spec'//TRIM(SpecID)//'_Counter'
+    nVarCount=nVarCount+1
+    Str2DVarNames(nVarCount) ='Spec'//TRIM(SpecID)//'_Counter'
     IF(ANY(PartBound%Reactive)) THEN
-      Str2DVarNames(nVarCount+2) ='Spec'//TRIM(SpecID)//'_Accomodation'
-      Str2DVarNames(nVarCount+3) ='Spec'//TRIM(SpecID)//'_Coverage'
+      nVarCount=nVarCount+1
+      Str2DVarNames(nVarCount) ='Spec'//TRIM(SpecID)//'_Accomodation'
+      nVarCount=nVarCount+1
+      Str2DVarNames(nVarCount) ='Spec'//TRIM(SpecID)//'_Coverage'
       DO iReact=1,Adsorption%ReactNum
         WRITE(ReactID,'(I3.3)') iReact
-        Str2DVarNames(nVarCount+3+iReact) ='Spec'//TRIM(SpecID)//'_CollReact'//TRIM(ReactID)//'_Count'
+        nVarCount=nVarCount+1
+        Str2DVarNames(nVarCount) ='Spec'//TRIM(SpecID)//'_CollReact'//TRIM(ReactID)//'_Count'
       END DO
       DO iReact=1,Adsorption%ReactNum
         WRITE(ReactID,'(I3.3)') iReact
-        Str2DVarNames(nVarCount+3+Adsorption%ReactNum+iReact) ='Spec'//TRIM(SpecID)//'_SurfReact'//TRIM(ReactID)//'_Count'
+        nVarCount=nVarCount+iReact
+        Str2DVarNames(nVarCount) ='Spec'//TRIM(SpecID)//'_SurfReact'//TRIM(ReactID)//'_Count'
       END DO
     END IF
-    nVarCount=nVarCount+nVar2D_Spec
+
+    ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+    IF(CalcSurfaceImpact)THEN
+      ! Add average impact energy for each species (trans, rot, vib)
+      nVarCount=nVarCount+1
+      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactEnergyTrans'
+      nVarCount=nVarCount+1
+      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactEnergyRot'
+      nVarCount=nVarCount+1
+      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactEnergyVib'
+
+      ! Add average impact vector for each species (x,y,z)
+      nVarCount=nVarCount+1
+      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactVectorX'
+      nVarCount=nVarCount+1
+      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactVectorY'
+      nVarCount=nVarCount+1
+      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactVectorZ'
+
+      ! Add average impact angle for each species
+      nVarCount=nVarCount+1
+      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactAngle'
+
+      ! Add number of impacts
+      nVarCount=nVarCount+1
+      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactNumber'
+    END IF ! CalcSurfaceImpact
+
   END DO ! iSpec=1,nSpecies
 
   ! fill varnames for total values
@@ -1734,6 +1910,10 @@ DO iSurfSide=1,SurfMesh%nTotalSides
   SDEALLOCATE(SampWall(iSurfSide)%SurfModelState)
   SDEALLOCATE(SampWall(iSurfSide)%Accomodation)
   SDEALLOCATE(SampWall(iSurfSide)%SurfModelReactCount)
+  SDEALLOCATE(SampWall(iSurfSide)%ImpactEnergy)
+  SDEALLOCATE(SampWall(iSurfSide)%ImpactVector)
+  SDEALLOCATE(SampWall(iSurfSide)%ImpactAngle)
+  SDEALLOCATE(SampWall(iSurfSide)%ImpactNumber)
 END DO
 SDEALLOCATE(SurfBCName)
 SDEALLOCATE(SampWall)
