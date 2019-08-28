@@ -1670,7 +1670,7 @@ CHARACTER(LEN=255)             :: SpecID
 INTEGER                        :: iSpec
 !===================================================================================================================================
 IF(CollisMode.GT.1) THEN
-  IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+  IF(DSMC%VibRelaxProb.GE.2.0) THEN
     ALLOCATE(StrVarNames(nSpecies))
     DO iSpec=1,nSpecies
       WRITE(SpecID,'(I3.3)') iSpec
@@ -1679,7 +1679,7 @@ IF(CollisMode.GT.1) THEN
 
     IF(MPIRoot)THEN
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-      CALL WriteAttributeToHDF5(File_ID,'VarNamesVibProb',nSpecies,StrArray=StrVarNames)
+      CALL WriteAttributeToHDF5(File_ID,'VarNamesVibProbInfo',nSpecies,StrArray=StrVarNames)
       CALL CloseDataFile()
     END IF
 
@@ -1701,10 +1701,18 @@ IF(CollisMode.GT.1) THEN
     CALL CloseDataFile()
     SDEALLOCATE(StrVarNames)
   ELSE ! DSMC%VibRelaxProb < 2.0
-    CALL WriteAttributeToHDF5(File_ID,'VibProbConstInfo',1,RealScalar=DSMC%VibRelaxProb)
+    IF(MPIRoot)THEN
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+      CALL WriteAttributeToHDF5(File_ID,'VibProbConstInfo',1,RealScalar=DSMC%VibRelaxProb)
+      CALL CloseDataFile()
+    END IF
   END IF
 ELSE ! CollisMode <= 1
-  CALL WriteAttributeToHDF5(File_ID,'VibProbConstInfo',1,RealScalar=0.)
+  IF(MPIRoot)THEN
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL WriteAttributeToHDF5(File_ID,'VibProbConstInfo',1,RealScalar=0.)
+    CALL CloseDataFile()
+  END IF
 END IF
 
 END SUBROUTINE WriteVibProbInfoToHDF5
