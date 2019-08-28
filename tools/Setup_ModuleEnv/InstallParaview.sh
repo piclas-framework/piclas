@@ -1,5 +1,14 @@
 #!/bin/bash
 
+check_module () {
+                 if [ -z "${2}" ]; then
+                   echo "module for ${1} not found. Exit"
+                   exit
+                 else
+                   echo "${1}: ["${2}"]"
+                 fi
+                }
+
 # DOWNLOAD and INSTALL PARAVIEW (example Paraview-2.1.6)
 PARAVIEWVERSION=5.2.0
 PARAVIEWVERSIONTAG=5.2
@@ -15,12 +24,19 @@ if [ ! -d "${SOURCEDIR}" ]; then
 fi
 
 # take the first gcc compiler installed with first compatible openmpi and hdf5
-CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n ${i} | tail -n 1)
-GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n ${i} | tail -n 1)
-MPIVERSION=$(ls ${MODULESDIR}/MPI/openmpi/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n ${i} | tail -n 1)
-HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n ${i} | tail -n 1)
+CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+MPIVERSION=$(ls ${MODULESDIR}/MPI/openmpi/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
 PARAVIEWMODULEFILEDIR=${MODULESDIR}/utilities/paraview
 PARAVIEWMODULEFILE=${PARAVIEWMODULEFILEDIR}/${PARAVIEWVERSION}
+
+echo "Modules found:"
+check_module "cmake" ${CMAKEVERSION}
+check_module "gcc  " ${GCCVERSION}
+check_module "mpi  " ${MPIVERSION}
+check_module "hdf5 " ${HDF5VERSION}
+
 # if no paraview module for this compiler found, install paraview and create module
 if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   echo "creating Paraview-${PARAVIEWVERSION} for GCC-${GCCVERSION}"
@@ -34,15 +50,27 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
 
   # build and installation
   cd ${SOURCEDIR}
-  if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}.tar.gz" ]; then
+  if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}-source.tar.gz" ]; then
     wget --output-document=paraview-${PARAVIEWVERSION}-source.tar.gz "https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSIONTAG}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}.tar.gz"
   fi
   if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}-source.tar.gz" ]; then
     echo "no source-file downloaded for Paraview-${PARAVIEWVERSION}"
     echo "check if https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSIONTAG}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}-source.tar.gz"
-    break
+    exit
   fi
-  tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz paraview-${PARAVIEWVERSION} && rm -rf paraview-${PARAVIEWVERSION}-source.tar.gz
+  tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz
+  ERRORCODE=$?
+  if [ ${ERRORCODE} -ne 0 ]; then
+    echo "Failed: ["tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz paraview-${PARAVIEWVERSION}"]"
+  else
+    if [ -d "${SOURCEDIR}/ParaView-v${PARAVIEWVERSION}" ]; then
+      if [ ! -d "${SOURCEDIR}/paraview-${PARAVIEWVERSION}" ]; then
+        mv ${SOURCEDIR}/ParaView-v${PARAVIEWVERSION} ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
+      fi
+    fi
+    #rm -rf paraview-${PARAVIEWVERSION}-source.tar.gz
+  fi
+
   if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}" ]; then
     mkdir -p ${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}
   fi
