@@ -62,7 +62,7 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
 
   # create modulefile if installation seems succesfull (check if mpicc, mpicxx, mpifort exists in installdir)
   if [ -e "${PARAVIEWINSTALLDIR}/bin/paraview" ] then
-    if [ ! -d ${PARAVIEWMODULEFILEDIR} ]; then
+    if [ ! -d "${PARAVIEWMODULEFILEDIR}" ]; then
       mkdir -p ${PARAVIEWMODULEFILEDIR}
     fi
     cp ${MODULETEMPLATESDIR}/utilities/paraview/${MODULETEMPLATENAME} ${PARAVIEWMODULEFILE}
