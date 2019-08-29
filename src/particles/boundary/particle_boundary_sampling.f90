@@ -425,7 +425,7 @@ DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
     ALLOCATE(SampWall(iSide)%ImpactAngle(1:nSpecies,1:nSurfSample,1:nSurfSample))
     SampWall(iSide)%ImpactAngle=0.
     ALLOCATE(SampWall(iSide)%ImpactNumber(1:nSpecies,1:nSurfSample,1:nSurfSample))
-    SampWall(iSide)%ImpactNumber=0
+    SampWall(iSide)%ImpactNumber=0.
   END IF ! CalcSurfaceImpact
 END DO
 
@@ -1245,7 +1245,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SampWall(SurfSideID)%ImpactEnergy(:,:,:,:)=0.
     SampWall(SurfSideID)%ImpactVector(:,:,:,:)=0.
     SampWall(SurfSideID)%ImpactAngle(:,:,:)=0.
-    SampWall(SurfSideID)%ImpactNumber(:,:,:)=0
+    SampWall(SurfSideID)%ImpactNumber(:,:,:)=0.
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
 END DO
 

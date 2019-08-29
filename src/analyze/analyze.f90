@@ -1123,7 +1123,7 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
         SampWall(iSide)%ImpactEnergy=0.
         SampWall(iSide)%ImpactVector=0.
         SampWall(iSide)%ImpactAngle=0.
-        SampWall(iSide)%ImpactNumber=0
+        SampWall(iSide)%ImpactNumber=0.
       END IF ! CalcSurfaceImpact
     END DO
     Adsorption%NumCovsamples=0

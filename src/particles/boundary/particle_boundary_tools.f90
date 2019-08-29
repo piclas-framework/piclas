@@ -61,6 +61,10 @@ INTERFACE TSURUTACONDENSCOEFF
   MODULE PROCEDURE TSURUTACONDENSCOEFF
 END INTERFACE
 
+INTERFACE CountSurfaceImpact
+  MODULE PROCEDURE CountSurfaceImpact
+END INTERFACE
+
 PUBLIC :: AddPartInfoToSample
 PUBLIC :: CalcWallSample
 PUBLIC :: AnalyzeSurfaceCollisions
@@ -70,6 +74,7 @@ PUBLIC :: LIQUIDREFL
 PUBLIC :: ALPHALIQUID
 PUBLIC :: BETALIQUID
 PUBLIC :: TSURUTACONDENSCOEFF
+PUBLIC :: CountSurfaceImpact
 !===================================================================================================================================
 
 CONTAINS
@@ -142,7 +147,6 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwa
 ! MODULES
 USE MOD_Particle_Vars
 USE MOD_Globals                ,ONLY: abort
-USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, useDSMC
 USE MOD_DSMC_Vars              ,ONLY: CollisMode, DSMC
 USE MOD_Particle_Boundary_Vars ,ONLY: SampWall, CalcSurfCollis
@@ -226,26 +230,9 @@ ASSOCIATE ( MPF  => Species(PartSpecies(PartID))%MacroParticleFactor ,&
   END IF
 
   ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
-  IF(impact_opt_loc)THEN ! only works if impact_opt_loc=CalcSurfaceImpact=T
-    !----- Sampling of impact energy for each species (trans, rot, vib)
-    SampWall(SurfSideID)%ImpactEnergy(id,1,p,q)   = SampWall(SurfSideID)%ImpactEnergy(id,1,p,q) + TransArray(1) * MPF
-    IF((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID))%InterID.EQ.20))THEN
-      SampWall(SurfSideID)%ImpactEnergy(id,2,p,q) = SampWall(SurfSideID)%ImpactEnergy(id,2,p,q) + IntArray(1)   * MPF
-      SampWall(SurfSideID)%ImpactEnergy(id,3,p,q) = SampWall(SurfSideID)%ImpactEnergy(id,3,p,q) + IntArray(4)   * MPF
-    END IF ! (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID))%InterID.EQ.20)
-
-    !----- Sampling of impact vector for each species (x,y,z)
-    SampWall(SurfSideID)%ImpactVector(id,1,p,q)   = SampWall(SurfSideID)%ImpactVector(id,1,p,q) + PartTrajectory_opt(1)
-    SampWall(SurfSideID)%ImpactVector(id,2,p,q)   = SampWall(SurfSideID)%ImpactVector(id,2,p,q) + PartTrajectory_opt(2)
-    SampWall(SurfSideID)%ImpactVector(id,3,p,q)   = SampWall(SurfSideID)%ImpactVector(id,3,p,q) + PartTrajectory_opt(3)
-
-    !----- Sampling of impact angle for each species
-    SampWall(SurfSideID)%ImpactAngle(id,p,q) = SampWall(SurfSideID)%ImpactAngle(id,p,q) + &
-                                                ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory_opt,SurfaceNormal_opt))) * 180. / PI
-
-    !----- Sampling of impact number for each species
-    SampWall(SurfSideID)%ImpactNumber(id,p,q) = SampWall(SurfSideID)%ImpactNumber(id,p,q) + 1
-  END IF ! impact_opt_loc
+  ! only works if impact_opt_loc=CalcSurfaceImpact=T
+  IF(impact_opt_loc) CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MPF,TransArray(1),IntArray(1),IntArray(4),&
+                                             PartTrajectory_opt,SurfaceNormal_opt,p,q)
 
 END ASSOCIATE
 
@@ -521,6 +508,55 @@ sigma = ALPHALIQUID(specID,temp)*(1-BETALIQUID(specID,temp)*exp(-normalVelo**2*S
 IF (sigma.LT.0.) sigma = 0.
 IF (sigma.GT.1.) sigma = 1.
 END FUNCTION
+
+
+SUBROUTINE CountSurfaceImpact(SurfSideID,SpecID,MPF,ETrans,ERot,EVib,PartTrajectory,SurfaceNormal,p,q)
+!===================================================================================================================================
+!> Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
+!> 
+!===================================================================================================================================
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
+USE MOD_Particle_Boundary_Vars ,ONLY: SampWall
+USE MOD_Globals_Vars           ,ONLY: PI
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: SurfSideID          !< Surface ID
+INTEGER,INTENT(IN) :: SpecID              !< Species ID
+REAL,INTENT(IN)    :: MPF                 !< Particle macro particle factor
+REAL,INTENT(IN)    :: ETrans              !< Translational energy of impacting particle
+REAL,INTENT(IN)    :: ERot                !< Rotational energy of impacting particle
+REAL,INTENT(IN)    :: EVib                !< Vibrational energy of impacting particle
+REAL,INTENT(IN)    :: PartTrajectory(1:3) !< Particle trajectory vector (normalized)
+REAL,INTENT(IN)    :: SurfaceNormal(1:3)  !< Surface normal vector (normalized)
+INTEGER,INTENT(IN) :: p                 !< Surface sub-faces
+INTEGER,INTENT(IN) :: q                 !< Surface sub-faces
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+!----- Sampling of impact energy for each species (trans, rot, vib)
+SampWall(SurfSideID)%ImpactEnergy(SpecID,1,p,q)   = SampWall(SurfSideID)%ImpactEnergy(SpecID,1,p,q) + ETrans * MPF
+IF((SpecDSMC(SpecID)%InterID.EQ.2).OR.(SpecDSMC(SpecID)%InterID.EQ.20))THEN
+  SampWall(SurfSideID)%ImpactEnergy(SpecID,2,p,q) = SampWall(SurfSideID)%ImpactEnergy(SpecID,2,p,q) + ERot   * MPF
+  SampWall(SurfSideID)%ImpactEnergy(SpecID,3,p,q) = SampWall(SurfSideID)%ImpactEnergy(SpecID,3,p,q) + EVib   * MPF
+END IF ! (SpecDSMC(SpecID)%InterID.EQ.2).OR.(SpecDSMC(SpecID)%InterID.EQ.20)
+
+!----- Sampling of impact vector for each species (x,y,z)
+SampWall(SurfSideID)%ImpactVector(SpecID,1,p,q)   = SampWall(SurfSideID)%ImpactVector(SpecID,1,p,q) + PartTrajectory(1) * MPF
+SampWall(SurfSideID)%ImpactVector(SpecID,2,p,q)   = SampWall(SurfSideID)%ImpactVector(SpecID,2,p,q) + PartTrajectory(2) * MPF
+SampWall(SurfSideID)%ImpactVector(SpecID,3,p,q)   = SampWall(SurfSideID)%ImpactVector(SpecID,3,p,q) + PartTrajectory(3) * MPF
+
+!----- Sampling of impact angle for each species
+SampWall(SurfSideID)%ImpactAngle(SpecID,p,q) = SampWall(SurfSideID)%ImpactAngle(SpecID,p,q) + &
+    ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))) * (180. / PI) * MPF
+
+!----- Sampling of impact number for each species
+SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) = SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) + MPF
+
+END SUBROUTINE CountSurfaceImpact
 
 
 END MODULE MOD_Particle_Boundary_Tools

@@ -421,7 +421,7 @@ DO iSurfSide=1,SurfMesh%nMasterSides
 
           ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
           IF(CalcSurfaceImpact)THEN
-            IF(nImpacts.GT.0)THEN
+            IF(nImpacts.GT.0.)THEN
               ! Add average impact energy for each species (trans, rot, vib)
               idx = idx + 1
               MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactEnergy(iSpec,1,p,q) / nImpacts
@@ -444,7 +444,7 @@ DO iSurfSide=1,SurfMesh%nMasterSides
 
               ! Add number of impacts
               idx = idx + 1
-              MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = REAL(nImpacts)
+              MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = nImpacts
             ELSE
               idx=idx+8
             END IF ! 

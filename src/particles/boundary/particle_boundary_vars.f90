@@ -128,7 +128,7 @@ TYPE tSampWall             ! DSMC sample for Wall
   REAL,ALLOCATABLE                      :: ImpactEnergy(:,:,:,:)       ! 1-nSpecies: Particle impact energy (trans, rot, vib)
   REAL,ALLOCATABLE                      :: ImpactVector(:,:,:,:)       ! 1-nSpecies: Particle impact vector (x,y,z)
   REAL,ALLOCATABLE                      :: ImpactAngle(:,:,:)          ! 1-nSpecies: Particle impact angle (angle between particle
-  INTEGER,ALLOCATABLE                   :: ImpactNumber(:,:,:)         ! 1-nSpecies: Number of particle impacts on surface
+  REAL,ALLOCATABLE                      :: ImpactNumber(:,:,:)         ! 1-nSpecies: Number of particle impacts on surface
 END TYPE
 TYPE(tSampWall), ALLOCATABLE            :: SampWall(:)             ! Wall sample array (number of BC-Sides)
 
