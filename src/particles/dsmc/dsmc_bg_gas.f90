@@ -117,10 +117,16 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 ! Building of pairs for the background gas
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
-  USE MOD_Particle_Vars,          ONLY : PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+USE MOD_DSMC_Analyze           ,ONLY : CalcGammaVib, CalcMeanFreePath
+USE MOD_DSMC_Vars              ,ONLY : Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
+USE MOD_DSMC_Vars              ,ONLY : VarVibRelaxProb, useRelaxProbCorrFactor, SpecDSMC
+USE MOD_Particle_Vars          ,ONLY : PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species, WriteMacroVolumeValues
+USE MOD_Particle_Mesh_Vars     ,ONLY : GEO
+USE MOD_DSMC_Collis            ,ONLY: DSMC_perform_collision, DSMC_calc_var_P_vib
+USE MOD_Particle_Vars          ,ONLY: KeepWallParticles
+USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEkin
+USE MOD_DSMC_CollisionProb     ,ONLY: DSMC_prob_calc
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -130,14 +136,21 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: nPair, iPair, iPart, iLoop, nPart
+  INTEGER                       :: nPair, iPair, iPart, iLoop, nPart, iSpec
   INTEGER                       :: cSpec1, cSpec2, iCase
+  REAL                          :: VibProb, iRan
 !===================================================================================================================================
   nPart = PEM%pNumber(iElem)
   nPair = INT(nPart/2)
 
   CollInf%Coll_SpecPartNum = 0
   CollInf%Coll_CaseNum = 0
+  IF(DSMC%VibRelaxProb.EQ.2.0) THEN ! Set summs for variable vibrational relaxation to zero
+    DO iSpec=1,nSpecies
+      VarVibRelaxProb%ProbVibAvNew(iSpec) = 0
+      VarVibRelaxProb%nCollis(iSpec) = 0
+    END DO
+  END IF
 
   ALLOCATE(Coll_pData(nPair))
   Coll_pData%Ec=0
@@ -169,7 +182,8 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
                                                / Species(BGGas%BGGasSpecies)%MacroParticleFactor
   END IF
 
-  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
+  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
+                    .OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1))) THEN
     ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
     !           relaxation probability (CalcGammaVib)
     ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
@@ -197,6 +211,75 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
     Coll_pData(iPair)%PairType = iCase
     Coll_pData(iPair)%NeedForRec = .FALSE.
   END DO
+
+  IF (KeepWallParticles) THEN
+    nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
+  ELSE
+    nPart = PEM%pNumber(iElem)
+  END IF
+  nPair = INT(nPart/2)
+
+  DO iPair = 1, nPair
+    IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
+      ! variable vibrational relaxation probability has to average of all collisions
+      IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+        cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
+        cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
+        IF((SpecDSMC(cSpec1)%InterID.EQ.2).OR.(SpecDSMC(cSpec1)%InterID.EQ.20)) THEN
+          CALL DSMC_calc_var_P_vib(cSpec1,cSpec2,iPair,VibProb)
+          VarVibRelaxProb%ProbVibAvNew(cSpec1) = VarVibRelaxProb%ProbVibAvNew(cSpec1) + VibProb
+          VarVibRelaxProb%nCollis(cSpec1) = VarVibRelaxProb%nCollis(cSpec1) + 1
+          IF(DSMC%CalcQualityFactors) THEN
+            DSMC%CalcVibProb(cSpec1,2) = MAX(DSMC%CalcVibProb(cSpec1,2),VibProb)
+          END IF
+        END IF
+        IF((SpecDSMC(cSpec2)%InterID.EQ.2).OR.(SpecDSMC(cSpec2)%InterID.EQ.20)) THEN
+          CALL DSMC_calc_var_P_vib(cSpec2,cSpec1,iPair,VibProb)
+          VarVibRelaxProb%ProbVibAvNew(cSpec2) = VarVibRelaxProb%ProbVibAvNew(cSpec2) + VibProb
+          VarVibRelaxProb%nCollis(cSpec2) = VarVibRelaxProb%nCollis(cSpec2) + 1
+          IF(DSMC%CalcQualityFactors) THEN
+            DSMC%CalcVibProb(cSpec2,2) = MAX(DSMC%CalcVibProb(cSpec2,2),VibProb)
+          END IF
+        END IF
+      END IF
+      CALL DSMC_prob_calc(iElem, iPair)
+      CALL RANDOM_NUMBER(iRan)
+      IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
+#if (PP_TimeDiscMethod==42)
+        IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN
+#else
+        IF(CalcEkin) THEN
+#endif
+          DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
+          DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
+        END IF
+        CALL DSMC_perform_collision(iPair,iElem)
+      END IF
+    END IF
+  END DO
+  IF(DSMC%CalcQualityFactors) THEN
+    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+      ! Calculation of the mean free path
+      DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),GEO%Volume(iElem), &
+          SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+      ! Determination of the MCS/MFP for the case without octree
+      IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
+          / DSMC%MeanFreePath
+    END IF
+  END IF
+  DEALLOCATE(Coll_pData)
+
+  IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+    DO iSpec=1,nSpecies
+      IF(VarVibRelaxProb%nCollis(iSpec).NE.0) THEN ! Calc new vibrational relaxation probability
+        VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VarVibRelaxProb%ProbVibAv(iElem,iSpec) &
+                                               * VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec)) &
+                                               + (1.-VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec))) &
+                                               / (VarVibRelaxProb%nCollis(iSpec)) * VarVibRelaxProb%ProbVibAvNew(iSpec)
+      END IF
+    END DO
+  END IF
+
 
 END SUBROUTINE DSMC_pairing_bggas
 
