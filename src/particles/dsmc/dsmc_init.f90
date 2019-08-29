@@ -1622,7 +1622,7 @@ USE MOD_DSMC_Analyze           ,ONLY: CalcInstantTransTemp
 USE MOD_Particle_Vars          ,ONLY: PEM
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, PI
 USE MOD_DSMC_Collis            ,ONLY: DSMC_calc_var_P_vib
-USE MOD_part_emission          ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_part_tools             ,ONLY: CalcVelocity_maxwell_lpn
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES

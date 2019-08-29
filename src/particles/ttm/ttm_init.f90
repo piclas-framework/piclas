@@ -773,7 +773,7 @@ USE MOD_TTM_Vars
 USE MOD_Particle_Vars ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
 USE MOD_Mesh_Vars     ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_DSMC_Vars     ,ONLY: CollisMode,DSMC,PartStateIntEn
-USE MOD_part_emission ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_part_tools    ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Vars     ,ONLY: useDSMC
 USE MOD_Eval_xyz      ,ONLY: TensorProductInterpolation
 !----------------------------------------------------------------------------------------------------------------------------------!
