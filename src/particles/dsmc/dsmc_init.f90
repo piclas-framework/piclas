@@ -1621,14 +1621,15 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
 USE MOD_DSMC_Analyze           ,ONLY: CalcInstantTransTemp
 USE MOD_Particle_Vars          ,ONLY: PEM
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, PI
-USE MOD_DSMC_Collis,            ONLY: DSMC_calc_var_P_vib
+USE MOD_DSMC_Collis            ,ONLY: DSMC_calc_var_P_vib
+USE MOD_part_emission          ,ONLY: CalcVelocity_maxwell_lpn
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER               :: iSpec, jSpec, iPart, iElem, dim, n
-  REAL                  :: VibProb, Rand(2), Ti, Tj, CRela2
+  REAL                  :: VibProb, Ti, Tj, CRela2, Velo1(3), Velo2(3)
   INTEGER               :: nPart, iLoop, nLoop
   INTEGER, ALLOCATABLE  :: iPartIndx(:), nPerSpec(:)
   LOGICAL               :: VibProbInitDone, VibProbDataExists
@@ -1732,10 +1733,10 @@ IMPLICIT NONE
           DO iLoop = 1,nLoop
             ! Calculate random relative velocity
             CRela2 = 0
+            CALL CalcVelocity_maxwell_lpn(iSpec, Velo1, Temperature=Ti)
+            CALL CalcVelocity_maxwell_lpn(jSpec, Velo2, Temperature=Tj)
             DO dim = 1,3
-              CALL Random_Number(Rand)
-              CRela2 = CRela2 + ( SQRT(-2.*LOG(Rand(1))) * COS(2.*PI*Rand(2)) * SQRT(BoltzmannConst * Ti / Species(iSpec)%MassIC) &
-                              - SQRT(-2.*LOG(Rand(1))) * SIN(2.*PI*Rand(2)) * SQRT(BoltzmannConst * Tj / Species(jSpec)%MassIC) )**2
+              CRela2 = CRela2 + (Velo1(dim)-Velo2(dim))**2
             END DO ! dim = 3
             Coll_pData(1)%CRela2 = CRela2
             CALL DSMC_calc_var_P_vib(iSpec,jSpec,1,VibProb)
