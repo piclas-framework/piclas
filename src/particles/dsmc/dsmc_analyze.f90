@@ -386,8 +386,7 @@ DO iSurfSide=1,SurfMesh%nMasterSides
         END DO
       END IF
       DO iSpec=1,nSpecies
-        ASSOCIATE( nColl    => SampWall(iSurfSide)%State(SAMPWALL_NVARS+iSpec,p,q) ,&
-                   nImpacts => SampWall(iSurfSide)%ImpactNumber(iSpec,p,q)       )
+        ASSOCIATE( nColl    => SampWall(iSurfSide)%State(SAMPWALL_NVARS+iSpec,p,q) )
           IF (CalcSurfCollis%Output) CounterTotal(iSpec)=CounterTotal(iSpec)+INT(nColl)
           IF (CalcSurfCollis%SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
             MacroSurfaceVal(5,p,q,iSurfSide) = MacroSurfaceVal(5,p,q,iSurfSide) + nColl/TimeSample
@@ -421,33 +420,35 @@ DO iSurfSide=1,SurfMesh%nMasterSides
 
           ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
           IF(CalcSurfaceImpact)THEN
-            IF(nImpacts.GT.0.)THEN
-              ! Add average impact energy for each species (trans, rot, vib)
-              idx = idx + 1
-              MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactEnergy(iSpec,1,p,q) / nImpacts
-              idx = idx + 1
-              MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactEnergy(iSpec,2,p,q) / nImpacts
-              idx = idx + 1
-              MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactEnergy(iSpec,3,p,q) / nImpacts
+            ASSOCIATE( nImpacts => SampWall(iSurfSide)%ImpactNumber(iSpec,p,q) )
+              IF(nImpacts.GT.0.)THEN
+                ! Add average impact energy for each species (trans, rot, vib)
+                idx = idx + 1
+                MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactEnergy(iSpec,1,p,q) / nImpacts
+                idx = idx + 1
+                MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactEnergy(iSpec,2,p,q) / nImpacts
+                idx = idx + 1
+                MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactEnergy(iSpec,3,p,q) / nImpacts
 
-              ! Add average impact vector (x,y,z) for each species
-              idx = idx + 1
-              MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactVector(iSpec,1,p,q) / nImpacts
-              idx = idx + 1
-              MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactVector(iSpec,2,p,q) / nImpacts
-              idx = idx + 1
-              MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactVector(iSpec,3,p,q) / nImpacts
+                ! Add average impact vector (x,y,z) for each species
+                idx = idx + 1
+                MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactVector(iSpec,1,p,q) / nImpacts
+                idx = idx + 1
+                MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactVector(iSpec,2,p,q) / nImpacts
+                idx = idx + 1
+                MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactVector(iSpec,3,p,q) / nImpacts
 
-              ! Add average impact angle for each species
-              idx = idx + 1
-              MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactAngle(iSpec,p,q) / nImpacts
+                ! Add average impact angle for each species
+                idx = idx + 1
+                MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%ImpactAngle(iSpec,p,q) / nImpacts
 
-              ! Add number of impacts
-              idx = idx + 1
-              MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = nImpacts
-            ELSE
-              idx=idx+8
-            END IF ! 
+                ! Add number of impacts
+                idx = idx + 1
+                MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = nImpacts
+              ELSE
+                idx=idx+8
+              END IF ! 
+            END ASSOCIATE
           END IF ! CalcSurfaceImpact
         END ASSOCIATE
       END DO ! iSpec=1,nSpecies

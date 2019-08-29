@@ -1207,7 +1207,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
           END DO
         END IF
 
-        ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+        ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
         IF(CalcSurfaceImpact)THEN
           ! Add average impact energy for each species (trans, rot, vib)
           SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%ImpactEnergy(:,1,p,q)
@@ -1242,10 +1242,13 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       SampWall(SurfSideID)%Accomodation(:,:,:)=0.
       SampWall(SurfSideID)%SurfModelReactCount(:,:,:,:)=0.
     END IF
-    SampWall(SurfSideID)%ImpactEnergy(:,:,:,:)=0.
-    SampWall(SurfSideID)%ImpactVector(:,:,:,:)=0.
-    SampWall(SurfSideID)%ImpactAngle(:,:,:)=0.
-    SampWall(SurfSideID)%ImpactNumber(:,:,:)=0.
+    ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
+    IF(CalcSurfaceImpact)THEN
+      SampWall(SurfSideID)%ImpactEnergy(:,:,:,:)=0.
+      SampWall(SurfSideID)%ImpactVector(:,:,:,:)=0.
+      SampWall(SurfSideID)%ImpactAngle(:,:,:)=0.
+      SampWall(SurfSideID)%ImpactNumber(:,:,:)=0.
+    END IF ! CalcSurfaceImpact
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
 END DO
 
