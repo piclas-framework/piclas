@@ -990,18 +990,20 @@ INTEGER             :: dir
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-MeanFreePath',' '
           OutputCounter = OutputCounter + 1
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-RotRelaxPmean',' '
-          OutputCounter = OutputCounter + 1
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-RotRelaxPmax',' '
-          OutputCounter = OutputCounter + 1
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-VibRelaxPmean',' '
-          OutputCounter = OutputCounter + 1
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-VibRelaxPmax',' '
-          OutputCounter = OutputCounter + 1
+          IF(CalcRelaxProb) THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-RotRelaxPmean',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-RotRelaxPmax',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-VibRelaxPmean',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-VibRelaxPmax',' '
+            OutputCounter = OutputCounter + 1
+          END IF
         END IF
 #endif
         IF(FPInitDone) THEN
