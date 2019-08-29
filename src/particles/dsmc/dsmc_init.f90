@@ -501,11 +501,14 @@ IF (nSpecies.LE.0) THEN
       ,"ERROR: nSpecies .LE. 0:", nSpecies)
 END IF
 
-! Either CollisMode.GT.0 or without chemical reactions due to collisions but with field ionization
+! Read interaction ID
 ALLOCATE(SpecDSMC(nSpecies))
 DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
   SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
 END DO ! iSpec = 1, nSpecies
+
+! Either CollisMode.GT.0 or without chemical reactions due to collisions but with field ionization
 IF(DoFieldIonization.OR.CollisMode.NE.0)THEN
   DO iSpec = 1, nSpecies
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
