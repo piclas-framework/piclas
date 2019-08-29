@@ -509,7 +509,6 @@ REAL                          :: alphaDoneRel, oldLengthPartTrajectory
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 INTEGER                       :: PartDoubleCheck
-REAL                          :: alphaOld
 #if USE_MPI
 INTEGER                       :: inElem
 #endif
@@ -552,7 +551,6 @@ END IF
 
 DO iPart=1,PDM%ParticleVecLength
   PartDoubleCheck=0
-  alphaOld = -1.0
 #ifdef IMPA
   IF(doPartInExists)THEN
     DoParticle=PDM%ParticleInside(iPart).AND.DoParticle_In(iPart)
@@ -676,6 +674,7 @@ DO iPart=1,PDM%ParticleVecLength
               ,alpha2=lastIntersect%alpha)
           IF(isHit) THEN
             ! start from last intersection entry and place current intersection in correct entry position
+            lastIntersect%alpha=1.0
             currentIntersect => lastIntersect
             lastIntersect => currentIntersect%next
             DO WHILE(ASSOCIATED(currentIntersect))
@@ -713,6 +712,7 @@ DO iPart=1,PDM%ParticleVecLength
               ,locAlpha,locAlphaSphere,alphaDoneRel,iPart,alpha2=lastIntersect%alpha)
           IF(isHit) THEN
             ! start from last intersection entry and place current intersection in correct entry position
+            lastIntersect%alpha=1.0
             currentIntersect => lastIntersect
             lastIntersect => currentIntersect%next
             DO WHILE(ASSOCIATED(currentIntersect))
@@ -913,7 +913,7 @@ __STAMP__ &
             locAlpha=-1
             IF (ElemHasMacroPart(ElemID,iMP)) THEN
               CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,iMP&
-                                               ,locAlpha,locAlphaSphere,alphaDoneRel,iPart,alpha2=alphaOld)
+                                               ,locAlpha,locAlphaSphere,alphaDoneRel,iPart)
             ELSE
               isHit=.FALSE.
             END IF
@@ -965,9 +965,6 @@ __STAMP__ &
 #endif /*CODE_ANALYZE*/
 
       currentIntersect => firstIntersect
-      IF (PartDoubleCheck.EQ.0 .AND. currentIntersect%IntersectCase.GT.0) THEN
-        alphaOld = currentIntersect%alpha
-      END IF
       DO WHILE(ASSOCIATED(currentIntersect))
         SwitchedElement=.FALSE.
         crossedBC=.FALSE.
@@ -1044,7 +1041,6 @@ __STAMP__ &
           IF(crossedBC .OR. SwitchedElement) THEN
             IF (PartDoubleCheck.EQ.1) THEN
               PartDoubleCheck=0
-              alphaOld = -1.0
             END IF
             EXIT
           ELSE !((.NOT.crossedBC).AND.(.NOT.SwitchedElement)) THEN
