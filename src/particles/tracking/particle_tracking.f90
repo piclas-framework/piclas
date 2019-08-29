@@ -530,7 +530,7 @@ TYPE(tIntersectLink),POINTER  :: firstIntersect => NULL()
 TYPE(tIntersectLink),POINTER  :: lastIntersect => NULL()
 TYPE(tIntersectLink),POINTER  :: lastEntry => NULL()
 TYPE(tIntersectLink),POINTER  :: currentIntersect => NULL()
-!TYPE(tIntersectLink),POINTER  :: tmp => NULL()
+TYPE(tIntersectLink),POINTER  :: tmp => NULL()
 !===================================================================================================================================
 
 #ifdef IMPA
@@ -545,6 +545,9 @@ IF (.NOT. ASSOCIATED(firstIntersect)) THEN
   lastIntersect => firstIntersect%next
   lastIntersect%prev => firstIntersect
   lastEntry => lastIntersect
+  !print*,'first',firstIntersect%alpha
+  !print*,'last',lastIntersect%alpha
+  !print*,'lsat.prev',lastIntersect%prev%alpha
 END IF
 
 ! IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_SetInClones()
@@ -668,30 +671,45 @@ DO iPart=1,PDM%ParticleVecLength
     DO WHILE (.NOT.PartisDone)
       nInterSections=0
       markTol =.FALSE.
-      IF (PartDoubleCheck.EQ.1) THEN
-        IF (lastIntersect%IntersectCase.EQ.1) THEN
-          CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,lastIntersect%Side &
-              ,alpha2=lastIntersect%alpha)
+      IF (PartDoubleCheck.EQ.2) THEN
+        PartDoubleCheck=1
+#ifdef CODE_ANALYZE
+!---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(110("="))')
+            WRITE(UNIT_stdout,'(A)')    '     | Particle is double checked: '
+          END IF
+        END IF
+!-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
+#endif /*CODE_ANALYZE*/
+        currentIntersect => lastIntersect%prev
+        IF (currentIntersect%IntersectCase.EQ.1) THEN
+          CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,currentIntersect%Side &
+              ,alpha2=currentIntersect%alpha)
+          currentIntersect%alpha=1.0
+          currentIntersect%IntersectCase=0
           IF(isHit) THEN
             ! start from last intersection entry and place current intersection in correct entry position
-            lastIntersect%alpha=1.0
-            currentIntersect => lastIntersect
-            lastIntersect => currentIntersect%next
             DO WHILE(ASSOCIATED(currentIntersect))
               IF (locAlpha.LE.currentIntersect%alpha) THEN
-                ! move current values of entry to next entry of list
-                IF (.NOT. ASSOCIATED(currentIntersect%next)) THEN
-                  ALLOCATE(currentIntersect%next)
-                  lastEntry => currentIntersect%next
-                  currentIntersect%next%prev => currentIntersect
-                END IF
                 currentIntersect%next%alpha = currentIntersect%alpha
                 currentIntersect%next%alphaSphere = currentIntersect%alphaSphere
                 currentIntersect%next%xi = currentIntersect%xi
                 currentIntersect%next%eta = currentIntersect%eta
                 currentIntersect%next%Side = currentIntersect%Side
                 currentIntersect%next%intersectCase = currentIntersect%intersectCase
-                IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
+                IF (ASSOCIATED(currentIntersect%prev)) THEN
+                  IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
+                    ! assign new values
+                    currentIntersect%alpha = localpha
+                    currentIntersect%xi = xi
+                    currentIntersect%eta = eta
+                    currentIntersect%Side = ilocside
+                    currentIntersect%intersectCase = 1
+                    EXIT
+                  END IF
+                ELSE
                   ! assign new values
                   currentIntersect%alpha = localpha
                   currentIntersect%xi = xi
@@ -708,28 +726,31 @@ DO iPart=1,PDM%ParticleVecLength
             IF(locAlpha/lengthPartTrajectory.GE.0.99) markTol=.TRUE.
           END IF
         ELSE IF (lastIntersect%IntersectCase.EQ.3) THEN
-          CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,lastIntersect%Side&
-              ,locAlpha,locAlphaSphere,alphaDoneRel,iPart,alpha2=lastIntersect%alpha)
+          CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,currentIntersect%Side&
+              ,locAlpha,locAlphaSphere,alphaDoneRel,iPart,alpha2=currentIntersect%alpha)
+          currentIntersect%alpha=1.0
+          currentIntersect%IntersectCase=0
           IF(isHit) THEN
             ! start from last intersection entry and place current intersection in correct entry position
-            lastIntersect%alpha=1.0
-            currentIntersect => lastIntersect
-            lastIntersect => currentIntersect%next
             DO WHILE(ASSOCIATED(currentIntersect))
               IF (locAlpha.LE.currentIntersect%alpha) THEN
                 ! move current values of entry to next entry of list
-                IF (.NOT. ASSOCIATED(currentIntersect%next)) THEN
-                  ALLOCATE(currentIntersect%next)
-                  lastEntry => currentIntersect%next
-                  currentIntersect%next%prev => currentIntersect
-                END IF
                 currentIntersect%next%alpha = currentIntersect%alpha
                 currentIntersect%next%alphaSphere = currentIntersect%alphaSphere
                 currentIntersect%next%xi = currentIntersect%xi
                 currentIntersect%next%eta = currentIntersect%eta
                 currentIntersect%next%Side = currentIntersect%Side
                 currentIntersect%next%intersectCase = currentIntersect%intersectCase
-                IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
+                IF (ASSOCIATED(currentIntersect%prev)) THEN
+                  IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
+                    ! assign new values
+                    currentIntersect%alpha = localpha
+                    currentIntersect%alphaSphere = localphaSphere
+                    currentIntersect%Side = iMP
+                    currentIntersect%intersectCase = 3
+                    EXIT
+                  END IF
+                ELSE
                   ! assign new values
                   currentIntersect%alpha = localpha
                   currentIntersect%alphaSphere = localphaSphere
@@ -753,18 +774,6 @@ DO iPart=1,PDM%ParticleVecLength
           SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
           flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
           isCriticalParallelInFace=.FALSE.
-#ifdef CODE_ANALYZE
-!---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
-          IF (PartDoubleCheck.EQ.1) THEN
-            IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-              IF(iPart.EQ.PARTOUT)THEN
-                WRITE(UNIT_stdout,'(110("="))')
-                WRITE(UNIT_stdout,'(A)')    '     | Particle is double checked: '
-              END IF
-            END IF
-          END IF
-!-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
-#endif /*CODE_ANALYZE*/
           SELECT CASE(SideType(SideID))
           CASE(PLANAR_RECT)
             CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,flip,SideID  &
@@ -808,13 +817,15 @@ __STAMP__ &
             EXIT
           END IF
           IF(isHit) THEN
+            !print*,'is a hit',locAlpha
             ! start from last intersection entry and place current intersection in correct entry position
             currentIntersect => lastIntersect
-            lastIntersect => currentIntersect%next
             DO WHILE(ASSOCIATED(currentIntersect))
               IF (locAlpha.LE.currentIntersect%alpha) THEN
+                !print*,'moves list entries'
                 ! move current values of entry to next entry of list
                 IF (.NOT. ASSOCIATED(currentIntersect%next)) THEN
+                  !print*,'allocates next list entry'
                   ALLOCATE(currentIntersect%next)
                   lastEntry => currentIntersect%next
                   currentIntersect%next%prev => currentIntersect
@@ -825,8 +836,20 @@ __STAMP__ &
                 currentIntersect%next%eta = currentIntersect%eta
                 currentIntersect%next%Side = currentIntersect%Side
                 currentIntersect%next%intersectCase = currentIntersect%intersectCase
-                IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
+                IF (ASSOCIATED(currentIntersect%prev)) THEN
+                  IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
+                    !print*,'insert list entry in between'
+                    ! assign new values
+                    currentIntersect%alpha = localpha
+                    currentIntersect%xi = xi
+                    currentIntersect%eta = eta
+                    currentIntersect%Side = ilocside
+                    currentIntersect%intersectCase = 1
+                    EXIT
+                  END IF
+                ELSE
                   ! assign new values
+                  !print*,'insert list entry at start', ASSOCIATED(currentIntersect,firstIntersect)
                   currentIntersect%alpha = localpha
                   currentIntersect%xi = xi
                   currentIntersect%eta = eta
@@ -837,6 +860,9 @@ __STAMP__ &
               END IF
               currentIntersect => currentIntersect%prev
             END DO
+            currentIntersect => lastIntersect
+            lastIntersect => currentIntersect%next
+            lastIntersect%prev => currentIntersect
             IF((ABS(xi).GE.0.99).OR.(ABS(eta).GE.0.99)) markTol=.TRUE.
             IF(ALMOSTZERO(locAlpha)) markTol=.TRUE.
             IF(locAlpha/lengthPartTrajectory.GE.0.99) markTol=.TRUE.
@@ -880,7 +906,6 @@ __STAMP__ &
             IF(isHit) THEN
               ! start from last intersection entry and place current intersection in correct entry position
               currentIntersect => lastIntersect
-              lastIntersect => currentIntersect%next
               DO WHILE(ASSOCIATED(currentIntersect))
                 IF (locAlpha.LE.currentIntersect%alpha) THEN
                   ! move current values of entry to next entry of list
@@ -902,9 +927,27 @@ __STAMP__ &
                     currentIntersect%intersectCase = 2
                     EXIT
                   END IF
+                  IF (ASSOCIATED(currentIntersect%prev)) THEN
+                    IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
+                      ! assign new values
+                      currentIntersect%alpha = localpha
+                      currentIntersect%Side = iAuxBC
+                      currentIntersect%intersectCase = 2
+                      EXIT
+                    END IF
+                  ELSE
+                    ! assign new values
+                    currentIntersect%alpha = localpha
+                    currentIntersect%Side = iAuxBC
+                    currentIntersect%intersectCase = 2
+                    EXIT
+                  END IF
                 END IF
                 currentIntersect => currentIntersect%prev
               END DO
+              currentIntersect => lastIntersect
+              lastIntersect => currentIntersect%next
+              lastIntersect%prev => currentIntersect
             END IF ! isHit
           END DO !iAuxBC
         END IF !UseAuxBCs
@@ -920,7 +963,6 @@ __STAMP__ &
             IF(isHit) THEN
               ! start from last intersection entry and place current intersection in correct entry position
               currentIntersect => lastIntersect
-              lastIntersect => currentIntersect%next
               DO WHILE(ASSOCIATED(currentIntersect))
                 IF (locAlpha.LE.currentIntersect%alpha) THEN
                   ! move current values of entry to next entry of list
@@ -935,7 +977,16 @@ __STAMP__ &
                   currentIntersect%next%eta = currentIntersect%eta
                   currentIntersect%next%Side = currentIntersect%Side
                   currentIntersect%next%intersectCase = currentIntersect%intersectCase
-                  IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
+                  IF (ASSOCIATED(currentIntersect%prev)) THEN
+                    IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
+                      ! assign new values
+                      currentIntersect%alpha = localpha
+                      currentIntersect%alphaSphere = localphaSphere
+                      currentIntersect%Side = iMP
+                      currentIntersect%intersectCase = 3
+                      EXIT
+                    END IF
+                  ELSE
                     ! assign new values
                     currentIntersect%alpha = localpha
                     currentIntersect%alphaSphere = localphaSphere
@@ -946,6 +997,9 @@ __STAMP__ &
                 END IF
                 currentIntersect => currentIntersect%prev
               END DO
+              currentIntersect => lastIntersect
+              lastIntersect => currentIntersect%next
+              lastIntersect%prev => currentIntersect
             END IF ! isHit
           END DO
         END IF
@@ -966,6 +1020,7 @@ __STAMP__ &
 
       currentIntersect => firstIntersect
       DO WHILE(ASSOCIATED(currentIntersect))
+      !print*,'intersection case:', currentIntersect%IntersectCase
         SwitchedElement=.FALSE.
         crossedBC=.FALSE.
         IF (currentIntersect%IntersectCase.EQ.0) THEN
@@ -977,6 +1032,7 @@ __STAMP__ &
           !------------------------------------
           CASE(1) ! intersection with cell side
           !------------------------------------
+            !print*,'intersection tested ------','first intersection:', ASSOCIATED(currentIntersect,firstIntersect)
             SideID=PartElemToSide(E2S_SIDE_ID,currentIntersect%Side,ElemID)
             flip  =PartElemToSide(E2S_FLIP,currentIntersect%Side,ElemID)
             OldElemID=ElemID
@@ -1049,49 +1105,37 @@ __STAMP__ &
               PartIsDone= .FALSE.
             ELSE
               PartIsDone= .TRUE.
+              !print*,'here'
               EXIT
             END IF
           END IF
         END IF ! IntersectCase.EQ.0
         ! move list entry and check if it is the last to be considered
         currentIntersect=>currentIntersect%next
+        !print*,'was this the last intersection:', ASSOCIATED(currentIntersect,lastIntersect)
         IF (ASSOCIATED(currentIntersect,LastIntersect)) EXIT
         IF(.NOT.crossedBC .AND. .NOT.SwitchedElement .AND. .NOT.PartIsDone .AND. PartDoubleCheck.EQ.1) THEN
+          PartDoubleCheck=2
+          !print*,'double check is performed:', '--------lastintersect is associated',ASSOCIATED(lastIntersect)
           lastIntersect%alpha = currentIntersect%alpha
           lastIntersect%alphaSphere = currentIntersect%alphaSphere
           lastIntersect%xi = currentIntersect%xi
           lastIntersect%eta = currentIntersect%eta
           lastIntersect%Side = currentIntersect%Side
           lastIntersect%intersectCase = currentIntersect%intersectCase
-          DO WHILE (.NOT.ASSOCIATED(currentIntersect,lastIntersect))
-            currentIntersect%alpha = currentIntersect%next%alpha
-            currentIntersect%alphaSphere = currentIntersect%next%alphaSphere
-            currentIntersect%xi = currentIntersect%next%xi
-            currentIntersect%eta = currentIntersect%next%eta
-            currentIntersect%Side = currentIntersect%next%Side
-            currentIntersect%intersectCase = currentIntersect%next%intersectCase
-            currentIntersect=>currentIntersect%next
+          tmp=>firstIntersect
+          DO WHILE (.NOT.ASSOCIATED(tmp,lastIntersect))
+            tmp%alpha = tmp%next%alpha
+            tmp%alphaSphere = tmp%next%alphaSphere
+            tmp%xi = tmp%next%xi
+            tmp%eta = tmp%next%eta
+            tmp%Side = tmp%next%Side
+            tmp%intersectCase = tmp%next%intersectCase
+            tmp=>tmp%next
           END DO
-          lastIntersect=>currentIntersect%prev
-          currentIntersect=>firstIntersect
         END IF
       END DO
-#ifndef CODE_ANALYZE
-    END DO ! PartisDone=.FALSE.
-    ! reset intersection list
-    currentIntersect=> firstIntersect
-    DO WHILE (ASSOCIATED(currentIntersect))
-      currentIntersect%alpha = 1.0
-      currentIntersect%intersectCase = 0
-      currentIntersect => currentIntersect%next
-      IF(ASSOCIATED(currentIntersect,lastIntersect)) THEN
-        lastIntersect => firstIntersect%next
-        EXIT
-      END IF
-    END DO
-
-
-#else
+#ifdef CODE_ANALYZE
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(iPart.EQ.PARTOUT)THEN
@@ -1113,9 +1157,24 @@ __STAMP__ &
           WRITE(UNIT_stdout,'(128("="))')
         END IF
       END IF
-    END DO ! PartisDone=.FALSE.
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
+      ! reset intersection list
+      !print*,'resets list entries'
+      currentIntersect=>firstIntersect
+      IF (currentIntersect%intersectCase.GT.0)THEN
+        DO WHILE (ASSOCIATED(currentIntersect))
+          currentIntersect%alpha = 1.0
+          currentIntersect%intersectCase = 0
+          currentIntersect => currentIntersect%next
+          IF(ASSOCIATED(currentIntersect,lastIntersect)) THEN
+            lastIntersect => firstIntersect%next
+            lastIntersect%prev => firstIntersect
+            EXIT
+          END IF
+        END DO
+      END IF
+    END DO ! PartisDone=.FALSE.
 
 
 
