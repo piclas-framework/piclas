@@ -1277,11 +1277,12 @@ IF (doParticleMerge) THEN
 END IF
 
 
-  IF ((iter.EQ.1).AND.(usevMPF).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-    CALL SplitMerge_main()
-    CALL UpdateNextFreePosition()    
-  END IF
-
+IF ((iter.EQ.1).AND.(usevMPF).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+  SWRITE(*,*) 'Merging particles...'
+  CALL SplitMerge_main()
+  SWRITE(*,*) 'Merged particles to target number!'
+  CALL UpdateNextFreePosition()
+END IF
 
 IF (useDSMC) THEN
   IF (time.GE.DelayTime) THEN

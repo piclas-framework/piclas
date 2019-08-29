@@ -99,6 +99,12 @@ SUBROUTINE MergeParticles(iPartIndx_Node, nPart, nPartNew)
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Vars         ,ONLY: Species
+USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
+USE MOD_DSMC_Vars             ,ONLY: DSMC
+USE MOD_Particle_Vars          ,ONLY: Symmetry2D
+#endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -112,14 +118,42 @@ INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
 REAL                  :: V_rel(3), vmag2, iRan, vBulk(3), Energy
 INTEGER               :: iLoop,fillMa1, fillMa2, nDelete, nTemp, iPart, iPartIndx_NodeTMP(nPart),iSpec
 REAL                  :: partWeight, totalWeight, vBulkTmp(3), ENew, alpha
+#ifdef CODE_ANALYZE
+REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3)
+INTEGER               :: iMomDim, iMom
+#endif /* CODE_ANALYZE */
 !===================================================================================================================================
 vBulk = 0.0; totalWeight = 0.0; Energy = 0.
+
+#ifdef CODE_ANALYZE
+Energy_old = 0.0; Energy_new = 0.0; Momentum_old = 0.0; Momentum_new = 0.0
+#endif /* CODE_ANALYZE */
 
 ! 1.) calc bulkvelocity (for momentum conservation)
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   totalWeight = totalWeight + partWeight
   vBulk(1:3) = vBulk(1:3) + PartState(iPartIndx_Node(iLoop),4:6) * partWeight
+
+#ifdef CODE_ANALYZE
+  ! Energy conservation
+  Energy_old = Energy_old + 0.5 * Species(PartSpecies(iPartIndx_Node(iLoop)))%MassIC &
+  * DOT_PRODUCT(PartState(iPartIndx_Node(iLoop),4:6),PartState(iPartIndx_Node(iLoop),4:6)) * PartMPF(iPartIndx_Node(iLoop))
+  IF(CollisMode.GT.1) THEN
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      Energy_old = Energy_old &
+                 + (PartStateIntEn(iPartIndx_Node(iLoop),1) &
+                 +  PartStateIntEn(iPartIndx_Node(iLoop),2)) * PartMPF(iPartIndx_Node(iLoop))
+      IF(DSMC%ElectronicModel) Energy_old = Energy_old + PartStateIntEn(iPartIndx_Node(iLoop),3)*PartMPF(iPartIndx_Node(iLoop))
+    ELSE IF((SpecDSMC(iSpec)%InterID.EQ.1).OR.(SpecDSMC(iSpec)%InterID.EQ.10)) THEN
+      IF(DSMC%ElectronicModel) Energy_old = Energy_old + PartStateIntEn(iPartIndx_Node(iLoop),3)*PartMPF(iPartIndx_Node(iLoop))
+    END IF
+  END IF
+  ! Momentum conservation
+  Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpecies(iPartIndx_Node(iLoop)))%MassIC &
+                    * PartState(iPartIndx_Node(iLoop),4:6) * PartMPF(iPartIndx_Node(iLoop))
+#endif /* CODE_ANALYZE */
+
 END DO
 vBulk(1:3) = vBulk(1:3)/ totalWeight
 
@@ -188,7 +222,72 @@ END DO
 alpha = SQRT(Energy/ENew)
 DO iLoop = 1, nPartNew
   PartState(iPartIndx_Node(iLoop),4:6) = vBulk(1:3) + alpha*(PartState(iPartIndx_Node(iLoop),4:6)-vBulkTmp(1:3))
+
+#ifdef CODE_ANALYZE
+  ! Energy conservation
+  Energy_new = Energy_new + 0.5*Species(PartSpecies(iPartIndx_Node(iLoop)))%MassIC &
+  * DOT_PRODUCT(PartState(iPartIndx_Node(iLoop),4:6),PartState(iPartIndx_Node(iLoop),4:6)) * PartMPF(iPartIndx_Node(iLoop)) 
+  IF(CollisMode.GT.1) THEN
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      Energy_new = Energy_new &
+                 + (PartStateIntEn(iPartIndx_Node(iLoop),1) &
+                 +  PartStateIntEn(iPartIndx_Node(iLoop),2)) * PartMPF(iPartIndx_Node(iLoop))
+      IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(iPartIndx_Node(iLoop),3)*PartMPF(iPartIndx_Node(iLoop))
+    ELSE IF((SpecDSMC(iSpec)%InterID.EQ.1).OR.(SpecDSMC(iSpec)%InterID.EQ.10)) THEN
+      IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(iPartIndx_Node(iLoop),3)*PartMPF(iPartIndx_Node(iLoop))
+    END IF
+  END IF
+  ! Momentum conservation
+  Momentum_new(1:3) = Momentum_new(1:3) + Species(PartSpecies(iPartIndx_Node(iLoop)))%MassIC &
+                    * PartState(iPartIndx_Node(iLoop),4:6) * PartMPF(iPartIndx_Node(iLoop))
+#endif /* CODE_ANALYZE */
+
 END DO
+
+#ifdef CODE_ANALYZE
+  ! Check for energy difference
+  IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
+    WRITE(UNIT_StdOut,*) '\n'
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_new             : ",Energy_new
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Energy difference : ",Energy_new-Energy_old
+    ASSOCIATE( energy => MAX(ABS(Energy_old),ABS(Energy_new)) )
+      IF(energy.GT.0.0)THEN
+        IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Energy difference : ",(Energy_new-Energy_old)/energy
+      END IF
+    END ASSOCIATE
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
+    CALL abort(&
+        __STAMP__&
+        ,'CODE_ANALYZE: part merge is not energy conserving!')
+  END IF
+  ! Check for momentum difference
+  IF(Symmetry2D) THEN
+    ! Do not check the momentum in z as it can be very small (close to machine precision), leading to greater relative errors
+    iMomDim = 2
+  ELSE
+    iMomDim = 3
+  END IF
+  DO iMom=1,iMomDim
+    IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),1.0e-10)) THEN
+      WRITE(UNIT_StdOut,*) '\n'
+      IPWRITE(UNIT_StdOut,'(I0,A,I0)')           " Direction (x,y,z)        : ",iMom
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_old             : ",Momentum_old(iMom)
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_new             : ",Momentum_new(iMom)
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Momentum difference : ",Momentum_new(iMom)-Momentum_old(iMom)
+      ASSOCIATE( Momentum => MAX(ABS(Momentum_old(iMom)),ABS(Momentum_new(iMom))) )
+        IF(Momentum.GT.0.0)THEN
+          IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Momentum difference : ",(Momentum_new(iMom)-Momentum_old(iMom))/Momentum
+        END IF
+      END ASSOCIATE
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-10
+      CALL abort(&
+          __STAMP__&
+          ,'CODE_ANALYZE: part merge is not momentum conserving!')
+    END IF
+  END DO
+#endif /* CODE_ANALYZE */
+
 
 END SUBROUTINE MergeParticles
 
