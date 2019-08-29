@@ -1573,8 +1573,14 @@ IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) TH
     ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
     IF(CalcSurfaceImpact) THEN
       EtraOld = 0.5*Species(PartSpecies(PartID))%MassIC*VECNORM(PartState(PartID,4:6))**2
+#ifndef IMPA
       CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,&
           EtraOld,PartStateIntEn(PartID,2),PartStateIntEn(PartID,1),PartTrajectory,n_loc,p,q)
+#else
+      CALL abort(&
+      __STAMP__&
+      ,'CountSurfaceImpact not correctly implemented for IMPA due to missing normal vector!')
+#endif /*NOT IMPA*/
     END IF ! CalcSurfaceImpact
 
     !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
