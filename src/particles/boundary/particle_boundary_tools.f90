@@ -226,7 +226,7 @@ ASSOCIATE ( MPF  => Species(PartSpecies(PartID))%MacroParticleFactor ,&
   END IF
 
   ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
-  IF(impact_opt_loc)THEN ! only works if CalcSurfaceImpact=T
+  IF(impact_opt_loc)THEN ! only works if impact_opt_loc=CalcSurfaceImpact=T
     !----- Sampling of impact energy for each species (trans, rot, vib)
     SampWall(SurfSideID)%ImpactEnergy(id,1,p,q)   = SampWall(SurfSideID)%ImpactEnergy(id,1,p,q) + TransArray(1) * MPF
     IF((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID))%InterID.EQ.20))THEN
