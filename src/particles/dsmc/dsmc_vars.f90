@@ -59,8 +59,6 @@ INTEGER                       :: LD_MultiTemperaturMod      ! Modell choice for 
                                                               ! 1 = LD1 see Paper
                                                               ! 2 = LD2
                                                               ! 3 = LD3
-REAL                          :: CRelaMax                   ! Max relative velocity
-REAL                          :: CRelaAv                    ! Average relative velocity
 
 LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
 

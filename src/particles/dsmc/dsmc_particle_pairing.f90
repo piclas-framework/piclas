@@ -225,12 +225,13 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
 ! Classic statistical pairing method
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac, CRelaMax, CRelaAv
-  USE MOD_DSMC_Vars,              ONLY: DSMC, SelectionProc, RadialWeighting, useRelaxProbCorrFactor
+  USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac
+  USE MOD_DSMC_Vars,              ONLY: DSMC, SelectionProc, RadialWeighting, useRelaxProbCorrFactor, VarVibRelaxProb, SpecDSMC
   USE MOD_DSMC_Analyze,           ONLY: CalcGammaVib, CalcInstantTransTemp
   USE MOD_Particle_Vars,          ONLY: PEM, PartSpecies, nSpecies, PartState, VarTimeStep
   USE MOD_Particle_Vars,          ONLY: KeepWallParticles, PDM
   USE MOD_part_tools,             ONLY: GetParticleWeight
+  USE MOD_DSMC_Collis,            ONLY: DSMC_calc_var_P_vib
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -243,7 +244,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   INTEGER                       :: nPair, iPair, iPart, iLoop, cPart1, cPart2, nPart
   INTEGER                       :: cSpec1, cSpec2, iCase
   INTEGER, ALLOCATABLE          :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
-  REAL                          :: iRan
+  REAL                          :: iRan, VibProb
 !===================================================================================================================================
   IF (KeepWallParticles) THEN
     nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
@@ -259,8 +260,6 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
 
   CollInf%Coll_SpecPartNum = 0.
   CollInf%Coll_CaseNum = 0
-  CRelaMax = 0
-  CRelaAv = 0
   ALLOCATE(Coll_pData(nPair))
   ALLOCATE(iPartIndx(nPart))
   Coll_pData%Ec=0
@@ -310,6 +309,25 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
 
     cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
     cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
+    ! variable vibrational relaxation probability has to average of all collisions
+    IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+      IF((SpecDSMC(cSpec1)%InterID.EQ.2).OR.(SpecDSMC(cSpec1)%InterID.EQ.20)) THEN
+        CALL DSMC_calc_var_P_vib(cSpec1,cSpec2,iPair,VibProb)
+        VarVibRelaxProb%ProbVibAvNew(cSpec1) = VarVibRelaxProb%ProbVibAvNew(cSpec1) + VibProb
+        VarVibRelaxProb%nCollis(cSpec1) = VarVibRelaxProb%nCollis(cSpec1) + 1
+        IF(DSMC%CalcQualityFactors) THEN
+          DSMC%CalcVibProb(cSpec1,2) = MAX(DSMC%CalcVibProb(cSpec1,2),VibProb)
+        END IF
+      END IF
+      IF((SpecDSMC(cSpec2)%InterID.EQ.2).OR.(SpecDSMC(cSpec2)%InterID.EQ.20)) THEN
+        CALL DSMC_calc_var_P_vib(cSpec2,cSpec1,iPair,VibProb)
+        VarVibRelaxProb%ProbVibAvNew(cSpec2) = VarVibRelaxProb%ProbVibAvNew(cSpec2) + VibProb
+        VarVibRelaxProb%nCollis(cSpec2) = VarVibRelaxProb%nCollis(cSpec2) + 1
+        IF(DSMC%CalcQualityFactors) THEN
+          DSMC%CalcVibProb(cSpec2,2) = MAX(DSMC%CalcVibProb(cSpec2,2),VibProb)
+        END IF
+      END IF
+    END IF
 
     iCase = CollInf%Coll_Case(cSpec1, cSpec2)
     IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
@@ -325,11 +343,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
                              -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
     Coll_pData(iPair)%PairType = iCase
     Coll_pData(iPair)%NeedForRec = .FALSE.
-    ! get maximum and average relative velocity
-    CRelaMax = MAX(CRelaMax, SQRT(Coll_pData(iPair)%CRela2))
-    CRelaAv = CRelaAv + SQRT(Coll_pData(iPair)%CRela2)
   END DO
-  IF(nPair.NE.0)  CRelaAv = CRelaAv / nPair
   IF ((nPair.NE.0).AND.(CollisMode.EQ.3).AND.(MOD(nPart, nPair).NE.0)) THEN
     ChemReac%RecombParticle = iPartIndx(1)
   END IF
