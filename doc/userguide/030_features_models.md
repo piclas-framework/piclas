@@ -625,7 +625,7 @@ Equal to the rotational relaxation probability, the vibrational relaxation proba
 
     Particles-DSMC-VibRelaxProb = 0.004
 
-$0.004$ is the default. If the value of this variable is between 0 and 1, this value is used as constant vibrational relaxation probability. Is it set to 2, the variable vibrational relaxation model of Boyd [@Boyd1990b] is used. For each molecular species pair the constants A and B according to Millikan and White [@MillikanWhite1963] (which will be used for the calculation of the characteristic velocity and vibrational collision number according to Abe [@Abe1994]) and the vibrational cross section has to be defined. The given example below is a 2 species mixture of nitrogen and oxygen and the values of A and B are from Farbar [@Farbar2010] and the vibrational cross section is from Boyd [@Boyd1990b]:
+$0.004$ is the default. If the value of this variable is between 0 and 1, this value is used as constant vibrational relaxation probability. Is it set to 2, the variable vibrational relaxation model of Boyd [@Boyd1990b] is used. For each molecular species pair the constants A and B according to Millikan and White [@MillikanWhite1963] (which will be used for the calculation of the characteristic velocity and vibrational collision number according to Abe [@Abe1994]) and the vibrational cross section has to be defined. The given example below is a 2 species mixture of nitrogen and oxygen and the values of A and B are used Farbar [@Farbar2010] and the vibrational cross section is used Boyd [@Boyd1990b]:
 
     Part-Species1-MWConstA-1-1 = 220.00
     Part-Species1-MWConstA-1-2 = 115.10
@@ -639,9 +639,15 @@ $0.004$ is the default. If the value of this variable is between 0 and 1, this v
     Part-Species2-MWConstB-2-1 = -6.92
     Part-Species2-VibCrossSection = 1e-19
 
-It is not possible to calculate an instantanious vibrational relaxation probability with this model [@Boyd1992]. Thus, the probablility is calculated for every colission and summed up. To avoid large errors in cells containing only a few particles, a relaxation of this average probability is implemented. The relaxation factor alpha can be changed with the following parameter in the ini file:
+It is not possible to calculate an instantanious vibrational relaxation probability with this model [@Boyd1992]. Thus, the probablility is calculated for every colission and is averaged. To avoid large errors in cells containing only a few particles, a relaxation of this average probability is implemented. The relaxation factor alpha can be changed with the following parameter in the ini file:
 
     Particles-DSMC-alpha = 0.99
+    
+The new probability is calculated with the vibrational relaxation probability of the $n^{th}$ iteration $VibProb_{n}$, the number of Collision Pairs $n_{Pair}$ and the average vibrational relaxation probability of the actual iteration $VibProbIter$. 
+
+$$VibProb_{n+1}= VibProb_{n}  \cdot  \alpha^{2  \cdot  n_{Pair}} + (1-\alpha^{2  \cdot  n_{Pair}}) \cdot VibProbIter $$
+
+This model is extended to more species by calculating for each species a separate probability. An initial vibrational relaxation probability is set by calculating $INT(1/(1-\alpha))$ vibrational relaxation probabilities for each species and cell with using the instantanious cell temperature. The collision partner is choosen by the mole fraction of them inside the cell. 
 
 #### Electronic Relaxation \label{sec:dsmc_electronic_relxation}
 
