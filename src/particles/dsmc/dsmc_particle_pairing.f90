@@ -167,7 +167,6 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 
   DO iPair = 1,  PairNum_Node
     IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-      CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
       ! variable vibrational relaxation probability has to average of all collisions
       IF(DSMC%VibRelaxProb.EQ.2.0) THEN
         cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
@@ -189,6 +188,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
           END IF
         END IF
       END IF
+      CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
       CALL RANDOM_NUMBER(iRan)
       IF (Coll_pData(iPair)%Prob.GE.iRan) THEN
 #if (PP_TimeDiscMethod==42)
@@ -231,7 +231,6 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   USE MOD_Particle_Vars,          ONLY: PEM, PartSpecies, nSpecies, PartState, VarTimeStep
   USE MOD_Particle_Vars,          ONLY: KeepWallParticles, PDM
   USE MOD_part_tools,             ONLY: GetParticleWeight
-  USE MOD_DSMC_Collis,            ONLY: DSMC_calc_var_P_vib
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -241,10 +240,10 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: nPair, iPair, iPart, iLoop, cPart1, cPart2, nPart
+  INTEGER                       :: nPair, iPair, iPart, iLoop, cPart1, cPart2, nPart, iSpec
   INTEGER                       :: cSpec1, cSpec2, iCase
   INTEGER, ALLOCATABLE          :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
-  REAL                          :: iRan, VibProb
+  REAL                          :: iRan
 !===================================================================================================================================
   IF (KeepWallParticles) THEN
     nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
@@ -254,6 +253,12 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   nPair = INT(nPart/2)
   IF (CollisMode.EQ.3) THEN
     ChemReac%RecombParticle = 0
+  END IF
+  IF(DSMC%VibRelaxProb.EQ.2.0) THEN ! Set summs for variable vibrational relaxation to zero
+    DO iSpec=1,nSpecies
+      VarVibRelaxProb%ProbVibAvNew(iSpec) = 0
+      VarVibRelaxProb%nCollis(iSpec) = 0
+    END DO
   END IF
 
   IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
@@ -309,25 +314,6 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
 
     cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
     cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
-    ! variable vibrational relaxation probability has to average of all collisions
-    IF(DSMC%VibRelaxProb.EQ.2.0) THEN
-      IF((SpecDSMC(cSpec1)%InterID.EQ.2).OR.(SpecDSMC(cSpec1)%InterID.EQ.20)) THEN
-        CALL DSMC_calc_var_P_vib(cSpec1,cSpec2,iPair,VibProb)
-        VarVibRelaxProb%ProbVibAvNew(cSpec1) = VarVibRelaxProb%ProbVibAvNew(cSpec1) + VibProb
-        VarVibRelaxProb%nCollis(cSpec1) = VarVibRelaxProb%nCollis(cSpec1) + 1
-        IF(DSMC%CalcQualityFactors) THEN
-          DSMC%CalcVibProb(cSpec1,2) = MAX(DSMC%CalcVibProb(cSpec1,2),VibProb)
-        END IF
-      END IF
-      IF((SpecDSMC(cSpec2)%InterID.EQ.2).OR.(SpecDSMC(cSpec2)%InterID.EQ.20)) THEN
-        CALL DSMC_calc_var_P_vib(cSpec2,cSpec1,iPair,VibProb)
-        VarVibRelaxProb%ProbVibAvNew(cSpec2) = VarVibRelaxProb%ProbVibAvNew(cSpec2) + VibProb
-        VarVibRelaxProb%nCollis(cSpec2) = VarVibRelaxProb%nCollis(cSpec2) + 1
-        IF(DSMC%CalcQualityFactors) THEN
-          DSMC%CalcVibProb(cSpec2,2) = MAX(DSMC%CalcVibProb(cSpec2,2),VibProb)
-        END IF
-      END IF
-    END IF
 
     iCase = CollInf%Coll_Case(cSpec1, cSpec2)
     IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
@@ -346,6 +332,16 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   END DO
   IF ((nPair.NE.0).AND.(CollisMode.EQ.3).AND.(MOD(nPart, nPair).NE.0)) THEN
     ChemReac%RecombParticle = iPartIndx(1)
+  END IF
+  IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+    DO iSpec=1,nSpecies
+      IF(VarVibRelaxProb%nCollis(iSpec).NE.0) THEN ! Calc new vibrational relaxation probability
+        VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VarVibRelaxProb%ProbVibAv(iElem,iSpec) &
+                                               * VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec)) &
+                                               + (1.-VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec))) &
+                                               / (VarVibRelaxProb%nCollis(iSpec)) * VarVibRelaxProb%ProbVibAvNew(iSpec)
+      END IF
+    END DO
   END IF
 
   DEALLOCATE(iPartIndx)
@@ -559,7 +555,6 @@ DO iPair = 1,  PairNum_Node
         END IF
       END IF
     END IF
-    CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
     ! variable vibrational relaxation probability has to average of all collisions
     IF(DSMC%VibRelaxProb.EQ.2.0) THEN
       cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
@@ -581,6 +576,7 @@ DO iPair = 1,  PairNum_Node
         END IF
       END IF
     END IF
+    CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
     CALL RANDOM_NUMBER(iRan)
     IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
 #if (PP_TimeDiscMethod==42)
@@ -1602,9 +1598,9 @@ SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 ! MODULES
 USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
-USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
+USE MOD_DSMC_Collis           ,ONLY : DSMC_perform_collision, DSMC_calc_var_P_vib
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
-USE MOD_DSMC_Vars             ,ONLY: SamplingActive, SelectionProc, SpecDSMC
+USE MOD_DSMC_Vars             ,ONLY: SamplingActive, SelectionProc, SpecDSMC, VarVibRelaxProb
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
@@ -1623,7 +1619,7 @@ INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
 ! LOCAL VARIABLES
 INTEGER                       :: nPair, iPair, iPart, cPart1, cPart2, nPart, tempPart
 INTEGER                       :: cSpec1, cSpec2, iCase
-REAL                          :: iRan
+REAL                          :: iRan, VibProb
 !===================================================================================================================================
 
 nPart = PartNum
@@ -1811,6 +1807,27 @@ END IF        ! DoRadialWeighting
 
 DO iPair = 1, nPair
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
+    ! variable vibrational relaxation probability has to average of all collisions
+    IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+      cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
+      cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
+      IF((SpecDSMC(cSpec1)%InterID.EQ.2).OR.(SpecDSMC(cSpec1)%InterID.EQ.20)) THEN
+        CALL DSMC_calc_var_P_vib(cSpec1,cSpec2,iPair,VibProb)
+        VarVibRelaxProb%ProbVibAvNew(cSpec1) = VarVibRelaxProb%ProbVibAvNew(cSpec1) + VibProb
+        VarVibRelaxProb%nCollis(cSpec1) = VarVibRelaxProb%nCollis(cSpec1) + 1
+        IF(DSMC%CalcQualityFactors) THEN
+          DSMC%CalcVibProb(cSpec1,2) = MAX(DSMC%CalcVibProb(cSpec1,2),VibProb)
+        END IF
+      END IF
+      IF((SpecDSMC(cSpec2)%InterID.EQ.2).OR.(SpecDSMC(cSpec2)%InterID.EQ.20)) THEN
+        CALL DSMC_calc_var_P_vib(cSpec2,cSpec1,iPair,VibProb)
+        VarVibRelaxProb%ProbVibAvNew(cSpec2) = VarVibRelaxProb%ProbVibAvNew(cSpec2) + VibProb
+        VarVibRelaxProb%nCollis(cSpec2) = VarVibRelaxProb%nCollis(cSpec2) + 1
+        IF(DSMC%CalcQualityFactors) THEN
+          DSMC%CalcVibProb(cSpec2,2) = MAX(DSMC%CalcVibProb(cSpec2,2),VibProb)
+        END IF
+      END IF
+    END IF
     CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
     CALL RANDOM_NUMBER(iRan)
     IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
