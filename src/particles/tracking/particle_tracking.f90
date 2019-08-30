@@ -508,7 +508,7 @@ REAL                          :: alphaDoneRel, oldLengthPartTrajectory
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
-INTEGER                       :: PartDoubleCheck
+LOGICAL                       :: moveList, PartDoubleCheck
 #if USE_MPI
 INTEGER                       :: inElem
 #endif
@@ -517,20 +517,19 @@ REAL                          :: IntersectionPoint(1:3)
 #endif /*CODE_ANALYZE*/
 ! intersection info list
 TYPE tIntersectLink
-  REAL                           :: alpha=1.0
-  REAL                           :: alphaSphere=1.0
-  REAL                           :: xi=-1
-  REAL                           :: eta=-1
-  INTEGER                        :: Side=0
-  INTEGER                        :: IntersectCase = 0
-  TYPE(tIntersectLink), POINTER     :: prev => null()
-  TYPE(tIntersectLink), POINTER     :: next => null()
+  REAL                          :: alpha=1.0
+  REAL                          :: alphaSphere=1.0
+  REAL                          :: xi=-1
+  REAL                          :: eta=-1
+  INTEGER                       :: Side=0
+  INTEGER                       :: IntersectCase = 0
+  TYPE(tIntersectLink), POINTER :: prev => null()
+  TYPE(tIntersectLink), POINTER :: next => null()
 END TYPE tIntersectLink
-TYPE(tIntersectLink),POINTER  :: firstIntersect => NULL()
-TYPE(tIntersectLink),POINTER  :: lastIntersect => NULL()
-TYPE(tIntersectLink),POINTER  :: lastEntry => NULL()
-TYPE(tIntersectLink),POINTER  :: currentIntersect => NULL()
-TYPE(tIntersectLink),POINTER  :: tmp => NULL()
+TYPE(tIntersectLink),POINTER    :: firstIntersect => NULL()
+TYPE(tIntersectLink),POINTER    :: lastIntersect => NULL()
+TYPE(tIntersectLink),POINTER    :: currentIntersect => NULL()
+TYPE(tIntersectLink),POINTER    :: tmp => NULL()
 !===================================================================================================================================
 
 #ifdef IMPA
@@ -549,7 +548,7 @@ END IF
 ! IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_SetInClones()
 
 DO iPart=1,PDM%ParticleVecLength
-  PartDoubleCheck=0
+  PartDoubleCheck=.FALSE.
 #ifdef IMPA
   IF(doPartInExists)THEN
     DoParticle=PDM%ParticleInside(iPart).AND.DoParticle_In(iPart)
@@ -666,8 +665,7 @@ DO iPart=1,PDM%ParticleVecLength
     markTol =.FALSE.
     DO WHILE (.NOT.PartisDone)
       markTol =.FALSE.
-      IF (PartDoubleCheck.EQ.2) THEN
-        PartDoubleCheck=1
+      IF (PartDoubleCheck) THEN
 #ifdef CODE_ANALYZE
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -1053,6 +1051,7 @@ __STAMP__ &
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
 
+! check what happened with particle (crossedBC or switched element) and set partisdone or double check
 #if USE_LOADBALANCE
           IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1069,44 +1068,57 @@ __STAMP__ &
 #endif /*IMPA*/
           END IF
           IF(crossedBC .OR. SwitchedElement) THEN
-            IF (PartDoubleCheck.EQ.1) THEN
-              PartDoubleCheck=0
+            IF (PartDoubleCheck) THEN
+              PartDoubleCheck=.FALSE.
             END IF
             EXIT
           ELSE !((.NOT.crossedBC).AND.(.NOT.SwitchedElement)) THEN
-            IF (PartDoubleCheck.EQ.0) THEN
-              PartDoubleCheck = 1
+            IF (.NOT.PartDoubleCheck) THEN
+              PartDoubleCheck = .TRUE.
               PartIsDone= .FALSE.
-            ELSE
-              PartIsDone= .TRUE.
-              !print*,'here'
-              EXIT
             END IF
           END IF
         END IF ! IntersectCase.EQ.0
-        ! move list entry and check if it is the last to be considered
+
+        ! move first list entry to the end and the total list to the front. exit and check if the last is the correct intersection
+        IF(.NOT.crossedBC .AND. .NOT.SwitchedElement .AND. .NOT.PartIsDone .AND. PartDoubleCheck) THEN
+          moveList=.FALSE.
+          SELECT CASE (currentIntersect%intersectCase)
+          CASE(1)
+            SideID=PartElemToSide(E2S_SIDE_ID,currentIntersect%Side,ElemID)
+            SELECT CASE(SideType(SideID))
+            CASE(BILINEAR,PLANAR_NONRECT)
+              moveList=.TRUE.
+            END SELECT
+          CASE(3)
+            moveList=.TRUE.
+          END SELECT
+          IF (moveList) THEN
+            lastIntersect%alpha = currentIntersect%alpha
+            lastIntersect%alphaSphere = currentIntersect%alphaSphere
+            lastIntersect%xi = currentIntersect%xi
+            lastIntersect%eta = currentIntersect%eta
+            lastIntersect%Side = currentIntersect%Side
+            lastIntersect%intersectCase = currentIntersect%intersectCase
+            tmp=>firstIntersect
+            DO WHILE (.NOT.ASSOCIATED(tmp,lastIntersect))
+              tmp%alpha = tmp%next%alpha
+              tmp%alphaSphere = tmp%next%alphaSphere
+              tmp%xi = tmp%next%xi
+              tmp%eta = tmp%next%eta
+              tmp%Side = tmp%next%Side
+              tmp%intersectCase = tmp%next%intersectCase
+              tmp=>tmp%next
+            END DO
+            EXIT
+          END IF
+        END IF
+
         currentIntersect=>currentIntersect%next
-        !print*,'was this the last intersection:', ASSOCIATED(currentIntersect,lastIntersect)
-        IF (ASSOCIATED(currentIntersect,LastIntersect)) EXIT
-        IF(.NOT.crossedBC .AND. .NOT.SwitchedElement .AND. .NOT.PartIsDone .AND. PartDoubleCheck.EQ.1) THEN
-          PartDoubleCheck=2
-          !print*,'double check is performed:', '--------lastintersect is associated',ASSOCIATED(lastIntersect)
-          lastIntersect%alpha = currentIntersect%alpha
-          lastIntersect%alphaSphere = currentIntersect%alphaSphere
-          lastIntersect%xi = currentIntersect%xi
-          lastIntersect%eta = currentIntersect%eta
-          lastIntersect%Side = currentIntersect%Side
-          lastIntersect%intersectCase = currentIntersect%intersectCase
-          tmp=>firstIntersect
-          DO WHILE (.NOT.ASSOCIATED(tmp,lastIntersect))
-            tmp%alpha = tmp%next%alpha
-            tmp%alphaSphere = tmp%next%alphaSphere
-            tmp%xi = tmp%next%xi
-            tmp%eta = tmp%next%eta
-            tmp%Side = tmp%next%Side
-            tmp%intersectCase = tmp%next%intersectCase
-            tmp=>tmp%next
-          END DO
+        IF (ASSOCIATED(currentIntersect,LastIntersect)) THEN
+          PartDoubleCheck=.FALSE.
+          PartIsDone= .TRUE.
+          EXIT
         END IF
       END DO
 #ifdef CODE_ANALYZE
@@ -1133,10 +1145,9 @@ __STAMP__ &
       END IF
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
-      ! reset intersection list
-      !print*,'resets list entries'
+      ! reset intersection list because no intersections where found or no double check is performed or no interacions occured
       currentIntersect=>firstIntersect
-      IF (currentIntersect%intersectCase.GT.0)THEN
+      IF (currentIntersect%intersectCase.GT.0 .AND. .NOT.PartDoubleCheck)THEN
         DO WHILE (ASSOCIATED(currentIntersect))
           currentIntersect%alpha = 1.0
           currentIntersect%intersectCase = 0
@@ -1253,23 +1264,6 @@ DO iPart=1,PDM%ParticleVecLength
 END  DO ! iPart=1,PDM%ParticleVecLength
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif
-
-!! delete intersection list
-!currentIntersect => firstIntersect
-!DO WHILE (ASSOCIATED(currentIntersect))
-!  tmp = currentIntersect%next
-!  DEALLOCATE(currentIntersect)
-!  NULLIFY(currentIntersect)
-!  NULLIFY(currentIntersect%next)
-!  NULLIFY(currentIntersect%prev)
-!  currentIntersect = tmp
-!END DO
-!NULLIFY(firstIntersect)
-!NULLIFY(firstIntersect%prev)
-!NULLIFY(firstIntersect%next)
-!NULLIFY(lastIntersect%prev)
-!NULLIFY(lastIntersect%next)
-!NULLIFY(lastIntersect)
 
 END SUBROUTINE ParticleTracing
 
