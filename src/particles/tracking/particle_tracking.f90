@@ -698,7 +698,7 @@ DO iPart=1,PDM%ParticleVecLength
             IF(ALMOSTZERO(locAlpha)) markTol=.TRUE.
             IF(locAlpha/lengthPartTrajectory.GE.0.99) markTol=.TRUE.
           END IF
-        ELSE IF (lastIntersect%IntersectCase.EQ.3) THEN
+        ELSE IF (currentIntersect%IntersectCase.EQ.3) THEN
           iMP = currentIntersect%Side
           CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,iMP&
               ,locAlpha,locAlphaSphere,alphaDoneRel,iPart,alpha2=currentIntersect%alpha)
@@ -706,6 +706,14 @@ DO iPart=1,PDM%ParticleVecLength
           currentIntersect%IntersectCase=0
           IF(isHit) CALL AssignListPosition(currentIntersect,locAlpha,iMP,3,alpha2_IN=locAlphaSphere)
         END IF
+        ! if double check found no intersection reset entry in list and adjust lastentry pointer
+        IF (.NOT.isHit) THEN
+          currentIntersect%alpha = 1.0
+          currentIntersect%intersectCase = 0
+          lastIntersect => currentIntersect
+          lastIntersect%prev => currentIntersect%prev%prev
+        END IF
+
       ELSE ! NOT PartDoubleCheck
 ! -- 4. Check if particle intersected a side and also which side (also MacroSpheres and AuxBCs)
 !       For each side only one intersection is chosen, but particle might insersect more than one side. Assign pointer list 
@@ -1007,18 +1015,17 @@ __STAMP__ &
 #endif /*CODE_ANALYZE*/
 ! -- 8. Reset interscetion list if no double check is performed
       ! reset intersection list because no intersections where found or no double check is performed or no interacions occured
-      currentIntersect=>lastIntersect%prev
-      IF (currentIntersect%intersectCase.GT.0 .AND. .NOT.PartDoubleCheck)THEN
       currentIntersect=>firstIntersect
+      IF (currentIntersect%intersectCase.GT.0 .AND. .NOT.PartDoubleCheck)THEN
         DO WHILE (ASSOCIATED(currentIntersect))
           currentIntersect%alpha = 1.0
           currentIntersect%intersectCase = 0
-          currentIntersect => currentIntersect%next
           IF(ASSOCIATED(currentIntersect,lastIntersect)) THEN
             lastIntersect => firstIntersect%next
             lastIntersect%prev => firstIntersect
             EXIT
           END IF
+          currentIntersect => currentIntersect%next
         END DO
       END IF
     END DO ! PartisDone=.FALSE.
