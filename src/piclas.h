@@ -46,7 +46,7 @@
 #define CHARGEDPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
 
 ! Check for particles to be interpolated or deposited: x = iPart
-#if (PP_TimeDiscMethod==300) /*FP-Flow*/ 
+#if (PP_TimeDiscMethod==300) /*FP-Flow*/
 #define PUSHPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
 #define DEPOSITPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
 #define INTERPOLATEPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)

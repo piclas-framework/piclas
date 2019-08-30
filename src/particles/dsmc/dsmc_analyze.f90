@@ -1717,7 +1717,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
               END IF
             END IF
             IF((DSMC%VibRelaxProb.GE.2).AND..NOT.(DSMC%RotRelaxProb.GE.2)) THEN
-              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,2).GT.0)  DSMC_MacroVal(nVarLoc*(iSpec)+13,kk,ll,mm, iElem) = & 
+              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,2).GT.0)  DSMC_MacroVal(nVarLoc*(iSpec)+13,kk,ll,mm, iElem) = &
                                          DSMC%QualityFacSampVib(iElem,iSpec+1,2) / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,2))
               IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,1).GT.0)  DSMC_MacroVal(nVarLoc*(iSpec)+14,kk,ll,mm, iElem) = &
                                          DSMC%QualityFacSampVib(iElem,iSpec+1,1) / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,1))

@@ -65,7 +65,7 @@ LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation
 TYPE tVarVibRelaxProb
   REAL, ALLOCATABLE           :: ProbVibAvNew(:)            ! New Average of vibrational relaxation probability (1:nSPecies)
                                                             ! , VibRelaxProb = 2
-  REAL, ALLOCATABLE           :: ProbVibAv(:,:)             ! Average of vibrational relaxation probability of the Element 
+  REAL, ALLOCATABLE           :: ProbVibAv(:,:)             ! Average of vibrational relaxation probability of the Element
                                                             ! (1:nElems,nSpecies), VibRelaxProb = 2
   INTEGER, ALLOCATABLE        :: nCollis(:)                 ! Number of Collisions (1:nSPecies), VibRelaxProb = 2
   REAL                        :: alpha                      ! Relaxation factor of ProbVib, VibRelaxProb = 2

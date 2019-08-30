@@ -278,7 +278,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   END DO
 
   CALL FindStatisticalNeigh(iPartIndx, nPart, iElem , GEO%Volume(iElem))
-  
+
   IF(DSMC%VibRelaxProb.EQ.2.0) THEN
     DO iSpec=1,nSpecies
       IF(VarVibRelaxProb%nCollis(iSpec).NE.0) THEN ! Calc new vibrational relaxation probability
@@ -574,7 +574,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
   USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
   USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
   USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-  USE MOD_part_tools,             ONLY : GetParticleWeight
+  USE MOD_part_tools              ,ONLY : GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

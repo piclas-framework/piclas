@@ -21,7 +21,7 @@ MODULE MOD_FillMortar_HDG
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -71,18 +71,18 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER     :: SideID,iSide,mtype,iMortar,nMortars
 INTEGER     :: i,j,p,q,iGP_face,jGP_face
 REAL        :: dkron(0:PP_N,0:PP_N)
 !===================================================================================================================================
   ALLOCATE(SmallMortarInfo(1:nSides))
-  SmallMortarInfo=0 
-  
+  SmallMortarInfo=0
+
   !=-1: small mortar neighbor (slave)
   !=0: not a small mortar
   != 1: small mortar at big side
-  
+
   DO SideID=1,nSides
     mtype=MortarType(1,SideID)
     IF(mtype.EQ.-1) THEN
@@ -92,7 +92,7 @@ REAL        :: dkron(0:PP_N,0:PP_N)
     ELSEIF(mtype.EQ.-10)THEN
       SmallMortarInfo(SideID)=-1
     ELSEIF(mtype.GT.0) THEN
-      !is a big mortar side: 
+      !is a big mortar side:
       nMortars=MERGE(4,2,mtype.EQ.1)
       iSide=MortarType(2,SideID)  !index of Big Side in MortarInfo
       DO iMortar=1,nMortars
@@ -106,7 +106,7 @@ REAL        :: dkron(0:PP_N,0:PP_N)
     ELSE
       CALL abort(__STAMP__&
                 ,'InitMortar_HDG: this case should not appear!!')
-    END IF 
+    END IF
     IF(SmallMortarInfo(SideID).NE.0) MaskedSide(SideID)=.TRUE.
   END DO !SideID=1,nSides
 
@@ -117,12 +117,12 @@ REAL        :: dkron(0:PP_N,0:PP_N)
   END DO
 
   ALLOCATE(IntMatMortar(nGP_face,nGP_Face,4,3)) ! 4-1 , 2-1 in eta, 2-1 in xi
-  IntMatMortar=0. 
+  IntMatMortar=0.
   jGP_face=0
   DO j=0,PP_N; DO i=0,PP_N
     jGP_Face=jGP_Face+1
     iGP_Face=0
-    DO q=0,PP_N; DO p=0,PP_N 
+    DO q=0,PP_N; DO p=0,PP_N
       iGP_Face=iGP_Face+1
       !type 1: update
       ! U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+M_0_1(i,p)*M_0_1(j,q)*lambda_in(:,i,j,MortarSideID)
@@ -133,13 +133,13 @@ REAL        :: dkron(0:PP_N,0:PP_N)
       IntMatMortar(iGP_Face,jGP_Face,2,1) =IntMatMortar(iGP_Face,jGP_Face,2,1) + M_0_2(i,p)*M_0_1(j,q)
       IntMatMortar(iGP_Face,jGP_Face,3,1) =IntMatMortar(iGP_Face,jGP_Face,3,1) + M_0_1(i,p)*M_0_2(j,q)
       IntMatMortar(iGP_Face,jGP_Face,4,1) =IntMatMortar(iGP_Face,jGP_Face,4,1) + M_0_2(i,p)*M_0_2(j,q)
-  
+
       !type 2: update
       ! U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+dkron(i,p)*M_0_1(j,q)*lambda_in(:,i,j,MortarSideID)
       ! U_tmp(:,p,q,2)=U_tmp(:,p,q,2)+dkron(i,p)*M_0_2(j,q)*lambda_in(:,i,j,MortarSideID)
       IntMatMortar(iGP_Face,jGP_Face,1,2) =IntMatMortar(iGP_Face,jGP_Face,1,2) + dkron(i,p)*M_0_1(j,q)
       IntMatMortar(iGP_Face,jGP_Face,2,2) =IntMatMortar(iGP_Face,jGP_Face,2,2) + dkron(i,p)*M_0_2(j,q)
-  
+
       !type 3: update
       ! U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+M_0_1(i,p)*dkron(j,q)*lambda_in(:,i,j,MortarSideID)
       ! U_tmp(:,p,q,2)=U_tmp(:,p,q,2)+M_0_2(i,p)*dkron(j,q)*lambda_in(:,i,j,MortarSideID)
@@ -152,7 +152,7 @@ END SUBROUTINE InitMortar_HDG
 
 SUBROUTINE BigToSmallMortar_HDG(nVar_in,lambda_in)
 !===================================================================================================================================
-!> fills small non-conforming sides with data for master side with data from the corresponding large side, using 1D interpolation 
+!> fills small non-conforming sides with data for master side with data from the corresponding large side, using 1D interpolation
 !> operators M_0_1,M_0_2
 !>
 !> REMARK: NO doMPISides, because nMortarMPIsides=0 has to be guaranteed!
@@ -174,7 +174,7 @@ USE MOD_Preproc
 USE MOD_Mortar_Vars, ONLY: M_0_1,M_0_2
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_Mesh_Vars,   ONLY: nSides 
+USE MOD_Mesh_Vars,   ONLY: nSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -184,7 +184,7 @@ IMPLICIT NONE
 INTEGER,INTENT(IN) :: nVar_in
 REAL,INTENT(INOUT) :: lambda_in(1:nVar_in,0:PP_N,0:PP_N,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER      :: p,q,l
 INTEGER      :: iMortar,nMortars
 INTEGER      :: MortarSideID,SideID,locSide,flip
@@ -202,7 +202,7 @@ DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
     !    U_tmp2(:,p,:,1)  =  M_0_1 * lambda_in(p,:,MortarSideID)
     !    U_tmp2(:,p,:,2)  =  M_0_2 * lambda_in(p,:,MortarSideID)
     DO q=0,PP_N
-      DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction 
+      DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
         U_tmp2(:,p,q,1)=                  M_0_1(0,q)*lambda_in(:,p,0,MortarSideID)
         U_tmp2(:,p,q,2)=                  M_0_2(0,q)*lambda_in(:,p,0,MortarSideID)
         DO l=1,PP_N
@@ -212,7 +212,7 @@ DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
       END DO
     END DO
     ! then in xi
-    DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction 
+    DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction
       ! The following p- and l-loop are four MATMULs: (ATTENTION M_0_1 and M_0_2 are already transposed in mortar.f90)
       !    U_tmp(:,:,q,1)  =  M_0_1 * U_tmp2(:,:,q,1)
       !    U_tmp(:,:,q,2)  =  M_0_2 * U_tmp2(:,:,q,1)
@@ -230,14 +230,14 @@ DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
           U_tmp(:,p,q,4)=U_tmp(:,p,q,4)+M_0_2(l,p)*U_tmp2(:,l,q,2)
         END DO !l=1,PP_N
       END DO
-    END DO 
+    END DO
 
   CASE(2) !1->2 in eta
     ! The following q- and l-loop are two MATMULs: (ATTENTION M_0_1 and M_0_2 are already transposed in mortar.f90)
     !    U_tmp(:,p,:,1)  =  M_0_1 * lambda_in(:,p,:,MortarSideID)
     !    U_tmp(:,p,:,2)  =  M_0_2 * lambda_in(:,p,:,MortarSideID)
     DO q=0,PP_N
-      DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction 
+      DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
         U_tmp(:,p,q,1)=                 M_0_1(0,q)*lambda_in(:,p,0,MortarSideID)
         U_tmp(:,p,q,2)=                 M_0_2(0,q)*lambda_in(:,p,0,MortarSideID)
         DO l=1,PP_N
@@ -288,7 +288,7 @@ SUBROUTINE SmallToBigMortar_HDG(nVar_in,mv_in)
 !===================================================================================================================================
 ! fills master side from small non-conforming sides, Using 1D projection operators M_1_0,M_2_0
 !
-!> This routine takes the contribution from the matrix-vector product in HDG of the small element sides  
+!> This routine takes the contribution from the matrix-vector product in HDG of the small element sides
 !> and adds to the big sides, using the transpose of the BigToSmall interpolation operator
 !> and also sets then the small mortar contribution to zero!
 !>
@@ -320,13 +320,13 @@ REAL,INTENT(INOUT) :: mv_in(nVar_in,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER  :: p,q,l
 INTEGER  :: iMortar,nMortars
 INTEGER  :: MortarSideID,SideID,iSide,flip
 REAL     :: mv_tmp( nVar_in,0:PP_N,0:PP_N,1:4)
 REAL     :: mv_tmp2(nVar_in,0:PP_N,0:PP_N,1:2)
-REAL     :: M_1_0(0:PP_N,0:PP_N),M_2_0(0:PP_N,0:PP_N) 
+REAL     :: M_1_0(0:PP_N,0:PP_N),M_2_0(0:PP_N,0:PP_N)
 !===================================================================================================================================
 M_1_0 = TRANSPOSE(M_0_1)
 M_2_0 = TRANSPOSE(M_0_2)
@@ -355,7 +355,7 @@ DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide  !Big SideID
   SELECT CASE(MortarType(1,MortarSideID))
   CASE(1) !1->4
     ! first in xi
-    DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction 
+    DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction
       ! The following p- and l-loop are four MATMULs: (ATTENTION M_1_0 and M_2_0 are already transposed in mortar.f90)
       !    mv_tmp2(:,:,q,1)  =  M_1_0 * mv_tmp(:,:,q,1) + M_2_0 * mv_tmp(:,:,q,2)
       !    mv_tmp2(:,:,q,2)  =  M_1_0 * mv_tmp(:,:,q,1) + M_2_0 * mv_tmp(:,:,q,2)
@@ -372,7 +372,7 @@ DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide  !Big SideID
     ! The following q- and l-loop are two MATMULs: (ATTENTION M_1_0 and M_2_0 are already transposed in mortar.f90)
     !    mv_in(p,:,MortarSideID)  +=  M_1_0 * mv_tmp2(p,:,1) + M_2_0 * mv_tmp2(p,:,2)
     DO q=0,PP_N
-      DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction 
+      DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
         DO l=0,PP_N
           mv_in(:,p,q,MortarSideID)=mv_in(:,p,q,MortarSideID) + M_1_0(l,q)*mv_tmp2(:,p,l,1)+M_2_0(l,q)*mv_tmp2(:,p,l,2)
         END DO
@@ -381,10 +381,10 @@ DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide  !Big SideID
 
   CASE(2) !1->2 in eta
     ! TODO why not q-loop first?
-    DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction 
+    DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
       ! The following q- and l-loop are two MATMULs: (ATTENTION M_1_0 and M_2_0 are already transposed in mortar.f90)
       !    mv_in(p,:,MortarSideID)  +=  M_1_0 * mv_tmp(p,:,1) + M_2_0 * mv_tmp(p,:,2)
-      DO q=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction 
+      DO q=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
         DO l=0,PP_N
           mv_in(:,p,q,MortarSideID)=mv_in(:,p,q,MortarSideID) + M_1_0(l,q)*mv_tmp(:,p,l,1)+M_2_0(l,q)*mv_tmp(:,p,l,2)
         END DO
@@ -392,7 +392,7 @@ DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide  !Big SideID
     END DO
 
   CASE(3) !1->2 in xi
-    DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction 
+    DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction
       ! The following p- and l-loop are two MATMULs: (ATTENTION M_1_0 and M_2_0 are already transposed in mortar.f90)
       !    mv_in(:,q,MortarSideID) + =   M_1_0 * mv_tmp(:,q,1) + M_2_0 * mv_tmp(:,q,2)
       DO p=0,PP_N
@@ -416,9 +416,9 @@ SUBROUTINE SmallToBigMortarPrecond_HDG(whichPrecond)
 !>  mv_big +=  (Imat_j)^T * mv_small_j = (Imat_j)^T SMat_j Imat_j lambda_big
 !>
 !> Here the "naked" small Side Matrix (1:nGP_face,1:nGP_face) must be multiplied with the Interpolation matrix from the left
-!> and its transpose from the right.  
+!> and its transpose from the right.
 !>
-!> not optimized implementation, since buildPrecond is not so oftern called! 
+!> not optimized implementation, since buildPrecond is not so oftern called!
 !>
 !===================================================================================================================================
 ! MODULES
@@ -435,26 +435,26 @@ INTEGER,INTENT(IN) :: whichPrecond
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER     :: i,k,iSide,iMortar,nMortars,mtype,MortarSideID,SmallSideID
 !===================================================================================================================================
   IF(whichPrecond.EQ.0) RETURN
 
 
   DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide  !Big SideID
-  
+
     nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
     mtype=MortarType(1,MortarSideID)
     iSide=MortarType(2,MortarSideID)  !index of Big Side in MortarInfo
     DO iMortar=1,nMortars
-      SmallSideID = MortarInfo(MI_SIDEID,iMortar,iSide) 
+      SmallSideID = MortarInfo(MI_SIDEID,iMortar,iSide)
       SELECT CASE(whichPrecond)
-      CASE(1) !side-block matrix 
-        Precond(:,:,MortarSideID) = Precond(:,:,MortarSideID)                           & 
+      CASE(1) !side-block matrix
+        Precond(:,:,MortarSideID) = Precond(:,:,MortarSideID)                           &
                                     + MATMUL(TRANSPOSE(IntMatMortar(:,:,iMortar,mtype)),      &
                                              MATMUL(Precond(:,:,SmallSideID),IntMatMortar(:,:,iMortar,mtype)))
         Precond(:,:,SmallSideID)=0.
-      CASE(2) !only diagonal part of the  matrix , M_ij= I_ki D_kk I_kj, only i=j 
+      CASE(2) !only diagonal part of the  matrix , M_ij= I_ki D_kk I_kj, only i=j
         DO i=1,nGP_Face
           DO k=1,nGP_Face
             InvPrecondDiag(i,MortarSideID)= InvPrecondDiag(i,MortarSideID)                  &

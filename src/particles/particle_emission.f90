@@ -5403,7 +5403,7 @@ __STAMP__&
         iPart=1
         nReject=0
         allowedRejections=0
-        
+
         IF(Symmetry2DAxisymmetric) THEN
           IF (RadialWeighting%DoRadialWeighting.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))))) THEN
             IF(RadialWeighting%CellLocalWeighting) THEN

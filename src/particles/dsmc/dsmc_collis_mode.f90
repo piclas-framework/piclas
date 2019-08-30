@@ -385,7 +385,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
       DSMC%CalcRotProb(iSpec1,1) = DSMC%CalcRotProb(iSpec1,1) + ProbRot1
       DSMC%CalcRotProb(iSpec1,3) = DSMC%CalcRotProb(iSpec1,3) + 1
     END IF
-  
+
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_vib(iSpec1, Xi_rel, iElem, ProbVib1)
     IF(ProbVib1.GT.iRan) DoVib1 = .TRUE.
@@ -2790,7 +2790,7 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
   REAL, INTENT(OUT)         :: ProbRot, ProbRotMax
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                      :: TransEn, RotEn, RotDOF, CorrFact           ! CorrFact: To correct sample Bias 
+  REAL                      :: TransEn, RotEn, RotDOF, CorrFact           ! CorrFact: To correct sample Bias
                                                                           ! (fewer DSMC particles than natural ones)
 !===================================================================================================================================
 
@@ -2813,7 +2813,7 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
     ProbRot = DSMC%RotRelaxProb * CorrFact
   ELSEIF(DSMC%RotRelaxProb.EQ.2.0) THEN ! P_rot according to Boyd (based on Parker's model)
 
-    RotDOF = RotDOF*0.5 ! Only half of the rotational degree of freedom, because the other half is used in the relaxation 
+    RotDOF = RotDOF*0.5 ! Only half of the rotational degree of freedom, because the other half is used in the relaxation
                         ! probability of the collision partner, see Boyd (doi:10.1063/1.858531)
 
     ProbRot = 1./SpecDSMC(iSpec)%CollNumRotInf * (1. + GAMMA(RotDOF+2.-SpecDSMC(iSpec)%omegaVHS) &
@@ -2864,7 +2864,7 @@ REAL, INTENT(IN)          :: Xi_rel
 REAL, INTENT(OUT)         :: ProbVib
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                      :: CorrFact       ! CorrFact: To correct sample Bias 
+REAL                      :: CorrFact       ! CorrFact: To correct sample Bias
                                             ! (fewer DSMC particles than natural ones)
 INTEGER                   :: iPolyatMole, iDOF
 !===================================================================================================================================
@@ -2892,8 +2892,8 @@ INTEGER                   :: iPolyatMole, iDOF
     ELSE
       ProbVib = DSMC%VibRelaxProb * CorrFact
     END IF
-  ELSE IF(DSMC%VibRelaxProb.EQ.2.0) THEN 
-    ! Calculation of Prob Vib in function DSMC_calc_var_P_vib. 
+  ELSE IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+    ! Calculation of Prob Vib in function DSMC_calc_var_P_vib.
     ! This has to average over all collisions according to Boyd (doi:10.1063/1.858495)
     ! The average value of the cell is only taken from the vector
     ProbVib = VarVibRelaxProb%ProbVibAv(iElem, iSpec) * CorrFact
@@ -2914,7 +2914,7 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
     USE MOD_Globals            ,ONLY : Abort
     USE MOD_Globals_Vars       ,ONLY : Pi, BoltzmannConst
     USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, CollInf
-  
+
 ! IMPLICIT VARIABLE HANDLING
     IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2927,8 +2927,8 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
 ! LOCAL VARIABLES
   REAL                      :: TempCorr, DrefVHS, CRela
 !===================================================================================================================================
-  
-  
+
+
   ! P_vib according to Boyd, corrected by Abe, only V-T transfer
   ! determine joint omegaVHS and Dref factor and rel velo
   DrefVHS = 0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(jSpec)%DrefVHS)
@@ -2949,7 +2949,7 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
     ! __STAMP__&
     ! ,'Error! Vibrational relaxation probability is NAN (CRela);',RealInfoOpt=CRela)!, jSpec, CRela
   END IF
-  
+
 END SUBROUTINE DSMC_calc_var_P_vib
 
 !--------------------------------------------------------------------------------------------------!

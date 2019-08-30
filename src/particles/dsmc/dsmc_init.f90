@@ -1679,7 +1679,7 @@ IMPLICIT NONE
     CALL CloseDataFile()
   ELSE ! If not DoRestart
     ALLOCATE(Coll_pData(1))
-    ALLOCATE(nPerSpec(nSpecies))  
+    ALLOCATE(nPerSpec(nSpecies))
     SWRITE(*,*) 'Set vibrational relaxation probability based on temperature in the cell'
     DO iElem = 1, nElems
       nPerSpec = 0
@@ -1739,7 +1739,7 @@ IMPLICIT NONE
             END DO ! dim = 3
             Coll_pData(1)%CRela2 = CRela2
             CALL DSMC_calc_var_P_vib(iSpec,jSpec,1,VibProb)
-            VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VarVibRelaxProb%ProbVibAv(iElem,iSpec) & 
+            VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VarVibRelaxProb%ProbVibAv(iElem,iSpec) &
                                                    + (VibProb - VarVibRelaxProb%ProbVibAv(iElem,iSpec)) / n
             n = n + 1
           END DO ! iLoop = nLoop

@@ -28,7 +28,7 @@ END INTERFACE
 INTERFACE CalcVelocity_maxwell_lpn
   MODULE PROCEDURE CalcVelocity_maxwell_lpn
 END INTERFACE
-    
+
 INTERFACE VELOFROMDISTRIBUTION
   MODULE PROCEDURE VELOFROMDISTRIBUTION
 END INTERFACE
@@ -415,7 +415,7 @@ USE MOD_Particle_Vars ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies
 USE MOD_DSMC_Vars     ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn     ! , RadialWeighting
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER, INTENT(IN)           :: Species
 REAL, INTENT(IN)              :: Pos(1:3)
 INTEGER, INTENT(IN)           :: ElemID
