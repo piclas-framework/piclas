@@ -1509,79 +1509,60 @@ IF(SurfCOMM%MPIOutputRoot)THEN
 
   ALLOCATE(Str2DVarNames(1:nVar2D_Total))
   Str2DVarNames(:)=''
-  nVarCount=0
+  nVarCount=1
   DO iSpec=1,nSpecies
     WRITE(SpecID,'(I3.3)') iSpec
-    nVarCount=nVarCount+1
-    Str2DVarNames(nVarCount) ='Spec'//TRIM(SpecID)//'_Counter'
+    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_Counter')
     IF(ANY(PartBound%Reactive)) THEN
-      nVarCount=nVarCount+1
-      Str2DVarNames(nVarCount) ='Spec'//TRIM(SpecID)//'_Accomodation'
-      nVarCount=nVarCount+1
-      Str2DVarNames(nVarCount) ='Spec'//TRIM(SpecID)//'_Coverage'
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_Accomodation')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_Coverage')
       DO iReact=1,Adsorption%ReactNum
         WRITE(ReactID,'(I3.3)') iReact
-        nVarCount=nVarCount+1
-        Str2DVarNames(nVarCount) ='Spec'//TRIM(SpecID)//'_CollReact'//TRIM(ReactID)//'_Count'
+        CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_CollReact'//TRIM(ReactID)//'_Count')
       END DO
       DO iReact=1,Adsorption%ReactNum
         WRITE(ReactID,'(I3.3)') iReact
-        nVarCount=nVarCount+iReact
-        Str2DVarNames(nVarCount) ='Spec'//TRIM(SpecID)//'_SurfReact'//TRIM(ReactID)//'_Count'
+        CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_SurfReact'//TRIM(ReactID)//'_Count')
       END DO
     END IF
 
     ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
     IF(CalcSurfaceImpact)THEN
       ! Add average impact energy for each species (trans, rot, vib)
-      nVarCount=nVarCount+1
-      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactEnergyTrans'
-      nVarCount=nVarCount+1
-      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactEnergyRot'
-      nVarCount=nVarCount+1
-      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactEnergyVib'
-
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyTrans')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyRot')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyVib')
       ! Add average impact vector for each species (x,y,z)
-      nVarCount=nVarCount+1
-      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactVectorX'
-      nVarCount=nVarCount+1
-      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactVectorY'
-      nVarCount=nVarCount+1
-      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactVectorZ'
-
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorX')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorY')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorZ')
       ! Add average impact angle for each species
-      nVarCount=nVarCount+1
-      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactAngle'
-
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactAngle')
       ! Add number of impacts
-      nVarCount=nVarCount+1
-      Str2DVarNames(nVarCount)='Spec'//TRIM(SpecID)//'_ImpactNumber'
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactNumber')
     END IF ! CalcSurfaceImpact
 
   END DO ! iSpec=1,nSpecies
 
   ! fill varnames for total values
-  Str2DVarNames(nVarCount+1) ='ForcePerAreaX'
-  Str2DVarNames(nVarCount+2) ='ForcePerAreaY'
-  Str2DVarNames(nVarCount+3) ='ForcePerAreaZ'
-  Str2DVarNames(nVarCount+4) ='HeatFlux'
-  Str2DVarNames(nVarCount+5) ='Counter_Total'
-  nVarCount = nVarCount + 5
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'ForcePerAreaX')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'ForcePerAreaY')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'ForcePerAreaZ')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Counter_Total')
   IF(ANY(PartBound%Reactive)) THEN
-    Str2DVarNames(nVarCount+1) ='HeatFlux_Portion_LH'
-    Str2DVarNames(nVarCount+2) ='HeatFlux_Portion_SurfDiss'
-    Str2DVarNames(nVarCount+3) ='HeatFlux_Portion_ER'
-    Str2DVarNames(nVarCount+4) ='HeatFlux_Portion_AdsDiss'
-    Str2DVarNames(nVarCount+5) ='HeatFlux_Portion_SurfReconstruct'
-    nVarCount = nVarCount + 5
+    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_LH')
+    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_SurfDiss')
+    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_ER')
+    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_AdsDiss')
+    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'HeatFlux_Portion_SurfReconstruct')
   END IF
 
   IF(nPorousBC.GT.0) THEN
     DO iPBC = 1, nPorousBC
       WRITE(PBCID,'(I2.2)') iPBC
-      Str2DVarNames(nVarCount+iPBC) = 'PorousBC'//TRIM(PBCID)//'_PumpCapacity'
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'PorousBC'//TRIM(PBCID)//'_PumpCapacity')
     END DO
-    nVarCount = nVarCount + nPorousBC
   END IF
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
@@ -1874,6 +1855,29 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
   END IF !TotalNumberMPF.GT.0
 
 END SUBROUTINE ReadAnalyzeSurfCollisToHDF5
+
+SUBROUTINE AddVarName(StrArray,ArrayDim,idx,VarName) 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! description
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+CHARACTER(LEN=*),INTENT(INOUT) :: StrArray(ArrayDim)
+INTEGER,INTENT(IN)             :: ArrayDim
+INTEGER,INTENT(INOUT)          :: idx
+CHARACTER(LEN=*),INTENT(IN)    :: VarName
+! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+WRITE (*,*) "idx =", idx
+StrArray(idx)=TRIM(VarName)
+idx=idx+1
+END SUBROUTINE AddVarName
 
 
 SUBROUTINE FinalizeParticleBoundarySampling()
