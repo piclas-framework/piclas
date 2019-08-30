@@ -433,18 +433,21 @@ SUBROUTINE ParticleTracing()
 !===================================================================================================================================
 !> Routine for tracking of moving particles using polynomial description of sides. 
 !> Routine calculates intersection and boundary interaction for (dorefmapping = false) and (TriaTracking = false)
-!>----------------------------------------------------------------------------------------------------------------------------------
+!> Time is analyzed for LoadBalancing purposes for each element independently because elements with e.g. surface are more costly
+!> ---------------------------------------------------------------------------------------------------------------------------------
 !> - Loop over all particles, which are in own proc --> PDM%ParticleInside(1:PDM%ParticleVecLength)
-!> -- 1. Track particle vector up to final particle position
-!> -- 2. special check if some double check has to be performed (only necessary for bilinear sides and macrospheres)
-!> -- 3. Check if particle intersected a side and also which side (also MacroSpheres and AuxBCs)
+!> -- 1. Initialize particle path and tracking info
+!> -- 2. Track particle vector up to final particle position
+!> -- 3. special check if some double check has to be performed (only necessary for bilinear sides and macrospheres)
+!> -- 4. Check if particle intersected a side and also which side (also MacroSpheres and AuxBCs)
 !>         For each side only one intersection is chosen, but particle might insersect more than one side. Assign pointer list 
-!> -- 3. Loop over all intersections in pointer list and check intersection type: inner side, BC, auxBC or MacroSphere
+!> -- 5. Loop over all intersections in pointer list and check intersection type: inner side, BC, auxBC or MacroSphere
 !>       and calculate interaction
-!> -- 3-1. Update particle position
-!> --    Time is sampled for LoadBalancing purposes for each element independently because elements with e.g. surface are more costly
-!> -- 4 If tolerance was marked, check if particle is inside of proc volume and try to find it in case it was lost
-!>----------------------------------------------------------------------------------------------------------------------------------
+!> -- 6. Update particle position and decide if double check might be necessary
+!> -- 7. Correct intersection list if double check will be performed and leave loop to do double check
+!> -- 8. Reset interscetion list if no double check is performed
+!> -- 9. If tolerance was marked, check if particle is inside of proc volume and try to find it in case it was lost
+!> ---------------------------------------------------------------------------------------------------------------------------------
 !> - DoubleCheck:
 !> -- If a tracked particle hits a bilinear side but the PartTrajectory points inside of the element, 
 !>    then the second alpha for this side might have been the actual intersection, which has been dropped in intersection routine.
@@ -540,7 +543,7 @@ doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
 
-! initialize the first and next pointer in intersection info
+! initialize the first and last pointer in intersection info
 IF (.NOT. ASSOCIATED(firstIntersect)) THEN
   ALLOCATE(firstIntersect)
   IF (.NOT. ASSOCIATED(firstIntersect%next)) ALLOCATE(firstIntersect%next)
@@ -595,6 +598,7 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*CODE_ANALYZE*/
 
 
+! -- 1. Initialize particle path and tracking info
     IF (MeasureTrackTime) nTracks=nTracks+1
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
@@ -666,9 +670,11 @@ DO iPart=1,PDM%ParticleVecLength
 !      !they can still be planar-nonrect for which the bilin-algorithm will be used which might give a different result
 !      !(anyway, this was a speed-up for completely planar meshes only, but those should be now calculated with triatracking)
     markTol =.FALSE.
+! -- 2. Track particle vector up to the final particle position
     DO WHILE (.NOT.PartisDone)
       markTol =.FALSE.
       IF (PartDoubleCheck) THEN
+! -- 3. special check if some double check has to be performed (only necessary for bilinear sides and macrospheres)
 #ifdef CODE_ANALYZE
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -700,7 +706,19 @@ DO iPart=1,PDM%ParticleVecLength
           currentIntersect%IntersectCase=0
           IF(isHit) CALL AssignListPosition(currentIntersect,locAlpha,iMP,3,alpha2_IN=locAlphaSphere)
         END IF
-      ELSE
+      ELSE ! NOT PartDoubleCheck
+! -- 4. Check if particle intersected a side and also which side (also MacroSpheres and AuxBCs)
+!       For each side only one intersection is chosen, but particle might insersect more than one side. Assign pointer list 
+#ifdef CODE_ANALYZE
+!---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
+        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+          IF(iPart.EQ.PARTOUT)THEN
+            WRITE(UNIT_stdout,'(110("="))')
+            WRITE(UNIT_stdout,'(A)')    '     | Particle is tracked: '
+          END IF
+        END IF
+!-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
+#endif /*CODE_ANALYZE*/
         DO ilocSide=1,6
           locAlpha=-1.
           IF (UseMacroPart) THEN
@@ -829,6 +847,8 @@ __STAMP__ &
         END IF
       END IF
 
+! -- 5. Loop over all intersections in pointer list and check intersection type: inner side, BC, auxBC or MacroSphere
+!       and calculate interaction
       currentIntersect => firstIntersect
       DO WHILE(ASSOCIATED(currentIntersect))
         SwitchedElement=.FALSE.
@@ -888,6 +908,7 @@ __STAMP__ &
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
 
+! -- 6. Update particle position and decide if double check might be necessary
 ! check what happened with particle (crossedBC or switched element) and set partisdone or double check
 #if USE_LOADBALANCE
           IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
@@ -917,6 +938,7 @@ __STAMP__ &
           END IF
         END IF ! IntersectCase.EQ.0
 
+! -- 7. Correct intersection list if double check will be performed and leave loop to do double check
         ! move first list entry to the end and the total list to the front. exit and check if the last is the correct intersection
         IF(.NOT.crossedBC .AND. .NOT.SwitchedElement .AND. .NOT.PartIsDone .AND. PartDoubleCheck) THEN
           moveList=.FALSE.
@@ -951,13 +973,14 @@ __STAMP__ &
           END IF
         END IF
 
+        ! leave loop because particle is found to remain in element (none of the found intersections is valid)
         currentIntersect=>currentIntersect%next
         IF (ASSOCIATED(currentIntersect,LastIntersect)) THEN
           PartDoubleCheck=.FALSE.
           PartIsDone= .TRUE.
           EXIT
         END IF
-      END DO
+      END DO ! ASSOCIATED(currentIntersect)
 #ifdef CODE_ANALYZE
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -982,9 +1005,11 @@ __STAMP__ &
       END IF
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
+! -- 8. Reset interscetion list if no double check is performed
       ! reset intersection list because no intersections where found or no double check is performed or no interacions occured
-      currentIntersect=>firstIntersect
+      currentIntersect=>lastIntersect%prev
       IF (currentIntersect%intersectCase.GT.0 .AND. .NOT.PartDoubleCheck)THEN
+      currentIntersect=>firstIntersect
         DO WHILE (ASSOCIATED(currentIntersect))
           currentIntersect%alpha = 1.0
           currentIntersect%intersectCase = 0
@@ -998,6 +1023,7 @@ __STAMP__ &
       END IF
     END DO ! PartisDone=.FALSE.
 
+! -- 9. If tolerance was marked, check if particle is inside of proc volume and try to find it in case it was lost
     IF(markTol)THEN
       IF(.NOT.PDM%ParticleInside(iPart))THEN
 #ifdef IMPA
