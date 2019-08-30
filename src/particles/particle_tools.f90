@@ -28,13 +28,21 @@ END INTERFACE
 INTERFACE CalcVelocity_maxwell_lpn
   MODULE PROCEDURE CalcVelocity_maxwell_lpn
 END INTERFACE
+    
+INTERFACE VELOFROMDISTRIBUTION
+  MODULE PROCEDURE VELOFROMDISTRIBUTION
+END INTERFACE
+
+INTERFACE CreateParticle
+  MODULE PROCEDURE CreateParticle
+END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector, GetParticleWeight, CalcVelocity_maxwell_lpn
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle, CalcVelocity_maxwell_lpn
 !===================================================================================================================================
 
 CONTAINS
@@ -50,7 +58,7 @@ USE MOD_Particle_Vars        ,ONLY: KeepWallParticles, PartState, VarTimeStep
 USE MOD_DSMC_Vars            ,ONLY: useDSMC, CollInf
 USE MOD_Particle_VarTimeStep ,ONLY: CalcVarTimeStep
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools    ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers   ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -135,7 +143,7 @@ END SUBROUTINE UpdateNextFreePosition
 
 FUNCTION DiceUnitVector()
 !===================================================================================================================================
-!
+! Calculate random normalized vector in 3D (unit space)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -162,6 +170,120 @@ DiceUnitVector(2) = aVec * SIN(bVec)
 END FUNCTION DiceUnitVector
 
 
+FUNCTION VELOFROMDISTRIBUTION(distribution,specID,Tempergy)
+!===================================================================================================================================
+!> calculation of velocityvector (Vx,Vy,Vz) sampled from given distribution function
+!>  liquid_evap: normal direction to surface with ARM from shifted evaporation rayleigh, tangential from normal distribution
+!>  liquid_refl: normal direction to surface with ARM from shifted reflection rayleigh, tangential from normal distribution
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+USE MOD_Globals                 ,ONLY: Abort,UNIT_stdOut
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Particle_Boundary_Tools ,ONLY: LIQUIDEVAP,LIQUIDREFL,ALPHALIQUID,BETALIQUID
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: distribution !< specifying keyword for velocity distribution
+INTEGER,INTENT(IN)          :: specID       !< input species
+REAL,INTENT(IN)             :: Tempergy         !< input temperature [K] or energy [J] or velocity [m/s]
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL, PARAMETER :: xmin=0., xmax=5.
+REAL            :: veloFromDistribution(1:3)
+REAL            :: alpha, beta
+REAL            :: y1, f, ymax, i, binsize
+REAL            :: sigma, val(1:2)
+REAL            :: Velo1, Velo2, Velosq
+REAL            :: RandVal(2)
+!===================================================================================================================================
+!-- set velocities
+SELECT CASE(TRIM(distribution))
+CASE('deltadistribution')
+  !Velosq = 2
+  !DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+    !CALL RANDOM_NUMBER(RandVal)
+    !Velo1 = 2.*RandVal(1) - 1.
+    !Velo2 = 2.*RandVal(2) - 1.
+    !Velosq = Velo1**2 + Velo2**2
+  !END DO
+  !veloFromDistribution(1) = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
+  !veloFromDistribution(2) = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
+  !CALL RANDOM_NUMBER(RandVal)
+  !veloFromDistribution(3) = SQRT(-2*LOG(RandVal(1)))
+
+  ! Get random vector
+  veloFromDistribution = DiceUnitVector()
+  ! Mirror z-component of velocity (particles are emitted from surface!)
+  veloFromDistribution(3) = ABS(veloFromDistribution(3))
+  ! Set magnitude
+  veloFromDistribution = Tempergy*veloFromDistribution
+
+CASE('liquid_evap','liquid_refl')
+  ! sample normal direction with ARM from given, shifted rayleigh distribution function
+  sigma = SQRT(BoltzmannConst*Tempergy/Species(SpecID)%MassIC)
+  alpha=ALPHALIQUID(specID,Tempergy)
+  beta=BETALIQUID(specID,Tempergy)
+  ! define ymax used in ARM
+  IF (beta.GE.1 .AND. TRIM(distribution).EQ.'liquid_evap') THEN
+    i = xmin
+    binsize = (xmax-xmin)/100.
+    ymax = LIQUIDEVAP(beta,i,1.)
+    DO WHILE (i.LE.xmax) !
+      val(1)=LIQUIDEVAP(beta,i,1.)
+      val(2)=LIQUIDEVAP(beta,i+binsize,1.)
+      IF (val(2).GT.val(1)) THEN
+        ymax = val(2)
+      END IF
+      i=i+binsize
+    END DO
+    ymax = ymax*1.1
+  ELSE
+    SELECT CASE(TRIM(distribution))
+    CASE('liquid_evap')
+      ymax = 0.7
+    CASE('liquid_refl')
+      ymax = 0.9
+    END SELECT
+  END IF
+  ! do ARM loop
+  y1=1
+  f=0
+  DO WHILE (y1-f.GT.0)
+    CALL RANDOM_NUMBER(RandVal)
+    Velo1=xmin+RandVal(1)*(xmax-xmin)
+    SELECT CASE(TRIM(distribution))
+    CASE('liquid_evap')
+      f=LIQUIDEVAP(beta,Velo1,1.)
+    CASE('liquid_refl')
+      f=LIQUIDREFL(alpha,beta,Velo1,1.)
+    END SELECT
+    y1=ymax*RandVal(2)
+  END DO
+  veloFromDistribution(3) = sigma*Velo1
+  ! build tangential velocities from gauss (normal) distribution
+  Velosq = 2
+  DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+    CALL RANDOM_NUMBER(RandVal)
+    Velo1 = 2.*RandVal(1) - 1.
+    Velo2 = 2.*RandVal(2) - 1.
+    Velosq = Velo1**2 + Velo2**2
+  END DO
+  veloFromDistribution(1) = Velo1*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
+  veloFromDistribution(2) = Velo2*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
+CASE DEFAULT
+  WRITE (UNIT_stdOut,'(A)') "distribution =", distribution
+  CALL abort(&
+__STAMP__&
+,'wrong velo-distri!')
+END SELECT
+
+END FUNCTION VELOFROMDISTRIBUTION
+
+
 PURE REAL FUNCTION GetParticleWeight(iPart)
 !===================================================================================================================================
 !> Determines the appropriate particle weighting for the axisymmetric case with radial weighting and the variable time step. For
@@ -176,10 +298,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)             :: iPart
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
 !===================================================================================================================================
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
@@ -197,94 +315,158 @@ END IF
 END FUNCTION GetParticleWeight
 
 SUBROUTINE CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit, Element, Temperature)
-  !===================================================================================================================================
-  ! Subroutine to sample current cell values (partly copied from 'LD_DSMC_Mean_Bufferzone_A_Val' and 'dsmc_analyze')
-  !===================================================================================================================================
-  ! MODULES
-  USE MOD_Globals
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_Particle_Vars,          ONLY : Species!, DoZigguratSampling
-  !USE Ziggurat,                   ONLY : rnor
-  ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-  !-----------------------------------------------------------------------------------------------------------------------------------
-  ! INPUT VARIABLES
-  INTEGER,INTENT(IN)               :: FractNbr
-  INTEGER,INTENT(IN), OPTIONAL     :: iInit
-  INTEGER, OPTIONAL                :: Element !for BGG from VTK
-  REAL,INTENT(IN), OPTIONAL        :: Temperature
-  !-----------------------------------------------------------------------------------------------------------------------------------
-  ! OUTPUT VARIABLES
-  REAL,INTENT(OUT)                 :: Vec3D(3)
-  !-----------------------------------------------------------------------------------------------------------------------------------
-  ! LOCAL VARIABLES
-  REAL                             :: RandVal(3), Velo1, Velo2, Velosq, Tx, ty, Tz, v_drift(3)
-  !===================================================================================================================================
-  IF(PRESENT(iInit).AND.PRESENT(Temperature))CALL abort(&
-  __STAMP__&
-  ,'CalcVelocity_maxwell_lpn. iInit and Temperature cannot both be input arguments!')
-  IF(PRESENT(iInit).AND..NOT.PRESENT(Element))THEN
+!===================================================================================================================================
+! Subroutine to sample current cell values (partly copied from 'LD_DSMC_Mean_Bufferzone_A_Val' and 'dsmc_analyze')
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+USE MOD_Particle_Vars,          ONLY : Species!, DoZigguratSampling
+!USE Ziggurat,                   ONLY : rnor
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: FractNbr
+INTEGER,INTENT(IN), OPTIONAL     :: iInit
+INTEGER, OPTIONAL                :: Element !for BGG from VTK
+REAL,INTENT(IN), OPTIONAL        :: Temperature
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                 :: Vec3D(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                             :: RandVal(3), Velo1, Velo2, Velosq, Tx, ty, Tz, v_drift(3)
+!===================================================================================================================================
+IF(PRESENT(iInit).AND.PRESENT(Temperature))CALL abort(&
+__STAMP__&
+,'CalcVelocity_maxwell_lpn. iInit and Temperature cannot both be input arguments!')
+IF(PRESENT(iInit).AND..NOT.PRESENT(Element))THEN
+  Tx=Species(FractNbr)%Init(iInit)%MWTemperatureIC
+  Ty=Species(FractNbr)%Init(iInit)%MWTemperatureIC
+  Tz=Species(FractNbr)%Init(iInit)%MWTemperatureIC
+  v_drift=Species(FractNbr)%Init(iInit)%VeloIC *Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
+ELSE IF (PRESENT(Element)) THEN
+  IF (Species(FractNbr)%Init(iInit)%ElemTemperatureFileID.GT.0) THEN
+    Tx=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(1,Element)
+    Ty=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(2,Element)
+    Tz=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(3,Element)
+  ELSE
     Tx=Species(FractNbr)%Init(iInit)%MWTemperatureIC
     Ty=Species(FractNbr)%Init(iInit)%MWTemperatureIC
     Tz=Species(FractNbr)%Init(iInit)%MWTemperatureIC
-    v_drift=Species(FractNbr)%Init(iInit)%VeloIC *Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
-  ELSE IF (PRESENT(Element)) THEN
-    IF (Species(FractNbr)%Init(iInit)%ElemTemperatureFileID.GT.0) THEN
-      Tx=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(1,Element)
-      Ty=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(2,Element)
-      Tz=Species(FractNbr)%Init(iInit)%ElemTemperatureIC(3,Element)
-    ELSE
-      Tx=Species(FractNbr)%Init(iInit)%MWTemperatureIC
-      Ty=Species(FractNbr)%Init(iInit)%MWTemperatureIC
-      Tz=Species(FractNbr)%Init(iInit)%MWTemperatureIC
-    END IF
-    IF (Species(FractNbr)%Init(iInit)%ElemVelocityICFileID.GT.0) THEN
-      v_drift=Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,Element)
-    ELSE
-      v_drift=Species(FractNbr)%Init(iInit)%VeloIC *Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
-    END IF
-  ELSE IF(PRESENT(Temperature))THEN
-    Tx=Temperature
-    Ty=Temperature
-    Tz=Temperature
-    v_drift=0.0
-  ELSE
-  CALL abort(&
-  __STAMP__&
-  ,'PO: force temperature!!')
   END IF
-  
-  !IF (.NOT.DoZigguratSampling) THEN !polar method
-    Velosq = 2
-    DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-      CALL RANDOM_NUMBER(RandVal)
-      Velo1 = 2.*RandVal(1) - 1.
-      Velo2 = 2.*RandVal(2) - 1.
-      Velosq = Velo1**2 + Velo2**2
-    END DO
-    Vec3D(1) = Velo1*SQRT(-2*BoltzmannConst*Tx/ &
-      Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !x-Komponente
-    Vec3D(2) = Velo2*SQRT(-2*BoltzmannConst*Ty/ &
-    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !y-Komponente
-    Velosq = 2
-    DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-      CALL RANDOM_NUMBER(RandVal)
-      Velo1 = 2.*RandVal(1) - 1.
-      Velo2 = 2.*RandVal(2) - 1.
-      Velosq = Velo1**2 + Velo2**2
-    END DO
-    Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*Tz/ &
-      Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !z-Komponente
-  !ELSE !ziggurat method
-  !  Velo1 = rnor()
-  !  Vec3D(1) = Velo1*SQRT(BoltzmannConst*Tx/Species(FractNbr)%MassIC)             !x-Komponente
-  !  Velo1 = rnor()
-  !  Vec3D(2) = Velo1*SQRT(BoltzmannConst*Ty/Species(FractNbr)%MassIC)             !y-Komponente
-  !  Velo1 = rnor()
-  !  Vec3D(3) = Velo1*SQRT(BoltzmannConst*Tz/Species(FractNbr)%MassIC)             !z-Komponente
-  !END IF
-  Vec3D(1:3) = Vec3D(1:3) + v_drift
-  
-  END SUBROUTINE CalcVelocity_maxwell_lpn
+  IF (Species(FractNbr)%Init(iInit)%ElemVelocityICFileID.GT.0) THEN
+    v_drift=Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,Element)
+  ELSE
+    v_drift=Species(FractNbr)%Init(iInit)%VeloIC *Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
+  END IF
+ELSE IF(PRESENT(Temperature))THEN
+  Tx=Temperature
+  Ty=Temperature
+  Tz=Temperature
+  v_drift=0.0
+ELSE
+CALL abort(&
+__STAMP__&
+,'PO: force temperature!!')
+END IF
+
+!IF (.NOT.DoZigguratSampling) THEN !polar method
+  Velosq = 2
+  DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+    CALL RANDOM_NUMBER(RandVal)
+    Velo1 = 2.*RandVal(1) - 1.
+    Velo2 = 2.*RandVal(2) - 1.
+    Velosq = Velo1**2 + Velo2**2
+  END DO
+  Vec3D(1) = Velo1*SQRT(-2*BoltzmannConst*Tx/ &
+    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !x-Komponente
+  Vec3D(2) = Velo2*SQRT(-2*BoltzmannConst*Ty/ &
+  Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !y-Komponente
+  Velosq = 2
+  DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+    CALL RANDOM_NUMBER(RandVal)
+    Velo1 = 2.*RandVal(1) - 1.
+    Velo2 = 2.*RandVal(2) - 1.
+    Velosq = Velo1**2 + Velo2**2
+  END DO
+  Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*Tz/ &
+    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !z-Komponente
+!ELSE !ziggurat method
+!  Velo1 = rnor()
+!  Vec3D(1) = Velo1*SQRT(BoltzmannConst*Tx/Species(FractNbr)%MassIC)             !x-Komponente
+!  Velo1 = rnor()
+!  Vec3D(2) = Velo1*SQRT(BoltzmannConst*Ty/Species(FractNbr)%MassIC)             !y-Komponente
+!  Velo1 = rnor()
+!  Vec3D(3) = Velo1*SQRT(BoltzmannConst*Tz/Species(FractNbr)%MassIC)             !z-Komponente
+!END IF
+Vec3D(1:3) = Vec3D(1:3) + v_drift
+
+END SUBROUTINE CalcVelocity_maxwell_lpn
+
+SUBROUTINE CreateParticle(Species,Pos,ElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID)
+!===================================================================================================================================
+!> creates a single particle at correct array position and assign properties
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Particle_Vars ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies
+USE MOD_DSMC_Vars     ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn     ! , RadialWeighting
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER, INTENT(IN)           :: Species
+REAL, INTENT(IN)              :: Pos(1:3)
+INTEGER, INTENT(IN)           :: ElemID
+REAL, INTENT(IN)              :: Velocity(1:3)
+REAL, INTENT(IN)              :: RotEnergy
+REAL, INTENT(IN)              :: VibEnergy
+REAL, INTENT(IN)              :: ElecEnergy
+INTEGER, INTENT(OUT),OPTIONAL :: NewPartID
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+INTEGER :: newParticleID
+!===================================================================================================================================
+
+
+!IPWRITE(UNIT_stdOut,*) 'NEW PARTICLE!'
+
+newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+1)
+IF (newParticleID .EQ. 0) CALL abort(&
+__STAMP__&
+,'ERROR in CreateParticle: newParticleID.EQ.0 - maximum nbr of particles reached?')
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+
+PartSpecies(newParticleID) = Species
+LastPartPos(newParticleID,1:3)=Pos(1:3)
+PartState(newParticleID,1:3) = Pos(1:3)
+PartState(newParticleID,4:6) = Velocity(1:3)
+
+IF (useDSMC.AND.(CollisMode.GT.1)) THEN
+  PartStateIntEn(newParticleID, 1) = VibEnergy
+  PartStateIntEn(newParticleID, 2) = RotEnergy
+  IF (DSMC%ElectronicModel) THEN
+    PartStateIntEn(newParticleID, 3) = ElecEnergy
+  ENDIF
+END IF
+
+PDM%ParticleInside(newParticleID) = .TRUE.
+PDM%dtFracPush(newParticleID)     = .FALSE.
+PDM%IsNewPart(newParticleID)      = .FALSE.   ! ??????? correct ????
+PEM%Element(newParticleID)        = ElemID
+PEM%lastElement(newParticleID)    = ElemID
+
+! ?????? necessary?
+! IF (VarTimeStep%UseVariableTimeStep) THEN
+!   VarTimeStep%ParticleTimeStep(newParticleID) &
+!     = CalcVarTimeStep(PartState(newParticleID,1),PartState(newParticleID,2),PEM%Element(newParticleID))
+! END IF
+! IF (RadialWeighting%DoRadialWeighting) THEN
+!   PartMPF(newParticleID) = CalcRadWeightMPF(PartState(newParticleID,2), 1,newParticleID)
+! END IF
+IF (PRESENT(NewPartID)) NewPartID=newParticleID
+
+END SUBROUTINE CreateParticle
 
 END MODULE MOD_part_tools

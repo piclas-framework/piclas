@@ -22,6 +22,10 @@ MODULE MOD_TimeDisc
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
+INTERFACE InitTime
+  MODULE PROCEDURE InitTime
+END INTERFACE
+
 INTERFACE InitTimeDisc
   MODULE PROCEDURE InitTimeDisc
 END INTERFACE
@@ -34,7 +38,7 @@ INTERFACE FinalizeTimeDisc
   MODULE PROCEDURE FinalizeTimeDisc
 END INTERFACE
 
-PUBLIC :: InitTimeDisc,FinalizeTimeDisc
+PUBLIC :: InitTime,InitTimeDisc,FinalizeTimeDisc
 PUBLIC :: TimeDisc
 !===================================================================================================================================
 PUBLIC :: DefineParametersTimeDisc
@@ -63,6 +67,47 @@ CALL prms%CreateIntOption(   'NCalcTimeStepMax',"Compute dt at least after every
 CALL prms%CreateIntOption(   'IterDisplayStep',"Step size of iteration that are displayed.", value='1')
 
 END SUBROUTINE DefineParametersTimeDisc
+
+
+SUBROUTINE InitTime()
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,tAnalyze,tEndDiff,tAnalyzeDiff
+USE MOD_Restart_Vars           ,ONLY: RestartTime
+#ifdef PARTICLES
+USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout
+USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
+#endif /*PARTICLES*/
+USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+! Setting the time variable, RestartTime is either zero or the actual restart time
+time=RestartTime
+#ifdef PARTICLES
+iter_macvalout=0
+iter_macsurfvalout=0
+IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) MacroValSampTime = Time
+#endif /*PARTICLES*/
+iAnalyze=1
+! Determine analyze time
+tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd)
+
+! fill initial analyze stuff
+tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
+tEndDiff=tEnd-time            ! dito for end time
+
+END SUBROUTINE InitTime
+
 
 SUBROUTINE InitTimeDisc()
 !===================================================================================================================================
@@ -235,7 +280,7 @@ USE MOD_TimeAverage_vars       ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage            ,ONLY: CalcTimeAverage
 USE MOD_Analyze                ,ONLY: PerformAnalyze
 USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze
-USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime,RestartWallTime
+USE MOD_Restart_Vars           ,ONLY: RestartTime,RestartWallTime
 USE MOD_HDF5_output            ,ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
@@ -257,6 +302,7 @@ USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
 #ifdef PP_POIS
+USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Equation               ,ONLY: EvalGradient
 #endif /*PP_POIS*/
 #if USE_MPI
@@ -285,7 +331,6 @@ USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime,DoImportIMDFile
 USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter, UseAdaptive
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
-USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout
 #if (USE_MPI) && (USE_LOADBALANCE) && defined(PARTICLES)
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 #endif /* USE_LOADBALANCE && PARTICLES*/
@@ -304,7 +349,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                         :: tZero                    !> initial time of current simulation (zero or restarttime)
 REAL                         :: tPreviousAnalyze         !> time of previous analyze.
                                                          !> Used for Nextfile info written into previous file if greater tAnalyze
 REAL                         :: tPreviousAverageAnalyze  !> time of previous Average analyze.
@@ -324,24 +368,6 @@ LOGICAL                      :: NoPartInside
 #endif
 LOGICAL                      :: finalIter
 !===================================================================================================================================
-! init
-SWRITE(UNIT_StdOut,'(132("-"))')
-IF(.NOT.DoRestart)THEN
-  time=0.
-  SWRITE(UNIT_StdOut,*)'INITIAL PROJECTION:'
-ELSE
-  time=RestartTime
-  SWRITE(UNIT_StdOut,*)'REWRITING SOLUTION:'
-END IF
-#ifdef PARTICLES
-iter_macvalout=0
-iter_macsurfvalout=0
-IF (WriteMacroVolumeValues .OR. WriteMacroSurfaceValues) MacroValSampTime = Time
-#endif /*PARTICLES*/
-tZero=time
-iAnalyze=1
-! Determine analyze time
-tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd)
 tPreviousAnalyze=RestartTime
 ! first average analyze is not written at start but at first tAnalyze
 tPreviousAverageAnalyze=tAnalyze
@@ -391,9 +417,6 @@ iter_PID=0
 ! fill recordpoints buffer (first iteration)
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.)
 
-! fill initial analyze stuff
-tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
-tEndDiff=tEnd-time            ! dito for end time
 dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/)) ! quick fix: set dt for initial write DSMCHOState (WriteMacroVolumeValues=T)
 
 #if USE_LOADBALANCE
@@ -406,8 +429,8 @@ IF (DoInitialAutoRestart) THEN
   ! LoadBalanceSample still needs to be zero
   IF (IAR_PerformPartWeightLB) InitialAutoRestartSample=1
   ! correction for first analyzetime due to auto initial restart
-  IF (MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd,tZero+InitialAutoRestartSample*dt).LT.tAnalyze) THEN
-    tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd,tZero+LoadBalanceSample*dt)
+  IF (MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd,RestartTime+InitialAutoRestartSample*dt).LT.tAnalyze) THEN
+    tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd,RestartTime+LoadBalanceSample*dt)
     tAnalyzeDiff=tAnalyze-time
     dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
   END IF
@@ -734,7 +757,7 @@ DO !iter_t=0,MaxIter
 #endif /*USE_LOADBALANCE*/
     ! count analyze dts passed
     iAnalyze=iAnalyze+1
-    tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd)
+    tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd)
     WallTimeStart=PICLASTIME()
   END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
@@ -799,7 +822,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,Ext
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1342,25 +1365,25 @@ SUBROUTINE TimeStep_DSMC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
+USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
-USE MOD_Globals,          ONLY : abort
-USE MOD_Particle_Vars,    ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, &
+USE MOD_Globals                  ,ONLY: abort
+USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, &
                                 WriteMacroSurfaceValues, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
-USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
-USE MOD_DSMC,             ONLY : DSMC_main
-USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
-USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel,     ONLY: UpdateSurfModelVars, SurfaceModel_main
-USE MOD_Particle_Boundary_Porous, ONLY: PorousBoundaryRemovalProb_Pressure
-USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC
+USE MOD_DSMC_Vars                ,ONLY: DSMC_RHS, DSMC, CollisMode
+USE MOD_DSMC                     ,ONLY: DSMC_main
+USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
+USE MOD_part_emission            ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking        ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_SurfaceModel             ,ONLY: UpdateSurfModelVars, SurfaceModel_main
+USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryRemovalProb_Pressure
+USE MOD_Particle_Boundary_Vars   ,ONLY: nPorousBC
 #if USE_MPI
-USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers       ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
@@ -1382,6 +1405,7 @@ REAL                  :: tLBStart
   IF (DoSurfaceFlux) THEN
     ! treat surface with respective model
     CALL SurfaceModel_main()
+    CALL UpdateSurfModelVars()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1484,6 +1508,7 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
+  ! absorptions could have happened
   CALL UpdateSurfModelVars()
 
 #if USE_LOADBALANCE
@@ -2007,70 +2032,70 @@ SUBROUTINE TimeStepByImplicitRK()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,dt_old, time
-USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, DoPrintConvInfo,FieldStage
-USE MOD_DG_Vars,                 ONLY:U,Un
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,iStage, nRKStages,dt_old, time
+USE MOD_TimeDisc_Vars          ,ONLY: ERK_a,ESDIRK_a,RK_b,RK_c
+USE MOD_LinearSolver_Vars      ,ONLY: ImplicitSource, DoPrintConvInfo,FieldStage
+USE MOD_DG_Vars                ,ONLY: U,Un
 #if USE_HDG
-USE MOD_HDG,                     ONLY:HDG
+USE MOD_HDG                    ,ONLY: HDG
 #else /*pure DG*/
-USE MOD_DG_Vars,                 ONLY:Ut
-USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
-USE MOD_Predictor,               ONLY:Predictor,StorePredictor
-USE MOD_LinearSolver_Vars,       ONLY:LinSolverRHS
-USE MOD_Equation,                ONLY:DivCleaningDamping
-USE MOD_Equation,                ONLY:CalcSource
+USE MOD_DG_Vars                ,ONLY: Ut
+USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
+USE MOD_Predictor              ,ONLY: Predictor,StorePredictor
+USE MOD_LinearSolver_Vars      ,ONLY: LinSolverRHS
+USE MOD_Equation               ,ONLY: DivCleaningDamping
+USE MOD_Equation               ,ONLY: CalcSource
 #ifdef maxwell
-USE MOD_Precond,                 ONLY:BuildPrecond
-USE MOD_Precond_Vars,            ONLY:UpdatePrecond
+USE MOD_Precond                ,ONLY: BuildPrecond
+USE MOD_Precond_Vars           ,ONLY: UpdatePrecond
 #endif /*maxwell*/
 #endif /*USE_HDG*/
-USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
+USE MOD_Newton                 ,ONLY: ImplicitNorm,FullNewton
 #ifdef PARTICLES
-USE MOD_TimeDisc_Vars,           ONLY:RK_fillSF
-USE MOD_Equation_Vars,           ONLY:c2_inv
-USE MOD_Particle_Mesh,           ONLY:CountPartsPerElem
-USE MOD_PICDepo_Vars,            ONLY:PartSource,DoDeposition
-USE MOD_LinearSolver_Vars,       ONLY:ExplicitPartSource
-USE MOD_Timedisc_Vars,           ONLY:RKdtFrac,RKdtFracTotal
-USE MOD_LinearSolver_Vars,       ONLY:DoUpdateInStage,PartXk
-USE MOD_Predictor,               ONLY:PartPredictor,PredictorType
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac &
+USE MOD_TimeDisc_Vars          ,ONLY: RK_fillSF
+USE MOD_Equation_Vars          ,ONLY: c2_inv
+USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
+USE MOD_PICDepo_Vars           ,ONLY: PartSource,DoDeposition
+USE MOD_LinearSolver_Vars      ,ONLY: ExplicitPartSource
+USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
+USE MOD_LinearSolver_Vars      ,ONLY: DoUpdateInStage,PartXk
+USE MOD_Predictor              ,ONLY: PartPredictor,PredictorType
+USE MOD_Particle_Vars          ,ONLY: PartIsImplicit,PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac &
                                       ,DoForceFreeSurfaceFlux,PartStateN,PartStage,PartQ,DoSurfaceFlux,PEM,PDM  &
                                       , Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs,PartDeltaX
-USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
-USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
-USE MOD_PICDepo,                 ONLY:Deposition
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
-USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
-USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
-USE MOD_DSMC,                    ONLY:DSMC_main
-USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS
-USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping,TriaTracking
-USE MOD_ParticleSolver,          ONLY:ParticleNewton, SelectImplicitParticles
-USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH&
+USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
+USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
+USE MOD_part_RHS               ,ONLY: CalcPartRHS,PartVeloToImp
+USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_DSMC                   ,ONLY: DSMC_main
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_ParticleSolver         ,ONLY: ParticleNewton, SelectImplicitParticles
+USE MOD_Part_RHS               ,ONLY: SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH&
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
-USE MOD_part_MPFtools,           ONLY:StartParticleMerge
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 #if USE_MPI
-USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
-USE MOD_Particle_MPI_Vars,       ONLY:DoExternalParts,PartMPI
-USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
+USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts,PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif /*USE_MPI*/
-USE MOD_PIC_Analyze,             ONLY:CalcDepositedCharge
-USE MOD_part_tools,              ONLY:UpdateNextFreePosition
+USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Mesh_Vars,      ONLY:Geo
-USE MOD_Particle_Tracking,       ONLY:ParticleSanityCheck
+USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
+USE MOD_Particle_Tracking      ,ONLY: ParticleSanityCheck
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #ifdef maxwell
-USE MOD_Precond_Vars,            ONLY:UpdatePrecondLB
+USE MOD_Precond_Vars           ,ONLY: UpdatePrecondLB
 #endif /*maxwell*/
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
@@ -2965,69 +2990,69 @@ SUBROUTINE TimeStepByRosenbrock()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,dt_inv,dt_old, time
-USE MOD_TimeDisc_Vars,           ONLY:RK_a,RK_c,RK_g,RK_b,RK_gamma
-USE MOD_LinearSolver_Vars,       ONLY:FieldStage,DoPrintConvInfo
-USE MOD_DG_Vars,                 ONLY:U,Un
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,iStage, nRKStages,dt_inv,dt_old, time
+USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_c,RK_g,RK_b,RK_gamma
+USE MOD_LinearSolver_Vars      ,ONLY: FieldStage,DoPrintConvInfo
+USE MOD_DG_Vars                ,ONLY: U,Un
 #if USE_HDG
-USE MOD_HDG,                     ONLY:HDG
+USE MOD_HDG                    ,ONLY: HDG
 #else /*pure DG*/
-USE MOD_Precond_Vars,            ONLY:UpdatePrecond
-USE MOD_LinearOperator,          ONLY:MatrixVector
-USE MOD_LinearSolver,            ONLY:LinearSolver
-USE MOD_DG_Vars,                 ONLY:Ut
-USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
-USE MOD_LinearSolver_Vars,       ONLY:LinSolverRHS
-USE MOD_Equation,                ONLY:DivCleaningDamping
-USE MOD_Equation,                ONLY:CalcSource
+USE MOD_Precond_Vars           ,ONLY: UpdatePrecond
+USE MOD_LinearOperator         ,ONLY: MatrixVector
+USE MOD_LinearSolver           ,ONLY: LinearSolver
+USE MOD_DG_Vars                ,ONLY: Ut
+USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
+USE MOD_LinearSolver_Vars      ,ONLY: LinSolverRHS
+USE MOD_Equation               ,ONLY: DivCleaningDamping
+USE MOD_Equation               ,ONLY: CalcSource
 #ifdef maxwell
-USE MOD_Precond,                 ONLY:BuildPrecond
+USE MOD_Precond                ,ONLY: BuildPrecond
 #endif /*maxwell*/
 #endif /*USE_HDG*/
 #ifdef PARTICLES
-USE MOD_Equation_Vars,           ONLY:c2_inv
-USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
-USE MOD_ParticleSolver,          ONLY:Particle_GMRES
-USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,DoFieldUpdate
-USE MOD_Particle_Mesh,           ONLY:CountPartsPerElem
-!USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource
-USE MOD_Particle_Vars,           ONLY:PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac,PartStateN,PartStage,PartQ &
-                                     ,DoSurfaceFlux,PEM,PDM,Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs
-USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
-USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
-USE MOD_PICDepo,                 ONLY:Deposition
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
-USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
-USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
-USE MOD_DSMC,                    ONLY:DSMC_main
-USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS
-USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping,TriaTracking
-USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH&
-                                     ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
-USE MOD_part_MPFtools,           ONLY:StartParticleMerge
+USE MOD_Equation_Vars          ,ONLY: c2_inv
+USE MOD_LinearOperator         ,ONLY: PartMatrixVector, PartVectorDotProduct
+USE MOD_ParticleSolver         ,ONLY: Particle_GMRES
+USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK,DoFieldUpdate
+USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
+!USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource                                                                                                                               ! USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource
+USE MOD_Particle_Vars          ,ONLY: PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac,PartStateN,PartStage,PartQ &
+    ,DoSurfaceFlux,PEM,PDM,Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs
+USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
+USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
+USE MOD_part_RHS               ,ONLY: CalcPartRHS,PartVeloToImp
+USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_DSMC                   ,ONLY: DSMC_main
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Part_RHS               ,ONLY: SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH&
+    ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 #if USE_MPI
-USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
-USE MOD_Particle_MPI_Vars,       ONLY:DoExternalParts,PartMPI
-USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
+USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts,PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #ifdef CODE_ANALYZE
-USE MOD_MPI_Vars,                ONLY:offsetElemMPI
-USE MOD_Mesh_Vars,               ONLY:OffSetElem
+USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
+USE MOD_Mesh_Vars              ,ONLY: OffSetElem
 #endif /*CODE_ANALYZE*/
 #endif /*USE_MPI*/
-USE MOD_PIC_Analyze,             ONLY:CalcDepositedCharge
-USE MOD_part_tools,              ONLY:UpdateNextFreePosition
+USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Mesh_Vars,      ONLY:Geo
+USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY:LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #ifdef maxwell
-USE MOD_Precond_Vars,            ONLY:UpdatePrecondLB
+USE MOD_Precond_Vars           ,ONLY: UpdatePrecondLB
 #endif /*maxwell*/
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
@@ -4150,7 +4175,6 @@ USE MOD_part_tools                ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission             ,ONLY: ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars    ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking         ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel              ,ONLY: Evaporation
 #if USE_MPI
 USE MOD_Particle_MPI              ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -4299,7 +4323,6 @@ USE MOD_part_tools                ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission             ,ONLY: ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars    ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking         ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel              ,ONLY: Evaporation
 #if USE_MPI
 USE MOD_Particle_MPI              ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -4451,7 +4474,8 @@ USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell ! , usevMPF
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: Species,PartSpecies
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl, PCouplAverage, PCouplSpec
+USE MOD_Particle_Analyze       ,ONLY: CalcCoupledPowerPart
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 #if (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
@@ -4462,7 +4486,6 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge,PartAnalyzeStep
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -4474,7 +4497,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -4489,7 +4512,6 @@ REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
 REAL                       :: EDiff
-INTEGER                    :: iElem,iSpec
 #endif /*PARTICLES*/
 !===================================================================================================================================
 #ifdef PARTICLES
@@ -4559,12 +4581,8 @@ IF (time.GE.DelayTime) THEN
   IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
-      IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN ! if output of coupled power is active and particle carries charge
-        EDiff = (-1.) * 0.5 * Species(PartSpecies(iPart))%MassIC & ! kinetic energy before Particle Push (negative)
-              * ( PartState(iPart,4) * PartState(iPart,4) &
-                + PartState(iPart,5) * PartState(iPart,5) &
-                + PartState(iPart,6) * PartState(iPart,6) )
-      END IF
+      ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
+      IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before',EDiff)
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoSurfaceFlux for compiler-optimization if .FALSE.
         CALL RANDOM_NUMBER(RandVal)
         dtFrac = dt * RandVal
@@ -4642,18 +4660,8 @@ IF (time.GE.DelayTime) THEN
         END IF
       END IF
 #endif /*(PP_TimeDiscMethod==509)*/
-      IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN  ! if output of coupled power is active and particle carries charge
-        EDiff = ABS(EDiff &       ! kinetic energy after Particle Push (positive)
-               + 0.5 * Species(PartSpecies(iPart))%MassIC &
-               * ( PartState(iPart,4) * PartState(iPart,4) &
-                 + PartState(iPart,5) * PartState(iPart,5) &
-                 + PartState(iPart,6) * PartState(iPart,6) ))
-        PCoupl = PCoupl + EDiff
-        PCouplAverage = PCouplAverage + EDiff
-        iElem = PEM%Element(iPart)
-        iSpec = PartSpecies(iPart)
-        PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
-      END IF
+      ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
+      IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after',EDiff)
     END IF
   END DO
 #if USE_LOADBALANCE
@@ -4794,7 +4802,8 @@ USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl,PCouplAverage,PCouplSpec
+USE MOD_Particle_Analyze       ,ONLY: CalcCoupledPowerPart
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -4806,11 +4815,10 @@ USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
 USE MOD_SurfaceModel           ,ONLY: UpdateSurfModelVars, SurfaceModel_main
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -4824,7 +4832,6 @@ INTEGER        :: iPart, iStage_loc
 REAL           :: RandVal
 #ifdef PARTICLES
 REAL           :: EDiff
-INTEGER        :: iElem,iSpec
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
 REAL           :: tLBStart
@@ -4926,12 +4933,8 @@ IF (time.GE.DelayTime) THEN
   IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
-      IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN ! if output of coupled power is active and particle carries charge
-        EDiff = (-1.) * 0.5 * Species(PartSpecies(iPart))%MassIC & ! kinetic energy before Particle Push (negative)
-              * ( PartState(iPart,4) * PartState(iPart,4) &
-                + PartState(iPart,5) * PartState(iPart,5) &
-                + PartState(iPart,6) * PartState(iPart,6) )
-      END IF
+      ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
+      IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before',EDiff)
       !-- Pt is not known only for new Surfaceflux-Parts -> change IsNewPart back to F for other Parts
       IF (.NOT.DoSurfaceFlux) THEN
         PDM%IsNewPart(iPart)=.FALSE.
@@ -5001,18 +5004,8 @@ __STAMP__&
         PDM%dtFracPush(iPart) = .FALSE.
         IF (.NOT.DoForceFreeSurfaceFlux) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
       END IF !IsNewPart
-      IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN  ! if output of coupled power is active and particle carries charge
-        EDiff = ABS(EDiff &       ! kinetic energy after Particle Push (positive)
-               + 0.5 * Species(PartSpecies(iPart))%MassIC &
-               * ( PartState(iPart,4) * PartState(iPart,4) &
-                 + PartState(iPart,5) * PartState(iPart,5) &
-                 + PartState(iPart,6) * PartState(iPart,6) ))
-        PCoupl = PCoupl + EDiff
-        PCouplAverage = PCouplAverage + EDiff
-        iElem = PEM%Element(iPart)
-        iSpec = PartSpecies(iPart)
-        PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
-      END IF
+      ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
+      IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after',EDiff)
     END IF
   END DO
 #if USE_LOADBALANCE
@@ -5116,16 +5109,11 @@ DO iStage=2,nRKStages
     CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
     CALL CalcPartRHS()
-
     ! particle step
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
-        IF (CalcCoupledPower) THEN                                     ! if output of coupled power is active
-          EDiff = (-1.) * 0.5 * Species(PartSpecies(iPart))%MassIC & ! kinetic energy before Particle Push (negative)
-                * ( PartState(iPart,4) * PartState(iPart,4) &
-                  + PartState(iPart,5) * PartState(iPart,5) &
-                  + PartState(iPart,6) * PartState(iPart,6) )
-        END IF
+        ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
+        IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before',EDiff)
         IF (.NOT.PDM%IsNewPart(iPart)) THEN
           Pt_temp(iPart,1) = PartState(iPart,4) - RK_a(iStage) * Pt_temp(iPart,1)
           Pt_temp(iPart,2) = PartState(iPart,5) - RK_a(iStage) * Pt_temp(iPart,2)
@@ -5187,18 +5175,8 @@ DO iStage=2,nRKStages
           END IF
           IF (.NOT.DoForceFreeSurfaceFlux .OR. iStage.EQ.nRKStages) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
         END IF !IsNewPart
-        IF (CalcCoupledPower) THEN  ! if output of coupled power is active
-          EDiff = ABS(EDiff &       ! kinetic energy after Particle Push (positive)
-                 + 0.5 * Species(PartSpecies(iPart))%MassIC &
-                 * ( PartState(iPart,4) * PartState(iPart,4) &
-                   + PartState(iPart,5) * PartState(iPart,5) &
-                   + PartState(iPart,6) * PartState(iPart,6) ))
-          PCoupl = PCoupl + EDiff
-          PCouplAverage = PCouplAverage + EDiff
-          iElem = PEM%Element(iPart)
-          iSpec = PartSpecies(iPart)
-          PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
-        END IF
+        ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
+        IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after',EDiff)
       END IF
     END DO
 #if USE_LOADBALANCE

@@ -74,21 +74,21 @@ SUBROUTINE ParticleTriaTracking()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars,               ONLY:PEM,PDM
-USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement
+USE MOD_Particle_Vars               ,ONLY: PEM,PDM
+USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
+USE MOD_Particle_Mesh               ,ONLY: SingleParticleToExactElement
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem, PartSideToElem, PartElemToElemAndSide
-USE MOD_Particle_Tracking_vars,      ONLY:ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts, TrackInfo
-USE MOD_Mesh_Vars,                   ONLY:MortarType
-USE MOD_Mesh_Vars,                   ONLY:BC
-USE MOD_Particle_Boundary_Vars,      ONLY:PartBound
-USE MOD_Particle_Intersection,       ONLY:IntersectionWithWall
-USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
+USE MOD_Particle_Mesh_Vars          ,ONLY: PartElemToSide, PartSideToElem, PartSideToElem, PartElemToElemAndSide
+USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts, TrackInfo
+USE MOD_Mesh_Vars                   ,ONLY: MortarType
+USE MOD_Mesh_Vars                   ,ONLY: BC
+USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
+USE MOD_Particle_Intersection       ,ONLY: IntersectionWithWall
+USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
 USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPauseTime
+USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -148,6 +148,7 @@ DO i = 1,PDM%ParticleVecLength
     IF (MeasureTrackTime) nTracks=nTracks+1
     PartisDone = .FALSE.
     ElemID = PEM%lastElement(i)
+    TrackInfo%CurrElem=ElemID
     SideID = 0
     DoneLastElem(:,:) = 0
     ! 2) Loop tracking until particle is considered "done" (either localized or deleted)
@@ -343,10 +344,8 @@ DO i = 1,PDM%ParticleVecLength
         flip =PartElemToSide(E2S_FLIP,LocalSide,ElemID)
         IF(BC(SideID).GT.0) THEN
           OldElemID=ElemID
-          TrackInfo%CurrElem = ElemID
           BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID)))
-          IF(BCType.NE.1) &
-             CALL IntersectionWithWall(PartTrajectory,alpha,i,LocalSide,ElemID,TriNum)
+          IF(BCType.NE.1) CALL IntersectionWithWall(PartTrajectory,alpha,i,LocalSide,ElemID,TriNum)
           CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
                                                                        ,xi    &
                                                                        ,eta   ,i,SideID,flip,LocalSide,ElemID,crossedBC&
@@ -385,10 +384,12 @@ DO i = 1,PDM%ParticleVecLength
           END IF
         END IF  ! BC(SideID).GT./.LE. 0
         IF (ElemID.LT.1) THEN
+          IPWRITE(UNIT_stdout,*) 'Particle Velocity: ',SQRT(DOT_PRODUCT(PartState(i,4:6),PartState(i,4:6)))
           CALL abort(&
            __STAMP__ &
            ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
         END IF
+        TrackInfo%CurrElem = ElemID
       END IF  ! InElementCheck = T/F
     END DO  ! .NOT.PartisDone
 #if USE_LOADBALANCE
@@ -418,43 +419,40 @@ SUBROUTINE ParticleTracing()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars,               ONLY:PEM,PDM
-USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemType,ElemRadiusNGeo,ElemHasAuxBCs
-USE MOD_Particle_Boundary_Vars,      ONLY:nAuxBCs,UseAuxBCs
-USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionAuxBC
-USE MOD_Utils,                       ONLY:InsertionSort
-USE MOD_Particle_Tracking_vars,      ONLY:ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
-USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap,PartInElemCheck
-USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
-USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
-USE MOD_Particle_Intersection,       ONLY:ComputeAuxBCIntersection
-USE MOD_Mesh_Vars,                   ONLY:OffSetElem
-USE MOD_Eval_xyz,                    ONLY:GetPositionInRefElem
-! USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
-! USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
-! USE MOD_TimeDisc_Vars               ,ONLY: iter
+USE MOD_Particle_Vars               ,ONLY: PEM,PDM
+USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
+USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
+USE MOD_Particle_Mesh_Vars          ,ONLY: PartElemToSide,ElemType,ElemRadiusNGeo,ElemHasAuxBCs
+USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
+USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
+USE MOD_Utils                       ,ONLY: InsertionSort
+USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
+USE MOD_Particle_Mesh               ,ONLY: SingleParticleToExactElementNoMap,PartInElemCheck
+USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
+USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
+USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
+USE MOD_Particle_Intersection       ,ONLY: ComputeBiLinearIntersection
+USE MOD_Particle_Intersection       ,ONLY: ComputeAuxBCIntersection
+USE MOD_Mesh_Vars                   ,ONLY: OffSetElem
+USE MOD_Eval_xyz                    ,ONLY: GetPositionInRefElem
 #if USE_MPI
-USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
-USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
+USE MOD_Particle_MPI_Vars           ,ONLY: PartHaloElemToProc
+USE MOD_MPI_Vars                    ,ONLY: offsetElemMPI
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
 #ifdef IMPA
-USE MOD_Particle_Vars,               ONLY:PartIsImplicit,PartDtFrac
-USE MOD_Particle_Vars,               ONLY:PartStateN
+USE MOD_Particle_Vars               ,ONLY: PartIsImplicit,PartDtFrac
+USE MOD_Particle_Vars               ,ONLY: PartStateN
 #endif /*IMPA*/
-USE MOD_Particle_Intersection,       ONLY:OutputTrajectory
-USE MOD_Particle_Tracking_Vars,      ONLY:PartOut,MPIRankOut
-USE MOD_Particle_Mesh_Vars,          ONLY:GEO
-USE MOD_TimeDisc_Vars,               ONLY:iStage
-USE MOD_Globals_Vars,                ONLY:epsMach
-USE MOD_Mesh_Vars,                   ONLY:ElemBaryNGeo
+USE MOD_Particle_Intersection       ,ONLY: OutputTrajectory
+USE MOD_Particle_Tracking_Vars      ,ONLY: PartOut,MPIRankOut
+USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
+USE MOD_TimeDisc_Vars               ,ONLY: iStage
+USE MOD_Globals_Vars                ,ONLY: epsMach
+USE MOD_Mesh_Vars                   ,ONLY: ElemBaryNGeo
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,           ONLY:LBStartTime,LBElemPauseTime,LBElemSplitTime
+USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBElemPauseTime,LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1186,30 +1184,30 @@ SUBROUTINE ParticleRefTracking()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
-USE MOD_Globals!,                 ONLY:Cross,abort
-USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,LastPartPos
-USE MOD_Mesh_Vars,               ONLY:OffSetElem,useCurveds,NGeo,ElemBaryNGeo
-USE MOD_Eval_xyz,                ONLY:GetPositionInRefElem
-USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,Distance,ListDistance,CartesianPeriodic
-USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsTracingBCElem,BCElem,epsOneCell
-USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_Mesh_Vars,      ONLY:ElemRadius2NGeo
-USE MOD_Particle_MPI_Vars,       ONLY:halo_eps2
-USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,PartInElemCheck
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,LastPartPos
+USE MOD_Mesh_Vars              ,ONLY: OffSetElem,useCurveds,NGeo,ElemBaryNGeo
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Tracking_Vars ,ONLY: nTracks,Distance,ListDistance,CartesianPeriodic
+USE MOD_Particle_Mesh_Vars     ,ONLY: Geo,IsTracingBCElem,BCElem,epsOneCell
+USE MOD_Utils                  ,ONLY: BubbleSortID,InsertionSort
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
+USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps2
+USE MOD_Particle_Mesh          ,ONLY: SingleParticleToExactElement,PartInElemCheck
 #if USE_MPI
-USE MOD_MPI_Vars,                ONLY:offsetElemMPI
-USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
+USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
 #endif /*USE_MPI*/
 #if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Vars,           ONLY:PartStateN
-USE MOD_TimeDisc_Vars,           ONLY:iStage
+USE MOD_Particle_Vars          ,ONLY: PartStateN
+USE MOD_TimeDisc_Vars          ,ONLY: iStage
 #endif /*IMPA OR ROS*/
 #if defined(IMPA)
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars,        ONLY:nTracksPerElem
-USE MOD_LoadBalance_tools,       ONLY:LBStartTime, LBElemPauseTime, LBPauseTime
+USE MOD_LoadBalance_Vars       ,ONLY: nTracksPerElem
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBElemPauseTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1547,6 +1545,7 @@ __STAMP__ &
             CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.FALSE.)
             IF(.NOT.PDM%ParticleInside(iPart)) THEN
               IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with BC element '
+              IPWRITE(UNIT_stdOut,'(I0,A,3(X,I0))')    ' iPart                  ', ipart
               IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' xi                     ', partposref(1:3,ipart)
               IPWRITE(UNIT_stdOut,'(I0,A,1(X,E15.8))') ' epsonecell             ', epsonecell(TestElem)
               IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' oldxi                  ', oldxi
@@ -1944,6 +1943,9 @@ ELSE
   ! update particle element
   dolocSide=.TRUE.
   Moved = PARTSWITCHELEMENT(xi,eta,hitlocSide,SideID,ElemID)
+  IF (Moved(1).LT.1 .OR. Moved(2).LT.1) CALL abort(&
+__STAMP__ &
+,'ERROR in SelectInterSectionType. No Neighbour Elem or Neighbour Side found --> increase haloregion')
   ElemID=Moved(1)
   TrackInfo%CurrElem=ElemID
   dolocSide(Moved(2))=.FALSE.

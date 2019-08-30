@@ -369,7 +369,6 @@ USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal, Symmetry2D, VarTimeStep
-USE MOD_Particle_Vars          ,ONLY: LiquidSimFlag, PartSurfaceModel
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
 USE MOD_DSMC_Analyze           ,ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
@@ -1114,7 +1113,7 @@ __STAMP__&
     CALL SetNextIonizationSpecies()
 
     CALL DSMC_chemical_init()
-  ELSE IF ((PartSurfaceModel.GT.0 .OR. LiquidSimFlag) .AND. CollisMode.GT.1) THEN
+  ELSE IF (ANY(PartBound%Reactive) .AND. CollisMode.GT.1) THEN
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN

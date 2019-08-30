@@ -57,53 +57,53 @@ SUBROUTINE DSMC_main(DoElement)
   USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
   USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
 #if (PP_TimeDiscMethod==1001)
-  USE MOD_LD_Vars,               ONLY : BulkValues, LD_DSMC_RHS
+USE MOD_LD_Vars               ,ONLY: BulkValues, LD_DSMC_RHS
 #endif
 #if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
-  USE MOD_Restart_Vars,          ONLY : RestartTime
-  USE MOD_Mesh_Vars,             ONLY : MeshFile
-  USE MOD_TimeDisc_Vars,         ONLY : iter
-  USE MOD_DSMC_Vars,             ONLY : UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
-  USE MOD_Particle_Vars,         ONLY : WriteMacroSurfaceValues
+USE MOD_Restart_Vars          ,ONLY: RestartTime
+USE MOD_Mesh_Vars             ,ONLY: MeshFile
+USE MOD_TimeDisc_Vars         ,ONLY: iter
+USE MOD_DSMC_Vars             ,ONLY: UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
+USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 #endif
 #if USE_LOADBALANCE
-  USE MOD_LoadBalance_tools,     ONLY : LBStartTime, LBElemSplitTime
+USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  LOGICAL,OPTIONAL  :: DoElement(nElems)
+LOGICAL,OPTIONAL  :: DoElement(nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER           :: iElem
 #if (PP_TimeDiscMethod!=1001)
-  INTEGER           :: nOutput
+INTEGER           :: nOutput
 #endif
 #if USE_LOADBALANCE
-  REAL              :: tLBStart
+REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
-  IF(.NOT.PRESENT(DoElement)) THEN
-    DSMC_RHS(1:PDM%ParticleVecLength,1) = 0
-    DSMC_RHS(1:PDM%ParticleVecLength,2) = 0
-    DSMC_RHS(1:PDM%ParticleVecLength,3) = 0
-  END IF
-  DSMCSumOfFormedParticles = 0
+IF(.NOT.PRESENT(DoElement)) THEN
+  DSMC_RHS(1:PDM%ParticleVecLength,1) = 0
+  DSMC_RHS(1:PDM%ParticleVecLength,2) = 0
+  DSMC_RHS(1:PDM%ParticleVecLength,3) = 0
+END IF
+DSMCSumOfFormedParticles = 0
 
-  IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_InitBGGas
+IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_InitBGGas
 #if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
+CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  DO iElem = 1, nElems ! element/cell main loop
-    IF(PRESENT(DoElement)) THEN
-      IF (.NOT.DoElement(iElem)) CYCLE
-    END IF
+DO iElem = 1, nElems ! element/cell main loop
+  IF(PRESENT(DoElement)) THEN
+    IF (.NOT.DoElement(iElem)) CYCLE
+  END IF
 #if (PP_TimeDiscMethod==1001)
-    IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN  ! --- DSMC Cell ?
+  IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN  ! --- DSMC Cell ?
 #endif
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
@@ -143,9 +143,9 @@ SUBROUTINE DSMC_main(DoElement)
             DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
             ! Sample rotation relaxation probability
             IF((DSMC%RotRelaxProb.EQ.2).OR.(DSMC%VibRelaxProb.EQ.2)) CALL SamplingRotVibRelaxProb(iElem)
+          END IF
         END IF
-      END IF
-    END IF  ! --- CollisMode.NE.0
+      END IF  ! --- CollisMode.NE.0
 #if (PP_TimeDiscMethod==1001)
     END IF  ! --- END DSMC Cell?
 #endif
@@ -153,7 +153,7 @@ SUBROUTINE DSMC_main(DoElement)
     CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END DO ! iElem Loop
-! Output!
+  ! Output!
 #if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
   PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
@@ -161,62 +161,62 @@ SUBROUTINE DSMC_main(DoElement)
 #if (PP_TimeDiscMethod==42)
   IF ((.NOT.DSMC%ReservoirSimu).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
 #else
-  IF (.NOT.WriteMacroVolumeValues .AND. .NOT.WriteMacroSurfaceValues) THEN
+    IF (.NOT.WriteMacroVolumeValues .AND. .NOT.WriteMacroSurfaceValues) THEN
 #endif
-    IF(UseQCrit) THEN
-      ! Use QCriterion (Burt,Boyd) for steady - state detection
-      IF((.NOT.SamplingActive).AND.(iter-QCritLastTest.EQ.QCritTestStep)) THEN
-        CALL QCrit_evaluation()
-        QCritLastTest=iter
-        IF(SamplingActive) THEN
+      IF(UseQCrit) THEN
+        ! Use QCriterion (Burt,Boyd) for steady - state detection
+        IF((.NOT.SamplingActive).AND.(iter-QCritLastTest.EQ.QCritTestStep)) THEN
+          CALL QCrit_evaluation()
+          QCritLastTest=iter
+          IF(SamplingActive) THEN
+            SWRITE(*,*)'Sampling active'
+            ! Set TimeFracSamp and DeltaTimeOutput -> correct number of outputs
+            DSMC%TimeFracSamp = (TEnd-Time)/TEnd
+            DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+          ENDIF
+        ENDIF
+      ELSEIF(UseSSD) THEN
+        ! Use SSD for steady - state detection
+        IF((.NOT.SamplingActive)) THEN
+          CALL SteadyStateDetection_main()
+          IF(SamplingActive) THEN
+            SWRITE(*,*)'Sampling active'
+            ! Set TimeFracSamp and DeltaTimeOutput -> correct number of outputs
+            DSMC%TimeFracSamp = (TEnd-Time)/TEnd
+            DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+          ENDIF
+        ENDIF
+      ELSE
+        ! Use user given TimeFracSamp
+        IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
+          SamplingActive=.TRUE.
           SWRITE(*,*)'Sampling active'
-          ! Set TimeFracSamp and DeltaTimeOutput -> correct number of outputs
-          DSMC%TimeFracSamp = (TEnd-Time)/TEnd
-          DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
         ENDIF
       ENDIF
-    ELSEIF(UseSSD) THEN
-      ! Use SSD for steady - state detection
-      IF((.NOT.SamplingActive)) THEN
-        CALL SteadyStateDetection_main()
-        IF(SamplingActive) THEN
-          SWRITE(*,*)'Sampling active'
-          ! Set TimeFracSamp and DeltaTimeOutput -> correct number of outputs
-          DSMC%TimeFracSamp = (TEnd-Time)/TEnd
-          DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
-        ENDIF
-      ENDIF
-    ELSE
-      ! Use user given TimeFracSamp
-      IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
-        SamplingActive=.TRUE.
-        SWRITE(*,*)'Sampling active'
-      ENDIF
-    ENDIF
-    !
-    ! Calculate Entropy using Theorem of Boltzmann
-    !CALL EntropyCalculation()
-    !
+      !
+      ! Calculate Entropy using Theorem of Boltzmann
+      !CALL EntropyCalculation()
+      !
 
-    IF(SamplingActive) THEN
-      CALL DSMCHO_data_sampling()
-      IF(DSMC%NumOutput.NE.0) THEN
-        nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
-        IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
-          DSMC%NumOutput = DSMC%NumOutput - 1
-          ! Skipping outputs immediately after the first few iterations
-          IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN
-            CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
-            IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
+      IF(SamplingActive) THEN
+        CALL DSMCHO_data_sampling()
+        IF(DSMC%NumOutput.NE.0) THEN
+          nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
+          IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
+            DSMC%NumOutput = DSMC%NumOutput - 1
+            ! Skipping outputs immediately after the first few iterations
+            IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN
+              CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
+              IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
+            END IF
           END IF
         END IF
       END IF
     END IF
-  END IF
 #else /* --- LD-DSMC? */
-  LD_DSMC_RHS(1:PDM%ParticleVecLength,1) = DSMC_RHS(1:PDM%ParticleVecLength,1)
-  LD_DSMC_RHS(1:PDM%ParticleVecLength,2) = DSMC_RHS(1:PDM%ParticleVecLength,2)
-  LD_DSMC_RHS(1:PDM%ParticleVecLength,3) = DSMC_RHS(1:PDM%ParticleVecLength,3)
+    LD_DSMC_RHS(1:PDM%ParticleVecLength,1) = DSMC_RHS(1:PDM%ParticleVecLength,1)
+    LD_DSMC_RHS(1:PDM%ParticleVecLength,2) = DSMC_RHS(1:PDM%ParticleVecLength,2)
+    LD_DSMC_RHS(1:PDM%ParticleVecLength,3) = DSMC_RHS(1:PDM%ParticleVecLength,3)
 #endif /* --- END LD-DSMC? */
 END SUBROUTINE DSMC_main
 

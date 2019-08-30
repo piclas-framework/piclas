@@ -4083,6 +4083,7 @@ __STAMP__&
       Species(iSpec)%Surfaceflux(iSF)%velocityDistribution  = &
           TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
       IF (TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'constant' .AND. &
+          TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'liquid' .AND. &
           TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'maxwell' .AND. &
           TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'maxwell_lpn') THEN
         CALL abort(&
@@ -4656,6 +4657,9 @@ DO iSpec=1,nSpecies
             CASE('constant')
               vSF = Species(iSpec)%Surfaceflux(iSF)%VeloIC * projFak !Velo proj. to inwards normal
               nVFR = MAX(tmp_SubSideAreas(iSample,jSample) * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
+            CASE('liquid')
+              vSF = v_thermal / (2.0*SQRT(PI)) !mean flux velocity through normal sub-face
+              nVFR = tmp_SubSideAreas(iSample,jSample) * vSF !VFR projected to inwards normal of sub-side
             CASE('maxwell','maxwell_lpn')
               IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
                 CALL abort(&
@@ -4727,9 +4731,9 @@ __STAMP__&
               Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOX,ElemID,iSpec,FileID)
               Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOY,ElemID,iSpec,FileID)
               Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOZ,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPX,iElem,iSpec,FileID))
-              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPY,iElem,iSpec,FileID))
-              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPZ,iElem,iSpec,FileID))
+              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPX,ElemID,iSpec,FileID))
+              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPY,ElemID,iSpec,FileID))
+              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPZ,ElemID,iSpec,FileID))
               Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec) = MacroRestartData_tmp(DSMC_NUMDENS,ElemID,iSpec,FileID)
               IF(nPorousBC.GT.0) THEN
                 CALL abort(&
@@ -4908,60 +4912,52 @@ SUBROUTINE ParticleSurfaceflux()
 !===================================================================================================================================
 ! Modules
 #if USE_MPI
-USE MOD_Particle_MPI_Vars,ONLY: PartMPI
+USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Globals
-USE MOD_Globals_Vars          , ONLY: PI, BoltzmannConst
-!commented out in code
-!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-!USE MOD_Timedisc_Vars         , ONLY : iter
-!#endif
+USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
-USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
-USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, RadialWeighting
-USE MOD_SurfaceModel_Vars      ,ONLY : Adsorption, Liquid
-USE MOD_DSMC_Analyze           ,ONLY : CalcWallSample
-USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
-USE MOD_DSMC_Symmetry2D,        ONLY : CalcRadWeightMPF
-USE MOD_Particle_VarTimeStep,   ONLY : CalcVarTimeStep
-USE MOD_Particle_Boundary_Vars ,ONLY : SurfMesh, PartBound, nAdaptiveBC, nSurfSample
-USE MOD_TimeDisc_Vars          ,ONLY : TEnd, time
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance
-! #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-! USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
-! #endif
-USE MOD_Particle_Analyze_Vars  ,ONLY: nPartIn,PartEkinIn
-USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
-USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
-USE MOD_Mesh_Vars              ,ONLY: SideToElem
-USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide, GEO
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, SurfMeshSubSideData!, SideType
-USE MOD_Timedisc_Vars          ,ONLY: dt
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
+USE MOD_part_tools              ,ONLY: UpdateNextFreePosition
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, RadialWeighting
+USE MOD_SurfaceModel_Vars       ,ONLY: SurfModel
+USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
+USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMesh, PartBound, nAdaptiveBC, nSurfSample
+USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance
+USE MOD_Particle_Analyze_Vars   ,ONLY: nPartIn,PartEkinIn
+USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac,RKdtFracTotal,Time
+USE MOD_Particle_Analyze        ,ONLY: CalcEkinPart
+USE MOD_Mesh_Vars               ,ONLY: SideToElem!, ElemBaryNGeo
+USE MOD_Mesh_Vars               ,ONLY: NGeo!,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_Particle_Mesh_Vars      ,ONLY: PartElemToSide, GEO
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfMeshSubSideData
+USE MOD_Timedisc_Vars           ,ONLY: dt
+USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
 #if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
 #endif /*IMPA*/
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
-USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
-USE MOD_Mesh_Vars              ,ONLY: NGeo!,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-!USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem!, TensorProductInterpolation
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
+USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
+USE MOD_Mesh_Vars               ,ONLY: NGeo
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Tracking_Vars ,ONLY: PartOut, MPIRankOut
+USE MOD_Particle_Tracking_Vars  ,ONLY: PartOut, MPIRankOut
 #if  defined(IMPA) || defined(ROS)
-USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
+USE MOD_Timedisc_Vars           ,ONLY: iStage,nRKStages
 #endif
 #endif /*CODE_ANALYZE*/
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
+USE MOD_LD_Init                 ,ONLY: CalcDegreeOfFreedom
 USE MOD_LD_Vars
 #endif
-USE MOD_Mesh_Vars,              ONLY : BC!, ElemBaryNGeo
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars,       ONLY:nSurfacefluxPerElem
-USE MOD_LoadBalance_tools,      ONLY:LBStartTime, LBElemSplitTime, LBPauseTime
+USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem
+USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -5146,17 +5142,12 @@ __STAMP__&
           ndist(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%ndist(1:3)
         END IF
         IF (noAdaptive) THEN
-          IF (PartSurfaceModel.GT.0 .OR. (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0)) ) THEN
+          IF ( PartBound%Reactive(currentBC) )  THEN
             IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
-              IF (PartSurfaceModel.GT.0 .AND. (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) ) THEN
-                ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
-              ELSE IF (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0) &
-                  .AND. (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) )THEN
-                ExtraParts = Liquid%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
-              ELSE IF (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) THEN
-                CALL abort(&
-__STAMP__&
-,'ERROR in ParticleSurfaceflux: The code should not go here...')
+              ! sumEvapPart for triatracking is only allocated over (1,1,nsurfsides,nspecies)
+              IF (.NOT.TriaSurfaceFlux .OR. (iSample.EQ.1 .AND. jSample.EQ.1)) THEN
+                ExtraParts = SurfModel%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
+                SurfModel%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec) = 0
               END IF
               IF (TriaSurfaceFlux) THEN
                 IF (iSample.EQ.1 .AND. jSample.EQ.1) THEN !first tria
@@ -5169,8 +5160,9 @@ __STAMP__&
                   ExtraParts = ExtraPartsTria(2)
                 END IF
               END IF !TriaSurfaceFlux
+              SurfModel%Info(iSpec)%NumOfDes=SurfModel%Info(iSpec)%NumOfDes+ExtraParts
             END IF !SurfMesh%SideIDToSurfID(SideID).GT.0
-          END IF !PartSurfaceModel .OR. LiquidSimFlag
+          END IF !reactive surface
         END IF !noAdaptive
 
         ! REQUIRED LATER FOR THE POSITION START
@@ -5290,6 +5282,9 @@ __STAMP__&
             CASE('constant')
               vSF = VeloIC * projFak !Velo proj. to inwards normal
               nVFR = MAX(SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
+            CASE('liquid')
+              vSF = v_thermal / (2.0*SQRT(PI)) !mean flux velocity through normal sub-face
+              nVFR = SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF !VFR projected to inwards normal of sub-side
             CASE('maxwell','maxwell_lpn')
               IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
                 v_thermal = 1.
@@ -5320,7 +5315,7 @@ __STAMP__&
             T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
           CASE(2) ! adaptive Outlet/freestream
             ElemPartDensity = Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec)
-            pressure = PartBound%AdaptivePressure(Species(iSpec)%Surfaceflux(iSF)%BC)
+            pressure = PartBound%AdaptivePressure(currentBC)
             T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,:)))
           CASE(3) ! pressure outlet (pressure defined)
           CASE DEFAULT
@@ -5346,6 +5341,9 @@ __STAMP__&
           CASE('constant')
             vSF = VeloIC * projFak !Velo proj. to inwards normal
             nVFR = MAX(SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
+          CASE('liquid')
+            vSF = v_thermal / (2.0*SQRT(PI)) !mean flux velocity through normal sub-face
+            nVFR = SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF !VFR projected to inwards normal of sub-side
           CASE('maxwell','maxwell_lpn')
             IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
               v_thermal = 1.
@@ -5612,10 +5610,10 @@ __STAMP__&
             IF (noAdaptive) THEN
               ! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
               ! create linked list of surfaceflux-particle-info for sampling case
-              IF (PartSurfaceModel.GT.0 .OR. LiquidSimFlag) THEN
-                IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
-                    .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-                  IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
+              IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
+                  .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+                IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
+                  IF ( PartBound%Reactive(CurrentBC) )  THEN
                     ! first check if linked list is initialized and initialize if neccessary
                     IF (.NOT. ASSOCIATED(currentSurfFluxPart)) THEN
                       ALLOCATE(currentSurfFluxPart)
@@ -5941,8 +5939,7 @@ __STAMP__&
                   IntArray(:) = 0.
                 END IF
                 ! sample values
-                CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray, &
-                    (/0.,0.,0./),0.,.False.,0.,currentBC,emission_opt=.TRUE.)
+                CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray,.False.,emission_opt=.TRUE.)
                 currentSurfFluxPart => currentSurfFluxPart%next
 #if USE_LOADBALANCE
                 CALL LBElemSplitTime(PEM%Element(PartID),tLBStart)
@@ -5972,9 +5969,11 @@ SUBROUTINE SetSurfacefluxVelocities(FractNbr,iSF,iSample,jSample,iSide,BCSideID,
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY : PI, BoltzmannConst
 USE MOD_Particle_Vars
+USE MOD_Part_Tools,             ONLY : VELOFROMDISTRIBUTION
 USE MOD_Particle_Surfaces_Vars, ONLY : SurfMeshSubSideData, TriaSurfaceFlux
 USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBezier
 USE MOD_Particle_Boundary_Vars, ONLY : PartBound
+USE MOD_Particle_Boundary_Tools,ONLY : BETALIQUID,LIQUIDEVAP
 !USE Ziggurat,                   ONLY : rnor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -6003,6 +6002,8 @@ IF(PartIns.lt.1) RETURN
 IF (TRIM(Species(FractNbr)%Surfaceflux(iSF)%velocityDistribution).EQ.'maxwell' .OR. &
   TRIM(Species(FractNbr)%Surfaceflux(iSF)%velocityDistribution).EQ.'maxwell_lpn') THEN
   velocityDistribution='maxwell_surfaceflux'
+ELSE IF (TRIM(Species(FractNbr)%Surfaceflux(iSF)%velocityDistribution).EQ.'liquid' ) THEN
+  velocityDistribution='liquid'
 ELSE IF (TRIM(Species(FractNbr)%Surfaceflux(iSF)%velocityDistribution).EQ.'constant' ) THEN
   velocityDistribution='constant'
 ELSE
@@ -6122,6 +6123,30 @@ __STAMP__&
       PartState(PositionNbr,4:6) = Vec3D(1:3)
     END IF !PositionNbr .NE. 0
   END DO !i = ...NbrOfParticle
+CASE('liquid')
+  !-- 0a.: In case of side-normal velocities: calc n-/t-vectors at particle position, xi was saved in PartState(4:5)
+  IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
+    vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
+    vec_t1(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1(1:3)
+    vec_t2(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2(1:3)
+  ELSE IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal) THEN
+    CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),tang1=vec_t1(1:3),tang2=vec_t2(1:3) &
+      ,xi=PartState(PositionNbr,4),eta=PartState(PositionNbr,5),SideID=SideID )
+    vec_nIn(1:3) = -vec_nIn(1:3)
+  END IF
+  DO i = NbrOfParticle-PartIns+1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr .NE. 0) THEN
+      Vec3D(1:3) = VELOFROMDISTRIBUTION('liquid_evap',FractNbr,T)
+      PartState(PositionNbr,4:6) = vec_nIn(1:3)*(a*SQRT(2*BoltzmannConst*T/Species(FractNbr)%MassIC)+Vec3D(3)) &
+                                 + vec_t1(1:3)*(Velo_t1+Vec3D(1)) &
+                                 + vec_t2(1:3)*(Velo_t2+Vec3D(2))
+    ELSE !PositionNbr .EQ. 0
+      CALL abort(&
+__STAMP__&
+,'!PositionNbr .EQ. 0!')
+    END IF !PositionNbr .NE. 0
+  END DO
 CASE('maxwell_surfaceflux')
   !-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]
   IF (.NOT.Species(FractNbr)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
@@ -6825,19 +6850,19 @@ SUBROUTINE AdaptiveBCAnalyze(initSampling_opt)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY:BoltzmannConst
-USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, DSMC, CollisMode, SpecDSMC, useDSMC, RadialWeighting
-USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, AdaptiveWeightFac
-USE MOD_Particle_Vars,          ONLY:usevMPF
-USE MOD_Particle_Boundary_Vars, ONLY:PorousBCSampIter, PorousBCMacroVal
-USE MOD_Mesh_Vars,              ONLY:nElems
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO,IsTracingBCElem
-USE MOD_DSMC_Analyze,           ONLY:CalcTVib,CalcTVibPoly,CalcTelec
-USE MOD_Timedisc_Vars,          ONLY:iter
-USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMC, CollisMode, SpecDSMC, useDSMC, RadialWeighting
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, AdaptiveWeightFac
+USE MOD_Particle_Vars          ,ONLY: usevMPF
+USE MOD_Particle_Boundary_Vars ,ONLY: PorousBCSampIter, PorousBCMacroVal
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,IsTracingBCElem
+USE MOD_DSMC_Analyze           ,ONLY: CalcTVib,CalcTVibPoly,CalcTelec
+USE MOD_Timedisc_Vars          ,ONLY: iter
+USE MOD_part_tools             ,ONLY: GetParticleWeight
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,      ONLY:LBStartTime, LBElemSplitTime, LBPauseTime
-USE MOD_LoadBalance_vars,       ONLY:nPartsPerBCElem
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
+USE MOD_LoadBalance_vars       ,ONLY: nPartsPerBCElem
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
