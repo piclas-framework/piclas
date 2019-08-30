@@ -46,6 +46,17 @@ PUBLIC::ParticleTracing
 PUBLIC::ParticleRefTracking
 PUBLIC::ParticleCollectCharges
 PUBLIC::ParticleSanityCheck
+
+TYPE,PUBLIC :: tIntersectLink
+  REAL                          :: alpha=1.0
+  REAL                          :: alpha2=1.0
+  REAL                          :: xi=-1
+  REAL                          :: eta=-1
+  INTEGER                       :: Side=0
+  INTEGER                       :: IntersectCase = 0
+  TYPE(tIntersectLink), POINTER :: prev => null()
+  TYPE(tIntersectLink), POINTER :: next => null()
+END TYPE tIntersectLink
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
@@ -121,10 +132,10 @@ REAL                             :: xi = -1. , eta = -1. , alpha = -1.
 REAL, PARAMETER                  :: eps = 0
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! variabes needed for tracking with macroparticles inside domain
-LOGICAL                          :: sphereHitExists, sideHitExists, onlyMacroPart
-REAL                             :: alphaPart, alphaPartTria, alphaSphere, alphaDoneRel
-REAL                             :: locAlphaPart, locAlphaSphere, oldLengthPartTrajectory
-INTEGER                          :: hitSideNbr, iMP, hitMacroPartID
+LOGICAL                          :: sphereHitExists, sideHitExists
+REAL                             :: alphaPart, alphaPartTria
+REAL                             :: locAlphaPart
+INTEGER                          :: hitSideNbr
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
@@ -425,18 +436,20 @@ SUBROUTINE ParticleTracing()
 !>----------------------------------------------------------------------------------------------------------------------------------
 !> - Loop over all particles, which are in own proc --> PDM%ParticleInside(1:PDM%ParticleVecLength)
 !> -- 1. Track particle vector up to final particle position
-!> -- 2. Check if particle intersected a side and also which side (also MacroSpheres and AuxBCs)
-!> -- 2-1. For each side only one intersection is chosen, but particle might insersect more than one side. Decide: n=0 / n=1 / n>1 
-!> -- 2-2. Check wether inner side or BC and calculate interaction
-!> -- 2-3. Update particle position
-!> -- Process is repeated until exact final location is reached for all particles
-!> -- Time is sampled for LoadBalancing purposes for each element independently because elements with e.g. surface are more costly
-!> -- 3 If tolerance was marked, check if particle is inside of proc volume
+!> -- 2. special check if some double check has to be performed (only necessary for bilinear sides and macrospheres)
+!> -- 3. Check if particle intersected a side and also which side (also MacroSpheres and AuxBCs)
+!>         For each side only one intersection is chosen, but particle might insersect more than one side. Assign pointer list 
+!> -- 3. Loop over all intersections in pointer list and check intersection type: inner side, BC, auxBC or MacroSphere
+!>       and calculate interaction
+!> -- 3-1. Update particle position
+!> --    Time is sampled for LoadBalancing purposes for each element independently because elements with e.g. surface are more costly
+!> -- 4 If tolerance was marked, check if particle is inside of proc volume and try to find it in case it was lost
 !>----------------------------------------------------------------------------------------------------------------------------------
 !> - DoubleCheck:
 !> -- If a tracked particle hits a bilinear side but the PartTrajectory points inside of the element, 
 !>    then the second alpha for this side might have been the actual intersection, which has been dropped in intersection routine.
-!> -- Consequently, alpha for doublecheck side is saved and neglected during the second check of intersections.
+!> -- Consequently, alpha for doublecheck side is saved (moved to the last position in intersectionlist) 
+!>    and neglected during the second check of for the appropriate sideID.
 !> -- This occurs after surfaceflux, reflection, or for periodic particles moving almost in tangential direction to bilinear side.
 !> -- The DoubleCheck replaces the need of tolerances
 !===================================================================================================================================
@@ -516,16 +529,6 @@ INTEGER                       :: inElem
 REAL                          :: IntersectionPoint(1:3)
 #endif /*CODE_ANALYZE*/
 ! intersection info list
-TYPE tIntersectLink
-  REAL                          :: alpha=1.0
-  REAL                          :: alphaSphere=1.0
-  REAL                          :: xi=-1
-  REAL                          :: eta=-1
-  INTEGER                       :: Side=0
-  INTEGER                       :: IntersectCase = 0
-  TYPE(tIntersectLink), POINTER :: prev => null()
-  TYPE(tIntersectLink), POINTER :: next => null()
-END TYPE tIntersectLink
 TYPE(tIntersectLink),POINTER    :: firstIntersect => NULL()
 TYPE(tIntersectLink),POINTER    :: lastIntersect => NULL()
 TYPE(tIntersectLink),POINTER    :: currentIntersect => NULL()
@@ -684,37 +687,7 @@ DO iPart=1,PDM%ParticleVecLength
           currentIntersect%alpha=1.0
           currentIntersect%IntersectCase=0
           IF(isHit) THEN
-            ! start from last intersection entry and place current intersection in correct entry position
-            DO WHILE(ASSOCIATED(currentIntersect))
-              IF (locAlpha.LE.currentIntersect%alpha) THEN
-                currentIntersect%next%alpha = currentIntersect%alpha
-                currentIntersect%next%alphaSphere = currentIntersect%alphaSphere
-                currentIntersect%next%xi = currentIntersect%xi
-                currentIntersect%next%eta = currentIntersect%eta
-                currentIntersect%next%Side = currentIntersect%Side
-                currentIntersect%next%intersectCase = currentIntersect%intersectCase
-                IF (ASSOCIATED(currentIntersect%prev)) THEN
-                  IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
-                    ! assign new values
-                    currentIntersect%alpha = localpha
-                    currentIntersect%xi = xi
-                    currentIntersect%eta = eta
-                    currentIntersect%Side = ilocside
-                    currentIntersect%intersectCase = 1
-                    EXIT
-                  END IF
-                ELSE
-                  ! assign new values
-                  currentIntersect%alpha = localpha
-                  currentIntersect%xi = xi
-                  currentIntersect%eta = eta
-                  currentIntersect%Side = ilocside
-                  currentIntersect%intersectCase = 1
-                  EXIT
-                END IF
-              END IF
-              currentIntersect => currentIntersect%prev
-            END DO
+            CALL AssignListPosition(currentIntersect,locAlpha,iLocSide,1,xi_IN=xi,eta_IN=eta)
             IF((ABS(xi).GE.0.99).OR.(ABS(eta).GE.0.99)) markTol=.TRUE.
             IF(ALMOSTZERO(locAlpha)) markTol=.TRUE.
             IF(locAlpha/lengthPartTrajectory.GE.0.99) markTol=.TRUE.
@@ -725,38 +698,7 @@ DO iPart=1,PDM%ParticleVecLength
               ,locAlpha,locAlphaSphere,alphaDoneRel,iPart,alpha2=currentIntersect%alpha)
           currentIntersect%alpha=1.0
           currentIntersect%IntersectCase=0
-          IF(isHit) THEN
-            ! start from last intersection entry and place current intersection in correct entry position
-            DO WHILE(ASSOCIATED(currentIntersect))
-              IF (locAlpha.LE.currentIntersect%alpha) THEN
-                ! move current values of entry to next entry of list
-                currentIntersect%next%alpha = currentIntersect%alpha
-                currentIntersect%next%alphaSphere = currentIntersect%alphaSphere
-                currentIntersect%next%xi = currentIntersect%xi
-                currentIntersect%next%eta = currentIntersect%eta
-                currentIntersect%next%Side = currentIntersect%Side
-                currentIntersect%next%intersectCase = currentIntersect%intersectCase
-                IF (ASSOCIATED(currentIntersect%prev)) THEN
-                  IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
-                    ! assign new values
-                    currentIntersect%alpha = localpha
-                    currentIntersect%alphaSphere = localphaSphere
-                    currentIntersect%Side = iMP
-                    currentIntersect%intersectCase = 3
-                    EXIT
-                  END IF
-                ELSE
-                  ! assign new values
-                  currentIntersect%alpha = localpha
-                  currentIntersect%alphaSphere = localphaSphere
-                  currentIntersect%Side = iMP
-                  currentIntersect%intersectCase = 3
-                  EXIT
-                END IF
-              END IF
-              currentIntersect => currentIntersect%prev
-            END DO
-          END IF ! isHit
+          IF(isHit) CALL AssignListPosition(currentIntersect,locAlpha,iMP,3,alpha2_IN=locAlphaSphere)
         END IF
       ELSE
         DO ilocSide=1,6
@@ -811,43 +753,8 @@ __STAMP__ &
             EXIT
           END IF
           IF(isHit) THEN
-            ! start from last intersection entry and place current intersection in correct entry position
             currentIntersect => lastIntersect
-            DO WHILE(ASSOCIATED(currentIntersect))
-              IF (locAlpha.LE.currentIntersect%alpha) THEN
-                ! move current values of entry to next entry of list
-                IF (.NOT. ASSOCIATED(currentIntersect%next)) THEN
-                  ALLOCATE(currentIntersect%next)
-                  currentIntersect%next%prev => currentIntersect
-                END IF
-                currentIntersect%next%alpha = currentIntersect%alpha
-                currentIntersect%next%alphaSphere = currentIntersect%alphaSphere
-                currentIntersect%next%xi = currentIntersect%xi
-                currentIntersect%next%eta = currentIntersect%eta
-                currentIntersect%next%Side = currentIntersect%Side
-                currentIntersect%next%intersectCase = currentIntersect%intersectCase
-                IF (ASSOCIATED(currentIntersect%prev)) THEN
-                  IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
-                    ! assign new values
-                    currentIntersect%alpha = localpha
-                    currentIntersect%xi = xi
-                    currentIntersect%eta = eta
-                    currentIntersect%Side = ilocside
-                    currentIntersect%intersectCase = 1
-                    EXIT
-                  END IF
-                ELSE
-                  ! assign new values
-                  currentIntersect%alpha = localpha
-                  currentIntersect%xi = xi
-                  currentIntersect%eta = eta
-                  currentIntersect%Side = ilocside
-                  currentIntersect%intersectCase = 1
-                  EXIT
-                END IF
-              END IF
-              currentIntersect => currentIntersect%prev
-            END DO
+            CALL AssignListPosition(currentIntersect,locAlpha,iLocSide,1,xi_IN=xi,eta_IN=eta)
             currentIntersect => lastIntersect
             lastIntersect => currentIntersect%next
             lastIntersect%prev => currentIntersect
@@ -895,44 +802,7 @@ __STAMP__ &
             IF(isHit) THEN
               ! start from last intersection entry and place current intersection in correct entry position
               currentIntersect => lastIntersect
-              DO WHILE(ASSOCIATED(currentIntersect))
-                IF (locAlpha.LE.currentIntersect%alpha) THEN
-                  ! move current values of entry to next entry of list
-                  IF (.NOT. ASSOCIATED(currentIntersect%next)) THEN
-                    ALLOCATE(currentIntersect%next)
-                    currentIntersect%next%prev => currentIntersect
-                  END IF
-                  currentIntersect%next%alpha = currentIntersect%alpha
-                  currentIntersect%next%alphaSphere = currentIntersect%alphaSphere
-                  currentIntersect%next%xi = currentIntersect%xi
-                  currentIntersect%next%eta = currentIntersect%eta
-                  currentIntersect%next%Side = currentIntersect%Side
-                  currentIntersect%next%intersectCase = currentIntersect%intersectCase
-                  IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
-                    ! assign new values
-                    currentIntersect%alpha = localpha
-                    currentIntersect%Side = iAuxBC
-                    currentIntersect%intersectCase = 2
-                    EXIT
-                  END IF
-                  IF (ASSOCIATED(currentIntersect%prev)) THEN
-                    IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
-                      ! assign new values
-                      currentIntersect%alpha = localpha
-                      currentIntersect%Side = iAuxBC
-                      currentIntersect%intersectCase = 2
-                      EXIT
-                    END IF
-                  ELSE
-                    ! assign new values
-                    currentIntersect%alpha = localpha
-                    currentIntersect%Side = iAuxBC
-                    currentIntersect%intersectCase = 2
-                    EXIT
-                  END IF
-                END IF
-                currentIntersect => currentIntersect%prev
-              END DO
+              CALL AssignListPosition(currentIntersect,locAlpha,iAuxBC,2)
               currentIntersect => lastIntersect
               lastIntersect => currentIntersect%next
               lastIntersect%prev => currentIntersect
@@ -949,41 +819,8 @@ __STAMP__ &
               isHit=.FALSE.
             END IF
             IF(isHit) THEN
-              ! start from last intersection entry and place current intersection in correct entry position
               currentIntersect => lastIntersect
-              DO WHILE(ASSOCIATED(currentIntersect))
-                IF (locAlpha.LE.currentIntersect%alpha) THEN
-                  ! move current values of entry to next entry of list
-                  IF (.NOT. ASSOCIATED(currentIntersect%next)) THEN
-                    ALLOCATE(currentIntersect%next)
-                    currentIntersect%next%prev => currentIntersect
-                  END IF
-                  currentIntersect%next%alpha = currentIntersect%alpha
-                  currentIntersect%next%alphaSphere = currentIntersect%alphaSphere
-                  currentIntersect%next%xi = currentIntersect%xi
-                  currentIntersect%next%eta = currentIntersect%eta
-                  currentIntersect%next%Side = currentIntersect%Side
-                  currentIntersect%next%intersectCase = currentIntersect%intersectCase
-                  IF (ASSOCIATED(currentIntersect%prev)) THEN
-                    IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
-                      ! assign new values
-                      currentIntersect%alpha = localpha
-                      currentIntersect%alphaSphere = localphaSphere
-                      currentIntersect%Side = iMP
-                      currentIntersect%intersectCase = 3
-                      EXIT
-                    END IF
-                  ELSE
-                    ! assign new values
-                    currentIntersect%alpha = localpha
-                    currentIntersect%alphaSphere = localphaSphere
-                    currentIntersect%Side = iMP
-                    currentIntersect%intersectCase = 3
-                    EXIT
-                  END IF
-                END IF
-                currentIntersect => currentIntersect%prev
-              END DO
+              CALL AssignListPosition(currentIntersect,locAlpha,iMP,3,alpha2_IN=locAlphaSphere)
               currentIntersect => lastIntersect
               lastIntersect => currentIntersect%next
               lastIntersect%prev => currentIntersect
@@ -1029,7 +866,7 @@ __STAMP__ &
           CASE(3) ! MacroPart intersection
           !------------------------------------
             CALL GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory,currentIntersect%alpha&
-                                            ,currentIntersect%alphaSphere,alphaDoneRel,currentIntersect%Side,iPart,crossedBC)
+                                            ,currentIntersect%alpha2,alphaDoneRel,currentIntersect%Side,iPart,crossedBC)
             IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
             dolocSide=.TRUE. !important when before there was an elemchange !
             OnlyMacroPart=.FALSE. !important, since microscopic particle starts to move after collision !
@@ -1095,7 +932,7 @@ __STAMP__ &
           END SELECT
           IF (moveList) THEN
             lastIntersect%alpha = currentIntersect%alpha
-            lastIntersect%alphaSphere = currentIntersect%alphaSphere
+            lastIntersect%alpha2 = currentIntersect%alpha2
             lastIntersect%xi = currentIntersect%xi
             lastIntersect%eta = currentIntersect%eta
             lastIntersect%Side = currentIntersect%Side
@@ -1103,7 +940,7 @@ __STAMP__ &
             tmp=>firstIntersect
             DO WHILE (.NOT.ASSOCIATED(tmp,lastIntersect))
               tmp%alpha = tmp%next%alpha
-              tmp%alphaSphere = tmp%next%alphaSphere
+              tmp%alpha2 = tmp%next%alpha2
               tmp%xi = tmp%next%xi
               tmp%eta = tmp%next%eta
               tmp%Side = tmp%next%Side
@@ -1266,6 +1103,71 @@ END  DO ! iPart=1,PDM%ParticleVecLength
 #endif
 
 END SUBROUTINE ParticleTracing
+
+
+SUBROUTINE AssignListPosition(inLink,alpha_IN,sideID_IN,IntersectCase_IN,xi_IN,eta_IN,alpha2_IN)
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+TYPE(tIntersectLink),POINTER :: inLink
+REAL,INTENT(IN)              :: alpha_IN
+INTEGER,INTENT(IN)           :: sideID_IN
+INTEGER,INTENT(IN)           :: IntersectCase_IN
+REAL,INTENT(IN),OPTIONAL     :: xi_IN
+REAL,INTENT(IN),OPTIONAL     :: eta_IN
+REAL,INTENT(IN),OPTIONAL     :: alpha2_IN
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+! intersection info list
+!===================================================================================================================================
+! start from last intersection entry and place current intersection in correct entry position
+DO WHILE(ASSOCIATED(inLink))
+  IF (alpha_IN.LE.inLink%alpha) THEN
+    IF (.NOT. ASSOCIATED(inLink%next)) THEN
+      ALLOCATE(inLink%next)
+      inLink%next%prev => inLink
+    END IF
+    inLink%next%alpha = inLink%alpha
+    inLink%next%alpha2 = inLink%alpha2
+    inLink%next%xi = inLink%xi
+    inLink%next%eta = inLink%eta
+    inLink%next%Side = inLink%Side
+    inLink%next%intersectCase = inLink%intersectCase
+    IF (ASSOCIATED(inLink%prev)) THEN
+      IF (alpha_IN.GT.inLink%prev%alpha) THEN
+        ! assign new values
+        inLink%alpha = alpha_IN
+        inLink%Side = sideID_IN
+        inLink%intersectCase = IntersectCase_IN
+        IF (PRESENT(xi_IN)) inLink%xi = xi_IN
+        IF (PRESENT(eta_IN)) inLink%eta = eta_IN
+        IF (PRESENT(alpha2_IN)) inLink%alpha2 = alpha2_IN
+        EXIT
+      END IF
+    ELSE
+      ! assign new values
+      inLink%alpha = alpha_IN
+      inLink%Side = sideID_IN
+      inLink%intersectCase = IntersectCase_IN
+      IF (PRESENT(xi_IN)) inLink%xi = xi_IN
+      IF (PRESENT(eta_IN)) inLink%eta = eta_IN
+      IF (PRESENT(alpha2_IN)) inLink%alpha2 = alpha2_IN
+      EXIT
+    END IF
+  END IF
+  inLink => inLink%prev
+END DO
+
+END SUBROUTINE AssignListPosition
 
 
 #ifdef IMPA
