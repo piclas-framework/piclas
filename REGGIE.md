@@ -137,6 +137,9 @@ Testing more complex DSMC routines with reservoir (heat bath) simulations: [Link
 |  13     |             RELAX_CO2             |                  |              Rotational, vibrational relaxation towards equilibrium temperature               |   nProcs=2    |               |             [Link](regressioncheck/checks/NIG_Reservoir/RELAX_CO2/readme.md)             |
 |  14     |             RELAX_N2              |                  |                        Rotational, vibrational, electronic relaxation                         |   nProcs=1    |               |             [Link](regressioncheck/checks/NIG_Reservoir/RELAX_N2/readme.md)              |
 |  15     |            RELAX_N2Ion            |                  |                        Rotational, vibrational, electronic relaxation                         |   nProcs=1    |               |            [Link](regressioncheck/checks/NIG_Reservoir/RELAX_N2Ion/readme.md)            |
+|  16     |         VarRelaxProb_cold         |                  |           Relaxation of a cold reservoir of N2 with variable relaxation probabilities         |   nProcs=1,2,3|               |         [Link](regressioncheck/checks/NIG_Reservoir/VarRelaxProb_cold/readme.md)         |
+|  17     |         VarRelaxProb_hot          |                  |        Relaxation of a hot reservoir of N2 and O2 with variable relaxation probabilities      |   nProcs=2,3  |               |         [Link](regressioncheck/checks/NIG_Reservoir/VarRelaxProb_hot/readme.md)          |
+|  18     |        VarRelaxProb_Restart       |                  |                  Initial Autorestart with variable relaxation probabilities                   |   nProcs=1,2  |               |       [Link](regressioncheck/checks/NIG_Reservoir/VarRelaxProb_Restart/readme.md)        |
 
 #### NIG_tracking_DSMC
 
