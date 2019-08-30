@@ -496,9 +496,9 @@ LOGICAL                       :: doParticle
 LOGICAL                       :: doPartInExists
 #endif /*IMPA*/
 INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem,iAuxBC,AuxBCsToCheck
-INTEGER                       :: ilocSide,SideID,nInterSections
+INTEGER                       :: ilocSide,SideID
 LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol,crossedBC,SwitchedElement,isCriticalParallelInFace
-LOGICAL                       :: IsIntersec,IsAuxBC
+LOGICAL                       :: IsAuxBC
 REAL                          :: localpha,xi,eta,refpos(1:3)
 REAL,ALLOCATABLE              :: locAlphaSphere
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
@@ -544,10 +544,6 @@ IF (.NOT. ASSOCIATED(firstIntersect)) THEN
   IF (.NOT. ASSOCIATED(firstIntersect%next)) ALLOCATE(firstIntersect%next)
   lastIntersect => firstIntersect%next
   lastIntersect%prev => firstIntersect
-  lastEntry => lastIntersect
-  !print*,'first',firstIntersect%alpha
-  !print*,'last',lastIntersect%alpha
-  !print*,'lsat.prev',lastIntersect%prev%alpha
 END IF
 
 ! IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_SetInClones()
@@ -669,7 +665,6 @@ DO iPart=1,PDM%ParticleVecLength
 !      !(anyway, this was a speed-up for completely planar meshes only, but those should be now calculated with triatracking)
     markTol =.FALSE.
     DO WHILE (.NOT.PartisDone)
-      nInterSections=0
       markTol =.FALSE.
       IF (PartDoubleCheck.EQ.2) THEN
         PartDoubleCheck=1
@@ -685,7 +680,8 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*CODE_ANALYZE*/
         currentIntersect => lastIntersect%prev
         IF (currentIntersect%IntersectCase.EQ.1) THEN
-          CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,currentIntersect%Side &
+          iLocSide=currentIntersect%Side
+          CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,iLocSide &
               ,alpha2=currentIntersect%alpha)
           currentIntersect%alpha=1.0
           currentIntersect%IntersectCase=0
@@ -726,7 +722,8 @@ DO iPart=1,PDM%ParticleVecLength
             IF(locAlpha/lengthPartTrajectory.GE.0.99) markTol=.TRUE.
           END IF
         ELSE IF (lastIntersect%IntersectCase.EQ.3) THEN
-          CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,currentIntersect%Side&
+          iMP = currentIntersect%Side
+          CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,iMP&
               ,locAlpha,locAlphaSphere,alphaDoneRel,iPart,alpha2=currentIntersect%alpha)
           currentIntersect%alpha=1.0
           currentIntersect%IntersectCase=0
@@ -770,7 +767,6 @@ DO iPart=1,PDM%ParticleVecLength
             IF (OnlyMacroPart) CYCLE
           END IF
           IF(.NOT.dolocSide(ilocSide)) CYCLE
-          !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
           SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
           flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
           isCriticalParallelInFace=.FALSE.
@@ -817,17 +813,13 @@ __STAMP__ &
             EXIT
           END IF
           IF(isHit) THEN
-            !print*,'is a hit',locAlpha
             ! start from last intersection entry and place current intersection in correct entry position
             currentIntersect => lastIntersect
             DO WHILE(ASSOCIATED(currentIntersect))
               IF (locAlpha.LE.currentIntersect%alpha) THEN
-                !print*,'moves list entries'
                 ! move current values of entry to next entry of list
                 IF (.NOT. ASSOCIATED(currentIntersect%next)) THEN
-                  !print*,'allocates next list entry'
                   ALLOCATE(currentIntersect%next)
-                  lastEntry => currentIntersect%next
                   currentIntersect%next%prev => currentIntersect
                 END IF
                 currentIntersect%next%alpha = currentIntersect%alpha
@@ -838,7 +830,6 @@ __STAMP__ &
                 currentIntersect%next%intersectCase = currentIntersect%intersectCase
                 IF (ASSOCIATED(currentIntersect%prev)) THEN
                   IF (locAlpha.GT.currentIntersect%prev%alpha) THEN
-                    !print*,'insert list entry in between'
                     ! assign new values
                     currentIntersect%alpha = localpha
                     currentIntersect%xi = xi
@@ -849,7 +840,6 @@ __STAMP__ &
                   END IF
                 ELSE
                   ! assign new values
-                  !print*,'insert list entry at start', ASSOCIATED(currentIntersect,firstIntersect)
                   currentIntersect%alpha = localpha
                   currentIntersect%xi = xi
                   currentIntersect%eta = eta
@@ -876,7 +866,8 @@ __STAMP__ &
             END IF
             isCriticalParallelInFace=.FALSE.
             IF (ElemHasAuxBCs(ElemID,iAuxBC)) THEN
-              CALL ComputeAuxBCIntersection(isHit,PartTrajectory,lengthPartTrajectory,iAuxBC,locAlpha,iPart,isCriticalParallelInFace)
+              CALL ComputeAuxBCIntersection(isHit,PartTrajectory,lengthPartTrajectory &
+                  ,iAuxBC,locAlpha,iPart,isCriticalParallelInFace)
             ELSE
               isHit=.FALSE.
             END IF
@@ -911,7 +902,6 @@ __STAMP__ &
                   ! move current values of entry to next entry of list
                   IF (.NOT. ASSOCIATED(currentIntersect%next)) THEN
                     ALLOCATE(currentIntersect%next)
-                    lastEntry => currentIntersect%next
                     currentIntersect%next%prev => currentIntersect
                   END IF
                   currentIntersect%next%alpha = currentIntersect%alpha
@@ -968,7 +958,6 @@ __STAMP__ &
                   ! move current values of entry to next entry of list
                   IF (.NOT. ASSOCIATED(currentIntersect%next)) THEN
                     ALLOCATE(currentIntersect%next)
-                    lastEntry => currentIntersect%next
                     currentIntersect%next%prev => currentIntersect
                   END IF
                   currentIntersect%next%alpha = currentIntersect%alpha
@@ -1005,22 +994,8 @@ __STAMP__ &
         END IF
       END IF
 
-#ifdef CODE_ANALYZE
-!---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
-      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-        IF(iPart.EQ.PARTOUT)THEN
-          WRITE(UNIT_stdout,'(A,I0)') '     > Number of found intersections: ',nIntersections
-          IF(markTol)THEN
-            WRITE(UNIT_stdout,'(A)') '     | Tolerance marked ... '
-          END IF
-        END IF
-      END IF
-!-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
-#endif /*CODE_ANALYZE*/
-
       currentIntersect => firstIntersect
       DO WHILE(ASSOCIATED(currentIntersect))
-      !print*,'intersection case:', currentIntersect%IntersectCase
         SwitchedElement=.FALSE.
         crossedBC=.FALSE.
         IF (currentIntersect%IntersectCase.EQ.0) THEN
@@ -1032,7 +1007,6 @@ __STAMP__ &
           !------------------------------------
           CASE(1) ! intersection with cell side
           !------------------------------------
-            !print*,'intersection tested ------','first intersection:', ASSOCIATED(currentIntersect,firstIntersect)
             SideID=PartElemToSide(E2S_SIDE_ID,currentIntersect%Side,ElemID)
             flip  =PartElemToSide(E2S_FLIP,currentIntersect%Side,ElemID)
             OldElemID=ElemID
@@ -1176,8 +1150,6 @@ __STAMP__ &
       END IF
     END DO ! PartisDone=.FALSE.
 
-
-
     IF(markTol)THEN
       IF(.NOT.PDM%ParticleInside(iPart))THEN
 #ifdef IMPA
@@ -1284,12 +1256,6 @@ END  DO ! iPart=1,PDM%ParticleVecLength
 
 !! delete intersection list
 !currentIntersect => firstIntersect
-!NULLIFY(firstIntersect)
-!NULLIFY(firstIntersect%prev)
-!NULLIFY(firstIntersect%next)
-!NULLIFY(lastIntersect%prev)
-!NULLIFY(lastIntersect%next)
-!NULLIFY(lastIntersect)
 !DO WHILE (ASSOCIATED(currentIntersect))
 !  tmp = currentIntersect%next
 !  DEALLOCATE(currentIntersect)
@@ -1298,9 +1264,12 @@ END  DO ! iPart=1,PDM%ParticleVecLength
 !  NULLIFY(currentIntersect%prev)
 !  currentIntersect = tmp
 !END DO
-!NULLIFY(lastEntry%prev)
-!NULLIFY(lastEntry%next)
-!NULLIFY(lastEntry)
+!NULLIFY(firstIntersect)
+!NULLIFY(firstIntersect%prev)
+!NULLIFY(firstIntersect%next)
+!NULLIFY(lastIntersect%prev)
+!NULLIFY(lastIntersect%next)
+!NULLIFY(lastIntersect)
 
 END SUBROUTINE ParticleTracing
 
