@@ -662,7 +662,6 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*CODE_ANALYZE*/
 
 
-    ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
     firstElem=ElemID
 !    IF (ElemType(ElemID).EQ.1) THEN
