@@ -749,8 +749,8 @@ END SUBROUTINE EvaluateBezierPolynomialAndGradient
 SUBROUTINE GetBezierControlPoints3D(XCL_NGeo,ElemID,ilocSide_In,SideID_In)
 !===================================================================================================================================
 ! computes the nodes for Bezier Control Points for [P][I][C] [A]daptive [S]uper [S]ampled Surfaces [O]perations
-! the control points (coeffs for bezier basis) are calculated using the change basis subroutine that interpolates the points
-! from the curved lagrange basis geometry (pre-computed inverse of vandermonde is required)
+! the control points (coeffs for Bezier basis) are calculated using the change basis subroutine that interpolates the points
+! from the curved Lagrange basis geometry (pre-computed inverse of Vandermonde is required)
 ! This version uses mapping, hence simplified to one loop
 !===================================================================================================================================
 ! MODULES
@@ -796,24 +796,24 @@ __STAMP__&
     IF(PRESENT(SideID_In)) SideID=SideID_In
     SELECT CASE(iLocSide)
     CASE(XI_MINUS)
-      tmp=XCL_NGeo(1:3,0   ,:   ,:   )
+      tmp=XCL_NGeo(1:3 , 0    , :    , :   )
     CASE(XI_PLUS)
-      tmp=XCL_NGeo(1:3,NGeo,:   ,:   )
+      tmp=XCL_NGeo(1:3 , NGeo , :    , :   )
     CASE(ETA_MINUS)
-      tmp=XCL_NGeo(1:3,:   ,0   ,:   )
+      tmp=XCL_NGeo(1:3 , :    , 0    , :   )
     CASE(ETA_PLUS)
-      tmp=XCL_NGeo(1:3,:   ,NGeo,:   )
+      tmp=XCL_NGeo(1:3 , :    , NGeo , :   )
     CASE(ZETA_MINUS)
-      tmp=XCL_NGeo(1:3,:   ,:   ,0   )
+      tmp=XCL_NGeo(1:3 , :    , :    , 0   )
     CASE(ZETA_PLUS)
-      tmp=XCL_NGeo(1:3,:   ,:   ,NGeo)
+      tmp=XCL_NGeo(1:3 , :    , :    , NGeo)
     END SELECT
     CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,tmp,tmp2)
     ! turn into right hand system of side
     DO q=0,NGeo; DO p=0,NGeo
       pq=CGNS_SideToVol2(NGeo,p,q,iLocSide)
       ! Compute BezierControlPoints3D for sides in MASTER system
-      BezierControlPoints3D(1:3,p,q,sideID)=tmp2(1:3,pq(1),pq(2))
+      BezierControlPoints3D(1:3,p,q,SideID)=tmp2(1:3,pq(1),pq(2))
     END DO; END DO ! p,q
   END IF
 END DO ! ilocSide=1,6
@@ -1584,25 +1584,25 @@ REAL,INTENT(IN),OPTIONAL  :: BezierControlPoints2d_in(1:2,0:NGeo,0:NGeo)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER          :: k,i,j
-REAL             :: BezierControlPoints3d(1:3,0:NGeo,0:NGeo)
+REAL             :: BezierControlPoints3D(1:3,0:NGeo,0:NGeo)
 !===================================================================================================================================
 
-BezierControlPoints3d=0.
+BezierControlPoints3D=0.
 IF(PRESENT(BezierControlPoints3d_in))THEN
-  BezierControlPoints3d=BezierControlPoints3d_in
+  BezierControlPoints3D=BezierControlPoints3d_in
 ELSE IF(PRESENT(BezierControlPoints2d_in))THEN
-  BezierControlPoints3d(1:2,:,:)=BezierControlPoints2d_in(:,:,:)
+  BezierControlPoints3D(1:2,:,:)=BezierControlPoints2d_in(:,:,:)
 ELSE
   CALL abort(&
 __STAMP__&
-,' Tilman hat nicht aufgepasst.!')
+,' OutputBezierControlPoints(): Something went wrong.!')
 END IF
 
 DO K=1,3
   WRITE(UNIT_stdout,'(A,I1,A)',ADVANCE='NO')' P(:,:,',K,') = [ '
   DO I=0,NGeo ! output for MATLAB
     DO J=0,NGeo
-      WRITE(UNIT_stdout,'(E24.12)',ADVANCE='NO') BezierControlPoints3d(K,J,I)
+      WRITE(UNIT_stdout,'(E24.12)',ADVANCE='NO') BezierControlPoints3D(K,J,I)
       IF(J.EQ.NGeo)THEN
         IF(I.EQ.NGeo)THEN
           WRITE(UNIT_stdout,'(A)')' ];'

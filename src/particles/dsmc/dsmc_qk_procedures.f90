@@ -104,7 +104,7 @@ END IF
 END SUBROUTINE QK_dissociation
 
 
-SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
+SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,NodeVolume,NodePartNum)
 !===================================================================================================================================
 ! tests for molecular recombination of two colliding atoms by the use of Birds QK theory
 !===================================================================================================================================
@@ -112,17 +112,15 @@ SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,Node
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
-USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PEM, PartState,  usevMPF
+USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PEM, PartState
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_DSMC_ChemReact,         ONLY: DSMC_Chemistry
-USE MOD_vmpf_collision,         ONLY: AtomRecomb_vMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARiABLES
 INTEGER, INTENT(IN)           :: iPair, iReac,iPart_p3
 LOGICAL, INTENT(INOUT)        :: RelaxToDo
-INTEGER, INTENT(IN)           :: iElem
 REAL, INTENT(IN), OPTIONAL    :: NodeVolume
 INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -181,11 +179,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
                              + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * &
                                  ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 ) &
                              + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
-        IF (usevMPF) THEN
-          CALL AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
-        ELSE
-          CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
-        END IF
+        CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
 #if (PP_TimeDiscMethod==42)
       END IF
       IF ( DSMC%ReservoirRateStatistic ) THEN
@@ -235,11 +229,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
                               + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * &
                               ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 ) &
                               + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
-        IF (usevMPF) THEN
-          CALL AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
-        ELSE
-          CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
-        END IF
+        CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
         RelaxToDo = .FALSE.
 #if (PP_TimeDiscMethod==42)
       END IF
@@ -452,10 +442,11 @@ SUBROUTINE QK_ImpactIonization(iPair,iReac,RelaxToDo)
 ! derived from the work of Liechty 2010-02
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac, DSMC
-USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry
-USE MOD_Particle_Vars,          ONLY : PartSpecies
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac, DSMC, RadialWeighting
+USE MOD_DSMC_ChemReact        ,ONLY: DSMC_Chemistry
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -467,7 +458,7 @@ LOGICAL, INTENT(INOUT)        :: RelaxToDo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: React1Inx, React2Inx, MaxElecQua
-REAL                          :: IonizationEnergy
+REAL                          :: IonizationEnergy, Weight1, Weight2, ReducedMass
 !===================================================================================================================================
 
 
@@ -481,13 +472,24 @@ END IF
 ! this is based on the idea of the QK method but used accordingly to the dissociation
 ! this time it is not possible to use quantizied levels as they are not equally spaced
 ! therefore we use the energy
-Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
 
-IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(React1Inx,3)
+Weight1 = GetParticleWeight(React1Inx)
+Weight2 = GetParticleWeight(React2Inx)
+
+IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  ReducedMass = (Species(PartSpecies(React1Inx))%MassIC*Weight1 * Species(PartSpecies(React2Inx))%MassIC*Weight2) &
+              / (Species(PartSpecies(React1Inx))%MassIC*Weight1 + Species(PartSpecies(React2Inx))%MassIC*Weight2)
+ELSE
+  ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
+END IF
+
+Coll_pData(iPair)%Ec = 0.5*ReducedMass*Coll_pData(iPair)%CRela2
+
+IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(React1Inx,3)*Weight1
 
 ! ionization level is last known energy level of species
 MaxElecQua=SpecDSMC(PartSpecies(React1Inx))%MaxElecQuant - 1
-IonizationEnergy=SpecDSMC(PartSpecies(React1Inx))%ElectronicState(2,MaxElecQua)*BoltzmannConst
+IonizationEnergy=SpecDSMC(PartSpecies(React1Inx))%ElectronicState(2,MaxElecQua)*BoltzmannConst*(2*Weight1 + Weight2)/3.
 ! if you have electronic levels above the ionization limit, such limits should be used instead of
 ! the pure energy comparison
 
@@ -511,7 +513,6 @@ END SUBROUTINE
 
 
 SUBROUTINE QK_IonRecombination(iPair,iReac,iPart_p3,RelaxToDo,NodeVolume,NodePartNum)
-!SUBROUTINE QK_IonRecombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
 !===================================================================================================================================
 ! Check if colliding ion + electron recombines to neutral atom/ molecule
 ! requires a third collision partner, which has to take a part of the energy
@@ -538,7 +539,6 @@ INTEGER, INTENT(IN), OPTIONAL       :: NodePartNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL, INTENT(INOUT)              :: RelaxToDo
-!INTEGER, INTENT(IN)                 :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                             :: iQuaMax1, iQuaMax2,MaxElecQuant, iQua

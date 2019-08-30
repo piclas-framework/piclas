@@ -100,7 +100,7 @@ USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
 #ifdef PARTICLES
-#ifdef MPI
+#if USE_MPI
 USE MOD_Mesh_Vars,               ONLY:nSides
 #endif
 USE MOD_Mesh_Vars,               ONLY:NGeoElevated
@@ -110,9 +110,9 @@ USE MOD_Mesh_Vars,               ONLY:SideToElem
 USE MOD_Mesh_Vars,               ONLY:MortarSlave2MasterInfo
 USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
-#ifndef MPI
+#if !(USE_MPI)
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMortarInnerSides
-#endif /*not MPI*/
+#endif /*!(USE_MPI)*/
 #endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -457,15 +457,15 @@ END DO !iElem=1,nElems
 SWRITE(UNIT_stdOut,'(A)') ' '
 SWRITE(UNIT_stdOut,'(A)') 'BEZIERCONTROLPOINTS ...'
 StartT2=PICLASTIME()
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
-#ifdef MPI
+#if USE_MPI
 lowerLimit=nSides ! all incl. my mortar sides
 #else
 lowerLimit=nBCSides+nMortarInnerSides+nInnerSides
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! Next, build the BezierControlPoints,SideSlabNormals,SideSlabIntervals and BoundingBoxIsEmpty for
 ! nBCSides, nInnerMortarSides, nInnerSides, nMPISides_MINE and MINE mortar sides

@@ -38,7 +38,7 @@ INTERFACE WriteSurfSampleToHDF5
   MODULE PROCEDURE WriteSurfSampleToHDF5
 END INTERFACE
 
-#ifdef MPI
+#if USE_MPI
 INTERFACE ExchangeSurfData
   MODULE PROCEDURE ExchangeSurfData
 END INTERFACE
@@ -46,15 +46,15 @@ END INTERFACE
 INTERFACE MapInnerSurfData
   MODULE PROCEDURE MapInnerSurfData
 END INTERFACE
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 PUBLIC::InitParticleBoundarySampling
 PUBLIC::WriteSurfSampleToHDF5
 PUBLIC::FinalizeParticleBoundarySampling
-#ifdef MPI
+#if USE_MPI
 PUBLIC::ExchangeSurfData
 PUBLIC::MapInnerSurfData
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 CONTAINS
@@ -69,24 +69,23 @@ SUBROUTINE InitParticleBoundarySampling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_ReadInTools
-USE MOD_Preproc
 USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides,nBCs,BoundaryName
-USE MOD_ReadInTools             ,ONLY:GETINT
+USE MOD_ReadInTools             ,ONLY:GETINT,GETLOGICAL,GETINTARRAY
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis,nPorousBC
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides,PartSideToElem,GEO
-USE MOD_Particle_Vars           ,ONLY:nSpecies, PartSurfaceModel
+USE MOD_Particle_Vars           ,ONLY:nSpecies, VarTimeStep, Symmetry2D
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
 USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
 USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList,PartElemToElemAndSide
 USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping,TriaTracking
-#ifdef MPI
+USE MOD_DSMC_Symmetry2D         ,ONLY:DSMC_2D_CalcSymmetryArea
+#if USE_MPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 #else
 USE MOD_Particle_Boundary_Vars  ,ONLY:offSetSurfSide
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_PICDepo_Vars            ,ONLY:SFResampleAnalyzeSurfCollis
 USE MOD_PICDepo_Vars            ,ONLY:LastAnalyzeSurfCollis
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -118,7 +117,7 @@ nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
 ! IF (NGeo.GT.nSurfSample) THEN
 !   nSurfSample = NGeo
 ! END IF
-IF (PartSurfaceModel.GT.0) THEN
+IF (ANY(PartBound%Reactive)) THEN
   IF (nSurfSample.NE.BezierSampleN) THEN
   CALL abort(&
 __STAMP__&
@@ -142,8 +141,8 @@ END DO
 DO iBC=1,nBCs
   IF (PartBound%MapToPartBC(iBC).EQ.-1) CYCLE !inner side (can be just in the name list from preproc although already sorted out)
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC) THEN
-  nSurfBC = nSurfBC + 1
-  BCName(nSurfBC) = BoundaryName(iBC)
+    nSurfBC = nSurfBC + 1
+    BCName(nSurfBC) = BoundaryName(iBC)
   END IF
 END DO
 IF (nSurfBC.GE.1) THEN
@@ -165,12 +164,14 @@ IsSlaveSide(1:nSides)= .FALSE.
 
 ! own BCsides
 SurfMesh%nSides=0
+SurfMesh%nMasterSides=0
 SurfMesh%nBCSides=0
 SurfMesh%nInnerSides=0
 DO iSide=1,nBCSides
   IF(BC(iSide).EQ.0) CYCLE
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
     SurfMesh%nSides = SurfMesh%nSides + 1
+    SurfMesh%nMasterSides = SurfMesh%nMasterSides + 1
     SurfMesh%nBCSides = SurfMesh%nBCSides + 1
     SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nSides
   END IF
@@ -185,6 +186,7 @@ DO iSide=nBCSides+1,nSides
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
     IF(PartSideToElem(S2E_ELEM_ID,iSide).NE.-1) THEN
       SurfMesh%nSides = SurfMesh%nSides + 1
+      SurfMesh%nMasterSides = SurfMesh%nMasterSides + 1
       SurfMesh%nInnerSides = SurfMesh%nInnerSides + 1  ! increment only for MasterSides
       SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nSides
       IF(PartSideToElem(S2E_NB_ELEM_ID,iSide).EQ.-1) THEN
@@ -261,18 +263,21 @@ SurfMesh%SurfOnProc=.FALSE.
 !IF(SurfMesh%nSides.GT.0)
 IF(SurfMesh%nTotalSides.GT.0) SurfMesh%SurfOnProc=.TRUE.
 
-#ifdef MPI
+#if USE_MPI
 !CALL MPI_ALLREDUCE(SurfMesh%nSides,SurfMesh%nGlobalSides,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
-CALL MPI_ALLREDUCE(SurfMesh%nBCSides+SurfMesh%nInnerSides,SurfMesh%nGlobalSides,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
+CALL MPI_ALLREDUCE(SurfMesh%nMasterSides,SurfMesh%nGlobalSides,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
 #else
-SurfMesh%nGlobalSides=SurfMesh%nBCSides+SurfMesh%nInnerSides
+SurfMesh%nGlobalSides=SurfMesh%nMasterSides
 #endif
 
 
 SWRITE(UNIT_stdOut,'(A,I8)') ' nGlobalSurfSides ', SurfMesh%nGlobalSides
 
 SurfMesh%SampSize=9+3+nSpecies ! Energy + Force + nSpecies
-#ifdef MPI
+
+IF(VarTimeStep%UseVariableTimeStep) SurfMesh%SampSize = SurfMesh%SampSize + 1
+
+#if USE_MPI
 ! split communitator
 CALL InitSurfCommunicator()
 IF(SurfMesh%SurfOnProc) THEN
@@ -288,7 +293,7 @@ SurfCOMM%nOutputProcs = 1
 SurfCOMM%nOutputProcs=1
 ! get correct offsets
 OffSetSurfSide=0
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! Initialize surface collision sampling and analyze
 CalcSurfCollis%OnlySwaps = GETLOGICAL('Particles-CalcSurfCollis_OnlySwaps','.FALSE.')
@@ -369,13 +374,6 @@ DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   ALLOCATE(SampWall(iSide)%State(1:SurfMesh%SampSize,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%State=0.
   IF(nPorousBC.GT.0) SampWall(iSide)%PumpCapacity = 0.
-  !ALLOCATE(SampWall(iSide)%Energy(1:9,0:nSurfSample,0:nSurfSample)         &
-  !        ,SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          &
-  !        ,SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) )
-  ! nullify
-  !SampWall(iSide)%Energy(1:9,0:nSurfSample,0:nSurfSample)         = 0.
-  !SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          = 0.
-  !SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) = 0.
 END DO
 
 ALLOCATE(SurfMesh%SurfaceArea(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides))
@@ -398,30 +396,34 @@ DO iSide=1,nTotalSides
     ElemID = PartSideToElem(S2E_ELEM_ID,iSide)
     LocSideID = PartSideToElem(S2E_LOC_SIDE_ID,iSide)
     IF (ElemID.EQ.-1) THEN
-        ElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
-        LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+      ElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
+      LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,iSide)
     END IF
     SurfaceVal = 0.
     xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,LocSideID,ElemID))
     yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,LocSideID,ElemID))
     zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,LocSideID,ElemID))
 
-    DO TriNum = 1,2
-      Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
-      Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-      Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - xNod
-      Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - yNod
-      Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - zNod
-      Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - xNod
-      Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - yNod
-      Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - zNod
-      nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
-      ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
-      nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
-      nVal = SQRT(nx*nx + ny*ny + nz*nz)
-      SurfaceVal = SurfaceVal + nVal/2.
-    END DO
-    SurfMesh%SurfaceArea(1,1,SurfSideID) = SurfaceVal
+    IF(Symmetry2D) THEN
+      SurfMesh%SurfaceArea(1,1,SurfSideID) = DSMC_2D_CalcSymmetryArea(LocSideID, ElemID)
+    ELSE
+      DO TriNum = 1,2
+        Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
+        Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
+        Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - xNod
+        Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - yNod
+        Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - zNod
+        Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - xNod
+        Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - yNod
+        Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - zNod
+        nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
+        ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
+        nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
+        nVal = SQRT(nx*nx + ny*ny + nz*nz)
+        SurfaceVal = SurfaceVal + nVal/2.
+      END DO
+      SurfMesh%SurfaceArea(1,1,SurfSideID) = SurfaceVal
+    END IF
   ELSE
     ! call here stephens algorithm to compute area
     DO jSample=1,nSurfSample
@@ -457,9 +459,9 @@ DO iSide=1,nSides
   Area = Area + SUM(SurfMesh%SurfaceArea(:,:,SurfSideID))
 END DO ! iSide=1,nTotalSides
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,Area,1,MPI_DOUBLE_PRECISION,MPI_SUM,SurfCOMM%COMM,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_stdOut,'(A,ES25.14E3)') ' Surface-Area: ', Area
 
@@ -469,7 +471,7 @@ SWRITE(UNIT_stdOut,'(A)') ' ... DONE.'
 
 END SUBROUTINE InitParticleBoundarySampling
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE InitSurfCommunicator()
 !===================================================================================================================================
 ! Creates two new subcommunicators.
@@ -548,7 +550,7 @@ END IF
 ! now, create output communicator
 OutputOnProc=.FALSE.
 color=MPI_UNDEFINED
-IF(SurfMesh%nSides.GT.0) THEN
+IF(SurfMesh%nMasterSides.GT.0) THEN
   OutputOnProc=.TRUE.
   color=4
 END IF
@@ -557,7 +559,7 @@ IF(PartMPI%MPIRoot) THEN
   Surfrank=-1
   noSurfrank=-1
   SurfCOMM%MyOutputRank=0
-  IF(SurfMesh%nSides.GT.0) THEN
+  IF(SurfMesh%nMasterSides.GT.0) THEN
     Surfrank=0
   ELSE
     noSurfrank=0
@@ -590,7 +592,7 @@ IF(SurfCOMM%MyOutputRank.EQ.0 .AND. OutputOnProc) THEN
 !   WRITE(UNIT_stdout,'(A18,I5,A6)') 'SURF OUTPUT-COMM: ',SurfCOMM%nOutputProcs,' procs'
 END IF
 
-IF(SurfMesh%nSides.EQ.0) RETURN
+IF(SurfMesh%nMasterSides.EQ.0) RETURN
 
 ! get correct offsets
 ALLOCATE(offsetSurfSideMPI(0:SurfCOMM%nOutputProcs))
@@ -598,7 +600,7 @@ offsetSurfSideMPI=0
 ALLOCATE(countSurfSideMPI(0:SurfCOMM%nOutputProcs-1))
 countSurfSideMPI=0
 
-CALL MPI_GATHER(SurfMesh%nBCSides+SurfMesh%nInnerSides,1,MPI_INTEGER,countSurfSideMPI,1,MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
+CALL MPI_GATHER(SurfMesh%nMasterSides,1,MPI_INTEGER,countSurfSideMPI,1,MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
 
 ! new offsets due to InnerSurfSides
 ALLOCATE(offsetInnerSurfSideMPI(0:SurfCOMM%nOutputProcs))
@@ -1040,11 +1042,11 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   SDEALLOCATE(SurfSendBuf(iProc)%content)
   SDEALLOCATE(SurfRecvBuf(iProc)%content)
   IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
-    ALLOCATE(SurfSendBuf(iProc)%content((SurfMesh%SampSize)*nDOF*SurfExchange%nSidesSend(iProc)))
+    ALLOCATE(SurfSendBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesSend(iProc)))
     SurfSendBuf(iProc)%content=0.
   END IF
   IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
-    ALLOCATE(SurfRecvBuf(iProc)%content((SurfMesh%SampSize)*nDOF*SurfExchange%nSidesRecv(iProc)))
+    ALLOCATE(SurfRecvBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesRecv(iProc)))
     SurfRecvBuf(iProc)%content=0.
   END IF
 END DO ! iProc
@@ -1054,12 +1056,12 @@ IF(nPorousBC.GT.0) THEN
   ALLOCATE(PorousBCRecvBuf(SurfCOMM%nMPINeighbors))
   DO iProc=1,SurfCOMM%nMPINeighbors
     IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
-      ALLOCATE(PorousBCSendBuf(iProc)%content_int(nPorousBCVars*nPorousBC*SurfExchange%nSidesSend(iProc)))
-      PorousBCSendBuf(iProc)%content_int=0
+      ALLOCATE(PorousBCSendBuf(iProc)%content(nPorousBCVars*nPorousBC*SurfExchange%nSidesSend(iProc)))
+      PorousBCSendBuf(iProc)%content=0.
     END IF
     IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
-      ALLOCATE(PorousBCRecvBuf(iProc)%content_int(nPorousBCVars*nPorousBC*SurfExchange%nSidesRecv(iProc)))
-      PorousBCRecvBuf(iProc)%content_int=0
+      ALLOCATE(PorousBCRecvBuf(iProc)%content(nPorousBCVars*nPorousBC*SurfExchange%nSidesRecv(iProc)))
+      PorousBCRecvBuf(iProc)%content=0.
     END IF
   END DO ! iProc
 END IF
@@ -1082,9 +1084,9 @@ SUBROUTINE ExchangeSurfData()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Vars               ,ONLY:nSpecies,LiquidSimFlag,PartSurfaceModel
+USE MOD_Particle_Vars               ,ONLY:nSpecies
 USE MOD_SurfaceModel_Vars           ,ONLY:Adsorption
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,SampWall
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,SampWall,PartBound
 USE MOD_Particle_MPI_Vars           ,ONLY:SurfSendBuf,SurfRecvBuf,SurfExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1094,17 +1096,19 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID
+INTEGER                         :: MessageSize,iSurfSide,SurfSideID
+INTEGER                         :: nValues, nReactiveValues
 INTEGER                         :: iPos,p,q,iProc,iReact
 INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
 
 nValues = SurfMesh%SampSize*nSurfSample**2
 ! additional array entries for Coverage, Accomodation and recombination coefficient
-IF(PartSurfaceModel.GT.0) nValues = nValues + ((nSpecies+1)+nSpecies+(Adsorption%RecombNum*nSpecies))*(nSurfSample)**2
-! additional array entries for liquid surfaces
-IF(LiquidSimFlag) nValues = nValues + (nSpecies+1)*nSurfSample**2
-!
+nReactiveValues=0
+IF(ANY(PartBound%Reactive)) nReactiveValues = SurfMesh%ReactiveSampSize*(nSurfSample)**2
+
+nValues=nValues+nReactiveValues
+
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
@@ -1130,30 +1134,23 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       DO p=1,nSurfSample
         SurfSendBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)= SampWall(SurfSideID)%State(:,p,q)
         iPos=iPos+SurfMesh%SampSize
-        IF (PartSurfaceModel.GT.0) THEN
-          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies+1)= SampWall(SurfSideID)%Adsorption(:,p,q)
-          iPos=iPos+nSpecies+1
+        IF (ANY(PartBound%Reactive)) THEN
+          SurfSendBuf(iProc)%content(iPos+1:iPos+5+nSpecies)= SampWall(SurfSideID)%SurfModelState(:,p,q)
+          iPos=iPos+5+nSpecies
           SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Accomodation(:,p,q)
           iPos=iPos+nSpecies
-          DO iReact=1,Adsorption%RecombNum
-            SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Reaction(iReact,:,p,q)
+          DO iReact=1,2*Adsorption%ReactNum
+            SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%SurfModelReactCount(iReact,:,p,q)
             iPos=iPos+nSpecies
           END DO
-        END IF
-        IF (LiquidSimFlag) THEN
-          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies+1)= SampWall(SurfSideID)%Evaporation(:,p,q)
-          iPos=iPos+nSpecies+1
         END IF
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
     SampWall(SurfSideID)%State(:,:,:)=0.
-    IF (PartSurfaceModel.GT.0) THEN
-      SampWall(SurfSideID)%Adsorption(:,:,:)=0.
+    IF (ANY(PartBound%Reactive)) THEN
+      SampWall(SurfSideID)%SurfModelState(:,:,:)=0.
       SampWall(SurfSideID)%Accomodation(:,:,:)=0.
-      SampWall(SurfSideID)%Reaction(:,:,:,:)=0.
-    END IF
-    IF (LiquidSimFlag) THEN
-      SampWall(SurfSideID)%Evaporation(:,:,:)=0.
+      SampWall(SurfSideID)%SurfModelReactCount(:,:,:,:)=0.
     END IF
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
 END DO
@@ -1199,23 +1196,18 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         SampWall(SurfSideID)%State(:,p,q)=SampWall(SurfSideID)%State(:,p,q) &
                                          +SurfRecvBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)
         iPos=iPos+SurfMesh%SampSize
-        IF (PartSurfaceModel.GT.0) THEN
-          SampWall(SurfSideID)%Adsorption(:,p,q)=SampWall(SurfSideID)%Adsorption(:,p,q) &
-                                                +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies+1)
-          iPos=iPos+nSpecies+1
+        IF (ANY(PartBound%Reactive)) THEN
+          SampWall(SurfSideID)%SurfModelState(:,p,q)=SampWall(SurfSideID)%SurfModelState(:,p,q) &
+                                                +SurfRecvBuf(iProc)%content(iPos+1:iPos+5+nSpecies)
+          iPos=iPos+5+nSpecies
           SampWall(SurfSideID)%Accomodation(:,p,q)=SampWall(SurfSideID)%Accomodation(:,p,q) &
                                                   +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
           iPos=iPos+nSpecies
-          DO iReact=1,Adsorption%RecombNum
-            SampWall(SurfSideID)%Reaction(iReact,:,p,q)=SampWall(SurfSideID)%Reaction(iReact,:,p,q) &
+          DO iReact=1,2*Adsorption%ReactNum
+            SampWall(SurfSideID)%SurfModelReactCount(iReact,:,p,q)=SampWall(SurfSideID)%SurfModelReactCount(iReact,:,p,q) &
                                                        +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
             iPos=iPos+nSpecies
           END DO
-        END IF
-        IF (LiquidSimFlag) THEN
-          SampWall(SurfSideID)%Evaporation(:,p,q)=SampWall(SurfSideID)%Evaporation(:,p,q) &
-                                                     +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies+1)
-          iPos=iPos+nSpecies+1
         END IF
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
@@ -1238,6 +1230,7 @@ USE MOD_Globals
 USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall,PartBound
 USE MOD_Mesh_Vars,                  ONLY:nBCSides,nSides,BC
 USE MOD_Particle_Mesh_Vars,         ONLY:PartSideToElem
+USE MOD_SurfaceModel_Vars,          ONLY:Adsorption
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1246,11 +1239,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: StartSurfSide,iSide,TargetHaloSide,q,p,SurfSideID,SurfSideHaloID
+INTEGER                         :: iSide,TargetHaloSide,q,p,SurfSideID,SurfSideHaloID,iReact
 !===================================================================================================================================
 
-StartSurfSide = SurfMesh%nBCSides + SurfMesh%nInnerSides
-IF(SurfMesh%nSides.GT.StartSurfSide) THEN ! There are reflective inner BCs on SlaveSide
+IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner BCs on SlaveSide
   DO iSide=nBCSides+1,nSides
     IF(BC(iSide).EQ.0) CYCLE
     IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
@@ -1262,6 +1254,17 @@ IF(SurfMesh%nSides.GT.StartSurfSide) THEN ! There are reflective inner BCs on Sl
             SurfSideHaloID=SurfMesh%SideIDToSurfID(TargetHaloSide)
             SampWall(SurfSideHaloID)%State(:,p,q)=SampWall(SurfSideHaloID)%State(:,p,q) &
                                                   +SampWall(SurfSideID)%State(:,p,q)
+            IF (ANY(PartBound%Reactive)) THEN
+              SampWall(SurfSideHaloID)%SurfModelState(:,p,q)=SampWall(SurfSideHaloID)%SurfModelState(:,p,q) &
+                  +SampWall(SurfSideID)%SurfModelState(:,p,q)
+              SampWall(SurfSideHaloID)%Accomodation(:,p,q)=SampWall(SurfSideHaloID)%Accomodation(:,p,q) &
+                  +SampWall(SurfSideID)%Accomodation(:,p,q)
+              DO iReact=1,2*Adsorption%ReactNum
+                SampWall(SurfSideHaloID)%SurfModelReactCount(iReact,:,p,q) = &
+                    SampWall(SurfSideHaloID)%SurfModelReactCount(iReact,:,p,q) &
+                    +SampWall(SurfSideID)%SurfModelReactCount(iReact,:,p,q)
+              END DO
+            END IF
           END DO
         END DO
       END IF
@@ -1270,7 +1273,7 @@ IF(SurfMesh%nSides.GT.StartSurfSide) THEN ! There are reflective inner BCs on Sl
 END IF
 
 END SUBROUTINE MapInnerSurfData
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime)
 !===================================================================================================================================
@@ -1282,11 +1285,12 @@ SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime)
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Globals_Vars,               ONLY:ProjectName
+USE MOD_SurfaceModel_Vars,          ONLY:Adsorption
 USE MOD_Particle_Boundary_Vars,     ONLY:nSurfSample,SurfMesh,offSetSurfSide,offsetInnerSurfSide,nPorousBC
 USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode
-USE MOD_Particle_Vars,              ONLY:nSpecies,PartSurfaceModel
+USE MOD_Particle_Vars,              ONLY:nSpecies
 USE MOD_HDF5_Output,                ONLY:WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
-USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM,nSurfBC,SurfBCName
+USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM,nSurfBC,SurfBCName, PartBound
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1300,16 +1304,16 @@ REAL,INTENT(IN)                      :: OutputTime
 CHARACTER(LEN=255)                  :: FileName,FileString,Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255)                  :: NodeTypeTemp
-CHARACTER(LEN=255)                  :: SpecID, PBCID
+CHARACTER(LEN=255)                  :: SpecID, ReactID, PBCID
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, iPBC, nOutputSides
+INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, nAdsSamples, iReact, iPBC
 REAL                                :: tstart,tend
 !===================================================================================================================================
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
-IF(SurfMesh%nSides.EQ.0) RETURN
-#endif /*MPI*/
+IF(SurfMesh%nMasterSides.EQ.0) RETURN
+#endif /*USE_MPI*/
 IF(SurfCOMM%MPIOutputRoot)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DSMCSurfSTATE TO HDF5 FILE...'
   tstart=LOCALTIME()
@@ -1318,14 +1322,13 @@ END IF
 FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
 FileString=TRIM(FileName)//'.h5'
 
-
 ! Create dataset attribute "SurfVarNames"
-IF (PartSurfaceModel.GT.0) THEN
-  nVar2D = 6
-  nVar2D_Spec=4
-ELSE
-  nVar2D = 5
-  nVar2D_Spec=1
+nVar2D = 5
+nVar2D_Spec = 1
+IF(ANY(PartBound%Reactive)) THEN
+  nAdsSamples = 5
+  nVar2D = nVar2D + nAdsSamples
+  nVar2D_Spec = nVar2D_Spec + 2 + 2*Adsorption%ReactNum
 END IF
 
 IF(nPorousBC.GT.0)  nVar2D = nVar2D + nPorousBC
@@ -1333,7 +1336,7 @@ IF(nPorousBC.GT.0)  nVar2D = nVar2D + nPorousBC
 nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-#ifdef MPI
+#if USE_MPI
 IF(SurfCOMM%MPIOutputRoot)THEN
 #endif
   CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
@@ -1356,10 +1359,17 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   DO iSpec=1,nSpecies
     WRITE(SpecID,'(I3.3)') iSpec
     Str2DVarNames(nVarCount+1) ='Spec'//TRIM(SpecID)//'_Counter'
-    IF (PartSurfaceModel.GT.0) THEN
+    IF(ANY(PartBound%Reactive)) THEN
       Str2DVarNames(nVarCount+2) ='Spec'//TRIM(SpecID)//'_Accomodation'
       Str2DVarNames(nVarCount+3) ='Spec'//TRIM(SpecID)//'_Coverage'
-      Str2DVarNames(nVarCount+4) ='Spec'//TRIM(SpecID)//'_Recomb_Coeff'
+      DO iReact=1,Adsorption%ReactNum
+        WRITE(ReactID,'(I3.3)') iReact
+        Str2DVarNames(nVarCount+3+iReact) ='Spec'//TRIM(SpecID)//'_CollReact'//TRIM(ReactID)//'_Count'
+      END DO
+      DO iReact=1,Adsorption%ReactNum
+        WRITE(ReactID,'(I3.3)') iReact
+        Str2DVarNames(nVarCount+3+Adsorption%ReactNum+iReact) ='Spec'//TRIM(SpecID)//'_SurfReact'//TRIM(ReactID)//'_Count'
+      END DO
     END IF
     nVarCount=nVarCount+nVar2D_Spec
   END DO ! iSpec=1,nSpecies
@@ -1371,9 +1381,13 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   Str2DVarNames(nVarCount+4) ='HeatFlux'
   Str2DVarNames(nVarCount+5) ='Counter_Total'
   nVarCount = nVarCount + 5
-  IF (PartSurfaceModel.GT.0) THEN
-    Str2DVarNames(nVarCount+1) ='HeatFlux_Portion_Cat'
-    nVarCount = nVarCount + 1
+  IF(ANY(PartBound%Reactive)) THEN
+    Str2DVarNames(nVarCount+1) ='HeatFlux_Portion_LH'
+    Str2DVarNames(nVarCount+2) ='HeatFlux_Portion_SurfDiss'
+    Str2DVarNames(nVarCount+3) ='HeatFlux_Portion_ER'
+    Str2DVarNames(nVarCount+4) ='HeatFlux_Portion_AdsDiss'
+    Str2DVarNames(nVarCount+5) ='HeatFlux_Portion_SurfReconstruct'
+    nVarCount = nVarCount + 5
   END IF
 
   IF(nPorousBC.GT.0) THEN
@@ -1388,11 +1402,11 @@ IF(SurfCOMM%MPIOutputRoot)THEN
 
   CALL CloseDataFile()
   DEALLOCATE(Str2DVarNames)
-#ifdef MPI
+#if USE_MPI
 END IF
 
 CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 !   IF(SurfCOMM%nProcs.GT.1)THEN
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
@@ -1401,7 +1415,6 @@ CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,comm
 !   END IF
 
 nVarCount=0
-nOutputSides = SurfMesh%nBCSides + SurfMesh%nInnerSides
 WRITE(H5_Name,'(A)') 'SurfaceData'
 ASSOCIATE (&
       nVar2D_Total         => INT(nVar2D_Total,IK)          ,&
@@ -1413,7 +1426,7 @@ ASSOCIATE (&
       offsetInnerSurfSide  => INT(offsetInnerSurfSide,IK)   ,&
       nVar2D_Spec          => INT(nVar2D_Spec,IK)           ,&
       nVar2D               => INT(nVar2D,IK)                ,&
-      nOutputSides         => INT(nOutputSides,IK) )
+      nOutputSides         => INT(SurfMesh%nMasterSides,IK) )
   DO iSpec = 1,nSpecies
     CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                      , &
                             nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides/)  , &
@@ -1510,14 +1523,14 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
     CALL CloseDataFile()
     AnalyzeSurfCollis%Number(nSpecies+1) = SUM( AnalyzeSurfCollis%Number(1:nSpecies) )
   END IF !MPIRoot
-#ifdef MPI
+#if USE_MPI
   CALL MPI_BCAST(AnalyzeSurfCollis%Number(:),nSpecies+1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 #endif
   TotalNumberMPF=AnalyzeSurfCollis%Number(nSpecies+1)
   ALLOCATE( PartSpecData(nSpecies,MAXVAL(AnalyzeSurfCollis%Number(1:nSpecies)),PartDataSize) )
 
   !-- open file for actual read-in
-#ifdef MPI
+#if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
   CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
@@ -1684,9 +1697,9 @@ SUBROUTINE FinalizeParticleBoundarySampling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Boundary_Vars
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars           ,ONLY:SurfSendBuf,SurfRecvBuf,SurfExchange,PartHaloSideToProc
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1695,25 +1708,29 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iProc,iSurfSide
+INTEGER :: iSurfSide
+#if USE_MPI
+INTEGER :: iProc
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 SDEALLOCATE(XiEQ_SurfSample)
 SDEALLOCATE(SurfMesh%SurfaceArea)
 SDEALLOCATE(SurfMesh%SideIDToSurfID)
 SDEALLOCATE(SurfMesh%SurfIDToSideID)
+SDEALLOCATE(SurfMesh%innerBCSideToHaloMap)
 !SDALLOCATE(SampWall%Energy)
 !SDEALLOCATE(SampWall%Force)
 !SDEALLOCATE(SampWall%Counter)
 DO iSurfSide=1,SurfMesh%nTotalSides
   SDEALLOCATE(SampWall(iSurfSide)%State)
-  SDEALLOCATE(SampWall(iSurfSide)%Adsorption)
+  SDEALLOCATE(SampWall(iSurfSide)%SurfModelState)
   SDEALLOCATE(SampWall(iSurfSide)%Accomodation)
-  SDEALLOCATE(SampWall(iSurfSide)%Reaction)
+  SDEALLOCATE(SampWall(iSurfSide)%SurfModelReactCount)
 END DO
 SDEALLOCATE(SurfBCName)
 SDEALLOCATE(SampWall)
-#ifdef MPI
+#if USE_MPI
 SDEALLOCATE(PartHaloSideToProc)
 SDEALLOCATE(SurfExchange%nSidesSend)
 SDEALLOCATE(SurfExchange%nSidesRecv)
@@ -1736,7 +1753,7 @@ SDEALLOCATE(SurfSendBuf)
 SDEALLOCATE(SurfRecvBuf)
 SDEALLOCATE(OffSetSurfSideMPI)
 SDEALLOCATE(OffSetInnerSurfSideMPI)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 SDEALLOCATE(CalcSurfCollis%SpeciesFlags)
 SDEALLOCATE(AnalyzeSurfCollis%Data)
 SDEALLOCATE(AnalyzeSurfCollis%Spec)
