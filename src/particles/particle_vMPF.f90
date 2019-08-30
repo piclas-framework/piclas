@@ -103,7 +103,7 @@ USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC
 USE MOD_Particle_Vars         ,ONLY: Species
 USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
 USE MOD_DSMC_Vars             ,ONLY: DSMC
-USE MOD_Particle_Vars          ,ONLY: Symmetry2D
+USE MOD_Particle_Vars         ,ONLY: Symmetry2D
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -116,7 +116,7 @@ INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: V_rel(3), vmag2, iRan, vBulk(3), Energy
-INTEGER               :: iLoop,fillMa1, fillMa2, nDelete, nTemp, iPart, iPartIndx_NodeTMP(nPart),iSpec
+INTEGER               :: iLoop, nDelete, nTemp, iPart, iPartIndx_NodeTMP(nPart),iSpec
 REAL                  :: partWeight, totalWeight, vBulkTmp(3), ENew, alpha
 #ifdef CODE_ANALYZE
 REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3)
@@ -134,28 +134,24 @@ DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   totalWeight = totalWeight + partWeight
   vBulk(1:3) = vBulk(1:3) + PartState(iPartIndx_Node(iLoop),4:6) * partWeight
+  iSpec = PartSpecies(iPartIndx_Node(iLoop))
 
 #ifdef CODE_ANALYZE
   ! Energy conservation
-  Energy_old = Energy_old + 0.5 * Species(PartSpecies(iPartIndx_Node(iLoop)))%MassIC &
-  * DOT_PRODUCT(PartState(iPartIndx_Node(iLoop),4:6),PartState(iPartIndx_Node(iLoop),4:6)) * PartMPF(iPartIndx_Node(iLoop))
+  Energy_old = Energy_old + 0.5 * Species(iSpec)%MassIC &
+  * DOT_PRODUCT(PartState(iPartIndx_Node(iLoop),4:6),PartState(iPartIndx_Node(iLoop),4:6)) * partWeight
   IF(CollisMode.GT.1) THEN
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-      Energy_old = Energy_old &
-                 + (PartStateIntEn(iPartIndx_Node(iLoop),1) &
-                 +  PartStateIntEn(iPartIndx_Node(iLoop),2)) * PartMPF(iPartIndx_Node(iLoop))
-      IF(DSMC%ElectronicModel) Energy_old = Energy_old + PartStateIntEn(iPartIndx_Node(iLoop),3)*PartMPF(iPartIndx_Node(iLoop))
-    ELSE IF((SpecDSMC(iSpec)%InterID.EQ.1).OR.(SpecDSMC(iSpec)%InterID.EQ.10)) THEN
-      IF(DSMC%ElectronicModel) Energy_old = Energy_old + PartStateIntEn(iPartIndx_Node(iLoop),3)*PartMPF(iPartIndx_Node(iLoop))
+      Energy_old = Energy_old + (PartStateIntEn(iPartIndx_Node(iLoop),1) +  PartStateIntEn(iPartIndx_Node(iLoop),2)) * partWeight
     END IF
+    IF(DSMC%ElectronicModel) Energy_old = Energy_old + PartStateIntEn(iPartIndx_Node(iLoop),3)*partWeight
   END IF
   ! Momentum conservation
-  Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpecies(iPartIndx_Node(iLoop)))%MassIC &
-                    * PartState(iPartIndx_Node(iLoop),4:6) * PartMPF(iPartIndx_Node(iLoop))
+  Momentum_old(1:3) = Momentum_old(1:3) + Species(iSpec)%MassIC * PartState(iPartIndx_Node(iLoop),4:6) * partWeight
 #endif /* CODE_ANALYZE */
 
 END DO
-vBulk(1:3) = vBulk(1:3)/ totalWeight
+vBulk(1:3) = vBulk(1:3) / totalWeight
 
 ! 2.) calc energy (for energy conservation)
 DO iLoop = 1, nPart
@@ -166,13 +162,11 @@ DO iLoop = 1, nPart
   Energy = Energy + 0.5 * vmag2 * partWeight
   IF(CollisMode.GT.1) THEN
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-      Energy = Energy + partWeight  &
-             * (PartStateIntEn(iPartIndx_Node(iLoop),1) &  ! Evib
-             +  PartStateIntEn(iPartIndx_Node(iLoop),2) &  ! Erot
-             +  PartStateIntEn(iPartIndx_Node(iLoop),3) )  ! Eel
-    ELSE IF((SpecDSMC(iSpec)%InterID.EQ.1).OR.(SpecDSMC(iSpec)%InterID.EQ.10)) THEN
-      Energy = Energy + partWeight * PartStateIntEn(iPartIndx_Node(iLoop),3)   ! Eel
+      ! Rotational and vibrational energy
+      Energy = Energy + partWeight * (PartStateIntEn(iPartIndx_Node(iLoop),1) +  PartStateIntEn(iPartIndx_Node(iLoop),2))
     END IF
+    ! Electronic energy
+    IF(DSMC%ElectronicModel) Energy = Energy + partWeight * PartStateIntEn(iPartIndx_Node(iLoop),3)
   END IF
 END DO
 
@@ -209,13 +203,11 @@ DO iLoop = 1, nPartNew
   ENew = ENew + 0.5 * vmag2 * partWeight
   IF(CollisMode.GT.1) THEN
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-      ENew = ENew + partWeight  &
-             * (PartStateIntEn(iPartIndx_Node(iLoop),1) &  ! Evib
-             +  PartStateIntEn(iPartIndx_Node(iLoop),2) &  ! Erot
-             +  PartStateIntEn(iPartIndx_Node(iLoop),3) )  ! Eel
-    ELSE IF((SpecDSMC(iSpec)%InterID.EQ.1).OR.(SpecDSMC(iSpec)%InterID.EQ.10)) THEN
-      ENew = ENew + partWeight * PartStateIntEn(iPartIndx_Node(iLoop),3)   ! Eel
+      ! Rotational and vibrational energy
+      ENew = ENew + partWeight * (PartStateIntEn(iPartIndx_Node(iLoop),1) + PartStateIntEn(iPartIndx_Node(iLoop),2))
     END IF
+    ! Electronic energy
+    IF(DSMC%ElectronicModel) ENew = ENew + partWeight * PartStateIntEn(iPartIndx_Node(iLoop),3)
   END IF
 END DO
 ! 6.) ensuring momentum and energy conservation
@@ -224,22 +216,19 @@ DO iLoop = 1, nPartNew
   PartState(iPartIndx_Node(iLoop),4:6) = vBulk(1:3) + alpha*(PartState(iPartIndx_Node(iLoop),4:6)-vBulkTmp(1:3))
 
 #ifdef CODE_ANALYZE
+  partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+  iSpec = PartSpecies(iPartIndx_Node(iLoop))
   ! Energy conservation
-  Energy_new = Energy_new + 0.5*Species(PartSpecies(iPartIndx_Node(iLoop)))%MassIC &
-  * DOT_PRODUCT(PartState(iPartIndx_Node(iLoop),4:6),PartState(iPartIndx_Node(iLoop),4:6)) * PartMPF(iPartIndx_Node(iLoop)) 
+  Energy_new = Energy_new + 0.5*Species(iSpec)%MassIC &
+  * DOT_PRODUCT(PartState(iPartIndx_Node(iLoop),4:6),PartState(iPartIndx_Node(iLoop),4:6)) * partWeight
   IF(CollisMode.GT.1) THEN
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-      Energy_new = Energy_new &
-                 + (PartStateIntEn(iPartIndx_Node(iLoop),1) &
-                 +  PartStateIntEn(iPartIndx_Node(iLoop),2)) * PartMPF(iPartIndx_Node(iLoop))
-      IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(iPartIndx_Node(iLoop),3)*PartMPF(iPartIndx_Node(iLoop))
-    ELSE IF((SpecDSMC(iSpec)%InterID.EQ.1).OR.(SpecDSMC(iSpec)%InterID.EQ.10)) THEN
-      IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(iPartIndx_Node(iLoop),3)*PartMPF(iPartIndx_Node(iLoop))
+      Energy_new = Energy_new + (PartStateIntEn(iPartIndx_Node(iLoop),1) + PartStateIntEn(iPartIndx_Node(iLoop),2)) * partWeight
     END IF
+    IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(iPartIndx_Node(iLoop),3)*partWeight
   END IF
   ! Momentum conservation
-  Momentum_new(1:3) = Momentum_new(1:3) + Species(PartSpecies(iPartIndx_Node(iLoop)))%MassIC &
-                    * PartState(iPartIndx_Node(iLoop),4:6) * PartMPF(iPartIndx_Node(iLoop))
+  Momentum_new(1:3) = Momentum_new(1:3) + Species(iSpec)%MassIC * PartState(iPartIndx_Node(iLoop),4:6) * partWeight
 #endif /* CODE_ANALYZE */
 
 END DO
@@ -257,6 +246,7 @@ END DO
       END IF
     END ASSOCIATE
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
+    IPWRITE(UNIT_StdOut,*)                     " Old/new particle number: ", nPart, nPartNew
     CALL abort(&
         __STAMP__&
         ,'CODE_ANALYZE: part merge is not energy conserving!')
