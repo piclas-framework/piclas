@@ -671,7 +671,9 @@ DO iPart=1,PDM%ParticleVecLength
     markTol =.FALSE.
 ! -- 2. Track particle vector up to the final particle position
     DO WHILE (.NOT.PartisDone)
-      markTol =.FALSE.
+      ! do not reset markTol after first intersection of for doublecheck. 
+      ! This prevents particles to get lost unnoticed in case any intersection has marked tolerance.
+      ! markTol =.FALSE. 
       IF (PartDoubleCheck) THEN
 ! -- 3. special check if some double check has to be performed (only necessary for bilinear sides and macrospheres)
 #ifdef CODE_ANALYZE
