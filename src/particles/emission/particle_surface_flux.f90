@@ -1034,6 +1034,16 @@ __STAMP__&
   END DO !iSF
 END DO !iSpec
 
+! Deallocate auxiliary variables
+IF(RadialWeighting%DoRadialWeighting) THEN
+  DO iBC= 1, nDataBC
+    SDEALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor)
+    SDEALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight)
+    SDEALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea)
+  END DO ! iBC = 1, nDataBC
+  SDEALLOCATE(BCdata_auxSFTemp(1:nPartBound))
+END IF
+
 !-- write debug-mesh for tria-surfflux
 IF (WriteTriaSurfaceFluxDebugMesh) THEN
   !count sides
