@@ -813,6 +813,14 @@ The second variant can be used to produce outputs for unsteady simulations, whil
 
 Example: The simulation end time is $T_\mathrm{end}=1$ with a time step of $\Delta t = 0.001$. With the parameters given above, we would sample for 100 iterations up to $T = 0.1$ and get the first output. Afterwards, the sample is deleted and the sampling begins anew for the following output at $T=0.2$. This procedure is repeated until the simulation end, resulting in 10 outputs with independent samples.
 
+#### Sampling of surface impacts 
+
+Additional surface values can be sampled by using
+
+    CalcSurfaceImpact = T
+
+which determines the species-dependent averaged impact energy (trans, rot, vib), impact vector, angle (between particle trajectory and surface tangential vector) and number of impacts.
+
 ### Integral Variables
 
 PartAnalyze/FieldAnalyze
