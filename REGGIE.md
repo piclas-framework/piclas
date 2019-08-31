@@ -54,7 +54,7 @@ Small test cases to check Surfacemodel functionality: [Link to build](regression
 | **No.** |  **Case**  | **CMAKE-CONFIG** |            **Feature**                  | **Execution** |         **Comparing**            |                       **Readme**                                   |
 | :-----: | :--------: | :--------------: | :-------------------------------------: | :-----------: | :------------------------------: | :----------------------------------------------------------------: |
 | 1       |  Sampling  | DSMC             | Surface model sampling check            | nProcs=1,2,4  |                                  | [Link](regressioncheck/checks/CHE_SurfaceModel/Sampling/readme.md) |
-| 2       |  SMCR      | DSMC             | Surfacemodel 3 init/run check           | nProcs=1,2,4  |                                  | [Link](regressioncheck/checks/CHE_SurfaceModel/Sampling/readme.md) |
+| 2       |  SMCR      | DSMC             | Surfacemodel 3 init/run check           | nProcs=1,4    |                                  | [Link](regressioncheck/checks/CHE_SurfaceModel/Sampling/readme.md) |
 
 ## Nightly
 
