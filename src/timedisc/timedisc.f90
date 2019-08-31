@@ -1373,7 +1373,8 @@ USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurf
 USE MOD_DSMC_Vars                ,ONLY: DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC                     ,ONLY: DSMC_main
 USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
-USE MOD_part_emission            ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission            ,ONLY: ParticleInserting
+USE MOD_surface_flux             ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking        ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_SurfaceModel             ,ONLY: UpdateSurfModelVars, SurfaceModel_main
@@ -1761,20 +1762,22 @@ SUBROUTINE TimeStep_DSMC_Debug()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,ONLY: dt
-USE MOD_Filter,ONLY:Filter
+USE MOD_TimeDisc_Vars          ,ONLY: dt
+USE MOD_Filter                 ,ONLY: Filter
 #ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : DoSurfaceFlux
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM,PEM
-USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC
-USE MOD_DSMC,             ONLY : DSMC_main
-USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux, SetParticleVelocity
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
-USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel,     ONLY: UpdateSurfModelVars, SurfaceModel_main
+USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
+USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM,PEM
+USE MOD_DSMC_Vars              ,ONLY: DSMC_RHS, DSMC
+USE MOD_DSMC                   ,ONLY: DSMC_main
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_part_emission          ,ONLY: ParticleInserting
+USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
+USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
+USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_SurfaceModel           ,ONLY: UpdateSurfModelVars, SurfaceModel_main
 #if USE_MPI
-USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -2068,7 +2071,8 @@ USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_part_RHS               ,ONLY: CalcPartRHS,PartVeloToImp
-USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission          ,ONLY: ParticleInserting
+USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
@@ -3015,7 +3019,6 @@ USE MOD_LinearOperator         ,ONLY: PartMatrixVector, PartVectorDotProduct
 USE MOD_ParticleSolver         ,ONLY: Particle_GMRES
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK,DoFieldUpdate
 USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
-!USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource                                                                                                                               ! USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource
 USE MOD_Particle_Vars          ,ONLY: PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac,PartStateN,PartStage,PartQ &
     ,DoSurfaceFlux,PEM,PDM,Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
@@ -3023,7 +3026,8 @@ USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_part_RHS               ,ONLY: CalcPartRHS,PartVeloToImp
-USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission          ,ONLY: ParticleInserting
+USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
@@ -4172,7 +4176,8 @@ USE MOD_Particle_Vars             ,ONLY: PartState, LastPartPos, PDM, PEM, DoSur
 USE MOD_Particle_Vars             ,ONLY: VarTimeStep, Symmetry2D, Symmetry2DAxisymmetric
 USE MOD_DSMC_Vars                 ,ONLY: DSMC_RHS, DSMC, CollisMode
 USE MOD_part_tools                ,ONLY: UpdateNextFreePosition
-USE MOD_part_emission             ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission             ,ONLY: ParticleInserting
+USE MOD_surface_flux              ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars    ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking         ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #if USE_MPI
@@ -4320,7 +4325,8 @@ USE MOD_Particle_Vars             ,ONLY: PartState, LastPartPos, PDM, PEM, DoSur
 USE MOD_Particle_Vars             ,ONLY: VarTimeStep, Symmetry2D, Symmetry2DAxisymmetric
 USE MOD_DSMC_Vars                 ,ONLY: DSMC_RHS, DSMC, CollisMode
 USE MOD_part_tools                ,ONLY: UpdateNextFreePosition
-USE MOD_part_emission             ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission             ,ONLY: ParticleInserting
+USE MOD_surface_flux              ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars    ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking         ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #if USE_MPI
@@ -4480,7 +4486,8 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
-USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission          ,ONLY: ParticleInserting
+USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
@@ -4795,7 +4802,8 @@ USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, Delay
                                       Species,PartSpecies
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
-USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission          ,ONLY: ParticleInserting
+USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge

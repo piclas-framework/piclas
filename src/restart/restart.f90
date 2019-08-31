@@ -1620,7 +1620,7 @@ USE MOD_HDF5_Input    ,ONLY: nDims,HSize,File_ID
 USE MOD_Restart_Vars  ,ONLY: MacroRestartFileName, MacroRestartValues
 USE MOD_Mesh_Vars     ,ONLY: offsetElem, nElems
 USE MOD_Particle_Vars ,ONLY: nSpecies
-USE MOD_part_emission ,ONLY: MacroRestart_InsertParticles
+USE MOD_macro_restart ,ONLY: MacroRestart_InsertParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
