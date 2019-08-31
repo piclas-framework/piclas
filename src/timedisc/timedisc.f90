@@ -1400,6 +1400,7 @@ REAL                  :: tLBStart
   IF (DoSurfaceFlux) THEN
     ! treat surface with respective model
     CALL SurfaceModel_main()
+    CALL UpdateSurfModelVars()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1502,6 +1503,7 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
+  ! absorptions could have happened
   CALL UpdateSurfModelVars()
 
 #if USE_LOADBALANCE
@@ -4168,7 +4170,6 @@ USE MOD_part_tools                ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission             ,ONLY: ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars    ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking         ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel              ,ONLY: Evaporation
 #if USE_MPI
 USE MOD_Particle_MPI              ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -4317,7 +4318,6 @@ USE MOD_part_tools                ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission             ,ONLY: ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars    ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking         ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel              ,ONLY: Evaporation
 #if USE_MPI
 USE MOD_Particle_MPI              ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/

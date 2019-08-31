@@ -992,7 +992,7 @@ CLOSE(ioUnit)
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
 
-  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,CSVFORMAT
+  WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
   DO iElem=1,PP_nElems
     WRITE(tmpStr2,formatStr)&
         " ",TTM_Cell_1(iElem),&
