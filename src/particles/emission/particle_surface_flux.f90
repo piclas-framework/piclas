@@ -1190,6 +1190,9 @@ USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_part_emission_tools     ,ONLY: IntegerDivide,SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri
 USE MOD_part_pos_and_velo       ,ONLY: SetParticleVelocity
+#if CODE_ANALYZE
+USE MOD_part_emission_tools     ,ONLY: CalcVectorAdditionCoeffs
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -1253,44 +1253,4 @@ END DO
 END SUBROUTINE AdaptiveBCAnalyze
 
 
-FUNCTION CalcVectorAdditionCoeffs(point,Vector1,Vector2)
-!===================================================================================================================================
-! robust calculation of Coeffs C(1) and C(2) from point = C(1)*Vector1 + C(2)*Vector2
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  REAL, INTENT(IN)         :: point(3), Vector1(3), Vector2(3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-  REAL                     :: CalcVectorAdditionCoeffs(2)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  REAL                     :: denom(3)
-!===================================================================================================================================
-denom(1)=Vector2(2)*Vector1(3)-Vector2(3)*Vector1(2)
-denom(2)=Vector2(1)*Vector1(2)-Vector2(2)*Vector1(1)
-denom(3)=Vector2(3)*Vector1(1)-Vector2(1)*Vector1(3)
-
-IF (ABS(denom(1)).GT.ABS(denom(2)) .AND. ABS(denom(1)).GT.ABS(denom(3))) THEN
-  CalcVectorAdditionCoeffs(2)=(point(2)*Vector1(3)-point(3)*Vector1(2))/denom(1)
-ELSE IF (ABS(denom(2)).GT.ABS(denom(1)) .AND. ABS(denom(2)).GT.ABS(denom(3))) THEN
-  CalcVectorAdditionCoeffs(2)=(point(1)*Vector1(2)-point(2)*Vector1(1))/denom(2)
-ELSE
-  CalcVectorAdditionCoeffs(2)=(point(3)*Vector1(1)-point(1)*Vector1(3))/denom(3)
-END IF
-
-IF (ABS(Vector1(1)).GT.ABS(Vector1(2)) .AND. ABS(Vector1(1)).GT.ABS(Vector1(3))) THEN
-  CalcVectorAdditionCoeffs(1)=(point(1)-CalcVectorAdditionCoeffs(2)*Vector2(1))/Vector1(1)
-ELSE IF (ABS(Vector1(2)).GT.ABS(Vector1(1)) .AND. ABS(Vector1(2)).GT.ABS(Vector1(3))) THEN
-  CalcVectorAdditionCoeffs(1)=(point(2)-CalcVectorAdditionCoeffs(2)*Vector2(2))/Vector1(2)
-ELSE
-  CalcVectorAdditionCoeffs(1)=(point(3)-CalcVectorAdditionCoeffs(2)*Vector2(3))/Vector1(3)
-END IF
-
-END FUNCTION CalcVectorAdditionCoeffs
-
-
 END MODULE MOD_part_emission
