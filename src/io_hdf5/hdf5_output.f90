@@ -1312,13 +1312,13 @@ INTEGER(KIND=IK)               :: locnPart_max
 !===================================================================================================================================
 locnPart =   0_IK
 IF (PartMPI%MPIRoot) THEN
-IF (UseMacroPart .AND. nMacroParticle.GT.0) THEN
-  DO pcount = 1,nMacroParticle
-    !IF(MacroParticle(pcount)%particleLocal) THEN
-      locnPart = locnPart + 1_IK
-    !END IF
-  END DO
-END IF
+  IF (UseMacroPart .AND. nMacroParticle.GT.0) THEN
+    DO pcount = 1,nMacroParticle
+      !IF(MacroParticle(pcount)%particleLocal) THEN
+        locnPart = locnPart + 1_IK
+      !END IF
+    END DO
+  END IF
 END IF
 !#if USE_MPI
 !sendbuf(1)=locnPart
@@ -1395,7 +1395,7 @@ ASSOCIATE (PartDataSize => INT(PartDataSize,IK))
       CALL CloseDataFile()
     END IF !MPIRoot
   END IF !locnPart_max.EQ.0
-#ifdef MPI
+#if USE_MPI
   CALL DistributedWriteArray(FileName                     , &
                              DataSetName  = 'MacroPartData'    , rank = 2          , &
                              nValGlobal   = (/nPart_glob  , INT(PartDataSize,IK)/)    , &
@@ -1411,7 +1411,7 @@ ASSOCIATE (PartDataSize => INT(PartDataSize,IK))
                         offset      = (/offsetnPart , 0_IK  /)                , &
                         collective  = .TRUE.        , RealArray = PartData)
   CALL CloseDataFile()
-#endif /*MPI*/                          
+#endif /*USE_MPI*/                          
 END ASSOCIATE
 ! reswitch
 IF(reSwitch) gatheredWrite=.TRUE.
