@@ -904,7 +904,7 @@ __STAMP__ &
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
           IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
             IF(iPart.EQ.PARTOUT)THEN
-              SELECT CASE(IntersectCase)
+              SELECT CASE(currentIntersect%IntersectCase)
               CASE(1) ! intersection with cell side
                 WRITE(UNIT_stdout,'(A,L)') '     intersection on side with reflection: ',crossedBC
               CASE(2) ! AuxBC intersection
