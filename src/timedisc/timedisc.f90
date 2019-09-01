@@ -352,6 +352,7 @@ IMPLICIT NONE
 REAL                         :: tPreviousAnalyze         !> time of previous analyze.
                                                          !> Used for Nextfile info written into previous file if greater tAnalyze
 REAL                         :: tPreviousAverageAnalyze  !> time of previous Average analyze.
+REAL                         :: tZero
 INTEGER(KIND=8)              :: iter_PID                 !> iteration counter since last InitPiclas call for PID calculation
 REAL                         :: WallTimeStart            !> wall time of simulation start
 REAL                         :: WallTimeEnd              !> wall time of simulation end
@@ -371,6 +372,8 @@ LOGICAL                      :: finalIter
 tPreviousAnalyze=RestartTime
 ! first average analyze is not written at start but at first tAnalyze
 tPreviousAverageAnalyze=tAnalyze
+! saving the start of the simulation as restart time is overwritten during load balance step
+tZero = RestartTime
 
 ! write number of grid cells and dofs only once per computation
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#GridCells : ',REAL(nGlobalElems)
@@ -757,7 +760,7 @@ DO !iter_t=0,MaxIter
 #endif /*USE_LOADBALANCE*/
     ! count analyze dts passed
     iAnalyze=iAnalyze+1
-    tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd)
+    tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd)
     WallTimeStart=PICLASTIME()
   END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
