@@ -93,15 +93,21 @@ Following parameters can be used for both schemes.
 | :-------------------: | :----: | :------------------------------------------: |
 | BezierEpsilonBilinear |  T/F   | Tolerance for linear-bilinear side. Obsolet. |
 
-## Boundary Conditions
+## Boundary Conditions - Field Solver
 
 To-do: Modification of boundaries with the PICLas parameter file (order is of importance)
 
-### Field
+### Maxwell's Equations
+
+To-do
 
 Dielectric -> type 100?
 
-### Particle
+### Poisson's Equation
+
+To-do
+
+## Boundary Conditions - Particle Solver
 
 Within the parameter file it is possible to define different particle boundary conditions. The number of boundaries is defined by
 
@@ -110,16 +116,20 @@ Within the parameter file it is possible to define different particle boundary c
     Part-Boundary1-Condition=open
     Part-Boundary2-SourceName=BC_WALL
     Part-Boundary2-Condition=reflective
+    Part-Boundary2-SurfaceModel=2
 
 The `Part-Boundary1-SourceName=` corresponds to the name given during the preprocessing step with HOPR. The available conditions (`Part-Boundary1-Condition=`) are described in the table below.
 
-|  Condition   | Description                                                                                                                                                                                 |
-| :----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|    `open`    | Every particle crossing the boundary will be deleted.                                                                                                                                       |
+| Condition    | Description                                                                                                                                                                                 |
+| :----------: | :----------------------------------------------------------------------------------------------                                                                      |
+| `open`       | Every particle crossing the boundary will be deleted.                                                                                                                                       |
 | `reflective` | Allows the definition of specular and diffuse reflection. A perfect specular reflection is performed, if no other parameters are given (discussed in more detail in the following section). |
 | `symmetric`  | A perfect specular reflection, without sampling of particle impacts.                                                                                                                        |
 
-#### Diffuse Wall
+For `reflective` boundaries, an additional option `Part-Boundary2-SurfaceModel` is available, that
+is used for heterogeneous reactions (reactions have reactants in two or more phases) or secondary electron emission models. These models are described in \ref{sec:chem_reac}.
+
+### Diffuse Wall
 
 Gas-surface interaction can be modelled with the extended Maxwellian model [@Padilla2009], using accommodation coefficients of the form
 
@@ -141,7 +151,7 @@ Additionally, a wall velocity [m/s] and voltage [V] can be given
     Part-Boundary2-WallVelo=(/0,0,100/)
     Part-Boundary2-Voltage=100
 
-#### Porous Wall / Pump
+### Porous Wall / Pump
 
 The porous boundary condition uses a removal probability to determine whether a particle is deleted or reflected at the boundary. The main application of the implemented condition is to model a pump, according to [@Lei2017]. It is defined by giving the number of porous boundaries and the respective boundary number (`BC=2` corresponds to the `BC_WALL` boundary defined in the previous section) on which the porous condition is. 
 
@@ -183,6 +193,32 @@ The absolute coordinates are defined as follows for the respective normal direct
 |      z (=3)      |    (x,y)    |
 
 Using the regions, multiple pumps can be defined on a single boundary.
+
+### Surface Chemistry \label{sec:chem_reac}
+
+Modelling of reactive surfaces is enabled by setting `Part-BoundaryX-Condition=reflective` and an 
+appropriate particle boundary surface model `Part-BoundaryX-SurfaceModel`.
+The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the table below.
+
+| SurfaceModel | Description                                                                                                                                                                     |
+| :----------: | :-----------------------------------------------------------------                                                                                                              |
+| 0 (default)  | Standard extended Maxwellian scattering                                                                                                                                         |
+| 2            | Simple recombination on surface collision, where an impinging particle as given by Ref. [@Reschke2019].                                                                         |
+| 3            | Kinetic Monte Carlo surface: Replicates surfaces with a specified lattice structure, either fcc(100) or fcc(111) and models complete catalysis as given by Ref. [@Reschke2019]. |
+| 5            | Secondary electron emission as given by Ref. [@Levko2015].                                                                                                                      |
+| 101          | Evaporation from surfaces according to a Maxwellian velocity distribution.                                                                                                      |
+| 102          | Evaporation according to MD-fitted velocity distributions.                                                                                                                      |
+
+For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
+
+    BezierSampleN = 3
+    DSMC-nSurfSample = 3 
+    Part-WriteMacroSurfaceValues = T 
+    Particles-DSMC-CalcSurfaceVal = T 
+    Part-IterationForMacroVal = 200
+
+where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over 200 interations.
+
 
 ## Particle Initialization & Emission
 
@@ -623,10 +659,6 @@ The mean collision separation distance is determined during every collision and 
 $$w < \frac{1}{\left(\sqrt{2}\pi d_\mathrm{ref}^2 n^{2/3}\right)^3},$$
 
 where $d_\mathrm{ref}$ is the reference diameter and $n$ the number density. Here, the largest number density within the simulation domain should be used as the worst-case. For supersonic/hypersonic flows, the conditions behind a normal shock can be utilized as a first guess. For a thruster/nozzle expansion simulation, the chamber or throat conditions are the limiting factor.
-
-## Surface Chemistry
-
-WIP
 
 ## Modelling of Continuum Gas Flows
 
