@@ -112,7 +112,7 @@ USE MOD_HDF5_Input
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------                                                                                             ! -----------------------------------------------------------------------------------------------------------------------------------
-USE MOD_Mesh_ReadIn            ,ONLY: readMesh
+USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
@@ -158,6 +158,9 @@ IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MESH...'
+
+! Output of myrank, ElemID and tracking info
+CalcMeshInfo = GETLOGICAL('CalcMeshInfo')
 
 ! SwapMesh: either supply the path to the swapmesh binary or place the binary into the current working directory
 DoSwapMesh=GETLOGICAL('DoSwapMesh','.FALSE.')
@@ -384,9 +387,6 @@ DEALLOCATE(NodeCoords)
 DEALLOCATE(dXCL_N)
 DEALLOCATE(Ja_Face)
 
-
-! Output of myrank, ElemID and tracking info
-CalcMeshInfo = GETLOGICAL('CalcMeshInfo')
 
 IF(CalcMeshInfo)THEN
   CALL AddToElemData(ElementOut,'myRank',IntScalar=myRank)
@@ -845,15 +845,7 @@ IF(RadialWeighting%DoRadialWeighting) THEN
 ELSE
   usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
 END IF
-IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-  ALLOCATE(GEO%DeltaEvMPF(nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-,'ERROR in InitParticleGeometry: Cannot allocate GEO%DeltaEvMPF!')
-  END IF
-  GEO%DeltaEvMPF(:) = 0.0
-END IF
+
 #endif /* PARTICLES */
 
 ! Calculate element volumes and characteristic lengths
@@ -881,7 +873,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes
 
 
-SUBROUTINE setSideRanges() 
+SUBROUTINE setSideRanges()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Set the ranges in the different side lists
 !
@@ -898,25 +890,24 @@ SUBROUTINE setSideRanges()
 !
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals   ,ONLY: Logging,UNIT_logOut,UNIT_StdOut,abort,myrank,nProcessors
+USE MOD_Globals   ,ONLY: UNIT_logOut,UNIT_StdOut,abort
 USE MOD_Mesh_Vars ,ONLY: firstBCSide,firstMortarInnerSide,firstInnerSide,firstMPISide_MINE,firstMPISide_YOUR
 USE MOD_Mesh_Vars ,ONLY: nMPISides_MINE,nMPISides_YOUR,nInnerSides,nMortarInnerSides,nBCSides
 USE MOD_Mesh_Vars ,ONLY: lastBCSide,lastMortarInnerSide,lastInnerSide,lastMPISide_MINE,lastMPISide_YOUR,lastMortarMPISide
 USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,nSides,nSidesMaster,nSidesSlave
-#ifdef PP_HDG
+#if USE_HDG
 USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
-!USE MOD_Mesh_Vars ,ONLY: ChangedPeriodicBC ! FUTURE: use this variable when nGlobalUniqueSides is calculated from mesh info
 #if USE_MPI
-USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD,myrank
+USE MOD_Globals   ,ONLY: myrank
+USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD
 USE mpi
 #endif /*USE_MPI*/
-#endif /*PP_HDG*/
-USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD,myrank
+#endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 ! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -924,7 +915,6 @@ INTEGER             :: firstMasterSide     ! lower side ID of array U_master/gra
 INTEGER             :: lastMasterSide      ! upper side ID of array U_master/gradUx_master...
 INTEGER             :: firstSlaveSide      ! lower side ID of array U_slave/gradUx_slave...
 INTEGER             :: lastSlaveSide       ! upper side ID of array U_slave/gradUx_slave...
-INTEGER           :: i
 !===================================================================================================================================
 
 firstBCSide          = 1
@@ -949,8 +939,8 @@ nSidesMaster    = lastMasterSide-firstMasterSide+1
 nSidesSlave     = lastSlaveSide -firstSlaveSide+1
 
 ! Set nGlobalUniqueSides: Note that big mortar sides are appended to the end of the list
-#ifdef PP_HDG
-nUniqueSides = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list! 
+#if USE_HDG
+nUniqueSides = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list!
 #if USE_MPI
 CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #else

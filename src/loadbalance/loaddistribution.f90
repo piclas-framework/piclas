@@ -58,11 +58,11 @@ USE MOD_LoadBalance_Vars,   ONLY:TargetWeight
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                :: OldElems
-REAL,INTENT(IN)                   :: ElemTime(1:OldElems)
+INTEGER,INTENT(IN)             :: OldElems
+REAL,INTENT(IN)                :: ElemTime(1:OldElems)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-INTEGER,INTENT(OUT)               :: NewElems
+INTEGER,INTENT(OUT)            :: NewElems
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE               :: preSum(:)
@@ -72,7 +72,7 @@ INTEGER                        :: iElem, iRank
 INTEGER                        :: minRank, maxRank, leftOff, lb, ub,mid
 ! MPI-Stuff
 REAL                           :: LoadSend, opt_split, WeightSplit
-INTEGER, ALLOCATABLE           ::  split(:), sEND_count(:), recv_count(:)
+INTEGER, ALLOCATABLE           :: split(:), sEND_count(:), recv_count(:)
 !===================================================================================================================================
 
 ALLOCATE(PreSum(1:OldElems)           &
@@ -1177,7 +1177,7 @@ ELSE !
   END IF
   IF(FILEEXISTS(outfile))THEN
     OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-    WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,CSVFORMAT
+    WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
     WRITE(tmpStr2,formatStr)&
               " ",time_loc, &
         delimiter,REAL(nProcessors), &

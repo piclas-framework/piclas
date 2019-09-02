@@ -247,6 +247,14 @@ gnu_FPFlow_check:
   script:
     - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_FPFlow
 
+gnu_SurfaceModel_check:
+  <<: *defaults_gnu
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules-concurrent
+  script:
+    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_SurfaceModel
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -314,7 +322,6 @@ gnu_convtest_t:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t_maxwell ; fi
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t_poisson ; fi
-
        
 gnu_poisson_RK3:
   <<: *defaults_gnu
@@ -411,6 +418,14 @@ gnu_PIC_deposition:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
+
+#gnu_feature_SurfaceModel:
+#  <<: *defaults_gnu
+#  stage: reggie_nightly
+#  tags:
+#    - withmodules-concurrent
+#  script:
+#    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SurfaceModel/ ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run

@@ -280,7 +280,6 @@ SUBROUTINE WriteFieldIonizationRate(E,W)
 USE MOD_Globals               ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 USE MOD_Globals               ,ONLY: abort
-USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part
 USE MOD_TimeDisc_Vars         ,ONLY: iter
 !----------------------------------------------------------------------------------------------------------------------------------!                                                                    ! ----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -346,7 +345,7 @@ END IF
 ! Print info to file
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-      WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,CSVFORMAT
+      WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
   WRITE(tmpStr2,formatStr)&
       " ",E, &           ! Electric field strength
       delimiter,W        ! Ionization rate

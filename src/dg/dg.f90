@@ -35,20 +35,20 @@ INTERFACE InitDG
   MODULE PROCEDURE InitDG
 END INTERFACE
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTERFACE DGTimeDerivative_weakForm
   MODULE PROCEDURE DGTimeDerivative_weakForm
 END INTERFACE
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 INTERFACE FinalizeDG
   MODULE PROCEDURE FinalizeDG
 END INTERFACE
 
 PUBLIC::InitDG,FinalizeDG
-#ifndef PP_HDG
+#if !(USE_HDG)
 PUBLIC::DGTimeDerivative_weakForm
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #ifdef PP_POIS
 PUBLIC::DGTimeDerivative_weakForm_Pois
 #endif
@@ -68,9 +68,9 @@ USE MOD_Restart_Vars,       ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars, ONLY: xGP,wGP,wBary,InterpolationInitIsDone
 USE MOD_Mesh_Vars,          ONLY: nSides
 USE MOD_Mesh_Vars,          ONLY: MeshInitIsDone
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_PML_Vars,           ONLY: PMLnVar ! additional fluxes for the CFS-PML auxiliary variables
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #ifdef OPTIMIZED
 USE MOD_Riemann,            ONLY: GetRiemannMatrix
 #endif /*OPTIMIZED*/
@@ -126,7 +126,7 @@ U_slave=0.
   CALL GetRiemannMatrix()
 #endif /*OPTIMIZED*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 ! unique flux per side
 ! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
 ! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
@@ -134,7 +134,7 @@ ALLOCATE(Flux_Master(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides))
 ALLOCATE(Flux_Slave(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides))
 Flux_Master=0.
 Flux_Slave=0.
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 DGInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT DG DONE!'
@@ -151,14 +151,14 @@ USE MOD_Globals
 USE MOD_Basis     ,ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis     ,ONLY:PolynomialDerivativeMatrix,LagrangeInterpolationPolys
 USE MOD_DG_Vars   ,ONLY:D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus
-#ifdef PP_HDG
+#if USE_HDG
 #if USE_MPI
 USE MOD_PreProc
 USE MOD_MPI_vars,      ONLY:SendRequest_Geo,RecRequest_Geo
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem,nSides
 #endif /*USE_MPI*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -172,11 +172,11 @@ REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP,wGP,wBary
 REAL,DIMENSION(0:N_in,0:N_in)              :: M,Minv
 REAL,DIMENSION(0:N_in)                     :: L_minus,L_plus
 INTEGER                                    :: iMass
-#ifdef PP_HDG
+#if USE_HDG
 #if USE_MPI
 REAL                                       :: Geotemp(10,0:PP_N,0:PP_N,1:nSides)
 #endif /*USE_MPI*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 !===================================================================================================================================
 ALLOCATE(L_HatMinus(0:N_in), L_HatPlus(0:N_in))
 ALLOCATE(D(0:N_in,0:N_in), D_T(0:N_in,0:N_in))
@@ -201,7 +201,7 @@ L_HatPlus(:) = MATMUL(Minv,L_Plus)
 CALL LagrangeInterpolationPolys(-1.,N_in,xGP,wBary,L_Minus)
 L_HatMinus(:) = MATMUL(Minv,L_Minus)
 
-#ifdef PP_HDG
+#if USE_HDG
 #if USE_MPI
 ! exchange is in initDGbasis as InitMesh() and InitMPI() is needed
 Geotemp=0.
@@ -221,11 +221,11 @@ TangVec2(:,:,:,1:nSides)=Geotemp(8:10,:,:,:)
 !Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(11:13,:,:,:)
 
 #endif /*USE_MPI*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 END SUBROUTINE InitDGbasis
 
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 SUBROUTINE DGTimeDerivative_weakForm(t,tStage,tDeriv,doSource)
 !===================================================================================================================================
 ! Computes the DG time derivative consisting of Volume Integral and Surface integral for the whole field
@@ -250,7 +250,7 @@ USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
 USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -366,7 +366,7 @@ CALL LBPauseTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE DGTimeDerivative_weakForm
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 #ifdef PP_POIS
 
@@ -379,17 +379,17 @@ SUBROUTINE DGTimeDerivative_weakForm_Pois(t,tStage,tDeriv)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Vector
-USE MOD_Equation,      ONLY: VolInt_Pois,FillFlux_Pois,ProlongToFace_Pois, SurfInt_Pois
-USE MOD_GetBoundaryFlux, ONLY: FillFlux_BC_Pois
-USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides
-USE MOD_Equation,      ONLY: CalcSource_Pois
-USE MOD_Equation_Vars, ONLY: IniExactFunc,Phi,Phit,Phi_master,Phi_slave,FluxPhi,nTotalPhi
-USE MOD_Interpolation, ONLY: ApplyJacobian
+USE MOD_Equation           ,ONLY: VolInt_Pois,FillFlux_Pois,ProlongToFace_Pois, SurfInt_Pois
+USE MOD_GetBoundaryFlux    ,ONLY: FillFlux_BC_Pois
+USE MOD_Mesh_Vars          ,ONLY: sJ,Elem_xGP,nSides
+USE MOD_Equation           ,ONLY: CalcSource_Pois
+USE MOD_Equation_Vars      ,ONLY: IniExactFunc,Phi,Phit,Phi_master,Phi_slave,FluxPhi,nTotalPhi
+USE MOD_Interpolation      ,ONLY: ApplyJacobian
 #if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,ONLY:LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -546,7 +546,7 @@ DO iElem=1,PP_nElems
   DO k=0,PP_N
     DO j=0,PP_N
       DO i=0,PP_N
-#ifdef PP_HDG
+#if USE_HDG
         CALL ExactFunc(IniExactFunc,Elem_xGP(1:3,i,j,k,iElem),U(1:PP_nVar,i,j,k,iElem),ElemID=iElem)
 #else
         CALL ExactFunc(IniExactFunc,0.,0,Elem_xGP(1:3,i,j,k,iElem),U(1:PP_nVar,i,j,k,iElem))

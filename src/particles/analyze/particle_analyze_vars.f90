@@ -32,8 +32,16 @@ LOGICAL                       :: CalcEtot                            !< Compute 
 LOGICAL                       :: CalcEint                            !< Compute the internal energy of each species
 LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcCoupledPower                    !< Computation of the power that is coupled into plasma
-REAL                          :: PCoupl                              !< Power that is coupled into plasma
-REAL                          :: PCouplAverage                       !< Power that is coupled into plasma (moving average)
+REAL                          :: PCoupl                              !< Power that is coupled into plasma in [W]
+REAL                          :: PCouplAverage                       !< Power that is coupled into plasma (moving average) in [W]
+TYPE tPCoupl
+  REAL,ALLOCATABLE            :: DensityAvgElem(:)                   !< Power per volume that is coupled into plasma (moving average
+                                                                     !< for each element) in [W/m^3]
+END TYPE
+TYPE(tPCoupl),ALLOCATABLE     :: PCouplSpec(:)                       !< DensityAvgElem array for each species
+
+
+
 LOGICAL                       :: CalcPartBalance                     !< Particle Power Balance - input and outflow energy of all
                                                                      !< particles
 LOGICAL                       :: CalcVelos                           !< Computes the drift and thermal velocity of each species
@@ -68,7 +76,7 @@ LOGICAL                       :: CalcPointsPerDebyeLength            !< Compute 
 LOGICAL                       :: CalcPICCFLCondition                 !< Compute a PIC CFL condition for each cell
 !                                                                    !< in terms of cell lengths in X, Y and Z for each cell
 !                                                                    !< PPD=(p+1)lambda_D/L_cell
-LOGICAL                       :: CalcMaxPartDisplacement             !< Compute the maximum displacement of the fastest particle 
+LOGICAL                       :: CalcMaxPartDisplacement             !< Compute the maximum displacement of the fastest particle
 LOGICAL                       :: CalcPointsPerShapeFunction          !< Compute the points per shape function sphere
 !                                                                    !< PPS = DOF_cell*VolumeShapeFunction/Volume_cell
 

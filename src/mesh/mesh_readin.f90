@@ -80,8 +80,11 @@ SUBROUTINE ReadBCs()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,  ONLY:BoundaryName,BoundaryType,nBCs,nUserBCs,ChangedPeriodicBC
-USE MOD_ReadInTools,ONLY:GETINTARRAY,CNTSTR,GETSTR
+USE MOD_Mesh_Vars   ,ONLY: BoundaryName,BoundaryType,nBCs,nUserBCs
+#if USE_HDG
+USE MOD_Mesh_Vars   ,ONLY: ChangedPeriodicBC
+#endif /*USE_HDG*/
+USE MOD_ReadInTools ,ONLY: GETINTARRAY,CNTSTR,GETSTR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -154,9 +157,9 @@ ASSOCIATE ( nBCs   => INT(nBCs,IK)   ,&
   CALL ReadArray('BCType',2,(/4_IK,nBCs/),Offset,1,IntegerArray_i4=BCType)
 END ASSOCIATE
 ! Now apply boundary mappings
-#ifdef HDG
+#if USE_HDG
 ChangedPeriodicBC=.FALSE. ! set true if BCs are changed from periodic to non-periodic
-#endif /*HDG*/
+#endif /*USE_HDG*/
 IF(nUserBCs .GT. 0)THEN
   DO iBC=1,nBCs
     IF(BCMapping(iBC) .NE. 0)THEN
@@ -164,7 +167,7 @@ IF(nUserBCs .GT. 0)THEN
       IF((BoundaryType(BCMapping(iBC),1).EQ.1).AND.(BCType(1,iBC).NE.1)) CALL abort(&
           __STAMP__&
           ,'Remapping non-periodic to periodic BCs is not possible!')
-#ifdef HDG
+#if USE_HDG
       ! periodic to non-periodic
       IF((BCType(1,iBC).EQ.1).AND.(BoundaryType(BCMapping(iBC),1).NE.1))THEN
         ChangedPeriodicBC=.TRUE.
@@ -174,7 +177,7 @@ IF(nUserBCs .GT. 0)THEN
         __STAMP__&
         ,'Remapping periodic to non-periodic BCs is currently not possible for HDG because this changes nGlobalUniqueSides!')
       END IF
-#endif /*HDG*/
+#endif /*USE_HDG*/
       ! Output
       SWRITE(Unit_StdOut,'(A,A)')    ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC))
       SWRITE(Unit_StdOut,'(A,I8,I8)')' |                            was | ',BCType(1,iBC),BCType(3,iBC)
@@ -215,40 +218,35 @@ SUBROUTINE ReadMesh(FileString)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,          ONLY:tElem,tSide
-USE MOD_Mesh_Vars,          ONLY:NGeo,NGeoTree
-USE MOD_Mesh_Vars,          ONLY:NodeCoords,TreeCoords
-USE MOD_Mesh_Vars,          ONLY:offsetElem,offsetTree,nElems,nGlobalElems,nTrees,nGlobalTrees,nNodes
-USE MOD_Mesh_Vars,          ONLY:xiMinMax,ElemToTree
-USE MOD_Mesh_Vars,          ONLY:nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides,nGlobalMortarSides
-USE MOD_Mesh_Vars,          ONLY:nMortarSides,isMortarMesh
-USE MOD_Mesh_Vars,          ONLY:nGlobalUniqueSidesFromMesh
-USE MOD_Mesh_Vars,          ONLY:useCurveds
-USE MOD_Mesh_Vars,          ONLY:BoundaryType
-USE MOD_Mesh_Vars,          ONLY:MeshInitIsDone
-USE MOD_Mesh_Vars,          ONLY:Elems,Nodes
-USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE,createSides
+USE MOD_Mesh_Vars            ,ONLY: tElem,tSide
+USE MOD_Mesh_Vars            ,ONLY: NGeo,NGeoTree
+USE MOD_Mesh_Vars            ,ONLY: NodeCoords,TreeCoords
+USE MOD_Mesh_Vars            ,ONLY: offsetElem,offsetTree,nElems,nGlobalElems,nTrees,nGlobalTrees,nNodes
+USE MOD_Mesh_Vars            ,ONLY: xiMinMax,ElemToTree
+USE MOD_Mesh_Vars            ,ONLY: nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides,nGlobalMortarSides
+USE MOD_Mesh_Vars            ,ONLY: nMortarSides,isMortarMesh
+USE MOD_Mesh_Vars            ,ONLY: nGlobalUniqueSidesFromMesh
+USE MOD_Mesh_Vars            ,ONLY: useCurveds
+USE MOD_Mesh_Vars            ,ONLY: BoundaryType
+USE MOD_Mesh_Vars            ,ONLY: MeshInitIsDone
+USE MOD_Mesh_Vars            ,ONLY: Elems,Nodes
+USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE,createSides
 USE MOD_IO_HDF5
 #if USE_MPI
-USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
-USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight,ElemGlobalTime,LoadDistri,PartDistri,TargetWeight,ElemTime
+USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc
+USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
 #ifdef PARTICLES
-USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem,nSurfacefluxPerElem,nDeposPerElem
-USE MOD_LoadBalance_Vars,   ONLY:nTracksPerElem,nPartsPerBCElem
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars,   ONLY:nSurfacePartsPerElem
-#endif
+USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
-USE MOD_LoadDistribution,   ONLY:ApplyWeightDistributionMethod
-USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 USE MOD_PreProc
 USE MOD_ReadInTools
-USE MOD_Restart_Vars,       ONLY:DoRestart,RestartFile
-USE MOD_StringTools,        ONLY:STRICMP
-#endif
+USE MOD_StringTools          ,ONLY: STRICMP
+#endif /*USE_MPI*/
 #ifdef PARTICLES
-USE MOD_Particle_Vars       ,ONLY:VarTimeStep
-USE MOD_Particle_VarTimeStep,ONLY:VarTimeStep_InitDistribution
+USE MOD_LoadBalance_Vars     ,ONLY: nTracksPerElem,nPartsPerBCElem,nPartsPerElem,nSurfacefluxPerElem
+USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -285,13 +283,6 @@ INTEGER,ALLOCATABLE            :: MPISideCount(:)
 LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
 LOGICAL                        :: isMortarMeshExists
-#if USE_MPI
-INTEGER                        :: nVal(15),iVar
-LOGICAL                        :: ElemTimeExists
-REAL,ALLOCATABLE               :: ElemTime_local(:),WeightSum_proc(:)
-REAL,ALLOCATABLE               :: ElemData_loc(:,:),tmp(:)
-CHARACTER(LEN=255),ALLOCATABLE :: VarNamesElemData_loc(:)
-#endif
 #ifdef PARTICLES
 REAL, ALLOCATABLE              :: GlobVarTimeStep(:)
 #endif
@@ -317,134 +308,19 @@ DEALLOCATE(HSize)
 IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
     ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
 
+!----------------------------------------------------------------------------------------------------------------------------
+!                              DOMAIN DECOMPOSITION
+!----------------------------------------------------------------------------------------------------------------------------
 #if USE_MPI
-!simple partition: nGlobalelems/nprocs, do this on proc 0
-SDEALLOCATE(offsetElemMPI)
-ALLOCATE(offsetElemMPI(0:nProcessors))
-offsetElemMPI=0
-SDEALLOCATE(LoadDistri)
-ALLOCATE(LoadDistri(0:nProcessors-1))
-LoadDistri(:)=0.
-SDEALLOCATE(PartDistri)
-ALLOCATE(PartDistri(0:nProcessors-1))
-PartDistri(:)=0
-ElemTimeExists=.FALSE.
+CALL DomainDecomposition()
+#else /*USE_MPI*/
+nElems=nGlobalElems   ! Local number of Elements
+offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
+#endif /*USE_MPI*/
 
-#ifdef PARTICLES
-IF(VarTimeStep%UseDistribution) THEN
-! Initialize variable time step distribution (done before domain decomposition to include time step as weighting for load balance)
-! Get the time step factor distribution or calculate it from quality factors from the DSMC state (from the MacroRestartFileName)
-  CALL VarTimeStep_InitDistribution()
-END IF
-#endif
-
-IF (DoRestart) THEN
-  !--------------------------------------------------------------------------------------------------------------------------------!
-  ! Readin of ElemTime: Read in only by MPIRoot in single mode, only communicate logical ElemTimeExists
-  ! 1) Only MPIRoot does readin of ElemTime
-  SDEALLOCATE(ElemGlobalTime)
-  ALLOCATE(ElemGlobalTime(1:nGlobalElems))
-  ElemGlobalTime=0.
-  IF(MPIRoot)THEN
-    ALLOCATE(ElemTime_local(1:nGlobalElems))
-    ElemTime_local=0.0
-    nElems = nGlobalElems ! Temporary set nElems as nGlobalElems for GetArrayAndName
-    offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
-    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
-    IPWRITE(UNIT_stdOut,*)"DONE"
-    CALL GetArrayAndName('ElemData','VarNamesAdd',nVal,tmp,VarNamesElemData_loc)
-    CALL CloseDataFile()
-    IF (ALLOCATED(VarNamesElemData_loc)) THEN
-      ALLOCATE(ElemData_loc(nVal(1),nVal(2)))
-      ElemData_loc = RESHAPE(tmp,(/nVal(1),nVal(2)/))
-      DO iVar=1,nVal(1) ! Search for ElemTime
-        IF (STRICMP(VarNamesElemData_loc(iVar),"ElemTime")) THEN
-          ElemTime_local = REAL(ElemData_loc(iVar,:))
-          ElemTimeExists = .TRUE.
-        END IF
-      END DO
-      DEALLOCATE(ElemData_loc,VarNamesElemData_loc,tmp)
-    END IF
-    ElemGlobalTime = ElemTime_local
-    DEALLOCATE(ElemTime_local)
-    ! if the elemtime is 0.0, the value must be changed in order to prevent a division by zero
-    IF(MAXVAL(ElemGlobalTime).LE.0.0) THEN
-      ElemGlobalTime = 1.0
-      ElemTimeExists = .FALSE.
-    END IF
-  END IF
-
-  ! 2) Distribute logical information ElemTimeExists
-  CALL MPI_BCAST (ElemTimeExists,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
-
-  ! Distribute the elements according to the selected distribution method
-  CALL ApplyWeightDistributionMethod(ElemTimeExists)
-ELSE
-  nElems=nGlobalElems/nProcessors
-  iElem=nGlobalElems-nElems*nProcessors
-  DO iProc=0,nProcessors-1
-    offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
-  END DO
-  offsetElemMPI(nProcessors)=nGlobalElems
-END IF ! IF(DoRestart)
-
-
-
-
-
-
-! Set local number of elements
-nElems=offsetElemMPI(myRank+1)-offsetElemMPI(myRank)
-
-! Sanity check: local nElems and offset
-IF(nElems.LE.0) CALL abort(__STAMP__,&
-    ' Process did not receive any elements/load! ')
-
-! Set element offset for every processor and write info to log file
-offsetElem=offsetElemMPI(myRank)
-LOGWRITE(*,'(4(A,I8))')'offsetElem = ',offsetElem,' ,nElems = ', nElems, &
-             ' , firstGlobalElemID= ',offsetElem+1,', lastGlobalElemID= ',offsetElem+nElems
-
-
-
-! Set new ElemTime depending on new load distribution
-SDEALLOCATE(ElemTime)
-ALLOCATE(ElemTime(1:nElems))
-ElemTime = 0.
-CALL AddToElemData(ElementOut,'ElemTime',RealArray=ElemTime(1:nElems))
-
-! Calculate new (theoretical) imbalance with offsetElemMPI information
-IF(ElemTimeExists.AND.MPIRoot)THEN
-  ALLOCATE(WeightSum_proc(0:nProcessors-1))
-  DO iProc=0,nProcessors-1
-    WeightSum_proc(iProc) = SUM(ElemGlobalTime(1+offsetElemMPI(iProc):offsetElemMPI(iProc+1)))
-  END DO
-  MaxWeight = MAXVAL(WeightSum_proc)
-  MinWeight = MINVAL(WeightSum_proc)
-  ! WeightSum (Mesh global value) is already set in BalanceMethod scheme
-
-  ! new computation of current imbalance
-  TargetWeight=SUM(WeightSum_proc)/nProcessors
-  NewImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
-
-  IF(TargetWeight.LE.0.0) CALL abort(&
-      __STAMP__, &
-      ' LoadBalance: TargetWeight = ',RealInfoOpt=TargetWeight)
-  SWRITE(UNIT_stdOut,'(A)') ' Calculated new (theoretical) imbalance with offsetElemMPI information'
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MaxWeight:        ', MaxWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:        ', MinWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' TargetWeight:     ', TargetWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' NewImbalance:     ', NewImbalance
-  DEALLOCATE(WeightSum_proc)
-ELSE
-  SWRITE(UNIT_stdOut,'(A)') ' No ElemTime found in restart file'
-  NewImbalance = -1.
-  MaxWeight = -1.
-  MinWeight = -1.
-END IF
-
-SDEALLOCATE(ElemGlobalTime)
-
+!----------------------------------------------------------------------------------------------------------------------------
+!                              ALLOCATE element counters
+!----------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
 ! Re-allocate nPartsPerElem depending on new number of elements
 IF(.NOT.ALLOCATED(nPartsPerElem))THEN
@@ -455,9 +331,11 @@ ELSE
 END IF
 nPartsPerElem=0
 CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
+#if USE_LOADBALANCE
 SDEALLOCATE(nDeposPerElem)
 ALLOCATE(nDeposPerElem(1:nElems))
 nDeposPerElem=0
+#endif /*USE_LOADBALANCE*/
 SDEALLOCATE(nTracksPerElem)
 ALLOCATE(nTracksPerElem(1:nElems))
 nTracksPerElem=0
@@ -473,11 +351,6 @@ ALLOCATE(nSurfacePartsPerElem(1:nElems))
 nSurfacePartsPerElem=0
 #endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
-! --
-#else /*USE_MPI*/
-nElems=nGlobalElems   ! Local number of Elements
-offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
-#endif /*USE_MPI*/
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              VARIABLE TIME STEP
@@ -955,7 +828,7 @@ IF(MPIRoot)THEN
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,    BC  | ',ReduceData(6) !nBCSides
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,   MPI  | ',ReduceData(7)/2 !nMPISides
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides, Inner  | ',ReduceData(4) !nInnerSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar  | ',nGlobalMortarSides 
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar  | ',nGlobalMortarSides
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Total | ',ReduceData(5)-ReduceData(10)/2
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Inner | ',ReduceData(5)-ReduceData(10)
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,  MPI | ',ReduceData(10)/2 !nPeriodicSides

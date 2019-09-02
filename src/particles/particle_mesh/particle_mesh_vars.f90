@@ -110,6 +110,10 @@ REAL,ALLOCATABLE                        :: epsOneCell(:)      ! tolerance for pa
                                                               ! inside ref element 1+epsinCell
 
 !LOGICAL                                 :: DoRefMapping      ! tracking by mapping particle into reference element
+
+LOGICAL,ALLOCATABLE                     :: PartElemIsMortar(:)! Flag is true if element has at least one side with mortar elements,
+                                                              ! required in TriaTracking for an additional check in which element
+                                                              ! the particle ended up after the MPI comm of particles (1:nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -186,7 +190,6 @@ TYPE tGeometry
   REAL, ALLOCATABLE                      :: CharLengthZ(:)                    ! Characteristic length in Z for each cell
   REAL                                   :: MeshVolume                        ! Total Volume of mesh
   REAL                                   :: LocalVolume                       ! Volume of proc
-  REAL, ALLOCATABLE                      :: DeltaEvMPF(:)                     ! Energy difference due to particle merge
   INTEGER, ALLOCATABLE                   :: ElemToRegion(:)                   ! ElemToRegion(1:nElems)
 
   LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?

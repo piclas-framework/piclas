@@ -34,18 +34,6 @@ INTEGER               :: FieldIonizationModel                                !'F
 LOGICAL,ALLOCATABLE   :: SpecReset(:)                                        ! Flag for resetting species distribution with init
                                                                              ! during restart
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles
-LOGICAL               :: SolidSimFlag                                        ! Flag telling if Solid boundary is existing
-LOGICAL               :: LiquidSimFlag                                       ! Flag telling if Liquid boundary is existing
-INTEGER               :: PartSurfaceModel                                    ! Model used for wall interaction
-                                                                             ! 0 perfect/diffusive reflection
-                                                                             ! 1 adsorption (Kisluik) / desorption (Polanyi Wigner)
-                                                                             ! 2 Recombination coefficient (Laux model)
-                                                                             ! 3 adsorption/desorption + chemical interaction
-                                                                             !   (SMCR with UBI-QEP, TST and TCE)
-                                                                             ! 4 TODO
-                                                                             ! 5 SEE (secondary e- emission) by Levko2015
-                                                                             ! 6 SEE (secondary e- emission) by Pagonakis2016
-                                                                             !   (orignally from Harrower1956)
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 ! IMD: Molecular Dynamics Model - ion distribution info
 LOGICAL               :: DoInitialIonization                                 ! When restarting from a state, ionize the species to a
@@ -312,6 +300,7 @@ TYPE typeSurfaceflux
                                                                              ! through Monte Carlo integration (initially)
   INTEGER                                :: AdaptivePartNumOut               ! Adaptive, Type 4: Number of particles exiting through
                                                                              ! the adaptive boundary condition
+  REAL, ALLOCATABLE                      :: nVFRSub(:,:)                     ! normal volume flow rate through subsubside
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -489,6 +478,7 @@ TYPE tVariableTimeStep
   LOGICAL                              :: AdaptDistribution
   REAL                                 :: TargetMCSoverMFP
   REAL                                 :: TargetMaxCollProb
+  REAL                                 :: TargetMaxRelaxFactor
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
 

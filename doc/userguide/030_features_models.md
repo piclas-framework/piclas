@@ -93,15 +93,21 @@ Following parameters can be used for both schemes.
 | :-------------------: | :----: | :------------------------------------------: |
 | BezierEpsilonBilinear |  T/F   | Tolerance for linear-bilinear side. Obsolet. |
 
-## Boundary Conditions
+## Boundary Conditions - Field Solver
 
 To-do: Modification of boundaries with the PICLas parameter file (order is of importance)
 
-### Field
+### Maxwell's Equations
+
+To-do
 
 Dielectric -> type 100?
 
-### Particle
+### Poisson's Equation
+
+To-do
+
+## Boundary Conditions - Particle Solver
 
 Within the parameter file it is possible to define different particle boundary conditions. The number of boundaries is defined by
 
@@ -110,16 +116,20 @@ Within the parameter file it is possible to define different particle boundary c
     Part-Boundary1-Condition=open
     Part-Boundary2-SourceName=BC_WALL
     Part-Boundary2-Condition=reflective
+    Part-Boundary2-SurfaceModel=2
 
 The `Part-Boundary1-SourceName=` corresponds to the name given during the preprocessing step with HOPR. The available conditions (`Part-Boundary1-Condition=`) are described in the table below.
 
-|  Condition   | Description                                                                                                                                                                                 |
-| :----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|    `open`    | Every particle crossing the boundary will be deleted.                                                                                                                                       |
+| Condition    | Description                                                                                                                                                                                 |
+| :----------: | :----------------------------------------------------------------------------------------------                                                                      |
+| `open`       | Every particle crossing the boundary will be deleted.                                                                                                                                       |
 | `reflective` | Allows the definition of specular and diffuse reflection. A perfect specular reflection is performed, if no other parameters are given (discussed in more detail in the following section). |
 | `symmetric`  | A perfect specular reflection, without sampling of particle impacts.                                                                                                                        |
 
-#### Diffuse Wall
+For `reflective` boundaries, an additional option `Part-Boundary2-SurfaceModel` is available, that
+is used for heterogeneous reactions (reactions have reactants in two or more phases) or secondary electron emission models. These models are described in \ref{sec:chem_reac}.
+
+### Diffuse Wall
 
 Gas-surface interaction can be modelled with the extended Maxwellian model [@Padilla2009], using accommodation coefficients of the form
 
@@ -141,7 +151,7 @@ Additionally, a wall velocity [m/s] and voltage [V] can be given
     Part-Boundary2-WallVelo=(/0,0,100/)
     Part-Boundary2-Voltage=100
 
-#### Porous Wall / Pump
+### Porous Wall / Pump
 
 The porous boundary condition uses a removal probability to determine whether a particle is deleted or reflected at the boundary. The main application of the implemented condition is to model a pump, according to [@Lei2017]. It is defined by giving the number of porous boundaries and the respective boundary number (`BC=2` corresponds to the `BC_WALL` boundary defined in the previous section) on which the porous condition is. 
 
@@ -183,6 +193,32 @@ The absolute coordinates are defined as follows for the respective normal direct
 |      z (=3)      |    (x,y)    |
 
 Using the regions, multiple pumps can be defined on a single boundary.
+
+### Surface Chemistry \label{sec:chem_reac}
+
+Modelling of reactive surfaces is enabled by setting `Part-BoundaryX-Condition=reflective` and an 
+appropriate particle boundary surface model `Part-BoundaryX-SurfaceModel`.
+The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the table below.
+
+| SurfaceModel | Description                                                                                                                                                                     |
+| :----------: | :-----------------------------------------------------------------                                                                                                              |
+| 0 (default)  | Standard extended Maxwellian scattering                                                                                                                                         |
+| 2            | Simple recombination on surface collision, where an impinging particle as given by Ref. [@Reschke2019].                                                                         |
+| 3            | Kinetic Monte Carlo surface: Replicates surfaces with a specified lattice structure, either fcc(100) or fcc(111) and models complete catalysis as given by Ref. [@Reschke2019]. |
+| 5            | Secondary electron emission as given by Ref. [@Levko2015].                                                                                                                      |
+| 101          | Evaporation from surfaces according to a Maxwellian velocity distribution.                                                                                                      |
+| 102          | Evaporation according to MD-fitted velocity distributions.                                                                                                                      |
+
+For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
+
+    BezierSampleN = 3
+    DSMC-nSurfSample = 3 
+    Part-WriteMacroSurfaceValues = T 
+    Particles-DSMC-CalcSurfaceVal = T 
+    Part-IterationForMacroVal = 200
+
+where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over 200 interations.
+
 
 ## Particle Initialization & Emission
 
@@ -457,7 +493,13 @@ The second flag allows to enable/disable the adaptation of the time step distrib
 
 The parameters `TargetMCSoverMFP` (ratio of the mean collision separation distance over mean free path) and `TargetMaxCollProb` (maximum collision probability) allow to modify the target values for the adaptation. The `MaxFactor` and `MinFactor` allow to limit the adapted time step within a range of $f_\mathrm{min} \Delta t$ and $f_\mathrm{max} \Delta t$. Finally, the time step adaptation can be used to increase the number of particles by defining a minimum particle number (e.g `MinPartNum` = 10, optional).
 
-The last two flags enable to initialize the particles distribution from the given DSMC state file, using the macroscopic properties such as flow velocity, number density and temperature (see Section \ref{sec:macro_restart}). Strictly speaking, the VTS procedure only requires the `Filename` for the read-in of aforementioned parameters, however, it is recommended to perform a macroscopic restart to initialize the correct particle number per cells. Otherwise, cells with a decreased/increased time step will require some time until the additional particles has reached/left the cell.
+The last two flags enable to initialize the particles distribution from the given DSMC state file, using the macroscopic properties such as flow velocity, number density and temperature (see Section \ref{sec:macro_restart}). Strictly speaking, the VTS procedure only requires the `Filename` for the read-in of the aforementioned parameters, however, it is recommended to perform a macroscopic restart to initialize the correct particle number per cells. Otherwise, cells with a decreased/increased time step will require some time until the additional particles have reached/left the cell.
+
+For the BGK method, the time step can be adapted according to a target maximal relaxation factor, analogous to the maximal collision probability in DSMC
+
+    Part-VariableTimeStep-Distribution-TargetMaxRelaxFactor = 0.8
+
+The time step adaptation can also be utilized in coupled BGK-DSMC simulations, where the time step will be adapted in both regions according to the respective criteria as the BGK factors are zero in the DSMC region and vice versa. Attention should be payed in the transitional region between BGK and DSMC, where the factors are potentially calculated for both methods. Here, the time step required to fulfil the maximal collision probability criteria will be utilized as it is the more stringent one.
 
 #### Linear scaling
 
@@ -473,7 +515,15 @@ Besides DSMC, the linear scaling is available for the BGK method. Finally, speci
 
 ### 2D/Axisymmetric Simulation \label{sec:2DAxi}
 
-For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_\mathrm{min}|=|z_\mathrm{max}|$.
+For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_\mathrm{min}|=|z_\mathrm{max}|$. The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
+
+Part-Boundary4-SourceName=SYMAXIS
+Part-Boundary4-Condition=symmetric_axis
+
+The boundaries (or a single boundary definition for both boundary sides) in the $z$-direction should be defined as symmetry sides with the `symmetric` condition
+
+Part-Boundary5-SourceName=SYM
+Part-Boundary5-Condition=symmetric
 
 To enable two-dimensional simulations, the following flag is required
 
@@ -506,6 +556,10 @@ For the cloning procedure, two methods are implemented, where the information of
     Particles-RadialWeighting-CloneDelay=10
 
 This serves the purpose to avoid the so-called particle avalanche phenomenon [@Galitzine2015], where clones travel on the exactly same path as the original in the direction of a decreasing weight. They have a zero relative velocity (due to the same velocity vector) and thus a collision probability of zero. Combined with the nearest neighbor pairing, this would lead to an ever-increasing number of identical particles travelling on the same path. An indicator how often identical particle pairs are encountered per time step during collisions is given as an output (`2D_IdenticalParticles`, to enable the output see Section \ref{sec:dsmc_quality}). Additionally, it should be noted that a large delay of the clone insertion might be problematic for time-accurate simulations. However, for the most cases, values for the clone delay between 2 and 10 should be sufficient to avoid the avalance phenomenon.
+
+Another issue is the particle emission on large sides in $y$-dimension close to the rotational axis. As particles are inserted linearly along the $y$-direction of the side, a higher number density is inserted closer to the axis. This effect is directly visible in the free-stream in the cells downstream, when using mortar elements, or in the heatflux (unrealistic peak) close to the rotational axis. It can be avoided by splitting the surface flux emission side into multiple subsides with the following flag (default value is 20)
+
+    Particles-RadialWeighting-SurfFluxSubSides = 20
 
 An alternative to the particle position-based weighting is the cell-local radial weighting, which can be enabled by
 
@@ -606,10 +660,6 @@ $$w < \frac{1}{\left(\sqrt{2}\pi d_\mathrm{ref}^2 n^{2/3}\right)^3},$$
 
 where $d_\mathrm{ref}$ is the reference diameter and $n$ the number density. Here, the largest number density within the simulation domain should be used as the worst-case. For supersonic/hypersonic flows, the conditions behind a normal shock can be utilized as a first guess. For a thruster/nozzle expansion simulation, the chamber or throat conditions are the limiting factor.
 
-## Surface Chemistry
-
-WIP
-
 ## Modelling of Continuum Gas Flows
 
 Two methods are currently implemented to allow the simulation of gas flows in the continuum and transitional regime, where the DSMC method is computationally too expensive. The Fokker–Planck- and Bhatnagar-Gross-Krook-based approximation of the collision integral are compared in detail in paper to be published in Physics of Fluids. It is recommended to utilize a previous DSMC parameter file to ensure a complete simulation setup.
@@ -675,6 +725,8 @@ The current implementation supports:
 - 4 different methods (i.e. different target distribution functions): Ellipsoidal Statistical, Shakov, standard BGK, and Unified
 - Single species, monoatomic and diatomic gases
 - Thermal non-equilibrium with rotational and vibrational excitation (continuous or quantized treatment)
+- 2D/Axisymmetric simulations
+- Variable time step (adaption of the distribution according to the maximal relaxation factor and linear scaling)
 
 Relevant publications of the developers:
 
@@ -760,6 +812,14 @@ The second variant can be used to produce outputs for unsteady simulations, whil
     Part-IterationForMacroVal = 100
 
 Example: The simulation end time is $T_\mathrm{end}=1$ with a time step of $\Delta t = 0.001$. With the parameters given above, we would sample for 100 iterations up to $T = 0.1$ and get the first output. Afterwards, the sample is deleted and the sampling begins anew for the following output at $T=0.2$. This procedure is repeated until the simulation end, resulting in 10 outputs with independent samples.
+
+#### Sampling of surface impacts 
+
+Additional surface values can be sampled by using
+
+    CalcSurfaceImpact = T
+
+which determines the species-dependent averaged impact energy (trans, rot, vib), impact vector, angle (between particle trajectory and surface tangential vector) and number of impacts.
 
 ### Integral Variables
 

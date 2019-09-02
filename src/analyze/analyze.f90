@@ -258,7 +258,7 @@ REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze
 END SUBROUTINE InitAnalyzeBasis
 
 
-#ifdef PP_HDG
+#if USE_HDG
 SUBROUTINE CalcError(L_2_Error,L_Inf_Error)
 #else
 SUBROUTINE CalcError(time,L_2_Error,L_Inf_Error)
@@ -280,7 +280,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#ifndef PP_HDG
+#if !(USE_HDG)
 REAL,INTENT(IN)               :: time
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -311,7 +311,7 @@ DO iElem=1,PP_nElems
    DO m=0,NAnalyze
      DO l=0,NAnalyze
        DO k=0,NAnalyze
-#ifdef PP_HDG
+#if USE_HDG
          CALL ExactFunc(IniExactFunc,Coords_NAnalyze(1:3,k,l,m),U_exact,ElemID=iElem)
 #else
          CALL ExactFunc(IniExactFunc,time,0,Coords_NAnalyze(1:3,k,l,m),U_exact)
@@ -777,61 +777,61 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
-USE MOD_Analyze_Vars           ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
-USE MOD_Restart_Vars           ,ONLY: DoRestart
-USE MOD_TimeDisc_Vars          ,ONLY: iter,tEnd
-USE MOD_RecordPoints           ,ONLY: RecordPoints
-USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
-USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_AnalyzeField           ,ONLY: AnalyzeField
+USE MOD_Analyze_Vars              ,ONLY: DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
+USE MOD_Analyze_Vars              ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
+USE MOD_Restart_Vars              ,ONLY: DoRestart
+USE MOD_TimeDisc_Vars             ,ONLY: iter,tEnd
+USE MOD_RecordPoints              ,ONLY: RecordPoints
+USE MOD_LoadDistribution          ,ONLY: WriteElemTimeStatistics
+USE MOD_Globals_Vars              ,ONLY: ProjectName
+USE MOD_AnalyzeField              ,ONLY: AnalyzeField
 #ifdef PARTICLES
-USE MOD_Mesh_Vars              ,ONLY: MeshFile
-USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,PartSurfaceModel
-USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
-USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
-USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
-USE MOD_SurfaceModel_Analyze_Vars,ONLY: SurfaceAnalyzeStep
-USE MOD_SurfaceModel_Analyze   ,ONLY: AnalyzeSurface
-USE MOD_DSMC_Vars              ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
-USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution
-USE MOD_Particle_Tracking_vars ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
-USE MOD_LD_Analyze             ,ONLY: LD_data_sampling, LD_output_calc
-USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
-USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
-USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
+USE MOD_Mesh_Vars                 ,ONLY: MeshFile
+USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
+USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
+USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
+USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
+USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfaceAnalyzeStep
+USE MOD_SurfaceModel_Analyze      ,ONLY: AnalyzeSurface
+USE MOD_DSMC_Vars                 ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
+USE MOD_DSMC_Vars                 ,ONLY: DSMC_HOSolution
+USE MOD_Particle_Tracking_vars    ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
+USE MOD_LD_Analyze                ,ONLY: LD_data_sampling, LD_output_calc
+USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep
+USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
+USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
 #if !defined(LSERK)
-USE MOD_DSMC_Vars              ,ONLY: useDSMC
+USE MOD_DSMC_Vars                 ,ONLY: useDSMC
 #endif
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
-USE MOD_Particle_Vars          ,ONLY: PartSurfaceModel
-USE MOD_Particle_Boundary_Vars ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall
-USE MOD_DSMC_Analyze           ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
-USE MOD_DSMC_Analyze           ,ONLY: CalcSurfaceValues
+USE MOD_Particle_Boundary_Vars    ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh, SampWall, PartBound, CalcSurfaceImpact
+USE MOD_DSMC_Analyze              ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
+USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 #endif
 #if (PP_TimeDiscMethod!=42) && !defined(LSERK)
-USE MOD_LD_Vars                ,ONLY: useLD
-USE MOD_Particle_Vars          ,ONLY: DelayTime
+USE MOD_LD_Vars                   ,ONLY: useLD
+USE MOD_Particle_Vars             ,ONLY: DelayTime
 #endif /*PP_TimeDiscMethod!=42 && !defined(LSERK)*/
 #endif /*PARTICLES*/
 #if (PP_nVar>=6)
-USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
+USE MOD_AnalyzeField              ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
-#if defined(LSERK) ||  defined(IMPA) || defined(ROS)
-USE MOD_Analyze_Vars           ,ONLY: DoFieldAnalyze
-USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
-#endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS)*/
+#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
+USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
+USE MOD_RecordPoints_Vars         ,ONLY: RP_onProc
+#endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS) || USE_HDG*/
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
-USE MOD_Particle_Analyze       ,ONLY: AnalyticParticleMovement
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
+USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
+USE MOD_Particle_Analyze          ,ONLY: AnalyticParticleMovement
+USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime
+USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition
+USE MOD_PICDepo_Vars              ,ONLY: DoDeposition, RelaxDeposition
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -858,18 +858,15 @@ REAL                          :: RECR
 #endif /*PARTICLES*/
 #ifdef CODE_ANALYZE
 REAL                          :: TotalSideBoundingBoxVolume,rDummy
-#ifdef PARTICLES
-REAL                          :: PartStateAnalytic(1:6)        !< analytic position and velocity in three dimensions
-#endif /*PARTICLES*/
 #endif /*CODE_ANALYZE*/
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: L_Inf_Error(PP_nVar)
-#if defined(LSERK) || defined(IMPA) || defined(ROS)
+#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
-#endif /* LSERK && IMPA && ROS */
+#endif /* LSERK && IMPA && ROS && USE_HDG*/
 REAL                          :: StartAnalyzeTime,EndAnalyzeTime
 CHARACTER(LEN=40)             :: formatStr
 LOGICAL                       :: DoPerformFieldAnalyze
@@ -877,7 +874,7 @@ LOGICAL                       :: DoPerformPartAnalyze
 LOGICAL                       :: DoPerformSurfaceAnalyze
 LOGICAL                       :: DoPerformErrorCalc
 #ifdef PARTICLES
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
 INTEGER                       :: PartSource_nVar=1
 REAL                          :: L_2_PartSource(1:1)
 REAL                          :: L_Inf_PartSource(1:1)
@@ -988,7 +985,7 @@ END IF
 IF(DoCalcErrorNorms) THEN
   IF(DoPerformErrorCalc)THEN
     OutputErrorNorms=.TRUE.
-#ifdef PP_HDG
+#if USE_HDG
     CALL CalcError(L_2_Error,L_Inf_Error)
 #else
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
@@ -1006,7 +1003,7 @@ IF(DoCalcErrorNorms) THEN
 END IF
 
 ! the following analysis are restricted to Runge-Kutta based time-discs and temporal varying electrodynamic fields
-#if defined(LSERK) || defined(IMPA) || defined(ROS)
+#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Maxwell's equation: Compute Poynting Vector and field energies
@@ -1040,7 +1037,7 @@ IF(RP_onProc) THEN
 END IF
 
 ! end the analyzes for  all Runge-Kutta besed time-discs
-#endif /* LSERK && IMPA && ROS */
+#endif /* LSERK && IMPA && ROS && USE_HDG*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! PIC, DSMC and other Particle-based Solvers
@@ -1110,15 +1107,23 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
     CALL CalcSurfaceValues
     DO iSide=1,SurfMesh%nTotalSides
       SampWall(iSide)%State=0.
-      IF (PartSurfaceModel.GT.0) THEN
-        SampWall(iSide)%Adsorption=0.
+      IF (ANY(PartBound%Reactive)) THEN
+        SampWall(iSide)%SurfModelState=0.
         SampWall(iSide)%Accomodation=0.
-        SampWall(iSide)%Reaction=0.
+        SampWall(iSide)%SurfModelReactCount=0.
       END IF
       IF(nPorousBC.GT.0) THEN
         SampWall(iSide)%PumpCapacity=0.
       END IF
+      ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+      IF(CalcSurfaceImpact)THEN
+        SampWall(iSide)%ImpactEnergy=0.
+        SampWall(iSide)%ImpactVector=0.
+        SampWall(iSide)%ImpactAngle=0.
+        SampWall(iSide)%ImpactNumber=0.
+      END IF ! CalcSurfaceImpact
     END DO
+    Adsorption%NumCovsamples=0
     IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
       AnalyzeSurfCollis%Data=0.
       AnalyzeSurfCollis%Spec=0

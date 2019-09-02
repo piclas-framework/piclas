@@ -128,7 +128,7 @@ PartSourceConstExists=.FALSE.
 RelaxDeposition = GETLOGICAL('PIC-RelaxDeposition','F')
 IF (RelaxDeposition) THEN
   RelaxFac     = GETREAL('PIC-RelaxFac','0.001')
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
   ALLOCATE(PartSourceOld(1,1:2,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
 #else
   ALLOCATE(PartSourceOld(1:4,1:2,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
@@ -160,7 +160,7 @@ IF (TRIM(TimeAverageFile).NE.'none') THEN
       DO kk = 0, PP_N
         DO ll = 0, PP_N
           DO mm = 0, PP_N
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
             PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
             PartSourceOld(1,2,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
 #else
@@ -487,7 +487,7 @@ CASE('shape_function','shape_function_simple')
     ConstantSFdepoLayers=GETLOGICAL('PIC-ConstantSFdepoLayers','.FALSE.')
     IF (ConstantSFdepoLayers) PartSourceConstExists=.TRUE.
     DO iSFfix=1,NbrOfSFdepoLayers
-#if !(defined (PP_HDG) && (PP_nVar==1))
+#if !((USE_HDG) && (PP_nVar==1))
       CALL abort(__STAMP__, &
         ' NbrOfSFdepoLayers are only implemented for electrostatic HDG!')
 #endif
@@ -1350,13 +1350,13 @@ USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-USE MOD_LoadBalance_Vars       ,ONLY: nDeposPerElem
 USE MOD_Particle_MPI           ,ONLY: AddHaloNodeData
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
+USE MOD_LoadBalance_Vars       ,ONLY: nDeposPerElem
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg,LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
 USE MOD_TimeDisc_Vars          ,ONLY: dt,tAnalyzeDiff,tEndDiff
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1396,10 +1396,7 @@ REAL                             :: DeltaIntCoeff,prefac
 REAL                             :: local_r_sf, local_r2_sf, local_r2_sf_inv
 REAL                             :: RandVal, RandVal2(2), layerPartPos(3), PartRadius, FractPush(3), SFfixDistance
 LOGICAL                          :: DoCycle,DepoLoc
-#if USE_LOADBALANCE
-REAL                             :: tLBStart ! load balance
-#endif /*USE_LOADBALANCE*/
-#if !(defined (PP_HDG) && (PP_nVar==1))
+#if !((USE_HDG) && (PP_nVar==1))
 INTEGER, PARAMETER               :: SourceDim=1
 LOGICAL, PARAMETER               :: doCalculateCurrentDensity=.TRUE.
 #else
@@ -1407,15 +1404,25 @@ LOGICAL                          :: doCalculateCurrentDensity
 INTEGER                          :: SourceDim
 #endif
 INTEGER                          :: NodeID(1:8)
+#if USE_LOADBALANCE
+REAL                             :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !============================================================================================================================
 ! Return, if no deposition is required
 IF(.NOT.DoDeposition) RETURN
+
+! Start time measurement for shape function deposition only
+#if USE_LOADBALANCE
+IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+  CALL LBStartTime(tLBStart) ! Start time measurement
+END IF ! TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function'
+#endif /*USE_LOADBALANCE*/
 
 doPartInExists=.FALSE.
 IF(PRESENT(doParticle_In)) doPartInExists=.TRUE.
 
 ! Check whether charge and current density have to be compute or just the charge density
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
 IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
   doCalculateCurrentDensity=.TRUE.
   SourceDim=1
@@ -1478,30 +1485,34 @@ CASE('nearest_blurrycenter')
         END IF ! usevMPF
       END IF ! Element(iPart).EQ.iElem
     END DO ! iPart
-IF(doCalculateCurrentDensity)THEN
-  PartSource(1,:,:,:,iElem) = PartSource(1,:,:,:,iElem)+ElemSource(1,iElem)
-  PartSource(2,:,:,:,iElem) = PartSource(2,:,:,:,iElem)+ElemSource(2,iElem)
-  PartSource(3,:,:,:,iElem) = PartSource(3,:,:,:,iElem)+ElemSource(3,iElem)
-END IF
-PartSource(4,:,:,:,iElem) = PartSource(4,:,:,:,iElem)+ElemSource(4,iElem)
+    IF(doCalculateCurrentDensity)THEN
+      PartSource(1,:,:,:,iElem) = PartSource(1,:,:,:,iElem)+ElemSource(1,iElem)
+      PartSource(2,:,:,:,iElem) = PartSource(2,:,:,:,iElem)+ElemSource(2,iElem)
+      PartSource(3,:,:,:,iElem) = PartSource(3,:,:,:,iElem)+ElemSource(3,iElem)
+    END IF
+    PartSource(4,:,:,:,iElem) = PartSource(4,:,:,:,iElem)+ElemSource(4,iElem)
 #if USE_LOADBALANCE
     CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END DO ! iElem=1,PP_nElems
+
   IF(.NOT.doInnerParts)THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
     DO iElem=1,PP_nElems
       PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / GEO%Volume(iElem)
-#if USE_LOADBALANCE
-      CALL LBElemSplitTime(iElem,tLBStart)
-#endif /*USE_LOADBALANCE*/
     END DO ! iElem=1,PP_nElems
+#if USE_LOADBALANCE
+    CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
+#endif /*USE_LOADBALANCE*/
   END IF ! .NOT. doInnerParts
 CASE('cell_volweight')
   ALLOCATE(BGMSourceCellVol(SourceDim:4,0:1,0:1,0:1,1:nElems))
   BGMSourceCellVol(:,:,:,:,:) = 0.0
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
   DO iPart = firstPart, lastPart
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
@@ -1511,9 +1522,6 @@ CASE('cell_volweight')
     END IF
     ! Don't deposit neutral particles!
     IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
     IF (usevMPF) THEN
       Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
     ELSE
@@ -1543,13 +1551,10 @@ CASE('cell_volweight')
     BGMSourceCellVol(:,1,1,0,iElem) = BGMSourceCellVol(:,1,1,0,iElem) + (TSource(SourceDim:4)*(alpha1)*(alpha2)*(1-alpha3))
     BGMSourceCellVol(:,1,1,1,iElem) = BGMSourceCellVol(:,1,1,1,iElem) + (TSource(SourceDim:4)*(alpha1)*(alpha2)*(alpha3))
 #if USE_LOADBALANCE
-    CALL LBElemPauseTime(iElem,tLBStart)
+    CALL LBElemSplitTime(iElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
 #endif /*USE_LOADBALANCE*/
   END DO
 
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
   DO iElem=1, nElems
     BGMSourceCellVol(:,0,0,0,iElem) = BGMSourceCellVol(:,0,0,0,iElem)/CellVolWeight_Volumes(0,0,0,iElem)
     BGMSourceCellVol(:,0,0,1,iElem) = BGMSourceCellVol(:,0,0,1,iElem)/CellVolWeight_Volumes(0,0,1,iElem)
@@ -1560,41 +1565,38 @@ CASE('cell_volweight')
     BGMSourceCellVol(:,1,1,0,iElem) = BGMSourceCellVol(:,1,1,0,iElem)/CellVolWeight_Volumes(1,1,0,iElem)
     BGMSourceCellVol(:,1,1,1,iElem) = BGMSourceCellVol(:,1,1,1,iElem)/CellVolWeight_Volumes(1,1,1,iElem)
   END DO
-#if USE_LOADBALANCE
-  CALL LBElemPauseTime_avg(tLBStart) ! average over the number of elems
-#endif /*USE_LOADBALANCE*/
 
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
   DO iElem = 1, nElems
     DO kk = 0, PP_N
       DO ll = 0, PP_N
         DO mm = 0, PP_N
-         alpha1 = CellVolWeightFac(kk)
-         alpha2 = CellVolWeightFac(ll)
-         alpha3 = CellVolWeightFac(mm)
-         PartSource(SourceDim:4,kk,ll,mm,iElem) =PartSource(SourceDim:4,kk,ll,mm,iElem) +&
-              BGMSourceCellVol(:,0,0,0,iElem) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
-              BGMSourceCellVol(:,0,0,1,iElem) * (1-alpha1) * (1-alpha2) * (alpha3) + &
-              BGMSourceCellVol(:,0,1,0,iElem) * (1-alpha1) * (alpha2) * (1-alpha3) + &
-              BGMSourceCellVol(:,0,1,1,iElem) * (1-alpha1) * (alpha2) * (alpha3) + &
-              BGMSourceCellVol(:,1,0,0,iElem) * (alpha1) * (1-alpha2) * (1-alpha3) + &
-              BGMSourceCellVol(:,1,0,1,iElem) * (alpha1) * (1-alpha2) * (alpha3) + &
-              BGMSourceCellVol(:,1,1,0,iElem) * (alpha1) * (alpha2) * (1-alpha3) + &
-              BGMSourceCellVol(:,1,1,1,iElem) * (alpha1) * (alpha2) * (alpha3)
-       END DO !mm
-     END DO !ll
-   END DO !kk
+          alpha1 = CellVolWeightFac(kk)
+          alpha2 = CellVolWeightFac(ll)
+          alpha3 = CellVolWeightFac(mm)
+          PartSource(SourceDim:4,kk,ll,mm,iElem) =PartSource(SourceDim:4,kk,ll,mm,iElem) + &
+              BGMSourceCellVol(:,0,0,0,iElem) * (1-alpha1) * (1-alpha2) * (1-alpha3)    + &
+              BGMSourceCellVol(:,0,0,1,iElem) * (1-alpha1) * (1-alpha2) *   (alpha3)    + &
+              BGMSourceCellVol(:,0,1,0,iElem) * (1-alpha1) *   (alpha2) * (1-alpha3)    + &
+              BGMSourceCellVol(:,0,1,1,iElem) * (1-alpha1) *   (alpha2) *   (alpha3)    + &
+              BGMSourceCellVol(:,1,0,0,iElem) *   (alpha1) * (1-alpha2) * (1-alpha3)    + &
+              BGMSourceCellVol(:,1,0,1,iElem) *   (alpha1) * (1-alpha2) *   (alpha3)    + &
+              BGMSourceCellVol(:,1,1,0,iElem) *   (alpha1) *   (alpha2) * (1-alpha3)    + &
+              BGMSourceCellVol(:,1,1,1,iElem) *   (alpha1) *   (alpha2) *   (alpha3)
+        END DO ! mm
+      END DO ! ll
+    END DO ! kk
+  END DO ! iElem
 #if USE_LOADBALANCE
-   CALL LBElemSplitTime(iElem,tLBStart)
+  CALL LBElemSplitTime_avg(tLBStart) ! Average over the number of elems (and Start again)
 #endif /*USE_LOADBALANCE*/
- END DO !iEle
  DEALLOCATE(BGMSourceCellVol)
 CASE('cell_volweight_mean','cell_volweight_mean2')
   ALLOCATE(NodeSource(SourceDim:4,1:nNodes))
   NodeSource = 0.0
 
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
       IF (usevMPF) THEN
@@ -1615,15 +1617,20 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
       alpha3=0.5*(TempPartPos(3)+1.0)
       NodeID=GEO%ElemToNodeID(1:8,iElem)
       NodeSource(:,NodeID(1)) = NodeSource(:,NodeID(1))+(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
-      NodeSource(:,NodeID(2)) = NodeSource(:,NodeID(2))+(TSource(SourceDim:4)*(alpha1)*(1-alpha2)*(1-alpha3))
-      NodeSource(:,NodeID(3)) = NodeSource(:,NodeID(3))+(TSource(SourceDim:4)*(alpha1)*(alpha2)*(1-alpha3))
-      NodeSource(:,NodeID(4)) = NodeSource(:,NodeID(4))+(TSource(SourceDim:4)*(1-alpha1)*(alpha2)*(1-alpha3))
-      NodeSource(:,NodeID(5)) = NodeSource(:,NodeID(5))+(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(alpha3))
-      NodeSource(:,NodeID(6)) = NodeSource(:,NodeID(6))+(TSource(SourceDim:4)*(alpha1)*(1-alpha2)*(alpha3))
-      NodeSource(:,NodeID(7)) = NodeSource(:,NodeID(7))+(TSource(SourceDim:4)*(alpha1)*(alpha2)*(alpha3))
-      NodeSource(:,NodeID(8)) = NodeSource(:,NodeID(8))+(TSource(SourceDim:4)*(1-alpha1)*(alpha2)*(alpha3))
+      NodeSource(:,NodeID(2)) = NodeSource(:,NodeID(2))+(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
+      NodeSource(:,NodeID(3)) = NodeSource(:,NodeID(3))+(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
+      NodeSource(:,NodeID(4)) = NodeSource(:,NodeID(4))+(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*(1-alpha3))
+      NodeSource(:,NodeID(5)) = NodeSource(:,NodeID(5))+(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*  (alpha3))
+      NodeSource(:,NodeID(6)) = NodeSource(:,NodeID(6))+(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
+      NodeSource(:,NodeID(7)) = NodeSource(:,NodeID(7))+(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
+      NodeSource(:,NodeID(8)) = NodeSource(:,NodeID(8))+(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
+#if USE_LOADBALANCE
+     CALL LBElemSplitTime(iElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
+#endif /*USE_LOADBALANCE*/
     END IF
   END DO
+
+  ! Node MPI communication
 #if USE_MPI
   IF(doCalculateCurrentDensity)THEN
     CALL AddHaloNodeData(NodeSource(1,:))
@@ -1633,6 +1640,11 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
   CALL AddHaloNodeData(NodeSource(4,:))
 #endif /*USE_MPI*/
 
+
+  ! Currently also "Nodes" are included in time measurement that is averaged across all elements. Can this be improved?
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
   DO iElem=1, nNodes
     NodeSource(SourceDim:4,iElem) = NodeSource(SourceDim:4,iElem)/CellLocNodes_Volumes(iElem)
   END DO
@@ -1649,7 +1661,6 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
     END DO
     NodeSource = tempNodeSource
   END IF
-
 
   DO iElem = 1, nElems
     DO kk = 0, PP_N
@@ -1672,6 +1683,9 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
        END DO !ll
      END DO !kk
    END DO !iEle
+#if USE_LOADBALANCE
+   CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
+#endif /*USE_LOADBALANCE*/
    DEALLOCATE(NodeSource)
 CASE('epanechnikov')
   ALLOCATE(tempsource(0:PP_N,0:PP_N,0:PP_N))
@@ -1943,7 +1957,7 @@ CASE('shape_function','shape_function_simple')
             DO mm = 0, PP_N
               PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) + PartSourceConst(1:4,mm,ll,kk,iElem)
               IF (RelaxDeposition) THEN
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
                 PartSource(4,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem) * RelaxFac*dtWeight &
                                              + PartSourceOld(1,1,mm,ll,kk,iElem) * (1.0-RelaxFac*dtWeight)
                 PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
@@ -1962,7 +1976,7 @@ CASE('shape_function','shape_function_simple')
         DO kk = 0, PP_N
           DO ll = 0, PP_N
             DO mm = 0, PP_N
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
               PartSource(4,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem) * RelaxFac*dtWeight &
                                            + PartSourceOld(1,1,mm,ll,kk,iElem) * (1.0-RelaxFac*dtWeight)
               PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
@@ -2064,9 +2078,9 @@ CASE('shape_function_1d')
               ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
               IF(ElemID.GT.nElems) CYCLE
               IF (.NOT.chargedone(ElemID)) THEN
-#if USE_MPI
+#if USE_LOADBALANCE
                 nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
                 !--- go through all gauss points
                 !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                 DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -2168,9 +2182,9 @@ CASE('shape_function_1d')
                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
                 IF(ElemID.GT.nElems) CYCLE
                 IF (.NOT.chargedone(ElemID)) THEN
-#if USE_MPI
+#if USE_LOADBALANCE
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
                   !--- go through all gauss points
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -2320,9 +2334,9 @@ CASE('shape_function_2d')
               ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
               IF(ElemID.GT.nElems) CYCLE
               IF (.NOT.chargedone(ElemID)) THEN
-#if USE_MPI
+#if USE_LOADBALANCE
                 nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
                 ! Check whether the SF particle has to be locally deposited (set DepoLoc=T/F)
                 CALL DepoSFParticleLocally(DepoLoc,ElemID,iPart)
 
@@ -2459,9 +2473,9 @@ CASE('shape_function_2d')
                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
                 IF(ElemID.GT.nElems) CYCLE
                 IF (.NOT.chargedone(ElemID)) THEN
-#if USE_MPI
+#if USE_LOADBALANCE
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
                   !--- go through all gauss points
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -2577,9 +2591,9 @@ CASE('shape_function_cylindrical','shape_function_spherical')
               ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
               IF(ElemID.GT.nElems) CYCLE
               IF (.NOT.chargedone(ElemID)) THEN
-#if USE_MPI
+#if USE_LOADBALANCE
                 nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
                 !--- go through all gauss points
                 !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                 DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -2673,9 +2687,9 @@ CASE('shape_function_cylindrical','shape_function_spherical')
                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
                 IF(ElemID.GT.nElems) CYCLE
                 IF (.NOT.chargedone(ElemID)) THEN
-#if USE_MPI
+#if USE_LOADBALANCE
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
                   !--- go through all gauss points
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -3125,6 +3139,13 @@ CASE DEFAULT
   __STAMP__&
   ,'Unknown DepositionType in pic_depo.f90')
 END SELECT
+
+! End time measurement for shape function deposition only
+#if USE_LOADBALANCE
+IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+  CALL LBPauseTime(LB_DEPOSITION,tLBStart)
+END IF ! TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function'
+#endif /*USE_LOADBALANCE*/
 
 RETURN
 END SUBROUTINE Deposition
@@ -4118,7 +4139,7 @@ LOGICAL, INTENT(IN), OPTIONAL    :: const_opt
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!#if (defined (PP_HDG) && (PP_nVar==1))
+!#if ((USE_HDG) && (PP_nVar==1))
 !yes, PartVelo and SourceSize_in are not used, but the subroutine-call and -head would be ugly with the preproc-flags...
 !INTEGER, PARAMETER               :: SourceSize=1
 !REAL                             :: Fac(4:4), Fac2(4:4)
@@ -4139,12 +4160,12 @@ IF (PRESENT(const_opt)) THEN
 ELSE
   const=.FALSE.
 END IF
-!#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !((USE_HDG) && (PP_nVar==1))
 SourceSize=SourceSize_in
 !#endif
 IF (SourceSize.EQ.1) THEN
   Fac2= ChargeMPF
-!#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !((USE_HDG) && (PP_nVar==1))
 ELSE IF (SourceSize.EQ.4) THEN
   Fac2(1:3) = PartVelo*ChargeMPF
   Fac2(4)= ChargeMPF
@@ -4253,7 +4274,7 @@ ELSE ! NbrOfSFdepoFixes.NE.0
               END IF
               ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(SFfixIdx,2,1:3)
               Fac = Fac * SFdepoFixesChargeMult(SFfixIdx)
-!#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !((USE_HDG) && (PP_nVar==1))
               IF (SourceSize.EQ.4) THEN
                 ! change velocity
                 n_loc = SFdepoFixesGeo(SFfixIdx,2,1:3)
@@ -4295,9 +4316,9 @@ USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_s
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 USE MOD_PreProc,                ONLY:PP_N
-#if USE_MPI
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
-#endif  /*USE_MPI*/
+#endif  /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4305,7 +4326,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL, INTENT(IN)                 :: Position(3)
 INTEGER, INTENT(IN)              :: SourceSize
-!#if (defined (PP_HDG) && (PP_nVar==1))
+!#if ((USE_HDG) && (PP_nVar==1))
 !REAL, INTENT(IN)                 :: Fac(4:4)
 !#else
 REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
@@ -4347,9 +4368,9 @@ DO kk = kmin,kmax
         ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
         IF(ElemID.GT.nElems) CYCLE
         IF (.NOT.chargedone(ElemID)) THEN
-#if USE_MPI
+#if USE_LOADBALANCE
           nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
           !--- go through all gauss points
           DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
             !-- calculate distance between gauss and particle
@@ -4371,7 +4392,7 @@ DO kk = kmin,kmax
               IF (const) THEN
                 IF (SourceSize.EQ.1) THEN
                   PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(4) * S1
-!#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !((USE_HDG) && (PP_nVar==1))
                 ELSE IF (SourceSize.EQ.4) THEN
                   PartSourceConst(1:4,k,l,m,ElemID) = PartSourceConst(1:4,k,l,m,ElemID) + Fac(1:4) * S1
 !#endif
@@ -4379,7 +4400,7 @@ DO kk = kmin,kmax
               ELSE !.NOT.const
                 IF (SourceSize.EQ.1) THEN
                   PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(4) * S1
-!#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !((USE_HDG) && (PP_nVar==1))
                 ELSE IF (SourceSize.EQ.4) THEN
                   PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
 !#endif
@@ -4406,9 +4427,9 @@ USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, ElemRadius2_sf, PartSourceConst
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
 USE MOD_PreProc,                ONLY:PP_N, PP_nElems
-#if USE_MPI
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
-#endif  /*USE_MPI*/
+#endif  /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4416,7 +4437,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL, INTENT(IN)                 :: Position(3)
 INTEGER, INTENT(IN)              :: SourceSize
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
 REAL, INTENT(IN)                 :: Fac(4:4)
 #else
 REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
@@ -4442,9 +4463,9 @@ DO ElemID=1,PP_nElems
   IF(dZ.GT.r_sf+ElemRadiusNGeo(ElemID)) CYCLE
   radius2 = dX*dX+dY*dY+dZ*dZ
   IF(radius2.GT.ElemRadius2_sf(ElemID)) CYCLE
-#if USE_MPI
+#if USE_LOADBALANCE
   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
     !-- calculate distance between gauss and particle
     dX = ABS(Position(1) - ElemDepo_xGP(1,k,l,m,ElemID))
@@ -4465,7 +4486,7 @@ DO ElemID=1,PP_nElems
     IF (const) THEN
       IF (SourceSize.EQ.1) THEN
         PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(4) * S1
-#if !(defined (PP_HDG) && (PP_nVar==1))
+#if !((USE_HDG) && (PP_nVar==1))
       ELSE IF (SourceSize.EQ.4) THEN
         PartSourceConst(1:4,k,l,m,ElemID) = PartSourceConst(1:4,k,l,m,ElemID) + Fac(1:4) * S1
 #endif
@@ -4473,7 +4494,7 @@ DO ElemID=1,PP_nElems
     ELSE !.NOT.const
       IF (SourceSize.EQ.1) THEN
         PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(4) * S1
-#if !(defined (PP_HDG) && (PP_nVar==1))
+#if !((USE_HDG) && (PP_nVar==1))
       ELSE IF (SourceSize.EQ.4) THEN
         PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
 #endif

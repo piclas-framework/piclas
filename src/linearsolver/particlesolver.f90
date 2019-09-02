@@ -103,7 +103,7 @@ PartNewtonLinTolerance  = GETLOGICAL('PartNewtonLinTolerance','.FALSE.')
 EisenstatWalker = .FALSE.
 #endif /*IMPA*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 EpsPartLinSolver   =GETREAL('EpsPartLinSolver','0.')
 IF(EpsPartLinSolver.EQ.0.) EpsPartLinSolver=Eps_LinearSolver
 #else
@@ -250,28 +250,27 @@ SUBROUTINE ParticleNewton(t,coeff,Mode,doParticle_In,opt_In,AbortTol_In)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,PartNewtonRelaxation
-USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton    &
+USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK,PartNewtonRelaxation
+USE MOD_Particle_Vars          ,ONLY: PartQ,F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton    &
                                      ,PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType,PartDeltaX,PartDtFrac,PartStateN  &
                                      ,PartMeshHasReflectiveBCs
-USE MOD_LinearOperator,          ONLY:PartVectorDotProduct
-USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_Part_RHS,                ONLY:CalcPartRHS
+USE MOD_LinearOperator         ,ONLY: PartVectorDotProduct
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Part_RHS               ,ONLY: CalcPartRHS
 #if USE_MPI
-USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY:LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
-USE MOD_LinearSolver_vars,       ONLY:Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,DoPrintConvInfo
-USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
-                                     ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
-USE MOD_Equation_vars,           ONLY:c2_inv
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
+USE MOD_LinearSolver_vars      ,ONLY: Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,DoPrintConvInfo
+USE MOD_Part_RHS               ,ONLY: PartRHS
+USE MOD_Equation_vars          ,ONLY: c2_inv
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
+USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 !USE MOD_Equation,       ONLY: CalcImplicitSource
 ! IMPLICIT VARIABLE HANDLING
@@ -363,22 +362,13 @@ IF(opt)THEN ! compute zero state
       LastPartPos(iPart,3)=PartStateN(iPart,3)
       PEM%lastElement(iPart)=PEM%ElementN(iPart)
       ! HERE: rotate part to partstate back
-      SELECT CASE(PartLorentzType)
-      CASE(0)
-        Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      IF(PartLorentzType.EQ.5)THEN
+        LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
+        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+      ELSE
         LorentzFacInv = 1.0
-      CASE(1)
-        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-        LorentzFacInv = 1.0
-      CASE(3)
-        Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-        LorentzFacInv = 1.0
-      CASE(5)
-        LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
-        LorentzFacInv=1.0/SQRT(LorentzFacInv)
-        Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
-      CASE DEFAULT
-      END SELECT
+        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+      END IF ! PartLorentzType.EQ.5
       ! PartStateN has to be exchanged by PartQ
       Pt_tmp(1) = LorentzFacInv*PartState(iPart,4)
       Pt_tmp(2) = LorentzFacInv*PartState(iPart,5)
@@ -703,30 +693,29 @@ SUBROUTINE Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
-USE MOD_Particle_Vars,           ONLY:PartState,F_PartXK,Norm_F_PartXK,PartQ,PartLorentzType,DoPartInNewton,PartLambdaAccept &
+USE MOD_LinearOperator         ,ONLY: PartMatrixVector, PartVectorDotProduct
+USE MOD_Particle_Vars          ,ONLY: PartState,F_PartXK,Norm_F_PartXK,PartQ,PartLorentzType,DoPartInNewton,PartLambdaAccept &
                                      ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm_F_PartX0,PartDtFrac,PartStateN &
-                                     ,PartMeshHasReflectiveBCs!,StagePartPos
-USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,DoPrintConvInfo
-USE MOD_LinearSolver_Vars,       ONLY:Part_alpha, Part_sigma
-USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
-                                     ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
-USE MOD_Equation_Vars,           ONLY:c2_inv
-USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping,TriaTracking
-USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,PartNewtonRelaxation
+                                     ,PartMeshHasReflectiveBCs
+USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK,DoPrintConvInfo
+USE MOD_LinearSolver_Vars      ,ONLY: Part_alpha, Part_sigma
+USE MOD_Part_RHS               ,ONLY: PartRHS
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+USE MOD_Equation_Vars          ,ONLY: c2_inv
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_LinearSolver_Vars      ,ONLY: DoFullNewton,PartNewtonRelaxation
 #if USE_MPI
-USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
-USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY:LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
+USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -889,25 +878,13 @@ DO iPart=1,PDM%ParticleVecLength
       PartStateTmp(1:6) = PartState(iPart,1:6)
       PartState(iPart,1:6)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
     END IF
-    SELECT CASE(PartLorentzType)
-    CASE(0)
-      Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+    IF(PartLorentzType.EQ.5)THEN
+      LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
+      CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+    ELSE
       LorentzFacInv = 1.0
-    CASE(1)
-      Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-      LorentzFacInv = 1.0
-    CASE(3)
-      Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-      LorentzFacInv = 1.0
-    CASE(5)
-      LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
-      LorentzFacInv=1.0/SQRT(LorentzFacInv)
-      Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
-    CASE DEFAULT
-    CALL abort(&
-__STAMP__&
-,' Given PartLorentzType does not exist!',PartLorentzType)
-    END SELECT
+      CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+    END IF ! PartLorentzType.EQ.5
     R_PartXK(1,iPart)=LorentzFacInv*PartState(iPart,4)
     R_PartXK(2,iPart)=LorentzFacInv*PartState(iPart,5)
     R_PartXK(3,iPart)=LorentzFacInv*PartState(iPart,6)
@@ -1102,25 +1079,13 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
         PartStateTmp(1:6) = PartState(iPart,1:6)
         PartState(iPart,1:6)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
       END IF
-      SELECT CASE(PartLorentzType)
-      CASE(0)
-        Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      IF(PartLorentzType.EQ.5)THEN
+        LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
+        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+      ELSE
         LorentzFacInv = 1.0
-      CASE(1)
-        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-        LorentzFacInv = 1.0
-      CASE(3)
-        Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-        LorentzFacInv = 1.0
-      CASE(5)
-        LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
-        LorentzFacInv=1.0/SQRT(LorentzFacInv)
-        Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
-      CASE DEFAULT
-      CALL abort(&
-  __STAMP__&
-  ,' Given PartLorentzType does not exist!',PartLorentzType)
-      END SELECT
+        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+      END IF ! PartLorentzType.EQ.5
       R_PartXK(1,iPart)=LorentzFacInv*PartState(iPart,4)
       R_PartXK(2,iPart)=LorentzFacInv*PartState(iPart,5)
       R_PartXK(3,iPart)=LorentzFacInv*PartState(iPart,6)

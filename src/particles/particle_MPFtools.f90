@@ -61,7 +61,7 @@ USE MOD_Globals           ,ONLY: LocalTime
 USE MOD_Particle_Vars     ,ONLY: doParticleMerge, nSpecies,vMPFMergeParticleTarget,vMPF_SpecNumElem,vMPFSplitParticleTarget
 USE MOD_Mesh_Vars         ,ONLY: nElems
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools ,ONLY: LBStartTime,LBElemSplitTime
+USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -182,7 +182,7 @@ END SUBROUTINE InitGlobals
 
 SUBROUTINE ReOpenLogFile()
 !===================================================================================================================================
-! re-open log file (used by preprocessor LOGWRITE_BARRIER) to be sure that all logwrites are written to file 
+! re-open log file (used by preprocessor LOGWRITE_BARRIER) to be sure that all logwrites are written to file
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -192,7 +192,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                        :: OpenStat
 LOGICAL                        :: LogIsOpen
 !===================================================================================================================================
@@ -687,6 +687,7 @@ FUNCTION TIMESTAMP(Filename,Time)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
+USE MOD_Globals_Vars ,ONLY: TimeStampLenStr,TimeStampLenStr2
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -699,11 +700,9 @@ CHARACTER(LEN=255) :: TimeStamp ! the complete timestamp
 ! LOCAL VARIABLES
 INTEGER            :: i         ! loop variable
 !===================================================================================================================================
-!IF (Analyze_dt.LT.1E-10) THEN
-!  WRITE(TimeStamp,'(F15.14)')Time
-!ELSE
-WRITE(TimeStamp,'(F21.17)')Time
-!END IF
+!WRITE(TimeStamp,'(F21.17)')Time
+WRITE(TimeStamp,'(F'//TRIM(TimeStampLenStr)//'.'//TRIM(TimeStampLenStr2)//')')Time
+
 ! Replace spaces with 0's
 DO i=1,LEN(TRIM(TimeStamp))
   IF(TimeStamp(i:i).EQ.' ') TimeStamp(i:i)='0'
@@ -817,7 +816,7 @@ REAL            :: CROSS(3) !
 CROSS=(/v1(2)*v2(3)-v1(3)*v2(2),v1(3)*v2(1)-v1(1)*v2(3),v1(1)*v2(2)-v1(2)*v2(1)/)
 END FUNCTION CROSS
 
-FUNCTION CROSSNORM(v1,v2)
+PURE FUNCTION CROSSNORM(v1,v2)
 !===================================================================================================================================
 ! computes the cross product of to 3 dimensional vectpors: cross=v1 x v2
 ! and normalizes the vector
@@ -841,7 +840,7 @@ length=SQRT(CROSSNORM(1)*CROSSNORM(1)+CROSSNORM(2)*CROSSNORM(2)+CROSSNORM(3)*CRO
 CROSSNORM=CROSSNORM/length
 END FUNCTION CROSSNORM
 
-FUNCTION UNITVECTOR(v1)
+PURE FUNCTION UNITVECTOR(v1)
 !===================================================================================================================================
 ! compute  a unit vector from a given vector
 !===================================================================================================================================
@@ -864,7 +863,7 @@ UNITVECTOR=v1*invL
 END FUNCTION UNITVECTOR
 
 
-FUNCTION VECNORM(v1)
+PURE FUNCTION VECNORM(v1)
 !===================================================================================================================================
 ! computes the length of an vector
 !===================================================================================================================================

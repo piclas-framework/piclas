@@ -104,7 +104,8 @@ INTEGER                        :: iArgsStart
 LOGICAL                        :: MeshInitFinished, ReadMeshFinished
 ! PartData
 LOGICAL                        :: VisuParticles, PartDataExists
-!==================================================================================================================================
+INTEGER                        :: TimeStampLength
+!===================================================================================================================================
 CALL InitMPI()
 CALL ParseCommandlineArguments()
 !CALL DefineParametersMPI()
@@ -126,6 +127,7 @@ CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which a
                                                    'Default: 2*N. (needed for CalcDiffError)')
 CALL prms%CreateLogicalOption('VisuParticles',  "Visualize particles (velocity, species, internal energy).", '.FALSE.')
 CALL prms%CreateLogicalOption('writePartitionInfo',  "Write information about MPI partitions into a file.",'.FALSE.')
+CALL prms%CreateIntOption(    'TimeStampLength', 'Length of the floating number time stamp', '14')
 CALL DefineParametersIO()
 
 NVisuDefault = .FALSE.
@@ -244,6 +246,13 @@ VisuSource    = GETLOGICAL('VisuSource','.FALSE.')
 VisuParticles    = GETLOGICAL('VisuParticles','.FALSE.')
 ! Initialization of I/O routines
 CALL InitIO()
+! Get length of the floating number time stamp
+TimeStampLength = GETINT('TimeStampLength')
+IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(&
+    __STAMP__&
+    ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
+WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
+WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
 
 ! Measure init duration
 Time=PICLASTIME()
@@ -550,7 +559,7 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)            :: nVar,nElems,nNodes,data_size                                 ! Number of nodal output variables
 REAL,INTENT(IN)               :: Coords(1:3,nNodes), Value(nVar,nElems)
 CHARACTER(LEN=*),INTENT(IN)   :: FileString, VarNameVisu(nVar)   ! Output file name
-INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nNodes)      ! Statevector
+INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nElems)      ! Statevector
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1121,11 +1130,11 @@ DO iSide=1, nSides
       iLocSide = SideToElem(3,iSide)
     END IF
     DO iNode2 = 1, 4
-    IsSortedSurfNode = .false.
+      IsSortedSurfNode = .FALSE.
       DO iNode = 1, SurfConnect%nSurfaceNode
         IF (GEO%ElemSideNodeID(iNode2, iLocSide, iElem).EQ.TempBCSurfNodes(iNode)) THEN
           TempSideSurfNodeMap(iNode2,SurfConnect%nSurfaceBCSides) = iNode
-          IsSortedSurfNode = .true.
+          IsSortedSurfNode = .TRUE.
           EXIT
         END IF
       END DO

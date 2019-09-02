@@ -1243,6 +1243,8 @@ USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,ExtPartCommSize
 USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF
+USE MOD_Mesh_Vars,                ONLY:nGlobalMortarSides
+USE MOD_Particle_Mesh_Vars,       ONLY:PartElemIsMortar
 #if defined(ROS) || defined(IMPA)
 USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage,PartDtFrac,PartQ
 USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
@@ -1260,6 +1262,8 @@ USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
 USE MOD_DSMC_Vars,               ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry2D,         ONLY: DSMC_2D_RadialWeighting
+USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
+USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D_MortarMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1589,6 +1593,17 @@ IF(RadialWeighting%DoRadialWeighting) THEN
     PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
     CALL DSMC_2D_RadialWeighting(PartID,PEM%Element(PartID))
   END DO
+END IF
+
+IF(TriaTracking) THEN
+  IF(nGlobalMortarSides.GT.0) THEN
+    DO iPart = 1,nrecv
+      PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
+      IF(PartElemIsMortar(PEM%Element(PartID))) THEN
+        CALL ParticleInsideQuad3D_MortarMPI(PartState(PartID,1:3),PEM%Element(PartID),PDM%ParticleInside(PartID))
+      END IF
+    END DO
+  END IF
 END IF
 
 ! validate solution and check
@@ -2002,9 +2017,9 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
 USE MOD_Particle_Vars,          ONLY:Species,nSpecies
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_CalcTimeStep,           ONLY:CalcTimeStep
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_Particle_MPI_Vars,      ONLY:halo_eps
 !USE MOD_Particle_Mesh,          ONLY:BoxInProc
 ! IMPLICIT VARIABLE HANDLING
@@ -2106,9 +2121,9 @@ DO iSpec=1,nSpecies
       IF(Species(iSpec)%Init(iInit)%initialParticleNumber.NE.0)THEN
         lineVector(1:3)=(/0.,0.,Species(iSpec)%Init(iInit)%CuboidHeightIC/)
       ELSE
-#ifndef PP_HDG
+#if !(USE_HDG)
         dt = CALCTIMESTEP()
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
         lineVector(1:3)= dt* Species(iSpec)%Init(iInit)%VeloIC/Species(iSpec)%Init(iInit)%alpha
         zlen=0.
       END IF

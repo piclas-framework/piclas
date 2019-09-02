@@ -23,6 +23,7 @@ apt-get install \
   mesa-common-dev \
   libz-dev \
   libncurses-dev \
+  tcl \
   tcl8.6-dev \
   ctags \
   libboost-dev \
