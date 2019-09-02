@@ -709,12 +709,23 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iDOF, iPolyatMole
+REAL                  :: CharaTVib
 !===================================================================================================================================
 
 ! Calculate GammaVib Factor  = Xi_Vib² * exp(CharaTVib/T_trans) / 2
 DO iSpec = 1, nSpecies
-  IF(DSMC%InstantTransTemp(iSpec).GT.10.0) THEN ! If too low exp cannot evaluted
-    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+      CharaTVib = 0.
+      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+      DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+        CharaTVib = MAX(CharaTVib,PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+      END DO
+    ELSE
+      CharaTVib = SpecDSMC(iSpec)%CharaTVib
+    END IF
+    IF((DSMC%InstantTransTemp(iSpec).GT.0.0).AND.(CharaTVib/DSMC%InstantTransTemp(iSpec).LT.80)) THEN
+      ! If too high exp cannot evaluted
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
         iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
         IF (DSMC%PolySingleMode) THEN
@@ -737,6 +748,17 @@ DO iSpec = 1, nSpecies
         SpecDSMC(iSpec)%GammaVib = (2.*SpecDSMC(iSpec)%CharaTVib / (DSMC%InstantTransTemp(iSpec)               &
                                     *(EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
                                     * EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec)) / 2.
+      END IF
+    ELSE ! Temperature to low
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+        IF (DSMC%PolySingleMode) THEN
+          PolyatomMolDSMC(iPolyatMole)%GammaVib(iDOF) = 0.
+        ELSE
+          SpecDSMC(iSpec)%GammaVib = 0.
+        END IF
+      ELSE
+        SpecDSMC(iSpec)%GammaVib = 0.
       END IF
     END IF
   END IF
