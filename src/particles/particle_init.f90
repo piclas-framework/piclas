@@ -80,8 +80,11 @@ CONTAINS
 SUBROUTINE DefineParametersParticles()
 ! MODULES
 USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
+USE MOD_part_RHS    ,ONLY: DefineParametersParticleRHS
 IMPLICIT NONE
 !==================================================================================================================================
+CALL DefineParametersParticleRHS()
+
 CALL prms%SetSection("Particle")
 
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  ,         'Manual timestep [sec]', '0.0')
@@ -155,7 +158,7 @@ CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_re
 CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
                                                                 '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
 
-CALL prms%CreateIntOption(      'Part-LorentzType'              , 'TODO-DEFINE-PARAMETER\n'//&
+CALL prms%CreateIntOption(      'Part-LorentzType_old'          , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Used Lorentz boost ', '3')
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
 #if (PP_TimeDiscMethod==509)
@@ -1132,9 +1135,10 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_ReadInTools            ,ONLY: PrintOption
-USE MOD_Particle_Vars           ,ONLY: VarTimeStep
-USE MOD_Particle_VarTimeStep    ,ONLY: VarTimeStep_CalcElemFacs  !, VarTimeStep_SmoothDistribution
-USE MOD_DSMC_Symmetry2D         ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
+USE MOD_Particle_Vars          ,ONLY: VarTimeStep
+USE MOD_Particle_VarTimeStep   ,ONLY: VarTimeStep_CalcElemFacs
+USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
+USE MOD_part_RHS               ,ONLY: InitPartRHS
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2174,7 +2178,9 @@ END DO
 
 
 ! Which Lorentz boost method should be used?
-PartLorentzType = GETINT('Part-LorentzType','3')
+PartLorentzType = GETINT('Part-LorentzType_old','3')
+
+CALL InitPartRHS()
 
 ! Read in boundary parameters
 dummy_int = CNTSTR('Part-nBounds')       ! check if Part-nBounds is present in .ini file
