@@ -570,17 +570,18 @@ IF(DOT_PRODUCT(nLoc,relPartTrajectory).GT.0.)  THEN
 ELSE IF(DOT_PRODUCT(nLoc,relPartTrajectory).LE.0.) THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
 END IF
-WallVelo = MacroPart(macroPartID)%velocity(1:3) + CROSS(MacroPart(macroPartID)%velocity(4:6),nLoc*Macropart(macroPartID)%radius)
-relVeloPart(1:3)=PartState(PartID,4:6)-MacroPart(macroPartID)%velocity(1:3)
 ! change nLoc to point inwards of sphere
 nLoc=-nLoc
 
+! transform velocity in reference to sphere
+relVeloPart(1:3)=PartState(PartID,4:6)-MacroPart(macroPartID)%velocity(1:3)
 ! perfect reflection on sphere
 CALL RANDOM_NUMBER(RanNum)
 IF (RanNum.GE.MacroPart(macroPartID)%momentumACC) THEN
   NewVelo(1:3) =  relVeloPart(1:3) - 2.*DOT_PRODUCT(relVeloPart(1:3),nLoc)*nLoc
-  PartState(PartID,4:6) = NewVelo(1:3)
 ELSE
+  WallVelo = CROSS(MacroPart(macroPartID)%velocity(4:6),-nLoc*Macropart(macroPartID)%radius)
+  relVeloPart(1:3)=relVelopart(1:3) - WallVelo
   IF (nLoc(3).NE.0.) THEN
     tang1(1) = 1.0
     tang1(2) = 1.0
@@ -623,12 +624,13 @@ __STAMP__&
   VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
   VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
   VeloCz  = Cmr * VeloCz
-  NewVelo(1:3) = VeloCx*tang1-tang2*VeloCy-VeloCz*nLoc
-  PartState(PartID,4:6) = NewVelo(1:3) + WallVelo
+  NewVelo(1:3) = VeloCx*tang1-tang2*VeloCy-VeloCz*nLoc + WallVelo
 
   ! Adding the energy that is transferred from the surface onto the internal energies of the particle
   CALL SurfaceToPartEnergyInternal(PartID,WallTemp)
 END IF
+! transform velocity back to mesh reference
+PartState(PartID,4:6) = NewVelo(1:3) + MacroPart(macroPartID)%velocity(1:3)
 
 ! intersection point with surface
 LastPartPos(PartID,1:3) = intersectPoint(1:3)
@@ -638,9 +640,6 @@ PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFra
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
 IF (lengthPartTrajectory.GT.0.) PartTrajectory=PartTrajectory/lengthPartTrajectory
-
-alphaDoneRel=alphaDoneRel+(1.-alphaDoneRel)*alphaSphere
-
 
 !----  Sampling Forces at MacroPart and calculating velocity change of macroparticle due to impule change
 force(1:3) = Species(PartSpecies(PartID))%MassIC &
