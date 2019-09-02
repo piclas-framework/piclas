@@ -130,7 +130,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Param
   INTEGER                     :: MaxElecQuant              ! Max elec quantum number + 1
   INTEGER                     :: DissQuant                 ! Vibrational quantum number corresponding to the dissociation energy
                                                            ! (used for QK chemistry, not using MaxVibQuant to avoid confusion with
-                                                           !   the TSHO model)
+                                                           !   the truncated simple harmonic oscillator(TSHO) model)
   REAL                        :: RotRelaxProb              ! rotational relaxation probability
   REAL                        :: VibRelaxProb              ! vibrational relaxation probability
   REAL                        :: ElecRelaxProb             ! electronic relaxation probability

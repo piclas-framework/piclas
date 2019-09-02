@@ -149,20 +149,12 @@ FUNCTION DiceDeflectedVector(CRela2,ur,vr,wr,alpha)
   CALL RANDOM_NUMBER(iRan)
   cos_chi                  = 2.*iRan**(1./alpha)-1.     ! deflected (anisotrop) scattering angle chi 
                                                         ! if alpha=1 VHS isotropic scattering angle chi between [-1,1]
-!WRITE(*,*) "iRan1",iran                                                        
-!WRITE(*,*) "CRela",CRela                                                        
-!WRITE(*,*) "alpha",alpha                                                        
-! WRITE(*,*) "cos_chi ",cos_chi
   sin_chi                  = SQRT(1. - cos_chi**2.)
   DiceDeflectedVector(1)   = CRela*cos_chi              ! DiceDeflectedVector(x,y,z) order according to Bird 1994, p.36  
   CALL RANDOM_NUMBER(iRan)
   eps                      = 2.*PI*iRan                 ! azimuthal impact angle epsilon between [0,2*pi]
   DiceDeflectedVector(2)   = CRela*sin_chi*cos(eps)
   DiceDeflectedVector(3)   = CRela*sin_chi*sin(eps)
-!  WRITE(*,*) "sin_chi",sin_chi
-!  WRITE(*,*) "eps",eps
-!WRITE(*,*) "iRan2",iran                                                        
-!  WRITE(*,*) "DiceDeflected Vector vor Trafo",DiceDeflectedVector
   IF (alpha.GT.1) THEN ! VSS
     IF ((vr.EQ.0) .AND. (wr.EQ.0)) THEN
       ! In case the impact plane system points into the same direction as the
@@ -183,9 +175,7 @@ FUNCTION DiceDeflectedVector(CRela2,ur,vr,wr,alpha)
       ! Transformation 
       DiceDeflectedVector(:)=MATMUL(trafoMatrix,DiceDeflectedVector)
     END IF
-!    WRITE(*,*) "DiceDeflected Vector nach trafo",DiceDeflectedVector
   END IF
-!  STOP
 END FUNCTION DiceDeflectedVector
 
 FUNCTION DiceUnitVector()

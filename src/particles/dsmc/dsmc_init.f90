@@ -120,8 +120,8 @@ CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSurfaceRate'&
                                             'constant. Only probabilities (rates) are calculated.' , '.FALSE.')
 CALL prms%CreateIntOption(      'Particles-ModelForVibrationEnergy'&
                                           , 'Define model used for vibrational degrees of freedom.\n'//&
-                                          '0: SHO\n'//&
-                                          '1: TSHO.', '0')
+                                          '0: SHO simple harmonic oscillator \n'//&
+                                          '1: TSHO truncated simple harmonic oscillator .', '0')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-TEVR-Relaxation'&
                                           , 'Flag for translational-vibrational-electric-rotational relaxation T-V-E-R\n'//&
                                           '[TRUE] or more simple T-V-R T-E-R\n'//&
@@ -606,17 +606,6 @@ __STAMP__&
        SpecDSMC(iSpec)%alphaVSS = CollInf%omega(iSpec,iSpec)
     END IF
   END DO
-! to be solved - ist nur für debugging drin
- WRITE(*,*) "alpha collinf",         CollInf%alpha(:,:)
- WRITE(*,*) "omega collinf",         CollInf%omega(:,:)
- WRITE(*,*) "dref collinf",          CollInf%dref(:,:)
- WRITE(*,*) "Tref collinf",          CollInf%Tref(:,:)
- WRITE(*,*) "collnumcase ",      CollInf%NumCase
- WRITE(*,*) "\n"
-
- WRITE(*,*) "Tref spec", SpecDSMC(:)%Tref        
- WRITE(*,*) "dref spec",  SpecDSMC(:)%Dref        
- WRITE(*,*) "omega spec",  SpecDSMC(:)%omega       
 
   IF (CollisMode.EQ.0) THEN
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001) || (PP_TimeDiscMethod==42)
@@ -633,7 +622,7 @@ __STAMP__&
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
         CALL Abort(&
         __STAMP__&
-        ,"ERROR aveCollPa=T but in species data ini_2 (InterID*Tref*dref) is zero")
+        ,"ERROR species data in ini_2 (InterID*Tref*dref) is zero")
       END IF 
     !END IF
   END DO
@@ -689,7 +678,6 @@ __STAMP__&
       ELSE
         CollInf%KronDelta(iCase) = 0
       END IF
-
       ! Laux (2.37) prefactor Cab calculation depending on omega coll-averaged or -specific 
       IF(CollInf%aveCollPa.OR.CollInf%cabMode.EQ.1) THEN
         ! A1,A2 species constants from the relationship TO BE SOLVED 

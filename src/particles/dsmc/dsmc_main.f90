@@ -142,7 +142,7 @@ SUBROUTINE DSMC_main(DoElement)
 
         DO iPair = 1, nPair
           IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-            IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN            ! calculation of collision prob
+            IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN ! calculation of collision prob
               CALL DSMC_vmpf_prob(iElem, iPair)
             ELSE
               CALL DSMC_prob_calc(iElem, iPair)
