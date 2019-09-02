@@ -858,9 +858,6 @@ REAL                          :: RECR
 #endif /*PARTICLES*/
 #ifdef CODE_ANALYZE
 REAL                          :: TotalSideBoundingBoxVolume,rDummy
-#ifdef PARTICLES
-REAL                          :: PartStateAnalytic(1:6)        !< analytic position and velocity in three dimensions
-#endif /*PARTICLES*/
 #endif /*CODE_ANALYZE*/
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
