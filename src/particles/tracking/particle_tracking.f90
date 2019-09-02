@@ -448,7 +448,6 @@ USE MOD_Particle_Intersection       ,ONLY: OutputTrajectory
 USE MOD_Particle_Tracking_Vars      ,ONLY: PartOut,MPIRankOut
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
 USE MOD_TimeDisc_Vars               ,ONLY: iStage
-USE MOD_Globals_Vars                ,ONLY: epsMach
 USE MOD_Mesh_Vars                   ,ONLY: ElemBaryNGeo
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE

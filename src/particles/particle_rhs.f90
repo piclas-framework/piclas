@@ -39,11 +39,11 @@ PUBLIC :: PartRHS
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
-  SUBROUTINE PartRHSInterface(PartID,FieldAtParticle,Push,LorentzFacInv)
+  SUBROUTINE PartRHSInterface(PartID,FieldAtParticle,Push,LorentzFacInvIn)
     INTEGER,INTENT(IN)              :: PartID
     REAL,DIMENSION(1:6),INTENT(IN)  :: FieldAtParticle
     REAL,DIMENSION(1:3),INTENT(OUT) :: Push
-    REAL,INTENT(IN),OPTIONAL        :: LorentzFacInv
+    REAL,INTENT(IN),OPTIONAL        :: LorentzFacInvIn
   END SUBROUTINE
 END INTERFACE
 
@@ -157,7 +157,7 @@ END DO
 END SUBROUTINE CalcPartRHS
 
 
-SUBROUTINE PartRHS_NR(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
+PURE SUBROUTINE PartRHS_NR(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
 !===================================================================================================================================
 ! 'non-relativistic'
 ! Particle Right-Hand-Side: Non-relativistic push
@@ -203,6 +203,10 @@ Pt(1) = E(1)
 Pt(2) = E(2)
 Pt(3) = E(3)
 #endif
+
+! Suppress compiler warning
+RETURN
+qmt=LorentzFacInvIn ! dummy statement
 END SUBROUTINE PartRHS_NR
 
 
@@ -267,6 +271,9 @@ Pt(2) = E(2)
 Pt(3) = E(3)
 #endif
 
+! Suppress compiler warning
+RETURN
+qmt=LorentzFacInvIn ! dummy statement
 END SUBROUTINE PartRHS_D
 
 
@@ -357,6 +364,9 @@ Pt(1) = (snx * sqrt(ax)*c - PartState(PartID,4)) / dt
 Pt(2) = (sny * sqrt(ay)*c - PartState(PartID,5)) / dt
 Pt(3) = (snz * sqrt(az)*c - PartState(PartID,6)) / dt
 
+! Suppress compiler warning
+RETURN
+qmt=LorentzFacInvIn ! dummy statement
 END SUBROUTINE PartRHS_W
 
 
@@ -444,6 +454,9 @@ Pt(3) = E(3)
 
 Pt = MATMUL(Vinv,Pt)
 
+! Suppress compiler warning
+RETURN
+qmt=LorentzFacInvIn ! dummy statement
 END SUBROUTINE PartRHS_RN
 
 
@@ -514,6 +527,9 @@ ASSOCIATE (&
   END ASSOCIATE
 END ASSOCIATE
 
+! Suppress compiler warning
+RETURN
+velosq=LorentzFacInvIn ! dummy statement
 END SUBROUTINE PartRHS_REM
 
 
