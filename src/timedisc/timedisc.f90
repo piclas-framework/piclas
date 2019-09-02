@@ -373,6 +373,9 @@ tPreviousAnalyze=RestartTime
 ! first average analyze is not written at start but at first tAnalyze
 tPreviousAverageAnalyze=tAnalyze
 ! saving the start of the simulation as restart time is overwritten during load balance step
+!   In case the overwritten one is used, state write out is performed only next Nth analze-dt after restart instead after analyze-dt
+!   w/o  tZero: nSkipAnalyze=5 , restart after iAnalyze=2 , next write out witout any restarts after iAnalyze=7
+!   with tZero: nSkipAnalyze=5 , restart after iAnalyze=2 , next write out witout any restarts after iAnalyze=5
 tZero = RestartTime
 
 ! write number of grid cells and dofs only once per computation
