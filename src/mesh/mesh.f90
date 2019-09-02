@@ -811,7 +811,6 @@ USE MOD_Particle_Vars      ,ONLY: usevMPF
 USE MOD_DSMC_Vars          ,ONLY: RadialWeighting
 #endif
 USE MOD_ReadInTools
-!USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -835,7 +834,6 @@ IF (ALLOCSTAT.NE.0) THEN
       ,'ERROR in InitElemGeometry: Cannot allocate GEO%Volume!')
 END IF
 GEO%MPVolumePortion(:)=0.
-!CALL AddToElemData(ElementOut,'MPVolumePortion',RealArray=GEO%MPVolumePortion(:))
 ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&

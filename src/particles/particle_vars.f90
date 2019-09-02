@@ -501,6 +501,7 @@ TYPE(tMacroParticle), ALLOCATABLE :: MacroPart(:)
 INTEGER                           :: nMacroParticle
 LOGICAL                           :: MacroPartFluxesEnabled
 LOGICAL                           :: MacroPartAccelerationEnabled
+LOGICAL                           :: MacroPartWriteElemData
 LOGICAL                           :: UseMacroPart
 LOGICAL,ALLOCATABLE               :: ElemHasMacroPart(:,:)
 LOGICAL                           :: CalcMPVolumePortion

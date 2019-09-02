@@ -978,31 +978,33 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
 CALL prms%SetSection("MacroParticle")
 
 CALL prms%CreateIntOption(      'MacroPart-nMacroParticle'  &
-                                , 'Number of macro particle, which are checked during tracing',  '0')
+                           , 'Number of macro particle, which are checked during tracing',  '0')
 CALL prms%CreateLogicalOption(  'MacroPart-AccelerationEnabled'  &
-                                , 'Enables momentum changes of macro particle',  '.FALSE.')
+                           , 'Enables momentum changes of macro particle',  '.FALSE.')
 CALL prms%CreateLogicalOption(  'MacroPart-FluxesEnabled'  &
-                                , 'Enables mass and energy changes of macro particle',  '.FALSE.')
+                           , 'Enables mass and energy changes of macro particle',  '.FALSE.')
+CALL prms%CreateLogicalOption(  'MacroPart-WriteElemData'  &
+                           , 'Enables write out of elem data for Macro-spheres in state file. e.g. volumeportion','.FALSE.')
 CALL prms%CreateRealArrayOption('MacroPart[$]-center'  &
-                                , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
+                           , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('MacroPart[$]-velocity'  &
-                                , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
+                           , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('MacroPart[$]-rotation'  &
-                                , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
+                           , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-radius'  &
-                                , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
+                           , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-temp'  &
-                                , 'TODO-DEFINE-PARAMETER',  '273.15', numberedmulti=.TRUE.)
+                           , 'TODO-DEFINE-PARAMETER',  '273.15', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-density'  &
-                                , 'TODO-DEFINE-PARAMETER',  '997', numberedmulti=.TRUE.)
+                           , 'TODO-DEFINE-PARAMETER',  '997', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-momentumACC'  &
-                                , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
+                           , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-transACC'  &
-                                , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
+                           , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-vibACC'  &
-                                , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
+                           , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-rotACC'  &
-                                , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
+                           , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticles
 
@@ -2858,7 +2860,11 @@ END IF
 IF (UseMacropart) THEN
   ALLOCATE(ElemHasMacroPart(1:nTotalElems, 1:nMacroParticle))
   ElemHasMacroPart(:,:)=.FALSE.
-  !CALL AddToElemData(ElementOut,'ElemHasMacroPart',LogArray=ElemHasMacroPart(:,1))
+  MacroPartWriteElemData=GETLOGICAL('MacroPart-WriteElemData')
+  IF (MacroPartWriteElemData) THEN
+    CALL AddToElemData(ElementOut,'ElemHasMacroPart',LogArray=ElemHasMacroPart(:,1))
+    CALL AddToElemData(ElementOut,'MPVolumePortion',RealArray=GEO%MPVolumePortion(:))
+  END IF
 END IF
 CALL MarkMacroPartElems()
 
