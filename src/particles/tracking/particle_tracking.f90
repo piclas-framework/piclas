@@ -74,7 +74,7 @@ SUBROUTINE ParticleTriaTracking()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars               ,ONLY: PEM,PDM
+USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Mesh               ,ONLY: SingleParticleToExactElement
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
@@ -232,7 +232,7 @@ DO i = 1,PDM%ParticleVecLength
           ! the determinants
           IF (NrOfThroughSides.EQ.0) THEN
             ! Particle appears to have not crossed any of the checked sides. Deleted!
-            IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',i,'lost. Element:', ElemID
+            IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',i,'lost. Element:', ElemID,'(species:',PartSpecies(i),')'
             IPWRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
             IPWRITE(*,*) 'Pos:     ', PartState(i,1:3)
             IPWRITE(*,*) 'Velo:    ', PartState(i,4:6)
@@ -326,7 +326,7 @@ DO i = 1,PDM%ParticleVecLength
             END DO  ! ind2 = 1, NrOfThroughSides
             ! Particle that went through multiple sides first, but did not cross any sides during the second check -> Deleted!
             IF (SecondNrOfThroughSides.EQ.0) THEN
-              IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',i,'lost on second check. Element:', ElemID
+              IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',i,'lost. Element:', ElemID,'(species:',PartSpecies(i),')'
               IPWRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
               IPWRITE(*,*) 'Pos:     ', PartState(i,1:3)
               IPWRITE(*,*) 'Velo:    ', PartState(i,4:6)
@@ -1184,7 +1184,7 @@ SUBROUTINE ParticleRefTracking()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,LastPartPos
+USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,LastPartPos,PartSpecies
 USE MOD_Mesh_Vars              ,ONLY: OffSetElem,useCurveds,NGeo,ElemBaryNGeo
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars ,ONLY: nTracks,Distance,ListDistance,CartesianPeriodic
@@ -1512,9 +1512,10 @@ DO iPart=1,PDM%ParticleVecLength
 #else
           IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Last-ElemID  ', PEM%LastElement(iPart)+offSetElem
 #endif
-CALL abort(&
-__STAMP__ &
-,'Particle Not inSide of Element, iPart',iPart)
+          IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' PartSpecies  ', PartSpecies(iPart)
+          CALL abort(&
+              __STAMP__ &
+              ,'Particle not inside of Element, ipart',iPart)
         ELSE ! BCElem
           IPWRITE(UNIT_stdOut,'(I0,A,X,I0)') ' fallback for particle', iPart
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' particlepos            ', partstate(ipart,1:3)
@@ -1610,9 +1611,10 @@ __STAMP__ &
 #else
               IPWRITE(UNIt_stdOut,'(I0,A,I0)') ' elemid                 ', pem%element(ipart)+offsetelem
 #endif
+              IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' PartSpecies  ', PartSpecies(iPart)
               CALL abort(&
-    __STAMP__ &
-    ,'particle noT inside of element, ipart',ipart)
+                  __STAMP__ &
+                  ,'Particle not inside of Element, ipart',ipart)
             END IF ! inside
           ELSE
             PEM%Element(iPart)=TestElem

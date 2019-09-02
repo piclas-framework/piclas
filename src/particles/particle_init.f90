@@ -257,37 +257,9 @@ CALL prms%CreateStringOption(   'DSMC-HOSampling-NodeType'  , 'TODO-DEFINE-PARAM
 CALL prms%CreateRealArrayOption('DSMCSampVolWe-BGMdeltas'  , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.')
 CALL prms%CreateRealArrayOption('DSMCSampVolWe-FactorBGM'  , 'TODO-DEFINE-PARAMETER', '1. , 1. , 1.')
 CALL prms%CreateIntOption(      'DSMCSampVolWe-VolIntOrd'  , 'TODO-DEFINE-PARAMETER', '50')
-CALL prms%CreateIntOption(      'DSMC-nSurfSample'  , 'Define polynomial degree of particle BC sampling. Default: NGeo', '1')
 
-CALL prms%SetSection("Particle SurfCollis")
-CALL prms%CreateLogicalOption(  'Particles-CalcSurfCollis_OnlySwaps'    ,  'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'Count only wall collisions being SpeciesSwaps'&
-                                                                        ,  '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-CalcSurfCollis_Only0Swaps'   ,  'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'Count only wall collisions being delete-SpeciesSwaps'&
-                                                                           , '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-CalcSurfCollis_Output'       ,  'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'Print sums of all counted wall collisions'&
-                                                                           , '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-AnalyzeSurfCollis'           ,  'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'Output of collided/swaped particles during Sampling'//&
-                                                                           ' period? ', '.FALSE.')
-CALL prms%CreateIntOption(      'Particles-DSMC-maxSurfCollisNumber'    ,  'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'Max. number of collided/swaped particles during'//&
-                                                                           ' Sampling', '0')
-CALL prms%CreateIntOption(      'Particles-DSMC-NumberOfBCs'            ,  'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'Count of BC to be analyzed', '1')
-CALL prms%CreateIntArrayOption( 'Particles-DSMC-SurfCollisBC'           ,  'BCs to be analyzed (def.: 0 = all)')
-CALL prms%CreateIntOption(      'Particles-CalcSurfCollis_NbrOfSpecies' ,  'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'Count of Species for wall  collisions (0: all)'&
-                                                                           , '0')
-CALL prms%CreateIntArrayOption( 'Particles-CalcSurfCollis_Species'      ,  'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'Help array for reading surface stuff')
-
-
-CALL prms%CreateLogicalOption(  'Part-WriteFieldsToVTK',                      'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'Not in Code anymore, but read-in has to be deleted'//&
-                                                                           ' in particle_init.f90', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-WriteFieldsToVTK',  'DEPRECATED: Not in Code anymore, but read-in has to be deleted'//&
+                                                          ' in particle_init.f90', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-ConstPressAddParts',                  'TODO-DEFINE-PARAMETER', '.TRUE.')
 CALL prms%CreateLogicalOption(  'Part-ConstPressRemParts',                        'TODO-DEFINE-PARAMETER', '.FALSE.')
 

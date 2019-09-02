@@ -296,7 +296,7 @@ USE MOD_Mesh_Vars              ,ONLY: BC,NGeo
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_Particle_Boundary_Tools,ONLY: SurfaceToPartEnergyInternal, CalcWallSample, AnalyzeSurfaceCollisions
 USE MOD_Particle_Boundary_Tools,ONLY: TSURUTACONDENSCOEFF, AddPartInfoToSample
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall, CalcSurfaceImpact
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time, dt, RKdtFrac
 USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType,BezierControlPoints3D
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
@@ -324,8 +324,8 @@ LOGICAL,INTENT(OUT),OPTIONAL :: Opt_Reflected
 INTEGER                          :: ProductSpec(2)   !< 1: product species of incident particle (also used for simple reflection)
                                                      !< 2: additional species added or removed from surface
                                                           !< If productSpec is negative, then the respective particles are adsorbed
-                                                          !< If productSpec is positive the particle is reflected/emitted 
-                                                          !< with respective species 
+                                                          !< If productSpec is positive the particle is reflected/emitted
+                                                          !< with respective species
 INTEGER                          :: ProductSpecNbr   !< number of emitted particles for ProductSpec(1)
 CHARACTER(30)                    :: velocityDistribution(2)   !< specifying keyword for velocity distribution
 REAL                             :: TempErgy(2)               !< temperature, energy or velocity used for velofromdistribution
@@ -608,7 +608,8 @@ CASE(3) ! reactive interaction case
   ! Treat incident particle
   CALL AddPartInfoToSample(PartID,TransArray,IntArray,'old')
   ! Sample momentum, heatflux and collision counter on surface
-  CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap)
+  CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap,&
+                      impact_opt=CalcSurfaceImpact,PartTrajectory_opt=PartTrajectory,SurfaceNormal_opt=n_loc)
   CALL AnalyzeSurfaceCollisions(PartID,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
 
   IF (ProductSpec(1).LE.0) THEN

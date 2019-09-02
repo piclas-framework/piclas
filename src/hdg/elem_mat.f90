@@ -271,7 +271,7 @@ DO iElem=1,PP_nElems
                         Stmp2,nGP_face)
     Smat(:,:,jLocSide,jLocSide,iElem) = Smat(:,:,jLocSide,jLocSide,iElem) + Stmp2
     !standard diagonal side mass matrix Fdiag =-Tau(elem)*wGP_pq*surfelem_pq
-    ! then combined with to Smat  = Smat - F 
+    ! then combined with to Smat  = Smat - F
     DO q=0,PP_N; DO p=0,PP_N
       i=q*(PP_N+1)+p+1
       Fdiag_i = - Tau(ielem)*SurfElem(p,q,SideID(jLocSide))*wGP(p)*wGP(q)

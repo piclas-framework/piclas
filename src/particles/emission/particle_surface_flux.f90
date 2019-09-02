@@ -903,8 +903,10 @@ __STAMP__&
               IF(RadialWeighting%DoRadialWeighting) THEN
                 nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
                 DO iSub = 1, RadialWeighting%nSubSides
-                  Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) &
-                                                                      * vSF / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
+                  IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
+                    Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) &
+                                                                       * vSF / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
+                  END IF
                 END DO
               END IF
             CASE DEFAULT
@@ -1640,7 +1642,7 @@ __STAMP__&
         iPart=1
         nReject=0
         allowedRejections=0
-        
+
         IF(Symmetry2DAxisymmetric) THEN
           IF (RadialWeighting%DoRadialWeighting.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))))) THEN
             IF(RadialWeighting%CellLocalWeighting) THEN
