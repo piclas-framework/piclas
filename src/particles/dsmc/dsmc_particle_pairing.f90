@@ -1450,6 +1450,7 @@ USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacr
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
 USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcEkin
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1655,6 +1656,14 @@ DO iPair = 1, nPair
     CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
     CALL RANDOM_NUMBER(iRan)
     IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
+#if (PP_TimeDiscMethod==42)
+      IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN
+#else
+      IF(CalcEkin) THEN
+#endif
+        DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
+        DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
+      END IF
       CALL DSMC_perform_collision(iPair,iElem, NodeVolume, PartNum)
       IF (CollInf%ProhibitDoubleColl) THEN
         CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1) = Coll_pData(iPair)%iPart_p2
