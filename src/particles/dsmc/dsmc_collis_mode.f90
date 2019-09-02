@@ -75,25 +75,6 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
       DSMC%CollSepCount = DSMC%CollSepCount + 1
     END IF
   END IF
-!  npair=PEM%pNumber(iElem)/2
-                                                !DO iColl = 1, DSMC%NumColl(CollInf%NumCase+1) ! total number of collisions 
-                                                !  sigma_t(iColl) = Coll_pData(iColl)%sigma(0) 
-                                                
-!  ! summing up all sigma(0)=sigma_t over all collisions
-!  DO iPair = 1,npair
-!    DO iSpec = 1,nSpec       !these two loops are used to get the sum of the collision-specific cross section 
-!      DO jSpec = iSpec,nSpec 
-!        IF (Coll_pData(iPair)%PairType.EQ.CollInf%Coll_Case(iSpec,jSpec)) THEN 
-!          meanCrossSection(CollInf%Coll_Case(iSpec,jSpec)) = meanCrossSection(CollInf%Coll_Case(iSpec,jSpec)) + &
-!                                                               Coll_pData(iPair)%sigma_t
-!          CollInf%CollCount(iSpec,jSpec) 
-!        END IF
-!      END DO !jSpec
-!    END DO !iSpec
-!  END DO ! nPair
-! !          CollInf%CollCount(iColl)   = CollInf%CollCount(iColl)    
-!!          CollInf%CollCount(iColl)   = CollInf%CollCount(iColl)    
-!!
 
   SELECT CASE(CollisMode)
     CASE(1) ! elastic collision
@@ -216,7 +197,7 @@ USE MOD_part_tools,               ONLY : GetParticleWeight
   CRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
   CRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
   CRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
-  ! Calculate random vec
+  ! Calculate deflection vector, scaling and retransformation to LAB frame
   RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(iSpec1,iSpec2))
   
  ! deltaV particle 1 
@@ -711,13 +692,15 @@ END IF
   VeloMy = FracMassCent1 * PartState(iPart1, 5) + FracMassCent2 * PartState(iPart2, 5)
   VeloMz = FracMassCent1 * PartState(iPart1, 6) + FracMassCent2 * PartState(iPart2, 6)
 
-  !Calculate relative velocities
+  !Calculate relative velocities and new squared velocity
+
   CRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
   CRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
   CRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
 
-  !Calculate random vec and new squared velocities
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
+
+  !Calculate deflection vector, scaling and retransformation to LAB frame
   RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(iSpec1,iSpec2))
   ! deltaV particle 1
   DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(iPart1, 4)
@@ -1085,13 +1068,19 @@ __STAMP__&
   FracMassCent1 = CollInf%FracMassCent(PartSpecies(iPart1), Coll_pData(iPair)%PairType)
   FracMassCent2 = CollInf%FracMassCent(PartSpecies(iPart2), Coll_pData(iPair)%PairType)
 
-  !Calculation of velo from center of mass - parametrisation from 3D to 2D
+  !Calculate center of mass velocity- parametrisation from 3D to 2D
   VeloMx = FracMassCent1 * PartState(iPart1, 4) + FracMassCent2 * PartState(iPart2, 4)
   VeloMy = FracMassCent1 * PartState(iPart1, 5) + FracMassCent2 * PartState(iPart2, 5)
   VeloMz = FracMassCent1 * PartState(iPart1, 6) + FracMassCent2 * PartState(iPart2, 6)
 
-  !calculate random vec and new velocities
+  ! Calculate relative velocites and the square
+  CRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
+  CRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
+  CRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
+
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
+
+  !calculate deflection vector, scale it and retransformation to LAB frame
   RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(iSpec1,iSpec2))
 
   ! deltaV particle 1
