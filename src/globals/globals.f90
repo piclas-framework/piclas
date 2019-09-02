@@ -189,7 +189,7 @@ END SUBROUTINE InitGlobals
 
 SUBROUTINE ReOpenLogFile()
 !===================================================================================================================================
-! re-open log file (used by preprocessor LOGWRITE_BARRIER) to be sure that all logwrites are written to file 
+! re-open log file (used by preprocessor LOGWRITE_BARRIER) to be sure that all logwrites are written to file
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -199,7 +199,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                        :: OpenStat
 LOGICAL                        :: LogIsOpen
 !===================================================================================================================================

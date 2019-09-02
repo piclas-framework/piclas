@@ -24,6 +24,8 @@ SAVE
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                                 :: NSurfSample                   ! polynomial degree of particle BC sampling
+LOGICAL                                 :: CalcSurfaceImpact             ! Sample average impact energy of particles for each species
+!                                                                        ! (trans, rot, vib), impact vector and angle (default=FALSE)
 REAL,ALLOCATABLE                        :: XiEQ_SurfSample(:)            ! position of XiEQ_SurfSample
 REAL                                    :: dXiEQ_SurfSample              ! deltaXi in [-1,1]
 INTEGER                                 :: OffSetSurfSide                ! offset of local surf side
@@ -89,11 +91,12 @@ TYPE (tSurfaceMesh)                     :: SurfMesh
 
 TYPE tSampWall             ! DSMC sample for Wall
   ! easier to communicate
-  REAL,ALLOCATABLE                      :: State(:,:,:)                ! 1-3   E_tra (pre, wall, re),
-                                                                       ! 4-6   E_rot (pre, wall, re),
-                                                                       ! 7-9   E_vib (pre, wall, re)
-                                                                       ! 10-12 Forces in x, y, z direction
-                                                                       ! 13-12+nSpecies Wall-Collision counter
+  REAL,ALLOCATABLE                      :: State(:,:,:)                ! 1-3     E_tra (pre, wall, re),
+                                                                       ! 4-6     E_rot (pre, wall, re),
+                                                                       ! 7-9     E_vib (pre, wall, re)
+                                                                       ! 10-12   Forces in x, y, z direction
+                                                                       ! 13-12+nSpecies   Wall-Collision counter
+                                                                       ! 12+nSpecies+1    ParticleTimeStep
   REAL,ALLOCATABLE                      :: SurfModelState(:,:,:)       ! Sampling of reaction enthalpies and coverage
                                                                        ! first index represents
                                                                        ! 1: Heatflux from recombination reactions of two or
@@ -106,7 +109,7 @@ TYPE tSampWall             ! DSMC sample for Wall
                                                                        ! 4: Heatflux from dissociation reactions of one gas
                                                                        !    species reacting at collision to another species
                                                                        !    on the surface.
-                                                                       ! 5: additional heatflux e.g. surface coverage 
+                                                                       ! 5: additional heatflux e.g. surface coverage
                                                                        !    reconstruction or none of the above
                                                                        ! 5+iSpecies: Coverage of iSpecies
                                                                        !    adsorption%coverage added in updatesurfacevars
@@ -121,6 +124,11 @@ TYPE tSampWall             ! DSMC sample for Wall
   !REAL, ALLOCATABLE                    :: Force(:,:,:)                ! x, y, z direction
   !REAL, ALLOCATABLE                    :: Counter(:,:,:)              ! Wall-Collision counter
   REAL                                  :: PumpCapacity                !
+
+  REAL,ALLOCATABLE                      :: ImpactEnergy(:,:,:,:)       ! 1-nSpecies: Particle impact energy (trans, rot, vib)
+  REAL,ALLOCATABLE                      :: ImpactVector(:,:,:,:)       ! 1-nSpecies: Particle impact vector (x,y,z)
+  REAL,ALLOCATABLE                      :: ImpactAngle(:,:,:)          ! 1-nSpecies: Particle impact angle (angle between particle
+  REAL,ALLOCATABLE                      :: ImpactNumber(:,:,:)         ! 1-nSpecies: Number of particle impacts on surface
 END TYPE
 TYPE(tSampWall), ALLOCATABLE            :: SampWall(:)             ! Wall sample array (number of BC-Sides)
 

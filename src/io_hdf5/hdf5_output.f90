@@ -2632,11 +2632,11 @@ END SUBROUTINE GatheredWriteArray
 SUBROUTINE DistributedWriteArray(FileName,DataSetName,rank,nValGlobal,nVal,offset,collective,&
                                  offSetDim,communicator,RealArray,IntegerArray,StrArray,IntegerArray_i4)
 !===================================================================================================================================
-!> Write distributed data, that is not present in each proc of given communicator 
+!> Write distributed data, that is not present in each proc of given communicator
 !>   e.g. master surfaces that are not hosted by each proc
 !> 1: check if every proc of given communicator has data
 !> 2: if any proc has no data, split the communicator and write only with the new communicator
-!> 3: else write with all procs of the given communicator 
+!> 3: else write with all procs of the given communicator
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -2709,7 +2709,7 @@ IF(.NOT.DoNotSplit)THEN
   OutputCOMM=MPI_UNDEFINED
 ELSE
 #endif
-! 3: else write with all procs of the given communicator 
+! 3: else write with all procs of the given communicator
   ! communicator_opt has to be the given communicator or else procs that are not in the given communicator might block the write out
   ! e.g. surface communicator contains only procs with physical surface and MPI_COMM_WORLD contains every proc
   !      Consequently, MPI_COMM_WORLD would block communication
@@ -3027,7 +3027,7 @@ ALLOCATE(DielectricGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='DielectricEpsGlobal'
 StrVarNames(2)='DielectricMuGlobal'
-DielectricGlobal=0.
+DielectricGlobal=1.
 DO iElem=1,PP_nElems
   IF(isDielectricElem(iElem))THEN
     DielectricGlobal(1,:,:,:,iElem)=DielectricEps(:,:,:,ElemToDielectric(iElem))
