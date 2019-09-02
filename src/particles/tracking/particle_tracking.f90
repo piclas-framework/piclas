@@ -485,6 +485,7 @@ USE MOD_Particle_Tracking_Vars      ,ONLY: PartOut,MPIRankOut
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
 USE MOD_TimeDisc_Vars               ,ONLY: iStage
 USE MOD_Mesh_Vars                   ,ONLY: ElemBaryNGeo
+USE MOD_Part_tools                  ,ONLY: INSIDEMACROPART
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBElemPauseTime,LBElemSplitTime
@@ -508,7 +509,7 @@ INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem,iAuxBC
 INTEGER                       :: ilocSide,SideID
 LOGICAL                       :: PartisDone,dolocSide(1:6),foundHit,markTol,crossedBC,SwitchedElement,isCriticalParallelInFace
 REAL                          :: localpha,xi,eta,refpos(1:3)
-REAL,ALLOCATABLE              :: locAlphaSphere
+REAL                          :: locAlphaSphere
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL                       :: onlyMacroPart
 INTEGER                       :: iMP
@@ -647,6 +648,9 @@ DO iPart=1,PDM%ParticleVecLength
      __STAMP__ &
      ,'iPart=. ',iPart)
     END IF
+    IF (INSIDEMACROPART(LastPartPos(iPart,1:3))) CALL abort(&
+__STAMP__&
+,'ERROR: particle found inside macroscopic sphere. PartID: ',iPart)
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
 
