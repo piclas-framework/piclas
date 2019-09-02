@@ -58,20 +58,20 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   LOGICAL                       :: RelaxToDo
-  INTEGER                       :: collPart1ID, collPart2ID                         ! Colliding particles 1 and 2
+  INTEGER                       :: iPart1, iPart2                         ! Colliding particles 1 and 2
 !===================================================================================================================================
-  collPart1ID = Coll_pData(iPair)%iPart_p1
-  collPart2ID = Coll_pData(iPair)%iPart_p2
- ! iSpec       = PartSpecies(collPart1ID)
- ! jSpec       = PartSpecies(collPart2ID)
+  iPart1 = Coll_pData(iPair)%iPart_p1
+  iPart2 = Coll_pData(iPair)%iPart_p2
+ ! iSpec       = PartSpecies(iPart1)
+ ! jSpec       = PartSpecies(iPart2)
   IF(DSMC%CalcQualityFactors) THEN  
     IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-      DSMC%CollSepDist = DSMC%CollSepDist + SQRT((PartState(collPart1ID,1) &
-                                          - PartState(collPart2ID,1))**2 &
-                                          +(PartState(collPart1ID,2) &
-                                          - PartState(collPart2ID,2))**2 &
-                                          +(PartState(collPart1ID,3) &
-                                          - PartState(collPart2ID,3))**2)
+      DSMC%CollSepDist = DSMC%CollSepDist + SQRT((PartState(iPart1,1) &
+                                          - PartState(iPart2,1))**2 &
+                                          +(PartState(iPart1,2) &
+                                          - PartState(iPart2,2))**2 &
+                                          +(PartState(iPart1,3) &
+                                          - PartState(iPart2,3))**2)
       DSMC%CollSepCount = DSMC%CollSepCount + 1
     END IF
   END IF
@@ -182,27 +182,27 @@ USE MOD_part_tools,               ONLY : GetParticleWeight
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: CRelaX, CRelaY, CRelaZ           ! pre-collision relative velocities 
   REAL                          :: RanVec(3)
-  INTEGER                       :: collPart1ID, collPart2ID, Spec1ID, Spec2ID ! Colliding particles 1 and 2, their species
+  INTEGER                       :: iPart1, iPart2, iSpec1, iSpec2 ! Colliding particles 1 and 2, their species
 !===================================================================================================================================
-  collPart1ID = Coll_pData(iPair)%iPart_p1
-  collPart2ID = Coll_pData(iPair)%iPart_p2
+  iPart1 = Coll_pData(iPair)%iPart_p1
+  iPart2 = Coll_pData(iPair)%iPart_p2
 
-  Spec1ID = PartSpecies(collPart1ID)
-  Spec2ID = PartSpecies(collPart2ID)
+  iSpec1 = PartSpecies(iPart1)
+  iSpec2 = PartSpecies(iPart2)
 
   IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-    FracMassCent1 = Species(Spec1ID)%MassIC * GetParticleWeight(collPart1ID) / (Species(Spec1ID)%MassIC &
-                  * GetParticleWeight(collPart1ID) + Species(Spec2ID)%MassIC *GetParticleWeight(collPart2ID))
-    FracMassCent2 = Species(Spec2ID)%MassIC *GetParticleWeight(collPart2ID) / (Species(Spec1ID)%MassIC  &
-                  * GetParticleWeight(collPart1ID) + Species(Spec2ID)%MassIC *GetParticleWeight(collPart2ID))
+    FracMassCent1 = Species(iSpec1)%MassIC * GetParticleWeight(iPart1) / (Species(iSpec1)%MassIC &
+                  * GetParticleWeight(iPart1) + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
+    FracMassCent2 = Species(iSpec2)%MassIC *GetParticleWeight(iPart2) / (Species(iSpec1)%MassIC  &
+                  * GetParticleWeight(iPart1) + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
   ELSE
-    FracMassCent1 = CollInf%FracMassCent(PartSpecies(collPart1ID), Coll_pData(iPair)%PairType)
-    FracMassCent2 = CollInf%FracMassCent(PartSpecies(collPart2ID), Coll_pData(iPair)%PairType)
+    FracMassCent1 = CollInf%FracMassCent(PartSpecies(iPart1), Coll_pData(iPair)%PairType)
+    FracMassCent2 = CollInf%FracMassCent(PartSpecies(iPart2), Coll_pData(iPair)%PairType)
   END IF
   !Calculation of velo from center of mass
-  VeloMx = FracMassCent1 * PartState(collPart1ID, 4) + FracMassCent2 * PartState(collPart2ID, 4)
-  VeloMy = FracMassCent1 * PartState(collPart1ID, 5) + FracMassCent2 * PartState(collPart2ID, 5)
-  VeloMz = FracMassCent1 * PartState(collPart1ID, 6) + FracMassCent2 * PartState(collPart2ID, 6)
+  VeloMx = FracMassCent1 * PartState(iPart1, 4) + FracMassCent2 * PartState(iPart2, 4)
+  VeloMy = FracMassCent1 * PartState(iPart1, 5) + FracMassCent2 * PartState(iPart2, 5)
+  VeloMz = FracMassCent1 * PartState(iPart1, 6) + FracMassCent2 * PartState(iPart2, 6)
 
   IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
     IF (iPair.EQ.PairE_vMPF(1)) THEN
@@ -213,20 +213,20 @@ USE MOD_part_tools,               ONLY : GetParticleWeight
   END IF
 
   ! Calculation of relative velocities
-  CRelax = PartState(collPart1ID, 4) - PartState(collPart2ID, 4)
-  CRelay = PartState(collPart1ID, 5) - PartState(collPart2ID, 5)
-  CRelaz = PartState(collPart1ID, 6) - PartState(collPart2ID, 6)
+  CRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
+  CRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
+  CRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
   ! Calculate random vec
-  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(Spec1ID,Spec2ID))
+  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(iSpec1,iSpec2))
   
  ! deltaV particle 1 
-  DSMC_RHS(collPart1ID,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(collPart1ID, 4)
-  DSMC_RHS(collPart1ID,2) = VeloMy + FracMassCent2*RanVec(2) - PartState(collPart1ID, 5)
-  DSMC_RHS(collPart1ID,3) = VeloMz + FracMassCent2*RanVec(3) - PartState(collPart1ID, 6)
+  DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(iPart1, 4)
+  DSMC_RHS(iPart1,2) = VeloMy + FracMassCent2*RanVec(2) - PartState(iPart1, 5)
+  DSMC_RHS(iPart1,3) = VeloMz + FracMassCent2*RanVec(3) - PartState(iPart1, 6)
  ! deltaV particle 2
-  DSMC_RHS(collPart2ID,1) = VeloMx - FracMassCent1*RanVec(1) - PartState(collPart2ID, 4)
-  DSMC_RHS(collPart2ID,2) = VeloMy - FracMassCent1*RanVec(2) - PartState(collPart2ID, 5)
-  DSMC_RHS(collPart2ID,3) = VeloMz - FracMassCent1*RanVec(3) - PartState(collPart2ID, 6)
+  DSMC_RHS(iPart2,1) = VeloMx - FracMassCent1*RanVec(1) - PartState(iPart2, 4)
+  DSMC_RHS(iPart2,2) = VeloMy - FracMassCent1*RanVec(2) - PartState(iPart2, 5)
+  DSMC_RHS(iPart2,3) = VeloMz - FracMassCent1*RanVec(3) - PartState(iPart2, 6)
 #if (PP_TimeDiscMethod == 42)
   IF (.NOT.DSMC%ReservoirRateStatistic) THEN ! count number of collisions for part analyze
     CollInf%CollCount(iColl) = CollInf%CollCount(iColl)+1    
@@ -269,16 +269,16 @@ SUBROUTINE DSMC_Scat_Col(iPair)
   INTEGER                       :: iReac
   REAL                          :: uRan2, uRan3, uRanRot, uRanVHS
   REAL                          :: Pi, aEL, bEL, aCEX, bCEX
-  INTEGER                       :: collPart1ID, collPart2ID                    ! Colliding particles 1 and 2
+  INTEGER                       :: iPart1, iPart2                    ! Colliding particles 1 and 2
 !===================================================================================================================================
- collPart1ID = Coll_pData(iPair)%iPart_p1
- collPart2ID = Coll_pData(iPair)%iPart_p2
+ iPart1 = Coll_pData(iPair)%iPart_p1
+ iPart2 = Coll_pData(iPair)%iPart_p2
 
   Pi = ACOS(-1.0)
-  aCEX = ChemReac%CEXa(ChemReac%ReactNum(PartSpecies(collPart1ID),PartSpecies(collPart2ID),1))
-  bCEX = ChemReac%CEXb(ChemReac%ReactNum(PartSpecies(collPart1ID),PartSpecies(collPart2ID),1))
-  aEL  = ChemReac%ELa(ChemReac%ReactNum(PartSpecies(collPart1ID),PartSpecies(collPart2ID),1))
-  bEL  = ChemReac%ELb(ChemReac%ReactNum(PartSpecies(collPart1ID),PartSpecies(collPart2ID),1))
+  aCEX = ChemReac%CEXa(ChemReac%ReactNum(PartSpecies(iPart1),PartSpecies(iPart2),1))
+  bCEX = ChemReac%CEXb(ChemReac%ReactNum(PartSpecies(iPart1),PartSpecies(iPart2),1))
+  aEL  = ChemReac%ELa(ChemReac%ReactNum(PartSpecies(iPart1),PartSpecies(iPart2),1))
+  bEL  = ChemReac%ELb(ChemReac%ReactNum(PartSpecies(iPart1),PartSpecies(iPart2),1))
   ! Decision if scattering angle is greater than 1 degree and should be calculated
 
   sigma_el  = bEL + aEL*0.5 * LOG10(Coll_pData(iPair)%CRela2)
@@ -289,17 +289,17 @@ SUBROUTINE DSMC_Scat_Col(iPair)
 
 IF ((sigma_el/sigma_tot).GT.uRan2) THEN
     ! Calculation of relative velocities
-    CRelax = PartState(collPart1ID, 4) - PartState(collPart2ID, 4)
-    CRelay = PartState(collPart1ID, 5) - PartState(collPart2ID, 5)
-    CRelaz = PartState(collPart1ID, 6) - PartState(collPart2ID, 6)
+    CRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
+    CRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
+    CRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
     
-    FracMassCent1 = CollInf%FracMassCent(PartSpecies(collPart1ID), Coll_pData(iPair)%PairType)
-    FracMassCent2 = CollInf%FracMassCent(PartSpecies(collPart2ID), Coll_pData(iPair)%PairType)
+    FracMassCent1 = CollInf%FracMassCent(PartSpecies(iPart1), Coll_pData(iPair)%PairType)
+    FracMassCent2 = CollInf%FracMassCent(PartSpecies(iPart2), Coll_pData(iPair)%PairType)
   
     ! Calculation of velo from center of mass
-    VeloMx = FracMassCent1 * PartState(collPart1ID, 4) + FracMassCent2 * PartState(collPart2ID, 4)
-    VeloMy = FracMassCent1 * PartState(collPart1ID, 5) + FracMassCent2 * PartState(collPart2ID, 5)
-    VeloMz = FracMassCent1 * PartState(collPart1ID, 6) + FracMassCent2 * PartState(collPart2ID, 6)
+    VeloMx = FracMassCent1 * PartState(iPart1, 4) + FracMassCent2 * PartState(iPart2, 4)
+    VeloMy = FracMassCent1 * PartState(iPart1, 5) + FracMassCent2 * PartState(iPart2, 5)
+    VeloMz = FracMassCent1 * PartState(iPart1, 6) + FracMassCent2 * PartState(iPart2, 6)
 
     ! Calculation of impact parameter b
     bmax = SQRT(sigma_el/Pi)
@@ -331,18 +331,18 @@ IF ((sigma_el/sigma_tot).GT.uRan2) THEN
 
     ! Transformation into laboratory frame
     ! deltaV particle 1
-    DSMC_RHS(collPart1ID,1) = VeloMx + FracMassCent2*CRelaxN - PartState(collPart1ID, 4)
-    DSMC_RHS(collPart1ID,2) = VeloMy + FracMassCent2*CRelayN - PartState(collPart1ID, 5)
-    DSMC_RHS(collPart1ID,3) = VeloMz + FracMassCent2*CRelazN - PartState(collPart1ID, 6)
+    DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*CRelaxN - PartState(iPart1, 4)
+    DSMC_RHS(iPart1,2) = VeloMy + FracMassCent2*CRelayN - PartState(iPart1, 5)
+    DSMC_RHS(iPart1,3) = VeloMz + FracMassCent2*CRelazN - PartState(iPart1, 6)
     ! deltaV particle 2
-    DSMC_RHS(collPart2ID,1) = VeloMx - FracMassCent1*CRelaxN - PartState(collPart2ID, 4)
-    DSMC_RHS(collPart2ID,2) = VeloMy - FracMassCent1*CRelayN - PartState(collPart2ID, 5)
-    DSMC_RHS(collPart2ID,3) = VeloMz - FracMassCent1*CRelazN - PartState(collPart2ID, 6)
+    DSMC_RHS(iPart2,1) = VeloMx - FracMassCent1*CRelaxN - PartState(iPart2, 4)
+    DSMC_RHS(iPart2,2) = VeloMy - FracMassCent1*CRelayN - PartState(iPart2, 5)
+    DSMC_RHS(iPart2,3) = VeloMz - FracMassCent1*CRelazN - PartState(iPart2, 6)
 
     ! Decision concerning CEX
     P_CEX = 0.5
     CALL RANDOM_NUMBER(uRan3)
-    iReac    = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
+    iReac    = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
     IF (P_CEX.GT.uRan3) THEN
       CALL simpleCEX(iReac, iPair, resetRHS_opt=.FALSE.)
     ELSE
@@ -352,7 +352,7 @@ IF ((sigma_el/sigma_tot).GT.uRan2) THEN
   ELSE
     ! Perform CEX and leave velocity vectors alone otherwise
     ! CEX
-    iReac    = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
+    iReac    = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
     CALL simpleCEX(iReac, iPair)
 
   END IF
@@ -457,16 +457,16 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   REAL                          :: RanVec(3)                        ! Max. Quantum Number
   REAL                          :: PartStateIntEnTemp, Phi!, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
   REAL                          :: ReducedMass
-  INTEGER                       :: Spec1ID, Spec2ID, collPart1ID, collPart2ID ! Colliding particles 1 and 2 and their species
+  INTEGER                       :: iSpec1, iSpec2, iPart1, iPart2 ! Colliding particles 1 and 2 and their species
 
   ! variables for electronic level relaxation and transition
   LOGICAL                       :: DoElec1, DoElec2
 !===================================================================================================================================
-  collPart1ID = Coll_pData(iPair)%iPart_p1
-  collPart2ID = Coll_pData(iPair)%iPart_p2
+  iPart1 = Coll_pData(iPair)%iPart_p1
+  iPart2 = Coll_pData(iPair)%iPart_p2
 
-  Spec1ID    = PartSpecies(collPart1ID)
-  Spec2ID    = PartSpecies(collPart2ID)
+  iSpec1    = PartSpecies(iPart1)
+  iSpec2    = PartSpecies(iPart2)
 
   DoRot1  = .FALSE.
   DoRot2  = .FALSE.
@@ -476,15 +476,15 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   DoElec2 = .FALSE.
 
   IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-    ReducedMass = (Species(Spec1ID)%MassIC*GetParticleWeight(collPart1ID) &
-                * Species(Spec2ID)%MassIC*GetParticleWeight(collPart2ID)) &
-                / (Species(Spec1ID)%MassIC*GetParticleWeight(collPart1ID) &
-                + Species(Spec2ID)%MassIC*GetParticleWeight(collPart2ID))
+    ReducedMass = (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) &
+                * Species(iSpec2)%MassIC*GetParticleWeight(iPart2)) &
+                / (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) &
+                + Species(iSpec2)%MassIC*GetParticleWeight(iPart2))
   ELSE
     ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
   END IF
 
-  Xi_rel = 2*(2. - CollInf%omega(Spec1ID,Spec2ID))
+  Xi_rel = 2*(2. - CollInf%omega(iSpec1,iSpec2))
     ! DOF of relative motion in VHS model
 
   Coll_pData(iPair)%Ec = 0.5 * ReducedMass* Coll_pData(iPair)%CRela2
@@ -500,37 +500,37 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 ! Decision if Rotation, Vibration and Electronic Relaxation of particles is performed
 !--------------------------------------------------------------------------------------------------!
 
-  IF((SpecDSMC(Spec1ID)%InterID.EQ.2).OR.(SpecDSMC(Spec1ID)%InterID.EQ.20)) THEN
+  IF((SpecDSMC(iSpec1)%InterID.EQ.2).OR.(SpecDSMC(iSpec1)%InterID.EQ.20)) THEN
     CALL RANDOM_NUMBER(iRan)
-    IF(SpecDSMC(Spec1ID)%RotRelaxProb.GT.iRan) THEN
+    IF(SpecDSMC(iSpec1)%RotRelaxProb.GT.iRan) THEN
       DoRot1 = .TRUE.
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(collPart1ID,2) * GetParticleWeight(collPart1ID)
-      Xi = Xi + SpecDSMC(Spec1ID)%Xi_Rot
-      IF(SpecDSMC(Spec1ID)%VibRelaxProb.GT.iRan) DoVib1 = .TRUE.
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,2) * GetParticleWeight(iPart1)
+      Xi = Xi + SpecDSMC(iSpec1)%Xi_Rot
+      IF(SpecDSMC(iSpec1)%VibRelaxProb.GT.iRan) DoVib1 = .TRUE.
     END IF
   END IF
   IF ( DSMC%ElectronicModel ) THEN
-    IF((SpecDSMC(Spec1ID)%InterID.NE.4).AND.(.NOT.SpecDSMC(Spec1ID)%FullyIonized)) THEN
+    IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
       CALL RANDOM_NUMBER(iRan)
-      IF (SpecDSMC(Spec1ID)%ElecRelaxProb.GT.iRan) THEN
+      IF (SpecDSMC(iSpec1)%ElecRelaxProb.GT.iRan) THEN
         DoElec1 = .TRUE.
       END IF
     END IF
   END IF
 
-  IF((SpecDSMC(Spec2ID)%InterID.EQ.2).OR.(SpecDSMC(Spec2ID)%InterID.EQ.20)) THEN
+  IF((SpecDSMC(iSpec2)%InterID.EQ.2).OR.(SpecDSMC(iSpec2)%InterID.EQ.20)) THEN
     CALL RANDOM_NUMBER(iRan)
-    IF(SpecDSMC(Spec2ID)%RotRelaxProb.GT.iRan) THEN
+    IF(SpecDSMC(iSpec2)%RotRelaxProb.GT.iRan) THEN
       DoRot2 = .TRUE.
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(collPart2ID,2) * GetParticleWeight(collPart2ID)
-      Xi = Xi + SpecDSMC(Spec2ID)%Xi_Rot
-      IF(SpecDSMC(Spec2ID)%VibRelaxProb.GT.iRan) DoVib2 = .TRUE.
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,2) * GetParticleWeight(iPart2)
+      Xi = Xi + SpecDSMC(iSpec2)%Xi_Rot
+      IF(SpecDSMC(iSpec2)%VibRelaxProb.GT.iRan) DoVib2 = .TRUE.
     END IF
   END IF
   IF ( DSMC%ElectronicModel ) THEN
-    IF((SpecDSMC(Spec2ID)%InterID.NE.4).AND.(.NOT.SpecDSMC(Spec2ID)%FullyIonized)) THEN
+    IF((SpecDSMC(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) THEN
       CALL RANDOM_NUMBER(iRan)
-      IF (SpecDSMC(Spec2ID)%ElecRelaxProb.GT.iRan) THEN
+      IF (SpecDSMC(iSpec2)%ElecRelaxProb.GT.iRan) THEN
         DoElec2 = .TRUE.
       END IF
     END IF
@@ -542,29 +542,29 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 ! Electronic Relaxation / Transition
 !--------------------------------------------------------------------------------------------------!
 IF (DSMC%DoTEVRRelaxation) THEN
-  IF(.NOT.SpecDSMC(Spec1ID)%PolyatomicMol) THEN
+  IF(.NOT.SpecDSMC(iSpec1)%PolyatomicMol) THEN
     IF(DoElec1.AND.DoVib1) THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(collPart1ID,3) + PartStateIntEn(collPart1ID,1)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,3) + PartStateIntEn(iPart1,1)
 #if (PP_TimeDiscMethod == 42)
-      CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,collPart1ID,FakXi,collPart2ID)
+      CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,iPart1,FakXi,iPart2)
 #else
-      CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,collPart1ID,FakXi)
+      CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,iPart1,FakXi)
 #endif
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart1ID,3) - PartStateIntEn(collPart1ID,1)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,3) - PartStateIntEn(iPart1,1)
       DoElec1=.false.
       DoVib1=.false.
     END IF
 END IF
 
-  IF(.NOT.SpecDSMC(Spec2ID)%PolyatomicMol) THEN
+  IF(.NOT.SpecDSMC(iSpec2)%PolyatomicMol) THEN
     IF(DoElec2.AND.DoVib2) THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(collPart2ID,3) + PartStateIntEn(collPart2ID,1)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,3) + PartStateIntEn(iPart2,1)
 #if (PP_TimeDiscMethod == 42)
-      CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,collPart2ID,FakXi,collPart1ID)
+      CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,iPart2,FakXi,iPart1)
 #else
-      CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,collPart2ID,FakXi)
+      CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,iPart2,FakXi)
 #endif
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart2ID,3) - PartStateIntEn(collPart2ID,1)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,3) - PartStateIntEn(iPart2,1)
       DoElec2=.false.
       DoVib2=.false.
     END IF
@@ -574,9 +574,9 @@ END IF
   ! Relaxation of first particle
   IF ( DoElec1 ) THEN
     ! calculate energy for electronic relaxation of particle 1
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(collPart1ID,3) * GetParticleWeight(collPart1ID)
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,3) * GetParticleWeight(iPart1)
 #if (PP_TimeDiscMethod == 42)
-    CALL ElectronicEnergyExchange(iPair,collPart1ID,FakXi,collPart2ID)
+    CALL ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2)
 #else
     IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
       CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2,iElem)
@@ -584,23 +584,23 @@ END IF
       CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi)
     END IF
 #endif
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart1ID,3) * GetParticleWeight(collPart1ID)
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,3) * GetParticleWeight(iPart1)
   END IF
 
   ! Electronic relaxation of second particle
   IF ( DoElec2 ) THEN
     ! calculate energy for electronic relaxation of particle 2
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(collPart2ID,3) * GetParticleWeight(collPart2ID)
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,3) * GetParticleWeight(iPart2)
 #if (PP_TimeDiscMethod == 42)
-    CALL ElectronicEnergyExchange(iPair,collPart2ID,FakXi,collPart1ID)
+    CALL ElectronicEnergyExchange(iPair,iPart2,FakXi,iPart1)
 #else
     IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
       CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1,iElem)
     ELSE
-      CALL ElectronicEnergyExchange(iPair,collPart2ID,FakXi )
+      CALL ElectronicEnergyExchange(iPair,iPart2,FakXi )
     END IF
 #endif
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart2ID,3) * GetParticleWeight(collPart2ID)
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,3) * GetParticleWeight(iPart2)
   END IF
 
 #if (PP_TimeDiscMethod==42)
@@ -613,31 +613,31 @@ END IF
 !--------------------------------------------------------------------------------------------------!
 
   IF(DoVib1) THEN
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(collPart1ID,1) * GetParticleWeight(collPart1ID)
-    IF(SpecDSMC(Spec1ID)%PolyatomicMol) THEN
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,1) * GetParticleWeight(iPart1)
+    IF(SpecDSMC(iSpec1)%PolyatomicMol) THEN
       CALL DSMC_VibRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1,FakXi)
     ELSE
-      CALL DSMC_VibRelaxDiatomic(iPair, collPart1ID,FakXi)
+      CALL DSMC_VibRelaxDiatomic(iPair, iPart1,FakXi)
     END IF
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart1ID,1) * GetParticleWeight(collPart1ID)
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,1) * GetParticleWeight(iPart1)
   END IF
 
   IF(DoVib2) THEN
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(collPart2ID,1) * GetParticleWeight(collPart2ID)
-    IF(SpecDSMC(Spec2ID)%PolyatomicMol) THEN
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,1) * GetParticleWeight(iPart2)
+    IF(SpecDSMC(iSpec2)%PolyatomicMol) THEN
       CALL DSMC_VibRelaxPoly(iPair, Coll_pData(iPair)%iPart_p2,FakXi)
     ELSE
-      CALL DSMC_VibRelaxDiatomic(iPair, collPart2ID,FakXi)
+      CALL DSMC_VibRelaxDiatomic(iPair, iPart2,FakXi)
     END IF
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart2ID,1) * GetParticleWeight(collPart2ID)
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,1) * GetParticleWeight(iPart2)
   END IF
 
 !--------------------------------------------------------------------------------------------------!
 ! Rotational Relaxation
 !--------------------------------------------------------------------------------------------------!
   IF(DoRot1) THEN
-    IF(SpecDSMC(Spec1ID)%PolyatomicMol.AND.(SpecDSMC(Spec1ID)%Xi_Rot.EQ.3)) THEN
-      FakXi = FakXi - 0.5*SpecDSMC(Spec1ID)%Xi_Rot
+    IF(SpecDSMC(iSpec1)%PolyatomicMol.AND.(SpecDSMC(iSpec1)%Xi_Rot.EQ.3)) THEN
+      FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
       CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1, FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
     ELSE
@@ -647,41 +647,41 @@ END IF
           Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
           PartStateIntEnTemp = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
           Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-          FakXi = FakXi - 0.5*SpecDSMC(Spec1ID)%Xi_Rot
-          PartStateIntEn(collPart1ID,2) = (1-Phi) * PartStateIntEn(collPart1ID,2) + Phi * PartStateIntEnTemp
+          FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
+          PartStateIntEn(iPart1,2) = (1-Phi) * PartStateIntEn(iPart1,2) + Phi * PartStateIntEnTemp
         END IF
       ELSE
-        PartStateIntEn(collPart1ID,2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart1ID,2)
-        FakXi = FakXi - 0.5*SpecDSMC(Spec1ID)%Xi_Rot
+        PartStateIntEn(iPart1,2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,2)
+        FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
       END IF
     END IF
     IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-      PartStateIntEn(collPart1ID,2) = PartStateIntEn(collPart1ID,2)/GetParticleWeight(collPart1ID)
+      PartStateIntEn(iPart1,2) = PartStateIntEn(iPart1,2)/GetParticleWeight(iPart1)
     END IF
   END IF
 
   IF(DoRot2) THEN
-    IF(SpecDSMC(Spec2ID)%PolyatomicMol.AND.(SpecDSMC(Spec2ID)%Xi_Rot.EQ.3)) THEN
-      FakXi                           = FakXi - 0.5*SpecDSMC(Spec2ID)%Xi_Rot
-      CALL DSMC_RotRelaxPoly(iPair, collPart2ID, FakXi)
-      Coll_pData(iPair)%Ec            = Coll_pData(iPair)%Ec - PartStateIntEn(collPart2ID,2)
+    IF(SpecDSMC(iSpec2)%PolyatomicMol.AND.(SpecDSMC(iSpec2)%Xi_Rot.EQ.3)) THEN
+      FakXi                           = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
+      CALL DSMC_RotRelaxPoly(iPair, iPart2, FakXi)
+      Coll_pData(iPair)%Ec            = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,2)
     ELSE
       CALL RANDOM_NUMBER(iRan)
       IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-        IF (PartMPF(collPart2ID).GT.PartMPF(collPart1ID)) THEN
-          Phi                         = PartMPF(collPart1ID) / PartMPF(collPart2ID)
+        IF (PartMPF(iPart2).GT.PartMPF(iPart1)) THEN
+          Phi                         = PartMPF(iPart1) / PartMPF(iPart2)
           PartStateIntEnTemp          = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
           Coll_pData(iPair)%Ec        = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-          PartStateIntEn(collPart2ID,2) = (1-Phi) * PartStateIntEn(collPart2ID,2) + Phi * PartStateIntEnTemp
+          PartStateIntEn(iPart2,2) = (1-Phi) * PartStateIntEn(iPart2,2) + Phi * PartStateIntEnTemp
         END IF
       ELSE
-        PartStateIntEn(collPart2ID,2)   = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-        Coll_pData(iPair)%Ec          = Coll_pData(iPair)%Ec - PartStateIntEn(collPart2ID,2)
+        PartStateIntEn(iPart2,2)   = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+        Coll_pData(iPair)%Ec          = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,2)
       END IF
     END IF
     IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-      PartStateIntEn(collPart2ID,2) = PartStateIntEn(collPart2ID,2)/GetParticleWeight(collPart2ID)
+      PartStateIntEn(iPart2,2) = PartStateIntEn(iPart2,2)/GetParticleWeight(iPart2)
     END IF
   END IF
 
@@ -697,36 +697,36 @@ END IF
   END IF
 
   IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-    FracMassCent1 = Species(Spec1ID)%MassIC *GetParticleWeight(collPart1ID)/(Species(Spec1ID)%MassIC &
-                  *  GetParticleWeight(collPart1ID) + Species(Spec2ID)%MassIC *GetParticleWeight(collPart2ID))
-    FracMassCent2 = Species(Spec2ID)%MassIC *GetParticleWeight(collPart2ID)/(Species(Spec1ID)%MassIC &
-                  * GetParticleWeight(collPart1ID) + Species(Spec2ID)%MassIC *GetParticleWeight(collPart2ID))
+    FracMassCent1 = Species(iSpec1)%MassIC *GetParticleWeight(iPart1)/(Species(iSpec1)%MassIC &
+                  *  GetParticleWeight(iPart1) + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
+    FracMassCent2 = Species(iSpec2)%MassIC *GetParticleWeight(iPart2)/(Species(iSpec1)%MassIC &
+                  * GetParticleWeight(iPart1) + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
   ELSE
-  FracMassCent1 = CollInf%FracMassCent(Spec1ID, Coll_pData(iPair)%PairType)
-  FracMassCent2 = CollInf%FracMassCent(Spec2ID, Coll_pData(iPair)%PairType)
+  FracMassCent1 = CollInf%FracMassCent(iSpec1, Coll_pData(iPair)%PairType)
+  FracMassCent2 = CollInf%FracMassCent(iSpec2, Coll_pData(iPair)%PairType)
   END IF
 
   !Calculation of velo from center of mass
-  VeloMx = FracMassCent1 * PartState(collPart1ID, 4) + FracMassCent2 * PartState(collPart2ID, 4)
-  VeloMy = FracMassCent1 * PartState(collPart1ID, 5) + FracMassCent2 * PartState(collPart2ID, 5)
-  VeloMz = FracMassCent1 * PartState(collPart1ID, 6) + FracMassCent2 * PartState(collPart2ID, 6)
+  VeloMx = FracMassCent1 * PartState(iPart1, 4) + FracMassCent2 * PartState(iPart2, 4)
+  VeloMy = FracMassCent1 * PartState(iPart1, 5) + FracMassCent2 * PartState(iPart2, 5)
+  VeloMz = FracMassCent1 * PartState(iPart1, 6) + FracMassCent2 * PartState(iPart2, 6)
 
   !Calculate relative velocities
-  CRelax = PartState(collPart1ID, 4) - PartState(collPart2ID, 4)
-  CRelay = PartState(collPart1ID, 5) - PartState(collPart2ID, 5)
-  CRelaz = PartState(collPart1ID, 6) - PartState(collPart2ID, 6)
+  CRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
+  CRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
+  CRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
 
   !Calculate random vec and new squared velocities
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
-  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(Spec1ID,Spec2ID))
+  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(iSpec1,iSpec2))
   ! deltaV particle 1
-  DSMC_RHS(collPart1ID,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(collPart1ID, 4)
-  DSMC_RHS(collPart1ID,2) = VeloMy + FracMassCent2*RanVec(2) - PartState(collPart1ID, 5)
-  DSMC_RHS(collPart1ID,3) = VeloMz + FracMassCent2*RanVec(3) - PartState(collPart1ID, 6)
+  DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(iPart1, 4)
+  DSMC_RHS(iPart1,2) = VeloMy + FracMassCent2*RanVec(2) - PartState(iPart1, 5)
+  DSMC_RHS(iPart1,3) = VeloMz + FracMassCent2*RanVec(3) - PartState(iPart1, 6)
  ! deltaV particle 2
-  DSMC_RHS(collPart2ID,1) = VeloMx - FracMassCent1*RanVec(1) - PartState(collPart2ID, 4)
-  DSMC_RHS(collPart2ID,2) = VeloMy - FracMassCent1*RanVec(2) - PartState(collPart2ID, 5)
-  DSMC_RHS(collPart2ID,3) = VeloMz - FracMassCent1*RanVec(3) - PartState(collPart2ID, 6)
+  DSMC_RHS(iPart2,1) = VeloMx - FracMassCent1*RanVec(1) - PartState(iPart2, 4)
+  DSMC_RHS(iPart2,2) = VeloMy - FracMassCent1*RanVec(2) - PartState(iPart2, 5)
+  DSMC_RHS(iPart2,3) = VeloMz - FracMassCent1*RanVec(3) - PartState(iPart2, 6)
 
   IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL vMPF_PostVelo(iPair, iElem)
 
@@ -773,7 +773,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
 ! LOCAL VARIABLES
   REAL                          :: FracMassCent1, FracMassCent2                 ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz                       ! center of mass velo
-  INTEGER                       :: Spec1ID, Spec2ID, iDOF, iPolyatMole, DOFRelax
+  INTEGER                       :: iSpec1, iSpec2, iDOF, iPolyatMole, DOFRelax
   REAL (KIND=8)                 :: iRan
   LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2               ! Check whether rot or vib relax is performed
   REAL (KIND=8)                 :: FakXi, Xi_rel                                ! Factors of DOF
@@ -785,13 +785,13 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   REAL                          :: BLCorrFact, ProbRotMax1, ProbRotMax2         ! Correction factor for BL-redistribution of energy
   REAL                          :: ProbVibMax1, ProbVibMax2                     ! according to Zhang (see paper, NDD-RotRelax-Model)
   REAL                          :: CRelaX, CRelaY, CRelaZ                       ! pre-collision relative velocities 
-  INTEGER                       :: collPart1ID, collPart2ID                     ! Colliding particles 1 and 2 and their species
+  INTEGER                       :: iPart1, iPart2                     ! Colliding particles 1 and 2 and their species
 !===================================================================================================================================
-  collPart1ID = Coll_pData(iPair)%iPart_p1
-  collPart2ID = Coll_pData(iPair)%iPart_p2
+  iPart1 = Coll_pData(iPair)%iPart_p1
+  iPart2 = Coll_pData(iPair)%iPart_p2
 
-  Spec1ID = PartSpecies(collPart1ID)
-  Spec2ID = PartSpecies(collPart2ID)
+  iSpec1 = PartSpecies(iPart1)
+  iSpec2 = PartSpecies(iPart2)
 
   ! set some initial values
   DoRot1  = .FALSE.
@@ -803,7 +803,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   ProbVib2 = 0.
   ProbRot2 = 0.
 
-  Xi_rel = 2.*(2. - CollInf%omega(Spec1ID,Spec2ID)) ! DOF of relative motion in VHS model
+  Xi_rel = 2.*(2. - CollInf%omega(iSpec1,iSpec2)) ! DOF of relative motion in VHS model
   FakXi  = 0.5*Xi_rel - 1.
 
   Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%CRela2
@@ -813,27 +813,27 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
 !--------------------------------------------------------------------------------------------------!
 
   ! calculate probability for rotational/vibrational relaxation for both particles
-  IF ((SpecDSMC(Spec1ID)%InterID.EQ.2).OR.(SpecDSMC(Spec1ID)%InterID.EQ.20)) THEN
-    CALL DSMC_calc_P_vib(Spec1ID, Spec2ID, iPair, Xi_rel, ProbVib1, ProbVibMax1)
-    CALL DSMC_calc_P_rot(Spec1ID, iPair, collPart1ID, Xi_rel, ProbRot1, ProbRotMax1)
+  IF ((SpecDSMC(iSpec1)%InterID.EQ.2).OR.(SpecDSMC(iSpec1)%InterID.EQ.20)) THEN
+    CALL DSMC_calc_P_vib(iSpec1, iSpec2, iPair, Xi_rel, ProbVib1, ProbVibMax1)
+    CALL DSMC_calc_P_rot(iSpec1, iPair, iPart1, Xi_rel, ProbRot1, ProbRotMax1)
   ELSE
     ProbVib1 = 0.
     ProbRot1 = 0.
   END IF
-  IF ((SpecDSMC(Spec2ID)%InterID.EQ.2).OR.(SpecDSMC(Spec2ID)%InterID.EQ.20)) THEN
-    CALL DSMC_calc_P_vib(Spec2ID, Spec1ID, iPair, Xi_rel, ProbVib2, ProbVibMax2)
-    CALL DSMC_calc_P_rot(Spec2ID, iPair, collPart2ID, Xi_rel, ProbRot2, ProbRotMax2)
+  IF ((SpecDSMC(iSpec2)%InterID.EQ.2).OR.(SpecDSMC(iSpec2)%InterID.EQ.20)) THEN
+    CALL DSMC_calc_P_vib(iSpec2, iSpec1, iPair, Xi_rel, ProbVib2, ProbVibMax2)
+    CALL DSMC_calc_P_rot(iSpec2, iPair, iPart2, Xi_rel, ProbRot2, ProbRotMax2)
   ELSE
     ProbVib2 = 0.
     ProbRot2 = 0.
   END IF
 
   ! Calculate probability fractions
-  IF(SpecDSMC(Spec1ID)%PolyatomicMol) THEN
+  IF(SpecDSMC(iSpec1)%PolyatomicMol) THEN
     IF(DSMC%PolySingleMode) THEN
       ! If single-mode relaxation is considered, every mode has its own probability while it accumulates all the previous ones
       ! Here, the last mode of the molecule has the highest probability, later it is found which exact mode is going to be relaxed
-      iPolyatMole = SpecDSMC(Spec1ID)%SpecToPolyArray
+      iPolyatMole = SpecDSMC(iSpec1)%SpecToPolyArray
       ProbFrac1 = PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(PolyatomMolDSMC(iPolyatMole)%VibDOF)
     ELSE
       ProbFrac1 = ProbVib1
@@ -841,9 +841,9 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   ELSE
     ProbFrac1 = ProbVib1
   END IF
-  IF(SpecDSMC(Spec2ID)%PolyatomicMol) THEN
+  IF(SpecDSMC(iSpec2)%PolyatomicMol) THEN
     IF(DSMC%PolySingleMode) THEN
-      iPolyatMole = SpecDSMC(Spec2ID)%SpecToPolyArray
+      iPolyatMole = SpecDSMC(iSpec2)%SpecToPolyArray
       ProbFrac2   = ProbFrac1 + PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(PolyatomMolDSMC(iPolyatMole)%VibDOF)
     ELSE
       ProbFrac2   = ProbFrac1 + ProbVib2
@@ -864,9 +864,9 @@ __STAMP__&
   ! Select relaxation procedure (vibration, rotation)
   CALL RANDOM_NUMBER(iRan)
   IF(iRan .LT. ProbFrac1) THEN                    !            R1 < A1
-    IF (SpecDSMC(Spec1ID)%PolyatomicMol.AND.DSMC%PolySingleMode) THEN
+    IF (SpecDSMC(iSpec1)%PolyatomicMol.AND.DSMC%PolySingleMode) THEN
       ! Determination which vibrational mode should be relaxed for single-mode polyatomic relaxation
-      iPolyatMole = SpecDSMC(Spec1ID)%SpecToPolyArray
+      iPolyatMole = SpecDSMC(iSpec1)%SpecToPolyArray
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
         IF(PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(iDOF).GT.iRan) THEN
           DoVib1 = .TRUE.
@@ -878,9 +878,9 @@ __STAMP__&
       DoVib1 = .TRUE.
     END IF
   ELSEIF(iRan .LT. ProbFrac2) THEN                !      A1 <= R1 < A2
-    IF (SpecDSMC(Spec2ID)%PolyatomicMol.AND.DSMC%PolySingleMode) THEN
+    IF (SpecDSMC(iSpec2)%PolyatomicMol.AND.DSMC%PolySingleMode) THEN
       ! Determination which vibrational mode should be relaxed for single-mode polyatomic relaxation
-      iPolyatMole = SpecDSMC(Spec2ID)%SpecToPolyArray
+      iPolyatMole = SpecDSMC(iSpec2)%SpecToPolyArray
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
         IF(ProbFrac1 + PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(iDOF).GT.iRan) THEN
           DoVib2 = .TRUE.
@@ -905,22 +905,22 @@ __STAMP__&
     ! check if correction term for BL redistribution (depending on relaxation model) is needed
     BLCorrFact = 1.
     ! Adding the interal energy of the particle to be redistributed
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(collPart1ID,1)
-    IF(SpecDSMC(PartSpecies(collPart1ID))%PolyatomicMol) THEN
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,1)
+    IF(SpecDSMC(PartSpecies(iPart1))%PolyatomicMol) THEN
       IF (.NOT.DSMC%PolySingleMode) THEN
         ! --------------------------------------------------------------------------------------------------!
         !  Multi-mode relaxation with the Metropolis-Hastings method
         ! --------------------------------------------------------------------------------------------------!
-        CALL DSMC_VibRelaxPoly(iPair,collPart1ID,FakXi)
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart1ID,1)
+        CALL DSMC_VibRelaxPoly(iPair,iPart1,FakXi)
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,1)
       ELSE
         ! --------------------------------------------------------------------------------------------------!
         !  Single-mode relaxation with loop over all vibrational modes
         ! --------------------------------------------------------------------------------------------------!
         !  Not all vibrational energy is redistributed but only the energy of the selected vibrational degree of freedom
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart1ID,1)
-        iPolyatMole          = SpecDSMC(Spec1ID)%SpecToPolyArray
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (VibQuantsPar(collPart1ID)%Quants(DOFRelax) + DSMC%GammaQuant) &
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,1)
+        iPolyatMole          = SpecDSMC(iSpec1)%SpecToPolyArray
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (VibQuantsPar(iPart1)%Quants(DOFRelax) + DSMC%GammaQuant) &
                              * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
         MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax))- DSMC%GammaQuant
         iQuaMax = MIN(INT(MaxColQua) + 1, PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(DOFRelax))
@@ -933,17 +933,17 @@ __STAMP__&
           iQua = INT(iRan * iQuaMax)
           CALL RANDOM_NUMBER(iRan)
         END DO
-        PartStateIntEn(collPart1ID,1) = PartStateIntEn(collPart1ID,1) - (VibQuantsPar(collPart1ID)%Quants(DOFRelax) &
+        PartStateIntEn(iPart1,1) = PartStateIntEn(iPart1,1) - (VibQuantsPar(iPart1)%Quants(DOFRelax) &
                                       + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax) &
                                       + (iQua + DSMC%GammaQuant) * BoltzmannConst &
                                       * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
-        VibQuantsPar(collPart1ID)%Quants(DOFRelax) = iQua
+        VibQuantsPar(iPart1)%Quants(DOFRelax) = iQua
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
                              - (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
       END IF
     ELSE
-      CALL DSMC_VibRelaxDiatomic(iPair,collPart1ID,FakXi)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart1ID,1)
+      CALL DSMC_VibRelaxDiatomic(iPair,iPart1,FakXi)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,1)
     END IF
 
   END IF
@@ -952,22 +952,22 @@ __STAMP__&
     ! check if correction term for BL redistribution (depending on relaxation model) is needed
     BLCorrFact = 1.
     ! Adding the interal energy of the particle to be redistributed (not if single-mode polyatomic relaxation is enabled)
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(collPart2ID,1)
-    IF(SpecDSMC(PartSpecies(collPart2ID))%PolyatomicMol) THEN
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,1)
+    IF(SpecDSMC(PartSpecies(iPart2))%PolyatomicMol) THEN
       IF (.NOT.DSMC%PolySingleMode) THEN
         ! --------------------------------------------------------------------------------------------------!
         !  Multi-mode relaxation with the Metropolis-Hastings method
         ! --------------------------------------------------------------------------------------------------!
-        CALL DSMC_VibRelaxPoly(iPair,collPart2ID,FakXi)
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart2ID,1)
+        CALL DSMC_VibRelaxPoly(iPair,iPart2,FakXi)
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,1)
       ELSE
         ! --------------------------------------------------------------------------------------------------!
         !  Single-mode relaxation with loop over all vibrational modes
         ! --------------------------------------------------------------------------------------------------!
         !  Not all vibrational energy is redistributed but only the energy of the selected vibrational degree of freedom
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart2ID,1)
-        iPolyatMole = SpecDSMC(Spec2ID)%SpecToPolyArray
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (VibQuantsPar(collPart2ID)%Quants(DOFRelax) + DSMC%GammaQuant) &
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,1)
+        iPolyatMole = SpecDSMC(iSpec2)%SpecToPolyArray
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (VibQuantsPar(iPart2)%Quants(DOFRelax) + DSMC%GammaQuant) &
                              * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
         MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax))  &
                   - DSMC%GammaQuant
@@ -981,17 +981,17 @@ __STAMP__&
          iQua = INT(iRan * iQuaMax)
          CALL RANDOM_NUMBER(iRan)
         END DO
-        PartStateIntEn(collPart2ID,1) = PartStateIntEn(collPart2ID,1) - (VibQuantsPar(collPart2ID)%Quants(DOFRelax) &
+        PartStateIntEn(iPart2,1) = PartStateIntEn(iPart2,1) - (VibQuantsPar(iPart2)%Quants(DOFRelax) &
                                       + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax) & 
                                       + (iQua + DSMC%GammaQuant) * BoltzmannConst &
                                       * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
-        VibQuantsPar(collPart2ID)%Quants(DOFRelax) = iQua
+        VibQuantsPar(iPart2)%Quants(DOFRelax) = iQua
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - (iQua + DSMC%GammaQuant) * BoltzmannConst &
                              * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
       END IF
     ELSE
-      CALL DSMC_VibRelaxDiatomic(iPair,collPart2ID,FakXi)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart2ID,1)      
+      CALL DSMC_VibRelaxDiatomic(iPair,iPart2,FakXi)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,1)      
     END IF
   END IF
 
@@ -1006,22 +1006,22 @@ __STAMP__&
     ELSE
       BLCorrFact = 1.
     END IF
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(collPart1ID,2)    ! adding ro en to collision energy
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,2)    ! adding ro en to collision energy
     ! check for polyatomic treatment
-    IF(SpecDSMC(PartSpecies(collPart1ID))%PolyatomicMol.AND. &
-        (SpecDSMC(PartSpecies(collPart1ID))%Xi_Rot.EQ.3)) THEN
-      CALL DSMC_RotRelaxPoly(iPair, collPart1ID, FakXi)      
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart1ID,2)
+    IF(SpecDSMC(PartSpecies(iPart1))%PolyatomicMol.AND. &
+        (SpecDSMC(PartSpecies(iPart1))%Xi_Rot.EQ.3)) THEN
+      CALL DSMC_RotRelaxPoly(iPair, iPart1, FakXi)      
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,2)
     ! no polyatomic treatment
     ELSE
      CALL RANDOM_NUMBER(iRan)
       ! variable MPF
       IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-        IF (PartMPF(collPart1ID).GT.PartMPF(collPart2ID)) THEN
-          Phi                         = PartMPF(collPart2ID) / PartMPF(collPart1ID)
+        IF (PartMPF(iPart1).GT.PartMPF(iPart2)) THEN
+          Phi                         = PartMPF(iPart2) / PartMPF(iPart1)
           PartStateIntEnTemp          = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
           Coll_pData(iPair)%Ec        = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-          PartStateIntEn(collPart1ID,2) = (1-Phi) * PartStateIntEn(collPart1ID,2) + Phi * PartStateIntEnTemp
+          PartStateIntEn(iPart1,2) = (1-Phi) * PartStateIntEn(iPart1,2) + Phi * PartStateIntEnTemp
         END IF
       ! standard MPF
       ELSE
@@ -1032,8 +1032,8 @@ __STAMP__&
           PartStateIntEnTemp = iRan * Coll_pData(iPair)%Ec
           CALL RANDOM_NUMBER(iRan)
         END DO
-        PartStateIntEn(collPart1ID,2) = PartStateIntEnTemp
-        Coll_pData(iPair)%Ec        = Coll_pData(iPair)%Ec - PartStateIntEn(collPart1ID,2)
+        PartStateIntEn(iPart1,2) = PartStateIntEnTemp
+        Coll_pData(iPair)%Ec        = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,2)
       END IF
     END IF
   END IF
@@ -1045,18 +1045,18 @@ __STAMP__&
     ELSE
       BLCorrFact = 1.
     END IF
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(collPart2ID,2)    ! adding rot en to collision en
-    IF(SpecDSMC(PartSpecies(collPart2ID))%PolyatomicMol.AND.(SpecDSMC(PartSpecies(collPart2ID))%Xi_Rot.EQ.3)) THEN
-      CALL DSMC_RotRelaxPoly(iPair, collPart2ID, FakXi)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(collPart2ID,2)
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,2)    ! adding rot en to collision en
+    IF(SpecDSMC(PartSpecies(iPart2))%PolyatomicMol.AND.(SpecDSMC(PartSpecies(iPart2))%Xi_Rot.EQ.3)) THEN
+      CALL DSMC_RotRelaxPoly(iPair, iPart2, FakXi)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,2)
     ELSE
       CALL RANDOM_NUMBER(iRan)
       IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-        IF (PartMPF(collPart2ID).GT.PartMPF(collPart1ID)) THEN
-          Phi                         = PartMPF(collPart1ID) / PartMPF(collPart2ID)
+        IF (PartMPF(iPart2).GT.PartMPF(iPart1)) THEN
+          Phi                         = PartMPF(iPart1) / PartMPF(iPart2)
           PartStateIntEnTemp          = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
           Coll_pData(iPair)%Ec        = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-          PartStateIntEn(collPart2ID,2) = (1-Phi) * PartStateIntEn(collPart2ID,2) + Phi * PartStateIntEnTemp
+          PartStateIntEn(iPart2,2) = (1-Phi) * PartStateIntEn(iPart2,2) + Phi * PartStateIntEnTemp
         END IF
       ELSE
         PartStateIntEnTemp            = iRan * Coll_pData(iPair)%Ec
@@ -1066,8 +1066,8 @@ __STAMP__&
           PartStateIntEnTemp          = iRan * Coll_pData(iPair)%Ec
           CALL RANDOM_NUMBER(iRan)
         END DO
-        PartStateIntEn(collPart2ID,2)   = PartStateIntEnTemp
-        Coll_pData(iPair)%Ec          = Coll_pData(iPair)%Ec - PartStateIntEn(collPart2ID,2)
+        PartStateIntEn(iPart2,2)   = PartStateIntEnTemp
+        Coll_pData(iPair)%Ec          = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,2)
       END IF
     END IF
   END IF
@@ -1082,26 +1082,26 @@ __STAMP__&
     END IF
   END IF
 
-  FracMassCent1 = CollInf%FracMassCent(PartSpecies(collPart1ID), Coll_pData(iPair)%PairType)
-  FracMassCent2 = CollInf%FracMassCent(PartSpecies(collPart2ID), Coll_pData(iPair)%PairType)
+  FracMassCent1 = CollInf%FracMassCent(PartSpecies(iPart1), Coll_pData(iPair)%PairType)
+  FracMassCent2 = CollInf%FracMassCent(PartSpecies(iPart2), Coll_pData(iPair)%PairType)
 
   !Calculation of velo from center of mass - parametrisation from 3D to 2D
-  VeloMx = FracMassCent1 * PartState(collPart1ID, 4) + FracMassCent2 * PartState(collPart2ID, 4)
-  VeloMy = FracMassCent1 * PartState(collPart1ID, 5) + FracMassCent2 * PartState(collPart2ID, 5)
-  VeloMz = FracMassCent1 * PartState(collPart1ID, 6) + FracMassCent2 * PartState(collPart2ID, 6)
+  VeloMx = FracMassCent1 * PartState(iPart1, 4) + FracMassCent2 * PartState(iPart2, 4)
+  VeloMy = FracMassCent1 * PartState(iPart1, 5) + FracMassCent2 * PartState(iPart2, 5)
+  VeloMz = FracMassCent1 * PartState(iPart1, 6) + FracMassCent2 * PartState(iPart2, 6)
 
   !calculate random vec and new velocities
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
-  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(Spec1ID,Spec2ID))
+  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(iSpec1,iSpec2))
 
   ! deltaV particle 1
-  DSMC_RHS(collPart1ID,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(collPart1ID, 4)
-  DSMC_RHS(collPart1ID,2) = VeloMy + FracMassCent2*RanVec(2) - PartState(collPart1ID, 5)
-  DSMC_RHS(collPart1ID,3) = VeloMz + FracMassCent2*RanVec(3) - PartState(collPart1ID, 6)
+  DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(iPart1, 4)
+  DSMC_RHS(iPart1,2) = VeloMy + FracMassCent2*RanVec(2) - PartState(iPart1, 5)
+  DSMC_RHS(iPart1,3) = VeloMz + FracMassCent2*RanVec(3) - PartState(iPart1, 6)
   ! deltaV particle 2
-  DSMC_RHS(collPart2ID,1) = VeloMx - FracMassCent1*RanVec(1) - PartState(collPart2ID, 4)
-  DSMC_RHS(collPart2ID,2) = VeloMy - FracMassCent1*RanVec(2) - PartState(collPart2ID, 5)
-  DSMC_RHS(collPart2ID,3) = VeloMz - FracMassCent1*RanVec(3) - PartState(collPart2ID, 6)
+  DSMC_RHS(iPart2,1) = VeloMx - FracMassCent1*RanVec(1) - PartState(iPart2, 4)
+  DSMC_RHS(iPart2,2) = VeloMy - FracMassCent1*RanVec(2) - PartState(iPart2, 5)
+  DSMC_RHS(iPart2,3) = VeloMz - FracMassCent1*RanVec(3) - PartState(iPart2, 6)
 
 #if (PP_TimeDiscMethod == 42)
   IF (.NOT.DSMC%ReservoirRateStatistic) THEN ! count number of collisions for part analyze
@@ -1146,15 +1146,15 @@ INTEGER                       :: nPartNode, PairForRec, nPair
 REAL                          :: EZeroPoint, Volume, sigmaCEX, sigmaMEX, IonizationEnergy, NumDens
 REAL (KIND=8)                 :: ReactionProb, ReactionProb2, ReactionProb3, ReactionProb4
 REAL (KIND=8)                 :: iRan, iRan2, iRan3
-INTEGER                       :: collPart1ID, collPart2ID                         ! Colliding particles 1 and 2
+INTEGER                       :: iPart1, iPart2                         ! Colliding particles 1 and 2
 !===================================================================================================================================
- collPart1ID = Coll_pData(iPair)%iPart_p1
- collPart2ID = Coll_pData(iPair)%iPart_p2
+ iPart1 = Coll_pData(iPair)%iPart_p1
+ iPart2 = Coll_pData(iPair)%iPart_p2
 
  IF(ChemReac%NumOfReact.EQ.0) THEN
     CaseOfReaction = 0
   ELSE
-    CaseOfReaction = ChemReac%ReactCase(PartSpecies(collPart1ID),PartSpecies(collPart2ID))
+    CaseOfReaction = ChemReac%ReactCase(PartSpecies(iPart1),PartSpecies(iPart2))
   END IF
   IF (PRESENT(NodeVolume)) THEN
     Volume = NodeVolume
@@ -1191,9 +1191,9 @@ INTEGER                       :: collPart1ID, collPart2ID                       
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
       IF (iPart_p3 .GT. 0) THEN
-        iReac = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), PartSpecies(iPart_p3))
+        iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart_p3))
         IF(iReac.EQ.0) THEN
-          iReac = ChemReac%ReactNumRecomb(PartSpecies(collPart1ID), PartSpecies(collPart2ID), PartSpecies(iPart_p3))
+          iReac = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart_p3))
         END IF
         IF (ChemReac%QKProcedure(iReac)) THEN
           ! QK - model
@@ -1240,7 +1240,7 @@ INTEGER                       :: collPart1ID, collPart2ID                       
 ! ############################################################################################################################### !
     CASE(2) ! Only one dissociation is possible
 ! ############################################################################################################################### !
-      iReac = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
+      iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
       IF (ChemReac%QKProcedure(iReac)) THEN
         CALL QK_dissociation(iPair,iReac,RelaxToDo)
       ELSE
@@ -1271,7 +1271,7 @@ INTEGER                       :: collPart1ID, collPart2ID                       
 ! ############################################################################################################################### !
     CASE(3) ! Only one exchange reaction is possible
 ! ############################################################################################################################### !
-      iReac = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
+      iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
       IF (ChemReac%QKProcedure(iReac)) THEN
         CALL QK_exchange(iPair,iReac,RelaxToDo)
       ELSE
@@ -1302,21 +1302,21 @@ INTEGER                       :: collPart1ID, collPart2ID                       
 ! ############################################################################################################################### !
     CASE(4) ! One dissociation and one exchange reaction are possible
 ! ############################################################################################################################### !
-      iReac = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 2)
+      iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
       IF (ChemReac%QKProcedure(iReac)) THEN
         ! first check, if the the molecule dissociate, afterwards, check if an exchange reaction is possible
         CALL QK_dissociation(iPair,iReac,RelaxToDo)
         IF (RelaxToDo) THEN
         ! exchange reactions
-          iReac = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 2)
+          iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
           IF (ChemReac%QKProcedure(iReac)) THEN
             CALL QK_exchange(iPair,iReac,RelaxToDo)
           ELSE
             ! Arrhenius based Exchange Reaction
             Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2                  &
-                                 + PartStateIntEn(collPart1ID,1) + PartStateIntEn(collPart2ID,1) &
-                                 + PartStateIntEn(collPart1ID,2) + PartStateIntEn(collPart2ID,2)
+                                 + PartStateIntEn(iPart1,1) + PartStateIntEn(iPart2,1) &
+                                 + PartStateIntEn(iPart1,2) + PartStateIntEn(iPart2,2)
             CALL CalcReactionProb(iPair,iReac,ReactionProb)                     
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirRateStatistic) THEN
@@ -1394,30 +1394,30 @@ INTEGER                       :: collPart1ID, collPart2ID                       
 ! ############################################################################################################################### !
     CASE(5) ! Two dissociation reactions are possible
 ! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 2)
+      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
       IF (ChemReac%QKProcedure(iReac).AND.ChemReac%QKProcedure(iReac2)) THEN ! both Reaction QK
         ! collision energy without internal energy
         Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
         ! first pseudo reaction probability
-        IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(collPart1ID)) THEN
-          PartToExec = collPart1ID
-          PartReac2 = collPart2ID
+        IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(iPart1)) THEN
+          PartToExec = iPart1
+          PartReac2 = iPart2
         ELSE
-          PartToExec = collPart2ID
-          PartReac2 = collPart1ID
+          PartToExec = iPart2
+          PartReac2 = iPart1
         END IF
         ReactionProb = ( Coll_pData(iPair)%Ec + PartStateIntEn(PartToExec,1) - SpecDSMC(PartSpecies(PartToExec))%Ediss_eV &
                      * ElementaryCharge  ) / ( Coll_pData(iPair)%Ec + PartStateIntEn(PartToExec,1) )
         IF (ReactionProb.LE.0.) THEN
           ReactionProb = 0.
         END IF
-        IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(collPart1ID)) THEN
-          PartToExecSec = collPart1ID
-          PartReac2Sec  = collPart2ID
+        IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(iPart1)) THEN
+          PartToExecSec = iPart1
+          PartReac2Sec  = iPart2
         ELSE
-          PartToExecSec = collPart2ID
-          PartReac2Sec  = collPart1ID
+          PartToExecSec = iPart2
+          PartReac2Sec  = iPart1
         END IF
         ! pseudo probability for second reaction
         ReactionProb2 = (Coll_pData(iPair)%Ec + PartStateIntEn(PartToExecSec,1 ) - SpecDSMC(PartSpecies(PartToExecSec))%Ediss_eV &
@@ -1445,16 +1445,16 @@ INTEGER                       :: collPart1ID, collPart2ID                       
         Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
         ! set QK reaction as first tested reaction
         IF (ChemReac%QKProcedure(iReac2)) THEN
-          iReac  = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 2)
-          iReac2 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
+          iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
+          iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
         END IF
         ! first pseude reaction probability
-        IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(collPart1ID)) THEN
-          PartToExec = collPart1ID
-          PartReac2  = collPart2ID
+        IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(iPart1)) THEN
+          PartToExec = iPart1
+          PartReac2  = iPart2
         ELSE
-          PartToExec = collPart2ID
-          PartReac2  = collPart1ID
+          PartToExec = iPart2
+          PartReac2  = iPart1
         END IF
         ReactionProb = ( Coll_pData(iPair)%Ec + PartStateIntEn(PartToExec,1) - SpecDSMC(PartSpecies(PartToExec))%Ediss_eV &
                      * ElementaryCharge  ) / ( Coll_pData(iPair)%Ec + PartStateIntEn(PartToExec,1) )
@@ -1462,12 +1462,12 @@ INTEGER                       :: collPart1ID, collPart2ID                       
           ReactionProb = 0.
         END IF
         ! second reaction probability
-        IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(collPart1ID)) THEN
-          PartToExecSec = collPart1ID
-          PartReac2Sec  = collPart2ID
+        IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(iPart1)) THEN
+          PartToExecSec = iPart1
+          PartReac2Sec  = iPart2
         ELSE
-          PartToExecSec = collPart2ID
-          PartReac2Sec  = collPart1ID
+          PartToExecSec = iPart2
+          PartReac2Sec  = iPart1
         END IF
         ! pseudo probability for second reaction
         ReactionProb2 = (Coll_pData(iPair)%Ec + PartStateIntEn(PartToExecSec,1 ) - SpecDSMC(PartSpecies(PartToExecSec))%Ediss_eV &
@@ -1483,8 +1483,8 @@ INTEGER                       :: collPart1ID, collPart2ID                       
           ELSE
           ! perform Arrhenius dissociation
             Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
-                                 + PartStateIntEn(collPart1ID,1) + PartStateIntEn(collPart2ID,1) &
-                                 + PartStateIntEn(collPart1ID,2) + PartStateIntEn(collPart2ID,2)
+                                 + PartStateIntEn(iPart1,1) + PartStateIntEn(iPart2,1) &
+                                 + PartStateIntEn(iPart1,2) + PartStateIntEn(iPart2,2)
             EZeroPoint           = DSMC%GammaQuant*BoltzmannConst*SpecDSMC(PartSpecies(PartReac2Sec))%CharaTVib
             IF((Coll_pData(iPair)%Ec-EZeroPoint).GE.ChemReac%EActiv(iReac2)) THEN
               ReactionProb = ChemReac%ReactInfo(iReac2)%Beta_Diss_Arrhenius(                                                     &
@@ -1590,7 +1590,7 @@ INTEGER                       :: collPart1ID, collPart2ID                       
         iPart_p3 = ChemReac%RecombParticle
       END IF
 !--------------------------------------------------------------------------------------------------!
-      iReac  = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
+      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
 !--------------------------------------------------------------------------------------------------!
 #if (PP_TimeDiscMethod==42)
       IF (.NOT.DSMC%ReservoirRateStatistic) THEN
@@ -1599,7 +1599,7 @@ INTEGER                       :: collPart1ID, collPart2ID                       
 #endif
       ! calculation of recombination probability
       IF (iPart_p3 .GT. 0) THEN
-        iReac2 = ChemReac%ReactNumRecomb(PartSpecies(collPart1ID), PartSpecies(collPart2ID), PartSpecies(iPart_p3))
+        iReac2 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart_p3))
         CALL CalcReactionProb(iPair,iReac2,ReactionProb2,iPart_p3,NumDens)
       ELSE
         ReactionProb2 = 0.0
@@ -1648,9 +1648,9 @@ INTEGER                       :: collPart1ID, collPart2ID                       
 ! ############################################################################################################################### !
     CASE(7) ! three diss reactions possible (at least one molecule is polyatomic)
 ! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 2)
-      iReac3 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 3)
+      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
+      iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
       IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) .OR. ChemReac%QKProcedure(iReac3) ) THEN ! all Q-K
           CALL Abort(&
 __STAMP__&
@@ -1729,10 +1729,10 @@ __STAMP__&
 ! ############################################################################################################################### !
     CASE(8) ! four diss reactions possible (at least one polyatomic molecule)
 ! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 2)
-      iReac3 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 3)
-      iReac4 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 4)
+      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
+      iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
+      iReac4 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 4)
       IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) &
       .OR. ChemReac%QKProcedure(iReac3) .OR. ChemReac%QKProcedure(iReac4)) THEN ! all Q-K
           CALL Abort(&
@@ -1833,10 +1833,10 @@ __STAMP__&
 ! ############################################################################################################################### !
     CASE(9) ! three diss and one exchange reaction possible (at least one polyatomic molecule)
 ! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 2)
-      iReac3 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 3)
-      iReac4 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 4)
+      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
+      iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
+      iReac4 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 4)
       IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) &
       .OR. ChemReac%QKProcedure(iReac3) .OR. ChemReac%QKProcedure(iReac4)) THEN ! all Q-K
           CALL Abort(&
@@ -1937,9 +1937,9 @@ __STAMP__&
 ! ############################################################################################################################### !
     CASE(10) ! two diss and one exchange reaction possible
 ! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 2)
-      iReac3 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 3)
+      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
+      iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
       IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) .OR. ChemReac%QKProcedure(iReac3) ) THEN ! all Q-K
           CALL Abort(&
 __STAMP__&
@@ -2030,9 +2030,9 @@ __STAMP__&
         iPart_p3 = ChemReac%RecombParticle
       END IF
 !--------------------------------------------------------------------------------------------------!
-      iReac  = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 2)
-      iReac3 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 3)
+      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
+      iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
       IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) &
       .OR. ChemReac%QKProcedure(iReac3)) THEN ! all Q-K
         CALL Abort(&
@@ -2067,7 +2067,7 @@ __STAMP__&
 #endif
         ! calculation of recombination probability
         IF (iPart_p3 .GT. 0) THEN
-          iReac4 = ChemReac%ReactNumRecomb(PartSpecies(collPart1ID), PartSpecies(collPart2ID), PartSpecies(iPart_p3))
+          iReac4 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart_p3))
           CALL CalcReactionProb(iPair,iReac4,ReactionProb4,iPart_p3,NumDens)
         ELSE
           ReactionProb4 = 0.0
@@ -2156,8 +2156,8 @@ __STAMP__&
         iPart_p3 = ChemReac%RecombParticle
       END IF
 !--------------------------------------------------------------------------------------------------!
-      iReac  = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 2)
+      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
       IF (ChemReac%QKProcedure(iReac).OR.ChemReac%QKProcedure(iReac2)) THEN ! all Q-K
         CALL Abort(&
          __STAMP__,&
@@ -2183,7 +2183,7 @@ __STAMP__&
 #endif
         ! calculation of recombination probability
         IF (iPart_p3 .GT. 0) THEN
-          iReac3 = ChemReac%ReactNumRecomb(PartSpecies(collPart1ID), PartSpecies(collPart2ID), PartSpecies(iPart_p3))
+          iReac3 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart_p3))
           CALL CalcReactionProb(iPair,iReac3,ReactionProb3,iPart_p3,NumDens)
         ELSE
           ReactionProb3 = 0.0
@@ -2259,8 +2259,8 @@ __STAMP__&
         iPart_p3 = ChemReac%RecombParticle
       END IF
 !--------------------------------------------------------------------------------------------------!
-      iReac  = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 2)
+      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
       IF (ChemReac%QKProcedure(iReac).OR.ChemReac%QKProcedure(iReac2)) THEN ! all Q-K
         CALL Abort(&
          __STAMP__,&
@@ -2286,7 +2286,7 @@ __STAMP__&
 #endif
         ! calculation of recombination probability
         IF (iPart_p3 .GT. 0) THEN
-          iReac3 = ChemReac%ReactNumRecomb(PartSpecies(collPart1ID), PartSpecies(collPart2ID), PartSpecies(iPart_p3))
+          iReac3 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart_p3))
           CALL CalcReactionProb(iPair,iReac3,ReactionProb3,iPart_p3,NumDens)
         ELSE
           ReactionProb3 = 0.0
@@ -2362,7 +2362,7 @@ __STAMP__&
         iPart_p3 = ChemReac%RecombParticle
       END IF
 !--------------------------------------------------------------------------------------------------!
-      iReac  = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
+      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
       IF(ChemReac%QKProcedure(iReac)) THEN ! all Q-K
         CALL Abort(&
          __STAMP__,&
@@ -2380,7 +2380,7 @@ __STAMP__&
 #endif
         ! calculation of recombination probability
         IF (iPart_p3 .GT. 0) THEN
-          iReac2 = ChemReac%ReactNumRecomb(PartSpecies(collPart1ID), PartSpecies(collPart2ID), PartSpecies(iPart_p3))
+          iReac2 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart_p3))
           CALL CalcReactionProb(iPair,iReac2,ReactionProb2,iPart_p3,NumDens)
         ELSE
           ReactionProb2 = 0.0
@@ -2443,7 +2443,7 @@ __STAMP__&
         iPart_p3 = ChemReac%RecombParticle
       END IF
 !--------------------------------------------------------------------------------------------------!
-      iReac  = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
+      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
       IF(ChemReac%QKProcedure(iReac)) THEN ! all Q-K
         CALL Abort(&
          __STAMP__,&
@@ -2461,7 +2461,7 @@ __STAMP__&
 #endif
         ! calculation of recombination probability (only if third collision partner is available)
         IF (iPart_p3 .GT. 0) THEN
-          iReac2 = ChemReac%ReactNumRecomb(PartSpecies(collPart1ID), PartSpecies(collPart2ID), PartSpecies(iPart_p3))
+          iReac2 = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart_p3))
           CALL CalcReactionProb(iPair,iReac2,ReactionProb2,iPart_p3,NumDens)
         ELSE
           ReactionProb2 = 0.0
@@ -2513,7 +2513,7 @@ __STAMP__&
 ! ############################################################################################################################### !
     CASE(16) ! simple CEX/MEX
 ! ############################################################################################################################### !
-      iReac    = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
+      iReac    = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
       IF (ChemReac%DoScat(iReac)) THEN! MEX
         CALL DSMC_Scat_Col(iPair)
       ELSE
@@ -2557,9 +2557,9 @@ __STAMP__&
 ! ############################################################################################################################### !
     CASE(17) ! one dissociation, two exchange possible
 ! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 2)
-      iReac3 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 3)
+      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
+      iReac3 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 3)
       IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) .OR. ChemReac%QKProcedure(iReac3) ) THEN ! all Q-K
           CALL Abort(&
 __STAMP__&
@@ -2638,7 +2638,7 @@ __STAMP__&
 !############################################################################################################################### !
     CASE(18) ! only electron impact ionization possible Ar + e -> Ar(+) + e + e
 ! ############################################################################################################################### !
-      iReac = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
+      iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
       IF (ChemReac%QKProcedure(iReac)) THEN
         IF ( .NOT. DSMC%ElectronicModel ) THEN
           CALL Abort(&
@@ -2669,9 +2669,9 @@ __STAMP__&
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
       IF ( iPart_p3 .GT. 0 ) THEN
-        iReac = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), PartSpecies(iPart_p3))
+        iReac = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart_p3))
         IF(iReac.EQ.0) THEN
-          iReac = ChemReac%ReactNumRecomb(PartSpecies(collPart1ID), PartSpecies(collPart2ID), PartSpecies(iPart_p3))
+          iReac = ChemReac%ReactNumRecomb(PartSpecies(iPart1), PartSpecies(iPart2), PartSpecies(iPart_p3))
         END IF
 !        IF(SpecDSMC(PartSpecies(iPart_p3))%InterID.NE.4)RETURN
         IF ( ChemReac%QKProcedure(iReac)  ) THEN
@@ -2726,16 +2726,16 @@ __STAMP__&
 ! ############################################################################################################################### !
     CASE(20) ! Dissociation and ionization with QK are possible
 ! ############################################################################################################################### !
-      iReac  = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 1)
-      iReac2 = ChemReac%ReactNum(PartSpecies(collPart1ID), PartSpecies(collPart2ID), 2)
+      iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 1)
+      iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
       IF (ChemReac%QKProcedure(iReac).AND.ChemReac%QKProcedure(iReac2)) THEN ! both Reaction QK
         ! first pseudo reaction probability
-        IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(collPart1ID)) THEN
-          PartToExec = collPart1ID
-          PartReac2  = collPart2ID
+        IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(iPart1)) THEN
+          PartToExec = iPart1
+          PartReac2  = iPart2
         ELSE
-          PartToExec = collPart2ID
-          PartReac2  = collPart1ID
+          PartToExec = iPart2
+          PartReac2  = iPart1
         END IF
         ! Determine the collision energy (only relative translational)
         Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
@@ -2751,12 +2751,12 @@ __STAMP__&
           ReactionProb = 0.
         END IF
         ! second pseudo reaction probability
-        IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(collPart1ID)) THEN
-          PartToExec = collPart1ID
-          PartReac2  = collPart2ID
+        IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(iPart1)) THEN
+          PartToExec = iPart1
+          PartReac2  = iPart2
         ELSE
-          PartToExec = collPart2ID
-          PartReac2  = collPart1ID
+          PartToExec = iPart2
+          PartReac2  = iPart1
         END IF
         ! Determine the collision energy (relative translational + vibrational energy of dissociating molecule)
         Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
@@ -2822,7 +2822,7 @@ __STAMP__&
 
 END SUBROUTINE ReactionDecision
 
-SUBROUTINE DSMC_calc_P_rot(Spec1ID, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
+SUBROUTINE DSMC_calc_P_rot(iSpec1, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 !===================================================================================================================================
 ! Calculation of probability for rotational relaxation. Different Models implemented:
 ! 0 - Constant Probability
@@ -2838,7 +2838,7 @@ SUBROUTINE DSMC_calc_P_rot(Spec1ID, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)         :: Spec1ID, iPair, iPart
+  INTEGER, INTENT(IN)         :: iSpec1, iPair, iPart
   REAL, INTENT(IN)            :: Xi_rel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -2849,7 +2849,7 @@ SUBROUTINE DSMC_calc_P_rot(Spec1ID, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 !===================================================================================================================================
 
   TransEn    = Coll_pData(iPair)%Ec ! notice that during probability calculation,Collision energy only contains translational part
-  RotDOF     = SpecDSMC(Spec1ID)%Xi_Rot
+  RotDOF     = SpecDSMC(iSpec1)%Xi_Rot
   RotEn      = PartStateIntEn(iPart,2)
   ProbRot    = 0.
   ProbRotMax = 0.
@@ -2864,10 +2864,10 @@ SUBROUTINE DSMC_calc_P_rot(Spec1ID, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
     ProbRot = DSMC%RotRelaxProb * CorrFact
   ELSEIF(DSMC%RotRelaxProb.EQ.2.0) THEN ! P_rot according to Boyd (based on Parker's model)i
     !omegahow hier betrachtet man doch nur Spec1
-    ProbRot = 1/SpecDSMC(Spec1ID)%CollNumRotInf * (1 + lacz_gamma(RotDOF+2.-SpecDSMC(Spec1ID)%omega) &
-            / lacz_gamma(RotDOF+1.5-SpecDSMC(Spec1ID)%omega) * (PI**(3./2.)/2.)*(BoltzmannConst*SpecDSMC(Spec1ID)%TempRefRot &
-            / (TransEn + RotEn) )**(1./2.) + lacz_gamma(RotDOF+2.-SpecDSMC(Spec1ID)%omega)  &
-            / lacz_gamma(RotDOF+1.-SpecDSMC(Spec1ID)%omega) * (BoltzmannConst*SpecDSMC(Spec1ID)%TempRefRot &
+    ProbRot = 1/SpecDSMC(iSpec1)%CollNumRotInf * (1 + lacz_gamma(RotDOF+2.-SpecDSMC(iSpec1)%omega) &
+            / lacz_gamma(RotDOF+1.5-SpecDSMC(iSpec1)%omega) * (PI**(3./2.)/2.)*(BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
+            / (TransEn + RotEn) )**(1./2.) + lacz_gamma(RotDOF+2.-SpecDSMC(iSpec1)%omega)  &
+            / lacz_gamma(RotDOF+1.-SpecDSMC(iSpec1)%omega) * (BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
             / (TransEn + RotEn) ) * (PI**2./4. + PI)) &
             * CorrFact
 
@@ -2875,7 +2875,7 @@ SUBROUTINE DSMC_calc_P_rot(Spec1ID, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
     ! if model is used for further species but N2, it should be checked if factors n = 0.5 and Cn = 1.92 are still valid
     ! (see original eq of Zhang)
     ProbRot = 1.92 * lacz_gamma(Xi_rel/2.) * lacz_gamma(RotDOF/2.) / lacz_gamma(Xi_rel/2.+0.5) / lacz_gamma(RotDOF/2.-0.5) &
-            * (1 + (Xi_rel/2-0.5)*BoltzmannConst*SpecDSMC(Spec1ID)%TempRefRot/TransEn) * (TransEn/RotEn)**0.5 &
+            * (1 + (Xi_rel/2-0.5)*BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot/TransEn) * (TransEn/RotEn)**0.5 &
             * CorrFact
     ProbRotMax = MAX(ProbRot, 0.5) ! BL energy redistribution correction factor
     ProbRot    = MIN(ProbRot, 0.5)
@@ -2886,7 +2886,7 @@ __STAMP__&
   END IF
 END SUBROUTINE DSMC_calc_P_rot
 
-SUBROUTINE DSMC_calc_P_vib(Spec1ID, Spec2ID, iPair, Xi_rel, ProbVib, ProbVibMax)
+SUBROUTINE DSMC_calc_P_vib(iSpec1, iSpec2, iPair, Xi_rel, ProbVib, ProbVibMax)
 !===================================================================================================================================
 ! Calculation of probability for vibrational relaxation. Different Models implemented:
 ! 0 - Constant Probability
@@ -2903,7 +2903,7 @@ SUBROUTINE DSMC_calc_P_vib(Spec1ID, Spec2ID, iPair, Xi_rel, ProbVib, ProbVibMax)
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)       :: iPair, Spec1ID, Spec2ID
+INTEGER, INTENT(IN)       :: iPair, iSpec1, iSpec2
 REAL, INTENT(IN)          :: Xi_rel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -2912,21 +2912,21 @@ REAL, INTENT(INOUT)       :: ProbVib, ProbVibMax
 ! LOCAL VARIABLES
 REAL                      :: CorrFact, CRelaSub, TempCorr, dref
 INTEGER                   :: iPolyatMole, iDOF
-INTEGER                   :: collPart1ID, collPart2ID                         ! Colliding particles 1 and 2
+INTEGER                   :: iPart1, iPart2                         ! Colliding particles 1 and 2
 !===================================================================================================================================
- collPart1ID = Coll_pData(iPair)%iPart_p1
- collPart2ID = Coll_pData(iPair)%iPart_p2
+ iPart1 = Coll_pData(iPair)%iPart_p1
+ iPart2 = Coll_pData(iPair)%iPart_p2
 
   ProbVib = 0.
 
   ! calculate correction factor according to Gimelshein et al.
   ! - depending on selection procedure. As only one particle undergoes relaxation
   ! - only one VibDOF (GammaVib) is needed (of considered species)
-  CorrFact = 1. + SpecDSMC(Spec1ID)%GammaVib/Xi_rel
+  CorrFact = 1. + SpecDSMC(iSpec1)%GammaVib/Xi_rel
 
   IF((DSMC%VibRelaxProb.GE.0.0).AND.(DSMC%VibRelaxProb.LE.1.0)) THEN
-    IF (SpecDSMC(Spec1ID)%PolyatomicMol.AND.(DSMC%PolySingleMode)) THEN
-      iPolyatMole = SpecDSMC(Spec1ID)%SpecToPolyArray
+    IF (SpecDSMC(iSpec1)%PolyatomicMol.AND.(DSMC%PolySingleMode)) THEN
+      iPolyatMole = SpecDSMC(iSpec1)%SpecToPolyArray
       PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(1) = DSMC%VibRelaxProb * (1. + PolyatomMolDSMC(iPolyatMole)%GammaVib(1)/Xi_rel)
       DO iDOF = 2, PolyatomMolDSMC(iPolyatMole)%VibDOF
         PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(iDOF) = PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(iDOF - 1) + DSMC%VibRelaxProb &
@@ -2938,23 +2938,23 @@ INTEGER                   :: collPart1ID, collPart2ID                         ! 
   ELSEIF(DSMC%VibRelaxProb.EQ.2.0) THEN ! P_vib according to Boyd, corrected by Abe, only V-T transfer
           ! instead of averaging over all collisions in a cell, for convenience a cell averaged relative velocity is used.
     ! determine joint omega and Dref factor and rel velo of one vib quantum level below the current one
-    dref = 0.5 * (SpecDSMC(Spec1ID)%dref + SpecDSMC(Spec2ID)%dref)
-    CRelaSub = CRelaAv - 2.*(BoltzmannConst*SpecDSMC(Spec1ID)%CharaTVib) / CollInf%MassRed(Coll_pData(iPair)%PairType)
+    dref = 0.5 * (SpecDSMC(iSpec1)%dref + SpecDSMC(iSpec2)%dref)
+    CRelaSub = CRelaAv - 2.*(BoltzmannConst*SpecDSMC(iSpec1)%CharaTVib) / CollInf%MassRed(Coll_pData(iPair)%PairType)
     IF(CRelaSub.LT.0.) THEN
       CRelaSub = 0.
     ELSE
       CRelaSub = SQRT(CRelaSub)
     END IF
     ! calculate non-corrected probabilities
-    ProbVib    = 1. /SpecDSMC(Spec1ID)%CollNumVib* CRelaAv**(3.+2.*CollInf%omega(Spec1ID,Spec2ID)) &
-               * EXP(-1*SpecDSMC(Spec1ID)%CharaVelo(Spec2ID)/CRelaAv)
-    ProbVibMax = 1. /SpecDSMC(Spec1ID)%CollNumVib* CRelaMax**(3.+2.*CollInf%omega(Spec1ID,Spec2ID)) &
-               * EXP(-1*SpecDSMC(Spec1ID)%CharaVelo(Spec2ID)/CRelaMax)
+    ProbVib    = 1. /SpecDSMC(iSpec1)%CollNumVib* CRelaAv**(3.+2.*CollInf%omega(iSpec1,iSpec2)) &
+               * EXP(-1*SpecDSMC(iSpec1)%CharaVelo(iSpec2)/CRelaAv)
+    ProbVibMax = 1. /SpecDSMC(iSpec1)%CollNumVib* CRelaMax**(3.+2.*CollInf%omega(iSpec1,iSpec2)) &
+               * EXP(-1*SpecDSMC(iSpec1)%CharaVelo(iSpec2)/CRelaMax)
     ! calculate high temperature correction
     ! to be solved -fyi hier hab ich tref und dref ebenfalls eingebaut
-    TempCorr   = SpecDSMC(Spec1ID)%VibCrossSec / (SQRT(2.)*PI*CollInf%dref(Spec1ID,Spec2ID)**2.) * &
-                 (CollInf%MassRed(Coll_pData(iPair)%PairType) *CRelaAv  / (2.*(2.-CollInf%omega(Spec1ID,Spec2ID)) * &
-                 BoltzmannConst*CollInf%Tref(Spec1ID,Spec2ID)))**CollInf%omega(Spec1ID,Spec2ID)
+    TempCorr   = SpecDSMC(iSpec1)%VibCrossSec / (SQRT(2.)*PI*CollInf%dref(iSpec1,iSpec2)**2.) * &
+                 (CollInf%MassRed(Coll_pData(iPair)%PairType) *CRelaAv  / (2.*(2.-CollInf%omega(iSpec1,iSpec2)) * &
+                 BoltzmannConst*CollInf%Tref(iSpec1,iSpec2)))**CollInf%omega(iSpec1,iSpec2)
     ! determine corrected probabilities
     ProbVib    = ProbVib * TempCorr / (ProbVib + TempCorr) * CorrFact
     ProbVibMax = ProbVibMax * TempCorr / (ProbVibMax + TempCorr) * CorrFact
