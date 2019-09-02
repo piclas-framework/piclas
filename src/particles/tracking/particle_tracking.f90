@@ -845,6 +845,19 @@ __STAMP__ &
             ELSE
               isHit=.FALSE.
             END IF
+#ifdef CODE_ANALYZE
+!---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
+            IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+              IF(iPart.EQ.PARTOUT)THEN
+                WRITE(UNIT_stdout,'(30("-"))')
+                WRITE(UNIT_stdout,'(A)') '     | Output after compute MacroPart intersection (Particle tracing): '
+                WRITE(UNIT_stdout,'(A,I0,A,L)') '     | MaroPartID: ',iMP,' | Hit: ',isHit
+                WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ',lengthPartTrajectory
+                WRITE(UNIT_stdout,'(A,G0)') '     | AlphaSphere: ',locAlphaSphere
+              END IF
+            END IF
+!-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
+#endif /*CODE_ANALYZE*/
             IF(isHit) THEN
               currentIntersect => lastIntersect
               CALL AssignListPosition(currentIntersect,locAlpha,iMP,3,alpha2_IN=locAlphaSphere)
@@ -1141,7 +1154,11 @@ END SUBROUTINE ParticleTracing
 
 SUBROUTINE AssignListPosition(inLink,alpha_IN,sideID_IN,IntersectCase_IN,xi_IN,eta_IN,alpha2_IN)
 !===================================================================================================================================
-!>
+!> Checks the given intersection linked list starting from the last to the first entry and compares with a given alpha.
+!> adds the given alpha at the correct position extending the list if necessary.
+!> exits the search if position was assigned.
+!> -----------------------
+!> first list entry is the smallest found alpha and last is the largest.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
