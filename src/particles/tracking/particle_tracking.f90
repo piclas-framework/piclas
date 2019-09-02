@@ -130,12 +130,12 @@ REAL                             :: det(6,2),detM,ratio,minRatio, detPartPos
 REAL                             :: PartTrajectory(1:3),lengthPartTrajectory
 REAL                             :: xi = -1. , eta = -1. , alpha = -1.
 REAL, PARAMETER                  :: eps = 0
-!-----------------------------------------------------------------------------------------------------------------------------------
-! variabes needed for tracking with macroparticles inside domain
-LOGICAL                          :: sphereHitExists, sideHitExists
-REAL                             :: alphaPart, alphaPartTria
-REAL                             :: locAlphaPart
-INTEGER                          :: hitSideNbr
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! variabes needed for tracking with macroparticles inside domain
+!LOGICAL                          :: sphereHitExists, sideHitExists
+!REAL                             :: alphaPart, alphaPartTria
+!REAL                             :: locAlphaPart
+!INTEGER                          :: hitSideNbr
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
@@ -462,11 +462,10 @@ USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM, nMacroParticle, useMacropart, ElemHasMacroPart
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
-USE MOD_Particle_Mesh_Vars          ,ONLY: PartElemToSide,ElemType,ElemRadiusNGeo,ElemHasAuxBCs,ElemToGlobalElemID
+USE MOD_Particle_Mesh_Vars          ,ONLY: PartElemToSide,ElemRadiusNGeo,ElemHasAuxBCs,ElemToGlobalElemID!,ElemType
 USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
 USE MOD_Particle_Boundary_Condition ,ONLY: GetInteractionWithMacroPart
-USE MOD_Utils                       ,ONLY: InsertionSort
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
 USE MOD_Particle_Mesh               ,ONLY: SingleParticleToExactElementNoMap,PartInElemCheck
 USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
@@ -475,12 +474,7 @@ USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputeBiLinearIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputeAuxBCIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputeMacroPartIntersection
-USE MOD_Mesh_Vars                   ,ONLY: OffSetElem
 USE MOD_Eval_xyz                    ,ONLY: GetPositionInRefElem
-#if USE_MPI
-USE MOD_Particle_MPI_Vars           ,ONLY: PartHaloElemToProc
-USE MOD_MPI_Vars                    ,ONLY: offsetElemMPI
-#endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
 #ifdef IMPA
 USE MOD_Particle_Vars               ,ONLY: PartIsImplicit,PartDtFrac
@@ -490,7 +484,6 @@ USE MOD_Particle_Intersection       ,ONLY: OutputTrajectory
 USE MOD_Particle_Tracking_Vars      ,ONLY: PartOut,MPIRankOut
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
 USE MOD_TimeDisc_Vars               ,ONLY: iStage
-USE MOD_Globals_Vars                ,ONLY: epsMach
 USE MOD_Mesh_Vars                   ,ONLY: ElemBaryNGeo
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
@@ -511,23 +504,19 @@ LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                       :: doParticle
 LOGICAL                       :: doPartInExists
 #endif /*IMPA*/
-INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem,iAuxBC,AuxBCsToCheck
+INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem,iAuxBC
 INTEGER                       :: ilocSide,SideID
 LOGICAL                       :: PartisDone,dolocSide(1:6),foundHit,markTol,crossedBC,SwitchedElement,isCriticalParallelInFace
-LOGICAL                       :: IsAuxBC
 REAL                          :: localpha,xi,eta,refpos(1:3)
 REAL,ALLOCATABLE              :: locAlphaSphere
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
-LOGICAL                       :: isMacroPart, onlyMacroPart
+LOGICAL                       :: onlyMacroPart
 INTEGER                       :: iMP
 REAL                          :: alphaDoneRel, oldLengthPartTrajectory
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 LOGICAL                       :: moveList, PartDoubleCheck
-#if USE_MPI
-INTEGER                       :: inElem
-#endif
 #ifdef CODE_ANALYZE
 REAL                          :: IntersectionPoint(1:3)
 #endif /*CODE_ANALYZE*/
@@ -890,27 +879,21 @@ __STAMP__ &
             CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,currentIntersect%Side,currentIntersect%Side &
                 ,PartTrajectory,lengthPartTrajectory,currentIntersect%xi,currentIntersect%eta,currentIntersect%alpha,iPart &
                 ,SideID,SideType(SideID),ElemID)
-            IF(ElemID.NE.OldElemID)THEN
-              ! particle moves in new element, do not check yet, because particle may encounter a boundary condition
-              SwitchedElement=.TRUE.
-              IF(ALMOSTZERO(lengthPartTrajectory))THEN
-                PartisDone=.TRUE.
-              END IF
-            END IF
+            IF (ElemID.NE.OldElemID) SwitchedElement=.TRUE.
           !------------------------------------
           CASE(2) ! AuxBC intersection
           !------------------------------------
             CALL GetBoundaryInteractionAuxBC(PartTrajectory,lengthPartTrajectory &
                                             ,currentIntersect%alpha,iPart,currentIntersect%Side,crossedBC)
             IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
-            dolocSide=.TRUE. !important when before there was an elemchange !
+            dolocSide=.TRUE. !important when in previously traced portion an elemchange occured, check all sides again!
           !------------------------------------
           CASE(3) ! MacroPart intersection
           !------------------------------------
             CALL GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory,currentIntersect%alpha&
                                             ,currentIntersect%alpha2,alphaDoneRel,currentIntersect%Side,iPart,crossedBC)
             IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
-            dolocSide=.TRUE. !important when before there was an elemchange !
+            dolocSide=.TRUE. !important when in previously traced portion an elemchange occured, check all sides again!
             OnlyMacroPart=.FALSE. !important, since microscopic particle starts to move after collision !
           END SELECT
 #ifdef CODE_ANALYZE
@@ -1061,18 +1044,24 @@ __STAMP__ &
       PartIsDone=.TRUE.
       IF(.NOT.PDM%ParticleInside(iPart))THEN
         !WRITE(UNIT_stdOut,'(20(=))')
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Tolerance Issue during tracing! '
-        IPWRITE(UNIT_stdOut,'(I0,2(A,I0))') '     | Proc: ',MyRank,' lost particle with ID', iPart
+        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Tolerance issue during tracing! Unable to locate particle inside computational domain'
+        IPWRITE(UNIT_stdOut,'(I0,2(A,I0))') '     | Proc: ',MyRank,' lost particle with ID: ', iPart
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') '     | LastPartPos: ',LastPartPos(ipart,1:3)
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') '     |     PartPos: ',PartState(ipart,1:3)
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing PartRefPos ... '
+        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in Element ... '
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | ElemID       ', ElemToGlobalElemID(PEM%Element(iPart))
+        CALL GetPositionInRefElem(LastPartPos(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
+        IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') '     | LastPartRefPos: ',refpos
+        CALL GetPositionInRefElem(PartState(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
+        IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') '     |     PartRefPos: ',refpos
+        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in lastElement ... '
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | Last-ElemID  ', ElemToGlobalElemID(PEM%LastElement(iPart))
         CALL GetPositionInRefElem(LastPartPos(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') '     | LastPartRefPos: ',refpos
         CALL GetPositionInRefElem(PartState(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') '     |     PartRefPos: ',refpos
         !WRITE(UNIT_stdOut,'(20(=))')
-        IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | ElemID       ', ElemToGlobalElemID(PEM%Element(iPart))
-        IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | Last-ElemID  ', ElemToGlobalElemID(PEM%LastElement(iPart))
+        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Particle is removed from computation! '
         IF(CountNbOfLostParts) nLostParts=nLostParts+1
       END IF
     END IF ! markTol
