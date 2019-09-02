@@ -980,28 +980,29 @@ SUBROUTINE InitParticles()
 ! Glue Subroutine for particle initialization
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals!,       ONLY: MPIRoot,UNIT_STDOUT
+USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_IO_HDF5,                    ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars,                  ONLY: nElems
-USE MOD_LoadBalance_Vars,           ONLY: nPartsPerElem
-USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp
-USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux, AdaptiveBCAnalyze
-USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
-USE MOD_DSMC_Init,                  ONLY: InitDSMC
-USE MOD_LD_Init,                    ONLY: InitLD
-USE MOD_LD_Vars,                    ONLY: useLD
-USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
-USE MOD_InitializeBackgroundField,  ONLY: InitializeBackgroundField
-USE MOD_PICInterpolation_Vars,      ONLY: useBGField
-USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
-USE MOD_SurfaceModel_Init,          ONLY: InitSurfaceModel
-USE MOD_Particle_Boundary_Vars,     ONLY: nPorousBC, PartBound
-USE MOD_Particle_Boundary_Porous,   ONLY: InitPorousBoundaryCondition
-USE MOD_Restart_Vars,               ONLY: DoRestart
+USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
+USE MOD_Mesh_Vars                  ,ONLY: nElems
+USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
+USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
+USE MOD_Particle_Vars              ,ONLY: MacroRestartData_tmp
+USE MOD_part_emission              ,ONLY: InitializeParticleEmission,AdaptiveBCAnalyze
+USE MOD_surface_flux               ,ONLY: InitializeParticleSurfaceflux
+USE MOD_DSMC_Analyze               ,ONLY: InitHODSMC
+USE MOD_DSMC_Init                  ,ONLY: InitDSMC
+USE MOD_LD_Init                    ,ONLY: InitLD
+USE MOD_LD_Vars                    ,ONLY: useLD
+USE MOD_DSMC_Vars                  ,ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
+USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
+USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
+USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
+USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
+USE MOD_Particle_Boundary_Vars     ,ONLY: nPorousBC, PartBound
+USE MOD_Particle_Boundary_Porous   ,ONLY: InitPorousBoundaryCondition
+USE MOD_Restart_Vars               ,ONLY: DoRestart
 #if USE_MPI
-USE MOD_Particle_MPI,               ONLY: InitParticleCommSize
+USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
 #endif
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
@@ -3116,16 +3117,16 @@ SUBROUTINE InitialIonization()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Globals_Vars     ,ONLY:  ElementaryCharge
+USE MOD_Globals_Vars        ,ONLY:  ElementaryCharge
 USE MOD_PreProc
-USE MOD_Particle_Vars    ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies
-USE MOD_Particle_Vars    ,ONLY: InitialIonizationChargeAverage,InitialIonizationSpeciesID,InitialIonizationSpecies
-USE MOD_Mesh_Vars        ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_DSMC_Vars        ,ONLY: CollisMode,DSMC,PartStateIntEn
-USE MOD_part_emission    ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_Vars        ,ONLY: useDSMC
-USE MOD_Eval_xyz         ,ONLY: TensorProductInterpolation
-USE MOD_Particle_Analyze ,ONLY: PARTISELECTRON
+USE MOD_Particle_Vars       ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies
+USE MOD_Particle_Vars       ,ONLY: InitialIonizationChargeAverage,InitialIonizationSpeciesID,InitialIonizationSpecies
+USE MOD_Mesh_Vars           ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
+USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_DSMC_Vars           ,ONLY: useDSMC
+USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
+USE MOD_Particle_Analyze    ,ONLY: PARTISELECTRON
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
