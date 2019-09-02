@@ -205,12 +205,12 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
 ! Classic statistical pairing method
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac, CRelaMax, CRelaAv
-  USE MOD_DSMC_Vars,              ONLY : DSMC, SelectionProc, RadialWeighting
-  USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp
-  USE MOD_Particle_Vars,          ONLY : PEM, PartSpecies, nSpecies, PartState, VarTimeStep
-  USE MOD_Particle_Vars,          ONLY : KeepWallParticles, PDM
-  USE MOD_part_tools,             ONLY: GetParticleWeight
+  USE MOD_DSMC_Vars              ,ONLY: CollisMode, ChemReac
+  USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcInstantTransTemp
+  USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies
+  USE MOD_Particle_Vars          ,ONLY: KeepWallParticles, PDM
+  USE MOD_part_tools             ,ONLY: GetParticleWeight
+  USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -220,10 +220,8 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: nPair, iPair, iPart, iLoop, cPart1, cPart2, nPart
-  INTEGER                       :: cSpec1, cSpec2, iCase
+  INTEGER                       :: nPair, iPart, iLoop, nPart
   INTEGER, ALLOCATABLE          :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
-  REAL                          :: iRan
 !===================================================================================================================================
   IF (KeepWallParticles) THEN
     nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
@@ -235,15 +233,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     ChemReac%RecombParticle = 0
   END IF
 
-  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
-
-  CollInf%Coll_SpecPartNum = 0.
-  CollInf%Coll_CaseNum = 0
-  CRelaMax = 0
-  CRelaAv = 0
-  ALLOCATE(Coll_pData(nPair))
   ALLOCATE(iPartIndx(nPart))
-  Coll_pData%Ec=0
   iPartIndx = 0
   IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
 
@@ -256,63 +246,10 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
       END DO
     END IF
     iPartIndx(iLoop) = iPart
-    ! Counter for part num of spec per cell
-    CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
-    ! Calculation of mean evib per cell and iter, necessary for disso prob
-    IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
-                                                                  + PartStateIntEn(iPart,1) * GetParticleWeight(iPart)
     ! Choose next particle in Element
     iPart = PEM%pNext(iPart)
   END DO
-
-  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
-    ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
-    !           relaxation probability (CalcGammaVib)
-    ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
-    ! 3. Case: Temperature required for the mean free path with the VHS model
-    CALL CalcInstantTransTemp(iPartIndx,nPart)
-    IF(SelectionProc.EQ.2) CALL CalcGammaVib()
-  END IF
-
-  DO iPair = 1, nPair                               ! statistical pairing
-    CALL RANDOM_NUMBER(iRan)
-    cPart1 = 1 + INT(nPart * iRan)                       ! first pair particle
-    Coll_pData(iPair)%iPart_p1 = iPartIndx(cPart1)
-    iPartIndx(cPart1) = iPartIndx(nPart)
-    nPart = nPart - 1
-    CALL RANDOM_NUMBER(iRan)
-    cPart2 = 1 + INT(nPart * iRan)                       ! second pair particle
-    Coll_pData(iPair)%iPart_p2 = iPartIndx(cPart2)
-    iPartIndx(cPart2) = iPartIndx(nPart)
-    nPart = nPart - 1
-
-    cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
-    cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
-
-    iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-    IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
-                                                          + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
-    END IF
-    CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
-    Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                             + (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                             + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
-    Coll_pData(iPair)%PairType = iCase
-    Coll_pData(iPair)%NeedForRec = .FALSE.
-
-    ! get maximum and average relative velocity
-    CRelaMax = MAX(CRelaMax, SQRT(Coll_pData(iPair)%CRela2))
-    CRelaAv = CRelaAv + SQRT(Coll_pData(iPair)%CRela2)
-  END DO
-  IF(nPair.NE.0)  CRelaAv = CRelaAv / nPair
-  IF ((nPair.NE.0).AND.(CollisMode.EQ.3).AND.(MOD(nPart, nPair).NE.0)) THEN
-    ChemReac%RecombParticle = iPartIndx(1)
-  END IF
-
+  CALL FindStatisticalNeigh(iPartIndx, nPart, iElem , GEO%Volume(iElem))
   DEALLOCATE(iPartIndx)
 END SUBROUTINE DSMC_pairing_statistical
 

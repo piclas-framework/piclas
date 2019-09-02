@@ -1523,7 +1523,6 @@ __STAMP__&
 
 END SUBROUTINE DSMC_SetInternalEnr_LauxVFD
 
-
 SUBROUTINE FinalizeDSMC()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! finalize dsmc variables
