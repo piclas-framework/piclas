@@ -40,22 +40,25 @@ SUBROUTINE DSMC_main(DoElement)
 !> Performs DSMC routines (containing loop over all cells)
 !===================================================================================================================================
 ! MODULES
-USE MOD_TimeDisc_Vars,         ONLY : time, TEnd
-USE MOD_Globals
-USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
-USE MOD_Mesh_Vars,             ONLY : nElems
-USE MOD_DSMC_Vars,             ONLY : DSMC_RHS, DSMC, DSMCSumOfFormedParticles, BGGas, CollisMode
-USE MOD_DSMC_Vars,             ONLY : ChemReac
-USE MOD_DSMC_Analyze,          ONLY : CalcMeanFreePath
-USE MOD_DSMC_SteadyState,      ONLY : QCrit_evaluation, SteadyStateDetection_main
-USE MOD_Particle_Vars,         ONLY : PDM, WriteMacroVolumeValues, Symmetry2D
-USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib, &
-                                      SamplingRotVibRelaxProb
-USE MOD_DSMC_Relaxation,       ONLY : SetMeanVibQua
-USE MOD_DSMC_ParticlePairing,  ONLY : DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
-USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
-USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
+  USE MOD_TimeDisc_Vars,         ONLY : time, TEnd
+  USE MOD_Globals
+  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
+  USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
+  USE MOD_Mesh_Vars,             ONLY : nElems
+  USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
+  USE MOD_DSMC_Vars,             ONLY : ChemReac, SpecDSMC
+  USE MOD_DSMC_Analyze,          ONLY : CalcMeanFreePath
+  USE MOD_DSMC_SteadyState,      ONLY : QCrit_evaluation, SteadyStateDetection_main
+  USE MOD_Particle_Vars,         ONLY : PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D
+  USE MOD_Particle_Mesh_Vars,    ONLY : GEO
+  USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
+  USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib, &
+                                        SamplingRotVibRelaxProb
+  USE MOD_DSMC_Relaxation,       ONLY : SetMeanVibQua
+  USE MOD_DSMC_ParticlePairing,  ONLY : DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
+  USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
+  USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
+  USE MOD_Particle_Vars,         ONLY : KeepWallParticles
 #if (PP_TimeDiscMethod==1001)
 USE MOD_LD_Vars               ,ONLY: BulkValues, LD_DSMC_RHS
 #endif
@@ -78,7 +81,8 @@ LOGICAL,OPTIONAL  :: DoElement(nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER           :: iElem
+  INTEGER           :: iElem, nPart, nPair, iPair
+  REAL              :: iRan
 #if (PP_TimeDiscMethod!=1001)
 INTEGER           :: nOutput
 #endif
@@ -130,6 +134,49 @@ DO iElem = 1, nElems ! element/cell main loop
       ELSE
         CALL DSMC_pairing_statistical(iElem)  ! pairing of particles per cell
       END IF
+
+      IF (.NOT.DSMC%UseOctree) THEN                                                               ! no octree
+        !Calc the mean evib per cell and iter, necessary for dissociation probability
+        IF (CollisMode.EQ.3) THEN
+          CALL SetMeanVibQua()
+        END IF
+
+        IF (KeepWallParticles) THEN
+          nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
+        ELSE
+          nPart = PEM%pNumber(iElem)
+        END IF
+        nPair = INT(nPart/2)
+
+        DO iPair = 1, nPair
+          IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
+            CALL DSMC_prob_calc(iElem, iPair)
+            CALL RANDOM_NUMBER(iRan)
+            IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
+#if (PP_TimeDiscMethod==42)
+              IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN
+#else
+              IF(CalcEkin) THEN
+#endif
+                DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
+                DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
+              END IF
+              CALL DSMC_perform_collision(iPair,iElem)
+            END IF
+          END IF
+        END DO
+        IF(DSMC%CalcQualityFactors) THEN
+          IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+            ! Calculation of the mean free path
+            DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),GEO%Volume(iElem), &
+                                                  SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+            ! Determination of the MCS/MFP for the case without octree
+            IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
+                                                                                            / DSMC%MeanFreePath
+          END IF
+        END IF
+        DEALLOCATE(Coll_pData)
+      END IF                                                                                     ! end no octree
       IF(DSMC%CalcQualityFactors) THEN
         IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
             ! mean collision probability of all collision pairs
