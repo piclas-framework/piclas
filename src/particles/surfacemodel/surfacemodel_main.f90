@@ -339,7 +339,7 @@ INTEGER                          :: p,q
 REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
 REAL                             :: Adsorption_prob, Recombination_prob
 INTEGER                          :: SurfSideID, SpecID
-REAL                             :: Norm_velo!, Norm_Ec
+REAL                             :: Norm_velo
 ! variables for Energy sampling
 REAL                             :: TransArray(1:6),IntArray(1:6)
 REAL                             :: oldVelo(1:3)
@@ -503,7 +503,6 @@ CASE (2)
 CASE (3)
 !-----------------------------------------------------------------------------------------------------------------------------------
   Norm_velo = DOT_PRODUCT(PartState(PartID,4:6),n_loc(1:3))
-  !Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
   CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_velo,ReflectionIndex,ProductSpec,reactionEnthalpy)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (4)

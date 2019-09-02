@@ -186,28 +186,17 @@ Adsorption%CollSpecPartNum(subsurfxi,subsurfeta,SurfID,SpecID) = Adsorption%Coll
 !  SampWall(SurfID)%Accomodation(SpecID,subsurfxi,subsurfeta) = SampWall(SurfID)%Accomodation(SpecID,subsurfxi,subsurfeta) &
 !                                                                + trapping_prob
 !END IF
-! adaptive accomodation
-!IF (Adaptive_ACC_FLAG) THEN
-  CALL RANDOM_NUMBER(RanNum)
-  IF(RanNum.GE.PartBound%MomentumACC(PartBoundID)) THEN
-    ProductSpec(1) = SpecID
-    ProductSpec(2) = 0
-    AdsorptionEnthalpy = 0.
-    adsorption_case = 1
-    RETURN
-  END IF
-!END IF
+
+ProductSpec(1) = SpecID
+ProductSpec(2) = 0
+AdsorptionEnthalpy = 0.
+CALL RANDOM_NUMBER(RanNum)
+IF(RanNum.GE.PartBound%MomentumACC(PartBoundID)) THEN
+  adsorption_case = 1
+  RETURN
+END IF
 adsorption_case = 2
 
-!! if no trapping return and perform elastic reflection
-!CALL RANDOM_NUMBER(RanNum)
-!IF (RanNum.GT.trapping_prob) THEN
-!  ProductSpec(1) = SpecID
-!  ProductSpec(2) = 0
-!  AdsorptionEnthalpy = 0.
-!  adsorption_case = 1
-!  RETURN
-!END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! calculate probability for molecular adsorption
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -426,13 +415,10 @@ DO ReactNum = 0,Adsorption%ReactNum
 END DO
 SurfModel%Info(SpecID)%MeanProbAds = SurfModel%Info(SpecID)%MeanProbAds + sum_probabilities
 SurfModel%Info(SpecID)%MeanProbAdsCount = SurfModel%Info(SpecID)%MeanProbAdsCount + 1
-! initialize adsorption case
-adsorption_case = 1
-AdsorptionEnthalpy = 0.
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! choose which adsorption type takes place
 !-----------------------------------------------------------------------------------------------------------------------------------
-
 CALL RANDOM_NUMBER(RanNum)
 IF (sum_probabilities .GT. RanNum) THEN
   ! chose surface reaction case (0=inelastic scattering, 1=adsorption, 2=reaction (dissociation), 3=reaction (Eley-Rideal))
