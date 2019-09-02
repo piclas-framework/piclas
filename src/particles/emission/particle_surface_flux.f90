@@ -1035,7 +1035,7 @@ __STAMP__&
 END DO !iSpec
 
 ! Deallocate auxiliary variable container (no pointers used inside container)
-IF(RadialWeighting%DoRadialWeighting) SDEALLOCATE(BCdata_auxSFTemp)
+IF(RadialWeighting%DoRadialWeighting.AND.ALLOCATED(BCdata_auxSFTemp)) DEALLOCATE(BCdata_auxSFTemp)
 
 !-- write debug-mesh for tria-surfflux
 IF (WriteTriaSurfaceFluxDebugMesh) THEN
