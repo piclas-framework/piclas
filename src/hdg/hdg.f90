@@ -409,7 +409,7 @@ USE MOD_Equation_Vars          ,ONLY: B
 USE MOD_Equation_Vars          ,ONLY: B, E
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -676,7 +676,7 @@ USE MOD_Equation_Vars          ,ONLY: E
 #endif
 USE MOD_TimeDisc_Vars          ,ONLY: IterDisplayStep,DoDisplayIter
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1039,7 +1039,7 @@ USE MOD_HDG_Vars          ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCri
 USE MOD_TimeDisc_Vars     ,ONLY: iter,IterDisplayStep
 USE MOD_Mesh_Vars         ,ONLY: nSides,nMPISides_YOUR
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1254,7 +1254,7 @@ USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExch
 USE MOD_HDG_Vars          ,ONLY: Mask_MPIsides 
 #endif /*USE_MPI*/ 
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
