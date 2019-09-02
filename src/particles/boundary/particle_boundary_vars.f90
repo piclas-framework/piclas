@@ -24,7 +24,7 @@ SAVE
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                                 :: NSurfSample                   ! polynomial degree of particle BC sampling
-LOGICAL                                 :: CalcSurfaceImpact             ! Sample average impact energy of particles for each species 
+LOGICAL                                 :: CalcSurfaceImpact             ! Sample average impact energy of particles for each species
 !                                                                        ! (trans, rot, vib), impact vector and angle (default=FALSE)
 REAL,ALLOCATABLE                        :: XiEQ_SurfSample(:)            ! position of XiEQ_SurfSample
 REAL                                    :: dXiEQ_SurfSample              ! deltaXi in [-1,1]
@@ -109,7 +109,7 @@ TYPE tSampWall             ! DSMC sample for Wall
                                                                        ! 4: Heatflux from dissociation reactions of one gas
                                                                        !    species reacting at collision to another species
                                                                        !    on the surface.
-                                                                       ! 5: additional heatflux e.g. surface coverage 
+                                                                       ! 5: additional heatflux e.g. surface coverage
                                                                        !    reconstruction or none of the above
                                                                        ! 5+iSpecies: Coverage of iSpecies
                                                                        !    adsorption%coverage added in updatesurfacevars

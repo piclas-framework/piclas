@@ -1096,7 +1096,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   SDEALLOCATE(SurfSendBuf(iProc)%content)
   SDEALLOCATE(SurfRecvBuf(iProc)%content)
   SampSizeAllocate = SurfMesh%SampSize
-  ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8*nSpecies to the 
+  ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8*nSpecies to the
   ! buffer length
   IF(CalcSurfaceImpact) SampSizeAllocate = SampSizeAllocate + 8*nSpecies
   IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
@@ -1167,7 +1167,7 @@ IF(ANY(PartBound%Reactive)) nReactiveValues = SurfMesh%ReactiveSampSize*(nSurfSa
 
 nValues=nValues+nReactiveValues
 
-! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8*nSpecies to the 
+! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8*nSpecies to the
 ! buffer length
 IF(CalcSurfaceImpact) nValues=nValues+8*nSpecies
 
@@ -1211,9 +1211,9 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         IF(CalcSurfaceImpact)THEN
           ! Add average impact energy for each species (trans, rot, vib)
           SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%ImpactEnergy(:,1,p,q)
-          iPos=iPos+nSpecies                                                                     
+          iPos=iPos+nSpecies
           SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%ImpactEnergy(:,2,p,q)
-          iPos=iPos+nSpecies                                                                     
+          iPos=iPos+nSpecies
           SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%ImpactEnergy(:,3,p,q)
           iPos=iPos+nSpecies
 
@@ -1312,10 +1312,10 @@ DO iProc=1,SurfCOMM%nMPINeighbors
           ! Add average impact energy for each species (trans, rot, vib)
           SampWall(SurfSideID)%ImpactEnergy(:,1,p,q)=SampWall(SurfSideID)%ImpactEnergy(:,1,p,q) &
                                                     +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
-          iPos=iPos+nSpecies                   
+          iPos=iPos+nSpecies
           SampWall(SurfSideID)%ImpactEnergy(:,2,p,q)=SampWall(SurfSideID)%ImpactEnergy(:,2,p,q) &
                                                     +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
-          iPos=iPos+nSpecies                   
+          iPos=iPos+nSpecies
           SampWall(SurfSideID)%ImpactEnergy(:,3,p,q)=SampWall(SurfSideID)%ImpactEnergy(:,3,p,q) &
                                                     +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
           iPos=iPos+nSpecies
@@ -1323,10 +1323,10 @@ DO iProc=1,SurfCOMM%nMPINeighbors
           ! Add average impact vector (x,y,z) for each species
           SampWall(SurfSideID)%ImpactVector(:,1,p,q)=SampWall(SurfSideID)%ImpactVector(:,1,p,q) &
                                                     +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
-          iPos=iPos+nSpecies                   
+          iPos=iPos+nSpecies
           SampWall(SurfSideID)%ImpactVector(:,2,p,q)=SampWall(SurfSideID)%ImpactVector(:,2,p,q) &
                                                     +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
-          iPos=iPos+nSpecies                   
+          iPos=iPos+nSpecies
           SampWall(SurfSideID)%ImpactVector(:,3,p,q)=SampWall(SurfSideID)%ImpactVector(:,3,p,q) &
                                                     +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
           iPos=iPos+nSpecies
@@ -1856,7 +1856,7 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
 
 END SUBROUTINE ReadAnalyzeSurfCollisToHDF5
 
-SUBROUTINE AddVarName(StrArray,ArrayDim,idx,VarName) 
+SUBROUTINE AddVarName(StrArray,ArrayDim,idx,VarName)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! description
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1865,7 +1865,7 @@ SUBROUTINE AddVarName(StrArray,ArrayDim,idx,VarName)
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)             :: ArrayDim
 CHARACTER(LEN=*),INTENT(INOUT) :: StrArray(ArrayDim)
 INTEGER,INTENT(INOUT)          :: idx

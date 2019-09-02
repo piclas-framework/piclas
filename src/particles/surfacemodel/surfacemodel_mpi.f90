@@ -76,7 +76,7 @@ ALLOCATE(SurfModelExchange%nH2OSidesSend(1:SurfCOMM%nMPINeighbors) &
 ALLOCATE(SurfModelExchange%H2OSendBuf(1:SurfCOMM%nMPINeighbors))
 ALLOCATE(SurfModelExchange%H2ORecvBuf(1:SurfCOMM%nMPINeighbors))
 DO iProc=1,SurfCOMM%nMPINeighbors
-  ! same number of sides as normal surface exchange      
+  ! same number of sides as normal surface exchange
   SurfModelExchange%nH2OSidesSend(iProc) = SurfExchange%nSidesSend(iProc)
   SurfModelExchange%nH2OSidesRecv(iProc) = SurfExchange%nSidesRecv(iProc)
   IF(SurfModelExchange%nH2OSidesSend(iProc).NE.0) THEN

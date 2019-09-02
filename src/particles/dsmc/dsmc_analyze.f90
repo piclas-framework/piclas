@@ -447,7 +447,7 @@ DO iSurfSide=1,SurfMesh%nMasterSides
                 MacroSurfaceSpecVal(idx,p,q,iSurfSide,iSpec) = nImpacts
               ELSE
                 idx=idx+8
-              END IF ! 
+              END IF !
             END ASSOCIATE
           END IF ! CalcSurfaceImpact
         END ASSOCIATE

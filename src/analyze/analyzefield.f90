@@ -142,12 +142,12 @@ IF(CalcEpot)THEN
   ! energy of
   ! 1) electric field
   ! 2) magnetic field
-  ! 3) divergence correction magnetic 
-  ! 4) divergence correction electric + charge 
+  ! 3) divergence correction magnetic
+  ! 4) divergence correction electric + charge
   IF(DoDielectric)THEN
     CALL CalcPotentialEnergy_Dielectric(WEl,WMag, Wphi, Wpsi)
   ELSE
-    CALL CalcPotentialEnergy(WEl,WMag,Wphi,Wpsi) 
+    CALL CalcPotentialEnergy(WEl,WMag,Wphi,Wpsi)
   END IF
 END IF
 #if (PP_nVar>=6)
@@ -666,7 +666,7 @@ SDEALLOCATE(STEM)
 
 END SUBROUTINE FinalizePoyntingInt
 
-SUBROUTINE CalcPotentialEnergy(WEl, WMag, Wphi, Wpsi) 
+SUBROUTINE CalcPotentialEnergy(WEl, WMag, Wphi, Wpsi)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
@@ -711,7 +711,7 @@ REAL              :: RD
 #endif
 #if (PP_nVar==8)
 REAL              :: Wphi_tmp, Wpsi_tmp
-#endif /*PP_nVar=8*/        
+#endif /*PP_nVar=8*/
 !===================================================================================================================================
 
 Wel=0.
@@ -730,7 +730,7 @@ DO iElem=1,nElems
 #if (PP_nVar==8)
     Wphi_tmp = 0.
     Wpsi_tmp = 0.
-#endif /*PP_nVar=8*/        
+#endif /*PP_nVar=8*/
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 ! in electromagnetische felder by henke 2011 - springer
@@ -750,9 +750,9 @@ DO iElem=1,nElems
 
 #if (PP_nVar==8)
     B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
-    Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem) 
-    Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem) 
-#endif /*PP_nVar=8*/        
+    Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem)
+    Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem)
+#endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==3
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
@@ -765,7 +765,7 @@ DO iElem=1,nElems
     WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
     Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Phi_abs
     Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Psi_abs
-#endif /*PP_nVar=8*/        
+#endif /*PP_nVar=8*/
   END DO; END DO; END DO
   WEl = WEl + WEl_tmp
 #if (PP_nVar==8)
@@ -805,7 +805,7 @@ END IF
 END SUBROUTINE CalcPotentialEnergy
 
 
-SUBROUTINE CalcPotentialEnergy_Dielectric(WEl, WMag, Wphi, Wpsi) 
+SUBROUTINE CalcPotentialEnergy_Dielectric(WEl, WMag, Wphi, Wpsi)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
@@ -901,9 +901,9 @@ DO iElem=1,nElems
 
 #if (PP_nVar==8)
       B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
-      Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem) 
-      Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem) 
-#endif /*PP_nVar=8*/        
+      Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem)
+      Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem)
+#endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==3
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs / DielectricMu( i,j,k,ElemToDielectric(iElem))
@@ -916,7 +916,7 @@ DO iElem=1,nElems
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs / DielectricMu(i,j,k,ElemToDielectric(iElem))
       Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Phi_abs * DielectricEps(i,j,k,ElemToDielectric(iElem))
       Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Psi_abs / DielectricMu(i,j,k,ElemToDielectric(iElem))
-#endif /*PP_nVar=8*/        
+#endif /*PP_nVar=8*/
     END DO; END DO; END DO
   ELSE
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -937,8 +937,8 @@ DO iElem=1,nElems
 
 #if (PP_nVar==8)
       B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
-      Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem) 
-      Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem) 
+      Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem)
+      Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem)
 #endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==3

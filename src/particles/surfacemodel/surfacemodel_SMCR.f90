@@ -1710,7 +1710,7 @@ DO iSurf=1,SurfMesh%nMasterSides
         ! update surfatom bond order and species map
         CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,Coord,Surfpos,SpecID,.TRUE.,relaxation=.TRUE.)
 
-        ! choose Neighbour position with highest heat of adsorption 
+        ! choose Neighbour position with highest heat of adsorption
         Heat_j = 0.
         DO i = 1,n_equal_site_Neigh
           Heat_temp = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,SpecID,free_Neigh_pos(i),.TRUE.)
