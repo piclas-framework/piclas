@@ -513,7 +513,7 @@ LOGICAL                       :: doPartInExists
 #endif /*IMPA*/
 INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem,iAuxBC,AuxBCsToCheck
 INTEGER                       :: ilocSide,SideID
-LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol,crossedBC,SwitchedElement,isCriticalParallelInFace
+LOGICAL                       :: PartisDone,dolocSide(1:6),foundHit,markTol,crossedBC,SwitchedElement,isCriticalParallelInFace
 LOGICAL                       :: IsAuxBC
 REAL                          :: localpha,xi,eta,refpos(1:3)
 REAL,ALLOCATABLE              :: locAlphaSphere
@@ -632,9 +632,9 @@ DO iPart=1,PDM%ParticleVecLength
         WRITE(UNIT_stdOut,'(A,I0)') '     | global ElemID       ', ElemToGlobalElemID(PEM%LastElement(iPart))
       END IF
     END IF
-    ! caution: reuse of variable, isHit=TRUE == inside
-    CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.)
-    IF(.NOT.isHit)THEN  ! particle not inside
+    ! caution: reuse of variable, foundHit=TRUE == inside
+    CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,foundHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.)
+    IF(.NOT.foundHit)THEN  ! particle not inside
      IPWRITE(UNIT_stdOut,'(I0,A)')  ' LastPartPos not inside of element! '
 #ifdef IMPA
      IPWRITE(UNIt_stdOut,'(I0,A18,L)') ' PDM%IsNewPart ', PDM%IsNewPart(iPart)
@@ -689,11 +689,11 @@ DO iPart=1,PDM%ParticleVecLength
         currentIntersect => lastIntersect%prev
         IF (currentIntersect%IntersectCase.EQ.1) THEN
           iLocSide=currentIntersect%Side
-          CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,iLocSide &
+          CALL ComputeBiLinearIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,iLocSide &
               ,alpha2=currentIntersect%alpha)
           currentIntersect%alpha=1.0
           currentIntersect%IntersectCase=0
-          IF(isHit) THEN
+          IF(foundHit) THEN
             CALL AssignListPosition(currentIntersect,locAlpha,iLocSide,1,xi_IN=xi,eta_IN=eta)
             IF((ABS(xi).GE.0.99).OR.(ABS(eta).GE.0.99)) markTol=.TRUE.
             IF(ALMOSTZERO(locAlpha)) markTol=.TRUE.
@@ -701,14 +701,14 @@ DO iPart=1,PDM%ParticleVecLength
           END IF
         ELSE IF (currentIntersect%IntersectCase.EQ.3) THEN
           iMP = currentIntersect%Side
-          CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,iMP&
+          CALL ComputeMacroPartIntersection(foundHit,PartTrajectory,lengthPartTrajectory,iMP&
               ,locAlpha,locAlphaSphere,alphaDoneRel,iPart,alpha2=currentIntersect%alpha)
           currentIntersect%alpha=1.0
           currentIntersect%IntersectCase=0
-          IF(isHit) CALL AssignListPosition(currentIntersect,locAlpha,iMP,3,alpha2_IN=locAlphaSphere)
+          IF(foundHit) CALL AssignListPosition(currentIntersect,locAlpha,iMP,3,alpha2_IN=locAlphaSphere)
         END IF
         ! if double check found no intersection reset entry in list and adjust lastentry pointer
-        IF (.NOT.isHit) THEN
+        IF (.NOT.foundHit) THEN
           currentIntersect%alpha = 1.0
           currentIntersect%intersectCase = 0
           lastIntersect => currentIntersect
@@ -739,15 +739,15 @@ DO iPart=1,PDM%ParticleVecLength
           isCriticalParallelInFace=.FALSE.
           SELECT CASE(SideType(SideID))
           CASE(PLANAR_RECT)
-            CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,flip,SideID  &
+            CALL ComputePlanarRectInterSection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,flip,SideID  &
                                                                                           ,isCriticalParallelInFace)
           CASE(BILINEAR,PLANAR_NONRECT)
-            CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID)
+            CALL ComputeBiLinearIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID)
           CASE(PLANAR_CURVED)
-            CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,flip,SideID &
+            CALL ComputePlanarCurvedIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,flip,SideID &
                                                                                           ,isCriticalParallelInFace)
           CASE(CURVED)
-            CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID &
+            CALL ComputeCurvedIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID &
                                                                                     ,isCriticalParallelInFace)
           CASE DEFAULT
             CALL abort(&
@@ -760,7 +760,7 @@ __STAMP__ &
             IF(iPart.EQ.PARTOUT)THEN
               WRITE(UNIT_stdout,'(30("-"))')
               WRITE(UNIT_stdout,'(A)') '     | Output after compute intersection (particle tracing): '
-              WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(SideID),' | SideID: ',SideID,' | Hit: ',isHit
+              WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(SideID),' | SideID: ',SideID,' | Hit: ',foundHit
               WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ', lengthPartTrajectory
               WRITE(UNIT_stdout,'((A,G0))') '     | RelAlpha: ',locAlpha/lengthpartTrajectory
               WRITE(UNIT_stdout,'(A,2(X,G0))') '     | Intersection xi/eta: ',xi,eta
@@ -779,7 +779,7 @@ __STAMP__ &
             IF(CountNbOfLostParts) nLostParts=nLostParts+1
             EXIT
           END IF
-          IF(isHit) THEN
+          IF(foundHit) THEN
             currentIntersect => lastIntersect
             CALL AssignListPosition(currentIntersect,locAlpha,iLocSide,1,xi_IN=xi,eta_IN=eta)
             currentIntersect => lastIntersect
@@ -798,10 +798,10 @@ __STAMP__ &
             END IF
             isCriticalParallelInFace=.FALSE.
             IF (ElemHasAuxBCs(ElemID,iAuxBC)) THEN
-              CALL ComputeAuxBCIntersection(isHit,PartTrajectory,lengthPartTrajectory &
+              CALL ComputeAuxBCIntersection(foundHit,PartTrajectory,lengthPartTrajectory &
                   ,iAuxBC,locAlpha,iPart,isCriticalParallelInFace)
             ELSE
-              isHit=.FALSE.
+              foundHit=.FALSE.
             END IF
 #ifdef CODE_ANALYZE
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
@@ -809,7 +809,7 @@ __STAMP__ &
               IF(iPart.EQ.PARTOUT)THEN
                 WRITE(UNIT_stdout,'(30("-"))')
                 WRITE(UNIT_stdout,'(A)') '     | Output after compute AuxBC intersection (particle tracing): '
-                WRITE(UNIT_stdout,'(A,I0,A,L)') '     | AuxBC: ',iAuxBC,' | Hit: ',isHit
+                WRITE(UNIT_stdout,'(A,I0,A,L)') '     | AuxBC: ',iAuxBC,' | Hit: ',foundHit
                 WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ',lengthPartTrajectory
               END IF
             END IF
@@ -826,24 +826,24 @@ __STAMP__ &
               IF(CountNbOfLostParts) nLostParts=nLostParts+1
               EXIT
             END IF
-            IF(isHit) THEN
+            IF(foundHit) THEN
               ! start from last intersection entry and place current intersection in correct entry position
               currentIntersect => lastIntersect
               CALL AssignListPosition(currentIntersect,locAlpha,iAuxBC,2)
               currentIntersect => lastIntersect
               lastIntersect => currentIntersect%next
               lastIntersect%prev => currentIntersect
-            END IF ! isHit
+            END IF ! foundHit
           END DO !iAuxBC
         END IF !UseAuxBCs
         IF (UseMacroPart) THEN
           DO iMP=1,nMacroParticle
             locAlpha=-1
             IF (ElemHasMacroPart(ElemID,iMP)) THEN
-              CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,iMP&
+              CALL ComputeMacroPartIntersection(foundHit,PartTrajectory,lengthPartTrajectory,iMP&
                                                ,locAlpha,locAlphaSphere,alphaDoneRel,iPart)
             ELSE
-              isHit=.FALSE.
+              foundHit=.FALSE.
             END IF
 #ifdef CODE_ANALYZE
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
@@ -851,20 +851,20 @@ __STAMP__ &
               IF(iPart.EQ.PARTOUT)THEN
                 WRITE(UNIT_stdout,'(30("-"))')
                 WRITE(UNIT_stdout,'(A)') '     | Output after compute MacroPart intersection (Particle tracing): '
-                WRITE(UNIT_stdout,'(A,I0,A,L)') '     | MaroPartID: ',iMP,' | Hit: ',isHit
+                WRITE(UNIT_stdout,'(A,I0,A,L)') '     | MaroPartID: ',iMP,' | Hit: ',foundHit
                 WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ',lengthPartTrajectory
                 WRITE(UNIT_stdout,'(A,G0)') '     | AlphaSphere: ',locAlphaSphere
               END IF
             END IF
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
-            IF(isHit) THEN
+            IF(foundHit) THEN
               currentIntersect => lastIntersect
               CALL AssignListPosition(currentIntersect,locAlpha,iMP,3,alpha2_IN=locAlphaSphere)
               currentIntersect => lastIntersect
               lastIntersect => currentIntersect%next
               lastIntersect%prev => currentIntersect
-            END IF ! isHit
+            END IF ! foundHit
           END DO
         END IF
       END IF
@@ -1052,9 +1052,9 @@ __STAMP__ &
 #endif /*IMPA*/
         CYCLE !particle is outside cell
       END IF
-      CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit)
+      CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,foundHit)
       PEM%Element(iPart)=ElemID
-      IF(.NOT.isHit) THEN
+      IF(.NOT.foundHit) THEN
         IPWRITE(UNIT_stdOut,'(I0,A)') '     | Relocating....'
         CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.FALSE.)!debug=.TRUE.)
       END IF
@@ -1128,10 +1128,10 @@ DO iPart=1,PDM%ParticleVecLength
      __STAMP__ &
      ,' PartPos outside of mesh AFTER tracking. iPart= ,iStage= ',iPart,REAL(iStage))
     END IF
-    ! caution: reuse of variable, isHit=TRUE == inside
+    ! caution: reuse of variable, foundHit=TRUE == inside
     ElemID=PEM%Element(iPart)
-    CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.)
-    IF(.NOT.isHit)THEN  ! particle not inside
+    CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,foundHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.)
+    IF(.NOT.foundHit)THEN  ! particle not inside
      IPWRITE(UNIT_stdOut,'(I0,A)') ' PartPos not inside of element! '
      IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', ElemToGlobalElemID(ElemID)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' ElemBaryNGeo:      ', ElemBaryNGeo(1:3,ElemID)
