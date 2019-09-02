@@ -806,7 +806,7 @@ USE MOD_DSMC_Vars                 ,ONLY: useDSMC
 #endif
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
 USE MOD_Particle_Boundary_Vars    ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
-USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh, SampWall, PartBound
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh, SampWall, PartBound, CalcSurfaceImpact
 USE MOD_DSMC_Analyze              ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 #endif
@@ -1118,6 +1118,13 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
       IF(nPorousBC.GT.0) THEN
         SampWall(iSide)%PumpCapacity=0.
       END IF
+      ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+      IF(CalcSurfaceImpact)THEN
+        SampWall(iSide)%ImpactEnergy=0.
+        SampWall(iSide)%ImpactVector=0.
+        SampWall(iSide)%ImpactAngle=0.
+        SampWall(iSide)%ImpactNumber=0.
+      END IF ! CalcSurfaceImpact
     END DO
     Adsorption%NumCovsamples=0
     IF (CalcSurfCollis%AnalyzeSurfCollis) THEN

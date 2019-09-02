@@ -559,7 +559,7 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)            :: nVar,nElems,nNodes,data_size                                 ! Number of nodal output variables
 REAL,INTENT(IN)               :: Coords(1:3,nNodes), Value(nVar,nElems)
 CHARACTER(LEN=*),INTENT(IN)   :: FileString, VarNameVisu(nVar)   ! Output file name
-INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nNodes)      ! Statevector
+INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nElems)      ! Statevector
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1130,11 +1130,11 @@ DO iSide=1, nSides
       iLocSide = SideToElem(3,iSide)
     END IF
     DO iNode2 = 1, 4
-    IsSortedSurfNode = .false.
+      IsSortedSurfNode = .FALSE.
       DO iNode = 1, SurfConnect%nSurfaceNode
         IF (GEO%ElemSideNodeID(iNode2, iLocSide, iElem).EQ.TempBCSurfNodes(iNode)) THEN
           TempSideSurfNodeMap(iNode2,SurfConnect%nSurfaceBCSides) = iNode
-          IsSortedSurfNode = .true.
+          IsSortedSurfNode = .TRUE.
           EXIT
         END IF
       END DO

@@ -76,7 +76,7 @@ LOGICAL                       :: CalcPointsPerDebyeLength            !< Compute 
 LOGICAL                       :: CalcPICCFLCondition                 !< Compute a PIC CFL condition for each cell
 !                                                                    !< in terms of cell lengths in X, Y and Z for each cell
 !                                                                    !< PPD=(p+1)lambda_D/L_cell
-LOGICAL                       :: CalcMaxPartDisplacement             !< Compute the maximum displacement of the fastest particle 
+LOGICAL                       :: CalcMaxPartDisplacement             !< Compute the maximum displacement of the fastest particle
 LOGICAL                       :: CalcPointsPerShapeFunction          !< Compute the points per shape function sphere
 !                                                                    !< PPS = DOF_cell*VolumeShapeFunction/Volume_cell
 

@@ -148,7 +148,7 @@ TYPE tAdsorption
   INTEGER                                :: NumOfRecombReact        ! sum of all possible recombination reactions on surfaces
   INTEGER                                :: NumOfExchReact          ! sum of all possible exchange reactions on surfaces
   ! TST Factor calculation variables
-  LOGICAL , ALLOCATABLE                  :: TST_Calc(:,:)           ! flag defining if reaction parameters are 
+  LOGICAL , ALLOCATABLE                  :: TST_Calc(:,:)           ! flag defining if reaction parameters are
                                                                     ! 0: set in ini
                                                                     ! 1: set in ini and calculated for unset parameters
                                                                     ! 2: calculated
