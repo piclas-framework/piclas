@@ -286,7 +286,7 @@ SUBROUTINE PartRHS_W(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars ,ONLY: PDM, PartState, Species, PartSpecies, PartLorentzType
+USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
 USE MOD_Equation_Vars ,ONLY: c2_inv, c ,c2
 USE MOD_TimeDisc_Vars ,ONLY: dt
 !----------------------------------------------------------------------------------------------------------------------------------
