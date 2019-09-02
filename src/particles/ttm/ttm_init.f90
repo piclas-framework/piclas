@@ -767,15 +767,15 @@ SUBROUTINE InitIMD_TTM_Coupling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, ElementaryCharge
+USE MOD_Globals_Vars        ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_PreProc
 USE MOD_TTM_Vars
-USE MOD_Particle_Vars ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
-USE MOD_Mesh_Vars     ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_DSMC_Vars     ,ONLY: CollisMode,DSMC,PartStateIntEn
-USE MOD_part_emission ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_Vars     ,ONLY: useDSMC
-USE MOD_Eval_xyz      ,ONLY: TensorProductInterpolation
+USE MOD_Particle_Vars       ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
+USE MOD_Mesh_Vars           ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
+USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_DSMC_Vars           ,ONLY: useDSMC
+USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -992,7 +992,7 @@ CLOSE(ioUnit)
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
 
-  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,CSVFORMAT
+  WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
   DO iElem=1,PP_nElems
     WRITE(tmpStr2,formatStr)&
         " ",TTM_Cell_1(iElem),&

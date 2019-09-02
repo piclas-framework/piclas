@@ -33,7 +33,7 @@ LOGICAL             :: OnlyPostProc=.FALSE. ! Flag to initialize exact function 
 LOGICAL             :: ExactLambda =.FALSE. ! Flag to initialize exact function for lambda
 REAL,ALLOCATABLE    :: InvDhat(:,:,:)       ! Inverse of Dhat matrix (nGP_vol,nGP_vol,nElems)
 REAL,ALLOCATABLE    :: Ehat(:,:,:,:)        ! Ehat matrix (nGP_Face,nGP_vol,6sides,nElems)
-REAL,ALLOCATABLE    :: wGP_vol(:)           ! 3D quadrature weights 
+REAL,ALLOCATABLE    :: wGP_vol(:)           ! 3D quadrature weights
 REAL,ALLOCATABLE    :: JwGP_vol(:,:)        ! 3D quadrature weights*Jacobian for all elements
 REAL,ALLOCATABLE    :: lambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
 REAL,ALLOCATABLE    :: RHS_vol(:,:,:)         ! Source RHS
@@ -75,7 +75,7 @@ REAL                :: HDGSkip_t0
 LOGICAL,ALLOCATABLE :: MaskedSide(:)      ! 1:nSides: all sides which are set to zero in matvec
 !mortar variables
 REAL,ALLOCATABLE    :: IntMatMortar(:,:,:,:) ! Interpolation matrix for mortar: (nGP_face,nGP_Face,1:4(iMortar),1:3(MortarType))
-INTEGER,ALLOCATABLE :: SmallMortarInfo(:)      ! 1:nSides: info on small Mortar sides: 
+INTEGER,ALLOCATABLE :: SmallMortarInfo(:)      ! 1:nSides: info on small Mortar sides:
                                                ! -1: is neighbor small mortar , 0: not a small mortar, 1: small mortar on big side
 LOGICAL             :: HDGDisplayConvergence ! Display divergence criteria: Iterations, Runtime and Residual
 !===================================================================================================================================
@@ -129,7 +129,7 @@ IF(nMPIsides_MINE.GT.0) v(:,:,startbuf:endbuf)=v(:,:,startbuf:endbuf)+vbuf
 IF(nMPIsides_YOUR.GT.0) v(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
 
 END SUBROUTINE Mask_MPIsides
-#endif /*USE_MPI*/ 
+#endif /*USE_MPI*/
 
 
 #endif /*USE_HDG*/

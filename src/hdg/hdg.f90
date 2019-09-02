@@ -193,7 +193,7 @@ MaskedSide=.FALSE.
 IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
   IF(nMortarMPISides.GT.0) CALL abort( &
   __STAMP__,&
-  "nMortarMPISides >0: HDG mortar MPI implementation relies on big sides having always only master sides (=> nMortarMPISides=0 )") 
+  "nMortarMPISides >0: HDG mortar MPI implementation relies on big sides having always only master sides (=> nMortarMPISides=0 )")
 END IF !mortarMesh
 
 CALL InitMortar_HDG()
@@ -234,7 +234,7 @@ DO SideID=1,nBCSides
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
     MaskedSide(SideID)=.TRUE.
-  CASE(10,11) !Neumann, 
+  CASE(10,11) !Neumann,
     nNeumannBCsides=nNeumannBCsides+1
     NeumannBC(nNeumannBCsides)=SideID
   END SELECT ! BCType
@@ -409,7 +409,7 @@ USE MOD_Equation_Vars          ,ONLY: B
 USE MOD_Equation_Vars          ,ONLY: B, E
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -550,7 +550,7 @@ DO iVar = 1, PP_nVar
                           rtmp,1,1.,& !add to RHS_face
                           RHS_face(iVar,:,SideID),1)
     END DO
-  END DO !iElem 
+  END DO !iElem
 END DO !ivar
 
 !add Neumann
@@ -609,7 +609,7 @@ DO iVar=1, PP_nVar
     CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
                                -RHS_vol(iVar,:,iElem),1,0., &
                                U_out(iVar,:,iElem),1)
-  END DO !iElem 
+  END DO !iElem
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
@@ -676,7 +676,7 @@ USE MOD_Equation_Vars          ,ONLY: E
 #endif
 USE MOD_TimeDisc_Vars          ,ONLY: IterDisplayStep,DoDisplayIter
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -802,7 +802,7 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 
-! SOLVE 
+! SOLVE
 CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
 IF (converged) THEN
 #if defined(IMPA) || defined(ROS)
@@ -964,8 +964,8 @@ ELSE
         SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
         CALL DGEMV('T',nGP_face,nGP_vol,1., &
                             Ehat(:,:,iLocSide,iElem), nGP_face, &
-                            lambda(PP_nVar,:,SideID),1,1.,& !add to RHS_vol 
-                            RHS_vol(PP_nVar,:,iElem),1)  
+                            lambda(PP_nVar,:,SideID),1,1.,& !add to RHS_vol
+                            RHS_vol(PP_nVar,:,iElem),1)
       END DO
       CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
                                  -RHS_vol(PP_nVar,:,iElem),1,0., &
@@ -1039,7 +1039,7 @@ USE MOD_HDG_Vars          ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCri
 USE MOD_TimeDisc_Vars     ,ONLY: iter,IterDisplayStep
 USE MOD_Mesh_Vars         ,ONLY: nSides,nMPISides_YOUR
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1241,7 +1241,7 @@ SUBROUTINE MatVec(lambda, mv, iVar)
 !>   2) send lambda from master MPI sides to slave MPI sides (includes small mortar master sides)
 !>   3) compute matrix-vector product locally on each proc, in mv array
 !>   4) call mask_MPIsides: send  mv contribution from slave MPI sides to master MPI sides and add to master MPI sides
-!>   5) MORTAR, SmallToBig: add contribution of finalized small mortar sides to big mortar, via Transpose of interpolation operator 
+!>   5) MORTAR, SmallToBig: add contribution of finalized small mortar sides to big mortar, via Transpose of interpolation operator
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1251,10 +1251,10 @@ USE MOD_FillMortar_HDG    ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_HDG_Vars          ,ONLY: Mask_MPIsides 
-#endif /*USE_MPI*/ 
+USE MOD_HDG_Vars          ,ONLY: Mask_MPIsides
+#endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
