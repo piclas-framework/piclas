@@ -1866,8 +1866,8 @@ SUBROUTINE AddVarName(StrArray,ArrayDim,idx,VarName)
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
-CHARACTER(LEN=*),INTENT(INOUT) :: StrArray(ArrayDim)
 INTEGER,INTENT(IN)             :: ArrayDim
+CHARACTER(LEN=*),INTENT(INOUT) :: StrArray(ArrayDim)
 INTEGER,INTENT(INOUT)          :: idx
 CHARACTER(LEN=*),INTENT(IN)    :: VarName
 ! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
