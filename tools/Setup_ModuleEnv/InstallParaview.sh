@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Function for checken modules
 check_module () {
                  if [ -z "${2}" ]; then
                    echo "module for ${1} not found. Exit"
@@ -8,6 +9,29 @@ check_module () {
                    echo "${1}: ["${2}"]"
                  fi
                 }
+
+# Check command line arguments
+LOADMODULES=1
+for arg in "$@"
+do
+  if [ "$arg" == "--help" ] || [ "$arg" == "-h" ]
+  then
+    echo "Input arguments:"
+    echo "--help/-h            print help information"
+    echo "--modules/-m         use modules defined in script by the user."
+    echo "                     Otherwise, find modules automatically."
+    exit
+  fi
+  if [ "$arg" == "--modules" ] || [ "$arg" == "-m" ]
+  then
+    LOADMODULES=0
+    CMAKEVERSION=3.13.3-d
+    GCCVERSION=7.4.0
+    OPENMPIVERSION=3.1.3
+    HDF5VERSION=1.10.5
+    break
+  fi
+done                
 
 # DOWNLOAD and INSTALL PARAVIEW (example Paraview-2.1.6)
 PARAVIEWVERSION=5.2.0
@@ -24,29 +48,36 @@ if [ ! -d "${SOURCEDIR}" ]; then
 fi
 
 # take the first gcc compiler installed with first compatible openmpi and hdf5
-CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-MPIVERSION=$(ls ${MODULESDIR}/MPI/openmpi/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-PARAVIEWMODULEFILEDIR=${MODULESDIR}/utilities/paraview
-PARAVIEWMODULEFILE=${PARAVIEWMODULEFILEDIR}/${PARAVIEWVERSION}
+if [[ $LOADMODULES -eq 1 ]]; then
+  CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+  GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+  OPENMPIVERSION=$(ls ${MODULESDIR}/MPI/openmpi/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+  HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+fi
 
 echo "Modules found:"
 check_module "cmake" ${CMAKEVERSION}
 check_module "gcc  " ${GCCVERSION}
-check_module "mpi  " ${MPIVERSION}
+check_module "mpi  " ${OPENMPIVERSION}
 check_module "hdf5 " ${HDF5VERSION}
+
+PARAVIEWMODULEFILEDIR=${MODULESDIR}/utilities/paraview/${PARAVIEWVERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}/hdf5
+PARAVIEWMODULEFILE=${PARAVIEWMODULEFILEDIR}/${HDF5VERSION}
 
 # if no paraview module for this compiler found, install paraview and create module
 if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
-  echo "creating Paraview-${PARAVIEWVERSION} for GCC-${GCCVERSION}"
+  echo "creating Paraview-${PARAVIEWVERSION} for GCC-${GCCVERSION} under"
+  echo "$PARAVIEWMODULEFILE"
+  echo " "
+  read -p "Press enter to continue"
   module purge
   module load cmake/${CMAKEVERSION}
   module load gcc/${GCCVERSION}
-  module load openmpi/${MPIVERSION}/gcc/${GCCVERSION}
-  module load hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/openmpi/${MPIVERSION}
+  module load openmpi/${OPENMPIVERSION}/gcc/${GCCVERSION}
+  module load hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}
 
-  PARAVIEWINSTALLDIR=/opt/paraview/${PARAVIEWVERSION}/gcc-${GCCVERSION}/openmpi-${MPIVERSION}/hdf5-${HDF5VERSION}
+  # Install destination
+  PARAVIEWINSTALLDIR=/opt/paraview/${PARAVIEWVERSION}/gcc-${GCCVERSION}/openmpi-${OPENMPIVERSION}/hdf5-${HDF5VERSION}
 
   # build and installation
   cd ${SOURCEDIR}
@@ -63,10 +94,13 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   if [ ${ERRORCODE} -ne 0 ]; then
     echo "Failed: ["tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz paraview-${PARAVIEWVERSION}"]"
   else
+    # Check if decompressed directory exists
     if [ -d "${SOURCEDIR}/ParaView-v${PARAVIEWVERSION}" ]; then
-      if [ ! -d "${SOURCEDIR}/paraview-${PARAVIEWVERSION}" ]; then
-        mv ${SOURCEDIR}/ParaView-v${PARAVIEWVERSION} ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
+      # Check if renamed directory exists and create backup of it
+      if [ -d "${SOURCEDIR}/paraview-${PARAVIEWVERSION}" ]; then
+        mv ${SOURCEDIR}/paraview-${PARAVIEWVERSION} ${SOURCEDIR}/paraview-${PARAVIEWVERSION}_bak
       fi
+      mv ${SOURCEDIR}/ParaView-v${PARAVIEWVERSION} ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
     fi
     #rm -rf paraview-${PARAVIEWVERSION}-source.tar.gz
   fi
@@ -97,13 +131,12 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
     sed -i 's/paraviewversion/'${PARAVIEWVERSION}'/gI' ${PARAVIEWMODULEFILE}
     sed -i 's/CMAKEVERSIONFLAG/'${CMAKEVERSION}'/gI' ${PARAVIEWMODULEFILE}
     sed -i 's/GCCVERSIONFLAG/'${GCCVERSION}'/gI' ${PARAVIEWMODULEFILE}
-    sed -i 's/MPIVERSIONFLAG/'${MPIVERSION}'/gI' ${PARAVIEWMODULEFILE}
+    sed -i 's/MPIVERSIONFLAG/'${OPENMPIVERSION}'/gI' ${PARAVIEWMODULEFILE}
     sed -i 's/HDF5VERSIONFLAG/'${HDF5VERSION}'/gI' ${PARAVIEWMODULEFILE}
   else
     echo "No module file created for Paraview-${PARAVIEWVERSION} for GCC-${GCCVERSION}"
     echo "no installation found in ${PARAVIEWINSTALLDIR}/bin"
   fi
 else
-  echo "Paraview-${PARAVIEWVERSION} already created (module file exists)"
-  continue
+  echo "Paraview-${PARAVIEWVERSION} already created: module file exists under ${PARAVIEWMODULEFILE}"
 fi
