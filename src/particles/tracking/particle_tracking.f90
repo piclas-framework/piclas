@@ -927,6 +927,8 @@ __STAMP__ &
             IF (UseMacroPart) THEN
               IF (currentIntersect%IntersectCase.EQ.1 .OR. currentIntersect%IntersectCase.EQ.2) THEN
                 alphaDoneRel = alphaDoneRel + (1.-alphaDoneRel)*(currentIntersect%alpha/oldLengthPartTrajectory)
+              ELSE IF (currentIntersect%IntersectCase.EQ.3) THEN
+                alphaDoneRel = alphaDoneRel + (1.-alphaDoneRel)*currentIntersect%alpha2
               END IF
               oldLengthPartTrajectory=LengthPartTrajectory
             END IF

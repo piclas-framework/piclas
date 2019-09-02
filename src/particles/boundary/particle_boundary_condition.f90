@@ -506,11 +506,12 @@ SUBROUTINE GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory &
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR,CROSS
-USE MOD_Globals_Vars,           ONLY:PI, BoltzmannConst
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,MacroPart
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species
-USE MOD_TimeDisc_Vars,          ONLY:dt,RKdtFrac
+USE MOD_Globals                 ,ONLY: CROSSNORM,abort,UNITVECTOR,CROSS
+USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
+USE MOD_Particle_Vars           ,ONLY: PDM,PartSpecies,MacroPart
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species
+USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
+USE MOD_Particle_Boundary_Tools ,ONLY: SurfaceToPartEnergyInternal
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -577,11 +578,9 @@ nLoc=-nLoc
 ! perfect reflection on sphere
 CALL RANDOM_NUMBER(RanNum)
 IF (RanNum.GE.MacroPart(macroPartID)%momentumACC) THEN
-  PartState(PartID,4:6) = relVeloPart(1:3) - 2.*DOT_PRODUCT(relVeloPart(1:3),nLoc)*nLoc + WallVelo
-  ! set particle position on face
-  LastPartPos(PartID,1:3) = intersectPoint(1:3)
-  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(LengthPartTrajectory - alpha)
-ELSE !diffuse reflection on sphere
+  NewVelo(1:3) =  relVeloPart(1:3) - 2.*DOT_PRODUCT(relVeloPart(1:3),nLoc)*nLoc
+  PartState(PartID,4:6) = NewVelo(1:3)
+ELSE
   IF (nLoc(3).NE.0.) THEN
     tang1(1) = 1.0
     tang1(2) = 1.0
@@ -606,24 +605,17 @@ __STAMP__&
   tang1=UNITVECTOR(tang1)
   tang2=CROSSNORM(nLoc,tang1)
 
-  WallTemp=MacroPart(macroPartID)%temp
-  TransACC=MacroPart(macroPartID)%transAcc
-  VibACC=MacroPart(macroPartID)%vibACC
-  RotACC=MacroPart(macroPartID)%rotACC
-
-  ! calculate new velocity vector (Extended Maxwellian Model)
-  VeloReal = SQRT(relVeloPart(1) * relVeloPart(1) + &
-                  relVeloPart(2) * relVeloPart(2) + &
-                  relVeloPart(3) * relVeloPart(3))
-
-  EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
+  ! diffuse reflection
+  WallTemp   = MacroPart(macroPartID)%temp
+  TransAcc   = MacroPart(macroPartID)%transACC
   CALL RANDOM_NUMBER(RanNum)
   VeloCrad    = SQRT(-LOG(RanNum))
   CALL RANDOM_NUMBER(RanNum)
   VeloCz      = SQRT(-LOG(RanNum))
   Fak_D       = VeloCrad**2 + VeloCz**2
-
   EtraWall    = BoltzmannConst * WallTemp * Fak_D
+  VeloReal    = SQRT(DOT_PRODUCT(relVeloPart,relVeloPart))
+  EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
   EtraNew     = EtraOld + TransACC * (EtraWall - EtraOld)
   Cmr         = SQRT(2.0 * EtraNew / (Species(PartSpecies(PartID))%MassIC * Fak_D))
   CALL RANDOM_NUMBER(RanNum)
@@ -631,17 +623,25 @@ __STAMP__&
   VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
   VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
   VeloCz  = Cmr * VeloCz
+  NewVelo(1:3) = VeloCx*tang1-tang2*VeloCy-VeloCz*nLoc
+  PartState(PartID,4:6) = NewVelo(1:3) + WallVelo
 
-  NewVelo = VeloCx*tang1-tang2*VeloCy-VeloCz*nLoc
-
-  ! set particle position on face
-  LastPartPos(PartID,1:3) = intersectPoint(1:3)
-  ! travel rest of particle vector
-  POI_fak = alphaDoneRel+(1.-alphaDoneRel)*alphaSphere
-  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * (NewVelo(1:3)+WallVelo(1:3))
-  !----  saving new particle velocity
-  PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
+  ! Adding the energy that is transferred from the surface onto the internal energies of the particle
+  CALL SurfaceToPartEnergyInternal(PartID,WallTemp)
 END IF
+
+! intersection point with surface
+LastPartPos(PartID,1:3) = intersectPoint(1:3)
+POI_fak = alphaDoneRel+(1.-alphaDoneRel)*alphaSphere
+PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * (PartState(PartID,4:6))
+
+PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
+IF (lengthPartTrajectory.GT.0.) PartTrajectory=PartTrajectory/lengthPartTrajectory
+
+alphaDoneRel=alphaDoneRel+(1.-alphaDoneRel)*alphaSphere
+
+
 !----  Sampling Forces at MacroPart and calculating velocity change of macroparticle due to impule change
 force(1:3) = Species(PartSpecies(PartID))%MassIC &
            * (relVeloPart(1:3) - NewVelo(1:3)) * Species(PartSpecies(PartID))%MacroParticleFactor / dt
@@ -653,14 +653,6 @@ moment(1:3) = CROSS(-nLoc*macroPart(macroPartID)%radius,Force(1:3))
 inertiaMoment = 2./5.*MacroPart(macroPartID)%mass*MacroPart(macroPartID)%radius**2
 ! delta rot velo
 MacroPart(macroPartID)%RHS(4:6) = MacroPart(macroPartID)%RHS(4:6) + moment(1:3)*dt/inertiaMoment
-
-! recompute trajectory etc
-PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                         +PartTrajectory(2)*PartTrajectory(2) &
-                         +PartTrajectory(3)*PartTrajectory(3) )
-PartTrajectory=PartTrajectory/lengthPartTrajectory
-alphaDoneRel=alphaDoneRel+(1.-alphaDoneRel)*alphaSphere
 
 END SUBROUTINE GetInteractionWithMacroPart
 
