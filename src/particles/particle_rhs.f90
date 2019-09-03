@@ -24,36 +24,121 @@ INTERFACE CalcPartRHS
   MODULE PROCEDURE CalcPartRHS
 END INTERFACE
 
-INTERFACE SLOW_RELATIVISTIC_PUSH
-  MODULE PROCEDURE SLOW_RELATIVISTIC_PUSH
-END INTERFACE
-
-INTERFACE FAST_RELATIVISTIC_PUSH
-  MODULE PROCEDURE FAST_RELATIVISTIC_PUSH
-END INTERFACE
-
-INTERFACE RELATIVISTIC_PUSH
-  MODULE PROCEDURE RELATIVISTIC_PUSH
-END INTERFACE
-
-INTERFACE NON_RELATIVISTIC_PUSH
-  MODULE PROCEDURE NON_RELATIVISTIC_PUSH
-END INTERFACE
-
 INTERFACE PartVeloToImp
   MODULE PROCEDURE PartVeloToImp
 END INTERFACE
 
+INTERFACE PartRHS
+  PROCEDURE PartRHS
+END INTERFACE
+
 !----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC            :: CalcPartRHS
-PUBLIC            :: SLOW_RELATIVISTIC_PUSH
-PUBLIC            :: FAST_RELATIVISTIC_PUSH
-PUBLIC            :: RELATIVISTIC_PUSH
-PUBLIC            :: NON_RELATIVISTIC_PUSH
-PUBLIC            :: PartVeloToImp
+PUBLIC :: CalcPartRHS
+PUBLIC :: PartVeloToImp
+PUBLIC :: PartRHS
 !----------------------------------------------------------------------------------------------------------------------------------
 
+ABSTRACT INTERFACE
+  SUBROUTINE PartRHSInterface(PartID,FieldAtParticle,Push,LorentzFacInvIn)
+    INTEGER,INTENT(IN)              :: PartID
+    REAL,DIMENSION(1:6),INTENT(IN)  :: FieldAtParticle
+    REAL,DIMENSION(1:3),INTENT(OUT) :: Push
+    REAL,INTENT(IN),OPTIONAL        :: LorentzFacInvIn
+  END SUBROUTINE
+END INTERFACE
+
+PROCEDURE(PartRHSInterface),POINTER :: PartRHS    !< pointer defining the standard inner Riemann solver
+
+INTEGER,PARAMETER      :: PRM_PART_RHS_NR  = 0   ! non-relativistic
+INTEGER,PARAMETER      :: PRM_PART_RHS_D   = 1   ! default
+INTEGER,PARAMETER      :: PRM_PART_RHS_W   = 2   ! wrong
+INTEGER,PARAMETER      :: PRM_PART_RHS_RN  = 3   ! relativistic-new
+INTEGER,PARAMETER      :: PRM_PART_RHS_REM = 31  ! relativistic-EM (electromangetic)
+INTEGER,PARAMETER      :: PRM_PART_RHS_RM  = 5   ! relativistic, momentum-based
+
+
+INTERFACE InitPartRHS
+  MODULE PROCEDURE InitPartRHS
+END INTERFACE
+
+PUBLIC :: InitPartRHS
+!==================================================================================================================================
+
+PUBLIC :: DefineParametersParticleRHS
 CONTAINS
+
+
+!==================================================================================================================================
+!> Define parameters
+!==================================================================================================================================
+SUBROUTINE DefineParametersParticleRHS()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!==================================================================================================================================
+CALL prms%SetSection("Particle RHS")
+CALL prms%CreateIntFromStringOption('Part-LorentzType', "Lorentz force calculation for charged particles: "//&
+                                                        "non-relativistic, default, wrong, relativistic-new, relativistic-EM", &
+                                                        "relativistic-new")
+CALL addStrListEntry('Part-LorentzType' , 'non-relativistic'      , PRM_PART_RHS_NR)
+CALL addStrListEntry('Part-LorentzType' , 'default'               , PRM_PART_RHS_D)
+CALL addStrListEntry('Part-LorentzType' , 'wrong'                 , PRM_PART_RHS_W)
+CALL addStrListEntry('Part-LorentzType' , 'relativistic-new'      , PRM_PART_RHS_RN)
+CALL addStrListEntry('Part-LorentzType' , 'relativistic-EM'       , PRM_PART_RHS_REM)
+CALL addStrListEntry('Part-LorentzType' , 'relativistic-momentum' , PRM_PART_RHS_RM)
+END SUBROUTINE DefineParametersParticleRHS
+
+
+!==================================================================================================================================!
+!> Initialize particle RHS functions
+!==================================================================================================================================!
+SUBROUTINE InitPartRHS()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: GETINTFROMSTR
+!----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: PartLorentzType
+REAL                    :: dummy(1:3)
+!==================================================================================================================================
+PartLorentzType = GETINTFROMSTR('Part-LorentzType')
+SELECT CASE(PartLorentzType)
+CASE(PRM_PART_RHS_NR) ! 0
+  PartRHS => PartRHS_NR
+CASE(PRM_PART_RHS_D) ! 1
+  PartRHS => PartRHS_D
+CASE(PRM_PART_RHS_W) ! 2
+  PartRHS => PartRHS_W
+CASE(PRM_PART_RHS_RN) ! 3
+  PartRHS => PartRHS_RN
+CASE(PRM_PART_RHS_REM) ! 31
+  PartRHS => PartRHS_REM
+CASE(PRM_PART_RHS_RM) ! 5
+  PartRHS => PartRHS_RM
+CASE DEFAULT
+  CALL CollectiveStop(__STAMP__,&
+    'Part-LorentzType-new not defined!')
+END SELECT
+
+! Suppress compiler warning
+RETURN
+CALL PartRHS_NR(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_D(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_W(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_RN(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_REM(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_RM(0,(/0.,0.,0.,0.,0.,0./),dummy)
+END SUBROUTINE InitPartRHS
+
 
 SUBROUTINE CalcPartRHS()
 !===================================================================================================================================
@@ -61,9 +146,7 @@ SUBROUTINE CalcPartRHS()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,          ONLY : PDM, PartState, Pt, Species, PartSpecies, PartLorentzType
-USE MOD_Equation_Vars,          ONLY : c2_inv, c ,c2
-USE MOD_TimeDisc_Vars,          ONLY : dt
+USE MOD_Particle_Vars,          ONLY : PDM, Pt, Species, PartSpecies
 USE MOD_PICInterpolation_Vars,  ONLY : FieldAtParticle
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -71,132 +154,77 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLE
 INTEGER                          :: iPart
-REAL                             :: E(1:3)
-#if (PP_nVar==8)
-REAL                             :: B(1:3)
-#endif
-REAL                             :: qmt, LorentzFac, velosq
-REAL                             :: ax, ay, az, bx, by, bz, dx, dy, snx, sny, snz
 !===================================================================================================================================
-
-! Lorentzforce
-Pt(1:PDM%ParticleVecLength,:)=0.
-SELECT CASE(PartLorentzType)
-  CASE(0) ! default
-    ! non-relativistic
-    DO iPart = 1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(iPart)) THEN
-        ! Don't push neutral particles!
-        IF(.NOT.PUSHPARTICLE(iPart)) CYCLE
-        Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-      END IF
-    END DO
-  CASE(1) ! default
-    ! constant Lorentz factor over time step
-    DO iPart = 1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(iPart)) THEN
-        ! Don't push neutral particles!
-        IF(.NOT.PUSHPARTICLE(iPart)) CYCLE
-        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-      END IF
-    END DO
-  CASE(2)
-  ! Lorentz-Pusher, wrong
-  ! prevent particles from acceleration above speed of light
-    DO iPart = 1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(iPart)) THEN
-        ! Don't push neutral particles!
-        IF(.NOT.PUSHPARTICLE(iPart)) CYCLE
-        ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
-        velosq = PartState(iPart,4) * PartState(iPart,4) &
-               + PartState(iPart,5) * PartState(iPart,5) &
-               + PartState(iPart,6) * PartState(iPart,6)
-        IF(velosq.GT.c2) THEN
-          IPWRITE(*,*) ' Particle is faster than the speed of light (v_x^2 + v_y^2 + v_z^2 > c^2)'
-          CALL abort(&
-          __STAMP__&
-          ,'Particle is faster than the speed of light. Maybe reducing the time step would help. Particle-Nr., velosq/c2:'&
-          ,iPart,velosq/c2)
-        END IF
-        ! MPF in ChargeIC and MassIC cancels out.
-        qmt = Species(PartSpecies(iPart))%ChargeIC/Species(PartSpecies(iPart))%MassIC
-        E(1:3) = FieldAtParticle(iPart,1:3) * qmt
-#if (PP_nVar==8)
-        B(1:3) = FieldAtParticle(iPart,4:6) * qmt
-#endif
-      ! Calc Lorentz forces in x, y, z direction:
-#if (PP_nVar==8)
-        Pt(iPart,1) = E(1) + PartState(iPart,5) * B(3) - PartState(iPart,6) * B(2)
-        Pt(iPart,2) = E(2) + PartState(iPart,6) * B(1) - PartState(iPart,4) * B(3)
-        Pt(iPart,3) = E(3) + PartState(iPart,4) * B(2) - PartState(iPart,5) * B(1)
-#else
-        Pt(iPart,1) = E(1)
-        Pt(iPart,2) = E(2)
-        Pt(iPart,3) = E(3)
-#endif
-
-        LorentzFac = 1/sqrt(1.0 - velosq * c2_inv)
-        bx = Pt(iPart,1) *dt + LorentzFac * PartState(iPart,4)
-        snx = sign(1.0,bx)
-        bx = bx*bx*c2_inv
-        bx = bx/(1+bx)
-
-        by = Pt(iPart,2) *dt + LorentzFac * PartState(iPart,5)
-        sny = sign(1.0,by)
-        by = by*by*c2_inv
-        by = by/(1+by)
-
-        bz = Pt(iPart,3) *dt + LorentzFac * PartState(iPart,6)
-        snz = sign(1.0,bz)
-        bz = bz*bz*c2_inv
-        bz = bz/(1+bz)
-
-        dx = (bx-bx*bz)/(1-bx*bz)
-        dy = (by-by*bz)/(1-by*bz)
-
-        ax = (dx-dx*dy)/(1-dx*dy)
-        ay = (dy-dy*ax)
-        az = (bz*(1-ax-ay))
-
-        Pt(iPart,1) = (snx * sqrt(ax)*c - PartState(iPart,4)) / dt
-        Pt(iPart,2) = (sny * sqrt(ay)*c - PartState(iPart,5)) / dt
-        Pt(iPart,3) = (snz * sqrt(az)*c - PartState(iPart,6)) / dt
-
-      END IF
-    END DO
-
-  CASE(3)
-    ! derivation of relativistic equation of motion
-    DO iPart = 1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(iPart)) THEN
-        ! Don't push neutral particles!
-        IF(.NOT.PUSHPARTICLE(iPart)) CYCLE
-        ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
-        Pt(iPart,1:3)=FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-      END IF
-    END DO
-  CASE(31)
-    ! derivation of relativistic equation of motion
-    DO iPart = 1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(iPart)) THEN
-        ! Don't push neutral particles!
-        IF(.NOT.PUSHPARTICLE(iPart)) CYCLE
-        ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
-        Pt(iPart,1:3)=ACCELERATION_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-      END IF
-    END DO
-  CASE DEFAULT
-    CALL abort(&
-__STAMP__&
-,'This Type of Lorentz-force calculation is not implemented:.',PartLorentzType,999.)
-END SELECT
-
+! Loop all particles and call particle right-hand-side calculation
+DO iPart = 1,PDM%ParticleVecLength
+  ! Particle is inside and not a neutral particle
+  IF (PDM%ParticleInside(iPart).AND.PUSHPARTICLE(iPart)) THEN
+    CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+  ELSE
+    Pt(iPart,:)=0.
+  END IF
+END DO
 END SUBROUTINE CalcPartRHS
 
 
-FUNCTION SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
+PURE SUBROUTINE PartRHS_NR(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
 !===================================================================================================================================
-! Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
+! 'non-relativistic'
+! Particle Right-Hand-Side: Non-relativistic push
+! Former FUNCTION NON_RELATIVISTIC_PUSH
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,           ONLY : cross
+USE MOD_Particle_Vars,     ONLY : Species, PartSpecies
+#if (PP_nVar==8)
+USE MOD_Particle_Vars,     ONLY : PartState
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)       :: PartID
+REAL,INTENT(IN)          :: FieldAtParticle(1:6)
+REAL,INTENT(IN),OPTIONAL :: LorentzFacInvIn
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)    :: Pt(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                :: E(1:3),qmt
+#if (PP_nVar==8)
+REAL                :: B(1:3),Velo(3)
+#endif
+!===================================================================================================================================
+qmt = Species(PartSpecies(PartID))%ChargeIC/Species(PartSpecies(PartID))%MassIC
+
+E(1:3) = FieldAtParticle(1:3) * qmt
+#if (PP_nVar==8)
+B(1:3) = FieldAtParticle(4:6) * qmt
+#endif
+! Calc Lorentz forces in x, y, z direction:
+#if (PP_nVar==8)
+Velo(1) = PartState(PartID,4)
+Velo(2) = PartState(PartID,5)
+Velo(3) = PartState(PartID,6)
+Pt = E + CROSS(Velo,B)
+#else
+Pt(1) = E(1)
+Pt(2) = E(2)
+Pt(3) = E(3)
+#endif
+
+! Suppress compiler warning
+RETURN
+qmt=LorentzFacInvIn ! dummy statement
+END SUBROUTINE PartRHS_NR
+
+
+SUBROUTINE PartRHS_D(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
+!===================================================================================================================================
+! 'default'
+! Particle Right-Hand-Side: relativistic push (old slow function)
+! Former FUNCTION SLOW_RELATIVISTIC_PUSH
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,           ONLY : abort
@@ -209,11 +237,12 @@ USE MOD_Equation_Vars,     ONLY : c2_inv, c2
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)  :: PartID
-REAL,INTENT(IN)     :: FieldAtParticle(1:6)
+INTEGER,INTENT(IN)       :: PartID
+REAL,INTENT(IN)          :: FieldAtParticle(1:6)
+REAL,INTENT(IN),OPTIONAL :: LorentzFacInvIn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                :: SLOW_RELATIVISTIC_PUSH(1:3) ! The stamp
+REAL,INTENT(OUT)    :: Pt(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                :: velosq, LorentzFac,qmt
@@ -222,7 +251,6 @@ REAL                :: E(1:3)
 REAL                :: B(1:3)
 #endif
 !===================================================================================================================================
-
 velosq = PartState(PartID,4) * PartState(PartID,4) &
        + PartState(PartID,5) * PartState(PartID,5) &
        + PartState(PartID,6) * PartState(PartID,6)
@@ -244,21 +272,119 @@ B(1:3) = FieldAtParticle(4:6) * qmt
 #endif
 ! Calc Lorentz forces in x, y, z direction:
 #if (PP_nVar==8)
-SLOW_RELATIVISTIC_PUSH(1) = E(1) + PartState(PartID,5) * B(3) - PartState(PartID,6) * B(2)
-SLOW_RELATIVISTIC_PUSH(2) = E(2) + PartState(PartID,6) * B(1) - PartState(PartID,4) * B(3)
-SLOW_RELATIVISTIC_PUSH(3) = E(3) + PartState(PartID,4) * B(2) - PartState(PartID,5) * B(1)
+Pt(1) = E(1) + PartState(PartID,5) * B(3) - PartState(PartID,6) * B(2)
+Pt(2) = E(2) + PartState(PartID,6) * B(1) - PartState(PartID,4) * B(3)
+Pt(3) = E(3) + PartState(PartID,4) * B(2) - PartState(PartID,5) * B(1)
 #else
-SLOW_RELATIVISTIC_PUSH(1) = E(1)
-SLOW_RELATIVISTIC_PUSH(2) = E(2)
-SLOW_RELATIVISTIC_PUSH(3) = E(3)
+Pt(1) = E(1)
+Pt(2) = E(2)
+Pt(3) = E(3)
 #endif
 
-END FUNCTION SLOW_RELATIVISTIC_PUSH
+! Suppress compiler warning
+RETURN
+qmt=LorentzFacInvIn ! dummy statement
+END SUBROUTINE PartRHS_D
 
 
-FUNCTION FAST_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
+SUBROUTINE PartRHS_W(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
 !===================================================================================================================================
-! Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
+! 'wrong'
+! Particle Right-Hand-Side: relativistic push (old wrong function)
+! Lorentz-Pusher, wrong
+! prevent particles from acceleration above speed of light
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
+USE MOD_Equation_Vars ,ONLY: c2_inv, c ,c2
+USE MOD_TimeDisc_Vars ,ONLY: dt
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)       :: PartID
+REAL,INTENT(IN)          :: FieldAtParticle(1:6)
+REAL,INTENT(IN),OPTIONAL :: LorentzFacInvIn
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)    :: Pt(1:3)
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLE
+REAL                :: E(1:3)
+#if (PP_nVar==8)
+REAL                :: B(1:3)
+#endif
+REAL                :: qmt, LorentzFac, velosq
+REAL                :: ax, ay, az, bx, by, bz, dx, dy, snx, sny, snz
+!===================================================================================================================================
+! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
+velosq = PartState(PartID,4) * PartState(PartID,4) &
+       + PartState(PartID,5) * PartState(PartID,5) &
+       + PartState(PartID,6) * PartState(PartID,6)
+IF(velosq.GT.c2) THEN
+  IPWRITE(*,*) ' Particle is faster than the speed of light (v_x^2 + v_y^2 + v_z^2 > c^2)'
+  CALL abort(&
+      __STAMP__&
+      ,'Particle is faster than the speed of light. Maybe reducing the time step would help. Particle-Nr., velosq/c2:'&
+      ,PartID,velosq/c2)
+END IF
+! MPF in ChargeIC and MassIC cancels out.
+qmt = Species(PartSpecies(PartID))%ChargeIC/Species(PartSpecies(PartID))%MassIC
+E(1:3) = FieldAtParticle(1:3) * qmt
+#if (PP_nVar==8)
+B(1:3) = FieldAtParticle(4:6) * qmt
+#endif
+! Calc Lorentz forces in x, y, z direction:
+#if (PP_nVar==8)
+Pt(1) = E(1) + PartState(PartID,5) * B(3) - PartState(PartID,6) * B(2)
+Pt(2) = E(2) + PartState(PartID,6) * B(1) - PartState(PartID,4) * B(3)
+Pt(3) = E(3) + PartState(PartID,4) * B(2) - PartState(PartID,5) * B(1)
+#else
+Pt(1) = E(1)
+Pt(2) = E(2)
+Pt(3) = E(3)
+#endif
+
+LorentzFac = 1/sqrt(1.0 - velosq * c2_inv)
+bx = Pt(1) *dt + LorentzFac * PartState(PartID,4)
+snx = sign(1.0,bx)
+bx = bx*bx*c2_inv
+bx = bx/(1+bx)
+
+by = Pt(2) *dt + LorentzFac * PartState(PartID,5)
+sny = sign(1.0,by)
+by = by*by*c2_inv
+by = by/(1+by)
+
+bz = Pt(3) *dt + LorentzFac * PartState(PartID,6)
+snz = sign(1.0,bz)
+bz = bz*bz*c2_inv
+bz = bz/(1+bz)
+
+dx = (bx-bx*bz)/(1-bx*bz)
+dy = (by-by*bz)/(1-by*bz)
+
+ax = (dx-dx*dy)/(1-dx*dy)
+ay = (dy-dy*ax)
+az = (bz*(1-ax-ay))
+
+Pt(1) = (snx * sqrt(ax)*c - PartState(PartID,4)) / dt
+Pt(2) = (sny * sqrt(ay)*c - PartState(PartID,5)) / dt
+Pt(3) = (snz * sqrt(az)*c - PartState(PartID,6)) / dt
+
+! Suppress compiler warning
+RETURN
+qmt=LorentzFacInvIn ! dummy statement
+END SUBROUTINE PartRHS_W
+
+
+SUBROUTINE PartRHS_RN(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
+!===================================================================================================================================
+! 'relativistic-new'
+! Particle Right-Hand-Side: relativistic push (old fast function)
+! Former FUNCTION FAST_RELATIVISTIC_PUSH
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,           ONLY : abort
@@ -271,21 +397,21 @@ USE MOD_Equation_Vars,     ONLY : c2_inv, c2
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)  :: PartID
-REAL,INTENT(IN)     :: FieldAtParticle(1:6)
+INTEGER,INTENT(IN)       :: PartID
+REAL,INTENT(IN)          :: FieldAtParticle(1:6)
+REAL,INTENT(IN),OPTIONAL :: LorentzFacInvIn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                :: FAST_RELATIVISTIC_PUSH(1:3) ! The stamp
+REAL,INTENT(OUT)    :: Pt(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                :: velosq, LorentzFac,qmt
-REAL                :: E(1:3),Pt(1:3)
+REAL                :: E(1:3)
 #if (PP_nVar==8)
 REAL                :: B(1:3)
 #endif
 REAL                :: LorentzFac2,LorentzFac3, v1s,v2s,v3s, Vinv(3,3), v1,v2,v3, normfac
 !===================================================================================================================================
-
 ! required helps
 v1  = PartState(PartID,4)
 v2  = PartState(PartID,5)
@@ -336,34 +462,43 @@ Pt(2) = E(2)
 Pt(3) = E(3)
 #endif
 
-FAST_RELATIVISTIC_PUSH = MATMUL(Vinv,Pt)
+Pt = MATMUL(Vinv,Pt)
 
-END FUNCTION FAST_RELATIVISTIC_PUSH
+! Suppress compiler warning
+RETURN
+qmt=LorentzFacInvIn ! dummy statement
+END SUBROUTINE PartRHS_RN
 
 
-FUNCTION ACCELERATION_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
+SUBROUTINE PartRHS_REM(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
 !===================================================================================================================================
+! 'relativistic-EM' (electromagnetic)
+! Particle Right-Hand-Side: relativistic push (old fast function)
+! Former FUNCTION ACCELERATION_RELATIVISTIC_PUSH
+!
 ! Returns the relativistic acceleration a = dv/dt
 ! see W. Rindler, Relativity: Special, General, and Cosmological, 2006, Oxford University Press, New York, p.125
 !
 ! CAUTION: This routines is used for HDG in combination with magnetic (external) fields
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,           ONLY : abort
+USE MOD_Globals       ,ONLY: abort
 #if USE_MPI
-USE MOD_Globals,           ONLY : MyRank
+USE MOD_Globals       ,ONLY: MyRank
 #endif
-USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
-USE MOD_Equation_Vars,     ONLY : c2_inv, c2
+USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
+USE MOD_Equation_Vars ,ONLY: c2_inv, c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)  :: PartID
-REAL,INTENT(IN)     :: FieldAtParticle(1:6)
+! INPUT VARIABLES
+INTEGER,INTENT(IN)       :: PartID
+REAL,INTENT(IN)          :: FieldAtParticle(1:6)
+REAL,INTENT(IN),OPTIONAL :: LorentzFacInvIn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                :: ACCELERATION_RELATIVISTIC_PUSH(1:3) ! The stamp
+REAL,INTENT(OUT)    :: Pt(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                :: velosq,F(1:3)
@@ -393,53 +528,52 @@ ASSOCIATE (&
   END IF
   ASSOCIATE ( gammas => SQRT(1.0-velosq*c2_inv) ) ! Inverse of Lorentz factor
 
-! The following ifdef is commented out in order to push particles for the HDG solver in combination with a magnetic field
-!#if (PP_nVar==8)
     F(1) = E1 + v2 * B3 - v3 * B2
     F(2) = E2 + v3 * B1 - v1 * B3
     F(3) = E3 + v1 * B2 - v2 * B1
-!#else
-!    F(1) = E1
-!    F(2) = E2
-!    F(3) = E3
-!#endif
 
     ! Calculate the acceleration
-    ACCELERATION_RELATIVISTIC_PUSH = gammas * qmt * ( F - DOT_PRODUCT(F,PartState(PartID,4:6))*PartState(PartID,4:6)*c2_inv )
+    Pt = gammas * qmt * ( F - DOT_PRODUCT(F,PartState(PartID,4:6))*PartState(PartID,4:6)*c2_inv )
   END ASSOCIATE
 END ASSOCIATE
 
-END FUNCTION ACCELERATION_RELATIVISTIC_PUSH
+! Suppress compiler warning
+RETURN
+velosq=LorentzFacInvIn ! dummy statement
+END SUBROUTINE PartRHS_REM
 
 
-
-FUNCTION RELATIVISTIC_PUSH(PartID,FieldAtParticle,LorentzFacInvIn)
+SUBROUTINE PartRHS_RM(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
 !===================================================================================================================================
+! 'relativistic-momentum' (electromagnetic)
+! Particle Right-Hand-Side: relativistic push (old fast function)
+! Former FUNCTION RELATIVISTIC_PUSH
+!
 ! full relativistic push in case that the particle velocity*gamma is updated in time
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,           ONLY : cross
-USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
-USE MOD_Equation_Vars,     ONLY : c2_inv
+USE MOD_Globals       ,ONLY: cross
+USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
+USE MOD_Equation_Vars ,ONLY: c2_inv
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)  :: PartID
-REAL,INTENT(IN)     :: FieldAtParticle(1:6)
-REAL,INTENT(IN),OPTIONAL::LorentzFacInvIn
+INTEGER,INTENT(IN)       :: PartID
+REAL,INTENT(IN)          :: FieldAtParticle(1:6)
+REAL,INTENT(IN),OPTIONAL :: LorentzFacInvIn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                :: RELATIVISTIC_PUSH(1:3) ! The stamp
+REAL,INTENT(OUT)         :: Pt(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                :: LorentzFacInv,qmt
-REAL                :: E(1:3),Pt(1:3)
+REAL                :: E(1:3)
 #if (PP_nVar==8)
 REAL                :: B(1:3),Velo(3)
 #endif
 !===================================================================================================================================
-
+! Calculate Lorentz factor gamma -> 1/gamma
 IF(PRESENT(LorentzFacInvIn))THEN
   LorentzFacInv=LorentzFacInvIn
 ELSE
@@ -468,59 +602,7 @@ Pt(2) = E(2)
 Pt(3) = E(3)
 #endif
 
-RELATIVISTIC_PUSH = Pt
-
-END FUNCTION RELATIVISTIC_PUSH
-
-
-FUNCTION NON_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
-!===================================================================================================================================
-! NON relativistic push
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals,           ONLY : cross
-USE MOD_Particle_Vars,     ONLY : Species, PartSpecies
-#if (PP_nVar==8)
-USE MOD_Particle_Vars,     ONLY : PartState
-#endif
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)  :: PartID
-REAL,INTENT(IN)     :: FieldAtParticle(1:6)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL                :: NON_RELATIVISTIC_PUSH(1:3) ! The stamp
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                :: E(1:3),Pt(1:3),qmt
-#if (PP_nVar==8)
-REAL                :: B(1:3),Velo(3)
-#endif
-!===================================================================================================================================
-
-qmt = Species(PartSpecies(PartID))%ChargeIC/Species(PartSpecies(PartID))%MassIC
-
-E(1:3) = FieldAtParticle(1:3) * qmt
-#if (PP_nVar==8)
-B(1:3) = FieldAtParticle(4:6) * qmt
-#endif
-! Calc Lorentz forces in x, y, z direction:
-#if (PP_nVar==8)
-Velo(1) = PartState(PartID,4)
-Velo(2) = PartState(PartID,5)
-Velo(3) = PartState(PartID,6)
-Pt = E + CROSS(Velo,B)
-#else
-Pt(1) = E(1)
-Pt(2) = E(2)
-Pt(3) = E(3)
-#endif
-
-NON_RELATIVISTIC_PUSH = Pt
-
-END FUNCTION NON_RELATIVISTIC_PUSH
+END SUBROUTINE PartRHS_RM
 
 
 SUBROUTINE PartVeloToImp(VeloToImp,doParticle_In)
