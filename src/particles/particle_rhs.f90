@@ -108,6 +108,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: PartLorentzType
+REAL                    :: dummy(1:3)
 !==================================================================================================================================
 PartLorentzType = GETINTFROMSTR('Part-LorentzType')
 SELECT CASE(PartLorentzType)
@@ -127,6 +128,15 @@ CASE DEFAULT
   CALL CollectiveStop(__STAMP__,&
     'Part-LorentzType-new not defined!')
 END SELECT
+
+! Suppress compiler warning
+RETURN
+CALL PartRHS_NR(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_D(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_W(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_RN(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_REM(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_RM(0,(/0.,0.,0.,0.,0.,0./),dummy)
 END SUBROUTINE InitPartRHS
 
 

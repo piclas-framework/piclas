@@ -352,6 +352,7 @@ IMPLICIT NONE
 REAL                         :: tPreviousAnalyze         !> time of previous analyze.
                                                          !> Used for Nextfile info written into previous file if greater tAnalyze
 REAL                         :: tPreviousAverageAnalyze  !> time of previous Average analyze.
+REAL                         :: tZero
 INTEGER(KIND=8)              :: iter_PID                 !> iteration counter since last InitPiclas call for PID calculation
 REAL                         :: WallTimeStart            !> wall time of simulation start
 REAL                         :: WallTimeEnd              !> wall time of simulation end
@@ -371,6 +372,11 @@ LOGICAL                      :: finalIter
 tPreviousAnalyze=RestartTime
 ! first average analyze is not written at start but at first tAnalyze
 tPreviousAverageAnalyze=tAnalyze
+! saving the start of the simulation as restart time is overwritten during load balance step
+!   In case the overwritten one is used, state write out is performed only next Nth analze-dt after restart instead after analyze-dt
+!   w/o  tZero: nSkipAnalyze=5 , restart after iAnalyze=2 , next write out witout any restarts after iAnalyze=7
+!   with tZero: nSkipAnalyze=5 , restart after iAnalyze=2 , next write out witout any restarts after iAnalyze=5
+tZero = RestartTime
 
 ! write number of grid cells and dofs only once per computation
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#GridCells : ',REAL(nGlobalElems)
@@ -757,7 +763,7 @@ DO !iter_t=0,MaxIter
 #endif /*USE_LOADBALANCE*/
     ! count analyze dts passed
     iAnalyze=iAnalyze+1
-    tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd)
+    tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd)
     WallTimeStart=PICLASTIME()
   END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
@@ -3039,7 +3045,7 @@ REAL               :: tRatio
 INTEGER            :: iCounter
 #ifdef PARTICLES
 REAL               :: coeff_loc,dt_inv_loc, LorentzFacInv
-REAL               :: PartDeltaX(1:6), PartRHS(1:6), Norm_P2, Pt_tmp(1:6), PartRHS_tild(1:6),FieldAtParticle_loc(1:6)
+REAL               :: PartDeltaX(1:6), PartRHS_loc(1:6), Norm_P2, Pt_tmp(1:6), PartRHS_tild(1:6),FieldAtParticle_loc(1:6)
 REAL               :: RandVal!, LorentzFac
 REAL               :: AbortCrit
 INTEGER            :: iPart,nParts
@@ -3289,11 +3295,11 @@ IF(time.GE.DelayTime)THEN
     ! guess for new value is Pt_tmp: remap to reuse old GMRES
     ! OLD
     ! CALL PartMatrixVector(time,Coeff_inv,iPart,Pt_tmp,PartDeltaX)
-    ! PartRHS =Pt_tmp - PartDeltaX
-    ! CALL PartVectorDotProduct(PartRHS,PartRHS,Norm_P2)
+    ! PartRHS_loc =Pt_tmp - PartDeltaX
+    ! CALL PartVectorDotProduct(PartRHS_loc,PartRHS_loc,Norm_P2)
     ! AbortCrit=1e-16
     ! PartDeltaX=0.
-    ! CALL Particle_GMRES(time,coeff_inv,iPart,PartRHS,SQRT(Norm_P2),AbortCrit,PartDeltaX)
+    ! CALL Particle_GMRES(time,coeff_inv,iPart,PartRHS_loc,SQRT(Norm_P2),AbortCrit,PartDeltaX)
     ! NEW version is more stable, hence we use it!
     IF(DoSurfaceFlux)THEN
       coeff_loc=PartDtFrac(iPart)*coeff
@@ -3302,11 +3308,11 @@ IF(time.GE.DelayTime)THEN
     END IF
     Pt_tmp=coeff_loc*Pt_Tmp
     CALL PartMatrixVector(time,Coeff_loc,iPart,Pt_tmp,PartDeltaX)
-    PartRHS =Pt_tmp - PartDeltaX
-    CALL PartVectorDotProduct(PartRHS,PartRHS,Norm_P2)
+    PartRHS_loc =Pt_tmp - PartDeltaX
+    CALL PartVectorDotProduct(PartRHS_loc,PartRHS_loc,Norm_P2)
     AbortCrit=1e-16
     PartDeltaX=0.
-    CALL Particle_GMRES(time,coeff_loc,iPart,PartRHS,SQRT(Norm_P2),AbortCrit,PartDeltaX)
+    CALL Particle_GMRES(time,coeff_loc,iPart,PartRHS_loc,SQRT(Norm_P2),AbortCrit,PartDeltaX)
     ! update particle
     PartState(iPart,1:6)=Pt_tmp+PartDeltaX(1:6)
     PartStage(iPart,1,1) = PartState(iPart,1)
@@ -3538,17 +3544,17 @@ DO iStage=2,nRKStages
       ELSE
         coeff_loc=coeff
       END IF
-      PartRHS =(Pt_tmp + PartQ(1:6,iPart))*coeff_loc
+      PartRHS_loc =(Pt_tmp + PartQ(1:6,iPart))*coeff_loc
       ! guess for new particleposition is PartState || reuse of OLD GMRES
-      CALL PartMatrixVector(time,Coeff_loc,iPart,PartRHS,PartDeltaX)
-      PartRHS_tild = PartRHS - PartDeltaX
+      CALL PartMatrixVector(time,Coeff_loc,iPart,PartRHS_loc,PartDeltaX)
+      PartRHS_tild = PartRHS_loc - PartDeltaX
       PartDeltaX=0.
       CALL PartVectorDotProduct(PartRHS_tild,PartRHS_tild,Norm_P2)
       AbortCrit=1e-16
       CALL Particle_GMRES(time,coeff_loc,iPart,PartRHS_tild,SQRT(Norm_P2),AbortCrit,PartDeltaX)
       ! update particle to k_iStage
-      PartState(iPart,1:6)=PartRHS+PartDeltaX(1:6)
-      !PartState(iPart,1:6)=PartRHS+PartDeltaX(1:6)
+      PartState(iPart,1:6)=PartRHS_loc+PartDeltaX(1:6)
+      !PartState(iPart,1:6)=PartRHS_loc+PartDeltaX(1:6)
       ! and store value as k_iStage
       IF(iStage.LT.nRKStages)THEN
         PartStage(iPart,1,iStage) = PartState(iPart,1)

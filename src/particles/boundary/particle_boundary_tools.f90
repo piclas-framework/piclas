@@ -61,6 +61,10 @@ INTERFACE TSURUTACONDENSCOEFF
   MODULE PROCEDURE TSURUTACONDENSCOEFF
 END INTERFACE
 
+INTERFACE CountSurfaceImpact
+  MODULE PROCEDURE CountSurfaceImpact
+END INTERFACE
+
 PUBLIC :: AddPartInfoToSample
 PUBLIC :: CalcWallSample
 PUBLIC :: AnalyzeSurfaceCollisions
@@ -70,6 +74,7 @@ PUBLIC :: LIQUIDREFL
 PUBLIC :: ALPHALIQUID
 PUBLIC :: BETALIQUID
 PUBLIC :: TSURUTACONDENSCOEFF
+PUBLIC :: CountSurfaceImpact
 !===================================================================================================================================
 
 CONTAINS
@@ -134,13 +139,14 @@ END IF
 END SUBROUTINE AddPartInfoToSample
 
 
-SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap,emission_opt)
+SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,IsSpeciesSwap,&
+                          emission_opt,impact_opt,PartTrajectory_opt,SurfaceNormal_opt)
 !===================================================================================================================================
 !> Sample Wall values from Particle collisions
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars
+USE MOD_Globals                ,ONLY: abort
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, useDSMC
 USE MOD_DSMC_Vars              ,ONLY: CollisMode, DSMC
 USE MOD_Particle_Boundary_Vars ,ONLY: SampWall, CalcSurfCollis
@@ -154,69 +160,81 @@ REAL,INTENT(IN)                    :: TransArray(1:6) !1-3 trans energies (old,w
 REAL,INTENT(IN)                    :: IntArray(1:6) ! 1-6 internal energies (rot-old,rot-wall,rot-new,vib-old,vib-wall,vib-new)
 LOGICAL,INTENT(IN)                 :: IsSpeciesSwap
 LOGICAL,INTENT(IN),OPTIONAL        :: emission_opt
+LOGICAL,INTENT(IN),OPTIONAL        :: impact_opt
+REAL,INTENT(IN),OPTIONAL           :: PartTrajectory_opt(1:3)
+REAL,INTENT(IN),OPTIONAL           :: SurfaceNormal_opt(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL        :: emission_opt_loc
+LOGICAL        :: impact_opt_loc
 !===================================================================================================================================
 ! return if sampling is not enabled
 IF (.NOT.(&
          (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)&
          )) RETURN
 
-!----  Sampling for energy (translation) accommodation at walls
-SampWall(SurfSideID)%State(SAMPWALL_ETRANSOLD,p,q)= SampWall(SurfSideID)%State(SAMPWALL_ETRANSOLD,p,q) &
-                                + TransArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
-SampWall(SurfSideID)%State(SAMPWALL_ETRANSWALL,p,q)= SampWall(SurfSideID)%State(SAMPWALL_ETRANSWALL,p,q) &
-                                + TransArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
-SampWall(SurfSideID)%State(SAMPWALL_ETRANSNEW,p,q)= SampWall(SurfSideID)%State(SAMPWALL_ETRANSNEW,p,q) &
-                                + TransArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor
+ASSOCIATE ( MPF  => Species(PartSpecies(PartID))%MacroParticleFactor ,&
+            mass => Species(PartSpecies(PartID))%MassIC              ,&
+            id   => PartSpecies(PartID)                              )
+  !----  Sampling for energy (translation) accommodation at walls
+  SampWall(SurfSideID)%State(SAMPWALL_ETRANSOLD,p,q)  = SampWall(SurfSideID)%State(SAMPWALL_ETRANSOLD,p,q)  + TransArray(1) * MPF
+  SampWall(SurfSideID)%State(SAMPWALL_ETRANSWALL,p,q) = SampWall(SurfSideID)%State(SAMPWALL_ETRANSWALL,p,q) + TransArray(2) * MPF
+  SampWall(SurfSideID)%State(SAMPWALL_ETRANSNEW,p,q)  = SampWall(SurfSideID)%State(SAMPWALL_ETRANSNEW,p,q)  + TransArray(3) * MPF
 
-!----  Sampling force at walls
-SampWall(SurfSideID)%State(SAMPWALL_DELTA_MOMENTUMX,p,q)= SampWall(SurfSideID)%State(SAMPWALL_DELTA_MOMENTUMX,p,q) &
-    + Species(PartSpecies(PartID))%MassIC * (TransArray(4)) * Species(PartSpecies(PartID))%MacroParticleFactor
-SampWall(SurfSideID)%State(SAMPWALL_DELTA_MOMENTUMY,p,q)= SampWall(SurfSideID)%State(SAMPWALL_DELTA_MOMENTUMY,p,q) &
-    + Species(PartSpecies(PartID))%MassIC * (TransArray(5)) * Species(PartSpecies(PartID))%MacroParticleFactor
-SampWall(SurfSideID)%State(SAMPWALL_DELTA_MOMENTUMZ,p,q)= SampWall(SurfSideID)%State(SAMPWALL_DELTA_MOMENTUMZ,p,q) &
-    + Species(PartSpecies(PartID))%MassIC * (TransArray(6)) * Species(PartSpecies(PartID))%MacroParticleFactor
+  !----  Sampling force at walls
+  SampWall(SurfSideID)%State(SAMPWALL_DELTA_MOMENTUMX,p,q)= SampWall(SurfSideID)%State(SAMPWALL_DELTA_MOMENTUMX,p,q) &
+                                                            + mass * TransArray(4) * MPF
+  SampWall(SurfSideID)%State(SAMPWALL_DELTA_MOMENTUMY,p,q)= SampWall(SurfSideID)%State(SAMPWALL_DELTA_MOMENTUMY,p,q) &
+                                                            + mass * TransArray(5) * MPF
+  SampWall(SurfSideID)%State(SAMPWALL_DELTA_MOMENTUMZ,p,q)= SampWall(SurfSideID)%State(SAMPWALL_DELTA_MOMENTUMZ,p,q) &
+                                                            + mass * TransArray(6) * MPF
 
-IF (useDSMC) THEN
-  IF (CollisMode.GT.1) THEN
-    IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.SpecDSMC(PartSpecies(PartID))%InterID.EQ.20) THEN
-      !----  Sampling for internal (rotational) energy accommodation at walls
-      SampWall(SurfSideID)%State(SAMPWALL_EROTOLD,p,q) = SampWall(SurfSideID)%State(SAMPWALL_EROTOLD,p,q) &
-                                        + IntArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
-      SampWall(SurfSideID)%State(SAMPWALL_EROTWALL,p,q) = SampWall(SurfSideID)%State(SAMPWALL_EROTWALL,p,q) &
-                                        + IntArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
-      SampWall(SurfSideID)%State(SAMPWALL_EROTNEW,p,q) = SampWall(SurfSideID)%State(SAMPWALL_EROTNEW,p,q) &
-                                        + IntArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor
+  IF (useDSMC) THEN
+    IF (CollisMode.GT.1) THEN
+      IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.SpecDSMC(PartSpecies(PartID))%InterID.EQ.20) THEN
+        !----  Sampling for internal (rotational) energy accommodation at walls
+        SampWall(SurfSideID)%State(SAMPWALL_EROTOLD,p,q)  = SampWall(SurfSideID)%State(SAMPWALL_EROTOLD,p,q)  + IntArray(1) * MPF
+        SampWall(SurfSideID)%State(SAMPWALL_EROTWALL,p,q) = SampWall(SurfSideID)%State(SAMPWALL_EROTWALL,p,q) + IntArray(2) * MPF
+        SampWall(SurfSideID)%State(SAMPWALL_EROTNEW,p,q)  = SampWall(SurfSideID)%State(SAMPWALL_EROTNEW,p,q)  + IntArray(3) * MPF
 
-      !----  Sampling for internal (vibrational) energy accommodation at walls
-      SampWall(SurfSideID)%State(SAMPWALL_EVIBOLD,p,q) = SampWall(SurfSideID)%State(SAMPWALL_EVIBOLD,p,q) &
-                                        + IntArray(4) * Species(PartSpecies(PartID))%MacroParticleFactor
-      SampWall(SurfSideID)%State(SAMPWALL_EVIBWALL,p,q) = SampWall(SurfSideID)%State(SAMPWALL_EVIBWALL,p,q) &
-                                        + IntArray(5) * Species(PartSpecies(PartID))%MacroParticleFactor
-      SampWall(SurfSideID)%State(SAMPWALL_EVIBNEW,p,q) = SampWall(SurfSideID)%State(SAMPWALL_EVIBNEW,p,q) &
-                                        + IntArray(6) * Species(PartSpecies(PartID))%MacroParticleFactor
+        !----  Sampling for internal (vibrational) energy accommodation at walls
+        SampWall(SurfSideID)%State(SAMPWALL_EVIBOLD,p,q)  = SampWall(SurfSideID)%State(SAMPWALL_EVIBOLD,p,q)  + IntArray(4) * MPF
+        SampWall(SurfSideID)%State(SAMPWALL_EVIBWALL,p,q) = SampWall(SurfSideID)%State(SAMPWALL_EVIBWALL,p,q) + IntArray(5) * MPF
+        SampWall(SurfSideID)%State(SAMPWALL_EVIBNEW,p,q)  = SampWall(SurfSideID)%State(SAMPWALL_EVIBNEW,p,q)  + IntArray(6) * MPF
+      END IF
     END IF
   END IF
-END IF
 
-! if calcwalsample is called with emission_opt (e.g. from particle emission for evaporation) than collision counter are not
-! added to sampwall
-IF (PRESENT(emission_opt)) THEN
-  emission_opt_loc=emission_opt
-ELSE
-  emission_opt_loc=.FALSE.
-END IF
-IF (.NOT.emission_opt_loc) THEN
-  !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
-  IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
-    SampWall(SurfSideID)%State(SAMPWALL_NVARS+PartSpecies(PartID),p,q) = &
-        SampWall(SurfSideID)%State(SAMPWALL_NVARS+PartSpecies(PartID),p,q) + 1
+  ! if calcwalsample is called with emission_opt (e.g. from particle emission for evaporation) than the collision counters are not
+  ! added to sampwall
+  IF (PRESENT(emission_opt)) THEN
+    emission_opt_loc=emission_opt
+  ELSE
+    emission_opt_loc=.FALSE.
   END IF
-END IF
+  IF (.NOT.emission_opt_loc) THEN
+    !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
+    IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
+      SampWall(SurfSideID)%State(SAMPWALL_NVARS+PartSpecies(PartID),p,q) = &
+          SampWall(SurfSideID)%State(SAMPWALL_NVARS+PartSpecies(PartID),p,q) + 1
+    END IF
+  END IF
+
+  ! if calcwalsample is called with impact_opt=.TRUE. (e.g. particles impacting on surfaces)
+  IF (PRESENT(impact_opt)) THEN
+    impact_opt_loc=impact_opt
+  ELSE
+    impact_opt_loc=.FALSE.
+  END IF
+
+  ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+  ! only works if impact_opt_loc=CalcSurfaceImpact=T
+  IF(impact_opt_loc) CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MPF,TransArray(1),IntArray(1),IntArray(4),&
+                                             PartTrajectory_opt,SurfaceNormal_opt,p,q)
+
+END ASSOCIATE
 
 END SUBROUTINE CalcWallSample
 
@@ -490,6 +508,55 @@ sigma = ALPHALIQUID(specID,temp)*(1-BETALIQUID(specID,temp)*exp(-normalVelo**2*S
 IF (sigma.LT.0.) sigma = 0.
 IF (sigma.GT.1.) sigma = 1.
 END FUNCTION
+
+
+SUBROUTINE CountSurfaceImpact(SurfSideID,SpecID,MPF,ETrans,ERot,EVib,PartTrajectory,SurfaceNormal,p,q)
+!===================================================================================================================================
+!> Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
+!>
+!===================================================================================================================================
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
+USE MOD_Particle_Boundary_Vars ,ONLY: SampWall
+USE MOD_Globals_Vars           ,ONLY: PI
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: SurfSideID          !< Surface ID
+INTEGER,INTENT(IN) :: SpecID              !< Species ID
+REAL,INTENT(IN)    :: MPF                 !< Particle macro particle factor
+REAL,INTENT(IN)    :: ETrans              !< Translational energy of impacting particle
+REAL,INTENT(IN)    :: ERot                !< Rotational energy of impacting particle
+REAL,INTENT(IN)    :: EVib                !< Vibrational energy of impacting particle
+REAL,INTENT(IN)    :: PartTrajectory(1:3) !< Particle trajectory vector (normalized)
+REAL,INTENT(IN)    :: SurfaceNormal(1:3)  !< Surface normal vector (normalized)
+INTEGER,INTENT(IN) :: p                 !< Surface sub-faces
+INTEGER,INTENT(IN) :: q                 !< Surface sub-faces
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+!----- Sampling of impact energy for each species (trans, rot, vib)
+SampWall(SurfSideID)%ImpactEnergy(SpecID,1,p,q)   = SampWall(SurfSideID)%ImpactEnergy(SpecID,1,p,q) + ETrans * MPF
+IF((SpecDSMC(SpecID)%InterID.EQ.2).OR.(SpecDSMC(SpecID)%InterID.EQ.20))THEN
+  SampWall(SurfSideID)%ImpactEnergy(SpecID,2,p,q) = SampWall(SurfSideID)%ImpactEnergy(SpecID,2,p,q) + ERot   * MPF
+  SampWall(SurfSideID)%ImpactEnergy(SpecID,3,p,q) = SampWall(SurfSideID)%ImpactEnergy(SpecID,3,p,q) + EVib   * MPF
+END IF ! (SpecDSMC(SpecID)%InterID.EQ.2).OR.(SpecDSMC(SpecID)%InterID.EQ.20)
+
+!----- Sampling of impact vector for each species (x,y,z)
+SampWall(SurfSideID)%ImpactVector(SpecID,1,p,q)   = SampWall(SurfSideID)%ImpactVector(SpecID,1,p,q) + PartTrajectory(1) * MPF
+SampWall(SurfSideID)%ImpactVector(SpecID,2,p,q)   = SampWall(SurfSideID)%ImpactVector(SpecID,2,p,q) + PartTrajectory(2) * MPF
+SampWall(SurfSideID)%ImpactVector(SpecID,3,p,q)   = SampWall(SurfSideID)%ImpactVector(SpecID,3,p,q) + PartTrajectory(3) * MPF
+
+!----- Sampling of impact angle for each species
+SampWall(SurfSideID)%ImpactAngle(SpecID,p,q) = SampWall(SurfSideID)%ImpactAngle(SpecID,p,q) + &
+    ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))) * (180. / PI) * MPF
+
+!----- Sampling of impact number for each species
+SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) = SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) + MPF
+
+END SUBROUTINE CountSurfaceImpact
 
 
 END MODULE MOD_Particle_Boundary_Tools
