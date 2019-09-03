@@ -427,7 +427,9 @@ REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues
                                                                    ! 1: Surface Collision Counter
                                                                    ! 2: Accomodation
                                                                    ! 3: Coverage
-                                                                   ! 4: Recombination Coefficient
+                                                                   ! 4 (or 2): Impact energy trans
+                                                                   ! 5 (or 3): Impact energy rot
+                                                                   ! 6 (or 4): Impact energy vib
 
 ! some variables redefined
 !TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall

@@ -644,9 +644,6 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #if ( PP_TimeDiscMethod ==42)
 #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
-#ifdef CODE_ANALYZE
-USE MOD_Analyze_Vars           ,ONLY: OutputErrorNorms
-#endif /* CODE_ANALYZE */
 USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC, PorousBC
 USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber, FPInitDone
@@ -3788,7 +3785,7 @@ DO iElem=1,PP_nElems
   ASSOCIATE( vAbs => VECNORM(MaxVeloAbs(iElem,1:3)) ,&
              vX   => MaxVelo(iElem,1)               ,&
              vY   => MaxVelo(iElem,2)               ,&
-             vZ   => MaxVelo(iElem,3)               ,& 
+             vZ   => MaxVelo(iElem,3)               ,&
              a    => dt*(REAL(PP_N)+1.0)             &
              )
     MaxPartDisplacementCell(iElem)  = a*vAbs/GEO%CharLength(iElem) ! determined with characteristic cell length
@@ -4173,7 +4170,7 @@ USE MOD_Particle_Vars         ,ONLY: DoPartInNewton
 #endif /*IMPA*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER, INTENT(IN)           :: PartID
 REAL, INTENT(OUT),OPTIONAL    :: alpha                   !< if removed during tracking optional alpha can be set to -1
 LOGICAL, INTENT(OUT),OPTIONAL :: crossedBC               !< optional flag is needed if particle removed on BC interaction

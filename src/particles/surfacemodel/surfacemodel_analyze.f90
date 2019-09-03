@@ -118,10 +118,10 @@ CALL abort(__STAMP__,&
   RETURN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE ANALYZE...'
+SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE MODEL ANALYZE...'
 
-SurfaceAnalyzeStep = GETINT('Surface-AnalyzeStep','1')
-IF (SurfaceAnalyzeStep.EQ.0) SurfaceAnalyzeStep = 123456789
+SurfaceAnalyzeStep = GETINT('Surface-AnalyzeStep')
+IF (SurfaceAnalyzeStep.EQ.0) SurfaceAnalyzeStep = HUGE(1)
 
 DoSurfModelAnalyze = .FALSE.
 
@@ -173,7 +173,7 @@ IF(CalcCollCounter.OR.CalcDesCounter.OR.CalcAdsProb.OR.CalcDesProb) DoSurfModelA
 
 SurfModelAnalyzeInitIsDone=.TRUE.
 
-SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE ANALYZE DONE!'
+SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE MODEL ANALYZE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitSurfModelAnalyze

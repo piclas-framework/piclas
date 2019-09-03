@@ -1503,7 +1503,7 @@ CASE('nearest_blurrycenter')
     DO iElem=1,PP_nElems
       PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / GEO%Volume(iElem)
     END DO ! iElem=1,PP_nElems
-#if USE_LOADBALANCE                                                                                                                  
+#if USE_LOADBALANCE
     CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
   END IF ! .NOT. doInnerParts
@@ -1550,7 +1550,7 @@ CASE('cell_volweight')
     BGMSourceCellVol(:,1,0,1,iElem) = BGMSourceCellVol(:,1,0,1,iElem) + (TSource(SourceDim:4)*(alpha1)*(1-alpha2)*(alpha3))
     BGMSourceCellVol(:,1,1,0,iElem) = BGMSourceCellVol(:,1,1,0,iElem) + (TSource(SourceDim:4)*(alpha1)*(alpha2)*(1-alpha3))
     BGMSourceCellVol(:,1,1,1,iElem) = BGMSourceCellVol(:,1,1,1,iElem) + (TSource(SourceDim:4)*(alpha1)*(alpha2)*(alpha3))
-#if USE_LOADBALANCE                                                                                                                  
+#if USE_LOADBALANCE
     CALL LBElemSplitTime(iElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
 #endif /*USE_LOADBALANCE*/
   END DO
@@ -1586,7 +1586,7 @@ CASE('cell_volweight')
       END DO ! ll
     END DO ! kk
   END DO ! iElem
-#if USE_LOADBALANCE                                                                                                                  
+#if USE_LOADBALANCE
   CALL LBElemSplitTime_avg(tLBStart) ! Average over the number of elems (and Start again)
 #endif /*USE_LOADBALANCE*/
  DEALLOCATE(BGMSourceCellVol)
@@ -1624,7 +1624,7 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
       NodeSource(:,NodeID(6)) = NodeSource(:,NodeID(6))+(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
       NodeSource(:,NodeID(7)) = NodeSource(:,NodeID(7))+(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
       NodeSource(:,NodeID(8)) = NodeSource(:,NodeID(8))+(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
-#if USE_LOADBALANCE                                                                                                                  
+#if USE_LOADBALANCE
      CALL LBElemSplitTime(iElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
 #endif /*USE_LOADBALANCE*/
     END IF
@@ -1683,7 +1683,7 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
        END DO !ll
      END DO !kk
    END DO !iEle
-#if USE_LOADBALANCE                                                                                                                  
+#if USE_LOADBALANCE
    CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
    DEALLOCATE(NodeSource)

@@ -73,7 +73,7 @@ USE MOD_Mesh_Vars          ,ONLY: nGlobalUniqueSidesFromMesh
 USE MOD_Mesh_Vars          ,ONLY: offsetSide
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
-USE MOD_LoadBalance_Vars   ,ONLY: 
+USE MOD_LoadBalance_Vars   ,ONLY:
 USE MOD_Mesh_Vars          ,ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
 USE MOD_Mesh_Vars          ,ONLY: nMortarSides,nMortarInnerSides,nMortarMPISides
 #if USE_MPI
@@ -224,7 +224,7 @@ DO iElem=FirstElemInd,LastElemInd
       DO iMortar=1,aSide%nMortars ! iterate over small virtual sides and check
         nbProc_loc=aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp%nbProc
         IF(nbProc_loc.NE.-1) THEN
-          iNbProc=MINLOC(ABS(NBproc(:)-nbProc_loc),1) 
+          iNbProc=MINLOC(ABS(NBproc(:)-nbProc_loc),1)
           nMasterMortarMPISides_Proc(iNbProc)= nMasterMortarMPISides_Proc(iNbProc)+1
         END IF
       END DO ! iMortar
@@ -248,7 +248,7 @@ DO iElem=FirstElemInd,LastElemInd
     IF(aSide%MortarType.EQ.-10)THEN
       nbProc_loc=aSide%nbProc
       IF(nbProc_loc.NE.-1) THEN
-        iNbProc=MINLOC(ABS(NBproc(:)-nbProc_loc),1) 
+        iNbProc=MINLOC(ABS(NBproc(:)-nbProc_loc),1)
         nSlaveMortarMPISides_Proc(iNbProc)=nSlaveMortarMPISides_Proc(iNbProc)+1
       ENDIF
     END IF
@@ -345,10 +345,10 @@ DO iNbProc=1,nNbProcs
 #if USE_HDG
   ! KEEP all small mortars from big side as master!!!
   IF(nMasterMortarMPISides_Proc(iNBProc).GT.nMPISides_MINE_Proc(iNBProc)) THEN
-    nMPISides_MINE_Proc(iNbProc)=nMasterMortarMPISides_Proc(iNBProc)  
+    nMPISides_MINE_Proc(iNbProc)=nMasterMortarMPISides_Proc(iNBProc)
     nMPISides_YOUR_Proc(iNbProc)=nMPISides_Proc(iNbProc)-nMPISides_MINE_Proc(iNbProc)
   ELSEIF(nSlaveMortarMPISides_Proc(iNBProc).GT.nMPISides_YOUR_Proc(iNBProc)) THEN
-    nMPISides_YOUR_Proc(iNbProc)=nSlaveMortarMPISides_Proc(iNBProc)  
+    nMPISides_YOUR_Proc(iNbProc)=nSlaveMortarMPISides_Proc(iNBProc)
     nMPISides_MINE_Proc(iNbProc)=nMPISides_Proc(iNbProc)-nMPISides_YOUR_Proc(iNbProc)
   END IF
 #endif /*USE_HDG*/
@@ -396,12 +396,12 @@ DO iNbProc=1,nNbProcs
         IF(aSide%NbProc.NE.NbProc(iNbProc))CYCLE
         iSide=iSide+1
         ! optimization: put non-mortars first to optimize addtoInnerMortars (also small virtual sides are marked with MortarType<0)
-#if USE_HDG 
+#if USE_HDG
         ! KEEP all small mortars from big side as master!!!
         IF(myRank.LT.aSide%NBproc)THEN
           IF(iMortar.GT.0)  aSide%ind=-aSide%ind   ! small mortars from big sides
           IF((iMortar.EQ.0).AND.(aSide%MortarType.EQ.-10)) aSide%ind=2*nGlobalUniqueSidesFromMesh+ aSide%ind   ! small mortar neighbors (MortarType=-1)
-        ELSE 
+        ELSE
           IF(iMortar.GT. 0)  aSide%ind=2*nGlobalUniqueSidesFromMesh+aSide%ind   ! small mortars from big sides
           IF((iMortar.EQ.0).AND.(aSide%MortarType.EQ.-10)) aSide%ind=-aSide%ind   ! small mortar neighbors (MortarType=-1)
         END IF
@@ -558,7 +558,7 @@ IF(nMortarSides.GT.0)THEN
     nMortarInnerSides=nMortarInnerSides+addToInnerMortars  ! increase number of inner Mortars
     nMortarMPISides  =nMortarMPISides  -addToInnerMortars  ! decrease number of MPI Mortars
 #if USE_HDG
-    IF(nMortarMPISides.NE.0) CALL abort(__STAMP__,& 
+    IF(nMortarMPISides.NE.0) CALL abort(__STAMP__,&
         "with HDG there should not be any Big MPIMortarSides")
 #endif /*USE_HDG*/
     iMortarMPISide=nSides-nMortarMPISides                  ! first index of the remaining MPI Mortars
@@ -969,7 +969,7 @@ DO iElem=1,nElems
     LOGWRITE(*,'(7(A,I4))')'globSideID= ',aSide%ind, ', flip= ',aSide%flip ,    ', SideID= ', aSide%SideID, &
              ', nbProc= ',aSide%nbProc, ', %MortarType= ',aSide%MortarType, &
              ', MortarTypeArray= ',MortarType(1,aSide%SideID),    ', nMortars= ',aSide%nMortars
-             
+
     IF(aSide%nMortars.GT.0)THEN ! mortar side
       LOGWRITE(*,*)'   --- Mortars ---'
       DO iMortar=1,aSide%nMortars
@@ -1147,7 +1147,7 @@ DO iElem=1,nElems
       IF(aSide%SideID.GT.offsetMPISides_YOUR(0))THEN
         IF(aSide%flip.EQ.0)THEN
           IF(Flip_YOUR(aSide%SideID).EQ.0) CALL abort(__STAMP__&
-              ,'problem in exchangeflip',aSide%SideID,REAL(Flip_Your(aSide%SideID))) 
+              ,'problem in exchangeflip',aSide%SideID,REAL(Flip_Your(aSide%SideID)))
 #ifdef PARTICLES
           ! switch side-alpha if flip is changed. The other side now constructs the side, thus it has to be changed
           IF(aSide%flip.NE.Flip_YOUR(aSide%SideID))  SidePeriodicType(aSide%SideID) =-SidePeriodicType(aSide%SideID)

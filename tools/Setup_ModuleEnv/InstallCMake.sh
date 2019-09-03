@@ -3,7 +3,7 @@ INSTALLDIR=/opt
 SOURCESDIR=/opt/Installsources
 TEMPLATEDIR=/opt/Installsources/moduletemplates
 
-if [ ! -d ${SOURCESDIR} ]; then
+if [ ! -d "${SOURCESDIR}" ]; then
   mkdir -p ${SOURCESDIR}
 fi
 
@@ -19,14 +19,14 @@ if [[ -n ${1} ]]; then
   fi
 fi
 
-if [ ! -e ${MODULEFILE} ]; then
+if [ ! -e "${MODULEFILE}" ]; then
   echo "creating CMake-${CMAKEVERSION}"
   cd ${SOURCESDIR}
-  if [ ! -e ${SOURCESDIR}/cmake-${CMAKEVERSION}.tar.gz ]; then
+  if [ ! -e "${SOURCESDIR}/cmake-${CMAKEVERSION}.tar.gz" ]; then
     wget "https://github.com/Kitware/CMake/releases/download/v${CMAKEVERSION}/cmake-${CMAKEVERSION}.tar.gz"
   fi
   tar -xzf cmake-${CMAKEVERSION}.tar.gz
-  if [ ! -d ${SOURCESDIR}/cmake-${CMAKEVERSION}/build ]; then
+  if [ ! -d "${SOURCESDIR}/cmake-${CMAKEVERSION}/build" ]; then
     mkdir -p ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
   fi
   if [[ ${1} =~ ^-r(erun)?$ ]] ; then
@@ -37,8 +37,8 @@ if [ ! -e ${MODULEFILE} ]; then
   make -j 2 2>&1 | tee make.out
   make install 2>&1 | tee install.out
 
-  if [ -e ${CMAKEDIR}/bin/cmake ] && [ -e ${CMAKEDIR}/bin/ccmake ]; then
-    if [ ! -e ${INSTALLDIR}/modules/modulefiles/utilities/cmake ]; then
+  if [ -e "${CMAKEDIR}/bin/cmake" ] && [ -e "${CMAKEDIR}/bin/ccmake" ]; then
+    if [ ! -e "${INSTALLDIR}/modules/modulefiles/utilities/cmake" ]; then
       mkdir -p ${INSTALLDIR}/modules/modulefiles/utilities/cmake
     fi
     cp ${TEMPLATEDIR}/utilities/cmake/cmake_temp ${MODULEFILE}
