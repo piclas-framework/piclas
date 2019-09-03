@@ -247,14 +247,6 @@ gnu_FPFlow_check:
   script:
     - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_FPFlow
 
-gnu_SurfaceModel_check:
-  <<: *defaults_gnu
-  stage: reggie_feature_checkin
-  tags:
-    - withmodules-concurrent
-  script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_SurfaceModel
-
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -328,7 +320,7 @@ gnu_convtest_poisson:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then  cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_poisson ; fi
-       
+
 gnu_poisson_RK3:
   <<: *defaults_gnu
   stage: reggie_nightly
