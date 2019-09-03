@@ -159,7 +159,7 @@ INTEGER                          :: iPart
 DO iPart = 1,PDM%ParticleVecLength
   ! Particle is inside and not a neutral particle
   IF (PDM%ParticleInside(iPart).AND.PUSHPARTICLE(iPart)) THEN
-    CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+    CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
   ELSE
     Pt(iPart,:)=0.
   END IF

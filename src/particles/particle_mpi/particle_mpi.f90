@@ -816,7 +816,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       END IF
       jPos=jPos+1
       ! fieldatparticle
-      PartSendBuf(iProc)%content(jPos+1:jPos+6) = FieldAtParticle(iPart,1:6)
+      PartSendBuf(iProc)%content(jPos+1:jPos+6) = FieldAtParticle(1:6,iPart)
       jPos=jPos+6
       PartSendBuf(iProc)%content(jPos+1:jPos+3) = PEM%NormVec(iPart,1:3)
       PEM%NormVec(iPart,1:3)=0.
@@ -1396,7 +1396,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     END IF
     jPos=jPos+1
     ! fieldatparticle
-    FieldAtParticle(PartID,1:6)  = PartRecvBuf(iProc)%content(jPos+1:jPos+6)
+    FieldAtParticle(1:6,PartID)  = PartRecvBuf(iProc)%content(jPos+1:jPos+6)
     jPos=jPos+6
     PEM%NormVec(PartID,1:3)  = PartRecvBuf(iProc)%content(jPos+1:jPos+3)
     jPos=jPos+3

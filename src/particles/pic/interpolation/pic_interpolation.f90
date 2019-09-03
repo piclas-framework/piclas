@@ -113,7 +113,7 @@ END IF
 
 !--- Allocate arrays for interpolation of fields to particles
 SDEALLOCATE(FieldAtParticle)
-ALLOCATE(FieldAtParticle(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)
+ALLOCATE(FieldAtParticle(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
   __STAMP__ &
@@ -226,14 +226,14 @@ IF (.NOT.InterpolationElemLoop) THEN
     IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     ! Don't interpolate the field at neutral particles (only when considering field ionization)
     IF(DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart))THEN
-      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
     END IF
   END DO
   RETURN
 END IF
 
 ! If PP_nElems.LE.10 (so far arbitrary threshold...) do NOT use InterpolateFieldToSingleParticle routine
-FieldAtParticle(firstPart:lastPart,:) = 0. ! initialize
+FieldAtParticle(:,firstPart:lastPart) = 0. ! initialize
 #ifdef CODE_ANALYZE
 IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
   SELECT CASE(AnalyticInterpolationType)
@@ -242,7 +242,7 @@ IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field
                l   => 1.0  )
                !l   => 0.2e-3  )
       DO iPart = firstPart, LastPart
-        FieldAtParticle(iPart,6) = B_0 * EXP(PartState(iPart,1) / l)
+        FieldAtParticle(6,iPart) = B_0 * EXP(PartState(iPart,1) / l)
       END DO
     END ASSOCIATE
   END SELECT
@@ -251,27 +251,27 @@ IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field
 ELSE ! use variable or fixed external field
 #endif /*CODE_ANALYZE*/
   IF(useVariableExternalField) THEN ! used curved external Bz
-    FieldAtParticle(firstPart:lastPart,1) = externalField(1)
-    FieldAtParticle(firstPart:lastPart,2) = externalField(2)
-    FieldAtParticle(firstPart:lastPart,3) = externalField(3)
-#if (PP_nVar==8)
-    FieldAtParticle(firstPart:lastPart,4) = externalField(4)
-    FieldAtParticle(firstPart:lastPart,5) = externalField(5)
+    FieldAtParticle(1,firstPart:lastPart) = externalField(1)
+    FieldAtParticle(2,firstPart:lastPart) = externalField(2)
+    FieldAtParticle(3,firstPart:lastPart) = externalField(3)
+#if (PP_nVar==8)                       
+    FieldAtParticle(4,firstPart:lastPart) = externalField(4)
+    FieldAtParticle(5,firstPart:lastPart) = externalField(5)
 #endif
     ! Bz field strength at particle position
     DO iPart = firstPart, LastPart
       IF(INTERPOLATEPARTICLE(iPart))THEN
-        FieldAtParticle(iPart,6) = InterpolateVariableExternalField(PartState(iPart,3))
+        FieldAtParticle(6,iPart) = InterpolateVariableExternalField(PartState(iPart,3))
       END IF
     END DO
   ELSE ! useVariableExternalField
-    FieldAtParticle(firstPart:lastPart,1) = externalField(1)
-    FieldAtParticle(firstPart:lastPart,2) = externalField(2)
-    FieldAtParticle(firstPart:lastPart,3) = externalField(3)
+    FieldAtParticle(1,firstPart:lastPart) = externalField(1)
+    FieldAtParticle(2,firstPart:lastPart) = externalField(2)
+    FieldAtParticle(3,firstPart:lastPart) = externalField(3)
 !#if (PP_nVar==8)
-    FieldAtParticle(firstPart:lastPart,4) = externalField(4)
-    FieldAtParticle(firstPart:lastPart,5) = externalField(5)
-    FieldAtParticle(firstPart:lastPart,6) = externalField(6)
+    FieldAtParticle(4,firstPart:lastPart) = externalField(4)
+    FieldAtParticle(5,firstPart:lastPart) = externalField(5)
+    FieldAtParticle(6,firstPart:lastPart) = externalField(6)
 !#endif
   END IF ! use constant external field
 #ifdef CODE_ANALYZE
@@ -321,7 +321,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         ! Don't interpolate the field at neutral particles (only when considering field ionization)
         IF(DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart))THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
-            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
           END IF! Element(iPart).EQ.iElem
         END IF
       END DO ! iPart
@@ -360,7 +360,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
             CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
 #endif /*PP_POIS*/
 #endif /*(PP_nVar==8)*/
-            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
           END IF ! Element(iPart).EQ.iElem
         END IF ! DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart)
       END DO ! iPart
@@ -403,7 +403,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
               CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
 #endif
 #endif
-              FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+              FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
             END IF ! Element(iPart).EQ.iElem
           END IF ! DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart)
         END DO ! iPart
@@ -475,7 +475,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
 #endif
               END IF !PDM%dtFracPush(iPart)
-              FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+              FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
             END IF ! Element(iPart).EQ.iElem
           END IF ! DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart)
         END DO ! iPart
@@ -514,7 +514,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
               CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
 #endif
 #endif
-              FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+              FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
             END IF ! Element(iPart).EQ.iElem
           END IF ! DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart)
         END DO ! iPart
@@ -574,30 +574,30 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
             field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
             field(4:6) = U(4:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
 #else
             field = U(1:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
 #endif
 #else
 #ifdef PP_POIS
             field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
+            FieldAtParticle(1:3,iPart) = FieldAtParticle(1:3,iPart) + field(1:3)
 #elif USE_HDG
 #if PP_nVar==1
             field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
+            FieldAtParticle(1:3,iPart) = FieldAtParticle(1:3,iPart) + field(1:3)
 #elif PP_nVar==3
             field(4:6) = B(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(iPart,4:6) = FieldAtParticle(iPart,4:6) + field(4:6)
+            FieldAtParticle(4:6,iPart) = FieldAtParticle(4:6,iPart) + field(4:6)
 #else
             field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
             field(4:6) = B(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
 #endif
 #else
             field(1:3) = U(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
+            FieldAtParticle(1:3,iPart) = FieldAtParticle(1:3,iPart) + field(1:3)
 #endif
 #endif
           END IF ! Element(iPart).EQ.iElem

@@ -272,9 +272,6 @@ USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
-!USE MOD_Equation,       ONLY: CalcImplicitSource
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)               :: t,coeff
@@ -291,11 +288,7 @@ REAL                         :: time
 INTEGER                      :: iPart
 INTEGER                      :: nInnerPartNewton = 0
 REAL                         :: AbortCritLinSolver,gammaA,gammaB
-!REAL                         :: FieldAtParticle(1:6)
-!REAL                         :: DeltaX(1:6), DeltaX_Norm
 REAL                         :: Pt_tmp(1:6)
-!! maybeeee
-!! and thats maybe local??? || global, has to be set false during communication
 LOGICAL                      :: DoNewton,reMap
 REAL                         :: AbortTol
 REAL                         :: LorentzFacInv
@@ -334,14 +327,14 @@ IF(opt)THEN ! compute zero state
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       ! compute Lorentz force at particle's position
-      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
       reMap=.FALSE.
       IF(PartMeshHasReflectiveBCs)THEN
         IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
           n_loc=PEM%NormVec(iPart,1:3)
           ! particle is actually located outside, hence, it moves in the mirror field
-          FieldAtParticle(iPart,1:3)=FieldAtParticle(iPart,1:3)-2.*DOT_PRODUCT(FieldAtParticle(iPart,1:3),n_loc)*n_loc
-          FieldAtParticle(iPart,4:6)=FieldAtParticle(iPart,4:6)!-2.*DOT_PRODUCT(FieldAtParticle(iPart,4:6),n_loc)*n_loc
+          FieldAtParticle(1:3,iPart)=FieldAtParticle(1:3,iPart)-2.*DOT_PRODUCT(FieldAtParticle(1:3,iPart),n_loc)*n_loc
+          FieldAtParticle(4:6,iPart)=FieldAtParticle(4:6,iPart)!-2.*DOT_PRODUCT(FieldAtParticle(4:6,iPart),n_loc)*n_loc
           ! and of coarse, the velocity has to be back-rotated, because the particle has not hit the wall
           reMap=.TRUE.
           PEM%NormVec(iPart,1:3)=0.
@@ -364,10 +357,10 @@ IF(opt)THEN ! compute zero state
       ! HERE: rotate part to partstate back
       IF(PartLorentzType.EQ.5)THEN
         LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3),LorentzFacInv)
       ELSE
         LorentzFacInv = 1.0
-        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
       END IF ! PartLorentzType.EQ.5
       ! PartStateN has to be exchanged by PartQ
       Pt_tmp(1) = LorentzFacInv*PartState(iPart,4)
@@ -859,14 +852,14 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
 #endif /*USE_MPI*/
     ! compute lorentz force at particles position
-    CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+    CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
     reMap=.FALSE.
     IF(PartMeshHasReflectiveBCs)THEN
       IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
         n_loc=PEM%NormVec(iPart,1:3)
         ! particle is actually located outside, hence, it moves in the mirror field
-        FieldAtParticle(iPart,1:3)=FieldAtParticle(iPart,1:3)-2.*DOT_PRODUCT(FieldAtParticle(iPart,1:3),n_loc)*n_loc
-        FieldAtParticle(iPart,4:6)=FieldAtParticle(iPart,4:6)!-2.*DOT_PRODUCT(FieldAtParticle(iPart,4:6),n_loc)*n_loc
+        FieldAtParticle(1:3,iPart)=FieldAtParticle(1:3,iPart)-2.*DOT_PRODUCT(FieldAtParticle(1:3,iPart),n_loc)*n_loc
+        FieldAtParticle(4:6,iPart)=FieldAtParticle(4:6,iPart)!-2.*DOT_PRODUCT(FieldAtParticle(4:6,iPart),n_loc)*n_loc
         ! reset part state to the not-reflected position
         !PEM%NormVec(iPart,1:3)=0.
         reMap=.TRUE.
@@ -880,10 +873,10 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
     IF(PartLorentzType.EQ.5)THEN
       LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-      CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3),LorentzFacInv)
     ELSE
       LorentzFacInv = 1.0
-      CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
     END IF ! PartLorentzType.EQ.5
     R_PartXK(1,iPart)=LorentzFacInv*PartState(iPart,4)
     R_PartXK(2,iPart)=LorentzFacInv*PartState(iPart,5)
@@ -1063,14 +1056,14 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       END IF
 #endif /*USE_MPI*/
       ! compute lorentz-force at particle's position
-      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
       reMap=.FALSE.
       IF(PartMeshHasReflectiveBCs)THEN
         IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
           n_loc=PEM%NormVec(iPart,1:3)
           ! particle is actually located outside, hence, it moves in the mirror field
-          FieldAtParticle(iPart,1:3)=FieldAtParticle(iPart,1:3)-2.*DOT_PRODUCT(FieldAtParticle(iPart,1:3),n_loc)*n_loc
-          FieldAtParticle(iPart,4:6)=FieldAtParticle(iPart,4:6)!-2.*DOT_PRODUCT(FieldAtParticle(iPart,4:6),n_loc)*n_loc
+          FieldAtParticle(1:3,iPart)=FieldAtParticle(1:3,iPart)-2.*DOT_PRODUCT(FieldAtParticle(1:3,iPart),n_loc)*n_loc
+          FieldAtParticle(4:6,iPart)=FieldAtParticle(4:6,iPart)!-2.*DOT_PRODUCT(FieldAtParticle(4:6,iPart),n_loc)*n_loc
           reMap=.TRUE.
         END IF
       END IF
@@ -1081,10 +1074,10 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       END IF
       IF(PartLorentzType.EQ.5)THEN
         LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3),LorentzFacInv)
       ELSE
         LorentzFacInv = 1.0
-        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
       END IF ! PartLorentzType.EQ.5
       R_PartXK(1,iPart)=LorentzFacInv*PartState(iPart,4)
       R_PartXK(2,iPart)=LorentzFacInv*PartState(iPart,5)

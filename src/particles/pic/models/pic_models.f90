@@ -103,7 +103,7 @@ DO iPart = 1, PDM%ParticleVecLength
           DO jj = 1, KK
             E_GV = b(jj)*a(ii) / 1E9  ! [GV/m] for analyis
 #else
-            E_GV = SQRT(FieldAtParticle(iPart,1)**2 + FieldAtParticle(iPart,2)**2 + FieldAtParticle(iPart,3)**2) / 1E9 ! [GV/m]
+            E_GV = SQRT(FieldAtParticle(1,iPart)**2 + FieldAtParticle(2,iPart)**2 + FieldAtParticle(3,iPart)**2) / 1E9 ! [GV/m]
 #endif /* CODE_ANALYZE */
             ! Ionization energy (same as in QK model)
             MaxElecQua=SpecDSMC(oldSpec)%MaxElecQuant - 1
@@ -156,7 +156,7 @@ DO iPart = 1, PDM%ParticleVecLength
         oldSpec = newSpec
         IF(usevMPF) PartMPF(ElectronIndex) = PartMPF(iPart)
         ! Setting the field for the new particle for the following integration
-        FieldAtParticle(ElectronIndex,1:6) = FieldAtParticle(iPart,1:6)
+        FieldAtParticle(1:6,ElectronIndex) = FieldAtParticle(1:6,iPart)
       END IF
     END ASSOCIATE
   END IF
@@ -219,7 +219,7 @@ DO iPart = 1, PDM%ParticleVecLength
           DO jj = 1, KK
             E = b(jj)*a(ii) ! [V/m] for analyis
 #else
-           ,E        => SQRT(FieldAtParticle(iPart,1)**2 + FieldAtParticle(iPart,2)**2 + FieldAtParticle(iPart,3)**2) ) ! [V/m]
+           ,E        => SQRT(FieldAtParticle(1,iPart)**2 + FieldAtParticle(2,iPart)**2 + FieldAtParticle(3,iPart)**2) ) ! [V/m]
 #endif /* CODE_ANALYZE */
             ! Ionization energy (same as in QK model)
             MaxElecQua=SpecDSMC(oldSpec)%MaxElecQuant - 1
@@ -257,7 +257,7 @@ DO iPart = 1, PDM%ParticleVecLength
         oldSpec = newSpec
         IF(usevMPF) PartMPF(ElectronIndex) = PartMPF(iPart)
         ! Setting the field for the new particle for the following integration
-        FieldAtParticle(ElectronIndex,1:6) = FieldAtParticle(iPart,1:6)
+        FieldAtParticle(1:6,ElectronIndex) = FieldAtParticle(1:6,iPart)
       END IF
     END ASSOCIATE
   END IF

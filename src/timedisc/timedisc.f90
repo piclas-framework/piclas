@@ -2286,8 +2286,8 @@ IF(time.GE.DelayTime)THEN
     DO iPart=1,PDM%ParticleVecLength
       IF(.NOT.PDM%ParticleInside(iPart))CYCLE
       IF(PartIsImplicit(iPart))THEN
-        CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
-        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+        CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
       END IF ! ParticleIsImplicit
       PDM%IsNewPart(iPart)=.FALSE.
       !PEM%ElementN(iPart) = PEM%Element(iPart)
@@ -2320,9 +2320,9 @@ IF(time.GE.DelayTime)THEN
           ! f(u^n) for position
           ! CAUTION: position in reference space has to be computed during emission for implicit particles
           ! interpolate field at surface position
-          CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+          CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
           ! RHS at interface
-          CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+          CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
           ! f(u^n) for velocity
           IF(.NOT.DoForceFreeSurfaceFlux) PartStage(iPart,4:6,1)=Pt(iPart,1:3)
           ! position NOT known but we backup the state
@@ -2460,15 +2460,15 @@ DO iStage=2,nRKStages
           PartStage(iPart,4:6,iStage-1) = Pt       (iPart,1:3)
         END IF
       ELSE ! PartIsExplicit
-        CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+        CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
         reMap=.FALSE.
         IF(PartMeshHasReflectiveBCs)THEN
           IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
             n_loc=PEM%NormVec(iPart,1:3)
             ! particle is actually located outside, hence, it moves in the mirror field
             ! mirror electric field, constant B field
-            FieldAtParticle(iPart,1:3)=FieldAtParticle(iPart,1:3)-2.*DOT_PRODUCT(FieldAtParticle(iPart,1:3),n_loc)*n_loc
-            FieldAtParticle(iPart,4:6)=FieldAtParticle(iPart,4:6)!-2.*DOT_PRODUCT(FieldAtParticle(iPart,4:6),n_loc)*n_loc
+            FieldAtParticle(1:3,iPart)=FieldAtParticle(1:3,iPart)-2.*DOT_PRODUCT(FieldAtParticle(1:3,iPart),n_loc)*n_loc
+            FieldAtParticle(4:6,iPart)=FieldAtParticle(4:6,iPart)!-2.*DOT_PRODUCT(FieldAtParticle(4:6,iPart),n_loc)*n_loc
             PEM%NormVec(iPart,1:3)=0.
             ! and of coarse, the velocity has to be back-rotated, because the particle has not hit the wall
             reMap=.TRUE.
@@ -2489,10 +2489,10 @@ DO iStage=2,nRKStages
         END IF
         IF(PartLorentzType.EQ.5)THEN
           LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-          CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+          CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3),LorentzFacInv)
         ELSE
           LorentzFacInv = 1.0
-          CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+          CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
         END IF ! PartLorentzType.EQ.5
         PartStage(iPart,1,iStage-1) = PartState(iPart,4)*LorentzFacInv
         PartStage(iPart,2,iStage-1) = PartState(iPart,5)*LorentzFacInv
@@ -2795,15 +2795,15 @@ IF (time.GE.DelayTime) THEN
       ! LastPartPos(iPart,2)=PartState(iPart,2)
       ! LastPartPos(iPart,3)=PartState(iPart,3)
       ! PEM%lastElement(iPart)=PEM%Element(iPart)
-      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
       reMap=.FALSE.
       IF(PartMeshHasReflectiveBCs)THEN
         IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
           n_loc=PEM%NormVec(iPart,1:3)
           ! particle is actually located outside, hence, it moves in the mirror field
           ! mirror electric field, constant B field
-          FieldAtParticle(iPart,1:3)=FieldAtParticle(iPart,1:3)-2.*DOT_PRODUCT(FieldAtParticle(iPart,1:3),n_loc)*n_loc
-          FieldAtParticle(iPart,4:6)=FieldAtParticle(iPart,4:6)!-2.*DOT_PRODUCT(FieldAtParticle(iPart,4:6),n_loc)*n_loc
+          FieldAtParticle(1:3,iPart)=FieldAtParticle(1:3,iPart)-2.*DOT_PRODUCT(FieldAtParticle(1:3,iPart),n_loc)*n_loc
+          FieldAtParticle(4:6,iPart)=FieldAtParticle(4:6,iPart)!-2.*DOT_PRODUCT(FieldAtParticle(4:6,iPart),n_loc)*n_loc
           PEM%NormVec(iPart,1:3)=0.
           ! and of coarse, the velocity has to be back-rotated, because the particle has not hit the wall
           reMap=.TRUE.
@@ -2825,10 +2825,10 @@ IF (time.GE.DelayTime) THEN
       ! compute acceleration
       IF(PartLorentzType.EQ.5)THEN
         LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3),LorentzFacInv)
       ELSE
         LorentzFacInv = 1.0
-        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
       END IF ! PartLorentzType.EQ.5
       PartState(iPart,1  ) = RK_b(nRKStages)*LorentzFacInv*PartState(iPart,4)
       PartState(iPart,2  ) = RK_b(nRKStages)*LorentzFacInv*PartState(iPart,5)
@@ -3266,14 +3266,14 @@ IF(time.GE.DelayTime)THEN
     IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
     PEM%PeriodicMoved(iPart) = .FALSE.
     ! build RHS of particle with current DG solution and particle position
-    CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+    CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
     ! compute particle RHS at time^n
     IF(PartLorentzType.EQ.5)THEN
       LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-      CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3),LorentzFacInv)
     ELSE
       LorentzFacInv = 1.0
-      CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
     END IF ! PartLorentzType.EQ.5
     ! compute current Pt_tmp for the particle
     Pt_tmp(1) =LorentzFacInv*PartState(iPart,4)
@@ -3503,8 +3503,8 @@ DO iStage=2,nRKStages
           n_loc=PEM%NormVec(iPart,1:3)
           ! particle is actually located outside, hence, it moves in the mirror field
           ! mirror electric field, constant B field
-          FieldAtParticle(iPart,1:3)=FieldAtParticle(iPart,1:3)-2.*DOT_PRODUCT(FieldAtParticle(iPart,1:3),n_loc)*n_loc
-          FieldAtParticle(iPart,4:6)=FieldAtParticle(iPart,4:6)!-2.*DOT_PRODUCT(FieldAtParticle(iPart,4:6),n_loc)*n_loc
+          FieldAtParticle(1:3,iPart)=FieldAtParticle(1:3,iPart)-2.*DOT_PRODUCT(FieldAtParticle(1:3,iPart),n_loc)*n_loc
+          FieldAtParticle(4:6,iPart)=FieldAtParticle(4:6,iPart)!-2.*DOT_PRODUCT(FieldAtParticle(4:6,iPart),n_loc)*n_loc
           PEM%NormVec(iPart,1:3)=0.
           ! and of coarse, the velocity has to be back-rotated, because the particle has not hit the wall
           reMap=.TRUE.
@@ -3527,10 +3527,10 @@ DO iStage=2,nRKStages
       ! compute particle RHS at time^n
       IF(PartLorentzType.EQ.5)THEN
         LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3),LorentzFacInv)
       ELSE
         LorentzFacInv = 1.0
-        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
       END IF ! PartLorentzType.EQ.5
       ! compute current Pt_tmp for the particle
       Pt_tmp(1) = LorentzFacInv*PartState(iPart,4)
