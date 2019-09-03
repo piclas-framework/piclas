@@ -2380,7 +2380,7 @@ DO iStage=2,nRKStages
           PartStage(iPart,1  ,iStage-1) = PartState(4,iPart) * LorentzFacInv
           PartStage(iPart,2  ,iStage-1) = PartState(5,iPart) * LorentzFacInv
           PartStage(iPart,3  ,iStage-1) = PartState(6,iPart) * LorentzFacInv
-          PartStage(iPart,4:6,iStage-1) = Pt(iPart,1:3)
+          PartStage(iPart,4:6,iStage-1) = Pt(1:3,iPart)
         END IF
       ELSE ! PartIsExplicit
         CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
@@ -2420,7 +2420,7 @@ DO iStage=2,nRKStages
         PartStage(iPart,1,iStage-1) = PartState(4,iPart)*LorentzFacInv
         PartStage(iPart,2,iStage-1) = PartState(5,iPart)*LorentzFacInv
         PartStage(iPart,3,iStage-1) = PartState(6,iPart)*LorentzFacInv
-        PartStage(iPart,4:6,iStage-1) = Pt       (iPart,1:3)
+        PartStage(iPart,4:6,iStage-1) = Pt(1:3,iPart)
       END IF ! ParticleIsImplicit
     END DO ! iPart
 #if USE_LOADBALANCE
