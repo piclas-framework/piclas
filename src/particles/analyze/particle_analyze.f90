@@ -2332,7 +2332,7 @@ REAL                           :: RD(nSpecies*4)
         IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
           IF (usevMPF) THEN
             PartVtrans(PartSpecies(i),dir) = PartVtrans(PartSpecies(i),dir) + PartState(dir+3,i) * PartMPF(i)
-          ELSE                                                                                 
+          ELSE
             PartVtrans(PartSpecies(i),dir) = PartVtrans(PartSpecies(i),dir) + PartState(dir+3,i)
           END IF
         END IF
