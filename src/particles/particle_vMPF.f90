@@ -96,13 +96,11 @@ SUBROUTINE MergeParticles(iPartIndx_Node, nPart, nPartNew)
 !> 6.) Ensuring momentum and energy conservation
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies
+USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, Species
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Vars         ,ONLY: Species
 USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
-USE MOD_DSMC_Vars             ,ONLY: DSMC
 USE MOD_Particle_Vars         ,ONLY: Symmetry2D
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
