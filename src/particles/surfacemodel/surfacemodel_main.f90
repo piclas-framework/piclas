@@ -324,8 +324,8 @@ LOGICAL,INTENT(OUT),OPTIONAL :: Opt_Reflected
 INTEGER                          :: ProductSpec(2)   !< 1: product species of incident particle (also used for simple reflection)
                                                      !< 2: additional species added or removed from surface
                                                           !< If productSpec is negative, then the respective particles are adsorbed
-                                                          !< If productSpec is positive the particle is reflected/emitted 
-                                                          !< with respective species 
+                                                          !< If productSpec is positive the particle is reflected/emitted
+                                                          !< with respective species
 INTEGER                          :: ProductSpecNbr   !< number of emitted particles for ProductSpec(1)
 CHARACTER(30)                    :: velocityDistribution(2)   !< specifying keyword for velocity distribution
 REAL                             :: TempErgy(2)               !< temperature, energy or velocity used for velofromdistribution

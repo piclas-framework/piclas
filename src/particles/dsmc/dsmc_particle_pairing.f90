@@ -46,16 +46,16 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 ! Finds nearest neighbour for collision pairing
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
-  USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC
-  USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, WriteMacroVolumeValues, VarTimeStep
-  USE MOD_DSMC_Relaxation,        ONLY : SetMeanVibQua
-  USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
-  USE MOD_Particle_Analyze_Vars,  ONLY : CalcEkin
-  USE MOD_DSMC_CollisionProb,     ONLY : DSMC_prob_calc
-  USE MOD_DSMC_Collis,            ONLY : DSMC_perform_collision
-  USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
-  USE MOD_part_tools,             ONLY : GetParticleWeight
+  USE MOD_DSMC_Vars              ,ONLY: CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
+  USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC
+  USE MOD_Particle_Vars          ,ONLY: PartState, nSpecies, PartSpecies, WriteMacroVolumeValues, VarTimeStep
+  USE MOD_DSMC_Relaxation        ,ONLY: SetMeanVibQua
+  USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
+  USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEkin
+  USE MOD_DSMC_CollisionProb     ,ONLY: DSMC_prob_calc
+  USE MOD_DSMC_Collis            ,ONLY: DSMC_perform_collision
+  USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
+  USE MOD_part_tools             ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

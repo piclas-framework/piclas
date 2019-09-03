@@ -40,21 +40,21 @@ SUBROUTINE DSMC_main(DoElement)
 !> Performs DSMC routines (containing loop over all cells)
 !===================================================================================================================================
 ! MODULES
-USE MOD_TimeDisc_Vars,         ONLY : time, TEnd
+USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
 USE MOD_Globals
-USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
-USE MOD_Mesh_Vars,             ONLY : nElems
-USE MOD_DSMC_Vars,             ONLY : DSMC_RHS, DSMC, DSMCSumOfFormedParticles, BGGas, CollisMode
-USE MOD_DSMC_Vars,             ONLY : ChemReac
-USE MOD_DSMC_Analyze,          ONLY : CalcMeanFreePath
-USE MOD_DSMC_SteadyState,      ONLY : QCrit_evaluation, SteadyStateDetection_main
-USE MOD_Particle_Vars,         ONLY : PDM, WriteMacroVolumeValues, Symmetry2D
-USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
-USE MOD_DSMC_Relaxation,       ONLY : SetMeanVibQua
-USE MOD_DSMC_ParticlePairing,  ONLY : DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
-USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
-USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, DSMCSumOfFormedParticles, BGGas, CollisMode
+USE MOD_DSMC_Vars             ,ONLY: ChemReac
+USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
+USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
+USE MOD_Particle_Vars         ,ONLY: PDM, WriteMacroVolumeValues, Symmetry2D
+USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
+USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
+USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
+USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
+USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
 #if (PP_TimeDiscMethod==1001)
 USE MOD_LD_Vars               ,ONLY: BulkValues, LD_DSMC_RHS
 #endif
@@ -120,7 +120,7 @@ DO iElem = 1, nElems ! element/cell main loop
         END IF
       ELSE
         CALL DSMC_pairing_statistical(iElem)  ! pairing of particles per cell
-      END IF                                                                                ! end no octree
+      END IF ! end no octree
       IF(DSMC%CalcQualityFactors) THEN
         IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
           ! mean collision probability of all collision pairs

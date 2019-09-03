@@ -106,7 +106,7 @@ TYPE tSampWall             ! DSMC sample for Wall
                                                                        ! 4: Heatflux from dissociation reactions of one gas
                                                                        !    species reacting at collision to another species
                                                                        !    on the surface.
-                                                                       ! 5: additional heatflux e.g. surface coverage 
+                                                                       ! 5: additional heatflux e.g. surface coverage
                                                                        !    reconstruction or none of the above
                                                                        ! 5+iSpecies: Coverage of iSpecies
                                                                        !    adsorption%coverage added in updatesurfacevars
