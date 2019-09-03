@@ -158,8 +158,6 @@ CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_re
 CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
                                                                 '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
 
-CALL prms%CreateIntOption(      'Part-LorentzType_old'          , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Used Lorentz boost ', '3')
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
 #if (PP_TimeDiscMethod==509)
 CALL prms%CreateLogicalOption(  'velocityOutputAtTime' , 'Flag if leapfrog uses an velocity-output at real time' , '.TRUE.')
@@ -2150,8 +2148,6 @@ END DO
 
 
 ! Which Lorentz boost method should be used?
-PartLorentzType = GETINT('Part-LorentzType_old','3')
-
 CALL InitPartRHS()
 
 ! Read in boundary parameters
