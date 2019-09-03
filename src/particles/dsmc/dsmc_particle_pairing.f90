@@ -116,19 +116,19 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
     iPartIndx_Node(iPart1) = iPartIndx_Node(nPart)
     nPart = nPart - 1
     iPart2 = 1
-    Dist1 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
-           - PartState(iPartIndx_Node(iPart2),1))**2 &
-           +(PartState(Coll_pData(iPair)%iPart_p1,2) &
-           - PartState(iPartIndx_Node(iPart2),2))**2 &
-           +(PartState(Coll_pData(iPair)%iPart_p1,3) &
-           - PartState(iPartIndx_Node(iPart2),3))**2
+    Dist1 = (PartState(1,Coll_pData(iPair)%iPart_p1) &
+           - PartState(1,iPartIndx_Node(iPart2)))**2 &
+           +(PartState(2,Coll_pData(iPair)%iPart_p1) &
+           - PartState(2,iPartIndx_Node(iPart2)))**2 &
+           +(PartState(3,Coll_pData(iPair)%iPart_p1) &
+           - PartState(3,iPartIndx_Node(iPart2)))**2
     DO iLoop = 2, nPart
-      Dist2 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
-             - PartState(iPartIndx_Node(iLoop),1))**2 &
-             +(PartState(Coll_pData(iPair)%iPart_p1,2) &
-             - PartState(iPartIndx_Node(iLoop),2))**2 &
-             +(PartState(Coll_pData(iPair)%iPart_p1,3) &
-             - PartState(iPartIndx_Node(iLoop),3))**2
+      Dist2 = (PartState(1,Coll_pData(iPair)%iPart_p1) &
+             - PartState(1,iPartIndx_Node(iLoop)))**2 &
+             +(PartState(2,Coll_pData(iPair)%iPart_p1) &
+             - PartState(2,iPartIndx_Node(iLoop)))**2 &
+             +(PartState(3,Coll_pData(iPair)%iPart_p1) &
+             - PartState(4,iPartIndx_Node(iLoop)))**2
       IF (Dist2.LT.Dist1) THEN
         iPart2 = iLoop
         Dist1 = Dist2
@@ -149,12 +149,12 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
     END IF
 
     CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
-    Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                             + (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                             + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
+    Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
+                             -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                             + (PartState(5,Coll_pData(iPair)%iPart_p1) &
+                             -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                             + (PartState(6,Coll_pData(iPair)%iPart_p1) &
+                             -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
     Coll_pData(iPair)%PairType = iCase
     Coll_pData(iPair)%NeedForRec = .FALSE.
   END DO
@@ -295,12 +295,12 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
                                                           + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
     END IF
     CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
-    Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                             + (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                             + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
+    Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
+                             -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                             + (PartState(5,Coll_pData(iPair)%iPart_p1) &
+                             -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                             + (PartState(6,Coll_pData(iPair)%iPart_p1) &
+                             -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
     Coll_pData(iPair)%PairType = iCase
     Coll_pData(iPair)%NeedForRec = .FALSE.
 
@@ -398,20 +398,20 @@ DO iPair = 1, PairNum_Node
       END IF
     END IF
   END IF
-  Dist1 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
-          - PartState(iPartIndx_Node(iPart2),1))**2 &
-          +(PartState(Coll_pData(iPair)%iPart_p1,2) &
-          - PartState(iPartIndx_Node(iPart2),2))**2
+  Dist1 = (PartState(1,Coll_pData(iPair)%iPart_p1) &
+          - PartState(1,iPartIndx_Node(iPart2)))**2 &
+          +(PartState(2,Coll_pData(iPair)%iPart_p1) &
+          - PartState(2,iPartIndx_Node(iPart2)))**2
   DO iLoop = 2 + loopStart, nPart
     IF (CollInf%ProhibitDoubleColl) THEN
         IF (iPartIndx_Node(iLoop).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
           CYCLE
         END IF
     END IF
-    Dist2 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
-            - PartState(iPartIndx_Node(iLoop),1))**2 &
-            +(PartState(Coll_pData(iPair)%iPart_p1,2) &
-            - PartState(iPartIndx_Node(iLoop),2))**2
+    Dist2 = (PartState(1,Coll_pData(iPair)%iPart_p1) &
+            - PartState(1,iPartIndx_Node(iLoop)))**2 &
+            +(PartState(2,Coll_pData(iPair)%iPart_p1) &
+            - PartState(2,iPartIndx_Node(iLoop)))**2
     IF (Dist2.LT.Dist1) THEN
       iPart2 = iLoop
       Dist1 = Dist2
@@ -431,12 +431,12 @@ DO iPair = 1, PairNum_Node
   END IF
 
   CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
-  Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                            -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                            + (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                            -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                            + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                            -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
+  Coll_pData(iPair)%CRela2 =  (PartState(4,Coll_pData(iPair)%iPart_p1) &
+                            -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                            + (PartState(5,Coll_pData(iPair)%iPart_p1) &
+                            -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                            + (PartState(6,Coll_pData(iPair)%iPart_p1) &
+                            -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
   Coll_pData(iPair)%PairType = iCase
   Coll_pData(iPair)%NeedForRec = .FALSE.
 END DO
@@ -461,7 +461,7 @@ DO iPair = 1,  PairNum_Node
         IF (iPair.LT.PairNum_Node) THEN
           ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
           ! are swapped but first, changing z-direction
-          PartState(Coll_pData(iPair)%iPart_p1,6) = - PartState(Coll_pData(iPair)%iPart_p1,6)
+          PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
           ! Removing the pairs from the weighting factor and the case num sums
           CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
             -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
@@ -480,12 +480,12 @@ DO iPair = 1,  PairNum_Node
           ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
           CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
           CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-          Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                                    -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                                    + (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                                    -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                                    + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                                    -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
+          Coll_pData(iPair)%CRela2 =  (PartState(4,Coll_pData(iPair)%iPart_p1) &
+                                    -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                                    + (PartState(5,Coll_pData(iPair)%iPart_p1) &
+                                    -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                                    + (PartState(6,Coll_pData(iPair)%iPart_p1) &
+                                    -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
           Coll_pData(iPair)%PairType = iCase
           ! Calculation of the relative velocity for the new follow-up pair
           cSpec1 = PartSpecies(Coll_pData(iPair+1)%iPart_p1)
@@ -494,26 +494,26 @@ DO iPair = 1,  PairNum_Node
           ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
           CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
           CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-          Coll_pData(iPair+1)%CRela2 = (PartState(Coll_pData(iPair+1)%iPart_p1,4) &
-                                      -  PartState(Coll_pData(iPair+1)%iPart_p2,4))**2 &
-                                      + (PartState(Coll_pData(iPair+1)%iPart_p1,5) &
-                                      -  PartState(Coll_pData(iPair+1)%iPart_p2,5))**2 &
-                                      + (PartState(Coll_pData(iPair+1)%iPart_p1,6) &
-                                      -  PartState(Coll_pData(iPair+1)%iPart_p2,6))**2
+          Coll_pData(iPair+1)%CRela2 =  (PartState(4,Coll_pData(iPair+1)%iPart_p1) &
+                                      -  PartState(4,Coll_pData(iPair+1)%iPart_p2))**2 &
+                                      + (PartState(5,Coll_pData(iPair+1)%iPart_p1) &
+                                      -  PartState(5,Coll_pData(iPair+1)%iPart_p2))**2 &
+                                      + (PartState(6,Coll_pData(iPair+1)%iPart_p1) &
+                                      -  PartState(6,Coll_pData(iPair+1)%iPart_p2))**2
           Coll_pData(iPair+1)%PairType = iCase
         ELSE
           ! For the last pair, the z-direction is changed and a random position for the first particle is chosen (last resort)
           CALL RANDOM_NUMBER(iRanVec)
           NodeLength = 2./2.**(Depth)
-          PartState(Coll_pData(iPair)%iPart_p1,1) = MidPoint(1) - NodeLength + 2.*NodeLength*iRanVec(1)
-          PartState(Coll_pData(iPair)%iPart_p1,2) = MidPoint(2) - NodeLength + 2.*NodeLength*iRanVec(2)
-          PartState(Coll_pData(iPair)%iPart_p1,1:2) = MapToGeo2D(PartState(Coll_pData(iPair)%iPart_p1,1:2),iElem)
-          PartState(Coll_pData(iPair)%iPart_p1,3) = 0.0
+          PartState(1,Coll_pData(iPair)%iPart_p1) = MidPoint(1) - NodeLength + 2.*NodeLength*iRanVec(1)
+          PartState(2,Coll_pData(iPair)%iPart_p1) = MidPoint(2) - NodeLength + 2.*NodeLength*iRanVec(2)
+          PartState(1:2,Coll_pData(iPair)%iPart_p1) = MapToGeo2D(PartState(1:2,Coll_pData(iPair)%iPart_p1),iElem)
+          PartState(3,Coll_pData(iPair)%iPart_p1) = 0.0
           ! creating relative velocity
-          PartState(Coll_pData(iPair)%iPart_p1,6) = - PartState(Coll_pData(iPair)%iPart_p1,6)
-          Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,6) - PartState(Coll_pData(iPair)%iPart_p2,6))**2
+          PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
+          Coll_pData(iPair)%CRela2 = (PartState(6,Coll_pData(iPair)%iPart_p1) - PartState(6,Coll_pData(iPair)%iPart_p2))**2
           PartMPF(Coll_pData(iPair)%iPart_p1) = &
-                              CalcRadWeightMPF(PartState(Coll_pData(iPair)%iPart_p1,2),cSpec1,Coll_pData(iPair)%iPart_p1)
+                              CalcRadWeightMPF(PartState(2,Coll_pData(iPair)%iPart_p1),cSpec1,Coll_pData(iPair)%iPart_p1)
         END IF
       END IF
     END IF
@@ -619,7 +619,7 @@ IF (nPart.GT.1) THEN
         END DO
       ELSE ! position in reference space [-1,1] has to be computed
         DO iLoop = 1, nPart
-          CALL GetPositionInRefElem(PartState(iPart,1:3),TreeNode%MappedPartStates(iLoop,1:3),iElem)
+          CALL GetPositionInRefElem(PartState(1:3,iPart),TreeNode%MappedPartStates(iLoop,1:3),iElem)
           iPart = PEM%pNext(iPart)
         END DO
       END IF ! DoRefMapping
@@ -890,7 +890,7 @@ TYPE(tTreeNode), POINTER      :: TreeNode
         TreeNode%PNum_Node = nPart
         iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
         DO iLoop = 1, nPart
-          CALL GeoCoordToMap2D(PartState(iPart,1:2), TreeNode%MappedPartStates(iLoop,1:2), iElem)
+          CALL GeoCoordToMap2D(PartState(1:2,iPart), TreeNode%MappedPartStates(iLoop,1:2), iElem)
           iPart = PEM%pNext(iPart)
         END DO
         TreeNode%NodeDepth = 1
@@ -1611,12 +1611,12 @@ DO iPair = 1, nPair                               ! statistical pairing
   END IF
 
   CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
-  Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                            -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                            + (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                            -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                            + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                            -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
+  Coll_pData(iPair)%CRela2 =  (PartState(4,Coll_pData(iPair)%iPart_p1) &
+                            -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                            + (PartState(5,Coll_pData(iPair)%iPart_p1) &
+                            -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                            + (PartState(6,Coll_pData(iPair)%iPart_p1) &
+                            -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
   Coll_pData(iPair)%PairType = iCase
   Coll_pData(iPair)%NeedForRec = .FALSE.
 END DO
@@ -1642,7 +1642,7 @@ IF(RadialWeighting%DoRadialWeighting) THEN
       ! are swapped but first, changing z-direction
       IF (nPart.EQ.1) THEN
         ! Uneven number of particles in the cell, a single particle is left without a pair
-        PartState(Coll_pData(iPair)%iPart_p1,6) = - PartState(Coll_pData(iPair)%iPart_p1,6)
+        PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
         ! Removing the pairs from the weighting factor and the case num sums
         CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
           -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
@@ -1660,15 +1660,15 @@ IF(RadialWeighting%DoRadialWeighting) THEN
         ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
         CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
         CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-        Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                                  -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                                  + (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                                  -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                                  + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                                  -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
+        Coll_pData(iPair)%CRela2 =  (PartState(4,Coll_pData(iPair)%iPart_p1) &
+                                  -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                                  + (PartState(5,Coll_pData(iPair)%iPart_p1) &
+                                  -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                                  + (PartState(6,Coll_pData(iPair)%iPart_p1) &
+                                  -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
         Coll_pData(iPair)%PairType = iCase
       ELSE IF (iPair.LT.nPair) THEN
-        PartState(Coll_pData(iPair)%iPart_p1,6) = - PartState(Coll_pData(iPair)%iPart_p1,6)
+        PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
         ! Removing the pairs from the weighting factor and the case num sums
         CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
           -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
@@ -1687,12 +1687,12 @@ IF(RadialWeighting%DoRadialWeighting) THEN
         ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
         CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
         CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-        Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                                  -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                                  + (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                                  -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                                  + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                                  -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
+        Coll_pData(iPair)%CRela2 =  (PartState(4,Coll_pData(iPair)%iPart_p1) &
+                                  -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                                  + (PartState(5,Coll_pData(iPair)%iPart_p1) &
+                                  -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                                  + (PartState(6,Coll_pData(iPair)%iPart_p1) &
+                                  -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
         Coll_pData(iPair)%PairType = iCase
         ! Calculation of the relative velocity for the new follow-up pair
         cSpec1 = PartSpecies(Coll_pData(iPair+1)%iPart_p1)
@@ -1701,12 +1701,12 @@ IF(RadialWeighting%DoRadialWeighting) THEN
         ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
         CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
         CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-        Coll_pData(iPair+1)%CRela2 = (PartState(Coll_pData(iPair+1)%iPart_p1,4) &
-                                    -  PartState(Coll_pData(iPair+1)%iPart_p2,4))**2 &
-                                    + (PartState(Coll_pData(iPair+1)%iPart_p1,5) &
-                                    -  PartState(Coll_pData(iPair+1)%iPart_p2,5))**2 &
-                                    + (PartState(Coll_pData(iPair+1)%iPart_p1,6) &
-                                    -  PartState(Coll_pData(iPair+1)%iPart_p2,6))**2
+        Coll_pData(iPair+1)%CRela2 =  (PartState(4,Coll_pData(iPair+1)%iPart_p1) &
+                                    -  PartState(4,Coll_pData(iPair+1)%iPart_p2))**2 &
+                                    + (PartState(5,Coll_pData(iPair+1)%iPart_p1) &
+                                    -  PartState(5,Coll_pData(iPair+1)%iPart_p2))**2 &
+                                    + (PartState(6,Coll_pData(iPair+1)%iPart_p1) &
+                                    -  PartState(6,Coll_pData(iPair+1)%iPart_p2))**2
         Coll_pData(iPair+1)%PairType = iCase
       END IF
     END IF    ! Coll_pData(iPair)%CRela2.EQ.0.0

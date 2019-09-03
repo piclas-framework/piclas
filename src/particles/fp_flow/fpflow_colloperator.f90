@@ -87,9 +87,9 @@ INTEGER               :: iMom
 ! Momentum and energy conservation check: summing up old values
 Momentum_new = 0.0; Momentum_old = 0.0; Energy_new = 0.0; Energy_old = 0.0
 DO iLoop = 1, nPart
-  Momentum_old(1:3) = Momentum_old(1:3) + PartState(iPartIndx_Node(iLoop),4:6)
-  Energy_old = Energy_old + (PartState(iPartIndx_Node(iLoop),4)**2. + PartState(iPartIndx_Node(iLoop),5)**2. &
-           + PartState(iPartIndx_Node(iLoop),6)**2.)*0.5*Species(1)%MassIC
+  Momentum_old(1:3) = Momentum_old(1:3) + PartState(4:6,iPartIndx_Node(iLoop))
+  Energy_old = Energy_old + (PartState(4,iPartIndx_Node(iLoop))**2. + PartState(5,iPartIndx_Node(iLoop))**2. &
+           + PartState(6,iPartIndx_Node(iLoop))**2.)*0.5*Species(1)%MassIC
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     Energy_old = Energy_old + PartStateIntEn(iPartIndx_Node(iLoop),1) + PartStateIntEn(iPartIndx_Node(iLoop),2)
   END IF
@@ -102,7 +102,7 @@ Ni=0.0
 ERot=0.0; EVib=0.0; OldEn = 0.0; NewEn = 0.0; OldEnRot = 0.0; NewEnRot = 0.0; NewEnVib=0.0; nRotRelax = 0; nVibRelax = 0
 
 DO iLoop2 = 1, nPart
-  V_rel(1:3)=PartState(iPartIndx_Node(iLoop2),4:6)-vBulkAll(1:3)
+  V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop2))-vBulkAll(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   u2= u2 + vmag2
   IF (FPCollModel.EQ.1) THEN
@@ -568,7 +568,7 @@ OldEn = OldEn + OldEnRot
 vBulk(1:3) = 0.0
 
 DO iLoop = 1, nPart
-  V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulkAll(1:3)
+  V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop))-vBulkAll(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   DSMC_RHS(iPartIndx_Node(iLoop),1:3) = 0.0
 !  IF ((FPCollModel.EQ.1).AND.(nPart.GE.5)) THEN
@@ -605,7 +605,7 @@ END DO
 alpha = SQRT(OldEn/NewEn*(3.*(nPart-1.))/(Xi_rot*nRotRelax+3.*(nPart-1.)))
 DO iLoop = 1, nPart
   DSMC_RHS(iPartIndx_Node(iLoop),1:3) = alpha*(DSMC_RHS(iPartIndx_Node(iLoop),1:3)-vBulk(1:3)) + vBulkAll(1:3) &
-    - PartState(iPartIndx_Node(iLoop),4:6)
+    - PartState(4:6,iPartIndx_Node(iLoop))
 END DO
 IF ( (nRotRelax.GT.0)) alpha = OldEn/NewEnRot*(Xi_rot*nRotRelax/(Xi_rot*nRotRelax+3.*(nPart-1.)))
 DO iLoop = 1, nRotRelax
@@ -616,11 +616,11 @@ DEALLOCATE(Ni)
 
 #ifdef CODE_ANALYZE
 DO iLoop = 1, nPart
-  Momentum_new(1:3) = Momentum_new(1:3) + DSMC_RHS(iPartIndx_Node(iLoop),1:3) + PartState(iPartIndx_Node(iLoop),4:6)
+  Momentum_new(1:3) = Momentum_new(1:3) + DSMC_RHS(iPartIndx_Node(iLoop),1:3) + PartState(4:6,iPartIndx_Node(iLoop))
   Energy_new = Energy_new &
-          + ((DSMC_RHS(iPartIndx_Node(iLoop),1) + PartState(iPartIndx_Node(iLoop),4))**2. &
-          +  (DSMC_RHS(iPartIndx_Node(iLoop),2) + PartState(iPartIndx_Node(iLoop),5))**2. &
-          +  (DSMC_RHS(iPartIndx_Node(iLoop),3) + PartState(iPartIndx_Node(iLoop),6))**2.)*0.5*Species(1)%MassIC
+          + ((DSMC_RHS(iPartIndx_Node(iLoop),1) + PartState(4,iPartIndx_Node(iLoop)))**2. &
+          +  (DSMC_RHS(iPartIndx_Node(iLoop),2) + PartState(5,iPartIndx_Node(iLoop)))**2. &
+          +  (DSMC_RHS(iPartIndx_Node(iLoop),3) + PartState(6,iPartIndx_Node(iLoop)))**2.)*0.5*Species(1)%MassIC
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     Energy_new = Energy_new + PartStateIntEn(iPartIndx_Node(iLoop),1) + PartStateIntEn(iPartIndx_Node(iLoop),2)
   END IF

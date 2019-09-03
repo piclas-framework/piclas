@@ -1335,7 +1335,7 @@ IF(DoRefMapping)THEN
   PartPosRef=-888.
 END IF
 
-ALLOCATE(PartState(1:PDM%maxParticleNumber,1:6)       , &
+ALLOCATE(PartState(1:6,1:PDM%maxParticleNumber)       , &
          LastPartPos(1:3,1:PDM%maxParticleNumber)     , &
          Pt(1:3,1:PDM%maxParticleNumber)              , &
          PartSpecies(1:PDM%maxParticleNumber)         , &
@@ -3219,7 +3219,7 @@ DO iElem=1,PP_nElems
 
     ! Get the physical coordinates that correspond to the reference coordinates
     CALL TensorProductInterpolation(PartPosRef(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) &
-                      ,PartState(ParticleIndexNbr,1:3)) !Map into phys. space
+                      ,PartState(1:3,ParticleIndexNbr)) !Map into phys. space
 
     ! Set the internal energies (vb, rot and electronic) to zero if needed
     IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
@@ -3232,7 +3232,7 @@ DO iElem=1,PP_nElems
     PEM%Element(ParticleIndexNbr) = iElem
 
     ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
-    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(ParticleIndexNbr,4:6),&
+    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(4:6,ParticleIndexNbr),&
                                   Temperature=CellElectronTemperature)
   END DO
 END DO

@@ -824,36 +824,36 @@ IF (KeepWallParticles) THEN
 END IF
 
 IF(DoHALO)THEN
-  IF ( (PartState(iPart,1).LT.GEO%xminglob).OR.(PartState(iPart,1).GT.GEO%xmaxglob).OR. &
-       (PartState(iPart,2).LT.GEO%yminglob).OR.(PartState(iPart,2).GT.GEO%ymaxglob).OR. &
-       (PartState(iPart,3).LT.GEO%zminglob).OR.(PartState(iPart,3).GT.GEO%zmaxglob)) THEN
+  IF ( (PartState(1,iPart).LT.GEO%xminglob).OR.(PartState(1,iPart).GT.GEO%xmaxglob).OR. &
+       (PartState(2,iPart).LT.GEO%yminglob).OR.(PartState(2,iPart).GT.GEO%ymaxglob).OR. &
+       (PartState(3,iPart).LT.GEO%zminglob).OR.(PartState(3,iPart).GT.GEO%zmaxglob)) THEN
      PDM%ParticleInside(iPart) = .FALSE.
      RETURN
   END IF
 ELSE
-  IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
-       (PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
-       (PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN
+  IF ( (PartState(1,iPart).LT.GEO%xmin).OR.(PartState(1,iPart).GT.GEO%xmax).OR. &
+       (PartState(2,iPart).LT.GEO%ymin).OR.(PartState(2,iPart).GT.GEO%ymax).OR. &
+       (PartState(3,iPart).LT.GEO%zmin).OR.(PartState(3,iPart).GT.GEO%zmax)) THEN
      PDM%ParticleInside(iPart) = .FALSE.
      RETURN
   END IF
 END IF
 
 !IF (.NOT.DoRelocate) THEN
-  !IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
-       !(PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
-       !(PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN
+  !IF ( (PartState(1,iPart).LT.GEO%xmin).OR.(PartState(1,iPart).GT.GEO%xmax).OR. &
+       !(PartState(2,iPart).LT.GEO%ymin).OR.(PartState(2,iPart).GT.GEO%ymax).OR. &
+       !(PartState(3,iPart).LT.GEO%zmin).OR.(PartState(3,iPart).GT.GEO%zmax)) THEN
      !PDM%ParticleInside(iPart) = .FALSE.
      !RETURN
   !END IF
 !END IF
 
 ! --- get background mesh cell of particle
-CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
+CellX = CEILING((PartState(1,iPart)-GEO%xminglob)/GEO%FIBGMdeltas(1))
 CellX = MAX(MIN(GEO%TFIBGMimax,CellX),GEO%TFIBGMimin)
-CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+CellY = CEILING((PartState(2,iPart)-GEO%yminglob)/GEO%FIBGMdeltas(2))
 CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin)
-CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+CellZ = CEILING((PartState(3,iPart)-GEO%zminglob)/GEO%FIBGMdeltas(3))
 CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
 
 
@@ -861,7 +861,7 @@ IF (TriaTracking) THEN
   !--- check all cells associated with this background mesh cell
   DO iBGMElem = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
     ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
-    CALL ParticleInsideQuad3D(PartState(iPart,1:3),ElemID,InElementCheck,Det)
+    CALL ParticleInsideQuad3D(PartState(1:3,iPart),ElemID,InElementCheck,Det)
     IF (InElementCheck) THEN
        PEM%Element(iPart) = ElemID
        ParticleFound = .TRUE.
@@ -882,9 +882,9 @@ Distance=-1.
 ListDistance=0
 DO iBGMElem = 1, nBGMElems
   ElemID = GEO%TFIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
-  Distance2=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
-           +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
-           +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))
+  Distance2=(PartState(1,iPart)-ElemBaryNGeo(1,ElemID))*(PartState(1,iPart)-ElemBaryNGeo(1,ElemID)) &
+           +(PartState(2,iPart)-ElemBaryNGeo(2,ElemID))*(PartState(2,iPart)-ElemBaryNGeo(2,ElemID)) &
+           +(PartState(3,iPart)-ElemBaryNGeo(3,ElemID))*(PartState(3,iPart)-ElemBaryNGeo(3,ElemID))
   IF(Distance2.GT.ElemRadius2NGeo(ElemID))THEN
     Distance(iBGMElem)=-1.
   ELSE
@@ -913,11 +913,11 @@ DO iBGMElem=1,nBGMElems
     IF(ElemID.GT.PP_nElems) CYCLE
   END IF
   IF(IsTracingBCElem(ElemID))THEN
-    CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,InElementCheck)
+    CALL PartInElemCheck(PartState(1:3,iPart),iPart,ElemID,InElementCheck)
     IF(.NOT.InElementCheck) CYCLE
   END IF
 
-  CALL GetPositionInRefElem(PartState(iPart,1:3),xi,ElemID)
+  CALL GetPositionInRefElem(PartState(1:3,iPart),xi,ElemID)
   IF(MAXVAL(ABS(Xi)).LT.epsOneCell(ElemID))THEN ! particle outside
     IF(.NOT.InitFix)THEN
       InElementCheck=.TRUE.
@@ -1062,27 +1062,27 @@ REAL                              :: Distance2
 
 ParticleFound = .FALSE.
 IF(DoHALO)THEN
-  IF ( (PartState(iPart,1).LT.GEO%xminglob).OR.(PartState(iPart,1).GT.GEO%xmaxglob).OR. &
-       (PartState(iPart,2).LT.GEO%yminglob).OR.(PartState(iPart,2).GT.GEO%ymaxglob).OR. &
-       (PartState(iPart,3).LT.GEO%zminglob).OR.(PartState(iPart,3).GT.GEO%zmaxglob)) THEN
+  IF ( (PartState(1,iPart).LT.GEO%xminglob).OR.(PartState(1,iPart).GT.GEO%xmaxglob).OR. &
+       (PartState(2,iPart).LT.GEO%yminglob).OR.(PartState(2,iPart).GT.GEO%ymaxglob).OR. &
+       (PartState(3,iPart).LT.GEO%zminglob).OR.(PartState(3,iPart).GT.GEO%zmaxglob)) THEN
      PDM%ParticleInside(iPart) = .FALSE.
      RETURN
   END IF
 ELSE
-  IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
-       (PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
-       (PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN
+  IF ( (PartState(1,iPart).LT.GEO%xmin).OR.(PartState(1,iPart).GT.GEO%xmax).OR. &
+       (PartState(2,iPart).LT.GEO%ymin).OR.(PartState(2,iPart).GT.GEO%ymax).OR. &
+       (PartState(3,iPart).LT.GEO%zmin).OR.(PartState(3,iPart).GT.GEO%zmax)) THEN
      PDM%ParticleInside(iPart) = .FALSE.
      RETURN
   END IF
 END IF
 
 ! --- get background mesh cell of particle
-CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
+CellX = CEILING((PartState(1,iPart)-GEO%xminglob)/GEO%FIBGMdeltas(1))
 CellX = MAX(MIN(GEO%TFIBGMimax,CellX),GEO%TFIBGMimin)
-CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+CellY = CEILING((PartState(2,iPart)-GEO%yminglob)/GEO%FIBGMdeltas(2))
 CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin)
-CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+CellZ = CEILING((PartState(3,iPart)-GEO%zminglob)/GEO%FIBGMdeltas(3))
 CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
 
 !--- check all cells associated with this beckground mesh cell
@@ -1099,9 +1099,9 @@ DO iBGMElem = 1, nBGMElems
   IF(.NOT.DoHALO)THEN
     IF(ElemID.GT.PP_nElems) CYCLE
   END IF
-  Distance2=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
-           +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
-           +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))
+  Distance2=(PartState(1,iPart)-ElemBaryNGeo(1,ElemID))*(PartState(1,iPart)-ElemBaryNGeo(1,ElemID)) &
+           +(PartState(2,iPart)-ElemBaryNGeo(2,ElemID))*(PartState(2,iPart)-ElemBaryNGeo(2,ElemID)) &
+           +(PartState(3,iPart)-ElemBaryNGeo(3,ElemID))*(PartState(3,iPart)-ElemBaryNGeo(3,ElemID))
   IF(Distance2.GT.ElemRadius2NGeo(ElemID))THEN
     Distance(iBGMElem)=-1.
   ELSE
@@ -1113,7 +1113,7 @@ END DO ! nBGMElems
 IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
   PDM%ParticleInside(iPart) = .FALSE.
   IF(DoRelocate)THEN
-    IPWRITE(UNIT_StdOut,*) 'Position',PartState(iPart,1:3)
+    IPWRITE(UNIT_StdOut,*) 'Position',PartState(1:3,iPart)
     CALL abort(&
   __STAMP__&
   , ' halo mesh too small. increase halo distance by increasing the safety factor. Currently Part-SafetyFactor = ',&
@@ -1132,7 +1132,7 @@ DO iBGMElem=1,nBGMElems
   IF(.NOT.DoHALO)THEN
     IF(ElemID.GT.PP_nElems) CYCLE
   END IF
-  CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,InElementCheck)
+  CALL PartInElemCheck(PartState(1:3,iPart),iPart,ElemID,InElementCheck)
 
   IF(InElementCheck)THEN
     ! no intersection found and particle is in final element
@@ -1331,7 +1331,7 @@ DO ilocSide=1,6
     END IF
     ! PO: should now be obsolete
     !IF(DoRefMapping)THEN
-    !  IF(DOT_PRODUCT(NormVec,PartState(PartID,4:6)).LT.0.) alpha=-1.0
+    !  IF(DOT_PRODUCT(NormVec,PartState(4:6,PartID)).LT.0.) alpha=-1.0
     !END IF ! DoRefMapping
   END IF
 END DO ! ilocSide

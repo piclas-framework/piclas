@@ -142,7 +142,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 
   IF(EductReac(3).NE.0) THEN
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (0.5 * Species(EductReac(3))%MassIC                         &
-                         * (PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 )         &
+                         * DOTPRODUCT(PartState(iPart_p3,4:6)) &
                    + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)) * Weight3
     NumWeightEduct = 3.
   END IF
@@ -517,7 +517,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
       PDM%IsNewPart(React3Inx) = .true.
       PDM%dtFracPush(React3Inx) = .FALSE.
       PartSpecies(React3Inx) = ProductReac(3)
-      PartState(React3Inx,1:3) = PartState(React1Inx,1:3)
+      PartState(1:3,React3Inx) = PartState(1:3,React1Inx)
       IF(DoRefMapping)THEN ! here Nearst-GP is missing
         PartPosRef(1:3,React3Inx)=PartPosRef(1:3,React1Inx)
       END IF
@@ -534,22 +534,22 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
 
 #ifdef CODE_ANALYZE
   ! Energy conservation
-  Energy_old=0.5*Species(PartSpecies(React1Inx))%MassIC*DOT_PRODUCT(PartState(React1Inx,4:6),PartState(React1Inx,4:6)) * Weight1 &
-            +0.5*Species(PartSpecies(React2Inx))%MassIC*DOT_PRODUCT(PartState(React2Inx,4:6),PartState(React2Inx,4:6)) * Weight2 &
+  Energy_old=0.5*Species(PartSpecies(React1Inx))%MassIC*DOT_PRODUCT(PartState(4:6,React1Inx),PartState(4:6,React1Inx)) * Weight1 &
+            +0.5*Species(PartSpecies(React2Inx))%MassIC*DOT_PRODUCT(PartState(4:6,React2Inx),PartState(4:6,React2Inx)) * Weight2 &
             + (PartStateIntEn(React1Inx,1) + PartStateIntEn(React1Inx,2)) * Weight1 &
             + (PartStateIntEn(React2Inx,1) + PartStateIntEn(React2Inx,2)) * Weight2 &
            + ChemReac%EForm(iReac)/NumWeightProd*(Weight1+Weight2+WeightProd)
   IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(React1Inx,3)*Weight1 + PartStateIntEn(React2Inx, 3) * Weight2
   IF (PRESENT(iPart_p3)) THEN
-    Energy_old=Energy_old+(0.5*Species(PartSpecies(iPart_p3))%MassIC*DOT_PRODUCT(PartState(iPart_p3,4:6) ,PartState(iPart_p3,4:6))&
+    Energy_old=Energy_old+(0.5*Species(PartSpecies(iPart_p3))%MassIC*DOT_PRODUCT(PartState(4:6,iPart_p3) ,PartState(4:6,iPart_p3))&
         + PartStateIntEn(iPart_p3,1)+PartStateIntEn(iPart_p3,2)) * Weight3
     IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(iPart_p3,3) * Weight3
   END IF
   ! Momentum conservation
-  Momentum_old(1:3) = Species(PartSpecies(React1Inx))%MassIC * PartState(React1Inx,4:6) * Weight1 &
-                    + Species(PartSpecies(React2Inx))%MassIC * PartState(React2Inx,4:6) * Weight2
+  Momentum_old(1:3) = Species(PartSpecies(React1Inx))%MassIC * PartState(4:6,React1Inx) * Weight1 &
+                    + Species(PartSpecies(React2Inx))%MassIC * PartState(4:6,React2Inx) * Weight2
   IF (PRESENT(iPart_p3)) Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpecies(iPart_p3))%MassIC &
-                                                                  * PartState(iPart_p3,4:6) * Weight3
+                                                                  * PartState(4:6,iPart_p3) * Weight3
 #endif /* CODE_ANALYZE */
 
   ! Add heat of formation to collision energy
@@ -599,24 +599,24 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
       FracMassCent2 = CollInf%FracMassCent(EductReac(2), Coll_pData(iPair)%PairType)
     END IF
 
-    VeloMx = FracMassCent1 * PartState(React1Inx, 4) &
-           + FracMassCent2 * PartState(React2Inx, 4)
-    VeloMy = FracMassCent1 * PartState(React1Inx, 5) &
-           + FracMassCent2 * PartState(React2Inx, 5)
-    VeloMz = FracMassCent1 * PartState(React1Inx, 6) &
-           + FracMassCent2 * PartState(React2Inx, 6)
+    VeloMx = FracMassCent1 * PartState(4,React1Inx) &
+           + FracMassCent2 * PartState(4,React2Inx)
+    VeloMy = FracMassCent1 * PartState(5,React1Inx) &
+           + FracMassCent2 * PartState(5,React2Inx)
+    VeloMz = FracMassCent1 * PartState(6,React1Inx) &
+           + FracMassCent2 * PartState(6,React2Inx)
 
     ! Overwriting the PartState of the first particle with the new PartState of the pseudo-molecule (AB)
-    PartState(React1Inx, 4) = VeloMx
-    PartState(React1Inx, 5) = VeloMy
-    PartState(React1Inx, 6) = VeloMz
+    PartState(4,React1Inx) = VeloMx
+    PartState(5,React1Inx) = VeloMy
+    PartState(6,React1Inx) = VeloMz
 
     ! Calculation of the reduced mass of the pseudo-molecule and third collision partner
     CALL CalcPseudoScatterVars(EductReac(1),EductReac(2),EductReac(3),FracMassCent1,FracMassCent2,MassRed, &
           (/Weight1,Weight2,Weight3/))
     ! Addition of the relative translation energy between (AB) and C, rotational and vibrational energy of the third
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (PartStateIntEn(React3Inx,1) + PartStateIntEn(React3Inx,2)) * Weight3 &
-      + 0.5 * MassRed * ((VeloMx-PartState(React3Inx,4))**2+(VeloMy-PartState(React3Inx,5))**2+(VeloMz-PartState(React3Inx,6))**2)
+      + 0.5 * MassRed * ((VeloMx-PartState(4,React3Inx))**2+(VeloMy-PartState(5,React3Inx))**2+(VeloMz-PartState(6,React3Inx))**2)
     IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(React3Inx,3)*Weight3
   END IF
 
@@ -846,12 +846,12 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     IF(EductReac(3).NE.0) THEN
       ! Scattering 3 -> 3: Utilizing the FracMassCent's from above, calculated for the pseudo-molecule and the third educt,
       ! PartState(React1Inx) is the centre of mass of the pseudo-molecule
-      VeloMx = FracMassCent1 * PartState(React1Inx, 4) &
-             + FracMassCent2 * PartState(React3Inx, 4)
-      VeloMy = FracMassCent1 * PartState(React1Inx, 5) &
-             + FracMassCent2 * PartState(React3Inx, 5)
-      VeloMz = FracMassCent1 * PartState(React1Inx, 6) &
-             + FracMassCent2 * PartState(React3Inx, 6)
+      VeloMx = FracMassCent1 * PartState(4,React1Inx) &
+             + FracMassCent2 * PartState(4,React3Inx)
+      VeloMy = FracMassCent1 * PartState(5,React1Inx) &
+             + FracMassCent2 * PartState(5,React3Inx)
+      VeloMz = FracMassCent1 * PartState(6,React1Inx) &
+             + FracMassCent2 * PartState(6,React3Inx)
     ELSE
       IF (RadialWeighting%DoRadialWeighting) THEN
         FracMassCent1 = Species(EductReac(1))%MassIC *Weight1 &
@@ -865,12 +865,12 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
       END IF
 
       !Calculation of velo from center of mass
-      VeloMx = FracMassCent1 * PartState(React1Inx, 4) &
-             + FracMassCent2 * PartState(React2Inx, 4)
-      VeloMy = FracMassCent1 * PartState(React1Inx, 5) &
-             + FracMassCent2 * PartState(React2Inx, 5)
-      VeloMz = FracMassCent1 * PartState(React1Inx, 6) &
-             + FracMassCent2 * PartState(React2Inx, 6)
+      VeloMx = FracMassCent1 * PartState(4,React1Inx) &
+             + FracMassCent2 * PartState(4,React2Inx)
+      VeloMy = FracMassCent1 * PartState(5,React1Inx) &
+             + FracMassCent2 * PartState(5,React2Inx)
+      VeloMz = FracMassCent1 * PartState(6,React1Inx) &
+             + FracMassCent2 * PartState(6,React2Inx)
     END IF
 
     ! FracMassCent's and reduced mass are calculated for the pseudo-molecule 1-3 and the second product, in the case of dissociation
@@ -886,9 +886,9 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RanVec(3)
 
     ! Determine right-hand side for the second product molecule (only required due to the push procedure in the timedisc)
-    DSMC_RHS(React2Inx,1) = VeloMx - FracMassCent1*RanVelox - PartState(React2Inx, 4)
-    DSMC_RHS(React2Inx,2) = VeloMy - FracMassCent1*RanVeloy - PartState(React2Inx, 5)
-    DSMC_RHS(React2Inx,3) = VeloMz - FracMassCent1*RanVeloz - PartState(React2Inx, 6)
+    DSMC_RHS(React2Inx,1) = VeloMx - FracMassCent1*RanVelox - PartState(4,React2Inx)
+    DSMC_RHS(React2Inx,2) = VeloMy - FracMassCent1*RanVeloy - PartState(5,React2Inx)
+    DSMC_RHS(React2Inx,3) = VeloMz - FracMassCent1*RanVeloz - PartState(6,React2Inx)
 
 #ifdef CODE_ANALYZE
     Energy_new=0.5*Species(PartSpecies(React2Inx))%MassIC*((VeloMx - FracMassCent1*RanVelox)**2 &
@@ -927,12 +927,12 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RanVec(3)
 
     !deltaV particle 1
-    DSMC_RHS(React1Inx,1) = VxPseuMolec + FracMassCent2*RanVelox - PartState(React1Inx, 4)
-    DSMC_RHS(React1Inx,2) = VyPseuMolec + FracMassCent2*RanVeloy - PartState(React1Inx, 5)
-    DSMC_RHS(React1Inx,3) = VzPseuMolec + FracMassCent2*RanVeloz - PartState(React1Inx, 6)
+    DSMC_RHS(React1Inx,1) = VxPseuMolec + FracMassCent2*RanVelox - PartState(4,React1Inx)
+    DSMC_RHS(React1Inx,2) = VyPseuMolec + FracMassCent2*RanVeloy - PartState(5,React1Inx)
+    DSMC_RHS(React1Inx,3) = VzPseuMolec + FracMassCent2*RanVeloz - PartState(6,React1Inx)
 
     !deltaV particle 3
-    PartState(React3Inx,4:6) = 0.
+    PartState(4:6,React3Inx) = 0.
     DSMC_RHS(React3Inx,1) = VxPseuMolec - FracMassCent1*RanVelox
     DSMC_RHS(React3Inx,2) = VyPseuMolec - FracMassCent1*RanVeloy
     DSMC_RHS(React3Inx,3) = VzPseuMolec - FracMassCent1*RanVeloz
@@ -964,12 +964,9 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
   ELSEIF(ProductReac(3).EQ.0) THEN
     IF(EductReac(3).NE.0) THEN
       ! Scattering 3 -> 2
-      VxPseuMolec = FracMassCent1 * PartState(React1Inx, 4) &
-             + FracMassCent2 * PartState(React3Inx, 4)
-      VyPseuMolec = FracMassCent1 * PartState(React1Inx, 5) &
-             + FracMassCent2 * PartState(React3Inx, 5)
-      VzPseuMolec = FracMassCent1 * PartState(React1Inx, 6) &
-             + FracMassCent2 * PartState(React3Inx, 6)
+      VxPseuMolec = FracMassCent1 * PartState(4,React1Inx) + FracMassCent2 * PartState(4,React3Inx)
+      VyPseuMolec = FracMassCent1 * PartState(5,React1Inx) + FracMassCent2 * PartState(5,React3Inx)
+      VzPseuMolec = FracMassCent1 * PartState(6,React1Inx) + FracMassCent2 * PartState(6,React3Inx)
       ! When RHS is set, React2Inx is utilized, not an error as the old state cancels out after the particle push in the time disc,
       ! therefore, there is no need to set change the index as the proper species, ProductReac(2), was utilized for the relaxation
     ELSE
@@ -984,12 +981,9 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
         FracMassCent2 = CollInf%FracMassCent(EductReac(2),CollInf%Coll_Case(EductReac(1),EductReac(2)))
       END IF
 
-      VxPseuMolec = FracMassCent1 * PartState(React1Inx, 4) &
-             + FracMassCent2 * PartState(React2Inx, 4)
-      VyPseuMolec = FracMassCent1 * PartState(React1Inx, 5) &
-             + FracMassCent2 * PartState(React2Inx, 5)
-      VzPseuMolec = FracMassCent1 * PartState(React1Inx, 6) &
-             + FracMassCent2 * PartState(React2Inx, 6)
+      VxPseuMolec = FracMassCent1 * PartState(4,React1Inx) + FracMassCent2 * PartState(4,React2Inx)
+      VyPseuMolec = FracMassCent1 * PartState(5,React1Inx) + FracMassCent2 * PartState(5,React2Inx)
+      VzPseuMolec = FracMassCent1 * PartState(6,React1Inx) + FracMassCent2 * PartState(6,React2Inx)
     END IF
     ERel_React1_React3 = Coll_pData(iPair)%Ec
 
@@ -1016,14 +1010,14 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RanVec(3)
 
     !deltaV particle 1
-    DSMC_RHS(React1Inx,1) = VxPseuMolec + FracMassCent2*RanVelox - PartState(React1Inx, 4)
-    DSMC_RHS(React1Inx,2) = VyPseuMolec + FracMassCent2*RanVeloy - PartState(React1Inx, 5)
-    DSMC_RHS(React1Inx,3) = VzPseuMolec + FracMassCent2*RanVeloz - PartState(React1Inx, 6)
-
-    !deltaV particle 2
-    DSMC_RHS(React2Inx,1) = VxPseuMolec - FracMassCent1*RanVelox - PartState(React2Inx, 4)
-    DSMC_RHS(React2Inx,2) = VyPseuMolec - FracMassCent1*RanVeloy - PartState(React2Inx, 5)
-    DSMC_RHS(React2Inx,3) = VzPseuMolec - FracMassCent1*RanVeloz - PartState(React2Inx, 6)
+    DSMC_RHS(React1Inx,1) = VxPseuMolec + FracMassCent2*RanVelox - PartState(4,React1Inx)
+    DSMC_RHS(React1Inx,2) = VyPseuMolec + FracMassCent2*RanVeloy - PartState(5,React1Inx)
+    DSMC_RHS(React1Inx,3) = VzPseuMolec + FracMassCent2*RanVeloz - PartState(6,React1Inx)
+                                                                                        
+    !deltaV particle 2                                                                  
+    DSMC_RHS(React2Inx,1) = VxPseuMolec - FracMassCent1*RanVelox - PartState(4,React2Inx)
+    DSMC_RHS(React2Inx,2) = VyPseuMolec - FracMassCent1*RanVeloy - PartState(5,React2Inx)
+    DSMC_RHS(React2Inx,3) = VzPseuMolec - FracMassCent1*RanVeloz - PartState(6,React2Inx)
 
 #ifdef CODE_ANALYZE
     ! New total energy of remaining products (here, recombination: 2 products)

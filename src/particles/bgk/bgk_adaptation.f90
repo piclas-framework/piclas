@@ -99,7 +99,7 @@ iPart = PEM%pStart(iElem)
 DO iLoop = 1, nPart
   TreeNode%iPartIndx_Node(iLoop) = iPart
   partWeight = GetParticleWeight(iPart)
-  vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6) * partWeight
+  vBulk(1:3)  =  vBulk(1:3) + PartState(4:6,iPart) * partWeight
   totalWeight = totalWeight + partWeight
   iPart = PEM%pNext(iPart)
 END DO
@@ -122,7 +122,7 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
     END DO
   ELSE ! position in reference space [-1,1] has to be computed
     DO iLoop = 1, nPart
-      CALL GetPositionInRefElem(PartState(TreeNode%iPartIndx_Node(iLoop),1:3),TreeNode%MappedPartStates(iLoop,1:3),iElem)
+      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(iLoop,1:3),iElem)
     END DO
   END IF ! DoRefMapping
   TreeNode%NodeDepth = 1
@@ -254,52 +254,52 @@ DO iPart=1,TreeNode%PNum_Node
       .AND.(TreeNode%MappedPartStates(iPart,3).LE.TreeNode%MidPoint(3))) THEN
     PartNumChildNode(1) = PartNumChildNode(1) + 1
     iPartIndx_ChildNode(1,PartNumChildNode(1)) = iPartIndx
-    vBulk(1:3,1) = vBulk(1:3,1) + PartState(iPartIndx,4:6) * partWeight
+    vBulk(1:3,1) = vBulk(1:3,1) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(1) = totalWeight(1) + partWeight
     MappedPart_ChildNode(1,PartNumChildNode(1),1:3) = TreeNode%MappedPartStates(iPart,1:3)
   ELSE IF((TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) &
       .AND.(TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2))) THEN
     PartNumChildNode(2) = PartNumChildNode(2) + 1
     iPartIndx_ChildNode(2,PartNumChildNode(2)) = iPartIndx
-    vBulk(1:3,2) = vBulk(1:3,2) + PartState(iPartIndx,4:6) * partWeight
+    vBulk(1:3,2) = vBulk(1:3,2) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(2) = totalWeight(2) + partWeight
     MappedPart_ChildNode(2,PartNumChildNode(2),1:3) = TreeNode%MappedPartStates(iPart,1:3)
   ELSE IF((TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) &
       .AND.(TreeNode%MappedPartStates(iPart,3).GE.TreeNode%MidPoint(3))) THEN
     PartNumChildNode(3) = PartNumChildNode(3) + 1
     iPartIndx_ChildNode(3,PartNumChildNode(3)) = iPartIndx
-    vBulk(1:3,3) = vBulk(1:3,3) + PartState(iPartIndx,4:6) * partWeight
+    vBulk(1:3,3) = vBulk(1:3,3) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(3) = totalWeight(3) + partWeight
     MappedPart_ChildNode(3,PartNumChildNode(3),1:3) = TreeNode%MappedPartStates(iPart,1:3)
   ELSE IF (TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) THEN
     PartNumChildNode(4) = PartNumChildNode(4) + 1
     iPartIndx_ChildNode(4,PartNumChildNode(4)) = iPartIndx
-    vBulk(1:3,4) = vBulk(1:3,4) + PartState(iPartIndx,4:6) * partWeight
+    vBulk(1:3,4) = vBulk(1:3,4) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(4) = totalWeight(4) + partWeight
     MappedPart_ChildNode(4,PartNumChildNode(4),1:3) = TreeNode%MappedPartStates(iPart,1:3)
   ELSE IF((TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2)) &
       .AND.(TreeNode%MappedPartStates(iPart,3).LE.TreeNode%MidPoint(3))) THEN
     PartNumChildNode(5) = PartNumChildNode(5) + 1
     iPartIndx_ChildNode(5,PartNumChildNode(5)) = iPartIndx
-    vBulk(1:3,5) = vBulk(1:3,5) + PartState(iPartIndx,4:6) * partWeight
+    vBulk(1:3,5) = vBulk(1:3,5) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(5) = totalWeight(5) + partWeight
     MappedPart_ChildNode(5,PartNumChildNode(5),1:3) = TreeNode%MappedPartStates(iPart,1:3)
   ELSE IF (TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2)) THEN
     PartNumChildNode(6) = PartNumChildNode(6) + 1
     iPartIndx_ChildNode(6,PartNumChildNode(6)) = iPartIndx
-    vBulk(1:3,6) = vBulk(1:3,6) + PartState(iPartIndx,4:6) * partWeight
+    vBulk(1:3,6) = vBulk(1:3,6) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(6) = totalWeight(6) + partWeight
     MappedPart_ChildNode(6,PartNumChildNode(6),1:3) = TreeNode%MappedPartStates(iPart,1:3)
   ELSE IF (TreeNode%MappedPartStates(iPart,3).GE.TreeNode%MidPoint(3)) THEN
     PartNumChildNode(7) = PartNumChildNode(7) + 1
     iPartIndx_ChildNode(7,PartNumChildNode(7)) = iPartIndx
-    vBulk(1:3,7) = vBulk(1:3,7) + PartState(iPartIndx,4:6) * partWeight
+    vBulk(1:3,7) = vBulk(1:3,7) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(7) = totalWeight(7) + partWeight
     MappedPart_ChildNode(7,PartNumChildNode(7),1:3) = TreeNode%MappedPartStates(iPart,1:3)
   ELSE
     PartNumChildNode(8) = PartNumChildNode(8) + 1
     iPartIndx_ChildNode(8,PartNumChildNode(8)) = iPartIndx
-    vBulk(1:3,8) = vBulk(1:3,8) + PartState(iPartIndx,4:6) * partWeight
+    vBulk(1:3,8) = vBulk(1:3,8) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(8) = totalWeight(8) + partWeight
     MappedPart_ChildNode(8,PartNumChildNode(8),1:3) = TreeNode%MappedPartStates(iPart,1:3)
   END IF
@@ -339,7 +339,7 @@ IF(CombineChildNodes) THEN
         partWeight = GetParticleWeight(iPartIndx_ChildNode(iLoop,iPart))
         iPartIndx_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart) = iPartIndx_ChildNode(iLoop,iPart)
         MappedPart_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart,1:3) = MappedPart_ChildNode(iLoop,iPart,1:3)
-        vBulk(1:3,iLoop+1) = vBulk(1:3,iLoop+1) + PartState(iPartIndx_ChildNode(iLoop,iPart),4:6) * partWeight
+        vBulk(1:3,iLoop+1) = vBulk(1:3,iLoop+1) + PartState(4:6,iPartIndx_ChildNode(iLoop,iPart)) * partWeight
         totalWeight(iLoop+1) = totalWeight(iLoop+1) + partWeight
       END DO
       PartNumChildNode(iLoop+1) = PartNumChildNode(iLoop+1) + PartNumChildNode(iLoop)
@@ -357,7 +357,7 @@ IF(CombineChildNodes) THEN
       partWeight = GetParticleWeight(iPartIndx_ChildNode(8,iPart))
       iPartIndx_ChildNode(iLoop2,PartNumChildNode(iLoop2)+iPart) = iPartIndx_ChildNode(8,iPart)
       MappedPart_ChildNode(iLoop2,PartNumChildNode(iLoop2)+iPart,1:3) = MappedPart_ChildNode(8,iPart,1:3)
-      vBulk(1:3,iLoop2) = vBulk(1:3,iLoop2) + PartState(iPartIndx_ChildNode(8,iPart),4:6) * partWeight
+      vBulk(1:3,iLoop2) = vBulk(1:3,iLoop2) + PartState(4:6,iPartIndx_ChildNode(8,iPart)) * partWeight
       totalWeight(iLoop2) = totalWeight(iLoop2) + partWeight
     END DO
     PartNumChildNode(iLoop2) = PartNumChildNode(iLoop2) + PartNumChildNode(8)
@@ -600,7 +600,7 @@ iPart = PEM%pStart(iElem)
 DO iLoop = 1, nPart
   TreeNode%iPartIndx_Node(iLoop) = iPart
   partWeight = GetParticleWeight(iPart)
-  vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6) * partWeight
+  vBulk(1:3)  =  vBulk(1:3) + PartState(4:6,iPart) * partWeight
   totalWeight = totalWeight + partWeight
   iPart = PEM%pNext(iPart)
 END DO
@@ -623,7 +623,7 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
     END DO
   ELSE ! position in reference space [-1,1] has to be computed
     DO iLoop = 1, nPart
-      CALL GetPositionInRefElem(PartState(TreeNode%iPartIndx_Node(iLoop),1:3),TreeNode%MappedPartStates(iLoop,1:3),iElem)
+      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(iLoop,1:3),iElem)
     END DO
   END IF ! DoRefMapping
   TreeNode%NodeDepth = 1
@@ -752,25 +752,25 @@ DO iPart=1,TreeNode%PNum_Node
     PartNumChildNode(1) = PartNumChildNode(1) + 1
     iPartIndx_ChildNode(1,PartNumChildNode(1)) = iPartIndx
     MappedPart_ChildNode(1,PartNumChildNode(1),1:2) = TreeNode%MappedPartStates(iPart,1:2)
-    vBulk(1:3,1) = vBulk(1:3,1) + PartState(iPartIndx,4:6) * partWeight
+    vBulk(1:3,1) = vBulk(1:3,1) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(1) = totalWeight(1) + partWeight
   ELSE IF(TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) THEN
     PartNumChildNode(2) = PartNumChildNode(2) + 1
     iPartIndx_ChildNode(2,PartNumChildNode(2)) = iPartIndx
     MappedPart_ChildNode(2,PartNumChildNode(2),1:2) = TreeNode%MappedPartStates(iPart,1:2)
-    vBulk(1:3,2) = vBulk(1:3,2) + PartState(iPartIndx,4:6) * partWeight
+    vBulk(1:3,2) = vBulk(1:3,2) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(2) = totalWeight(2) + partWeight
   ELSE IF(TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2)) THEN
     PartNumChildNode(3) = PartNumChildNode(3) + 1
     iPartIndx_ChildNode(3,PartNumChildNode(3)) = iPartIndx
     MappedPart_ChildNode(3,PartNumChildNode(3),1:2) = TreeNode%MappedPartStates(iPart,1:2)
-    vBulk(1:3,3) = vBulk(1:3,3) + PartState(iPartIndx,4:6) * partWeight
+    vBulk(1:3,3) = vBulk(1:3,3) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(3) = totalWeight(3) + partWeight
   ELSE
     PartNumChildNode(4) = PartNumChildNode(4) + 1
     iPartIndx_ChildNode(4,PartNumChildNode(4)) = iPartIndx
     MappedPart_ChildNode(4,PartNumChildNode(4),1:2) = TreeNode%MappedPartStates(iPart,1:2)
-    vBulk(1:3,4) = vBulk(1:3,4) + PartState(iPartIndx,4:6) * partWeight
+    vBulk(1:3,4) = vBulk(1:3,4) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(4) = totalWeight(4) + partWeight
   END IF
 END DO
@@ -806,7 +806,7 @@ IF(CombineChildNodes) THEN
         partWeight = GetParticleWeight(iPartIndx_ChildNode(iLoop,iPart))
         iPartIndx_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart) = iPartIndx_ChildNode(iLoop,iPart)
         MappedPart_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart,1:3) = MappedPart_ChildNode(iLoop,iPart,1:3)
-        vBulk(1:3,iLoop+1) = vBulk(1:3,iLoop+1) + PartState(iPartIndx_ChildNode(iLoop,iPart),4:6) * partWeight
+        vBulk(1:3,iLoop+1) = vBulk(1:3,iLoop+1) + PartState(4:6,iPartIndx_ChildNode(iLoop,iPart)) * partWeight
         totalWeight(iLoop+1) = totalWeight(iLoop+1) + partWeight
       END DO
       PartNumChildNode(iLoop+1) = PartNumChildNode(iLoop+1) + PartNumChildNode(iLoop)
@@ -824,7 +824,7 @@ IF(CombineChildNodes) THEN
       partWeight = GetParticleWeight(iPartIndx_ChildNode(4,iPart))
       iPartIndx_ChildNode(iLoop2,PartNumChildNode(iLoop2)+iPart) = iPartIndx_ChildNode(4,iPart)
       MappedPart_ChildNode(iLoop2,PartNumChildNode(iLoop2)+iPart,1:3) = MappedPart_ChildNode(4,iPart,1:3)
-      vBulk(1:3,iLoop2) = vBulk(1:3,iLoop2) + PartState(iPartIndx_ChildNode(4,iPart),4:6) * partWeight
+      vBulk(1:3,iLoop2) = vBulk(1:3,iLoop2) + PartState(4:6,iPartIndx_ChildNode(4,iPart)) * partWeight
       totalWeight(iLoop2) = totalWeight(iLoop2) + partWeight
     END DO
     PartNumChildNode(iLoop2) = PartNumChildNode(iLoop2) + PartNumChildNode(4)

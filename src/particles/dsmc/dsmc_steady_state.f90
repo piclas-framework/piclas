@@ -825,9 +825,9 @@ SUBROUTINE SteadyStateDetection_Sampling()
     DO iParts = 1, nParts
       ! Summation of energy and velocity for each cell and species
       Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3)   = Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3) &
-                                                          + 0.5 * GetParticleWeight(PartIndex) * PartState(PartIndex,4:6)**2
+                                                          + 0.5 * GetParticleWeight(PartIndex) * PartState(4:6,PartIndex)**2
       Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) = Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) &
-                                                          + GetParticleWeight(PartIndex) * PartState(PartIndex,4:6)
+                                                          + GetParticleWeight(PartIndex) * PartState(4:6,PartIndex)
       Sampler(iElem,PartSpecies(PartIndex))%PartNum       = Sampler(iElem,PartSpecies(PartIndex))%PartNum &
                                                           + GetParticleWeight(PartIndex)
       IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
@@ -1201,19 +1201,19 @@ SUBROUTINE  EntropyCalculation()
 
     ! Determine Minimum, Maximum and Average Particle Velocities
     PartIndex = PEM%pStart(iElem)
-    maxvel(1:3) = PartState(PartIndex,4:6)
-    minvel(1:3) = PartState(PartIndex,4:6)
-    avvel(1:3)  = PartState(PartIndex,4:6)
+    maxvel(1:3) = PartState(4:6,PartIndex)
+    minvel(1:3) = PartState(4:6,PartIndex)
+    avvel(1:3)  = PartState(4:6,PartIndex)
     iPart = 1
     PartIndex = PEM%pNext(PartIndex)
     DO iPart = 2, nParts
-      IF(PartState(PartIndex,4).GT.maxvel(1)) maxvel(1) = PartState(PartIndex,4)
-      IF(PartState(PartIndex,4).LT.minvel(1)) minvel(1) = PartState(PartIndex,4)
-      IF(PartState(PartIndex,5).GT.maxvel(2)) maxvel(2) = PartState(PartIndex,5)
-      IF(PartState(PartIndex,5).LT.minvel(2)) minvel(2) = PartState(PartIndex,5)
-      IF(PartState(PartIndex,6).GT.maxvel(3)) maxvel(3) = PartState(PartIndex,6)
-      IF(PartState(PartIndex,6).LT.minvel(3)) minvel(3) = PartState(PartIndex,6)
-      avvel(1:3)  = avvel(1:3) + PartState(PartIndex,4:6)
+      IF(PartState(4,PartIndex).GT.maxvel(1)) maxvel(1) = PartState(4,PartIndex)
+      IF(PartState(4,PartIndex).LT.minvel(1)) minvel(1) = PartState(4,PartIndex)
+      IF(PartState(5,PartIndex).GT.maxvel(2)) maxvel(2) = PartState(5,PartIndex)
+      IF(PartState(5,PartIndex).LT.minvel(2)) minvel(2) = PartState(5,PartIndex)
+      IF(PartState(6,PartIndex).GT.maxvel(3)) maxvel(3) = PartState(6,PartIndex)
+      IF(PartState(6,PartIndex).LT.minvel(3)) minvel(3) = PartState(6,PartIndex)
+      avvel(1:3)  = avvel(1:3) + PartState(4:6,PartIndex)
       PartIndex = PEM%pNext(PartIndex)
     ENDDO
     avvel(1:3)  = avvel(1:3) / nParts
@@ -1221,11 +1221,11 @@ SUBROUTINE  EntropyCalculation()
     ! Calculate the Standard Deviation of the Particle Velocities
     ! (for Determination of Optimum Bin-Size resp. Bandwidth)
     PartIndex = PEM%pStart(iElem)
-    sigmavel(1:3) = (PartState(PartIndex,4:6) - avvel(1:3))**2
+    sigmavel(1:3) = (PartState(4:6,PartIndex) - avvel(1:3))**2
     iPart = 1
     PartIndex = PEM%pNext(PartIndex)
     DO iPart = 2, nParts
-      sigmavel(1:3) = sigmavel(1:3) + (PartState(PartIndex,4:6) - avvel(1:3))**2
+      sigmavel(1:3) = sigmavel(1:3) + (PartState(4:6,PartIndex) - avvel(1:3))**2
       PartIndex = PEM%pNext(PartIndex)
     ENDDO
     sigmavel(1:3) = sqrt(sigmavel(1:3)/(nParts-1))
@@ -1265,22 +1265,22 @@ SUBROUTINE  EntropyCalculation()
       DO iPart = 1, nParts
         IF(usevMPF) THEN
           DO iBin = 1, nBins(1)
-            IF((PartState(PartIndex,4).GE.(minvel(1)+BinWidth(1)*(iBin-1))) &
-            .AND.(PartState(PartIndex,4).LT.(minvel(1)+BinWidth(1)*iBin))) THEN
+            IF((PartState(4,PartIndex).GE.(minvel(1)+BinWidth(1)*(iBin-1))) &
+            .AND.(PartState(4,PartIndex).LT.(minvel(1)+BinWidth(1)*iBin))) THEN
               BinIdent(1) = iBin
               EXIT
             ENDIF
           ENDDO
           DO jBin = 1, nBins(2)
-            IF((PartState(PartIndex,5).GE.(minvel(2)+BinWidth(2)*(jBin-1))) &
-            .AND.(PartState(PartIndex,5).LT.(minvel(2)+BinWidth(2)*jBin))) THEN
+            IF((PartState(5,PartIndex).GE.(minvel(2)+BinWidth(2)*(jBin-1))) &
+            .AND.(PartState(5,PartIndex).LT.(minvel(2)+BinWidth(2)*jBin))) THEN
               BinIdent(2) = jBin
               EXIT
             ENDIF
           ENDDO
           DO kBin = 1, nBins(3)
-            IF((PartState(PartIndex,6).GE.(minvel(3)+BinWidth(3)*(kBin-1))) &
-            .AND.(PartState(PartIndex,6).LT.(minvel(3)+BinWidth(3)*kBin))) THEN
+            IF((PartState(6,PartIndex).GE.(minvel(3)+BinWidth(3)*(kBin-1))) &
+            .AND.(PartState(6,PartIndex).LT.(minvel(3)+BinWidth(3)*kBin))) THEN
               BinIdent(3) = kBin
               EXIT
             ENDIF
@@ -1288,22 +1288,22 @@ SUBROUTINE  EntropyCalculation()
           BinCounter(BinIdent(1),BinIdent(2),BinIdent(3)) = BinCounter(BinIdent(1),BinIdent(2),BinIdent(3)) + 1
         ELSE
           DO iBin = 1, nBins(1)
-            IF((PartState(PartIndex,4).GE.(minvel(1)+BinWidth(1)*(iBin-1))) &
-            .AND.(PartState(PartIndex,4).LT.(minvel(1)+BinWidth(1)*iBin))) THEN
+            IF((PartState(4,PartIndex).GE.(minvel(1)+BinWidth(1)*(iBin-1))) &
+            .AND.(PartState(4,PartIndex).LT.(minvel(1)+BinWidth(1)*iBin))) THEN
               BinIdent(1) = iBin
               EXIT
             ENDIF
           ENDDO
           DO jBin = 1, nBins(2)
-            IF((PartState(PartIndex,5).GE.(minvel(2)+BinWidth(2)*(jBin-1))) &
-            .AND.(PartState(PartIndex,5).LT.(minvel(2)+BinWidth(2)*jBin))) THEN
+            IF((PartState(5,PartIndex).GE.(minvel(2)+BinWidth(2)*(jBin-1))) &
+            .AND.(PartState(5,PartIndex).LT.(minvel(2)+BinWidth(2)*jBin))) THEN
               BinIdent(2) = jBin
               EXIT
             ENDIF
           ENDDO
           DO kBin = 1, nBins(3)
-            IF((PartState(PartIndex,6).GE.(minvel(3)+BinWidth(3)*(kBin-1))) &
-            .AND.(PartState(PartIndex,6).LT.(minvel(3)+BinWidth(3)*kBin))) THEN
+            IF((PartState(6,PartIndex).GE.(minvel(3)+BinWidth(3)*(kBin-1))) &
+            .AND.(PartState(6,PartIndex).LT.(minvel(3)+BinWidth(3)*kBin))) THEN
               BinIdent(3) = kBin
               EXIT
             ENDIF
@@ -1384,8 +1384,8 @@ SUBROUTINE KernelDensityEstimation(Elem,Pos,Bandwidth2,Dens)
   PartIndex = PEM%pStart(Elem)
 
   DO iPart = 1, nParts
-    Dens = Dens + exp(-0.5*(((Pos(1)-PartState(PartIndex,4))**2)/Bandwidth2(1)+((Pos(2)-PartState(PartIndex,5))**2) &
-         / Bandwidth2(2)+((Pos(3)-PartState(PartIndex,6))**2)/Bandwidth2(3)))
+    Dens = Dens + exp(-0.5*(((Pos(1)-PartState(4,PartIndex))**2)/Bandwidth2(1)+((Pos(2)-PartState(5,PartIndex))**2) &
+         / Bandwidth2(2)+((Pos(3)-PartState(6,PartIndex))**2)/Bandwidth2(3)))
     PartIndex = PEM%pNext(PartIndex)
   ENDDO
   Dens = Dens / (nParts*((2*PI)**1.5)*sqrt(Bandwidth2(1)*Bandwidth2(2)*Bandwidth2(3)))

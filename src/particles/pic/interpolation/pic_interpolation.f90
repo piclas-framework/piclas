@@ -242,7 +242,7 @@ IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field
                l   => 1.0  )
                !l   => 0.2e-3  )
       DO iPart = firstPart, LastPart
-        FieldAtParticle(6,iPart) = B_0 * EXP(PartState(iPart,1) / l)
+        FieldAtParticle(6,iPart) = B_0 * EXP(PartState(1,iPart) / l)
       END DO
     END ASSOCIATE
   END SELECT
@@ -261,7 +261,7 @@ ELSE ! use variable or fixed external field
     ! Bz field strength at particle position
     DO iPart = firstPart, LastPart
       IF(INTERPOLATEPARTICLE(iPart))THEN
-        FieldAtParticle(6,iPart) = InterpolateVariableExternalField(PartState(iPart,3))
+        FieldAtParticle(6,iPart) = InterpolateVariableExternalField(PartState(3,iPart))
       END IF
     END DO
   ELSE ! useVariableExternalField
@@ -333,7 +333,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         ! Don't interpolate the field at neutral particles (only when considering field ionization)
         IF(DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart))THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
-            Pos = PartState(iPart,1:3)
+            Pos = PartState(1:3,iPart)
             !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -375,7 +375,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           IF(DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart))THEN
             IF(PEM%Element(iPart).EQ.iElem)THEN
               IF(.NOT.DoRefMapping)THEN
-                CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
+                CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem)
               END IF
               !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -417,7 +417,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           IF(DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart))THEN
             IF(PEM%Element(iPart).EQ.iElem)THEN
               IF(PDM%dtFracPush(iPart))THEN ! same as in "particles are not yet mapped"
-                Pos = PartState(iPart,1:3)
+                Pos = PartState(1:3,iPart)
                 !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -446,7 +446,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
               ELSE !.NOT.PDM%dtFracPush(iPart): same as in "particles have already been mapped in deposition, other eval routine used"
                 IF(.NOT.DoRefMapping)THEN
-                  CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
+                  CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem)
                 END IF
                 !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -487,7 +487,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           ! Don't interpolate the field at neutral particles (only when considering field ionization)
           IF(DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart))THEN
             IF(PEM%Element(iPart).EQ.iElem)THEN
-              Pos = PartState(iPart,1:3)
+              Pos = PartState(1:3,iPart)
               !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -536,7 +536,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         IF(DoFieldIonization.OR.INTERPOLATEPARTICLE(iPart))THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
             IF(.NOT.DoRefMapping .OR. (NotMappedSurfFluxParts .AND. PDM%dtFracPush(iPart)))THEN
-              CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
+              CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem)
             END IF
             ! compute exact k,l,m
             !! x-direction
@@ -679,7 +679,7 @@ FieldAtParticle=0.
 IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
   SELECT CASE(AnalyticInterpolationType)
   CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
-    FieldAtParticle(6) = EXP(PartState(PartID,1)) ! "B_0" and "l" are dropped here
+    FieldAtParticle(6) = EXP(PartState(1,PartID)) ! "B_0" and "l" are dropped here
   END SELECT
   ! exit the subroutine after field determination
   RETURN
@@ -695,7 +695,7 @@ ELSE ! use variable or fixed external field
     FieldAtParticle(5) = externalField(5)
 #endif
     ! Bz field strength at particle position
-    FieldAtParticle(6) = InterpolateVariableExternalField(PartState(PartID,3))
+    FieldAtParticle(6) = InterpolateVariableExternalField(PartState(3,PartID))
   ELSE ! useVariableExternalField
     FieldAtParticle(:) = 0.
     FieldAtParticle(1) = externalField(1)
@@ -752,7 +752,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif /*(PP_nVar==8)*/
     FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
   CASE('particle_position_slow')
-    Pos = PartState(PartID,1:3)
+    Pos = PartState(1:3,PartID)
     !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -784,7 +784,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
     IF(.NOT.NotMappedSurfFluxParts .AND.(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint'))THEN
       ! particles have already been mapped in deposition, other eval routine used
       IF(.NOT.DoRefMapping)THEN
-        CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
+        CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),ElemID)
       END IF
       !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -816,7 +816,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
     ELSE IF(NotMappedSurfFluxParts .AND.(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint'))THEN
       !some particle are mapped, surfaceflux particles (dtFracPush) are not
       IF(PDM%dtFracPush(PartID))THEN ! same as in "particles are not yet mapped"
-        Pos = PartState(PartID,1:3)
+        Pos = PartState(1:3,PartID)
         !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -845,7 +845,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
       ELSE !.NOT.PDM%dtFracPush(PartID): same as in "particles have already been mapped in deposition, other eval routine used"
         IF(.NOT.DoRefMapping)THEN
-          CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
+          CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),ElemID)
         END IF
         !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -876,7 +876,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       END IF !PDM%dtFracPush(PartID)
       FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
     ELSE ! particles are not yet mapped
-      Pos = PartState(PartID,1:3)
+      Pos = PartState(1:3,PartID)
       !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -915,7 +915,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       b = a-1
     END IF
     IF(.NOT.DoRefMapping .OR. (NotMappedSurfFluxParts .AND. PDM%dtFracPush(PartID)))THEN
-      CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
+      CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),ElemID)
     END IF
     ! compute exact k,l,m
     !! x-direction

@@ -1572,17 +1572,17 @@ CASE('AllParts')
     IF (PDM%ParticleInside(i)) THEN
       chargedone(:) = .FALSE.
       !-- determine which background mesh cells (and interpolation points within) need to be considered
-      kmax = INT((PartState(i,1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
+      kmax = INT((PartState(1,i)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
       kmax = MIN(kmax,GEO%FIBGMimax)
-      kmin = INT((PartState(i,1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
+      kmin = INT((PartState(1,i)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
       kmin = MAX(kmin,GEO%FIBGMimin)
-      lmax = INT((PartState(i,2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
+      lmax = INT((PartState(2,i)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
       lmax = MIN(lmax,GEO%FIBGMjmax)
-      lmin = INT((PartState(i,2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
+      lmin = INT((PartState(2,i)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
       lmin = MAX(lmin,GEO%FIBGMjmin)
-      mmax = INT((PartState(i,3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+      mmax = INT((PartState(3,i)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
       mmax = MIN(mmax,GEO%FIBGMkmax)
-      mmin = INT((PartState(i,3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+      mmin = INT((PartState(3,i)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
       mmin = MAX(mmin,GEO%FIBGMkmin)
       !-- go through all these cells
       DO kk = kmin,kmax
@@ -1598,9 +1598,9 @@ CASE('AllParts')
                 DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                   NbrOfComps = NbrOfComps + 1.
                   !-- calculate distance between gauss and particle
-                  deltax = PartState(i,1) - Elem_xGP(1,k,l,m,ElemID)
-                  deltay = PartState(i,2) - Elem_xGP(2,k,l,m,ElemID)
-                  deltaz = PartState(i,3) - Elem_xGP(3,k,l,m,ElemID)
+                  deltax = PartState(1,i) - Elem_xGP(1,k,l,m,ElemID)
+                  deltay = PartState(2,i) - Elem_xGP(2,k,l,m,ElemID)
+                  deltaz = PartState(3,i) - Elem_xGP(3,k,l,m,ElemID)
                   radius = deltax * deltax + deltay * deltay + deltaz * deltaz
                   IF (radius .LT. r2_sf) THEN
                     WITHIN=.TRUE.
@@ -1632,17 +1632,17 @@ CASE('SomeParts')
       IF(RandVal1.LT.REAL(ShapeEfficiencyNumber)/100)THEN
         chargedone(:) = .FALSE.
         !-- determine which background mesh cells (and interpolation points within) need to be considered
-        kmax = INT((PartState(i,1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
+        kmax = INT((PartState(1,i)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
         kmax = MIN(kmax,GEO%FIBGMimax)
-        kmin = INT((PartState(i,1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
+        kmin = INT((PartState(1,i)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
         kmin = MAX(kmin,GEO%FIBGMimin)
-        lmax = INT((PartState(i,2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
+        lmax = INT((PartState(2,i)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
         lmax = MIN(lmax,GEO%FIBGMjmax)
-        lmin = INT((PartState(i,2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
+        lmin = INT((PartState(2,i)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
         lmin = MAX(lmin,GEO%FIBGMjmin)
-        mmax = INT((PartState(i,3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+        mmax = INT((PartState(3,i)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
         mmax = MIN(mmax,GEO%FIBGMkmax)
-        mmin = INT((PartState(i,3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+        mmin = INT((PartState(3,i)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
         mmin = MAX(mmin,GEO%FIBGMkmin)
         !-- go through all these cells
         DO kk = kmin,kmax
@@ -1658,9 +1658,9 @@ CASE('SomeParts')
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                     NbrOfComps = NbrOfComps + 1
                     !-- calculate distance between gauss and particle
-                    deltax = PartState(i,1) - Elem_xGP(1,k,l,m,ElemID)
-                    deltay = PartState(i,2) - Elem_xGP(2,k,l,m,ElemID)
-                    deltaz = PartState(i,3) - Elem_xGP(3,k,l,m,ElemID)
+                    deltax = PartState(1,i) - Elem_xGP(1,k,l,m,ElemID)
+                    deltay = PartState(2,i) - Elem_xGP(2,k,l,m,ElemID)
+                    deltaz = PartState(3,i) - Elem_xGP(3,k,l,m,ElemID)
                     radius = deltax * deltax + deltay * deltay + deltaz * deltaz
                     IF (radius .LT. r2_sf) THEN
                       NbrWithinRadius = NbrWithinRadius + 1
@@ -1769,16 +1769,14 @@ IF (nSpecAnalyze.GT.1) THEN
     IF (PDM%ParticleInside(i)) THEN
 #if !(USE_HDG)
       IF(DoPML)THEN
-        IF (PartState(i,1) .GE. xyzPhysicalMinMax(1) .AND. PartState(i,1) .LE. xyzPhysicalMinMax(2) .AND. &
-            PartState(i,2) .GE. xyzPhysicalMinMax(3) .AND. PartState(i,2) .LE. xyzPhysicalMinMax(4) .AND. &
-            PartState(i,3) .GE. xyzPhysicalMinMax(5) .AND. PartState(i,3) .LE. xyzPhysicalMinMax(6)) THEN
+        IF (PartState(1,i) .GE. xyzPhysicalMinMax(1) .AND. PartState(1,i) .LE. xyzPhysicalMinMax(2) .AND. &
+            PartState(2,i) .GE. xyzPhysicalMinMax(3) .AND. PartState(2,i) .LE. xyzPhysicalMinMax(4) .AND. &
+            PartState(3,i) .GE. xyzPhysicalMinMax(5) .AND. PartState(3,i) .LE. xyzPhysicalMinMax(6)) THEN
           CYCLE
         END IF
       ENDIF
 #endif /*USE_HDG*/
-      partV2 = PartState(i,4) * PartState(i,4) &
-              + PartState(i,5) * PartState(i,5) &
-              + PartState(i,6) * PartState(i,6)
+      partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
@@ -1811,16 +1809,14 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
     IF (PDM%ParticleInside(i)) THEN
 #if !(USE_HDG)
       IF(DoPML)THEN
-        IF (PartState(i,1) .GE. xyzPhysicalMinMax(1) .AND. PartState(i,1) .LE. xyzPhysicalMinMax(2) .AND. &
-            PartState(i,2) .GE. xyzPhysicalMinMax(3) .AND. PartState(i,2) .LE. xyzPhysicalMinMax(4) .AND. &
-            PartState(i,3) .GE. xyzPhysicalMinMax(5) .AND. PartState(i,3) .LE. xyzPhysicalMinMax(6)) THEN
+        IF (PartState(1,i) .GE. xyzPhysicalMinMax(1) .AND. PartState(1,i) .LE. xyzPhysicalMinMax(2) .AND. &
+            PartState(2,i) .GE. xyzPhysicalMinMax(3) .AND. PartState(2,i) .LE. xyzPhysicalMinMax(4) .AND. &
+            PartState(3,i) .GE. xyzPhysicalMinMax(5) .AND. PartState(3,i) .LE. xyzPhysicalMinMax(6)) THEN
           CYCLE
         END IF
       ENDIF
 #endif /*USE_HDG*/
-      partV2 = PartState(i,4) * PartState(i,4) &
-             + PartState(i,5) * PartState(i,5) &
-             + PartState(i,6) * PartState(i,6)
+      partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
@@ -1896,16 +1892,14 @@ IF (nSpecAnalyze.GT.1) THEN
     IF (PDM%ParticleInside(i)) THEN
 #if !(USE_HDG)
       IF(DoPML)THEN
-        IF (PartState(i,1) .GE. xyzPhysicalMinMax(1) .AND. PartState(i,1) .LE. xyzPhysicalMinMax(2) .AND. &
-            PartState(i,2) .GE. xyzPhysicalMinMax(3) .AND. PartState(i,2) .LE. xyzPhysicalMinMax(4) .AND. &
-            PartState(i,3) .GE. xyzPhysicalMinMax(5) .AND. PartState(i,3) .LE. xyzPhysicalMinMax(6)) THEN
+        IF (PartState(1,i) .GE. xyzPhysicalMinMax(1) .AND. PartState(1,i) .LE. xyzPhysicalMinMax(2) .AND. &
+            PartState(2,i) .GE. xyzPhysicalMinMax(3) .AND. PartState(2,i) .LE. xyzPhysicalMinMax(4) .AND. &
+            PartState(3,i) .GE. xyzPhysicalMinMax(5) .AND. PartState(3,i) .LE. xyzPhysicalMinMax(6)) THEN
           CYCLE
         END IF
       ENDIF
 #endif /*USE_HDG*/
-      partV2 = PartState(i,4) * PartState(i,4) &
-              + PartState(i,5) * PartState(i,5) &
-              + PartState(i,6) * PartState(i,6)
+      partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
@@ -1930,8 +1924,8 @@ IF (nSpecAnalyze.GT.1) THEN
         END IF !=usevMPF
       END IF ! partV2
       ! Determine energy of the most energetic particle in [eV]
-      IF((SQRT(PartState(i,1)**2 + PartState(i,2)**2).LE.LaserInteractionEkinMaxRadius).OR.&
-                                      (PartState(i,3).GE.LaserInteractionEkinMaxZPosMin))THEN
+      IF((SQRT(PartState(1,i)**2 + PartState(2,i)**2).LE.LaserInteractionEkinMaxRadius).OR.&
+                                      (PartState(3,i).GE.LaserInteractionEkinMaxZPosMin))THEN
         EkinMax(PartSpecies(i)) = MAX(EkinMax(PartSpecies(i)),Ekin_loc*6.241509e18) ! 6.241509e18 is [J] -> [eV]
       END IF
     END IF ! (PDM%ParticleInside(i))
@@ -1941,16 +1935,14 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
     IF (PDM%ParticleInside(i)) THEN
 #if !(USE_HDG)
       IF(DoPML)THEN
-        IF (PartState(i,1) .GE. xyzPhysicalMinMax(1) .AND. PartState(i,1) .LE. xyzPhysicalMinMax(2) .AND. &
-            PartState(i,2) .GE. xyzPhysicalMinMax(3) .AND. PartState(i,2) .LE. xyzPhysicalMinMax(4) .AND. &
-            PartState(i,3) .GE. xyzPhysicalMinMax(5) .AND. PartState(i,3) .LE. xyzPhysicalMinMax(6)) THEN
+        IF (PartState(1,i) .GE. xyzPhysicalMinMax(1) .AND. PartState(1,i) .LE. xyzPhysicalMinMax(2) .AND. &
+            PartState(2,i) .GE. xyzPhysicalMinMax(3) .AND. PartState(2,i) .LE. xyzPhysicalMinMax(4) .AND. &
+            PartState(3,i) .GE. xyzPhysicalMinMax(5) .AND. PartState(3,i) .LE. xyzPhysicalMinMax(6)) THEN
           CYCLE
         END IF
       ENDIF
 #endif /*USE_HDG*/
-      partV2 = PartState(i,4) * PartState(i,4) &
-             + PartState(i,5) * PartState(i,5) &
-             + PartState(i,6) * PartState(i,6)
+      partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
@@ -1970,8 +1962,8 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
 
       END IF ! par2
       ! Determine energy of the most energetic particle in [eV]
-      IF((SQRT(PartState(i,1)**2 + PartState(i,2)**2).LE.LaserInteractionEkinMaxRadius).OR.&
-                                      (PartState(i,3).GE.LaserInteractionEkinMaxZPosMin))THEN
+      IF((SQRT(PartState(1,i)**2 + PartState(2,i)**2).LE.LaserInteractionEkinMaxRadius).OR.&
+                                      (PartState(3,i).GE.LaserInteractionEkinMaxZPosMin))THEN
         EkinMax(PartSpecies(i)) = MAX(EkinMax(PartSpecies(i)),Ekin_loc*6.241509e18) ! 6.241509e18 is [J] -> [eV]
       END IF
     END IF ! particle inside
@@ -2248,8 +2240,8 @@ END DO
 PartVandV2 = 0.
 DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
-    PartVandV2(PartSpecies(i),1:3) = PartVandV2(PartSpecies(i),1:3) + PartState(i,4:6) * GetParticleWeight(i)
-    PartVandV2(PartSpecies(i),4:6) = PartVandV2(PartSpecies(i),4:6) + PartState(i,4:6)**2 * GetParticleWeight(i)
+    PartVandV2(PartSpecies(i),1:3) = PartVandV2(PartSpecies(i),1:3) + PartState(4:6,i) * GetParticleWeight(i)
+    PartVandV2(PartSpecies(i),4:6) = PartVandV2(PartSpecies(i),4:6) + PartState(4:6,i)**2 * GetParticleWeight(i)
   END IF
 END DO
 
@@ -2339,9 +2331,9 @@ REAL                           :: RD(nSpecies*4)
       DO dir = 1,3
         IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
           IF (usevMPF) THEN
-            PartVtrans(PartSpecies(i),dir) = PartVtrans(PartSpecies(i),dir) + PartState(i,dir+3) * PartMPF(i)
-          ELSE
-            PartVtrans(PartSpecies(i),dir) = PartVtrans(PartSpecies(i),dir) + PartState(i,dir+3)
+            PartVtrans(PartSpecies(i),dir) = PartVtrans(PartSpecies(i),dir) + PartState(dir+3,i) * PartMPF(i)
+          ELSE                                                                                 
+            PartVtrans(PartSpecies(i),dir) = PartVtrans(PartSpecies(i),dir) + PartState(dir+3,i)
           END IF
         END IF
       END DO
@@ -2395,10 +2387,10 @@ REAL                           :: RD(nSpecies*4)
         IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
           IF (usevMPF) THEN
             PartVtherm(PartSpecies(i),dir) = PartVtherm(PartSpecies(i),dir) + PartMPF(i) * &
-                (PartState(i,dir+3) - PartVtrans(PartSpecies(i),dir))*(PartState(i,dir+3) - PartVtrans(PartSpecies(i),dir))
+                (PartState(dir+3,i) - PartVtrans(PartSpecies(i),dir))*(PartState(dir+3,i) - PartVtrans(PartSpecies(i),dir))
           ELSE
             PartVtherm(PartSpecies(i),dir) = PartVtherm(PartSpecies(i),dir) + &
-                (PartState(i,dir+3) - PartVtrans(PartSpecies(i),dir))*(PartState(i,dir+3) - PartVtrans(PartSpecies(i),dir))
+                (PartState(dir+3,i) - PartVtrans(PartSpecies(i),dir))*(PartState(dir+3,i) - PartVtrans(PartSpecies(i),dir))
           END IF
         END IF
       END DO
@@ -2828,106 +2820,6 @@ END SUBROUTINE WriteEletronicTransition
 #endif
 #endif
 
-!  SUBROUTINE TrackingParticlePosition(time)
-!  !===================================================================================================================================
-!  ! Initializes variables necessary for analyse subroutines
-!  !===================================================================================================================================
-!  ! MODULES
-!  USE MOD_Globals
-!  USE MOD_Preproc
-!  USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PEM
-!  USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-!  USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime
-!  #if defined(LSERK) || defined(IMPA) || defined(ROS)
-!  USE MOD_Equation_Vars         ,ONLY: c2_inv
-!  #endif
-!  ! IMPLICIT VARIABLE HANDLING
-!  IMPLICIT NONE
-!  !-----------------------------------------------------------------------------------------------------------------------------------
-!  ! INPUT VARIABLES
-!  REAL,INTENT(IN)                :: time
-!  !-----------------------------------------------------------------------------------------------------------------------------------
-!  ! OUTPUT VARIABLES
-!  !-----------------------------------------------------------------------------------------------------------------------------------
-!  ! LOCAL VARIABLES
-!  INTEGER            :: i,iunit,iPartState
-!  CHARACTER(LEN=60) :: TrackingFilename!,hilf
-!  LOGICAL            :: fexist
-!  REAL               :: diffPos,diffVelo
-!  !===================================================================================================================================
-!
-!  !WRITE(UNIT=hilf,FMT='(I6.6)') MyRank
-!  !TrackingFilename = ('MyRank'//TRIM(hilf)//'_ParticlePosition.csv')
-!  TrackingFilename = ('ParticlePosition.csv')
-!
-!  INQUIRE(FILE = TrackingFilename, EXIST=fexist)
-!  IF(.NOT.fexist) THEN
-!   IF(PartMPI%MPIRoot)THEN
-!     OPEN(NEWUNIT=iunit,FILE=TrackingFilename,FORM='FORMATTED',STATUS='UNKNOWN')
-!     !CALL FLUSH (iunit)
-!      ! writing header
-!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') '001-TIME', ' '
-!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
-!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartNum', ' '
-!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
-!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosX', ' '
-!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
-!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosY', ' '
-!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
-!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosZ', ' '
-!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
-!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelX', ' '
-!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
-!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelY', ' '
-!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
-!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelZ', ' '
-!  #if defined(LSERK) || defined(IMPA) || defined(ROS)
-!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
-!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'gamma', ' '
-!  #endif
-!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
-!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'Element '
-!      CLOSE(iunit)
-!    END IF
-!  ELSE
-!    OPEN(NEWUNIT=iunit,FILE=TrackingFileName,FORM='Formatted',POSITION='APPEND',STATUS='old')
-!    !CALL FLUSH (iunit)
-!    DO i=1,PDM%ParticleVecLength
-!      IF (PDM%ParticleInside(i)) THEN
-!        WRITE(iunit,104,ADVANCE='NO') TIME
-!        WRITE(iunit,'(A1)',ADVANCE='NO') ','
-!        WRITE(iunit,'(I12)',ADVANCE='NO') i
-!        DO iPartState=1,6
-!          WRITE(iunit,'(A1)',ADVANCE='NO') ','
-!          WRITE(iunit,104,ADVANCE='NO') PartState(i,iPartState)
-!        END DO
-!  #if defined(LSERK) || defined(IMPA) || defined(ROS)
-!          WRITE(iunit,'(A1)',ADVANCE='NO') ','
-!          WRITE(iunit,104,ADVANCE='NO') 1./SQRT(1-(DOT_PRODUCT(PartState(i,4:6),PartState(i,4:6))*c2_inv))
-!  #endif
-!        WRITE(iunit,'(A1)',ADVANCE='NO') ','
-!        WRITE(iunit,'(I12)',ADVANCE='NO') PEM%Element(i)
-!        WRITE(iunit,'(A)') ' '
-!       END IF
-!    END DO
-!    CLOSE(iunit)
-!  END IF
-!  IF (printDiff) THEN
-!    diffPos=0.
-!    diffVelo=0.
-!    IF (time.GE.printDiffTime) THEN
-!      printDiff=.FALSE.
-!      DO iPartState=1,3
-!        diffPos=diffPos+(printDiffVec(iPartState)-PartState(1,iPartState))**2
-!        diffVelo=diffVelo+(printDiffVec(iPartState+3)-PartState(1,iPartState+3))**2
-!      END DO
-!      WRITE(*,'(A,e24.14,x,e24.14)') 'L2-norm from printDiffVec: ',SQRT(diffPos),SQRT(diffVelo)
-!    END IF
-!  END IF
-!  104    FORMAT (e25.14)
-!
-!  END SUBROUTINE TrackingParticlePosition
-
 !----------------------------------------------------------------------------------------------------------------------------------!
 !> Write particle info to ParticlePosition.csv file
 !> time, pos, velocity, gamma, element
@@ -2936,7 +2828,7 @@ SUBROUTINE WriteParticleTrackingData(time,iter)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
+USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout,DOTPRODUCT
 USE MOD_Restart_Vars     ,ONLY: DoRestart
 USE MOD_Globals          ,ONLY: abort
 
@@ -3026,14 +2918,14 @@ IF(FILEEXISTS(outfile))THEN
       WRITE(tmpStr2,formatStr)&
           " ",time, &                                                                     ! time
           delimiter,REAL(i), &                                                            ! PartNum
-          delimiter,PartState(i,1), &                                                     ! PartPosX
-          delimiter,PartState(i,2), &                                                     ! PartPosY
-          delimiter,PartState(i,3), &                                                     ! PartPosZ
-          delimiter,PartState(i,4), &                                                     ! PartVelX
-          delimiter,PartState(i,5), &                                                     ! PartVelY
-          delimiter,PartState(i,6), &                                                     ! PartVelZ
+          delimiter,PartState(1,i), &                                                     ! PartPosX
+          delimiter,PartState(2,i), &                                                     ! PartPosY
+          delimiter,PartState(3,i), &                                                     ! PartPosZ
+          delimiter,PartState(4,i), &                                                     ! PartVelX
+          delimiter,PartState(5,i), &                                                     ! PartVelY
+          delimiter,PartState(6,i), &                                                     ! PartVelZ
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
-          delimiter,1./SQRT(1-(DOT_PRODUCT(PartState(i,4:6),PartState(i,4:6))*c2_inv)), & ! gamma
+          delimiter,1./SQRT(1-(DOTPRODUCT(PartState(4:6,i))*c2_inv)), & ! gamma
 #endif
           delimiter,REAL(PEM%Element(i))                                                  ! Element
       WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
@@ -3051,8 +2943,8 @@ IF (printDiff) THEN
   IF (time.GE.printDiffTime) THEN
     printDiff=.FALSE.
     DO iPartState=1,3
-      diffPos=diffPos+(printDiffVec(iPartState)-PartState(1,iPartState))**2
-      diffVelo=diffVelo+(printDiffVec(iPartState+3)-PartState(1,iPartState+3))**2
+      diffPos=diffPos+(printDiffVec(iPartState)-PartState(iPartState,1))**2
+      diffVelo=diffVelo+(printDiffVec(iPartState+3)-PartState(iPartState+3,1))**2
     END DO
     WRITE(*,'(A,e24.14,x,e24.14)') 'L2-norm from printDiffVec: ',SQRT(diffPos),SQRT(diffVelo)
   END IF
@@ -3205,12 +3097,10 @@ END IF
 IF (PartLorentzType.EQ.5)THEN
   ! gamma v is pushed instead of gamma, therefore, only the relativistic kinetic energy is computed
   ! compute gamma
-  gamma1=SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
+  gamma1=SQRT(1.0+DOTPRODUCT(PartState(4:6,iPart))*c2_inv)
   CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
 ELSE
-  partV2 = PartState(iPart,4) * PartState(iPart,4) &
-         + PartState(iPart,5) * PartState(iPart,5) &
-         + PartState(iPart,6) * PartState(iPart,6)
+  partV2 = DOTPRODUCT(PartState(4:6,iPart))
   IF (partV2.LT.1E12)THEN
     CalcEkinPart= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * WeightingFactor
   ELSE
@@ -3523,8 +3413,8 @@ DO iPart=1,PDM%ParticleVecLength
     CASE(0) ! 1.0   for distributions where the drift is negligible
       ElectronTemperatureCell(ElemID) = ElectronTemperatureCell(ElemID)+CalcEkinPart(iPart)
     CASE(1) ! 1.1   remove drift from distribution
-      PartVandV2(ElemID,1:3) = PartVandV2(ElemID,1:3) + PartState(iPart,4:6)    * WeightingFactor
-      PartVandV2(ElemID,4:6) = PartVandV2(ElemID,4:6) + PartState(iPart,4:6)**2 * WeightingFactor
+      PartVandV2(ElemID,1:3) = PartVandV2(ElemID,1:3) + PartState(4:6,iPart)    * WeightingFactor
+      PartVandV2(ElemID,4:6) = PartVandV2(ElemID,4:6) + PartState(4:6,iPart)**2 * WeightingFactor
     END SELECT
   END IF ! ParticleInside
 END DO ! iPart
@@ -3769,12 +3659,12 @@ DO iPart = 1, PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
     iElem = PEM%Element(iPart)
     ! Check velocity of each particle in each direction at get the highest value
-    MaxVelo(iElem,1) = MAX(MaxVelo(iElem,1),PartState(iPart,4))
-    MaxVelo(iElem,2) = MAX(MaxVelo(iElem,2),PartState(iPart,5))
-    MaxVelo(iElem,3) = MAX(MaxVelo(iElem,3),PartState(iPart,6))
+    MaxVelo(iElem,1) = MAX(MaxVelo(iElem,1),PartState(4,iPart))
+    MaxVelo(iElem,2) = MAX(MaxVelo(iElem,2),PartState(5,iPart))
+    MaxVelo(iElem,3) = MAX(MaxVelo(iElem,3),PartState(6,iPart))
     ! Check for fastest particle in cell
-    IF(VECNORM(PartState(iPart,4:6)).GT.VECNORM(MaxVeloAbs(iElem,1:3)))THEN
-      MaxVeloAbs(iElem,1:3) = PartState(iPart,4:6)
+    IF(VECNORM(PartState(4:6,iPart)).GT.VECNORM(MaxVeloAbs(iElem,1:3)))THEN
+      MaxVeloAbs(iElem,1:3) = PartState(4:6,iPart)
     END IF
   END IF
 END DO ! iPart = 1, PDM%ParticleVecLength
@@ -3866,8 +3756,8 @@ END SUBROUTINE CalculateIonizationCell
 
 SUBROUTINE CalculatePlasmaParameter()
 !===================================================================================================================================
-! Calculate the points per Debye length for each cell
-! PointsPerDebyeLength: PPD = (p+1)*lambda_D/L_cell
+! Calculate the Plasma parameter (here Debye number) for each cell
+! Debye number: N_D = 4.0/3.0 * pi * n_e * lambda_D**3
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -4100,14 +3990,14 @@ ELSE
     IF (PDM%ParticleInside(i)) THEN
       DO j = 1, 6
         ! OLD METHOD: original
-        ! L_2_Error_Part(j) = SQRT( ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(i,j))**2 )/ REAL(iter))
+        ! L_2_Error_Part(j) = SQRT( ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(j,i))**2 )/ REAL(iter))
 
         ! OLD METHOD: considering TEnd
-        ! L_2_Error_Part(j) = SQRT( Tend * ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(i,j))**2 ) &
+        ! L_2_Error_Part(j) = SQRT( Tend * ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(j,i))**2 ) &
         !                      / REAL(iter))
 
         ! NEW METHOD: considering variable time step
-        L_2_Error_Part(j) = SQRT(  (L_2_Error_Part(j))**2 + (t-L_2_Error_Part_time)*(PartStateAnalytic(j)-PartState(i,j))**2 )
+        L_2_Error_Part(j) = SQRT(  (L_2_Error_Part(j))**2 + (t-L_2_Error_Part_time)*(PartStateAnalytic(j)-PartState(j,i))**2 )
       END DO ! j = 1, 6
       L_2_Error_Part_time = t
     ELSE

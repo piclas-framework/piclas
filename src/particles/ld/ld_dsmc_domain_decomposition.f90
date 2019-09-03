@@ -139,9 +139,9 @@ DO iElem = 1, nElems
     nPart = PEM%pNumber(iElem)
     iPartIndx = PEM%pStart(iElem)
     DO iPart = 1, nPart
-      PartState(iPartIndx,4) = PartStateBulkValues(iPartIndx,1)
-      PartState(iPartIndx,5) = PartStateBulkValues(iPartIndx,2)
-      PartState(iPartIndx,6) = PartStateBulkValues(iPartIndx,3)
+      PartState(4,iPartIndx) = PartStateBulkValues(iPartIndx,1)
+      PartState(5,iPartIndx) = PartStateBulkValues(iPartIndx,2)
+      PartState(6,iPartIndx) = PartStateBulkValues(iPartIndx,3)
       iPartIndx = PEM%pNext(iPartIndx)
     END DO
   END IF
@@ -163,15 +163,15 @@ DO iElem = 1, nElems
       ELSE
          WeightFak = Species(PartSpecies(iPartIndx))%MacroParticleFactor
       END IF
-      BulkValues(iElem)%CellV(1)        = BulkValues(iElem)%CellV(1) + PartState(iPartIndx,4) &
+      BulkValues(iElem)%CellV(1)        = BulkValues(iElem)%CellV(1) + PartState(4,iPartIndx) &
                                         * WeightFak * Species(PartSpecies(iPartIndx))%MassIC
-      BulkValues(iElem)%CellV(2)        = BulkValues(iElem)%CellV(2) + PartState(iPartIndx,5) &
+      BulkValues(iElem)%CellV(2)        = BulkValues(iElem)%CellV(2) + PartState(5,iPartIndx) &
                                         * WeightFak * Species(PartSpecies(iPartIndx))%MassIC
-      BulkValues(iElem)%CellV(3)        = BulkValues(iElem)%CellV(3) + PartState(iPartIndx,6) &
+      BulkValues(iElem)%CellV(3)        = BulkValues(iElem)%CellV(3) + PartState(6,iPartIndx) &
                                         * WeightFak * Species(PartSpecies(iPartIndx))%MassIC
-      CellVelo2                         = CellVelo2 + ( (PartState(iPartIndx,4))**2 &
-                                                      + (PartState(iPartIndx,5))**2 &
-                                                      + (PartState(iPartIndx,6))**2 ) &
+      CellVelo2                         = CellVelo2 + ( (PartState(4,iPartIndx))**2 &
+                                                      + (PartState(5,iPartIndx))**2 &
+                                                      + (PartState(6,iPartIndx))**2 ) &
                                                       * WeightFak * Species(PartSpecies(iPartIndx))%MassIC
       BulkValues(iElem)%DegreeOfFreedom = BulkValues(iElem)%DegreeOfFreedom + PartStateBulkValues(iPartIndx,5) * WeightFak
       CellMass                          = CellMass + WeightFak * Species(PartSpecies(iPartIndx))%MassIC

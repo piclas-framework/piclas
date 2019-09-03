@@ -162,13 +162,9 @@ USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
   DO ipart = 1, nPart
     CALL TensorProductInterpolation(PartPosRef(1:3,iPartIndx),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo_tmp,PartNewPos)
 
-    !print*,'PartNewPos',PartNewPos
-    !print*,'PartPos',PartState(iPartIndx,1:3)
-    !print*,'PartVelo',PartState(iPartIndx,4:6)
-    !read*
-    LD_RHS(iPartIndx,1) = (PartNewPos(1) - PartState(iPartIndx,1)) / dt - PartState(iPartIndx,4)
-    LD_RHS(iPartIndx,2) = (PartNewPos(2) - PartState(iPartIndx,2)) / dt - PartState(iPartIndx,5)
-    LD_RHS(iPartIndx,3) = (PartNewPos(3) - PartState(iPartIndx,3)) / dt - PartState(iPartIndx,6)
+    LD_RHS(iPartIndx,1) = (PartNewPos(1) - PartState(1,iPartIndx)) / dt - PartState(4,iPartIndx)
+    LD_RHS(iPartIndx,2) = (PartNewPos(2) - PartState(2,iPartIndx)) / dt - PartState(5,iPartIndx)
+    LD_RHS(iPartIndx,3) = (PartNewPos(3) - PartState(3,iPartIndx)) / dt - PartState(6,iPartIndx)
 
     IF (LD_RHS(iPartIndx,1).NE.LD_RHS(iPartIndx,1)) THEN
       LD_RHS(iPartIndx,1) = 0.0
@@ -179,24 +175,6 @@ USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
     IF (LD_RHS(iPartIndx,3).NE.LD_RHS(iPartIndx,3)) THEN
       LD_RHS(iPartIndx,3) = 0.0
     END IF
-    !print*,'iPart,ld-rhs',iPartIndx,LD_RHS(iPartIndx,1:3)
-    !read*
-
-!    IF ((ABS(PartNewPos(1) - PartState(iPartIndx,1)).LE. 1E-14) .OR. (dt.LE. 1E-14)) THEN
-!      LD_RHS(iPartIndx,1) = 0.0
-!    ELSE
-!      LD_RHS(iPartIndx,1) = (PartNewPos(1) - PartState(iPartIndx,1)) / dt - PartState(iPartIndx,4)
-!    END IF
-!    IF ((ABS(PartNewPos(2) - PartState(iPartIndx,2)).LE. 1E-14) .OR. (dt.LE. 1E-14)) THEN
-!      LD_RHS(iPartIndx,2) = 0.0
-!    ELSE
-!      LD_RHS(iPartIndx,2) = (PartNewPos(2) - PartState(iPartIndx,2)) / dt - PartState(iPartIndx,5)
-!    END IF
-!    IF ((ABS(PartNewPos(3) - PartState(iPartIndx,3)).LE. 1E-14) .OR. (dt.LE. 1E-14)) THEN
-!      LD_RHS(iPartIndx,3) = 0.0
-!    ELSE
-!      LD_RHS(iPartIndx,3) = (PartNewPos(3) - PartState(iPartIndx,3)) / dt - PartState(iPartIndx,6)
-!    END IF
 #if (PP_TimeDiscMethod==1001)
     LD_DSMC_RHS(iPartIndx,1) = LD_RHS(iPartIndx,1)
     LD_DSMC_RHS(iPartIndx,2) = LD_RHS(iPartIndx,2)

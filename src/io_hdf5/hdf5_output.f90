@@ -923,9 +923,9 @@ DO iElem_loc=1,PP_nElems
     PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + INT(PEM%pNumber(iElem_loc),IK)
     pcount = PEM%pStart(iElem_loc)
     DO iPart=PartInt(iElem_glob,1)+1_IK,PartInt(iElem_glob,2)
-      PartData(iPart,1)=PartState(pcount,1)
-      PartData(iPart,2)=PartState(pcount,2)
-      PartData(iPart,3)=PartState(pcount,3)
+      PartData(iPart,1)=PartState(1,pcount)
+      PartData(iPart,2)=PartState(2,pcount)
+      PartData(iPart,3)=PartState(3,pcount)
 #if (PP_TimeDiscMethod==509)
       IF (velocityOutputAtTime) THEN
         PartData(iPart,4)=velocityAtTime(pcount,1)
@@ -933,9 +933,9 @@ DO iElem_loc=1,PP_nElems
         PartData(iPart,6)=velocityAtTime(pcount,3)
       ELSE
 #endif /*(PP_TimeDiscMethod==509)*/
-      PartData(iPart,4)=PartState(pcount,4)
-      PartData(iPart,5)=PartState(pcount,5)
-      PartData(iPart,6)=PartState(pcount,6)
+      PartData(iPart,4)=PartState(4,pcount)
+      PartData(iPart,5)=PartState(5,pcount)
+      PartData(iPart,6)=PartState(6,pcount)
 #if (PP_TimeDiscMethod==509)
       END IF
 #endif /*(PP_TimeDiscMethod==509)*/

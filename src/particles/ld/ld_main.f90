@@ -164,7 +164,7 @@ REAL                  :: RandVec(3), iRan
       IF (iRan.LT. LD_RepositionFak) THEN
         CALL RANDOM_NUMBER(RandVec)
         RandVec = RandVec * 2.0 - 1.0
-        CALL TensorProductInterpolation(RandVec,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),PartState(iPartIndx,1:3))
+        CALL TensorProductInterpolation(RandVec,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),PartState(1:3,iPartIndx))
         iPartIndx = PEM%pNext(iPartIndx)
       END IF
     END DO

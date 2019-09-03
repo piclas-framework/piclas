@@ -176,9 +176,9 @@ USE MOD_Basis,                 ONLY : GetInverse
           !Matrix(2,3) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(3))
           !Matrix(3,3) = - OldHexCentroid(3) + GEO%NodeCoords(3,TetraPoint(3))
 
-          Vector(1,1) = - OldHexCentroid(1) + PartState(iPartIndx,1)
-          Vector(2,1) = - OldHexCentroid(2) + PartState(iPartIndx,2)
-          Vector(3,1) = - OldHexCentroid(3) + PartState(iPartIndx,3)
+          Vector(1,1) = - OldHexCentroid(1) + PartState(1,iPartIndx)
+          Vector(2,1) = - OldHexCentroid(2) + PartState(2,iPartIndx)
+          Vector(3,1) = - OldHexCentroid(3) + PartState(3,iPartIndx)
 
           !CALL gaussj(Matrix,Vector)
           MatrixInv=getInverse(3,Matrix)
@@ -193,7 +193,7 @@ USE MOD_Basis,                 ONLY : GetInverse
             DO iVertex = 1, 4
               IF (iVertex.EQ.4) THEN
                 !CALL CalcDistOpposite(iVertex,OldHexCentroid,DistVertex,OldHexCentroid,TetraPoint)
-                !CALL CalcDistOpposite(iVertex,OldHexCentroid,DistPart,PartState(iPartIndx,1:3),TetraPoint)
+                !CALL CalcDistOpposite(iVertex,OldHexCentroid,DistPart,PartState(1:3,iPartIndx),TetraPoint)
                 PartShift(1) = PartShift(1) + DistPart / DistVertex * &
                              (- OldHexCentroid(1) + NewHexCentroid(1))
                 PartShift(2) = PartShift(2) + DistPart / DistVertex * &
@@ -202,7 +202,7 @@ USE MOD_Basis,                 ONLY : GetInverse
                              (- OldHexCentroid(3) + NewHexCentroid(3))
               ELSE
                 !CALL CalcDistOpposite(iVertex,OldHexCentroid,DistVertex,GEO%NodeCoords(1:3,TetraPoint(iVertex)),TetraPoint)
-                !CALL CalcDistOpposite(iVertex,OldHexCentroid,DistPart,PartState(iPartIndx,1:3),TetraPoint)
+                !CALL CalcDistOpposite(iVertex,OldHexCentroid,DistPart,PartState(1:3,iPartIndx),TetraPoint)
                 !PartShift(1) = PartShift(1) + DistPart / DistVertex * &
                 !             (- GEO%NodeCoords(1,TetraPoint(iVertex)) &
                 !              + NewNodePosIndx(1,TetraPoint(iVertex)))
@@ -214,9 +214,9 @@ USE MOD_Basis,                 ONLY : GetInverse
                 !              + NewNodePosIndx(3,TetraPoint(iVertex)))
               END IF
             END DO ! iVertex
-            LD_RHS(iPartIndx,1) = PartShift(1) / dt - PartState(iPartIndx,4)
-            LD_RHS(iPartIndx,2) = PartShift(2) / dt - PartState(iPartIndx,5)
-            LD_RHS(iPartIndx,3) = PartShift(3) / dt - PartState(iPartIndx,6)
+            LD_RHS(iPartIndx,1) = PartShift(1) / dt - PartState(4,iPartIndx)
+            LD_RHS(iPartIndx,2) = PartShift(2) / dt - PartState(5,iPartIndx)
+            LD_RHS(iPartIndx,3) = PartShift(3) / dt - PartState(6,iPartIndx)
             IF (ABS(PartShift(1)).LE. 1E-14) THEN
               LD_RHS(iPartIndx,1) = 0.0
             END IF

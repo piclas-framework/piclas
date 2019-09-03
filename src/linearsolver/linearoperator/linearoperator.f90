@@ -461,7 +461,7 @@ END IF
 
 ! CALL PartVectorDotProduct(X,X,X_abs)
 ! IF(X_abs.NE.0.)THEN
-!   CALL PartVectorDotProduct(PartState(PartID,1:6),ABS(X),typ_v_abs)
+!   CALL PartVectorDotProduct(PartState(1:6,PartID),ABS(X),typ_v_abs)
 !   CALL PartVectorDotProduct(PartXK(1:6,PartID),X,Xk_V)
 !   sign_XK_V=SIGN(1.,Xk_V)
 !   EpsFD= rEps0/X_abs*MAX(ABS(Xk_V),typ_v_abs)*SIGN_Xk_V
@@ -474,21 +474,19 @@ END IF
 ! CALL PartVectorDotProduct(X,X,X_abs)
 ! EpsFD=rEps0  * SQRT(1.+XK_V)/X_abs
 
-PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
+PartState(1:6,PartID) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
-! CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),PEM%Element(PartID))
+! CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),PEM%Element(PartID))
 ! CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle(1:6,PartID))
 !PartT(4:6)=Pt(1:3,PartID)
 IF(PartLorentzType.EQ.5)THEN
-  LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6))*c2_inv)
+  LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(4:6,PartID),PartState(4:6,PartID))*c2_inv)
   CALL PartRHS(PartID,FieldAtParticle(1:6,PartID),PartT(4:6),LorentzFacInv)
 ELSE
   LorentzFacInv = 1.0
   CALL PartRHS(PartID,FieldAtParticle(1:6,PartID),PartT(4:6))
 END IF ! PartLorentzType.EQ.5
-PartT(1)=LorentzFacInv*PartState(PartID,4) ! funny, or PartXK
-PartT(2)=LorentzFacInv*PartState(PartID,5) ! funny, or PartXK
-PartT(3)=LorentzFacInv*PartState(PartID,6) ! funny, or PartXK
+PartT(1:3)=LorentzFacInv*PartState(4:6,PartID) ! funny, or PartXK
 ! or frozen version
 #if ROS
 !Y(1:6) = (Coeff*X(1:6) - (1./EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))

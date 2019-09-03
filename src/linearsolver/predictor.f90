@@ -291,22 +291,22 @@ SELECT CASE(PredictorType)
   CASE(0)
     ! trival guess
     ! nothing to do, because old stage value is used as a prediction
-    PartState(PartID,:)=PartState(PartID,:)
+    PartState(:,PartID)=PartState(:,PartID)
   CASE(1)
     ! use RHS as Predictor
-    PartState(PartID,:)=PartQ(:,PartID)
+    PartState(:,PartID)=PartQ(:,PartID)
   CASE(2)
     ! second order dense output
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     !tphi = 1.+RK_c(iStage)
     tphi = RK_c(iStage)
     tphi2= tphi*tphi
-    PartState(PartID,1:6)=(RK_bs(iStage-1,1)*tphi+RK_bs(iStage-1,2)*tphi2)*PartStage(PartID,1:6,iStage-1)
+    PartState(1:6,PartID)=(RK_bs(iStage-1,1)*tphi+RK_bs(iStage-1,2)*tphi2)*PartStage(PartID,1:6,iStage-1)
     DO iCounter=1,iStage-2
-      PartState(PartID,1:6) = PartState(PartID,1:6) + &
+      PartState(1:6,PartID) = PartState(1:6,PartID) + &
                           (RK_bs(iCounter,1)*tphi+RK_bs(iCounter,2)*tphi2)*PartStage(PartID,1:6,iCounter)
     END DO
-    PartState(PartID,1:6)=PartStateN(PartID,1:6)+dt*PartState(PartID,1:6)
+    PartState(1:6,PartID)=PartStateN(PartID,1:6)+dt*PartState(1:6,PartID)
 #else
    CALL abort(&
 __STAMP__&
@@ -319,14 +319,14 @@ __STAMP__&
     tphi = RK_c(iStage)
     tphi2= tphi*tphi
     tphi3= tphi*tphi2
-    PartState(PartID,1:6)=(RK_bsO3(iStage-1,1)*tphi+RK_bsO3(iStage-1,2)*tphi2+RK_bsO3(iStage-1,3)*tphi3) &
+    PartState(1:6,PartID)=(RK_bsO3(iStage-1,1)*tphi+RK_bsO3(iStage-1,2)*tphi2+RK_bsO3(iStage-1,3)*tphi3) &
                          * PartStage(PartID,1:6,iStage-1)
     DO iCounter = 1,iStage-2
-      PartState(PartID,1:6) = PartState(PartID,1:6) &
+      PartState(1:6,PartID) = PartState(1:6,PartID) &
                             + (RK_bsO3(iCounter,1)*tphi+RK_bsO3(iCounter,2)*tphi2+RK_bsO3(iCounter,3)*tphi3) &
                             * (PartStage(PartID,1:6,iCounter) )
     END DO
-    PartState(PartID,1:6)=PartStateN(PartID,1:6)+dt*PartState(PartID,1:6)
+    PartState(1:6,PartID)=PartStateN(PartID,1:6)+dt*PartState(1:6,PartID)
 #else
    CALL abort(&
 __STAMP__&

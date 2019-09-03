@@ -144,9 +144,9 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !     !      Ec = 0 ! Energy of collision (in case of e + A = Ekin)
 !     !
 !     !      !relativistic Ekin of particle 1
-!     !      partV2 = PartState(Coll_pData(iPair)%iPart_p1,4) * PartState(Coll_pData(iPair)%iPart_p1,4) &
-!     !               + PartState(Coll_pData(iPair)%iPart_p1,5) * PartState(Coll_pData(iPair)%iPart_p1,5) &
-!     !               + PartState(Coll_pData(iPair)%iPart_p1,6) * PartState(Coll_pData(iPair)%iPart_p1,6)
+!     !      partV2 =   PartState(4,Coll_pData(iPair)%iPart_p1) * PartState(4,Coll_pData(iPair)%iPart_p1) &
+!     !               + PartState(5,Coll_pData(iPair)%iPart_p1) * PartState(5,Coll_pData(iPair)%iPart_p1) &
+!     !               + PartState(6,Coll_pData(iPair)%iPart_p1) * PartState(6,Coll_pData(iPair)%iPart_p1)
 !     !      GammaRel = partV2/c2
 !     !      GammaRel = 1./SQRT(1.-GammaRel)  !Calculation of the Lorenzt Boost of the particle
 !     !      Ec = Ec + (GammaRel-1.) &
@@ -154,9 +154,9 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !     !           * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor * c2 ! Only to use with one MPF!!
 !     !
 !     !      !relativistic Ekin of particle 2
-!     !      partV2 = PartState(Coll_pData(iPair)%iPart_p2,4) * PartState(Coll_pData(iPair)%iPart_p2,4) &
-!     !               + PartState(Coll_pData(iPair)%iPart_p2,5) * PartState(Coll_pData(iPair)%iPart_p2,5) &
-!     !               + PartState(Coll_pData(iPair)%iPart_p2,6) * PartState(Coll_pData(iPair)%iPart_p2,6)
+!     !      partV2 =   PartState(4,Coll_pData(iPair)%iPart_p2) * PartState(4,Coll_pData(iPair)%iPart_p2) &
+!     !               + PartState(5,Coll_pData(iPair)%iPart_p2) * PartState(5,Coll_pData(iPair)%iPart_p2) &
+!     !               + PartState(6,Coll_pData(iPair)%iPart_p2) * PartState(6,Coll_pData(iPair)%iPart_p2)
 !     !      GammaRel = partV2/c2
 !     !      GammaRel = 1./SQRT(1.-GammaRel)  !Calculation of the Lorenzt Boost of the particle
 !     !      Ec = Ec + (GammaRel-1.) &
@@ -374,9 +374,9 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 __STAMP__&
 ,'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
   END SELECT
-  IF ( SQRT(DOT_PRODUCT(PartState(Coll_pData(iPair)%iPart_p1,4:6),PartState(Coll_pData(iPair)%iPart_p1,4:6)))&
+  IF ( SQRT(DOT_PRODUCT(PartState(4:6,Coll_pData(iPair)%iPart_p1),PartState(4:6,Coll_pData(iPair)%iPart_p1)))&
     .LT.DSMC%veloMinColl(PartSpecies(Coll_pData(iPair)%iPart_p1)) .OR. &
-       SQRT(DOT_PRODUCT(PartState(Coll_pData(iPair)%iPart_p2,4:6),PartState(Coll_pData(iPair)%iPart_p2,4:6)))&
+       SQRT(DOT_PRODUCT(PartState(4:6,Coll_pData(iPair)%iPart_p2),PartState(4:6,Coll_pData(iPair)%iPart_p2)))&
     .LT.DSMC%veloMinColl(PartSpecies(Coll_pData(iPair)%iPart_p2))) Coll_pData(iPair)%Prob = 0.
   IF (ISNAN(Coll_pData(iPair)%Prob)) THEN
     IPWRITE(UNIT_errOut,*)iPair,'in',iElem,'is NaN!'

@@ -802,12 +802,12 @@ __STAMP__&
       DO iLoop = 1_IK,locnPart
         IF(SpecReset(INT(PartData(offsetnPart+iLoop,7),4))) CYCLE
         iPart = iPart + 1
-        PartState(iPart,1)   = PartData(offsetnPart+iLoop,1)
-        PartState(iPart,2)   = PartData(offsetnPart+iLoop,2)
-        PartState(iPart,3)   = PartData(offsetnPart+iLoop,3)
-        PartState(iPart,4)   = PartData(offsetnPart+iLoop,4)
-        PartState(iPart,5)   = PartData(offsetnPart+iLoop,5)
-        PartState(iPart,6)   = PartData(offsetnPart+iLoop,6)
+        PartState(1,iPart)   = PartData(offsetnPart+iLoop,1)
+        PartState(2,iPart)   = PartData(offsetnPart+iLoop,2)
+        PartState(3,iPart)   = PartData(offsetnPart+iLoop,3)
+        PartState(4,iPart)   = PartData(offsetnPart+iLoop,4)
+        PartState(5,iPart)   = PartData(offsetnPart+iLoop,5)
+        PartState(6,iPart)   = PartData(offsetnPart+iLoop,6)
         PartSpecies(iPart)= INT(PartData(offsetnPart+iLoop,7),4)
         IF (useDSMC.AND.(.NOT.(useLD))) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
@@ -947,7 +947,7 @@ __STAMP__&
 
     IF(DoRefMapping) THEN
       DO i = 1,PDM%ParticleVecLength
-        CALL GetPositionInRefElem(PartState(i,1:3),Xi,PEM%Element(i))
+        CALL GetPositionInRefElem(PartState(1:3,i),Xi,PEM%Element(i))
         IF(ALL(ABS(Xi).LE.EpsOneCell(PEM%Element(i)))) THEN ! particle inside
           InElementCheck=.TRUE.
           PartPosRef(1:3,i)=Xi
@@ -975,7 +975,7 @@ __STAMP__&
     ELSE ! no Ref Mapping
       IF (TriaTracking) THEN
         DO i = 1,PDM%ParticleVecLength
-          CALL ParticleInsideQuad3D(PartState(i,1:3),PEM%Element(i),InElementCheck,det)
+          CALL ParticleInsideQuad3D(PartState(1:3,i),PEM%Element(i),InElementCheck,det)
           IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
             COUNTER = COUNTER + 1
             CALL SingleParticleToExactElement(i,doHALO=.FALSE.,initFix=.FALSE.,doRelocate=.FALSE.)
@@ -994,7 +994,7 @@ __STAMP__&
         END DO
       ELSE
         DO i = 1,PDM%ParticleVecLength
-          CALL GetPositionInRefElem(PartState(i,1:3),Xi,PEM%Element(i))
+          CALL GetPositionInRefElem(PartState(1:3,i),Xi,PEM%Element(i))
           IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
             InElementCheck=.TRUE.
             IF(ALLOCATED(PartPosRef)) PartPosRef(1:3,i)=Xi
@@ -1038,7 +1038,7 @@ __STAMP__&
       CounterPoly = 0
       DO i = 1, PDM%ParticleVecLength
         IF (.NOT.PDM%ParticleInside(i)) THEN
-          SendBuff(COUNTER+1:COUNTER+6) = PartState(i,1:6)
+          SendBuff(COUNTER+1:COUNTER+6) = PartState(1:6,i)
           SendBuff(COUNTER+7)           = REAL(PartSpecies(i))
           IF (useDSMC.AND.(.NOT.(useLD))) THEN
             IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
@@ -1124,7 +1124,7 @@ __STAMP__&
       COUNTER = 0
       CounterPoly = 0
       DO i = 1, SUM(LostParts)
-        PartState(CurrentPartNum,1:6) = RecBuff(COUNTER+1:COUNTER+6)
+        PartState(1:6,CurrentPartNum) = RecBuff(COUNTER+1:COUNTER+6)
         PDM%ParticleInside(CurrentPartNum) = .true.
         IF(DoRefMapping.OR.TriaTracking)THEN
           CALL SingleParticleToExactElement(CurrentPartNum,doHALO=.FALSE.,initFix=.FALSE.,doRelocate=.FALSE.)

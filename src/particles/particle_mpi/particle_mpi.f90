@@ -413,13 +413,13 @@ IF(DoExternalParts)THEN
     ! Don't deposit external shape function particles in cells where local deposition is used (only when DoSFLocalDepoAtBounds=T)
     IF(SkipExternalSFParticles(iPart)) CYCLE
     ! Get indices of background mesh cells
-    CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+    CellX = INT((PartState(1,iPart)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
     CellX = MIN(GEO%FIBGMimax,CellX)
     CellX = MAX(GEO%FIBGMimin,CellX)
-    CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+    CellY = INT((PartState(2,iPart)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
     CellY = MIN(GEO%FIBGMjmax,CellY)
     CellY = MAX(GEO%FIBGMjmin,CellY)
-    CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+    CellZ = INT((PartState(3,iPart)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
     CellZ = MIN(GEO%FIBGMkmax,CellZ)
     CellZ = MAX(GEO%FIBGMkmin,CellZ)
     IF(ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
@@ -438,9 +438,9 @@ IF(DoExternalParts)THEN
     !IF(PartTargetProc(iPart).EQ.-1) CYCLE
     IF(.NOT.PartMPIDepoSend(iPart)) CYCLE
     IF (Species(PartSpecies(iPart))%ChargeIC.EQ.0) CYCLE ! get BMG cell
-    CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
-    CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
-    CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+    CellX = INT((PartState(1,iPart)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+    CellY = INT((PartState(2,iPart)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+    CellZ = INT((PartState(3,iPart)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
     PartInBGM = .TRUE.
     ! check if particle is in range of my FIBGM
     ! first check is outside
@@ -457,20 +457,20 @@ IF(DoExternalParts)THEN
     IF (.NOT.PartInBGM) THEN
       ! it is possible that the particle has been moved over a periodic side
       IF (GEO%nPeriodicVectors.GT.0) THEN
-        ShiftedPart(1:3) = PartState(iPart,1:3) + partShiftVector(1:3,iPart)
+        ShiftedPart(1:3) = PartState(1:3,iPart) + partShiftVector(1:3,iPart)
         CellX = INT((ShiftedPart(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
         CellY = INT((ShiftedPart(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
         CellZ = INT((ShiftedPart(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
         IF ((CellX.GT.GEO%FIBGMimax).OR.(CellX.LT.GEO%FIBGMimin) .OR. &
             (CellY.GT.GEO%FIBGMjmax).OR.(CellY.LT.GEO%FIBGMjmin) .OR. &
             (CellZ.GT.GEO%FIBGMkmax).OR.(CellZ.LT.GEO%FIBGMkmin)) THEN
-          CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+          CellX = INT((PartState(1,iPart)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
           CellX = MIN(GEO%FIBGMimax,CellX)
           CellX = MAX(GEO%FIBGMimin,CellX)
-          CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+          CellY = INT((PartState(2,iPart)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
           CellY = MIN(GEO%FIBGMjmax,CellY)
           CellY = MAX(GEO%FIBGMjmin,CellY)
-          CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+          CellZ = INT((PartState(3,iPart)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
           CellZ = MIN(GEO%FIBGMkmax,CellZ)
           CellZ = MAX(GEO%FIBGMkmin,CellZ)
         ELSE
@@ -506,21 +506,21 @@ IF(DoExternalParts)THEN
         IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
         IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
         IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
-        IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',PartState(iPart,1),',PartY=',PartState(iPart,2),',PartZ=',&
-                PartState(iPart,3)
+        IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',PartState(1,iPart),',PartY=',PartState(2,iPart),',PartZ=',&
+                PartState(3,iPart)
         IF(DoRefMapping)THEN
           IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartXi=',PartPosRef(1,iPart),',PartEta=',PartPosRef(2,iPart),',PartZeta=',&
                   PartPosRef(3,iPart)
         END IF
         IPWRITE(UNIT_errOut,*)'Remap particle!'
 
-        CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+        CellX = INT((PartState(1,iPart)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
         CellX = MIN(GEO%FIBGMimax,CellX)
         CellX = MAX(GEO%FIBGMimin,CellX)
-        CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+        CellY = INT((PartState(2,iPart)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
         CellY = MIN(GEO%FIBGMjmax,CellY)
         CellY = MAX(GEO%FIBGMjmin,CellY)
-        CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+        CellZ = INT((PartState(3,iPart)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
         CellZ = MIN(GEO%FIBGMkmax,CellZ)
         CellZ = MAX(GEO%FIBGMkmin,CellZ)
         IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'New-CellX=',CellX,',New-CellY=',CellY,',New-CellZ=',CellZ
@@ -674,13 +674,13 @@ PartCommSize=PartCommSize0+iStage*6
 !   DO iPart=1,PDM%ParticleVecLength
 !     IF(PDM%ParticleInside(iPart))THEN
 !       IF(ALMOSTZERO(Species(PartSpecies(iPart))%ChargeIC) CYCLE        ! Don't deposite neutral particles!
-!       CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+!       CellX = INT((PartState(1,iPart)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
 !       CellX = MIN(GEO%FIBGMimax,CellX)
 !       CellX = MAX(GEO%FIBGMimin,CellX)
-!       CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+!       CellY = INT((PartState(2,iPart)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
 !       CellY = MIN(GEO%FIBGMkmax,CellY)
 !       CellY = MAX(GEO%FIBGMkmin,CellY)
-!       CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+!       CellZ = INT((PartState(3,iPart)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
 !       CellZ = MIN(GEO%FIBGMlmax,CellZ)
 !       CellZ = MAX(GEO%FIBGMlmin,CellZ)
 !       IF(ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
@@ -771,7 +771,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       !iPos=iPos+1
       ! fill content
       ElemID=PEM%Element(iPart)
-      PartSendBuf(iProc)%content(1+iPos:6+iPos) = PartState(iPart,1:6)
+      PartSendBuf(iProc)%content(1+iPos:6+iPos) = PartState(1:6,iPart)
       IF(DoRefMapping) THEN ! + deposition type....
         PartSendBuf(iProc)%content(7+iPos:9+iPos) = PartPosRef(1:3,iPart)
         jPos=iPos+9
@@ -972,9 +972,9 @@ DO iProc=1, PartMPI%nMPINeighbors
       IF(.NOT.PartMPIDepoSend(iPart)) CYCLE
       IF (Species(PartSpecies(iPart))%ChargeIC.EQ.0) CYCLE
       ! get BMG cell
-      CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
-      CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
-      CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+      CellX = INT((PartState(1,iPart)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+      CellY = INT((PartState(2,iPart)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+      CellZ = INT((PartState(3,iPart)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
       PartInBGM = .TRUE.
       ! check if particle is in range of my FIBGM
       ! first check is outside
@@ -992,20 +992,20 @@ DO iProc=1, PartMPI%nMPINeighbors
       IF (.NOT.PartInBGM) THEN
         ! it is possible that the particle has been moved over a periodic side
         IF (GEO%nPeriodicVectors.GT.0) THEN
-          ShiftedPart(1:3) = PartState(iPart,1:3) + partShiftVector(1:3,iPart)
+          ShiftedPart(1:3) = PartState(1:3,iPart) + partShiftVector(1:3,iPart)
           CellX = INT((ShiftedPart(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
           CellY = INT((ShiftedPart(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
           CellZ = INT((ShiftedPart(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
           IF ((CellX.GT.GEO%FIBGMimax).OR.(CellX.LT.GEO%FIBGMimin) .OR. &
               (CellY.GT.GEO%FIBGMjmax).OR.(CellY.LT.GEO%FIBGMjmin) .OR. &
               (CellZ.GT.GEO%FIBGMkmax).OR.(CellZ.LT.GEO%FIBGMkmin)) THEN
-            CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+            CellX = INT((PartState(1,iPart)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
             CellX = MIN(GEO%FIBGMimax,CellX)
             CellX = MAX(GEO%FIBGMimin,CellX)
-            CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+            CellY = INT((PartState(2,iPart)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
             CellY = MIN(GEO%FIBGMjmax,CellY)
             CellY = MAX(GEO%FIBGMjmin,CellY)
-            CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+            CellZ = INT((PartState(3,iPart)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
             CellZ = MIN(GEO%FIBGMkmax,CellZ)
             CellZ = MAX(GEO%FIBGMkmin,CellZ)
           ELSE
@@ -1025,13 +1025,13 @@ DO iProc=1, PartMPI%nMPINeighbors
         ELSE
           IPWRITE(UNIT_errOut,*)'Remap particle!'
 
-          CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+          CellX = INT((PartState(1,iPart)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
           CellX = MIN(GEO%FIBGMimax,CellX)
           CellX = MAX(GEO%FIBGMimin,CellX)
-          CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+          CellY = INT((PartState(2,iPart)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
           CellY = MIN(GEO%FIBGMjmax,CellY)
           CellY = MAX(GEO%FIBGMjmin,CellY)
-          CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+          CellZ = INT((PartState(3,iPart)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
           CellZ = MIN(GEO%FIBGMkmax,CellZ)
           CellZ = MAX(GEO%FIBGMkmin,CellZ)
           IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'New-CellX=',CellX,',New-CellY=',CellY,',New-CellZ=',CellZ
@@ -1040,8 +1040,8 @@ DO iProc=1, PartMPI%nMPINeighbors
           IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
           IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
           IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
-          IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',PartState(iPart,1),',PartY=',PartState(iPart,2),',PartZ=',&
-                  PartState(iPart,3)
+          IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',PartState(1,iPart),',PartY=',PartState(2,iPart),',PartZ=',&
+                  PartState(3,iPart)
           !CALL Abort(&
           !     __STAMP__&
           !    'Particle outside BGM!')
@@ -1057,7 +1057,7 @@ DO iProc=1, PartMPI%nMPINeighbors
   !      IPWRITE(*,*) 'localprocid,iproc',iProc,localprocid
         IF(PartTargetProc(iPart).EQ.LocalProcID) CYCLE
         IF(LocalProcID.NE.iProc) CYCLE
-        PartSendBuf(iProc)%content(1+iPos:6+iPos) = PartState(iPart,1:6)
+        PartSendBuf(iProc)%content(1+iPos:6+iPos) = PartState(1:6,iPart)
         PartSendBuf(iProc)%content(       7+iPos) = REAL(PartSpecies(iPart),KIND=8)
         IF (usevMPF) PartSendBuf(iProc)%content( 8+iPos) = PartMPF(iPart)
         ! count only, if particle is sent
@@ -1109,7 +1109,7 @@ IF(DoExternalParts) THEN
   DO iPart=1,PDM%ParticleVecLength
     IF(PartTargetProc(iPart).EQ.-1) CYCLE
     iExtPart=iExtPart+1
-    ExtPartState(iExtPart,1:6)        = PartState(iPart,1:6)
+    ExtPartState(iExtPart,1:6)        = PartState(1:6,iPart)
     ExtPartSpecies(iExtPart)          = PartSpecies(iPart)
     IF (usevMPF) ExtPartMPF(iExtPart) = PartMPF(iPart)
   END DO ! iPart=1,PDM%ParticleVecLength
@@ -1117,7 +1117,7 @@ END IF
 
 DO iPart=1,PDM%ParticleVecLength
   IF(PartTargetProc(iPart).EQ.-1) CYCLE
-  PartState(iPart,1:6)=0.
+  PartState(1:6,iPart)=0.
   PartSpecies(iPart)=0
 #if defined(LSERK)
   Pt_temp(iPart,1:6)=0.
@@ -1344,7 +1344,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     IF(PartID.EQ.0)  CALL abort(&
       __STAMP__&
       ,' Error in ParticleExchange_parallel. Corrupted list: PIC%nextFreePosition', nRecv)
-    PartState(PartID,1:6)   = PartRecvBuf(iProc)%content( 1+iPos: 6+iPos)
+    PartState(1:6,PartID) = PartRecvBuf(iProc)%content( 1+iPos: 6+iPos)
     IF(DoRefMapping)THEN
       PartPosRef(1:3,PartID) = PartRecvBuf(iProc)%content(7+iPos: 9+iPos)
       jPos=iPos+9
@@ -1558,9 +1558,9 @@ DO iProc=1,PartMPI%nMPINeighbors
     !    PEM%LastElement(PartID)=-1
     ! END IF
 !   ! PEM%StageElement(PartID)= PEM%Element(PartID)
-!    StagePartPos(PartID,1)  = PartState(PartID,1)
-!    StagePartPos(PartID,2)  = PartState(PartID,2)
-!    StagePartPos(PartID,3)  = PartState(PartID,3)
+!    StagePartPos(PartID,1)  = PartState(1,PartID)
+!    StagePartPos(PartID,2)  = PartState(2,PartID)
+!    StagePartPos(PartID,3)  = PartState(3,PartID)
 #else
     PEM%lastElement(PartID) = -888
 #endif
@@ -1600,7 +1600,7 @@ IF(TriaTracking) THEN
     DO iPart = 1,nrecv
       PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
       IF(PartElemIsMortar(PEM%Element(PartID))) THEN
-        CALL ParticleInsideQuad3D_MortarMPI(PartState(PartID,1:3),PEM%Element(PartID),PDM%ParticleInside(PartID))
+        CALL ParticleInsideQuad3D_MortarMPI(PartState(1:3,PartID),PEM%Element(PartID),PDM%ParticleInside(PartID))
       END IF
     END DO
   END IF

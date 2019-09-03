@@ -92,9 +92,9 @@ REAL                             :: Vector1(1:3), Vector2(1:3)!, VectorShift(1:3
 PoldX = LastPartPos(1,iPart)
 PoldY = LastPartPos(2,iPart)
 PoldZ = LastPartPos(3,iPart)
-PnewX = PartState(iPart,1)
-PnewY = PartState(iPart,2)
-PnewZ = PartState(iPart,3)
+PnewX = PartState(1,iPart)
+PnewY = PartState(2,iPart)
+PnewZ = PartState(3,iPart)
 
 xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
 yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
@@ -454,7 +454,7 @@ IF(.NOT.FlatBoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,PartID,S
 !END IF
 !! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
 !IF(.NOT.InsideBoundingBox(LastPartPos(1:3,PartID),SideID))THEN ! the old particle position is not inside the bounding box
-!  IF(.NOT.InsideBoundingBox(PartState(PartID,1:3),SideID))THEN ! the new particle position is not inside the bounding box
+!  IF(.NOT.InsideBoundingBox(PartState(1:3,PartID),SideID))THEN ! the new particle position is not inside the bounding box
 !    IF(.NOT.BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,PartID,SideID)) RETURN ! the particle does not intersect the
 !                                                                                              ! bounding box
 !  END IF
@@ -1277,7 +1277,7 @@ IF(BoundingBoxIsEmpty(SideID))THEN
 ELSE
   ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
   IF(.NOT.InsideBoundingBox(LastPartPos(1:3,PartID),SideID))THEN ! the old particle position is not inside the bounding box
-    IF(.NOT.InsideBoundingBox(PartState(PartID,1:3),SideID))THEN ! the new particle position is not inside the bounding box
+    IF(.NOT.InsideBoundingBox(PartState(1:3,PartID),SideID))THEN ! the new particle position is not inside the bounding box
       IF(.NOT.BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,PartID,SideID)) RETURN ! the particle does not intersect the
                                                                                                 ! bounding box
     END IF
@@ -1927,7 +1927,7 @@ IF(nIter.GT.BezierNewtonMaxIter) THEN
 !  IPWRITE(UNIT_stdout,*) ' minmax-2    : ', MinMax(:,2)
 !  IPWRITE(UNIT_stdout,*) ' xi, eta     : ', xi
 !  IPWRITE(UNIT_stdout,*) ' dxi, dxi2   : ', dXi, dXi2
-!  IPWRITE(UNIT_stdout,*) ' PartState   : ', PartState(PartID,1:3)
+!  IPWRITE(UNIT_stdout,*) ' PartState   : ', PartState(1:3,PartID)
 !  IPWRITE(UNIT_stdout,*) ' lastPos     : ', LastPartPos(1:3,PartID)
 !  IPWRITE(UNIT_stdout,*) ' Trajectory  : ', PartTrajectory
 !  IPWRITE(UNIT_stdout,*) ' Calling-Bezier-Clipping  '

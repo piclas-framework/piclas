@@ -144,13 +144,13 @@ DO iElem = 1, nElems
       IF (usevMPF) THEN
         PartMPF(iCloneIndx) = PartMPF(iPartIndx)
       END IF
-      PartState(iCloneIndx,1) = PartState(iPartIndx,1)
-      PartState(iCloneIndx,2) = PartState(iPartIndx,2)
-      PartState(iCloneIndx,3) = PartState(iPartIndx,3)
+      PartState(1,iCloneIndx) = PartState(1,iPartIndx)
+      PartState(2,iCloneIndx) = PartState(2,iPartIndx)
+      PartState(3,iCloneIndx) = PartState(3,iPartIndx)
                 ! --------calculate LD-Values for Clone--------
-      PartState(iCloneIndx,4) = BulkValues(iElem)%CellV(1)
-      PartState(iCloneIndx,5) = BulkValues(iElem)%CellV(2)
-      PartState(iCloneIndx,6) = BulkValues(iElem)%CellV(3)
+      PartState(4,iCloneIndx) = BulkValues(iElem)%CellV(1)
+      PartState(5,iCloneIndx) = BulkValues(iElem)%CellV(2)
+      PartState(6,iCloneIndx) = BulkValues(iElem)%CellV(3)
       PartStateBulkValues(iCloneIndx,1) = BulkValues(iElem)%CellV(1)
       PartStateBulkValues(iCloneIndx,2) = BulkValues(iElem)%CellV(2)
       PartStateBulkValues(iCloneIndx,3) = BulkValues(iElem)%CellV(3)
@@ -201,20 +201,20 @@ DO iElem = 1, nElems
       IF (usevMPF) THEN
         PartMPF(iCloneIndx) = PartMPF(iPartIndx)
       END IF
-      PartState(iCloneIndx,1) = PartState(iPartIndx,1)
-      PartState(iCloneIndx,2) = PartState(iPartIndx,2)
-      PartState(iCloneIndx,3) = PartState(iPartIndx,3)
+      PartState(1,iCloneIndx) = PartState(1,iPartIndx)
+      PartState(2,iCloneIndx) = PartState(2,iPartIndx)
+      PartState(3,iCloneIndx) = PartState(3,iPartIndx)
                 ! --------calculate DSMC-Values for Clone--------
       CALL RANDOM_NUMBER(RandVec)
-      PartState(iCloneIndx,4) = BulkValues(iElem)%CellV(1) &
+      PartState(4,iCloneIndx) = BulkValues(iElem)%CellV(1) &
                               + SIN(2*LocalPI * RandVec(1)) / BulkValues(iElem)%Beta &
                               * SQRT((-1)*CellMeanPartMass / Species(PartSpecies(iCloneIndx))%MassIC * LOG(RandVec(2)))
       CALL RANDOM_NUMBER(RandVec)
-      PartState(iCloneIndx,5) = BulkValues(iElem)%CellV(2) &
+      PartState(5,iCloneIndx) = BulkValues(iElem)%CellV(2) &
                               + SIN(2*LocalPI * RandVec(1)) / BulkValues(iElem)%Beta &
                               * SQRT((-1)*CellMeanPartMass / Species(PartSpecies(iCloneIndx))%MassIC * LOG(RandVec(2)))
       CALL RANDOM_NUMBER(RandVec)
-      PartState(iCloneIndx,6) = BulkValues(iElem)%CellV(3) &
+      PartState(6,iCloneIndx) = BulkValues(iElem)%CellV(3) &
                               + SIN(2*LocalPI * RandVec(1)) / BulkValues(iElem)%Beta &
                               * SQRT((-1)*CellMeanPartMass / Species(PartSpecies(iCloneIndx))%MassIC * LOG(RandVec(2)))
 
@@ -319,9 +319,9 @@ DO iPart = 1, PDM%ParticleVecLength
     ELSE ! -----------------------------> DSMC
       IF (usevMPF) THEN
         SampDSMC(iElem,PartSpecies(iPart))%PartV(1:3)  = SampDSMC(iElem,PartSpecies(iPart))%PartV(1:3) &
-                                                       + PartState(iPart,4:6) * PartMPF(iPart)
+                                                       + PartState(4:6,iPart) * PartMPF(iPart)
         SampDSMC(iElem,PartSpecies(iPart))%PartV2(1:3) = SampDSMC(iElem,PartSpecies(iPart))%PartV2(1:3) &
-                                                       + PartState(iPart,4:6)**2 * PartMPF(iPart)
+                                                       + PartState(4:6,iPart)**2 * PartMPF(iPart)
         SampDSMC(iElem,PartSpecies(iPart))%PartNum     = SampDSMC(iElem,PartSpecies(iPart))%PartNum + PartMPF(iPart)
         SampDSMC(iElem,PartSpecies(iPart))%SimPartNum  = SampDSMC(iElem,PartSpecies(iPart))%SimPartNum + 1
         ! if usevMPF SampDSMC(iElem,PartSpecies(iPart))%PartNum == real number of particles
@@ -338,9 +338,9 @@ DO iPart = 1, PDM%ParticleVecLength
         END IF
       ELSE ! normal sampling without weighting
         SampDSMC(iElem,PartSpecies(iPart))%PartV(1:3)  = SampDSMC(iElem,PartSpecies(iPart))%PartV(1:3) &
-                                                       + PartState(iPart,4:6)
+                                                       + PartState(4:6,iPart)
         SampDSMC(iElem,PartSpecies(iPart))%PartV2(1:3) = SampDSMC(iElem,PartSpecies(iPart))%PartV2(1:3) &
-                                                       + PartState(iPart,4:6)**2
+                                                       + PartState(4:6,iPart)**2
         SampDSMC(iElem,PartSpecies(iPart))%PartNum     = SampDSMC(iElem,PartSpecies(iPart))%PartNum + 1
         IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
             (SpecDSMC(PartSpecies(iPart))%InterID.EQ.2)) THEN
@@ -658,15 +658,15 @@ IF (nPart.GT. 1) THEN ! Are there more than one particle
     ELSE
        WeightFak = Species(PartSpecies(iPartIndx))%MacroParticleFactor
     END IF
-    BulkValues(iElem)%CellV(1)        = BulkValues(iElem)%CellV(1) + PartState(iPartIndx,4) &
+    BulkValues(iElem)%CellV(1)        = BulkValues(iElem)%CellV(1) + PartState(4,iPartIndx) &
                                       * WeightFak * Species(PartSpecies(iPartIndx))%MassIC
-    BulkValues(iElem)%CellV(2)        = BulkValues(iElem)%CellV(2) + PartState(iPartIndx,5) &
+    BulkValues(iElem)%CellV(2)        = BulkValues(iElem)%CellV(2) + PartState(5,iPartIndx) &
                                       * WeightFak * Species(PartSpecies(iPartIndx))%MassIC
-    BulkValues(iElem)%CellV(3)        = BulkValues(iElem)%CellV(3) + PartState(iPartIndx,6) &
+    BulkValues(iElem)%CellV(3)        = BulkValues(iElem)%CellV(3) + PartState(6,iPartIndx) &
                                       * WeightFak * Species(PartSpecies(iPartIndx))%MassIC
-    CellVelo2                         = CellVelo2 + ( (PartState(iPartIndx,4))**2 &
-                                                    + (PartState(iPartIndx,5))**2 &
-                                                    + (PartState(iPartIndx,6))**2 ) &
+    CellVelo2                         = CellVelo2 + ( (PartState(4,iPartIndx))**2 &
+                                                    + (PartState(5,iPartIndx))**2 &
+                                                    + (PartState(6,iPartIndx))**2 ) &
                                                     * WeightFak * Species(PartSpecies(iPartIndx))%MassIC
     BulkValues(iElem)%DegreeOfFreedom = BulkValues(iElem)%DegreeOfFreedom + PartStateBulkValues(iPartIndx,5) * WeightFak
     IF(PartStateBulkValues(iPartIndx,5).EQ. 0.0) THEN

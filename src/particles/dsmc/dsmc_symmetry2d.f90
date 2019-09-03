@@ -272,7 +272,7 @@ DeleteProb = 0.
 IF (.NOT.(PartMPF(iPart).GT.Species(PartSpecies(iPart))%MacroParticleFactor)) RETURN
 
 ! 1.) Determine the new particle weight and decide whether to clone or to delete the particle
-NewMPF = CalcRadWeightMPF(PartState(iPart,2), PartSpecies(iPart),iPart)
+NewMPF = CalcRadWeightMPF(PartState(2,iPart), PartSpecies(iPart),iPart)
 OldMPF = PartMPF(iPart)
 CloneProb = (OldMPF/NewMPF)-INT(OldMPF/NewMPF)
 CALL RANDOM_NUMBER(iRan)
@@ -310,7 +310,7 @@ IF(DoCloning) THEN
   ! Storing the particle information
   RadialWeighting%ClonePartNum(DelayCounter) = RadialWeighting%ClonePartNum(DelayCounter) + 1
   cloneIndex = RadialWeighting%ClonePartNum(DelayCounter)
-  ClonedParticles(cloneIndex,DelayCounter)%PartState(1:6)= PartState(iPart,1:6)
+  ClonedParticles(cloneIndex,DelayCounter)%PartState(1:6)= PartState(1:6,iPart)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(1:2) = PartStateIntEn(iPart,1:2)
     IF(DSMC%ElectronicModel) ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(iPart,3)
@@ -415,9 +415,9 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PDM%ParticleInside(PositionNbr) = .TRUE.
   PDM%IsNewPart(PositionNbr) = .TRUE.
   PDM%dtFracPush(PositionNbr) = .FALSE.
-  PartState(PositionNbr,1:5) = ClonedParticles(iPart,DelayCounter)%PartState(1:5)
+  PartState(1:5,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartState(1:5)
   ! Creating a relative velocity in the z-direction
-  PartState(PositionNbr,6) = - ClonedParticles(iPart,DelayCounter)%PartState(6)
+  PartState(6,PositionNbr) = - ClonedParticles(iPart,DelayCounter)%PartState(6)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     PartStateIntEn(PositionNbr,1:2) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
     IF(DSMC%ElectronicModel) PartStateIntEn(PositionNbr,3) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
@@ -434,7 +434,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
   IF (VarTimeStep%UseVariableTimeStep) THEN
-    VarTimeStep%ParticleTimeStep(PositionNbr) = CalcVarTimeStep(PartState(PositionNbr,1),PartState(PositionNbr,2),&
+    VarTimeStep%ParticleTimeStep(PositionNbr) = CalcVarTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),&
                                                                 PEM%Element(PositionNbr))
   END IF
   ! Counting the number of clones per cell

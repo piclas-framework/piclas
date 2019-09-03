@@ -869,7 +869,7 @@ END IF
 
 CalcAdsorbReactProb = 0.0
 IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
-  !PartVelo = SQRT(PartState(PartID,4)**2 + PartState(PartID,5)**2 + PartState(PartID,6)**2)
+  !PartVelo = VECNORM(PartState(4:6,PartID))
   !Norm_Ec = PartVelo**2 * 0.5*Species(SpecID)%MassIC !+ PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
   !Xi_Total = 1.! Xi_vib + Xi_rot + 3.
   !AdsorptionTemp=2.*Norm_Ec/Xi_Total/BoltzmannConst

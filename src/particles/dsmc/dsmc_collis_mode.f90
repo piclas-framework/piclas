@@ -76,12 +76,12 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
   END IF
 
   !Calculation of velo from center of mass
-  VeloMx = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 4) &
-         + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 4)
-  VeloMy = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 5) &
-         + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 5)
-  VeloMz = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 6) &
-         + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 6)
+  VeloMx = FracMassCent1 * PartState(4,Coll_pData(iPair)%iPart_p1) &
+         + FracMassCent2 * PartState(4,Coll_pData(iPair)%iPart_p2)
+  VeloMy = FracMassCent1 * PartState(5,Coll_pData(iPair)%iPart_p1) &
+         + FracMassCent2 * PartState(5,Coll_pData(iPair)%iPart_p2)
+  VeloMz = FracMassCent1 * PartState(6,Coll_pData(iPair)%iPart_p1) &
+         + FracMassCent2 * PartState(6,Coll_pData(iPair)%iPart_p2)
 
   !calculate random vec
   RanVec(1:3) = DiceUnitVector()
@@ -90,19 +90,13 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
   RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RanVec(3)
 
  ! deltaV particle 1
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = VeloMx + FracMassCent2*RanVelox &
-          - PartState(Coll_pData(iPair)%iPart_p1, 4)
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = VeloMy + FracMassCent2*RanVeloy &
-          - PartState(Coll_pData(iPair)%iPart_p1, 5)
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = VeloMz + FracMassCent2*RanVeloz &
-          - PartState(Coll_pData(iPair)%iPart_p1, 6)
- ! deltaV particle 2
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = VeloMx - FracMassCent1*RanVelox &
-          - PartState(Coll_pData(iPair)%iPart_p2, 4)
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = VeloMy - FracMassCent1*RanVeloy &
-          - PartState(Coll_pData(iPair)%iPart_p2, 5)
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = VeloMz - FracMassCent1*RanVeloz &
-          - PartState(Coll_pData(iPair)%iPart_p2, 6)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = VeloMx + FracMassCent2*RanVelox - PartState(4,Coll_pData(iPair)%iPart_p1)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = VeloMy + FracMassCent2*RanVeloy - PartState(5,Coll_pData(iPair)%iPart_p1)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = VeloMz + FracMassCent2*RanVeloz - PartState(6,Coll_pData(iPair)%iPart_p1)
+ ! deltaV particle 2                                                                                               
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = VeloMx - FracMassCent1*RanVelox - PartState(4,Coll_pData(iPair)%iPart_p2)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = VeloMy - FracMassCent1*RanVeloy - PartState(5,Coll_pData(iPair)%iPart_p2)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = VeloMz - FracMassCent1*RanVeloz - PartState(6,Coll_pData(iPair)%iPart_p2)
 
 END SUBROUTINE DSMC_Elastic_Col
 
@@ -155,20 +149,17 @@ SUBROUTINE DSMC_Scat_Col(iPair)
 
 IF ((sigma_el/sigma_tot).GT.uRan2) THEN
     ! Calculation of relative veloocities
-    CRelax = PartState(Coll_pData(iPair)%iPart_p1, 4) - PartState(Coll_pData(iPair)%iPart_p2, 4)
-    CRelay = PartState(Coll_pData(iPair)%iPart_p1, 5) - PartState(Coll_pData(iPair)%iPart_p2, 5)
-    CRelaz = PartState(Coll_pData(iPair)%iPart_p1, 6) - PartState(Coll_pData(iPair)%iPart_p2, 6)
+    CRelax = PartState(4,Coll_pData(iPair)%iPart_p1) - PartState(4,Coll_pData(iPair)%iPart_p2)
+    CRelay = PartState(5,Coll_pData(iPair)%iPart_p1) - PartState(5,Coll_pData(iPair)%iPart_p2)
+    CRelaz = PartState(6,Coll_pData(iPair)%iPart_p1) - PartState(6,Coll_pData(iPair)%iPart_p2)
 
     FracMassCent1 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p1), Coll_pData(iPair)%PairType)
     FracMassCent2 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p2), Coll_pData(iPair)%PairType)
 
     ! Calculation of velo from center of mass
-    VeloMx = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 4) &
-      + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 4)
-    VeloMy = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 5) &
-      + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 5)
-    VeloMz = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 6) &
-      + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 6)
+    VeloMx = FracMassCent1 * PartState(4,Coll_pData(iPair)%iPart_p1) + FracMassCent2 * PartState(4,Coll_pData(iPair)%iPart_p2)
+    VeloMy = FracMassCent1 * PartState(5,Coll_pData(iPair)%iPart_p1) + FracMassCent2 * PartState(5,Coll_pData(iPair)%iPart_p2)
+    VeloMz = FracMassCent1 * PartState(6,Coll_pData(iPair)%iPart_p1) + FracMassCent2 * PartState(6,Coll_pData(iPair)%iPart_p2)
 
     ! Calculation of impact parameter b
     bmax = SQRT(sigma_el/Pi)
@@ -200,19 +191,13 @@ IF ((sigma_el/sigma_tot).GT.uRan2) THEN
 
     ! Transformation in LAB frame
     ! deltaV particle 1
-    DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = VeloMx + FracMassCent2*CRelaxN &
-      - PartState(Coll_pData(iPair)%iPart_p1, 4)
-    DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = VeloMy + FracMassCent2*CRelayN &
-      - PartState(Coll_pData(iPair)%iPart_p1, 5)
-    DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = VeloMz + FracMassCent2*CRelazN &
-      - PartState(Coll_pData(iPair)%iPart_p1, 6)
-    ! deltaV particle 2
-    DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = VeloMx - FracMassCent1*CRelaxN &
-      - PartState(Coll_pData(iPair)%iPart_p2, 4)
-    DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = VeloMy - FracMassCent1*CRelayN &
-      - PartState(Coll_pData(iPair)%iPart_p2, 5)
-    DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = VeloMz - FracMassCent1*CRelazN &
-      - PartState(Coll_pData(iPair)%iPart_p2, 6)
+    DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = VeloMx + FracMassCent2*CRelaxN - PartState(4,Coll_pData(iPair)%iPart_p1)
+    DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = VeloMy + FracMassCent2*CRelayN - PartState(5,Coll_pData(iPair)%iPart_p1)
+    DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = VeloMz + FracMassCent2*CRelazN - PartState(6,Coll_pData(iPair)%iPart_p1)
+    ! deltaV particle 2                                                                                             
+    DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = VeloMx - FracMassCent1*CRelaxN - PartState(4,Coll_pData(iPair)%iPart_p2)
+    DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = VeloMy - FracMassCent1*CRelayN - PartState(5,Coll_pData(iPair)%iPart_p2)
+    DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = VeloMz - FracMassCent1*CRelazN - PartState(6,Coll_pData(iPair)%iPart_p2)
 
     ! Decision concerning CEX
     P_CEX = 0.5
@@ -527,12 +512,12 @@ END IF
   END IF
 
   !Calculation of velo from center of mass
-  VeloMx = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 4) &
-         + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 4)
-  VeloMy = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 5) &
-         + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 5)
-  VeloMz = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 6) &
-         + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 6)
+  VeloMx = FracMassCent1 * PartState(4,Coll_pData(iPair)%iPart_p1) &
+         + FracMassCent2 * PartState(4,Coll_pData(iPair)%iPart_p2)
+  VeloMy = FracMassCent1 * PartState(5,Coll_pData(iPair)%iPart_p1) &
+         + FracMassCent2 * PartState(5,Coll_pData(iPair)%iPart_p2)
+  VeloMz = FracMassCent1 * PartState(6,Coll_pData(iPair)%iPart_p1) &
+         + FracMassCent2 * PartState(6,Coll_pData(iPair)%iPart_p2)
 
   !calculate random vec and new squared velocities
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/ReducedMass
@@ -543,19 +528,13 @@ END IF
   RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RanVec(3)
 
   ! deltaV particle 1
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = VeloMx + FracMassCent2*RanVelox &
-          - PartState(Coll_pData(iPair)%iPart_p1, 4)
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = VeloMy + FracMassCent2*RanVeloy &
-          - PartState(Coll_pData(iPair)%iPart_p1, 5)
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = VeloMz + FracMassCent2*RanVeloz &
-          - PartState(Coll_pData(iPair)%iPart_p1, 6)
- ! deltaV particle 2
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = VeloMx - FracMassCent1*RanVelox &
-          - PartState(Coll_pData(iPair)%iPart_p2, 4)
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = VeloMy - FracMassCent1*RanVeloy &
-          - PartState(Coll_pData(iPair)%iPart_p2, 5)
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = VeloMz - FracMassCent1*RanVeloz &
-          - PartState(Coll_pData(iPair)%iPart_p2, 6)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = VeloMx + FracMassCent2*RanVelox - PartState(4,Coll_pData(iPair)%iPart_p1)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = VeloMy + FracMassCent2*RanVeloy - PartState(5,Coll_pData(iPair)%iPart_p1)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = VeloMz + FracMassCent2*RanVeloz - PartState(6,Coll_pData(iPair)%iPart_p1)
+ ! deltaV particle 2                                                                                               
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = VeloMx - FracMassCent1*RanVelox - PartState(4,Coll_pData(iPair)%iPart_p2)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = VeloMy - FracMassCent1*RanVeloy - PartState(5,Coll_pData(iPair)%iPart_p2)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = VeloMz - FracMassCent1*RanVeloz - PartState(6,Coll_pData(iPair)%iPart_p2)
 
 #if (PP_TimeDiscMethod==42)
   ! for TimeDisc 42 & only transition counting: prohibit relaxation and energy exchange
@@ -883,12 +862,12 @@ __STAMP__&
   FracMassCent2 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p2), Coll_pData(iPair)%PairType)
 
   !Calculation of velo from center of mass
-  VeloMx = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 4) &
-         + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 4)
-  VeloMy = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 5) &
-         + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 5)
-  VeloMz = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 6) &
-         + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 6)
+  VeloMx = FracMassCent1 * PartState(4,Coll_pData(iPair)%iPart_p1) &
+         + FracMassCent2 * PartState(4,Coll_pData(iPair)%iPart_p2)
+  VeloMy = FracMassCent1 * PartState(5,Coll_pData(iPair)%iPart_p1) &
+         + FracMassCent2 * PartState(5,Coll_pData(iPair)%iPart_p2)
+  VeloMz = FracMassCent1 * PartState(6,Coll_pData(iPair)%iPart_p1) &
+         + FracMassCent2 * PartState(6,Coll_pData(iPair)%iPart_p2)
 
   !calculate random vec and new squared velocities
   Coll_pData(iPair)%CRela2 = 2. * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
@@ -899,19 +878,13 @@ __STAMP__&
   RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RanVec(3)
 
   ! deltaV particle 1
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = VeloMx + FracMassCent2*RanVelox &
-          - PartState(Coll_pData(iPair)%iPart_p1, 4)
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = VeloMy + FracMassCent2*RanVeloy &
-          - PartState(Coll_pData(iPair)%iPart_p1, 5)
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = VeloMz + FracMassCent2*RanVeloz &
-          - PartState(Coll_pData(iPair)%iPart_p1, 6)
- ! deltaV particle 2
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = VeloMx - FracMassCent1*RanVelox &
-          - PartState(Coll_pData(iPair)%iPart_p2, 4)
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = VeloMy - FracMassCent1*RanVeloy &
-          - PartState(Coll_pData(iPair)%iPart_p2, 5)
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = VeloMz - FracMassCent1*RanVeloz &
-            - PartState(Coll_pData(iPair)%iPart_p2, 6)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = VeloMx + FracMassCent2*RanVelox - PartState(4,Coll_pData(iPair)%iPart_p1)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = VeloMy + FracMassCent2*RanVeloy - PartState(5,Coll_pData(iPair)%iPart_p1)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = VeloMz + FracMassCent2*RanVeloz - PartState(6,Coll_pData(iPair)%iPart_p1)
+ ! deltaV particle 2                                                                                               
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = VeloMx - FracMassCent1*RanVelox - PartState(4,Coll_pData(iPair)%iPart_p2)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = VeloMy - FracMassCent1*RanVeloy - PartState(5,Coll_pData(iPair)%iPart_p2)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = VeloMz - FracMassCent1*RanVeloz - PartState(6,Coll_pData(iPair)%iPart_p2)
 
 END SUBROUTINE DSMC_Relax_Col_Gimelshein
 
@@ -945,12 +918,12 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
   IF(DSMC%CalcQualityFactors) THEN
     IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
       IF(Symmetry2D) THEN
-        Distance = SQRT((PartState(Coll_pData(iPair)%iPart_p1,1) - PartState(Coll_pData(iPair)%iPart_p2,1))**2 &
-                       +(PartState(Coll_pData(iPair)%iPart_p1,2) - PartState(Coll_pData(iPair)%iPart_p2,2))**2)
-      ELSE
-        Distance = SQRT((PartState(Coll_pData(iPair)%iPart_p1,1) - PartState(Coll_pData(iPair)%iPart_p2,1))**2 &
-                       +(PartState(Coll_pData(iPair)%iPart_p1,2) - PartState(Coll_pData(iPair)%iPart_p2,2))**2 &
-                       +(PartState(Coll_pData(iPair)%iPart_p1,3) - PartState(Coll_pData(iPair)%iPart_p2,3))**2)
+        Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
+                       +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2)
+      ELSE                                                                                               
+        Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
+                       +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2 &
+                       +(PartState(3,Coll_pData(iPair)%iPart_p1) - PartState(3,Coll_pData(iPair)%iPart_p2))**2)
       END IF
       DSMC%CollSepDist = DSMC%CollSepDist + Distance
       DSMC%CollSepCount = DSMC%CollSepCount + 1

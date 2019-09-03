@@ -85,7 +85,7 @@ SUBROUTINE AddPartInfoToSample(PartID,Transarray,IntArray,SampleType)
 !> Adds the velocities and particle energy of a particle to the correct position of transarray and intarray
 !>   only performed if sampling is enabled
 !===================================================================================================================================
-USE MOD_Globals       ,ONLY: abort
+USE MOD_Globals       ,ONLY: abort,VECNORM
 USE MOD_Particle_Vars ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
 USE MOD_DSMC_Vars     ,ONLY: CollisMode, useDSMC, SpecDSMC
@@ -108,18 +108,18 @@ INTEGER :: ETransID, ERotID, EVibID
 IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
   TransArray(:)=0.
   IntArray(:)=0.
-  VeloReal = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))
+  VeloReal = VECNORM(PartState(4:6,PartID))
   ETrans = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
   SELECT CASE (TRIM(SampleType))
   CASE ('old')
     ! must be old_velocity-new_velocity
-    TransArray(4:6) = PartState(PartID,4:6)
+    TransArray(4:6) = PartState(4:6,PartID)
     ETransID = 1
     ERotID = 1
     EVibID = 4
   CASE ('new')
     ! must be old_velocity-new_velocity
-    TransArray(4:6) = -PartState(PartID,4:6)
+    TransArray(4:6) = -PartState(4:6,PartID)
     ETransID = 3
     ERotID = 3
     EVibID = 6
@@ -277,9 +277,9 @@ __STAMP__&
 ,'maxSurfCollisNumber reached!')
     END IF
     AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(1:3,PartID) + alpha * PartTrajectory(1:3)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) = PartState(PartID,4)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) = PartState(PartID,5)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) = PartState(PartID,6)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) = PartState(4,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) = PartState(5,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) = PartState(6,PartID)
     AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) = LastPartPos(1,PartID)
     AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) = LastPartPos(2,PartID)
     AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) = LastPartPos(3,PartID)

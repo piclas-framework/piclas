@@ -191,7 +191,7 @@ CASE(1) ! selection after simplified, linear push
   ELSE
     DO iPart=1,PDM%ParticleVecLength
       IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-      NewVelo=PartState(iPart,4:6)+dt/REAL(nRKStages-1)*Pt(1:3,iPart)
+      NewVelo=PartState(4:6,iPart)+dt/REAL(nRKStages-1)*Pt(1:3,iPart)
       Vabs   =DOT_PRODUCT(NewVelo,NewVelo)
       IF(Vabs*c2_inv.GT.0.9) PartIsImplicit(iPart)=.TRUE.
     END DO ! iPart
@@ -205,7 +205,7 @@ CASE(2) ! if gamma exceeds a certain treshold
   ELSE
     DO iPart=1,PDM%ParticleVecLength
       IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-      NewVelo=PartState(iPart,4:6)
+      NewVelo=PartState(4:6,iPart)
       Vabs   =DOT_PRODUCT(NewVelo,NewVelo)
       PartGamma=1.0-Vabs*c2_inv
       PartGamma=1.0/SQRT(PartGamma)
@@ -347,7 +347,7 @@ IF(opt)THEN ! compute zero state
       IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
       PEM%PeriodicMoved(iPart)=.FALSE.
       IF(reMap)THEN
-        PartState(iPart,1:6)=PartXK(1:6,iPart)+PartDeltaX(1:6,iPart)
+        PartState(1:6,iPart)=PartXK(1:6,iPart)+PartDeltaX(1:6,iPart)
       END IF
       ! update the last part pos and element for particle movement
       LastPartPos(1,iPart)=PartStateN(iPart,1)
@@ -356,21 +356,19 @@ IF(opt)THEN ! compute zero state
       PEM%lastElement(iPart)=PEM%ElementN(iPart)
       ! HERE: rotate part to partstate back
       IF(PartLorentzType.EQ.5)THEN
-        LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
+        LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(4:6,iPart),PartState(4:6,iPart))*c2_inv)
         CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart),LorentzFacInv)
       ELSE
         LorentzFacInv = 1.0
         CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
       END IF ! PartLorentzType.EQ.5
       ! PartStateN has to be exchanged by PartQ
-      Pt_tmp(1) = LorentzFacInv*PartState(iPart,4)
-      Pt_tmp(2) = LorentzFacInv*PartState(iPart,5)
-      Pt_tmp(3) = LorentzFacInv*PartState(iPart,6)
+      Pt_tmp(1:3) = LorentzFacInv*PartState(4:6,iPart)
       Pt_tmp(4) = Pt(1,iPart)
       Pt_tmp(5) = Pt(2,iPart)
       Pt_tmp(6) = Pt(3,iPart)
-      F_PartX0(1:6,iPart) =   PartState(iPart,1:6)-PartQ(1:6,iPart)-PartDtFrac(iPart)*coeff*Pt_tmp(1:6)
-      PartXK(1:6,iPart)   =   PartState(iPart,1:6)
+      F_PartX0(1:6,iPart) =   PartState(1:6,iPart)-PartQ(1:6,iPart)-PartDtFrac(iPart)*coeff*Pt_tmp(1:6)
+      PartXK(1:6,iPart)   =   PartState(1:6,iPart)
       R_PartXK(1:6,iPart) =   Pt_tmp(1:6)
       F_PartXK(1:6,iPart) =   F_PartX0(1:6,iPart)
       CALL PartVectorDotProduct(F_PartX0(:,iPart),F_PartX0(:,iPart),Norm_F_PartX0(iPart))
@@ -404,7 +402,7 @@ ELSE
       END IF
       IF(PEM%PeriodicMoved(iPart)) reMap=.TRUE.
       IF(reMap)THEN
-        PartState(iPart,1:6)=PartXK(1:6,iPart)+PartDeltaX(1:6,iPart)
+        PartState(1:6,iPart)=PartXK(1:6,iPart)+PartDeltaX(1:6,iPart)
       END IF
       PEM%PeriodicMoved(iPart)=.FALSE.
     END IF ! ParticleInside
@@ -506,7 +504,7 @@ IF(DoPrintConvInfo)THEN
 !    DO iPart=1,PDM%ParticleVecLength
 !      IF(DoPartInNewton(iPart))THEN
 !        SWRITE(UNIT_stdOut,'(A20,2x,I10)') ' Failed Particle: ',iPart
-!        SWRITE(UNIT_stdOut,'(A20,6(2x,E24.12))') ' Failed Position: ',PartState(iPart,1:6)
+!        SWRITE(UNIT_stdOut,'(A20,6(2x,E24.12))') ' Failed Position: ',PartState(1:6,iPart)
 !        SWRITE(UNIT_stdOut,'(A20,2x,E24.12)') ' Relative Norm:   ', Norm_F_PartXK(iPart)/Norm_F_PartX0(iPart)
 !      END IF ! ParticleInside
 !    END DO ! iPart
@@ -783,7 +781,7 @@ DO iPart=1,PDM%ParticleVecLength
     END IF !(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
 #endif /*CODE_ANALYZE*/
     ! update position
-    PartState(iPart,1:6)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
+    PartState(1:6,iPart)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
     PartLambdaAccept(iPart)=.FALSE.
   END IF ! ParticleInside
 END DO ! iPart
@@ -868,23 +866,21 @@ DO iPart=1,PDM%ParticleVecLength
     IF(PEM%PeriodicMoved(iPart)) reMap=.TRUE.
     IF(reMap)THEN
       ! stoare old position within mesh || required for deposition
-      PartStateTmp(1:6) = PartState(iPart,1:6)
-      PartState(iPart,1:6)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
+      PartStateTmp(1:6) = PartState(1:6,iPart)
+      PartState(1:6,iPart)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
     END IF
     IF(PartLorentzType.EQ.5)THEN
-      LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
+      LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(4:6,iPart),PartState(4:6,iPart))*c2_inv)
       CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart),LorentzFacInv)
     ELSE
       LorentzFacInv = 1.0
       CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
     END IF ! PartLorentzType.EQ.5
-    R_PartXK(1,iPart)=LorentzFacInv*PartState(iPart,4)
-    R_PartXK(2,iPart)=LorentzFacInv*PartState(iPart,5)
-    R_PartXK(3,iPart)=LorentzFacInv*PartState(iPart,6)
+    R_PartXK(1:3,iPart)=LorentzFacInv*PartState(4:6,iPart)
     R_PartXK(4,iPart)=Pt(1,iPart)
     R_PartXK(5,iPart)=Pt(2,iPart)
     R_PartXK(6,iPart)=Pt(3,iPart)
-    F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:6,iPart)
+    F_PartXK(1:6,iPart)=PartState(1:6,iPart) - PartQ(1:6,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:6,iPart)
     ! if check, then here!
     DeltaX_Norm=DOT_PRODUCT(PartDeltaX(1:6,iPart),PartDeltaX(1:6,iPart))
     DeltaX_Norm=SQRT(DeltaX_Norm)
@@ -898,14 +894,14 @@ DO iPart=1,PDM%ParticleVecLength
     IF(DeltaX_Norm.LT.AbortTol*Norm_F_PartX0(iPart)) THEN
        DoPartInNewton(iPart)=.FALSE.
        PartLambdaAccept(iPart)=.TRUE.
-       PartXK(1:6,iPart)=PartState(iPart,1:6)
+       PartXK(1:6,iPart)=PartState(1:6,iPart)
        PartDeltaX(1:6,iPart)=0.
     ELSE
       !IF(nInnerPartNewton.LT.5)THEN
       !  ! accept lambda
       !  PartLambdaAccept(iPart)=.TRUE.
       !  ! set  new position
-      !  PartXK(1:6,iPart)=PartState(iPart,1:6)
+      !  PartXK(1:6,iPart)=PartState(1:6,iPart)
       !  ! update norm
       !  CALL PartVectorDotProduct(F_PartXK(1:6,iPart),F_PartXK(1:6,iPart),Norm2_PartX)
       !  Norm2_F_PartXK(iPart)=Norm2_PartX
@@ -926,7 +922,7 @@ DO iPart=1,PDM%ParticleVecLength
           ! accept lambda
           PartLambdaAccept(iPart)=.TRUE.
           ! set  new position
-          PartXK(1:6,iPart)=PartState(iPart,1:6)
+          PartXK(1:6,iPart)=PartState(1:6,iPart)
           PartDeltaX(1:6,iPart)=0.
           Norm_F_PartXK(iPart)=Norm_PartX
           IF((Norm_F_PartXK(iPart).LT.AbortTol*Norm_F_PartX0(iPart)).OR.(Norm_F_PartXK(iPart).LT.1e-12)) &
@@ -936,7 +932,7 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
   !    END IF ! nInnerPartNewton>1
     END IF
-    IF(reMap) PartState(iPart,1:6) = PartStateTmp(1:6)
+    IF(reMap) PartState(1:6,iPart) = PartStateTmp(1:6)
   END IF
 END DO ! iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
@@ -989,7 +985,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
       PEM%PeriodicMoved(iPart)=.FALSE.
       ! recompute part state
-      PartState(iPart,1:6)=PartXK(:,iPart)+lambda*PartDeltaX(:,iPart)
+      PartState(1:6,iPart)=PartXK(:,iPart)+lambda*PartDeltaX(:,iPart)
       PartLambdaAccept(iPart)=.FALSE.
     END IF ! ParticleInside
   END DO ! iPart
@@ -1069,23 +1065,21 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       END IF
       IF(PEM%PeriodicMoved(iPart)) reMap=.TRUE.
       IF(reMap)THEn
-        PartStateTmp(1:6) = PartState(iPart,1:6)
-        PartState(iPart,1:6)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
+        PartStateTmp(1:6) = PartState(1:6,iPart)
+        PartState(1:6,iPart)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
       END IF
       IF(PartLorentzType.EQ.5)THEN
-        LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
+        LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(4:6,iPart),PartState(4:6,iPart))*c2_inv)
         CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart),LorentzFacInv)
       ELSE
         LorentzFacInv = 1.0
         CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
       END IF ! PartLorentzType.EQ.5
-      R_PartXK(1,iPart)=LorentzFacInv*PartState(iPart,4)
-      R_PartXK(2,iPart)=LorentzFacInv*PartState(iPart,5)
-      R_PartXK(3,iPart)=LorentzFacInv*PartState(iPart,6)
+      R_PartXK(1:3,iPart)=LorentzFacInv*PartState(4:6,iPart)
       R_PartXK(4,iPart)=Pt(1,iPart)
       R_PartXK(5,iPart)=Pt(2,iPart)
       R_PartXK(6,iPart)=Pt(3,iPart)
-      F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:6,iPart)
+      F_PartXK(1:6,iPart)=PartState(1:6,iPart) - PartQ(1:6,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:6,iPart)
       ! vector dot product
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm_PartX)
       Norm_PartX=SQRT(Norm_PartX)
@@ -1094,7 +1088,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
         ! accept lambda
         PartLambdaAccept(iPart)=.TRUE.
         ! set  new position
-        PartXK(1:6,iPart)=PartState(iPart,1:6)
+        PartXK(1:6,iPart)=PartState(1:6,iPart)
         PartDeltaX(1:6,iPart)=0.
         Norm_F_PartXK(iPart)=Norm_PartX
         IF((Norm_F_PartXK(iPart).LT.AbortTol*Norm_F_PartX0(iPart)).OR.(Norm_F_PartXK(iPart).LT.1e-12)) &
@@ -1104,7 +1098,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
           ! accept lambda
           PartLambdaAccept(iPart)=.TRUE.
           ! set  new position
-          PartXK(1:6,iPart)=PartState(iPart,1:6)
+          PartXK(1:6,iPart)=PartState(1:6,iPart)
           PartDeltaX(1:6,iPart)=0.
           Norm_F_PartXK(iPart)=Norm_PartX
           IF((Norm_F_PartXK(iPart).LT.AbortTol*Norm_F_PartX0(iPart)).OR.(Norm_F_PartXK(iPart).LT.1e-12)) &
@@ -1112,7 +1106,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
         ELSE
           ! test not working
           !IF(Norm2_PartX.GT.Norm2_F_PartX0(iPart))THEN !allow for a local increase in residual
-          !  PartXK(1:6,iPart)=PartState(iPart,1:6)
+          !  PartXK(1:6,iPart)=PartState(1:6,iPart)
           !  Norm2_F_PartXK(iPart)=Norm2_PartX
           !  Norm2_F_PartX0(iPart)=Norm2_PartX
           !  Norm2_F_PartXk_old(iPart)=Norm2_PartX
@@ -1128,7 +1122,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
         END IF
       END IF ! DoFullNewton
       ! remap is performed for deposition
-      IF(reMap) PartState(iPart,1:6) = PartStateTmp(1:6)
+      IF(reMap) PartState(1:6,iPart) = PartStateTmp(1:6)
     END IF
   END DO ! iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE

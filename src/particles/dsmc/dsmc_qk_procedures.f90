@@ -177,7 +177,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
     ! calculate collision energy as required to performe the chemical reaction (non-qk)
         Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
                              + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * &
-                                 ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 ) &
+                              DOTPRODUCT(PartState(4:6,iPart_p3)) &
                              + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
         CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
 #if (PP_TimeDiscMethod==42)
@@ -227,7 +227,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
         ! calculate collision energy as required to performe the chemical reaction (non-qk)
         Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
                               + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * &
-                              ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 ) &
+                              DOTPRODUCT(PartState(4:6,iPart_p3)) &
                               + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
         CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
         RelaxToDo = .FALSE.
@@ -667,9 +667,9 @@ CALL RANDOM_NUMBER(iRan)
 !ReactionProb=0.0
 IF (ReactionProb.GT.iRan) THEN
 !evor = 0.5* Species(PartSpecies(PartReac1))%MassIC &
-!   * (PartState(PartReac1,4)**2+PartState(PartReac1,5)**2+PartState(PartReac1,6)**2) &
-!    + 0.5* Species(PartSpecies(PartReac2))%MassIC* (PartState(PartReac2,4)**2+PartState(PartReac2,5)**2+PartState(PartReac2,6)**2)&
-!    + 0.5* Species(PartSpecies(iPart_p3))%MassIC* (PartState(iPart_p3,4)**2+PartState(iPart_p3,5)**2+PartState(iPart_p3,6)**2) &
+!   * DOTPRODUCT(4:6,PartReac1) &
+!    + 0.5* Species(PartSpecies(PartReac2))%MassIC* (PartState(4,PartReac2)**2+PartState(5,PartReac2)**2+PartState(6,PartReac2)**2)&
+!    + 0.5* Species(PartSpecies(iPart_p3))%MassIC* (PartState(4,iPart_p3)**2+PartState(5,iPart_p3)**2+PartState(6,iPart_p3)**2) &
 !    + PartStateIntEn(PartReac1,3)
 #if (PP_TimeDiscMethod==42)
 ! Reservoir simulation for obtaining the reaction rate at one given point does not require to performe the reaction
@@ -677,16 +677,15 @@ IF (ReactionProb.GT.iRan) THEN
 #endif
 
     ! Relative velocity square between mean velocity of pseudo molecule AB and X
-!    CRela2X = ((PartState(Coll_pData(iPair)%iPart_p1,4) + PartState(Coll_pData(iPair)%iPart_p2,4))/2 - PartState(iPart_p3,4))**2&
-!             +((PartState(Coll_pData(iPair)%iPart_p1,5) + PartState(Coll_pData(iPair)%iPart_p2,5))/2 - PartState(iPart_p3,5))**2&
-!             +((PartState(Coll_pData(iPair)%iPart_p1,6) + PartState(Coll_pData(iPair)%iPart_p2,6))/2 - PartState(iPart_p3,6))**2
+!    CRela2X = ((PartState(4,Coll_pData(iPair)%iPart_p1) + PartState(4,Coll_pData(iPair)%iPart_p2))/2 - PartState(4,iPart_p3))**2&
+!             +((PartState(5,Coll_pData(iPair)%iPart_p1) + PartState(5,Coll_pData(iPair)%iPart_p2))/2 - PartState(5,iPart_p3))**2&
+!             +((PartState(6,Coll_pData(iPair)%iPart_p1) + PartState(6,Coll_pData(iPair)%iPart_p2))/2 - PartState(6,iPart_p3))**2
 
  ! calculate collision energy as required to performe the chemical reaction (non-qk)
 
     ! old
 !    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
-!      + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 &
-!                                                                                 + PartState(iPart_p3,6)**2 )
+!      + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * DOTPRODUCT(PartState(4:6,iPart_p3))
 
     ! new
 !    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
@@ -718,10 +717,10 @@ IF (ReactionProb.GT.iRan) THEN
 #endif
   RelaxToDo = .FALSE.
 !enach = 0.5* Species(PartSpecies(PartReac1))%MassIC &
-!  * ((PartState(PartReac1,4)+DSMC_RHS(PartReac1,1))**2+(PartState(PartReac1,5) &
-!  +DSMC_RHS(PartReac1,2))**2+(PartState(PartReac1,6)+DSMC_RHS(PartReac1,3))**2) &
-!  + 0.5* Species(PartSpecies(iPart_p3))%MassIC* ((PartState(iPart_p3,4)+DSMC_RHS(iPart_p3,1))**2 &
-! +(PartState(iPart_p3,5)+DSMC_RHS(iPart_p3,2))**2+(PartState(iPart_p3,6)+DSMC_RHS(iPart_p3,3))**2) &
+!  * ((PartState(4,PartReac1)+DSMC_RHS(PartReac1,1))**2+(PartState(5,PartReac1) &
+!  +DSMC_RHS(PartReac1,2))**2+(PartState(6,PartReac1)+DSMC_RHS(PartReac1,3))**2) &
+!  + 0.5* Species(PartSpecies(iPart_p3))%MassIC* ((PartState(4,iPart_p3)+DSMC_RHS(iPart_p3,1))**2 &
+! +(PartState(iPart_p3,5)+DSMC_RHS(iPart_p3,2))**2+(PartState(6,iPart_p3)+DSMC_RHS(iPart_p3,3))**2) &
 !  + PartStateIntEn(PartReac1,3)
 !print*, evor, enach, evor-enach
 !read*
