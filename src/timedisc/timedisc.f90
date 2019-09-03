@@ -492,19 +492,19 @@ DO !iter_t=0,MaxIter
       vMaxz = 0.
       DO iPart=1,PDM%ParticleVecLength
         IF (PDM%ParticleInside(iPart)) THEN
-          vMaxx = MAX( vMaxx , ABS(PartState(iPart, 4) + dt_temp*Pt(iPart,1)) )
-          vMaxy = MAX( vMaxy , ABS(PartState(iPart, 5) + dt_temp*Pt(iPart,2)) )
-          vMaxz = MAX( vMaxz , ABS(PartState(iPart, 6) + dt_temp*Pt(iPart,3)) )
+          vMaxx = MAX( vMaxx , ABS(PartState(iPart, 4) + dt_temp*Pt(1,iPart)) )
+          vMaxy = MAX( vMaxy , ABS(PartState(iPart, 5) + dt_temp*Pt(2,iPart)) )
+          vMaxz = MAX( vMaxz , ABS(PartState(iPart, 6) + dt_temp*Pt(3,iPart)) )
           NoPartInside=.FALSE.
         END IF
       END DO
 !! -- intrinsic logical->real/int-conversion should be avoided!!!
 !      vMaxx = MAXVAL(ABS(PDM%ParticleInside(1:PDM%ParticleVecLength) &
-!            * (PartState(1:PDM%ParticleVecLength, 4) + dt_temp*Pt(1:PDM%ParticleVecLength,1))))
+!            * (PartState(1:PDM%ParticleVecLength, 4) + dt_temp*Pt(1,1:PDM%ParticleVecLength))))
 !      vMaxy = MAXVAL(ABS(PDM%ParticleInside(1:PDM%ParticleVecLength) &
-!            * (PartState(1:PDM%ParticleVecLength, 5) + dt_temp*Pt(1:PDM%ParticleVecLength,2))))
+!            * (PartState(1:PDM%ParticleVecLength, 5) + dt_temp*Pt(2,1:PDM%ParticleVecLength))))
 !      vMaxz = MAXVAL(ABS(PDM%ParticleInside(1:PDM%ParticleVecLength) &
-!            * (PartState(1:PDM%ParticleVecLength, 6) + dt_temp*Pt(1:PDM%ParticleVecLength,3))))
+!            * (PartState(1:PDM%ParticleVecLength, 6) + dt_temp*Pt(3,1:PDM%ParticleVecLength))))
 !      vMax = MAX( SQRT(vMaxx*vMaxx + vMaxy*vMaxy + vMaxz*vMaxz) , 1.0 )
       vMax = MAX(vMaxx,vMaxy,vMaxz,1.0)
 #if USE_MPI
@@ -999,12 +999,12 @@ IF (time.GE.DelayTime) THEN
       PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6)*b_dt(1)
       ! Don't push the velocity component of neutral particles!
       IF(PUSHPARTICLE(iPart))THEN
-        Pt_temp(iPart,4) = Pt(iPart,1)
-        Pt_temp(iPart,5) = Pt(iPart,2)
-        Pt_temp(iPart,6) = Pt(iPart,3)
-        PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1)*b_dt(1)
-        PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2)*b_dt(1)
-        PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3)*b_dt(1)
+        Pt_temp(iPart,4) = Pt(1,iPart)
+        Pt_temp(iPart,5) = Pt(2,iPart)
+        Pt_temp(iPart,6) = Pt(3,iPart)
+        PartState(iPart,4) = PartState(iPart,4) + Pt(1,iPart)*b_dt(1)
+        PartState(iPart,5) = PartState(iPart,5) + Pt(2,iPart)*b_dt(1)
+        PartState(iPart,6) = PartState(iPart,6) + Pt(3,iPart)*b_dt(1)
       END IF
     END IF ! PDM%ParticleInside(iPart)
   END DO ! iPart=1,PDM%ParticleVecLength
@@ -1178,9 +1178,9 @@ DO iStage=2,nRKStages
         PartState(iPart,3) = PartState(iPart,3) + Pt_temp(iPart,3)*b_dt(iStage)
         ! Don't push the velocity component of neutral particles!
         IF(PUSHPARTICLE(iPart))THEN
-          Pt_temp(iPart,4) =        Pt(iPart,1) - RK_a(iStage) * Pt_temp(iPart,4)
-          Pt_temp(iPart,5) =        Pt(iPart,2) - RK_a(iStage) * Pt_temp(iPart,5)
-          Pt_temp(iPart,6) =        Pt(iPart,3) - RK_a(iStage) * Pt_temp(iPart,6)
+          Pt_temp(iPart,4) =        Pt(1,iPart) - RK_a(iStage) * Pt_temp(iPart,4)
+          Pt_temp(iPart,5) =        Pt(2,iPart) - RK_a(iStage) * Pt_temp(iPart,5)
+          Pt_temp(iPart,6) =        Pt(3,iPart) - RK_a(iStage) * Pt_temp(iPart,6)
           PartState(iPart,4) = PartState(iPart,4) + Pt_temp(iPart,4)*b_dt(iStage)
           PartState(iPart,5) = PartState(iPart,5) + Pt_temp(iPart,5)*b_dt(iStage)
           PartState(iPart,6) = PartState(iPart,6) + Pt_temp(iPart,6)*b_dt(iStage)
@@ -1643,9 +1643,9 @@ IF (time.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + dt * PartState(1:PDM%ParticleVecLength,4)
   PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + dt * PartState(1:PDM%ParticleVecLength,5)
   PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + dt * PartState(1:PDM%ParticleVecLength,6)
-  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) + dt * Pt(1:PDM%ParticleVecLength,1)
-  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(1:PDM%ParticleVecLength,2)
-  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3)
+  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) + dt * Pt(1,1:PDM%ParticleVecLength)
+  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(2,1:PDM%ParticleVecLength)
+  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(3,1:PDM%ParticleVecLength)
 END IF
 IF ((time.GE.DelayTime)) THEN
 #if USE_MPI
@@ -1971,9 +1971,9 @@ IF (time.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + dt * PartState(1:PDM%ParticleVecLength,4)
   PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + dt * PartState(1:PDM%ParticleVecLength,5)
   PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + dt * PartState(1:PDM%ParticleVecLength,6)
-  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) + dt * Pt(1:PDM%ParticleVecLength,1)
-  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(1:PDM%ParticleVecLength,2)
-  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3)
+  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) + dt * Pt(1,1:PDM%ParticleVecLength)
+  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(2,1:PDM%ParticleVecLength)
+  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(3,1:PDM%ParticleVecLength)
 END IF
 
 
@@ -2287,7 +2287,7 @@ IF(time.GE.DelayTime)THEN
       IF(.NOT.PDM%ParticleInside(iPart))CYCLE
       IF(PartIsImplicit(iPart))THEN
         CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
-        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
       END IF ! ParticleIsImplicit
       PDM%IsNewPart(iPart)=.FALSE.
       !PEM%ElementN(iPart) = PEM%Element(iPart)
@@ -2322,9 +2322,9 @@ IF(time.GE.DelayTime)THEN
           ! interpolate field at surface position
           CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
           ! RHS at interface
-          CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
+          CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
           ! f(u^n) for velocity
-          IF(.NOT.DoForceFreeSurfaceFlux) PartStage(iPart,4:6,1)=Pt(iPart,1:3)
+          IF(.NOT.DoForceFreeSurfaceFlux) PartStage(iPart,4:6,1)=Pt(1:3,iPart)
           ! position NOT known but we backup the state
           PartStateN(iPart,1:3) = PartState(iPart,1:3)
           ! initial velocity equals velocity of surface flux
@@ -2489,10 +2489,10 @@ DO iStage=2,nRKStages
         END IF
         IF(PartLorentzType.EQ.5)THEN
           LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-          CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3),LorentzFacInv)
+          CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart),LorentzFacInv)
         ELSE
           LorentzFacInv = 1.0
-          CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
+          CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
         END IF ! PartLorentzType.EQ.5
         PartStage(iPart,1,iStage-1) = PartState(iPart,4)*LorentzFacInv
         PartStage(iPart,2,iStage-1) = PartState(iPart,5)*LorentzFacInv
@@ -2825,15 +2825,15 @@ IF (time.GE.DelayTime) THEN
       ! compute acceleration
       IF(PartLorentzType.EQ.5)THEN
         LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3),LorentzFacInv)
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart),LorentzFacInv)
       ELSE
         LorentzFacInv = 1.0
-        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
       END IF ! PartLorentzType.EQ.5
       PartState(iPart,1  ) = RK_b(nRKStages)*LorentzFacInv*PartState(iPart,4)
       PartState(iPart,2  ) = RK_b(nRKStages)*LorentzFacInv*PartState(iPart,5)
       PartState(iPart,3  ) = RK_b(nRKStages)*LorentzFacInv*PartState(iPart,6)
-      PartState(iPart,4:6) = RK_b(nRKSTages)*Pt(iPart,1:3)
+      PartState(iPart,4:6) = RK_b(nRKSTages)*Pt(1:3,iPart)
       !  stage 1 ,nRKStages-1
       DO iCounter=1,nRKStages-1
         PartState(iPart,1:6) = PartState(iPart,1:6)   &
@@ -3270,18 +3270,18 @@ IF(time.GE.DelayTime)THEN
     ! compute particle RHS at time^n
     IF(PartLorentzType.EQ.5)THEN
       LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3),LorentzFacInv)
+      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart),LorentzFacInv)
     ELSE
       LorentzFacInv = 1.0
-      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
+      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
     END IF ! PartLorentzType.EQ.5
     ! compute current Pt_tmp for the particle
     Pt_tmp(1) =LorentzFacInv*PartState(iPart,4)
     Pt_tmp(2) =LorentzFacInv*PartState(iPart,5)
     Pt_tmp(3) =LorentzFacInv*PartState(iPart,6)
-    Pt_tmp(4) =Pt(iPart,1)
-    Pt_tmp(5) =Pt(iPart,2)
-    Pt_tmp(6) =Pt(iPart,3)
+    Pt_tmp(4) =Pt(1,iPart)
+    Pt_tmp(5) =Pt(2,iPart)
+    Pt_tmp(6) =Pt(3,iPart)
     ! how it works
     ! A x = b
     ! A(x-x0) = b - A x0
@@ -3527,18 +3527,18 @@ DO iStage=2,nRKStages
       ! compute particle RHS at time^n
       IF(PartLorentzType.EQ.5)THEN
         LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3),LorentzFacInv)
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart),LorentzFacInv)
       ELSE
         LorentzFacInv = 1.0
-        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
       END IF ! PartLorentzType.EQ.5
       ! compute current Pt_tmp for the particle
       Pt_tmp(1) = LorentzFacInv*PartState(iPart,4)
       Pt_tmp(2) = LorentzFacInv*PartState(iPart,5)
       Pt_tmp(3) = LorentzFacInv*PartState(iPart,6)
-      Pt_tmp(4) = Pt(iPart,1)
-      Pt_tmp(5) = Pt(iPart,2)
-      Pt_tmp(6) = Pt(iPart,3)
+      Pt_tmp(4) = Pt(1,iPart)
+      Pt_tmp(5) = Pt(2,iPart)
+      Pt_tmp(6) = Pt(3,iPart)
       IF(DoSurfaceFlux)THEN
         coeff_loc=PartDtFrac(iPart)*coeff
       ELSE
@@ -3817,9 +3817,9 @@ IF (time.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + dt * PartState(1:PDM%ParticleVecLength,4)
   PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + dt * PartState(1:PDM%ParticleVecLength,5)
   PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + dt * PartState(1:PDM%ParticleVecLength,6)
-  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) + dt * Pt(1:PDM%ParticleVecLength,1)
-  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(1:PDM%ParticleVecLength,2)
-  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3)
+  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) + dt * Pt(1,1:PDM%ParticleVecLength)
+  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(2,1:PDM%ParticleVecLength)
+  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(3,1:PDM%ParticleVecLength)
 END IF
 
 #if USE_MPI
@@ -4004,9 +4004,9 @@ IF (time.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + dt * PartState(1:PDM%ParticleVecLength,4)
   PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + dt * PartState(1:PDM%ParticleVecLength,5)
   PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + dt * PartState(1:PDM%ParticleVecLength,6)
-  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) + dt * Pt(1:PDM%ParticleVecLength,1)
-  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(1:PDM%ParticleVecLength,2)
-  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3)
+  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) + dt * Pt(1,1:PDM%ParticleVecLength)
+  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(2,1:PDM%ParticleVecLength)
+  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(3,1:PDM%ParticleVecLength)
 END IF
 
 #if USE_MPI
@@ -4551,15 +4551,15 @@ IF (time.GE.DelayTime) THEN
           ! Don't push the velocity component of neutral particles!
           IF(PUSHPARTICLE(iPart))THEN
             !-- v(n) => v(n-0.5) by a(n):
-            PartState(iPart,4) = PartState(iPart,4) - Pt(iPart,1) * dt*0.5
-            PartState(iPart,5) = PartState(iPart,5) - Pt(iPart,2) * dt*0.5
-            PartState(iPart,6) = PartState(iPart,6) - Pt(iPart,3) * dt*0.5
+            PartState(iPart,4) = PartState(iPart,4) - Pt(1,iPart) * dt*0.5
+            PartState(iPart,5) = PartState(iPart,5) - Pt(2,iPart) * dt*0.5
+            PartState(iPart,6) = PartState(iPart,6) - Pt(3,iPart) * dt*0.5
           END IF
           PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
         ELSE
           IF ((ABS(dt-dt_old).GT.1.0E-6*dt_old).AND.&
                PUSHPARTICLE(iPart)) THEN ! Don't push the velocity component of neutral particles!
-            PartState(iPart,4:6)  = PartState(iPart,4:6) + Pt(iPart,1:3) * (dt_old-dt)*0.5
+            PartState(iPart,4:6)  = PartState(iPart,4:6) + Pt(1:3,iPart) * (dt_old-dt)*0.5
           END IF
         END IF
 #endif /*(PP_TimeDiscMethod==509)*/
@@ -4567,15 +4567,15 @@ IF (time.GE.DelayTime) THEN
 #if (PP_TimeDiscMethod==509)
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart) .AND. .NOT.DoForceFreeSurfaceFlux) THEN
         !-- x(BC) => x(n+1) by v(BC+X):
-        PartState(iPart,1) = PartState(iPart,1) + ( PartState(iPart,4) + Pt(iPart,1) * dtFrac*0.5 ) * dtFrac
-        PartState(iPart,2) = PartState(iPart,2) + ( PartState(iPart,5) + Pt(iPart,2) * dtFrac*0.5 ) * dtFrac
-        PartState(iPart,3) = PartState(iPart,3) + ( PartState(iPart,6) + Pt(iPart,3) * dtFrac*0.5 ) * dtFrac
+        PartState(iPart,1) = PartState(iPart,1) + ( PartState(iPart,4) + Pt(1,iPart) * dtFrac*0.5 ) * dtFrac
+        PartState(iPart,2) = PartState(iPart,2) + ( PartState(iPart,5) + Pt(2,iPart) * dtFrac*0.5 ) * dtFrac
+        PartState(iPart,3) = PartState(iPart,3) + ( PartState(iPart,6) + Pt(3,iPart) * dtFrac*0.5 ) * dtFrac
         ! Don't push the velocity component of neutral particles!
         IF(PUSHPARTICLE(iPart))THEN
           !-- v(BC) => v(n+0.5) by a(BC):
-          PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * (dtFrac - dt*0.5)
-          PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * (dtFrac - dt*0.5)
-          PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * (dtFrac - dt*0.5)
+          PartState(iPart,4) = PartState(iPart,4) + Pt(1,iPart) * (dtFrac - dt*0.5)
+          PartState(iPart,5) = PartState(iPart,5) + Pt(2,iPart) * (dtFrac - dt*0.5)
+          PartState(iPart,6) = PartState(iPart,6) + Pt(3,iPart) * (dtFrac - dt*0.5)
         END IF
         PDM%dtFracPush(iPart) = .FALSE.
       ELSE IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoForceFreeSurfaceFlux
@@ -4588,9 +4588,9 @@ IF (time.GE.DelayTime) THEN
         ! Don't push the velocity component of neutral particles!
         IF(PUSHPARTICLE(iPart))THEN
           !-- v(n-0.5) => v(n+0.5) by a(n):
-          PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * dt
-          PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * dt
-          PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * dt
+          PartState(iPart,4) = PartState(iPart,4) + Pt(1,iPart) * dt
+          PartState(iPart,5) = PartState(iPart,5) + Pt(2,iPart) * dt
+          PartState(iPart,6) = PartState(iPart,6) + Pt(3,iPart) * dt
         END IF
         !-- x(n) => x(n+1) by v(n+0.5):
         PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
@@ -4608,9 +4608,9 @@ IF (time.GE.DelayTime) THEN
         ! Don't push the velocity component of neutral particles!
         IF(PUSHPARTICLE(iPart))THEN
           !-- v(n) => v(n+1) by a(n):
-          PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * dtFrac
-          PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * dtFrac
-          PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * dtFrac
+          PartState(iPart,4) = PartState(iPart,4) + Pt(1,iPart) * dtFrac
+          PartState(iPart,5) = PartState(iPart,5) + Pt(2,iPart) * dtFrac
+          PartState(iPart,6) = PartState(iPart,6) + Pt(3,iPart) * dtFrac
         END IF
         IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN
           PDM%dtFracPush(iPart) = .FALSE.
@@ -4666,7 +4666,7 @@ IF (time.GE.DelayTime) THEN
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         !-- v(n+0.5) => v(n+1) by a(n+1):
-        velocityAtTime(iPart,1:3) = PartState(iPart,4:6) + Pt(iPart,1:3) * dt*0.5
+        velocityAtTime(iPart,1:3) = PartState(iPart,4:6) + Pt(1:3,iPart) * dt*0.5
       END IF
     END DO
 #if USE_LOADBALANCE
@@ -4909,17 +4909,17 @@ IF (time.GE.DelayTime) THEN
         PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6)*b_dt(1)
         ! Don't push the velocity component of neutral particles!
         IF(PUSHPARTICLE(iPart))THEN
-          Pt_temp(iPart,4) = Pt(iPart,1)
-          Pt_temp(iPart,5) = Pt(iPart,2)
-          Pt_temp(iPart,6) = Pt(iPart,3)
-          PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1)*b_dt(1)
-          PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2)*b_dt(1)
-          PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3)*b_dt(1)
+          Pt_temp(iPart,4) = Pt(1,iPart)
+          Pt_temp(iPart,5) = Pt(2,iPart)
+          Pt_temp(iPart,6) = Pt(3,iPart)
+          PartState(iPart,4) = PartState(iPart,4) + Pt(1,iPart)*b_dt(1)
+          PartState(iPart,5) = PartState(iPart,5) + Pt(2,iPart)*b_dt(1)
+          PartState(iPart,6) = PartState(iPart,6) + Pt(3,iPart)*b_dt(1)
         END IF
       ELSE !IsNewPart: no Pt_temp history available!
         IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !SF, new in current RKStage
           CALL RANDOM_NUMBER(RandVal)
-          IF (DoForceFreeSurfaceFlux) Pt(iPart,1:3)=0.
+          IF (DoForceFreeSurfaceFlux) Pt(1:3,iPart)=0.
         ELSE
           CALL abort(&
 __STAMP__&
@@ -4929,7 +4929,7 @@ __STAMP__&
         ! Don't push the velocity component of neutral particles!
         IF(PUSHPARTICLE(iPart))THEN
           DO iStage_loc=1,iStage
-            Pa_rebuilt(1:3,iStage_loc)=Pa_rebuilt_coeff(iStage_loc)*Pt(iPart,1:3)
+            Pa_rebuilt(1:3,iStage_loc)=Pa_rebuilt_coeff(iStage_loc)*Pt(1:3,iPart)
           END DO
         END IF
         v_rebuilt(:,:)=0.
@@ -5081,9 +5081,9 @@ DO iStage=2,nRKStages
           PartState(iPart,3) = PartState(iPart,3) + Pt_temp(iPart,3)*b_dt(iStage)
           ! Don't push the velocity component of neutral particles!
           IF(PUSHPARTICLE(iPart))THEN
-            Pt_temp(iPart,4) = Pt(iPart,1) - RK_a(iStage) * Pt_temp(iPart,4)
-            Pt_temp(iPart,5) = Pt(iPart,2) - RK_a(iStage) * Pt_temp(iPart,5)
-            Pt_temp(iPart,6) = Pt(iPart,3) - RK_a(iStage) * Pt_temp(iPart,6)
+            Pt_temp(iPart,4) = Pt(1,iPart) - RK_a(iStage) * Pt_temp(iPart,4)
+            Pt_temp(iPart,5) = Pt(2,iPart) - RK_a(iStage) * Pt_temp(iPart,5)
+            Pt_temp(iPart,6) = Pt(3,iPart) - RK_a(iStage) * Pt_temp(iPart,6)
             PartState(iPart,4) = PartState(iPart,4) + Pt_temp(iPart,4)*b_dt(iStage)
             PartState(iPart,5) = PartState(iPart,5) + Pt_temp(iPart,5)*b_dt(iStage)
             PartState(iPart,6) = PartState(iPart,6) + Pt_temp(iPart,6)*b_dt(iStage)
@@ -5096,12 +5096,12 @@ DO iStage=2,nRKStages
                ! -> rebuild Pt_tmp-coefficients assuming F=const. (value at last Pos) in previous stages
             RandVal=1. !"normal" particles (i.e. not from SurfFlux) are pushed with whole timestep!
           END IF
-          IF (DoForceFreeSurfaceFlux) Pt(iPart,1:3)=0.
+          IF (DoForceFreeSurfaceFlux) Pt(1:3,iPart)=0.
           Pa_rebuilt(:,:)=0.
           ! Don't push the velocity component of neutral particles!
           IF(PUSHPARTICLE(iPart))THEN
             DO iStage_loc=1,iStage
-              Pa_rebuilt(1:3,iStage_loc)=Pa_rebuilt_coeff(iStage_loc)*Pt(iPart,1:3)
+              Pa_rebuilt(1:3,iStage_loc)=Pa_rebuilt_coeff(iStage_loc)*Pt(1:3,iPart)
             END DO
           END IF
           v_rebuilt(:,:)=0.

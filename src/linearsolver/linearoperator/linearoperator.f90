@@ -478,7 +478,7 @@ PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
 ! CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),PEM%Element(PartID))
 ! CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle(1:6,PartID))
-!PartT(4:6)=Pt(PartID,1:3)
+!PartT(4:6)=Pt(1:3,PartID)
 IF(PartLorentzType.EQ.5)THEN
   LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6))*c2_inv)
   CALL PartRHS(PartID,FieldAtParticle(1:6,PartID),PartT(4:6),LorentzFacInv)

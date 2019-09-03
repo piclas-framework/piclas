@@ -191,7 +191,7 @@ CASE(1) ! selection after simplified, linear push
   ELSE
     DO iPart=1,PDM%ParticleVecLength
       IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-      NewVelo=PartState(iPart,4:6)+dt/REAL(nRKStages-1)*Pt(iPart,1:3)
+      NewVelo=PartState(iPart,4:6)+dt/REAL(nRKStages-1)*Pt(1:3,iPart)
       Vabs   =DOT_PRODUCT(NewVelo,NewVelo)
       IF(Vabs*c2_inv.GT.0.9) PartIsImplicit(iPart)=.TRUE.
     END DO ! iPart
@@ -357,18 +357,18 @@ IF(opt)THEN ! compute zero state
       ! HERE: rotate part to partstate back
       IF(PartLorentzType.EQ.5)THEN
         LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3),LorentzFacInv)
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart),LorentzFacInv)
       ELSE
         LorentzFacInv = 1.0
-        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
       END IF ! PartLorentzType.EQ.5
       ! PartStateN has to be exchanged by PartQ
       Pt_tmp(1) = LorentzFacInv*PartState(iPart,4)
       Pt_tmp(2) = LorentzFacInv*PartState(iPart,5)
       Pt_tmp(3) = LorentzFacInv*PartState(iPart,6)
-      Pt_tmp(4) = Pt(iPart,1)
-      Pt_tmp(5) = Pt(iPart,2)
-      Pt_tmp(6) = Pt(iPart,3)
+      Pt_tmp(4) = Pt(1,iPart)
+      Pt_tmp(5) = Pt(2,iPart)
+      Pt_tmp(6) = Pt(3,iPart)
       F_PartX0(1:6,iPart) =   PartState(iPart,1:6)-PartQ(1:6,iPart)-PartDtFrac(iPart)*coeff*Pt_tmp(1:6)
       PartXK(1:6,iPart)   =   PartState(iPart,1:6)
       R_PartXK(1:6,iPart) =   Pt_tmp(1:6)
@@ -873,17 +873,17 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
     IF(PartLorentzType.EQ.5)THEN
       LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3),LorentzFacInv)
+      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart),LorentzFacInv)
     ELSE
       LorentzFacInv = 1.0
-      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
+      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
     END IF ! PartLorentzType.EQ.5
     R_PartXK(1,iPart)=LorentzFacInv*PartState(iPart,4)
     R_PartXK(2,iPart)=LorentzFacInv*PartState(iPart,5)
     R_PartXK(3,iPart)=LorentzFacInv*PartState(iPart,6)
-    R_PartXK(4,iPart)=Pt(iPart,1)
-    R_PartXK(5,iPart)=Pt(iPart,2)
-    R_PartXK(6,iPart)=Pt(iPart,3)
+    R_PartXK(4,iPart)=Pt(1,iPart)
+    R_PartXK(5,iPart)=Pt(2,iPart)
+    R_PartXK(6,iPart)=Pt(3,iPart)
     F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:6,iPart)
     ! if check, then here!
     DeltaX_Norm=DOT_PRODUCT(PartDeltaX(1:6,iPart),PartDeltaX(1:6,iPart))
@@ -1074,17 +1074,17 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       END IF
       IF(PartLorentzType.EQ.5)THEN
         LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3),LorentzFacInv)
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart),LorentzFacInv)
       ELSE
         LorentzFacInv = 1.0
-        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(iPart,1:3))
+        CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
       END IF ! PartLorentzType.EQ.5
       R_PartXK(1,iPart)=LorentzFacInv*PartState(iPart,4)
       R_PartXK(2,iPart)=LorentzFacInv*PartState(iPart,5)
       R_PartXK(3,iPart)=LorentzFacInv*PartState(iPart,6)
-      R_PartXK(4,iPart)=Pt(iPart,1)
-      R_PartXK(5,iPart)=Pt(iPart,2)
-      R_PartXK(6,iPart)=Pt(iPart,3)
+      R_PartXK(4,iPart)=Pt(1,iPart)
+      R_PartXK(5,iPart)=Pt(2,iPart)
+      R_PartXK(6,iPart)=Pt(3,iPart)
       F_PartXK(1:6,iPart)=PartState(iPart,1:6) - PartQ(1:6,iPart) - PartDtFrac(iPart)*coeff*R_PartXK(1:6,iPart)
       ! vector dot product
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm_PartX)

@@ -1337,7 +1337,7 @@ END IF
 
 ALLOCATE(PartState(1:PDM%maxParticleNumber,1:6)       , &
          LastPartPos(1:PDM%maxParticleNumber,1:3)     , &
-         Pt(1:PDM%maxParticleNumber,1:3)              , &
+         Pt(1:3,1:PDM%maxParticleNumber)              , &
          PartSpecies(1:PDM%maxParticleNumber)         , &
          PDM%ParticleInside(1:PDM%maxParticleNumber)  , &
          PDM%nextFreePosition(1:PDM%maxParticleNumber), &
