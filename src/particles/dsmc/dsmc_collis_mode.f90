@@ -93,7 +93,7 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
   DSMC_RHS(1,Coll_pData(iPair)%iPart_p1) = VeloMx + FracMassCent2*RanVelox - PartState(4,Coll_pData(iPair)%iPart_p1)
   DSMC_RHS(2,Coll_pData(iPair)%iPart_p1) = VeloMy + FracMassCent2*RanVeloy - PartState(5,Coll_pData(iPair)%iPart_p1)
   DSMC_RHS(3,Coll_pData(iPair)%iPart_p1) = VeloMz + FracMassCent2*RanVeloz - PartState(6,Coll_pData(iPair)%iPart_p1)
- ! deltaV particle 2                                                                                               
+ ! deltaV particle 2
   DSMC_RHS(1,Coll_pData(iPair)%iPart_p2) = VeloMx - FracMassCent1*RanVelox - PartState(4,Coll_pData(iPair)%iPart_p2)
   DSMC_RHS(2,Coll_pData(iPair)%iPart_p2) = VeloMy - FracMassCent1*RanVeloy - PartState(5,Coll_pData(iPair)%iPart_p2)
   DSMC_RHS(3,Coll_pData(iPair)%iPart_p2) = VeloMz - FracMassCent1*RanVeloz - PartState(6,Coll_pData(iPair)%iPart_p2)
@@ -194,7 +194,7 @@ IF ((sigma_el/sigma_tot).GT.uRan2) THEN
     DSMC_RHS(1,Coll_pData(iPair)%iPart_p1) = VeloMx + FracMassCent2*CRelaxN - PartState(4,Coll_pData(iPair)%iPart_p1)
     DSMC_RHS(2,Coll_pData(iPair)%iPart_p1) = VeloMy + FracMassCent2*CRelayN - PartState(5,Coll_pData(iPair)%iPart_p1)
     DSMC_RHS(3,Coll_pData(iPair)%iPart_p1) = VeloMz + FracMassCent2*CRelazN - PartState(6,Coll_pData(iPair)%iPart_p1)
-    ! deltaV particle 2                                                                                             
+    ! deltaV particle 2
     DSMC_RHS(1,Coll_pData(iPair)%iPart_p2) = VeloMx - FracMassCent1*CRelaxN - PartState(4,Coll_pData(iPair)%iPart_p2)
     DSMC_RHS(2,Coll_pData(iPair)%iPart_p2) = VeloMy - FracMassCent1*CRelayN - PartState(5,Coll_pData(iPair)%iPart_p2)
     DSMC_RHS(3,Coll_pData(iPair)%iPart_p2) = VeloMz - FracMassCent1*CRelazN - PartState(6,Coll_pData(iPair)%iPart_p2)
@@ -531,7 +531,7 @@ END IF
   DSMC_RHS(1,Coll_pData(iPair)%iPart_p1) = VeloMx + FracMassCent2*RanVelox - PartState(4,Coll_pData(iPair)%iPart_p1)
   DSMC_RHS(2,Coll_pData(iPair)%iPart_p1) = VeloMy + FracMassCent2*RanVeloy - PartState(5,Coll_pData(iPair)%iPart_p1)
   DSMC_RHS(3,Coll_pData(iPair)%iPart_p1) = VeloMz + FracMassCent2*RanVeloz - PartState(6,Coll_pData(iPair)%iPart_p1)
- ! deltaV particle 2                                                                                             
+ ! deltaV particle 2
   DSMC_RHS(1,Coll_pData(iPair)%iPart_p2) = VeloMx - FracMassCent1*RanVelox - PartState(4,Coll_pData(iPair)%iPart_p2)
   DSMC_RHS(2,Coll_pData(iPair)%iPart_p2) = VeloMy - FracMassCent1*RanVeloy - PartState(5,Coll_pData(iPair)%iPart_p2)
   DSMC_RHS(3,Coll_pData(iPair)%iPart_p2) = VeloMz - FracMassCent1*RanVeloz - PartState(6,Coll_pData(iPair)%iPart_p2)
@@ -881,7 +881,7 @@ __STAMP__&
   DSMC_RHS(1,Coll_pData(iPair)%iPart_p1) = VeloMx + FracMassCent2*RanVelox - PartState(4,Coll_pData(iPair)%iPart_p1)
   DSMC_RHS(2,Coll_pData(iPair)%iPart_p1) = VeloMy + FracMassCent2*RanVeloy - PartState(5,Coll_pData(iPair)%iPart_p1)
   DSMC_RHS(3,Coll_pData(iPair)%iPart_p1) = VeloMz + FracMassCent2*RanVeloz - PartState(6,Coll_pData(iPair)%iPart_p1)
- ! deltaV particle 2                                                                                             
+ ! deltaV particle 2
   DSMC_RHS(1,Coll_pData(iPair)%iPart_p2) = VeloMx - FracMassCent1*RanVelox - PartState(4,Coll_pData(iPair)%iPart_p2)
   DSMC_RHS(2,Coll_pData(iPair)%iPart_p2) = VeloMy - FracMassCent1*RanVeloy - PartState(5,Coll_pData(iPair)%iPart_p2)
   DSMC_RHS(3,Coll_pData(iPair)%iPart_p2) = VeloMz - FracMassCent1*RanVeloz - PartState(6,Coll_pData(iPair)%iPart_p2)
@@ -920,7 +920,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
       IF(Symmetry2D) THEN
         Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
                        +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2)
-      ELSE                                                                                               
+      ELSE
         Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
                        +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2 &
                        +(PartState(3,Coll_pData(iPair)%iPart_p1) - PartState(3,Coll_pData(iPair)%iPart_p2))**2)

@@ -1013,8 +1013,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     DSMC_RHS(1,React1Inx) = VxPseuMolec + FracMassCent2*RanVelox - PartState(4,React1Inx)
     DSMC_RHS(2,React1Inx) = VyPseuMolec + FracMassCent2*RanVeloy - PartState(5,React1Inx)
     DSMC_RHS(3,React1Inx) = VzPseuMolec + FracMassCent2*RanVeloz - PartState(6,React1Inx)
-                                                                                        
-    !deltaV particle 2                                                                  
+    !deltaV particle 2
     DSMC_RHS(1,React2Inx) = VxPseuMolec - FracMassCent1*RanVelox - PartState(4,React2Inx)
     DSMC_RHS(2,React2Inx) = VyPseuMolec - FracMassCent1*RanVeloy - PartState(5,React2Inx)
     DSMC_RHS(3,React2Inx) = VzPseuMolec - FracMassCent1*RanVeloz - PartState(6,React2Inx)
