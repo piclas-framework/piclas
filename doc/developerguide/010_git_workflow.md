@@ -75,6 +75,12 @@ Headlines without changes/additions within a release can be omitted.
 
 ### Collaborative Numerics Group
 
+The collaborative numerics group for PICLas is located at *https://gitlab.com/collaborative-numerics-group/piclas*. There are two possible ways of sharing code with other people and are explained in the following.
+
+#### Single master branch repository
+Method 1 involves a single master branch that is updated from the internal PICLas repository, similar
+to the repository of PICLas at *github.com*.
+
 The master branch of development group can be merged after the successful regression check with the master of the collaborative group. For this purpose, the collaborative repository can be added as a remote (this step has only to be performed once)
 
     git remote add remote_name git@gitlab.com:collaborative-numerics-group/piclas/piclas.git
@@ -103,6 +109,27 @@ If a tag has also been created, it should be pushed separately.
 Afterwards, the local branch *branch_name* can either be deleted or utilized for future merges
 
     git branch -d branch_name
+
+#### Pushing each branch to a separate repository
+Method 2 involves pushing each development branch from the internal PICLas repository to a separate
+repository in the PICLas CRG separately.
+
+Extract solely a single branch by cloning only *myfeaturebranch* via
+
+    git clone -b myfeaturebranch --single-branch git@gitlab.com:piclas/piclas.git piclas_new_CRG ;
+
+Navigate to the newly created directory
+
+    cd piclas_new_CRG
+
+Push this repository that only contains one branch to the CRG via
+
+    git push --mirror git@gitlab.com:collaborative-numerics-group/piclas/piclas.myfeaturebranch.git
+
+which created a new repository that only contains the desired feature branch. When sharing this new
+repository with new people, simply add them as members of this new repository (not the complete
+CRG!).
+
 
 ### GitHub
 
