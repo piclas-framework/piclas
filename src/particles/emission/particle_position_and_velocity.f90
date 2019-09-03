@@ -1899,7 +1899,7 @@ CASE('gyrotron_circle')
        IF (RandVal1 .ge. 0.5) THEN
          Radius(1) = PartState(1,PositionNbr) - x_01
          Radius(2) = PartState(2,PositionNbr) - y_01
-       ELSE                                 
+       ELSE
          Radius(1) = PartState(1,PositionNbr) - x_02
          Radius(2) = PartState(2,PositionNbr) - y_02
        END IF
@@ -2188,7 +2188,7 @@ CASE('weibel')
     v_sum(:)  = v_sum(:)/NbrOfParticle
     sigma(:) = (NbrOfParticle/(NbrOfParticle-1))*(sigma(:)/NbrOfParticle-v_sum(:)**2)
         ! Verschiebungssatz der korrigierten Stichprobenkovarianz:
-  ELSE                                                                            ! s^2(X)=1/(N-1)(N*E(X^2) - N*E(X)^2)
+  ELSE ! s^2(X)=1/(N-1)(N*E(X^2) - N*E(X)^2)
     v_sum(:) = 0.
     sigma(:) = 1.
   END IF
