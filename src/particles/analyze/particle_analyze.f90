@@ -2289,7 +2289,7 @@ ELSE
   RotRelaxProb = DSMC%RotRelaxProb
 END IF
 ! Vib Relax Prob
-IF(DSMC%VibRelaxProb.GE.2) THEN
+IF(DSMC%VibRelaxProb.EQ.2) THEN
   VibRelaxProb = 0.
   PartNum = 0.
   DO iSpec=1,nSpecies

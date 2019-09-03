@@ -1768,7 +1768,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
       END IF
       ! variable rotation and vibration relaxation
       IF(Collismode.GT.1) THEN
-        IF((DSMC%RotRelaxProb.GE.2).OR.(DSMC%VibRelaxProb.GE.2)) THEN
+        IF((DSMC%RotRelaxProb.GE.2).OR.(DSMC%VibRelaxProb.EQ.2)) THEN
           IF(nSpecies.EQ.1) THEN
             nSpecTemp = 0
           ELSE
@@ -1785,7 +1785,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                 nVarCountRelax = nVarCountRelax + 2
               END IF
             END IF
-            IF((DSMC%VibRelaxProb.GE.2)) THEN
+            IF((DSMC%VibRelaxProb.EQ.2)) THEN
               IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,2).GT.0) DSMC_MacroVal(nVarLoc*(iSpec)+nVarCountRelax,kk,ll,mm, iElem) = &
                                          DSMC%QualityFacSampVib(iElem,iSpec+1,2) / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,2))
               IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,1).GT.0) DSMC_MacroVal(nVarLoc*(iSpec)+nVarCountRelax+1,kk,ll,mm, iElem)=&
@@ -2069,7 +2069,7 @@ nVarloc=DSMC_NVARS
 nVarRelax=0
 IF(DSMC%CalcQualityFactors.AND.(CollisMode.GE.2)) THEN
   IF(DSMC%RotRelaxProb.GE.2) nVarRelax = nVarRelax + 2
-  IF(DSMC%VibRelaxProb.GE.2) nVarRelax = nVarRelax + 2
+  IF(DSMC%VibRelaxProb.EQ.2) nVarRelax = nVarRelax + 2
 END IF
 IF(nSpecies.EQ.1) THEN
   nVar=nVarloc+nVarRelax
@@ -2110,7 +2110,7 @@ IF(nSpecies.GT.1) THEN
         StrVarNames(nVarCount+2              )='Spec'//TRIM(SpecID)//'_DSMC_MeanRotRelaxProb'
         nvarcount=nvarcount+2
       END IF
-      IF((DSMC%VibRelaxProb.GE.2)) THEN
+      IF((DSMC%VibRelaxProb.EQ.2)) THEN
         StrVarNames(nVarCount+1              )='Spec'//TRIM(SpecID)//'_DSMC_MaxVibRelaxProb'
         StrVarNames(nVarCount+2              )='Spec'//TRIM(SpecID)//'_DSMC_MeanVibRelaxProb'
         nvarcount=nvarcount+2
@@ -2139,7 +2139,7 @@ IF(DSMC%CalcQualityFactors.AND.(CollisMode.GE.2)) THEN
     StrVarNames(nVarCount+2              )='Total_DSMC_MeanRotRelaxProb'
     nvarcount=nvarcount+2
   END IF
-  IF((DSMC%VibRelaxProb.GE.2)) THEN
+  IF((DSMC%VibRelaxProb.EQ.2)) THEN
     StrVarNames(nVarCount+1              )='Total_DSMC_MaxVibRelaxProb'
     StrVarNames(nVarCount+2              )='Total_DSMC_MeanVibRelaxProb'
     nvarcount=nvarcount+2

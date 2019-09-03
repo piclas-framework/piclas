@@ -647,7 +647,7 @@ ELSE !CollisMode.GT.0
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! Check whether calculation of instantaneous translational temperature is required
   IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
-            .OR.(DSMC%VibRelaxProb.GE.2)) THEN
+            .OR.(DSMC%VibRelaxProb.EQ.2)) THEN
     ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
     !           relaxation probability (CalcGammaVib)
     ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
