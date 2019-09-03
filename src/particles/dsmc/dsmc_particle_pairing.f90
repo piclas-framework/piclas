@@ -226,7 +226,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac
-  USE MOD_DSMC_Vars,              ONLY: DSMC, SelectionProc, RadialWeighting, useRelaxProbCorrFactor, VarVibRelaxProb, SpecDSMC
+  USE MOD_DSMC_Vars,              ONLY: DSMC, SelectionProc, RadialWeighting, useRelaxProbCorrFactor, VarVibRelaxProb
   USE MOD_DSMC_Analyze,           ONLY: CalcGammaVib, CalcInstantTransTemp
   USE MOD_Particle_Vars,          ONLY: PEM, PartSpecies, nSpecies, PartState, VarTimeStep
   USE MOD_Particle_Vars,          ONLY: KeepWallParticles, PDM

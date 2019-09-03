@@ -1626,7 +1626,7 @@ USE MOD_DSMC_Vars              ,ONLY: VarVibRelaxProb, CollInf, SpecDSMC, Coll_p
 USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
 USE MOD_DSMC_Analyze           ,ONLY: CalcInstantTransTemp
 USE MOD_Particle_Vars          ,ONLY: PEM
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, PI
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Collis            ,ONLY: DSMC_calc_var_P_vib
 USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
 IMPLICIT NONE
