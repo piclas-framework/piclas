@@ -3010,16 +3010,9 @@ USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIPar
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts,PartMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
-#ifdef CODE_ANALYZE
-USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
-USE MOD_Mesh_Vars              ,ONLY: OffSetElem
-#endif /*CODE_ANALYZE*/
 #endif /*USE_MPI*/
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
-#endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
