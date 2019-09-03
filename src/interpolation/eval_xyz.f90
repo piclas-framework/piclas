@@ -556,7 +556,7 @@ __STAMP__&
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartisImplicit(PartID)
 #endif
 #if defined(IMAP) || defined(ROS)
-      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' last?', LastPartPos(PartID,1:3)
+      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' last?', LastPartPos(1:3,PartID)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' ElemID-N', PEM%ElementN(PartID)+offSetElem
 #endif /*IMPA or ROS*/
         CALL abort(&

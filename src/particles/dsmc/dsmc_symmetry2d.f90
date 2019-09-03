@@ -324,7 +324,7 @@ IF(DoCloning) THEN
   END IF
   ClonedParticles(cloneIndex,DelayCounter)%Species = PartSpecies(iPart)
   ClonedParticles(cloneIndex,DelayCounter)%Element = iElem
-  ClonedParticles(cloneIndex,DelayCounter)%LastPartPos(1:3) = LastPartPos(iPart,1:3)
+  ClonedParticles(cloneIndex,DelayCounter)%LastPartPos(1:3) = LastPartPos(1:3,iPart)
   ClonedParticles(cloneIndex,DelayCounter)%WeightingFactor = PartMPF(iPart)
 ELSE
 ! ######## Particle Delete #######################################################################################################
@@ -431,7 +431,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PartSpecies(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Species
   PEM%Element(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
   PEM%lastElement(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
-  LastPartPos(PositionNbr,1:3) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
+  LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
   IF (VarTimeStep%UseVariableTimeStep) THEN
     VarTimeStep%ParticleTimeStep(PositionNbr) = CalcVarTimeStep(PartState(PositionNbr,1),PartState(PositionNbr,2),&

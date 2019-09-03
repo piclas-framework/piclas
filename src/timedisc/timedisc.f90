@@ -984,9 +984,9 @@ CALL LBSplitTime(LB_PML,tLBStart)
 
 
 #ifdef PARTICLES
-LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+LastPartPos(1,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,1)
+LastPartPos(2,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,2)
+LastPartPos(3,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,3)
 PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
 IF (time.GE.DelayTime) THEN
   DO iPart=1,PDM%ParticleVecLength
@@ -1164,9 +1164,9 @@ DO iStage=2,nRKStages
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-    LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-    LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+    LastPartPos(1,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,1)
+    LastPartPos(2,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,2)
+    LastPartPos(3,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,3)
     PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
@@ -1438,9 +1438,9 @@ REAL                  :: tLBStart
       dtVar = dtVar * RandVal
       PDM%dtFracPush(iPart) = .FALSE.
     ELSE
-      LastPartPos(iPart,1)=PartState(iPart,1)
-      LastPartPos(iPart,2)=PartState(iPart,2)
-      LastPartPos(iPart,3)=PartState(iPart,3)
+      LastPartPos(1,iPart)=PartState(iPart,1)
+      LastPartPos(2,iPart)=PartState(iPart,2)
+      LastPartPos(3,iPart)=PartState(iPart,3)
       PEM%lastElement(iPart)=PEM%Element(iPart)
     END IF
     PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtVar
@@ -1471,7 +1471,7 @@ REAL                  :: tLBStart
 
   ! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
   IF(Symmetry2D) THEN
-    LastPartPos(1:PDM%ParticleVecLength,3) = 0.0
+    LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
     PartState(1:PDM%ParticleVecLength,3) = 0.0
   END IF
 
@@ -1635,9 +1635,9 @@ IF (time.GE.DelayTime) THEN
   CALL CalcPartRHS()
 END IF
 ! particles
-LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+LastPartPos(1,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,1)
+LastPartPos(2,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,2)
+LastPartPos(3,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,3)
 PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
 IF (time.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + dt * PartState(1:PDM%ParticleVecLength,4)
@@ -1826,9 +1826,9 @@ ELSE
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         IF (.NOT.PDM%dtFracPush(iPart)) THEN
-          LastPartPos(iPart,1)=PartState(iPart,1)
-          LastPartPos(iPart,2)=PartState(iPart,2)
-          LastPartPos(iPart,3)=PartState(iPart,3)
+          LastPartPos(1,iPart)=PartState(iPart,1)
+          LastPartPos(2,iPart)=PartState(iPart,2)
+          LastPartPos(3,iPart)=PartState(iPart,3)
           PEM%lastElement(iPart)=PEM%Element(iPart)
           PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
           PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
@@ -1844,9 +1844,9 @@ ELSE
       END IF
     END DO
   ELSE
-    LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-    LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-    LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+    LastPartPos(1,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,1)
+    LastPartPos(2,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,2)
+    LastPartPos(3,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,3)
     ! bugfix if more than 2.x mio (2000001) particle per process
     ! tested with 64bit Ubuntu 12.04 backports
     DO iPart = 1, PDM%ParticleVecLength
@@ -1963,9 +1963,9 @@ IF (time.GE.DelayTime) THEN
   CALL CalcPartRHS()
 END IF
 ! particles
-LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+LastPartPos(1,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,1)
+LastPartPos(2,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,2)
+LastPartPos(3,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,3)
 PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
 IF (time.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + dt * PartState(1:PDM%ParticleVecLength,4)
@@ -2526,9 +2526,9 @@ DO iStage=2,nRKStages
       IF(.NOT.PDM%ParticleInside(iPart))CYCLE
       IF(.NOT.PartIsImplicit(iPart))THEN !explicit particles only
         ! particle movement from PartSateN
-        LastPartPos(iPart,1)  =PartStateN(iPart,1)
-        LastPartPos(iPart,2)  =PartStateN(iPart,2)
-        LastPartPos(iPart,3)  =PartStateN(iPart,3)
+        LastPartPos(1,iPart)  =PartStateN(iPart,1)
+        LastPartPos(2,iPart)  =PartStateN(iPart,2)
+        LastPartPos(3,iPart)  =PartStateN(iPart,3)
         PEM%lastElement(iPart)=PEM%ElementN(iPart)
         ! delete rotation || periodic movement
         IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3) = 0.
@@ -2644,9 +2644,9 @@ DO iStage=2,nRKStages
         ! ignore surface flux particle
         ! dirty hack, if particle does not take part in implicit treating, it is removed from this list
         ! surface flux particles
-        LastPartPos(iPart,1)=PartStateN(iPart,1)
-        LastPartPos(iPart,2)=PartStateN(iPart,2)
-        LastPartPos(iPart,3)=PartStateN(iPart,3)
+        LastPartPos(1,iPart)=PartStateN(iPart,1)
+        LastPartPos(2,iPart)=PartStateN(iPart,2)
+        LastPartPos(3,iPart)=PartStateN(iPart,3)
         PEM%lastElement(iPart)=PEM%ElementN(iPart)
         IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3) =0.
         PEM%PeriodicMoved(iPart) = .FALSE.
@@ -2786,14 +2786,14 @@ IF (time.GE.DelayTime) THEN
    __STAMP__&
    ,' Particle error with surfaceflux. Part-ID: ',iPart)
     END IF
-    LastPartPos(iPart,1)=PartStateN(iPart,1)
-    LastPartPos(iPart,2)=PartStateN(iPart,2)
-    LastPartPos(iPart,3)=PartStateN(iPart,3)
+    LastPartPos(1,iPart)=PartStateN(iPart,1)
+    LastPartPos(2,iPart)=PartStateN(iPart,2)
+    LastPartPos(3,iPart)=PartStateN(iPart,3)
     PEM%lastElement(iPart)=PEM%ElementN(iPart)
     IF(.NOT.PartIsImplicit(iPart))THEN
-      ! LastPartPos(iPart,1)=PartState(iPart,1)
-      ! LastPartPos(iPart,2)=PartState(iPart,2)
-      ! LastPartPos(iPart,3)=PartState(iPart,3)
+      ! LastPartPos(1,iPart)=PartState(iPart,1)
+      ! LastPartPos(2,iPart)=PartState(iPart,2)
+      ! LastPartPos(3,iPart)=PartState(iPart,3)
       ! PEM%lastElement(iPart)=PEM%Element(iPart)
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
       reMap=.FALSE.
@@ -3258,9 +3258,9 @@ IF(time.GE.DelayTime)THEN
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PDM%ParticleInside(iPart))CYCLE
     ! store old particle position
-    LastPartPos(iPart,1)  =PartStateN(iPart,1)
-    LastPartPos(iPart,2)  =PartStateN(iPart,2)
-    LastPartPos(iPart,3)  =PartStateN(iPart,3)
+    LastPartPos(1,iPart)  =PartStateN(iPart,1)
+    LastPartPos(2,iPart)  =PartStateN(iPart,2)
+    LastPartPos(3,iPart)  =PartStateN(iPart,3)
     ! copy date
     PEM%lastElement(iPart)=PEM%ElementN(iPart)
     IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
@@ -3489,9 +3489,9 @@ DO iStage=2,nRKStages
     DO iPart=1,PDM%ParticleVecLength
       IF(.NOT.PDM%ParticleInside(iPart))CYCLE
       ! position currently updated, hence store the data for tracking
-      LastPartPos(iPart,1)  =PartStateN(iPart,1)
-      LastPartPos(iPart,2)  =PartStateN(iPart,2)
-      LastPartPos(iPart,3)  =PartStateN(iPart,3)
+      LastPartPos(1,iPart)  =PartStateN(iPart,1)
+      LastPartPos(2,iPart)  =PartStateN(iPart,2)
+      LastPartPos(3,iPart)  =PartStateN(iPart,3)
       PEM%lastElement(iPart)=PEM%ElementN(iPart)
       ! build RHS of particle with current DG solution and particle position
       ! CAUTION: we have to use a local variable here. The Jacobian matrix is FIXED for one time step,
@@ -3809,9 +3809,9 @@ IF (time.GE.DelayTime) THEN
 END IF
 
 ! particles
-LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+LastPartPos(1,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,1)
+LastPartPos(2,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,2)
+LastPartPos(3,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,3)
 PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
 IF (time.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + dt * PartState(1:PDM%ParticleVecLength,4)
@@ -3996,9 +3996,9 @@ IF (time.GE.DelayTime) THEN
   CALL CalcPartRHS()
 END IF
 ! particles
-LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+LastPartPos(1,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,1)
+LastPartPos(2,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,2)
+LastPartPos(3,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,3)
 PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
 IF (time.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + dt * PartState(1:PDM%ParticleVecLength,4)
@@ -4166,9 +4166,9 @@ DO iPart=1,PDM%ParticleVecLength
     dtVar = dtVar * RandVal
     PDM%dtFracPush(iPart) = .FALSE.
   ELSE
-    LastPartPos(iPart,1)=PartState(iPart,1)
-    LastPartPos(iPart,2)=PartState(iPart,2)
-    LastPartPos(iPart,3)=PartState(iPart,3)
+    LastPartPos(1,iPart)=PartState(iPart,1)
+    LastPartPos(2,iPart)=PartState(iPart,2)
+    LastPartPos(3,iPart)=PartState(iPart,3)
     PEM%lastElement(iPart)=PEM%Element(iPart)
   END IF
   PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtVar
@@ -4196,7 +4196,7 @@ END DO
 
 ! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
 IF(Symmetry2D) THEN
-  LastPartPos(1:PDM%ParticleVecLength,3) = 0.0
+  LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
   PartState(1:PDM%ParticleVecLength,3) = 0.0
 END IF
 
@@ -4315,9 +4315,9 @@ DO iPart=1,PDM%ParticleVecLength
     dtVar = dtVar * RandVal
     PDM%dtFracPush(iPart) = .FALSE.
   ELSE
-    LastPartPos(iPart,1)=PartState(iPart,1)
-    LastPartPos(iPart,2)=PartState(iPart,2)
-    LastPartPos(iPart,3)=PartState(iPart,3)
+    LastPartPos(1,iPart)=PartState(iPart,1)
+    LastPartPos(2,iPart)=PartState(iPart,2)
+    LastPartPos(3,iPart)=PartState(iPart,3)
     PEM%lastElement(iPart)=PEM%Element(iPart)
   END IF
   PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtVar
@@ -4345,7 +4345,7 @@ END DO
 
 ! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
 IF(Symmetry2D) THEN
-  LastPartPos(1:PDM%ParticleVecLength,3) = 0.0
+  LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
   PartState(1:PDM%ParticleVecLength,3) = 0.0
 END IF
 
@@ -4515,9 +4515,9 @@ CALL HDG(time,U,iter)
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 ! set last data already here, since surfaceflux moved before interpolation
-LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+LastPartPos(1,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,1)
+LastPartPos(2,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,2)
+LastPartPos(3,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,3)
 PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_PUSH,tLBStart)
@@ -4859,9 +4859,9 @@ CALL HDG(tStage,U,iter)
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+LastPartPos(1,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,1)
+LastPartPos(2,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,2)
+LastPartPos(3,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,3)
 PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_PUSH,tLBStart)
@@ -5039,9 +5039,9 @@ DO iStage=2,nRKStages
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
   ! set last data already here, since surfaceflux moved before interpolation
-  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+  LastPartPos(1,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,1)
+  LastPartPos(2,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,2)
+  LastPartPos(3,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,3)
   PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PUSH,tLBStart)
@@ -5259,9 +5259,9 @@ REAL                  :: timeStart, timeEnd
 !===================================================================================================================================
 
   CALL LD_main()
-  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+  LastPartPos(1,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,1)
+  LastPartPos(2,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,2)
+  LastPartPos(3,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,3)
   PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
 
   PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
@@ -5361,9 +5361,9 @@ IMPLICIT NONE
   END IF
 ! ----- End Analyze Particles
   CALL LD_DSMC_Clone_Particles
-  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+  LastPartPos(1,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,1)
+  LastPartPos(2,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,2)
+  LastPartPos(3,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,3)
   PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
 
   PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &

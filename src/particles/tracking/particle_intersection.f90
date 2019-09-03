@@ -89,9 +89,9 @@ REAL                             :: xNod, yNod, zNod
 REAL                             :: Vector1(1:3), Vector2(1:3)!, VectorShift(1:3)
 !===================================================================================================================================
 
-PoldX = lastPartPos(iPart,1)
-PoldY = lastPartPos(iPart,2)
-PoldZ = lastPartPos(iPart,3)
+PoldX = LastPartPos(1,iPart)
+PoldY = LastPartPos(2,iPart)
+PoldZ = LastPartPos(3,iPart)
 PnewX = PartState(iPart,1)
 PnewY = PartState(iPart,2)
 PnewZ = PartState(iPart,3)
@@ -258,9 +258,9 @@ IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
 
 ! extension for periodic sides
 IF(.NOT.DoRefMapping)THEN
-  locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(PartID,1:3),NormVec)
+  locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(1:3,PartID),NormVec)
 ELSE
-  locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(PartID,1:3),NormVec)
+  locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(1:3,PartID),NormVec)
 END IF
 
 IF(CriticalParallelInSide)THEN ! particle parallel to side
@@ -297,13 +297,13 @@ END IF
 
 IF(.NOT.DoRefMapping)THEN
   ! iSide_temp = SideID2PlanarSideID(SideID)
-  Inter1=LastPartPos(PartID,1:3)+alpha*PartTrajectory
+  Inter1=LastPartPos(1:3,PartID)+alpha*PartTrajectory
   P0 =-0.25*BaseVectors0(:,SideID)+Inter1
   P1 = 0.25*BaseVectors1(:,SideID)
   P2 = 0.25*BaseVectors2(:,SideID)
 ELSE
   ! iSide_temp = SideID2PlanarSideID(SideID)
-  Inter1=LastPartPos(PartID,1:3)+alpha*PartTrajectory
+  Inter1=LastPartPos(1:3,PartID)+alpha*PartTrajectory
   P0 =-0.25*BaseVectors0(:,SideID)+Inter1
   P1 = 0.25*BaseVectors1(:,SideID)
   P2 = 0.25*BaseVectors2(:,SideID)
@@ -420,7 +420,7 @@ CriticalParallelInSide=.FALSE.
 IF(DoRefMapping)THEN
   coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory)
   IF(coeffA.LE.0.)RETURN
-  locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(PartID,1:3),SideNormVec(1:3,SideID))
+  locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(1:3,PartID),SideNormVec(1:3,SideID))
   locSideDistance=locSideDistance/coeffA
   IF(locSideDistance.GT.lengthPartTrajectory) RETURN
 ELSE
@@ -428,12 +428,12 @@ ELSE
   IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
   IF(flip.EQ.0)THEN
     IF(coeffA.LE.0.)RETURN
-    locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(PartID,1:3),SideNormVec(1:3,SideID))
+    locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(1:3,PartID),SideNormVec(1:3,SideID))
     locSideDistance=locSideDistance/coeffA
     IF(locSideDistance.GT.lengthPartTrajectory) RETURN
   ELSE
     IF(coeffA.GE.0.)RETURN
-    locSideDistance=-SideDistance(SideID)+DOT_PRODUCT(LastPartPos(PartID,1:3),SideNormVec(1:3,SideID))
+    locSideDistance=-SideDistance(SideID)+DOT_PRODUCT(LastPartPos(1:3,PartID),SideNormVec(1:3,SideID))
     locSideDistance=locSideDistance/coeffA
     IF(locSideDistance.GT.lengthPartTrajectory) RETURN
   END IF
@@ -453,7 +453,7 @@ IF(.NOT.FlatBoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,PartID,S
 !  END IF
 !END IF
 !! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
-!IF(.NOT.InsideBoundingBox(LastPartPos(PartID,1:3),SideID))THEN ! the old particle position is not inside the bounding box
+!IF(.NOT.InsideBoundingBox(LastPartPos(1:3,PartID),SideID))THEN ! the old particle position is not inside the bounding box
 !  IF(.NOT.InsideBoundingBox(PartState(PartID,1:3),SideID))THEN ! the new particle position is not inside the bounding box
 !    IF(.NOT.BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,PartID,SideID)) RETURN ! the particle does not intersect the
 !                                                                                              ! bounding box
@@ -478,8 +478,8 @@ n2=CROSSNORM(PartTrajectory,n1)
 
 DO q=0,NGeo
   DO p=0,NGeo
-    BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(PartID,1:3),n1)
-    BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(PartID,1:3),n2)
+    BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(1:3,PartID),n1)
+    BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(1:3,PartID),n2)
   END DO
 END DO
 
@@ -582,14 +582,14 @@ BiLinearCoeff(:,4) = 0.25*BaseVectors0(:,SideID)
 a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
 a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
 a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
-a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3) &
-     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1)
+a1(4)=(BilinearCoeff(1,4)-LastPartPos(1,iPart))*PartTrajectory(3) &
+     -(BilinearCoeff(3,4)-LastPartPos(3,iPart))*PartTrajectory(1)
 
 a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
 a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
 a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
-a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
-     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
+a2(4)=(BilinearCoeff(2,4)-LastPartPos(2,iPart))*PartTrajectory(3) &
+     -(BilinearCoeff(3,4)-LastPartPos(3,iPart))*PartTrajectory(2)
 
 !A = a2(1)*a1(3)-a1(1)*a2(3)
 B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
@@ -727,90 +727,90 @@ BiLinearCoeff(:,4) = 0.25*BaseVectors0(:,SideID)
 !a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
 !a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
 !a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
-!a1(4)=(BilinearCoeff(1,4)-LastPartPos(PartID,1))*PartTrajectory(3) &
-!     -(BilinearCoeff(3,4)-LastPartPos(PartID,3))*PartTrajectory(1)
+!a1(4)=(BilinearCoeff(1,4)-LastPartPos(1,PartID))*PartTrajectory(3) &
+!     -(BilinearCoeff(3,4)-LastPartPos(3,PartID))*PartTrajectory(1)
 
 !a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
 !a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
 !a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
-!a2(4)=(BilinearCoeff(2,4)-LastPartPos(PartID,2))*PartTrajectory(3) &
-!     -(BilinearCoeff(3,4)-LastPartPos(PartID,3))*PartTrajectory(2)
+!a2(4)=(BilinearCoeff(2,4)-LastPartPos(2,PartID))*PartTrajectory(3) &
+!     -(BilinearCoeff(3,4)-LastPartPos(3,PartID))*PartTrajectory(2)
 !-- use the following instead of the previous lines, since otherwise coeffs can be cancelled out for trajectories with 0-components
 IF((ABS(SideNormVec(1,SideID)).GE.ABS(SideNormVec(2,SideID))) .AND.(ABS(SideNormVec(1,SideID)).LE.ABS(SideNormVec(3,SideID))) &
   .AND. .NOT.ALMOSTZERO(PartTrajectory(1)))THEN
   a1(1)= BilinearCoeff(2,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(2)
   a1(2)= BilinearCoeff(2,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(2)
   a1(3)= BilinearCoeff(2,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(2)
-  a1(4)=(BilinearCoeff(2,4)-LastPartPos(PartID,2))*PartTrajectory(1) &
-       -(BilinearCoeff(1,4)-LastPartPos(PartID,1))*PartTrajectory(2)
+  a1(4)=(BilinearCoeff(2,4)-LastPartPos(2,PartID))*PartTrajectory(1) &
+       -(BilinearCoeff(1,4)-LastPartPos(1,PartID))*PartTrajectory(2)
 
   a2(1)= BilinearCoeff(3,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(3)
   a2(2)= BilinearCoeff(3,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(3)
   a2(3)= BilinearCoeff(3,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(3)
-  a2(4)=(BilinearCoeff(3,4)-LastPartPos(PartID,3))*PartTrajectory(1) &
-       -(BilinearCoeff(1,4)-LastPartPos(PartID,1))*PartTrajectory(3)
+  a2(4)=(BilinearCoeff(3,4)-LastPartPos(3,PartID))*PartTrajectory(1) &
+       -(BilinearCoeff(1,4)-LastPartPos(1,PartID))*PartTrajectory(3)
 ELSE IF(ABS(SideNormVec(2,SideID)).LE.ABS(SideNormVec(3,SideID)) &
   .AND. .NOT.ALMOSTZERO(PartTrajectory(1)))THEN
   a1(1)= BilinearCoeff(1,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(1)
   a1(2)= BilinearCoeff(1,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(1)
   a1(3)= BilinearCoeff(1,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(1)
-  a1(4)=(BilinearCoeff(1,4)-LastPartPos(PartID,1))*PartTrajectory(2) &
-       -(BilinearCoeff(2,4)-LastPartPos(PartID,2))*PartTrajectory(1)
+  a1(4)=(BilinearCoeff(1,4)-LastPartPos(1,PartID))*PartTrajectory(2) &
+       -(BilinearCoeff(2,4)-LastPartPos(2,PartID))*PartTrajectory(1)
 
   a2(1)= BilinearCoeff(3,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(3)
   a2(2)= BilinearCoeff(3,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(3)
   a2(3)= BilinearCoeff(3,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(3)
-  a2(4)=(BilinearCoeff(3,4)-LastPartPos(PartID,3))*PartTrajectory(2) &
-       -(BilinearCoeff(2,4)-LastPartPos(PartID,2))*PartTrajectory(3)
+  a2(4)=(BilinearCoeff(3,4)-LastPartPos(3,PartID))*PartTrajectory(2) &
+       -(BilinearCoeff(2,4)-LastPartPos(2,PartID))*PartTrajectory(3)
 ELSE IF(.NOT.ALMOSTZERO(PartTrajectory(3)))THEN
   a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
   a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
   a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
-  a1(4)=(BilinearCoeff(1,4)-LastPartPos(PartID,1))*PartTrajectory(3) &
-       -(BilinearCoeff(3,4)-LastPartPos(PartID,3))*PartTrajectory(1)
+  a1(4)=(BilinearCoeff(1,4)-LastPartPos(1,PartID))*PartTrajectory(3) &
+       -(BilinearCoeff(3,4)-LastPartPos(3,PartID))*PartTrajectory(1)
 
   a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
   a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
   a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
-  a2(4)=(BilinearCoeff(2,4)-LastPartPos(PartID,2))*PartTrajectory(3) &
-       -(BilinearCoeff(3,4)-LastPartPos(PartID,3))*PartTrajectory(2)
+  a2(4)=(BilinearCoeff(2,4)-LastPartPos(2,PartID))*PartTrajectory(3) &
+       -(BilinearCoeff(3,4)-LastPartPos(3,PartID))*PartTrajectory(2)
 !if PartTrajectory should be zero in largest component of SideNormVec, decide based on original check:
 ELSE IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(3))))THEN
   a1(1)= BilinearCoeff(2,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(2)
   a1(2)= BilinearCoeff(2,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(2)
   a1(3)= BilinearCoeff(2,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(2)
-  a1(4)=(BilinearCoeff(2,4)-LastPartPos(PartID,2))*PartTrajectory(1) &
-       -(BilinearCoeff(1,4)-LastPartPos(PartID,1))*PartTrajectory(2)
+  a1(4)=(BilinearCoeff(2,4)-LastPartPos(2,PartID))*PartTrajectory(1) &
+       -(BilinearCoeff(1,4)-LastPartPos(1,PartID))*PartTrajectory(2)
 
   a2(1)= BilinearCoeff(3,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(3)
   a2(2)= BilinearCoeff(3,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(3)
   a2(3)= BilinearCoeff(3,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(3)
-  a2(4)=(BilinearCoeff(3,4)-LastPartPos(PartID,3))*PartTrajectory(1) &
-       -(BilinearCoeff(1,4)-LastPartPos(PartID,1))*PartTrajectory(3)
+  a2(4)=(BilinearCoeff(3,4)-LastPartPos(3,PartID))*PartTrajectory(1) &
+       -(BilinearCoeff(1,4)-LastPartPos(1,PartID))*PartTrajectory(3)
 ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN
   a1(1)= BilinearCoeff(1,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(1)
   a1(2)= BilinearCoeff(1,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(1)
   a1(3)= BilinearCoeff(1,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(1)
-  a1(4)=(BilinearCoeff(1,4)-LastPartPos(PartID,1))*PartTrajectory(2) &
-       -(BilinearCoeff(2,4)-LastPartPos(PartID,2))*PartTrajectory(1)
+  a1(4)=(BilinearCoeff(1,4)-LastPartPos(1,PartID))*PartTrajectory(2) &
+       -(BilinearCoeff(2,4)-LastPartPos(2,PartID))*PartTrajectory(1)
 
   a2(1)= BilinearCoeff(3,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(3)
   a2(2)= BilinearCoeff(3,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(3)
   a2(3)= BilinearCoeff(3,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(3)
-  a2(4)=(BilinearCoeff(3,4)-LastPartPos(PartID,3))*PartTrajectory(2) &
-       -(BilinearCoeff(2,4)-LastPartPos(PartID,2))*PartTrajectory(3)
+  a2(4)=(BilinearCoeff(3,4)-LastPartPos(3,PartID))*PartTrajectory(2) &
+       -(BilinearCoeff(2,4)-LastPartPos(2,PartID))*PartTrajectory(3)
 ELSE
   a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
   a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
   a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
-  a1(4)=(BilinearCoeff(1,4)-LastPartPos(PartID,1))*PartTrajectory(3) &
-       -(BilinearCoeff(3,4)-LastPartPos(PartID,3))*PartTrajectory(1)
+  a1(4)=(BilinearCoeff(1,4)-LastPartPos(1,PartID))*PartTrajectory(3) &
+       -(BilinearCoeff(3,4)-LastPartPos(3,PartID))*PartTrajectory(1)
 
   a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
   a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
   a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
-  a2(4)=(BilinearCoeff(2,4)-LastPartPos(PartID,2))*PartTrajectory(3) &
-       -(BilinearCoeff(3,4)-LastPartPos(PartID,3))*PartTrajectory(2)
+  a2(4)=(BilinearCoeff(2,4)-LastPartPos(2,PartID))*PartTrajectory(3) &
+       -(BilinearCoeff(3,4)-LastPartPos(3,PartID))*PartTrajectory(2)
 END IF
 
 A = a2(1)*a1(3)-a1(1)*a2(3)
@@ -1276,7 +1276,7 @@ IF(BoundingBoxIsEmpty(SideID))THEN
                                                                                                 ! bounding box
 ELSE
   ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
-  IF(.NOT.InsideBoundingBox(LastPartPos(PartID,1:3),SideID))THEN ! the old particle position is not inside the bounding box
+  IF(.NOT.InsideBoundingBox(LastPartPos(1:3,PartID),SideID))THEN ! the old particle position is not inside the bounding box
     IF(.NOT.InsideBoundingBox(PartState(PartID,1:3),SideID))THEN ! the new particle position is not inside the bounding box
       IF(.NOT.BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,PartID,SideID)) RETURN ! the particle does not intersect the
                                                                                                 ! bounding box
@@ -1312,9 +1312,9 @@ n2=CROSSNORM(PartTrajectory,n1)
 DO q=0,NGeo
   DO p=0,NGeo
     ! n2 is perpendicular to x-axis => gives distance to new x-axis
-    BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(PartID,1:3),n2)
-    ! n1 is perpendicular to y-axis => gives distance to new y-axis
-    BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(PartID,1:3),n1)
+    BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(1:3,PartID),n2)
+    ! n1 is perpendicular to y-axis => gives distance to new y-axis                                    
+    BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(1:3,PartID),n1)
   END DO
 END DO
 
@@ -1928,7 +1928,7 @@ IF(nIter.GT.BezierNewtonMaxIter) THEN
 !  IPWRITE(UNIT_stdout,*) ' xi, eta     : ', xi
 !  IPWRITE(UNIT_stdout,*) ' dxi, dxi2   : ', dXi, dXi2
 !  IPWRITE(UNIT_stdout,*) ' PartState   : ', PartState(PartID,1:3)
-!  IPWRITE(UNIT_stdout,*) ' lastPos     : ', LastPartPos(PartID,1:3)
+!  IPWRITE(UNIT_stdout,*) ' lastPos     : ', LastPartPos(1:3,PartID)
 !  IPWRITE(UNIT_stdout,*) ' Trajectory  : ', PartTrajectory
 !  IPWRITE(UNIT_stdout,*) ' Calling-Bezier-Clipping  '
   failed=.TRUE.
@@ -1946,7 +1946,7 @@ IF(ABS(xi(2)).GT.1.002) RETURN
 
 ! compute 3D intersection
 CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=InterP)
-IntersectionVector=InterP-LastPartPos(PartID,1:3)
+IntersectionVector=InterP-LastPartPos(1:3,PartID)
 
 alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
 
@@ -2362,14 +2362,14 @@ DO i=1,3!x,y,z direction
     dnk=100.*epsMach ! ÜBERPRÜFEN OB SIGN sinn macht
   END IF
   IF(dnk.LT.0.)THEN
-    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(PartID,:),SideSlabNormals(:,i,SideID))&
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
                                                                               +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
-    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(PartID,:),SideSlabNormals(:,i,SideID))&
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
                                                                               +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
   ELSE
-    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(PartID,:),SideSlabNormals(:,i,SideID))&
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
                                                                               +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
-    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(PartID,:),SideSlabNormals(:,i,SideID))&
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
                                                                               +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
   END IF
 END DO!i
@@ -2435,14 +2435,14 @@ IF(ABS(dnk).LT.100.*epsMach)THEN
   alpha(2,1) =  HUGE(1.0)
 ELSE
   IF(dnk.LT.0.)THEN
-    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(PartID,:),SideSlabNormals(:,i,SideID))&
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
                                                                               +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
-    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(PartID,:),SideSlabNormals(:,i,SideID))&
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
                                                                               +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
   ELSE
-    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(PartID,:),SideSlabNormals(:,i,SideID))&
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
                                                                               +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
-    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(PartID,:),SideSlabNormals(:,i,SideID))&
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
                                                                               +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
   END IF
 END IF
@@ -2455,14 +2455,14 @@ IF(ABS(dnk).LT.100.*epsMach)THEN
   alpha(2,3) =  HUGE(1.0)
 ELSE
   IF(dnk.LT.0.)THEN
-    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(PartID,:),SideSlabNormals(:,i,SideID))&
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
                                                                               +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
-    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(PartID,:),SideSlabNormals(:,i,SideID))&
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
                                                                               +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
   ELSE
-    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(PartID,:),SideSlabNormals(:,i,SideID))&
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
                                                                               +SideSlabIntervals(2*i-1,SideID) )/dnk!t_min
-    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(PartID,:),SideSlabNormals(:,i,SideID))&
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(1:3,PartID),SideSlabNormals(:,i,SideID))&
                                                                               +SideSlabIntervals(2*i  ,SideID) )/dnk!t_max
   END IF
 END IF
@@ -2590,7 +2590,7 @@ REAL                                 :: t
 !================================================================================================================================
 
 #ifdef CODE_ANALYZE
-  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(PartID,1)
+  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -LastPartPos(1,PartID)
   IF (PartTrajectory(1).EQ.0.) THEN
     t=SIGN(HUGE(t),t)
   ELSE
@@ -2601,7 +2601,7 @@ REAL                                 :: t
       WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t1: ',t
    END IF
   END IF
-  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(PartID,2)
+  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -LastPartPos(2,PartID)
   IF (PartTrajectory(2).EQ.0.) THEN
     t=SIGN(HUGE(t),t)
   ELSE
@@ -2612,7 +2612,7 @@ REAL                                 :: t
       WRITE(UNIT_stdout,'(2(A,E15.8))') '     -- t2: ',t
     END IF
   END IF
-  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(PartID,3)
+  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -LastPartPos(3,PartID)
   IF (PartTrajectory(3).EQ.0.) THEN
     t=SIGN(HUGE(t),t)
   ELSE
@@ -2631,7 +2631,7 @@ REAL                                 :: t
 !  .AND. .NOT.ALMOSTZERO(PartTrajectory(1)))THEN
 IF((ABS(SideNormVec(1)).GE.ABS(SideNormVec(2))) .AND.(ABS(SideNormVec(1)).GE.ABS(SideNormVec(3))) &
   .AND. .NOT.ALMOSTZERO(PartTrajectory(1)))THEN
-  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(PartID,1)
+  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -LastPartPos(1,PartID)
   t = t/ PartTrajectory(1)-epsilontol
 #ifdef CODE_ANALYZE
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -2642,7 +2642,7 @@ IF((ABS(SideNormVec(1)).GE.ABS(SideNormVec(2))) .AND.(ABS(SideNormVec(1)).GE.ABS
 #endif /*CODE_ANALYZE*/
 ELSE IF(ABS(SideNormVec(2)).GE.ABS(SideNormVec(3)) &
   .AND. .NOT.ALMOSTZERO(PartTrajectory(2)))THEN
-  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(PartID,2)
+  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -LastPartPos(2,PartID)
   t = t/ PartTrajectory(2)-epsilontol
 #ifdef CODE_ANALYZE
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -2652,7 +2652,7 @@ ELSE IF(ABS(SideNormVec(2)).GE.ABS(SideNormVec(3)) &
         END IF
 #endif /*CODE_ANALYZE*/
 ELSE IF(.NOT.ALMOSTZERO(PartTrajectory(3)))THEN
-  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(PartID,3)
+  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -LastPartPos(3,PartID)
   t = t/ PartTrajectory(3)-epsilontol
 #ifdef CODE_ANALYZE
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -2663,7 +2663,7 @@ ELSE IF(.NOT.ALMOSTZERO(PartTrajectory(3)))THEN
 #endif /*CODE_ANALYZE*/
 !if PartTrajectory should be zero in largest component of SideNormVec, decide based on original check:
 ELSE IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(3))))THEN
-  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(PartID,1)
+  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -LastPartPos(1,PartID)
   t = t/ PartTrajectory(1)-epsilontol
 #ifdef CODE_ANALYZE
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -2673,7 +2673,7 @@ ELSE IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajecto
         END IF
 #endif /*CODE_ANALYZE*/
 ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN
-  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(PartID,2)
+  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -LastPartPos(2,PartID)
   t = t/ PartTrajectory(2)-epsilontol
 #ifdef CODE_ANALYZE
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -2683,7 +2683,7 @@ ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN
         END IF
 #endif /*CODE_ANALYZE*/
 ELSE
-  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(PartID,3)
+  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -LastPartPos(3,PartID)
   t = t/ PartTrajectory(3)-epsilontol
 #ifdef CODE_ANALYZE
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -2695,13 +2695,13 @@ ELSE
 END IF
 
 !IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GT.ABS(PartTrajectory(3))))THEN
-!  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(PartID,1)
-!  t = t/ PartTrajectory(1)!-epsilontol
-!ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN
-!  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(PartID,2)
-!  t = t/ PartTrajectory(2)!-epsilontol
-!ELSE
-!  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(PartID,3)
+!  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -LastPartPos(1,PartID)
+!  t = t/ PartTrajectory(1)!-epsilontol                                                                        
+!ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN                                                 
+!  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -LastPartPos(2,PartID)
+!  t = t/ PartTrajectory(2)!-epsilontol                                                                        
+!ELSE                                                                                                          
+!  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -LastPartPos(3,PartID)
 !  t = t/ PartTrajectory(3)!-epsilontol
 !END IF
 
@@ -2890,7 +2890,7 @@ DO iDeCasteljau=1,NGeo
 END DO
 
 ! resulting point is ReducedBezierControlPoints(:,1,1)
-IntersectionVector=ReducedBezierControlPoints(:,0,0)-LastPartPos(PartID,1:3)
+IntersectionVector=ReducedBezierControlPoints(:,0,0)-LastPartPos(1:3,PartID)
 ! END DECASTELJAU ------------------------------------
 ! verify alpha and alphanorm
 alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
@@ -3937,9 +3937,9 @@ REAL, INTENT(IN)                 :: PartPos(1:3)
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' LastPartPos = [ ',LastpartPos(PartID,1), ','  &
-                                                        ,LastpartPos(PartID,2), ','  &
-                                                        ,LastpartPos(PartID,3), '];'
+WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' LastPartPos = [ ',LastpartPos(1,PartID), ','  &
+                                                        ,LastpartPos(2,PartID), ','  &
+                                                        ,LastpartPos(3,PartID), '];'
 
 WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' PartPosition = [ ',PartPos(1), ','  &
                                                          ,PartPos(2), ','  &
@@ -4203,7 +4203,7 @@ CASE ('plane')
   coeffA=DOT_PRODUCT(n_vec,PartTrajectory)
   CriticalParallelInSide=.FALSE.
   IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
-  locSideDistance = DOT_PRODUCT(n_vec,r_vec) - DOT_PRODUCT(LastPartPos(iPart,1:3),n_vec)
+  locSideDistance = DOT_PRODUCT(n_vec,r_vec) - DOT_PRODUCT(LastPartPos(1:3,iPart),n_vec)
   IF(CriticalParallelInSide)THEN ! particle parallel to side
     IF(ALMOSTZERO(locSideDistance))THEN ! particle on/in side
       IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
@@ -4219,7 +4219,7 @@ CASE ('plane')
     alpha=locSideDistance/coeffA
   END IF
   alphaNorm=alpha/lengthPartTrajectory
-  intersec = LastPartPos(iPart,1:3) + alpha*PartTrajectory - r_vec !intersec from basepoint, not origin!
+  intersec = LastPartPos(1:3,iPart) + alpha*PartTrajectory - r_vec !intersec from basepoint, not origin!
   ! check besides alpha and radius already here the dir. of trajectory since no inner auxBCs possible (can happen due to tolerances)
   IF((alphaNorm.GT.1.0) .OR.(alphaNorm.LT.-epsilontol) .OR. SQRT(DOT_PRODUCT(intersec,intersec)).GT.radius &
     .OR. DOT_PRODUCT(n_vec,PartTrajectory).LT.0.)THEN
@@ -4273,8 +4273,8 @@ __STAMP__&
     !- project trajectory and origin into circle-area of cylinder
     trajTang(1)=DOT_PRODUCT(tang1,PartTrajectory)
     trajTang(2)=DOT_PRODUCT(tang2,PartTrajectory)
-    originTang(1)=DOT_PRODUCT(tang1,LastPartPos(iPart,1:3)-r_vec)
-    originTang(2)=DOT_PRODUCT(tang2,LastPartPos(iPart,1:3)-r_vec)
+    originTang(1)=DOT_PRODUCT(tang1,LastPartPos(1:3,iPart)-r_vec)
+    originTang(2)=DOT_PRODUCT(tang2,LastPartPos(1:3,iPart)-r_vec)
     !- solve quadratic equation from trajectory inserted in circle-equation
     CALL QuadraticSolver(trajTang(1)*trajTang(1)+trajTang(2)*trajTang(2) &
       ,2.*originTang(1)*trajTang(1)+2.*originTang(2)*trajTang(2) &
@@ -4293,7 +4293,7 @@ __STAMP__&
     !geomatrix2=AuxBC_cone(AuxBCMap(AuxBCIdx))%geomatrix2
     !rotmatrix=AuxBC_cone(AuxBCMap(AuxBCIdx))%rotmatrix
     matU(:,1)=PartTrajectory
-    matLambda(:,1)=LastPartPos(iPart,1:3)-r_vec
+    matLambda(:,1)=LastPartPos(1:3,iPart)-r_vec
     A=MATMUL(MATMUL(TRANSPOSE(matU),geomatrix),matU)
     B=2.*MATMUL(MATMUL(TRANSPOSE(matU),geomatrix),matLambda)
     C=MATMUL(MATMUL(TRANSPOSE(matLambda),geomatrix),matLambda)
@@ -4309,7 +4309,7 @@ __STAMP__&
     geomatrix4=AuxBC_parabol(AuxBCMap(AuxBCIdx))%geomatrix4
     rotmatrix=AuxBC_parabol(AuxBCMap(AuxBCIdx))%rotmatrix
     matU(:,1)=PartTrajectory
-    matLambda(:,1)=LastPartPos(iPart,1:3)-r_vec
+    matLambda(:,1)=LastPartPos(1:3,iPart)-r_vec
     matU=MATMUL(rotmatrix,matU)
     matLambda=MATMUL(rotmatrix,matLambda)
     matU4(1:3,1)=matU(1:3,1)
@@ -4331,7 +4331,7 @@ __STAMP__&
     alpha=roots(1)
     !- check for normal vec / trajectory direction
     ! (already here since no inner auxBCs possible (can happen due to tolerances)
-    intersec = LastPartPos(iPart,1:3) + alpha*PartTrajectory
+    intersec = LastPartPos(1:3,iPart) + alpha*PartTrajectory
     origindist(1) = DOT_PRODUCT(intersec-r_vec,axis)
     IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
       n_vec = intersec - ( r_vec + axis*origindist(1) )
@@ -4377,7 +4377,7 @@ __STAMP__&
     END IF
     !- check for lmin and lmax of cylinder and normal vec / trajectory direction
     ! (already here since no inner auxBCs possible (can happen due to tolerances)
-    intersec = LastPartPos(iPart,1:3) + roots(1)*PartTrajectory
+    intersec = LastPartPos(1:3,iPart) + roots(1)*PartTrajectory
     origindist(1) = DOT_PRODUCT(intersec-r_vec,axis)
     IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
       n_vec = intersec - ( r_vec + axis*origindist(1) )
@@ -4391,7 +4391,7 @@ __STAMP__&
         ,'AuxBC does not exist')
     END IF
     alphadir(1)=DOT_PRODUCT(n_vec,PartTrajectory)
-    intersec = LastPartPos(iPart,1:3) + roots(2)*PartTrajectory
+    intersec = LastPartPos(1:3,iPart) + roots(2)*PartTrajectory
     origindist(2) = DOT_PRODUCT(intersec-r_vec,axis)
     IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
       n_vec = intersec - ( r_vec + axis*origindist(2) )

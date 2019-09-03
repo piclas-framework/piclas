@@ -623,7 +623,7 @@ CASE(3) ! reactive interaction case
       PartState(PartID,4:6) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
       ! intersection point with surface
-      LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
+      LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
       ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
       TildTrajectory=dt*RKdtFrac*oldVelo(1:3)
       POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
@@ -631,7 +631,7 @@ CASE(3) ! reactive interaction case
       IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
 
       ! recompute trajectory etc
-      PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * PartState(PartID,4:6)
+      PartState(PartID,1:3)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * PartState(PartID,4:6)
     ELSE
       IF (PartBound%MomentumACC(locBCID).GT.0.0 .AND. .NOT.ModelERSpecular) THEN
         ! diffuse reflection
@@ -661,17 +661,17 @@ CASE(3) ! reactive interaction case
         NewVelo(1:3) = NewVelo(1:3) * (Species(ProductSpec(1))%MassIC/Species(SpecID)%MassIC)
       END IF
       ! intersection point with surface
-      LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
+      LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
       ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
       TildTrajectory=dt*RKdtFrac*oldVelo(1:3)
       POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
       ! travel rest of particle vector
       IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
-      PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3)
+      PartState(PartID,1:3)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3)
       !----  saving new particle velocity
       PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
     END IF
-    PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+    PartTrajectory=PartState(PartID,1:3) - LastPartPos(1:3,PartID)
     lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
     PartTrajectory=PartTrajectory/lengthPartTrajectory
 
@@ -697,7 +697,7 @@ CASE(3) ! reactive interaction case
 
       PartTrajectory2=UNITVECTOR(NewVelo(1:3))
 
-      CALL CreateParticle(ProductSpec(2),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
+      CALL CreateParticle(ProductSpec(2),LastPartPos(1:3,PartID),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
       ! Adding the energy that is transferred from the surface onto the internal energies of the particle
       CALL SurfaceToPartEnergyInternal(NewPartID,WallTemp)
 

@@ -350,9 +350,9 @@ IF(opt)THEN ! compute zero state
         PartState(iPart,1:6)=PartXK(1:6,iPart)+PartDeltaX(1:6,iPart)
       END IF
       ! update the last part pos and element for particle movement
-      LastPartPos(iPart,1)=PartStateN(iPart,1)
-      LastPartPos(iPart,2)=PartStateN(iPart,2)
-      LastPartPos(iPart,3)=PartStateN(iPart,3)
+      LastPartPos(1,iPart)=PartStateN(iPart,1)
+      LastPartPos(2,iPart)=PartStateN(iPart,2)
+      LastPartPos(3,iPart)=PartStateN(iPart,3)
       PEM%lastElement(iPart)=PEM%ElementN(iPart)
       ! HERE: rotate part to partstate back
       IF(PartLorentzType.EQ.5)THEN
@@ -387,13 +387,13 @@ ELSE
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       ! update the last part pos and element for particle movement
-      !LastPartPos(iPart,1)=StagePartPos(iPart,1)
-      !LastPartPos(iPart,2)=StagePartPos(iPart,2)
-      !LastPartPos(iPart,3)=StagePartPos(iPart,3)
+      !LastPartPos(1,iPart)=StagePartPos(iPart,1)
+      !LastPartPos(2,iPart)=StagePartPos(iPart,2)
+      !LastPartPos(3,iPart)=StagePartPos(iPart,3)
       !PEM%lastElement(iPart)=PEM%StageElement(iPart)
-      LastPartPos(iPart,1)=PartStateN(iPart,1)
-      LastPartPos(iPart,2)=PartStateN(iPart,2)
-      LastPartPos(iPart,3)=PartStateN(iPart,3)
+      LastPartPos(1,iPart)=PartStateN(iPart,1)
+      LastPartPos(2,iPart)=PartStateN(iPart,2)
+      LastPartPos(3,iPart)=PartStateN(iPart,3)
       PEM%lastElement(iPart)=PEM%ElementN(iPart)
       reMap=.FALSE.
       IF(PartMeshHasReflectiveBCs)THEN
@@ -745,9 +745,9 @@ PartLambdaAccept=.TRUE.
 DO iPart=1,PDM%ParticleVecLength
   IF(DoPartInNewton(iPart))THEN
     ! caution: PartXK has to be used instead of PartState
-    LastPartPos(iPart,1)=PartStateN(iPart,1)
-    LastPartPos(iPart,2)=PartStateN(iPart,2)
-    LastPartPos(iPart,3)=PartStateN(iPart,3)
+    LastPartPos(1,iPart)=PartStateN(iPart,1)
+    LastPartPos(2,iPart)=PartStateN(iPart,2)
+    LastPartPos(3,iPart)=PartStateN(iPart,3)
     PEM%lastElement(iPart)=PEM%ElementN(iPart)
     ! and disable periodic movement
     IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,:)=0.
@@ -982,9 +982,9 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
     END IF
 #endif /*USE_MPI*/
       ! update the last part pos and element for particle movement
-      LastPartPos(iPart,1)=PartStateN(iPart,1)
-      LastPartPos(iPart,2)=PartStateN(iPart,2)
-      LastPartPos(iPart,3)=PartStateN(iPart,3)
+      LastPartPos(1,iPart)=PartStateN(iPart,1)
+      LastPartPos(2,iPart)=PartStateN(iPart,2)
+      LastPartPos(3,iPart)=PartStateN(iPart,3)
       PEM%lastElement(iPart)=PEM%ElementN(iPart)
       IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
       PEM%PeriodicMoved(iPart)=.FALSE.

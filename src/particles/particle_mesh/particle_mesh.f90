@@ -1207,11 +1207,11 @@ REAL                                     :: alpha,eta,xi,IntersectPoint(1:3)
 
 IF(PRESENT(tol_Opt)) tol_Opt=-1.
 ! virtual move to element barycenter
-LastPosTmp(1:3) =LastPartPos(PartID,1:3)
-LastPartPos(PartID,1:3) =ElemBaryNGeo(1:3,ElemID)
+LastPosTmp(1:3) =LastPartPos(1:3,PartID)
+LastPartPos(1:3,PartID) =ElemBaryNGeo(1:3,ElemID)
 PartPos(1:3) =PartPos_In(1:3)
 
-PartTrajectory=PartPos - LastPartPos(PartID,1:3)
+PartTrajectory=PartPos - LastPartPos(1:3,PartID)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
@@ -1229,7 +1229,7 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
 
 IF(ALMOSTZERO(lengthPartTrajectory))THEN
   FoundInElem =.TRUE.
-  LastPartPos(PartID,1:3) = LastPosTmp(1:3)
+  LastPartPos(1:3,PartID) = LastPosTmp(1:3)
   ! bugfix by Tilman
   RETURN
 END IF
@@ -1308,7 +1308,7 @@ DO ilocSide=1,6
       CALL CalcNormAndTangBezier(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
     END SELECT
     IF(flip.NE.0) NormVec=-NormVec
-    IntersectPoint=LastPartPos(PartID,1:3)+alpha*PartTrajectory
+    IntersectPoint=LastPartPos(1:3,PartID)+alpha*PartTrajectory
 
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -1317,7 +1317,7 @@ DO ilocSide=1,6
       WRITE(UNIT_stdout,*) '     | Normal vector  ',NormVec
       WRITE(UNIT_stdout,*) '     | PartTrajectory ',PartTrajectory
       WRITE(UNIT_stdout,*) '     | Dotprod        ',DOT_PRODUCT(NormVec,PartTrajectory)
-      WRITE(UNIT_stdout,*) '     | Point 2        ', LastPartPos(PartID,1:3)+alpha*PartTrajectory+NormVec
+      WRITE(UNIT_stdout,*) '     | Point 2        ', LastPartPos(1:3,PartID)+alpha*PartTrajectory+NormVec
       WRITE(UNIT_stdout,*) '     | Beziercontrolpoints3d-x'
       CALL OutputBezierControlPoints(BezierControlPoints3D_in=BezierControlPoints3D(1:3,:,:,SideID))
     END IF
@@ -1341,7 +1341,7 @@ IF(alpha.GT.-1) THEN
   FoundInElem=.FALSE.
   IF(PRESENT(IntersectPoint_Opt)) IntersectPoint_Opt=IntersectPoint
 END IF
-LastPartPos(PartID,1:3) = LastPosTmp(1:3)
+LastPartPos(1:3,PartID) = LastPosTmp(1:3)
 
 END SUBROUTINE PartInElemCheck
 

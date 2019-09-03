@@ -344,7 +344,7 @@ __STAMP__&
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
 
 PartSpecies(newParticleID) = Species
-LastPartPos(newParticleID,1:3)=Pos(1:3)
+LastPartPos(1:3,newParticleID)=Pos(1:3)
 PartState(newParticleID,1:3) = Pos(1:3)
 PartState(newParticleID,4:6) = Velocity(1:3)
 

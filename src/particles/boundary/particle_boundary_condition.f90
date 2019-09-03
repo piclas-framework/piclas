@@ -402,7 +402,6 @@ USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars,          ONLY:RK_a
 #endif
-!USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -573,20 +572,20 @@ IF (IsAuxBC) THEN
   CASE ('plane')
     n_loc = AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
   CASE ('cylinder')
-    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    intersec = LastPartPos(1:3,PartID) + alpha*PartTrajectory
     r_vec = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
     axis  = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
     n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) ) )
     IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
   CASE ('cone')
-    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    intersec = LastPartPos(1:3,PartID) + alpha*PartTrajectory
     r_vec = AuxBC_cone(AuxBCMap(AuxBCIdx))%r_vec
     axis  = AuxBC_cone(AuxBCMap(AuxBCIdx))%axis
     cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle)**2
     n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis)*cos2inv ) )
     IF (.NOT.AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
   CASE ('parabol')
-    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    intersec = LastPartPos(1:3,PartID) + alpha*PartTrajectory
     r_vec = AuxBC_parabol(AuxBCMap(AuxBCIdx))%r_vec
     axis  = AuxBC_parabol(AuxBCMap(AuxBCIdx))%axis
     n_loc = UNITVECTOR( intersec - ( r_vec + axis*(DOT_PRODUCT(intersec-r_vec,axis)+0.5*AuxBC_parabol(AuxBCMap(AuxBCIdx))%zfac) ) )
@@ -722,7 +721,7 @@ IF (.NOT.IsAuxBC) THEN
       END IF
 
       IF(RadialWeighting%DoRadialWeighting) THEN
-        POI_Y = LastPartPos(PartID,2) + PartTrajectory(2)*alpha
+        POI_Y = LastPartPos(2,PartID) + PartTrajectory(2)*alpha
         IF (VarTimeStep%UseVariableTimeStep) THEN
           MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))*VarTimeStep%ParticleTimeStep(PartID)
         ELSE
@@ -748,10 +747,10 @@ IF (.NOT.IsAuxBC) THEN
                 __STAMP__&
                 ,'maxSurfCollisNumber reached!')
           END IF
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
+          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(1:3,PartID) + alpha * PartTrajectory(1:3)
           !-- caution: for consistency with diffuse refl. v_old is used!
           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4:6) = v_old(1:3)
-          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7:9) = LastPartPos(PartID,1:3)
+          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7:9) = LastPartPos(1:3,PartID)
           AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) = PartSpecies(PartID)
           AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) = locBCID
         END IF
@@ -769,14 +768,14 @@ END IF !.NOT.IsAuxBC
 
 
 ! set particle position on face
-LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
+LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
 
 PartTrajectory(1:3)=PartTrajectory(1:3)-2.*DOT_PRODUCT(PartTrajectory(1:3),n_loc)*n_loc
-PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(lengthPartTrajectory - alpha)
+PartState(PartID,1:3)   = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*(lengthPartTrajectory - alpha)
 
 ! #if !defined(IMPA) &&  !defined(ROS)
 ! compute moved particle || rest of movement
-PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+PartTrajectory=PartState(PartID,1:3) - LastPartPos(1:3,PartID)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
@@ -918,20 +917,20 @@ IF (IsAuxBC) THEN
   CASE ('plane')
     n_loc = AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
   CASE ('cylinder')
-    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    intersec = LastPartPos(1:3,PartID) + alpha*PartTrajectory
     r_vec = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
     axis  = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
     n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) ) )
     IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
   CASE ('cone')
-    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    intersec = LastPartPos(1:3,PartID) + alpha*PartTrajectory
     r_vec = AuxBC_cone(AuxBCMap(AuxBCIdx))%r_vec
     axis  = AuxBC_cone(AuxBCMap(AuxBCIdx))%axis
     cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle)**2
     n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis)*cos2inv ) )
     IF (.NOT.AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
   CASE ('parabol')
-    intersec = LastPartPos(PartID,1:3) + alpha*PartTrajectory
+    intersec = LastPartPos(1:3,PartID) + alpha*PartTrajectory
     r_vec = AuxBC_parabol(AuxBCMap(AuxBCIdx))%r_vec
     axis  = AuxBC_parabol(AuxBCMap(AuxBCIdx))%axis
     n_loc = UNITVECTOR( intersec - ( r_vec + axis*(DOT_PRODUCT(intersec-r_vec,axis)+0.5*AuxBC_parabol(AuxBCMap(AuxBCIdx))%zfac) ) )
@@ -1038,9 +1037,9 @@ END IF !IsAuxBC
 
 IF(Symmetry2DAxisymmetric) THEN
   ! Storing the old and the new particle position (which is outside the domain), at this point the position is only in the xy-plane
-  VelX = PartState(PartID,1) - LastPartPos(PartID,1)
-  VelY = PartState(PartID,2) - LastPartPos(PartID,2)
-  VelZ = PartState(PartID,3) - LastPartPos(PartID,3)
+  VelX = PartState(PartID,1) - LastPartPos(1,PartID)
+  VelY = PartState(PartID,2) - LastPartPos(2,PartID)
+  VelZ = PartState(PartID,3) - LastPartPos(3,PartID)
 
   ElemID = PartSideToElem(S2E_ELEM_ID,SideID)
   IF (ElemID .EQ. TrackInfo%CurrElem) THEN
@@ -1095,7 +1094,7 @@ VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
 VeloCz  = Cmr * VeloCz
 
 IF(RadialWeighting%DoRadialWeighting) THEN
-  POI_Y = LastPartPos(PartID,2) + PartTrajectory(2)*alpha
+  POI_Y = LastPartPos(2,PartID) + PartTrajectory(2)*alpha
   IF (VarTimeStep%UseVariableTimeStep) THEN
     MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))*VarTimeStep%ParticleTimeStep(PartID)
   ELSE
@@ -1277,20 +1276,20 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
   END IF ! VarTimeStep%UseVariableTimeStep
 
   ! intersection point with surface
-  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
+  LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
 
   ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
   !TildPos       =PartState(PartID,1:3)-dt*RKdtFrac*PartState(PartID,4:6)
   TildTrajectory=dt*RKdtFrac*PartState(PartID,4:6)*adaptTimeStep
   POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
   ! travel rest of particle vector
-  !PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
+  !PartState(PartID,1:3)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
   IF (IsAuxBC) THEN
     IF (PartAuxBC%Resample(AuxBCIdx)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
   ELSE
     IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
   END IF ! IsAuxBC
-  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3) * adaptTimeStep
+  PartState(PartID,1:3)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3) * adaptTimeStep
 
   IF(Symmetry2DAxisymmetric) THEN
     ! Symmetry considerations --------------------------------------------------------
@@ -1310,7 +1309,7 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
 
   IF(Symmetry2D) THEN
     ! z-Variable is set to zero (should be for the axisymmetric case anyway after rotation)
-    lastPartPos(PartID,3) = 0.0
+    lastPartPos(3,PartID) = 0.0
     PartState(PartID,3)   = 0.0
   END IF ! Symmetry2D
 
@@ -1329,9 +1328,9 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
               __STAMP__&
               ,'maxSurfCollisNumber reached!')
         END IF ! AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(1:3,PartID) + alpha * PartTrajectory(1:3)
         AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4:6) = PartState(PartID,4:6)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7:9) = LastPartPos(PartID,1:3)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7:9) = LastPartPos(1:3,PartID)
         AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) = PartSpecies(PartID)
         AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) = locBCID
       END IF ! CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))
@@ -1344,13 +1343,13 @@ PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
 
 ! recompute trajectory etc
 IF(Symmetry2DAxisymmetric) THEN
-  PartTrajectory(1:2)=PartState(PartID,1:2) - LastPartPos(PartID,1:2)
+  PartTrajectory(1:2)=PartState(PartID,1:2) - LastPartPos(1:2,PartID)
   PartTrajectory(3) = 0.
   lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                           +PartTrajectory(2)*PartTrajectory(2))
   PartTrajectory=PartTrajectory/lengthPartTrajectory
 ELSE
-  PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+  PartTrajectory=PartState(PartID,1:3) - LastPartPos(1:3,PartID)
   lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                           +PartTrajectory(2)*PartTrajectory(2) &
                           +PartTrajectory(3)*PartTrajectory(3) )
@@ -1522,9 +1521,9 @@ IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) TH
               __STAMP__&
               ,'maxSurfCollisNumber reached!')
         END IF
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(1:3,PartID) + alpha * PartTrajectory(1:3)
         AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4:6) = PartState(PartID,4:6)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7:9) = LastPartPos(PartID,1:3)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7:9) = LastPartPos(1:3,PartID)
         AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) = PartSpecies(PartID)
         AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) = locBCID
       END IF
@@ -1532,7 +1531,7 @@ IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) TH
   END IF
   IF (targetSpecies.eq.0) THEN !delete particle -> same as PartBound%OpenBC
     IF(RadialWeighting%DoRadialWeighting) THEN
-      POI_Y = LastPartPos(PartID,2) + PartTrajectory(2)*alpha
+      POI_Y = LastPartPos(2,PartID) + PartTrajectory(2)*alpha
       IF (VarTimeStep%UseVariableTimeStep) THEN
         MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))*VarTimeStep%ParticleTimeStep(PartID)
       ELSE
@@ -1688,18 +1687,18 @@ IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
     IPWRITE(UNIT_stdout,'(I0,A)') '     PeriodicBC: '
     IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' ParticlePosition: ',PartState(PartID,1:3)
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPos:      ',LastPartPos(PartID,1:3)
+    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPos:      ',LastPartPos(1:3,PartID)
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
 
 ! set last particle position on face
-LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
+LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
 ! perform the periodic movement
-LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 ! update particle positon after periodic BC
 !PartState(PartID,1:3)   = PartState(PartID,1:3) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-PartState(PartID,1:3) = LastPartPos(PartID,1:3) + (lengthPartTrajectory-alpha)*PartTrajectory
+PartState(PartID,1:3) = LastPartPos(1:3,PartID) + (lengthPartTrajectory-alpha)*PartTrajectory
 lengthPartTrajectory  = lengthPartTrajectory - alpha
 
 
@@ -1708,7 +1707,7 @@ IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
     IPWRITE(UNIT_stdout,'(I0,A)') '     PeriodicBC: '
     IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' ParticlePosition-pp: ',PartState(PartID,1:3)
-    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPo-pp:       ',LastPartPos(PartID,1:3)
+    IPWRITE(UNIT_stdout,'(I0,A,3(X,G0))') ' LastPartPo-pp:       ',LastPartPos(1:3,PartID)
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
@@ -1833,24 +1832,15 @@ CALL Abort(&
 __STAMP__&
 ,'maxSurfCollisNumber reached!')
         END IF
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
-          = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
-          = PartState(PartID,4)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
-          = PartState(PartID,5)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
-          = PartState(PartID,6)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
-          = LastPartPos(PartID,1)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
-          = LastPartPos(PartID,2)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
-          = LastPartPos(PartID,3)
-        AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
-          = PartSpecies(PartID)
-        AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) &
-          = locBCID
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(1:3,PartID) + alpha * PartTrajectory(1:3)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4)   = PartState(PartID,4)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5)   = PartState(PartID,5)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6)   = PartState(PartID,6)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7)   = LastPartPos(1,PartID)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8)   = LastPartPos(2,PartID)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9)   = LastPartPos(3,PartID)
+        AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1))     = PartSpecies(PartID)
+        AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1))     = locBCID
       END IF
     END IF
   END IF
@@ -2000,7 +1990,7 @@ iSpec = PartSpecies(iPart)
 DO iSF=1,Species(iSpec)%nSurfacefluxBCs
   IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.PartBound%MapToPartBC(BC(SideID))) THEN
     IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-      intersectionPoint(1:3) = LastPartPos(iPart,1:3) + alpha*PartTrajectory(1:3)
+      intersectionPoint(1:3) = LastPartPos(1:3,iPart)+ alpha*PartTrajectory(1:3)
       point(1)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(2))-Species(iSpec)%Surfaceflux(iSF)%origin(1)
       point(2)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(3))-Species(iSpec)%Surfaceflux(iSF)%origin(2)
       radius=SQRT( (point(1))**2+(point(2))**2 )

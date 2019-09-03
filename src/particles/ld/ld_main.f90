@@ -202,9 +202,9 @@ SUBROUTINE LD_PerfectReflection(nx,ny,nz,xNod,yNod,zNod,PoldStarX,PoldStarY,Pold
   REAL, INTENT(IN)                  :: nx,ny,nz,xNod,yNod,zNod,PoldStarX,PoldStarY,PoldStarZ
 !--------------------------------------------------------------------------------------------------!
 
-   PnewX = lastPartPos(i,1) + PartStateBulkValues(i,1) * dt
-   PnewY = lastPartPos(i,2) + PartStateBulkValues(i,2) * dt
-   PnewZ = lastPartPos(i,3) + PartStateBulkValues(i,3) * dt
+   PnewX = lastPartPos(1,i) + PartStateBulkValues(i,1) * dt
+   PnewY = lastPartPos(2,i) + PartStateBulkValues(i,2) * dt
+   PnewZ = lastPartPos(3,i) + PartStateBulkValues(i,3) * dt
 
    bx = PnewX - xNod
    by = PnewY - yNod

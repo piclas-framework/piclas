@@ -103,7 +103,8 @@ LOGICAL , ALLOCATABLE :: DoPartInNewton(:)                                   ! p
 REAL    , ALLOCATABLE :: Pt_temp(:,:)                                        ! LSERK4 additional derivative of PartState
 
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
-REAL    , ALLOCATABLE :: LastPartPos(:,:)                                    ! (1:NParts,1:3) with 2nd index: x,y,z
+REAL    , ALLOCATABLE :: LastPartPos(:,:)                                    ! 1st index: x,y,z
+!                                                                            ! 2nd index: 1:NParts with 2nd index
 INTEGER , ALLOCATABLE :: PartSpecies(:)                                      ! (1:NParts)
 REAL    , ALLOCATABLE :: PartMPF(:)                                          ! (1:NParts) MacroParticleFactor by variable MPF
 INTEGER               :: PartLorentzType
