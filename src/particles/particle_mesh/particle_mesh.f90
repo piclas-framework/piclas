@@ -6610,7 +6610,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: epsMach
 USE MOD_Particle_Vars          ,ONLY: MacroPart, nMacroParticle, UseMacroPart, nPointsMCVolumeEstimate
-USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems, GEO, epsOneCell
+USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems, GEO
 USE MOD_Particle_Vars          ,ONLY: ElemHasMacroPart, CalcMPVolumePortion, ManualTimeStep
 USE MOD_part_tools             ,ONLY: INSIDEMACROPART
 USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo, wBaryCL_NGeo, XiCL_NGeo
@@ -6768,7 +6768,7 @@ Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
             CALL RANDOM_NUMBER(physPos)
             PhysPos = GEO%BoundsOfElem(1,:,iElem) + physPos*(GEO%BoundsOfElem(2,:,iElem)-GEO%BoundsOfElem(1,:,iElem))
             CALL GetPositionInRefElem(physPos,refPos,iElem)
-            IF(ALL(ABS(refPos).LE.epsOneCell(iElem))) EXIT ! particle inside of element
+            IF(ALL(ABS(refPos).LE.1.0)) EXIT ! particle inside of element
           END DO
           IF (INSIDEMACROPART(physPos)) matchedParts=matchedParts+1
         END DO

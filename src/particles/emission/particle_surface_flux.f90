@@ -1808,7 +1808,7 @@ __STAMP__&
               iPart=iPart+1
             ELSE
               nReject=nReject+1
-              IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
+              IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow .OR. UseMacroPart) THEN !check rmax-rejection
                 allowedRejections=allowedRejections+1
               END IF
             END IF
