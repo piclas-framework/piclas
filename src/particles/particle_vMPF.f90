@@ -115,15 +115,17 @@ INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                  :: V_rel(3), vmag2, iRan, vBulk(3), Energy
+REAL                  :: V_rel(3), vmag2, iRan, vBulk(3), EOld
 INTEGER               :: iLoop, nDelete, nTemp, iPart, iPartIndx_NodeTMP(nPart),iSpec
 REAL                  :: partWeight, totalWeight, vBulkTmp(3), ENew, alpha
+REAL                  :: EOld_Inner,ENew_Inner
 #ifdef CODE_ANALYZE
 REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3)
 INTEGER               :: iMomDim, iMom
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
-vBulk = 0.0; totalWeight = 0.0; Energy = 0.
+vBulk = 0.0; totalWeight = 0.0; EOld = 0.
+EOld_Inner = 0.0
 
 #ifdef CODE_ANALYZE
 Energy_old = 0.0; Energy_new = 0.0; Momentum_old = 0.0; Momentum_new = 0.0
@@ -159,14 +161,14 @@ DO iLoop = 1, nPart
   iSpec = PartSpecies(iPartIndx_Node(iLoop))
   V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulk(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
-  Energy = Energy + 0.5 * vmag2 * partWeight
+  EOld = EOld + 0.5 * vmag2 * partWeight * Species(iSpec)%MassIC
   IF(CollisMode.GT.1) THEN
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
       ! Rotational and vibrational energy
-      Energy = Energy + partWeight * (PartStateIntEn(iPartIndx_Node(iLoop),1) +  PartStateIntEn(iPartIndx_Node(iLoop),2))
+      EOld_Inner = EOld_Inner + partWeight * (PartStateIntEn(iPartIndx_Node(iLoop),1) +  PartStateIntEn(iPartIndx_Node(iLoop),2))
     END IF
     ! Electronic energy
-    IF(DSMC%ElectronicModel) Energy = Energy + partWeight * PartStateIntEn(iPartIndx_Node(iLoop),3)
+    IF(DSMC%ElectronicModel) EOld_Inner = EOld_Inner + partWeight * PartStateIntEn(iPartIndx_Node(iLoop),3)
   END IF
 END DO
 
@@ -193,6 +195,7 @@ vBulkTmp(1:3) = vBulkTmp(1:3) / totalWeight
 
 ! 5.) calc energy after deleting
 ENew = 0.
+ENew_Inner=0.
 totalWeight=0.0
 DO iLoop = 1, nPartNew
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
@@ -200,18 +203,19 @@ DO iLoop = 1, nPartNew
   totalWeight = totalWeight + partWeight
   V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulkTmp(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
-  ENew = ENew + 0.5 * vmag2 * partWeight
+  ENew = ENew + 0.5 * vmag2 * partWeight * Species(iSpec)%MassIC
   IF(CollisMode.GT.1) THEN
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
       ! Rotational and vibrational energy
-      ENew = ENew + partWeight * (PartStateIntEn(iPartIndx_Node(iLoop),1) + PartStateIntEn(iPartIndx_Node(iLoop),2))
+      ENew_Inner = ENew_Inner + partWeight * (PartStateIntEn(iPartIndx_Node(iLoop),1) + PartStateIntEn(iPartIndx_Node(iLoop),2))
     END IF
     ! Electronic energy
-    IF(DSMC%ElectronicModel) ENew = ENew + partWeight * PartStateIntEn(iPartIndx_Node(iLoop),3)
+    IF(DSMC%ElectronicModel) ENew_Inner = ENew_Inner + partWeight * PartStateIntEn(iPartIndx_Node(iLoop),3)
   END IF
 END DO
+
 ! 6.) ensuring momentum and energy conservation
-alpha = SQRT(Energy/ENew)
+alpha = SQRT((EOld+EOld_Inner-ENew_Inner)/ENew)
 DO iLoop = 1, nPartNew
   PartState(iPartIndx_Node(iLoop),4:6) = vBulk(1:3) + alpha*(PartState(iPartIndx_Node(iLoop),4:6)-vBulkTmp(1:3))
 
@@ -240,6 +244,7 @@ END DO
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_new             : ",Energy_new
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Energy difference : ",Energy_new-Energy_old
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " alpha                  : ",alpha
     ASSOCIATE( energy => MAX(ABS(Energy_old),ABS(Energy_new)) )
       IF(energy.GT.0.0)THEN
         IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Energy difference : ",(Energy_new-Energy_old)/energy
