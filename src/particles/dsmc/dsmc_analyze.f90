@@ -725,7 +725,8 @@ DO iSpec = 1, nSpecies
       CharaTVib = SpecDSMC(iSpec)%CharaTVib
     END IF
     IF((DSMC%InstantTransTemp(iSpec).GT.0.0).AND.(CharaTVib/DSMC%InstantTransTemp(iSpec).LT.80)) THEN
-      ! If too high exp cannot evaluted
+      ! If CharaTVib/DSMC%InstantTransTemp(iSpec) is too high the exp function can produce NAN
+      ! CharaTVib/DSMC%InstantTransTemp(iSpec)=80 results in a of GammaVib=2.31020977644213E-31
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
         iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
         IF (DSMC%PolySingleMode) THEN
@@ -753,7 +754,7 @@ DO iSpec = 1, nSpecies
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
         iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
         IF (DSMC%PolySingleMode) THEN
-          PolyatomMolDSMC(iPolyatMole)%GammaVib(iDOF) = 0.
+          PolyatomMolDSMC(iPolyatMole)%GammaVib = 0.
         ELSE
           SpecDSMC(iSpec)%GammaVib = 0.
         END IF
@@ -1514,7 +1515,7 @@ REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality, &
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iElem, kk , ll, mm, iSpec, nVarCount, nSpecTemp
+INTEGER                 :: iElem, kk , ll, mm, iSpec, nVarCount, nSpecTemp, nVarCountRelax
 REAL                    :: TVib_TempFac, iter_loc
 REAL                    :: MolecPartNum, HeavyPartNum
 !===================================================================================================================================
@@ -1730,23 +1731,20 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
             nSpecTemp = nSpecies
           END IF
           DO iSpec=0,nSpecTemp
+            nVarCountRelax = 13
             IF(DSMC%RotRelaxProb.GE.2) THEN
               IF(DSMC%QualityFacSampRotSamp(iElem,iSpec+1).GT.0) THEN
-                DSMC_MacroVal(nVarLoc*(iSpec)+13,kk,ll,mm, iElem) = DSMC%QualityFacSampRot(iElem,iSpec+1,2) &
+                DSMC_MacroVal(nVarLoc*(iSpec)+nVarCountRelax,kk,ll,mm, iElem) = DSMC%QualityFacSampRot(iElem,iSpec+1,2) &
                                                                   / REAL(DSMC%QualityFacSampRotSamp(iElem,iSpec+1))
-                DSMC_MacroVal(nVarLoc*(iSpec)+14,kk,ll,mm, iElem) = DSMC%QualityFacSampRot(iElem,iSpec+1,1) &
+                DSMC_MacroVal(nVarLoc*(iSpec)+nVarCountRelax+1,kk,ll,mm, iElem) = DSMC%QualityFacSampRot(iElem,iSpec+1,1) &
                                                                   / REAL(DSMC%QualityFacSampRotSamp(iElem,iSpec+1))
+                nVarCountRelax = nVarCountRelax + 2
               END IF
             END IF
-            IF((DSMC%VibRelaxProb.GE.2).AND..NOT.(DSMC%RotRelaxProb.GE.2)) THEN
-              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,2).GT.0)  DSMC_MacroVal(nVarLoc*(iSpec)+13,kk,ll,mm, iElem) = &
+            IF((DSMC%VibRelaxProb.GE.2)) THEN
+              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,2).GT.0) DSMC_MacroVal(nVarLoc*(iSpec)+nVarCountRelax,kk,ll,mm, iElem) = &
                                          DSMC%QualityFacSampVib(iElem,iSpec+1,2) / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,2))
-              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,1).GT.0)  DSMC_MacroVal(nVarLoc*(iSpec)+14,kk,ll,mm, iElem) = &
-                                         DSMC%QualityFacSampVib(iElem,iSpec+1,1) / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,1))
-            ELSE IF((DSMC%VibRelaxProb.GE.2).AND.(DSMC%RotRelaxProb.GE.2)) THEN
-              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,2).GT.0)  DSMC_MacroVal(nVarLoc*(iSpec)+15,kk,ll,mm, iElem) = &
-                                         DSMC%QualityFacSampVib(iElem,iSpec+1,2) / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,2))
-              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,1).GT.0)  DSMC_MacroVal(nVarLoc*(iSpec)+16,kk,ll,mm, iElem) = &
+              IF(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,1).GT.0) DSMC_MacroVal(nVarLoc*(iSpec)+nVarCountRelax+1,kk,ll,mm, iElem)=&
                                          DSMC%QualityFacSampVib(iElem,iSpec+1,1) / REAL(DSMC%QualityFacSampVibSamp(iElem,iSpec+1,1))
             END IF
           END DO
@@ -2011,7 +2009,7 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255)             :: SpecID
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER                        :: nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec
+INTEGER                        :: nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec, nVarRelax
 REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:,:,:,:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================
@@ -2024,14 +2022,15 @@ REAL                           :: StartT,EndT
 
 ! Create dataset attribute "VarNames"
 nVarloc=DSMC_NVARS
+nVarRelax=0
 IF(DSMC%CalcQualityFactors.AND.(CollisMode.GE.2)) THEN
-  IF(DSMC%RotRelaxProb.GE.2) nVarloc = nVarloc + 2
-  IF(DSMC%VibRelaxProb.GE.2) nVarloc = nVarloc + 2
+  IF(DSMC%RotRelaxProb.GE.2) nVarRelax = nVarRelax + 2
+  IF(DSMC%VibRelaxProb.GE.2) nVarRelax = nVarRelax + 2
 END IF
 IF(nSpecies.EQ.1) THEN
-  nVar=nVarloc
+  nVar=nVarloc+nVarRelax
 ELSE
-  nVar=nVarloc*(nSpecies+1)
+  nVar=(nVarloc+nVarRelax)*(nSpecies+1)
 END IF
 
 IF (DSMC%CalcQualityFactors) THEN
@@ -2060,20 +2059,20 @@ IF(nSpecies.GT.1) THEN
     StrVarNames(nVarCount+DSMC_TELEC      )='Spec'//TRIM(SpecID)//'_TempElec'
     StrVarNames(nVarCount+DSMC_SIMPARTNUM )='Spec'//TRIM(SpecID)//'_SimPartNum'
     StrVarNames(nVarCount+DSMC_TEMPMEAN   )='Spec'//TRIM(SpecID)//'_TempTransMean'
+    nVarCount=nVarCount+nVarloc
     IF(DSMC%CalcQualityFactors.AND.(CollisMode.GE.2)) THEN
       IF(DSMC%RotRelaxProb.GE.2) THEN
-        StrVarNames(nVarCount+13              )='Spec'//TRIM(SpecID)//'_DSMC_MaxRotRelaxProb'
-        StrVarNames(nVarCount+14              )='Spec'//TRIM(SpecID)//'_DSMC_MeanRotRelaxProb'
+        StrVarNames(nVarCount+1              )='Spec'//TRIM(SpecID)//'_DSMC_MaxRotRelaxProb'
+        StrVarNames(nVarCount+2              )='Spec'//TRIM(SpecID)//'_DSMC_MeanRotRelaxProb'
+        nvarcount=nvarcount+2
       END IF
-      IF((DSMC%VibRelaxProb.GE.2).AND..NOT.(DSMC%RotRelaxProb.GE.2)) THEN
-        StrVarNames(nVarCount+13              )='Spec'//TRIM(SpecID)//'_DSMC_MaxVibRelaxProb'
-        StrVarNames(nVarCount+14              )='Spec'//TRIM(SpecID)//'_DSMC_MeanVibRelaxProb'
-      ELSE IF((DSMC%VibRelaxProb.GE.2).AND.(DSMC%RotRelaxProb.GE.2)) THEN
-        StrVarNames(nVarCount+15              )='Spec'//TRIM(SpecID)//'_DSMC_MaxVibRelaxProb'
-        StrVarNames(nVarCount+16              )='Spec'//TRIM(SpecID)//'_DSMC_MeanVibRelaxProb'
+      IF((DSMC%VibRelaxProb.GE.2)) THEN
+        StrVarNames(nVarCount+1              )='Spec'//TRIM(SpecID)//'_DSMC_MaxVibRelaxProb'
+        StrVarNames(nVarCount+2              )='Spec'//TRIM(SpecID)//'_DSMC_MeanVibRelaxProb'
+        nvarcount=nvarcount+2
       END IF
     END IF
-    nVarCount=nVarCount+nVarloc
+    IPWRITE(*,*) nvarcount
   END DO ! iSpec=1,nSpecies
 END IF
 ! fill varnames for total values
@@ -2089,20 +2088,20 @@ StrVarNames(nVarCount+DSMC_TROT       )='Total_TempRot'
 StrVarNames(nVarCount+DSMC_TELEC      )='Total_TempElec'
 StrVarNames(nVarCount+DSMC_SIMPARTNUM )='Total_SimPartNum'
 StrVarNames(nVarCount+DSMC_TEMPMEAN   )='Total_TempTransMean'
+nVarCount=nVarCount+nVarloc
 IF(DSMC%CalcQualityFactors.AND.(CollisMode.GE.2)) THEN
   IF(DSMC%RotRelaxProb.GE.2) THEN
-    StrVarNames(nVarCount+13              )='Total_DSMC_MaxRotRelaxProb'
-    StrVarNames(nVarCount+14              )='Total_DSMC_MeanRotRelaxProb'
+    StrVarNames(nVarCount+1              )='Total_DSMC_MaxRotRelaxProb'
+    StrVarNames(nVarCount+2              )='Total_DSMC_MeanRotRelaxProb'
+    nvarcount=nvarcount+2
   END IF
-  IF((DSMC%VibRelaxProb.GE.2).AND..NOT.(DSMC%RotRelaxProb.GE.2)) THEN
-    StrVarNames(nVarCount+13              )='Total_DSMC_MaxVibRelaxProb'
-    StrVarNames(nVarCount+14              )='Total_DSMC_MeanVibRelaxProb'
-  ELSE IF((DSMC%VibRelaxProb.GE.2).AND.(DSMC%RotRelaxProb.GE.2)) THEN
-    StrVarNames(nVarCount+15              )='Total_DSMC_MaxVibRelaxProb'
-    StrVarNames(nVarCount+16              )='Total_DSMC_MeanVibRelaxProb'
+  IF((DSMC%VibRelaxProb.GE.2)) THEN
+    StrVarNames(nVarCount+1              )='Total_DSMC_MaxVibRelaxProb'
+    StrVarNames(nVarCount+2              )='Total_DSMC_MeanVibRelaxProb'
+    nvarcount=nvarcount+2
   END IF
 END IF
-nVarCount=nVarCount+nVarloc
+IPWRITE(*,*) nvarcount
 
 IF (DSMC%CalcQualityFactors) THEN
   StrVarNames(nVarCount+1) ='DSMC_MaxCollProb'
@@ -2134,6 +2133,7 @@ IF (DSMC%CalcQualityFactors) THEN
     nVarCount=nVarCount+5
   END IF
 END IF
+IPWRITE(*,*) nvarcount
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DSMCHOState',OutputTime))//'.h5'
@@ -2154,7 +2154,7 @@ IF (ALLOCSTAT.NE.0) THEN
 __STAMP__&
   ,' Cannot allocate output array DSMC_MacroVal array!')
 END IF
-CALL DSMCHO_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
+CALL DSMCHO_output_calc(nVar,nVar_quality,nVarloc+nVarRelax,DSMC_MacroVal)
 
 
 ! Associate construct for integer KIND=8 possibility
