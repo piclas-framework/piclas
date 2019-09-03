@@ -570,7 +570,7 @@ vBulk(1:3) = 0.0
 DO iLoop = 1, nPart
   V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop))-vBulkAll(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
-  DSMC_RHS(iPartIndx_Node(iLoop),1:3) = 0.0
+  DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = 0.0
 !  IF ((FPCollModel.EQ.1).AND.(nPart.GE.5)) THEN
   IF (FPCollModel.EQ.1) THEN
     Ni(1,iLoop)  = FPSolVec(1,1)*V_rel(1)+FPSolVec(2,1)*V_rel(2) +FPSolVec(3,1)*V_rel(3) &
@@ -582,29 +582,29 @@ DO iLoop = 1, nPart
     Ni(3,iLoop)  = FPSolVec(3,1)*V_rel(1)+FPSolVec(5,1)*V_rel(2) +FPSolVec(6,1)*V_rel(3) &
             + FPSolVec(9,1) * (vmag2 - u2) &
             + Lambda*(V_rel(3)*vmag2 -  u2i(3))
-    DSMC_RHS(iPartIndx_Node(iLoop),1:3) = relaxtime*FP_FakB*Ni(1:3,iLoop)
+    DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = relaxtime*FP_FakB*Ni(1:3,iLoop)
   END IF
 
   IF (FPCollModel.EQ.2) THEN
     tempVelo(1:3) = FP_FakC*iRanPart(1:3,iLoop)
-    DSMC_RHS(iPartIndx_Node(iLoop),1:3) = DSMC_RHS(iPartIndx_Node(iLoop),1:3) &
+    DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = DSMC_RHS(1:3,iPartIndx_Node(iLoop)) &
               + V_rel(1:3)*FP_FakA + MATMUL(SMat,tempVelo)
   ELSE
-    DSMC_RHS(iPartIndx_Node(iLoop),1:3) = DSMC_RHS(iPartIndx_Node(iLoop),1:3) &
+    DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = DSMC_RHS(1:3,iPartIndx_Node(iLoop)) &
               + V_rel(1:3)*FP_FakA + FP_FakC*iRanPart(1:3,iLoop)
   END IF
-  vBulk(1:3) = vBulk(1:3) + DSMC_RHS(iPartIndx_Node(iLoop),1:3)
+  vBulk(1:3) = vBulk(1:3) + DSMC_RHS(1:3,iPartIndx_Node(iLoop))
 END DO
 
 vBulk(1:3) = vBulk(1:3)/nPart
 DO iLoop = 1, nPart
-  V_rel(1:3) = DSMC_RHS(iPartIndx_Node(iLoop),1:3) - vBulk(1:3)
+  V_rel(1:3) = DSMC_RHS(1:3,iPartIndx_Node(iLoop)) - vBulk(1:3)
   NewEn = NewEn + (V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2 )*0.5*Species(1)%MassIC
 END DO
 
 alpha = SQRT(OldEn/NewEn*(3.*(nPart-1.))/(Xi_rot*nRotRelax+3.*(nPart-1.)))
 DO iLoop = 1, nPart
-  DSMC_RHS(iPartIndx_Node(iLoop),1:3) = alpha*(DSMC_RHS(iPartIndx_Node(iLoop),1:3)-vBulk(1:3)) + vBulkAll(1:3) &
+  DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = alpha*(DSMC_RHS(1:3,iPartIndx_Node(iLoop))-vBulk(1:3)) + vBulkAll(1:3) &
     - PartState(4:6,iPartIndx_Node(iLoop))
 END DO
 IF ( (nRotRelax.GT.0)) alpha = OldEn/NewEnRot*(Xi_rot*nRotRelax/(Xi_rot*nRotRelax+3.*(nPart-1.)))
@@ -616,11 +616,11 @@ DEALLOCATE(Ni)
 
 #ifdef CODE_ANALYZE
 DO iLoop = 1, nPart
-  Momentum_new(1:3) = Momentum_new(1:3) + DSMC_RHS(iPartIndx_Node(iLoop),1:3) + PartState(4:6,iPartIndx_Node(iLoop))
+  Momentum_new(1:3) = Momentum_new(1:3) + DSMC_RHS(1:3,iPartIndx_Node(iLoop)) + PartState(4:6,iPartIndx_Node(iLoop))
   Energy_new = Energy_new &
-          + ((DSMC_RHS(iPartIndx_Node(iLoop),1) + PartState(4,iPartIndx_Node(iLoop)))**2. &
-          +  (DSMC_RHS(iPartIndx_Node(iLoop),2) + PartState(5,iPartIndx_Node(iLoop)))**2. &
-          +  (DSMC_RHS(iPartIndx_Node(iLoop),3) + PartState(6,iPartIndx_Node(iLoop)))**2.)*0.5*Species(1)%MassIC
+          + ((DSMC_RHS(1,iPartIndx_Node(iLoop)) + PartState(4,iPartIndx_Node(iLoop)))**2. &
+          +  (DSMC_RHS(2,iPartIndx_Node(iLoop)) + PartState(5,iPartIndx_Node(iLoop)))**2. &
+          +  (DSMC_RHS(3,iPartIndx_Node(iLoop)) + PartState(6,iPartIndx_Node(iLoop)))**2.)*0.5*Species(1)%MassIC
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     Energy_new = Energy_new + PartStateIntEn(iPartIndx_Node(iLoop),1) + PartStateIntEn(iPartIndx_Node(iLoop),2)
   END IF

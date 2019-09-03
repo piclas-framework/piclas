@@ -1268,7 +1268,7 @@ IF (useDSMC) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,1:3)
+    PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1514,7 +1514,7 @@ REAL                  :: tLBStart
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,1:3)
+  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1706,7 +1706,7 @@ END IF
 IF (useDSMC) THEN
   IF (time.GE.DelayTime) THEN
     CALL DSMC_main()
-    PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,1:3)
+    PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
   END IF
 END IF
 END SUBROUTINE TimeStepByRK4EulerExpl
@@ -1759,7 +1759,7 @@ IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
 
   CALL DSMC_main()
 
-  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,1:3)
+  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
   IF(DSMC%CompareLandauTeller) THEN
     DO iPart=1,PDM%ParticleVecLength
       PDM%nextFreePosition(iPart)=iPart
@@ -1827,7 +1827,7 @@ ELSE
   CALL ParticleInserting()
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
-  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,1:3)
+  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 END IF
 
 END SUBROUTINE TimeStep_DSMC_Debug
@@ -1942,7 +1942,7 @@ CALL DivCleaningDamping()
 CALL UpdateNextFreePosition()
 IF (useDSMC) THEN
   CALL DSMC_main()
-  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,1:3)
+  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 END IF
 
 END SUBROUTINE TimeStepByEulerImplicit
@@ -2830,9 +2830,7 @@ END IF
 IF (useDSMC) THEN ! UpdateNextFreePosition is only required for DSMC
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
-  PartState(4,1:PDM%ParticleVecLength) = PartState(4,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,1)
-  PartState(5,1:PDM%ParticleVecLength) = PartState(5,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,2)
-  PartState(6,1:PDM%ParticleVecLength) = PartState(6,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -3609,9 +3607,7 @@ END IF
 IF (useDSMC) THEN
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
-  PartState(4,1:PDM%ParticleVecLength) = PartState(4,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,1)
-  PartState(5,1:PDM%ParticleVecLength) = PartState(5,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,2)
-  PartState(6,1:PDM%ParticleVecLength) = PartState(6,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -3827,9 +3823,7 @@ END IF
 IF (useDSMC) THEN
   IF (time.GE.DelayTime) THEN
     CALL DSMC_main()
-    PartState(4,1:PDM%ParticleVecLength) = PartState(4,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,1)
-    PartState(5,1:PDM%ParticleVecLength) = PartState(5,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,2)
-    PartState(6,1:PDM%ParticleVecLength) = PartState(6,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,3)
+    PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
   END IF
 END IF
 END SUBROUTINE TimeStepByEulerStaticExp
@@ -4015,9 +4009,7 @@ END IF
 IF (useDSMC) THEN
   IF (time.GE.DelayTime) THEN
     CALL DSMC_main()
-    PartState(4,1:PDM%ParticleVecLength) = PartState(4,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,1)
-    PartState(5,1:PDM%ParticleVecLength) = PartState(5,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,2)
-    PartState(6,1:PDM%ParticleVecLength) = PartState(6,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,3)
+    PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
   END IF
 END IF
 END SUBROUTINE TimeStepByEulerStaticExpAdapTS
@@ -4161,9 +4153,7 @@ ELSE
   CALL FPFlow_main()
 END IF
 
-PartState(4,1:PDM%ParticleVecLength) = PartState(4,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,1)
-PartState(5,1:PDM%ParticleVecLength) = PartState(5,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,2)
-PartState(6,1:PDM%ParticleVecLength) = PartState(6,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,3)
+PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 
 
 END SUBROUTINE TimeStep_FPFlow
@@ -4302,9 +4292,7 @@ END IF
     CALL BGK_main()
   END IF
 
-PartState(4,1:PDM%ParticleVecLength) = PartState(4,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,1)
-PartState(5,1:PDM%ParticleVecLength) = PartState(5,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,2)
-PartState(6,1:PDM%ParticleVecLength) = PartState(6,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,3)
+PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 
 END SUBROUTINE TimeStep_BGK
 #endif
@@ -4599,9 +4587,7 @@ IF (useDSMC) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    PartState(4,1:PDM%ParticleVecLength) = PartState(4,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,1)
-    PartState(5,1:PDM%ParticleVecLength) = PartState(5,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,2)
-    PartState(6,1:PDM%ParticleVecLength) = PartState(6,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,3)
+    PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -5068,9 +5054,7 @@ IF (useDSMC) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    PartState(4,1:PDM%ParticleVecLength) = PartState(4,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,1)
-    PartState(5,1:PDM%ParticleVecLength) = PartState(5,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,2)
-    PartState(6,1:PDM%ParticleVecLength) = PartState(6,1:PDM%ParticleVecLength) + DSMC_RHS(1:PDM%ParticleVecLength,3)
+    PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -5187,9 +5171,9 @@ IMPLICIT NONE
 
   IF(iter.EQ. 0.0) CALL LD_DSMC_DOMAIN_DECOMPOSITION
 
-  LD_DSMC_RHS(1:PDM%ParticleVecLength,1) = 0
-  LD_DSMC_RHS(1:PDM%ParticleVecLength,2) = 0
-  LD_DSMC_RHS(1:PDM%ParticleVecLength,3) = 0
+  LD_DSMC_RHS(1,1:PDM%ParticleVecLength) = 0
+  LD_DSMC_RHS(2,1:PDM%ParticleVecLength) = 0
+  LD_DSMC_RHS(3,1:PDM%ParticleVecLength) = 0
   CALL LD_DSMC_Indicate_DSMC_Particles
   CALL DSMC_main() ! first dsmc then ld due to RHS-calculation!
   CALL LD_main()
@@ -5213,9 +5197,9 @@ IMPLICIT NONE
   LastPartPos(3,1:PDM%ParticleVecLength)=PartState(3,1:PDM%ParticleVecLength)
   PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
 
-  PartState(4,1:PDM%ParticleVecLength) = PartState(4,1:PDM%ParticleVecLength) + LD_DSMC_RHS(1:PDM%ParticleVecLength,1)
-  PartState(5,1:PDM%ParticleVecLength) = PartState(5,1:PDM%ParticleVecLength) + LD_DSMC_RHS(1:PDM%ParticleVecLength,2)
-  PartState(6,1:PDM%ParticleVecLength) = PartState(6,1:PDM%ParticleVecLength) + LD_DSMC_RHS(1:PDM%ParticleVecLength,3)
+  PartState(4,1:PDM%ParticleVecLength) = PartState(4,1:PDM%ParticleVecLength) + LD_DSMC_RHS(1,1:PDM%ParticleVecLength)
+  PartState(5,1:PDM%ParticleVecLength) = PartState(5,1:PDM%ParticleVecLength) + LD_DSMC_RHS(2,1:PDM%ParticleVecLength)
+  PartState(6,1:PDM%ParticleVecLength) = PartState(6,1:PDM%ParticleVecLength) + LD_DSMC_RHS(3,1:PDM%ParticleVecLength)
   PartState(1,1:PDM%ParticleVecLength) = PartState(1,1:PDM%ParticleVecLength) + PartState(4,1:PDM%ParticleVecLength) * dt
   PartState(2,1:PDM%ParticleVecLength) = PartState(2,1:PDM%ParticleVecLength) + PartState(5,1:PDM%ParticleVecLength) * dt
   PartState(3,1:PDM%ParticleVecLength) = PartState(3,1:PDM%ParticleVecLength) + PartState(6,1:PDM%ParticleVecLength) * dt

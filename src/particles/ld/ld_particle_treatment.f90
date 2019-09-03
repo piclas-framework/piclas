@@ -176,9 +176,9 @@ USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
       LD_RHS(iPartIndx,3) = 0.0
     END IF
 #if (PP_TimeDiscMethod==1001)
-    LD_DSMC_RHS(iPartIndx,1) = LD_RHS(iPartIndx,1)
-    LD_DSMC_RHS(iPartIndx,2) = LD_RHS(iPartIndx,2)
-    LD_DSMC_RHS(iPartIndx,3) = LD_RHS(iPartIndx,3)
+    LD_DSMC_RHS(1,iPartIndx) = LD_RHS(iPartIndx,1)
+    LD_DSMC_RHS(2,iPartIndx) = LD_RHS(iPartIndx,2)
+    LD_DSMC_RHS(3,iPartIndx) = LD_RHS(iPartIndx,3)
 #endif
 
     iPartIndx = PEM%pNext(iPartIndx)

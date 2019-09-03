@@ -492,7 +492,7 @@ IF(DSMC%CalcQualityFactors) THEN
 END IF
 
 ! definition of DSMC particle values
-ALLOCATE(DSMC_RHS(PDM%maxParticleNumber,3))
+ALLOCATE(DSMC_RHS(1:3,1:PDM%maxParticleNumber))
 DSMC_RHS = 0
 
 IF (nSpecies.LE.0) THEN

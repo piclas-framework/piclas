@@ -717,10 +717,10 @@ IF (ReactionProb.GT.iRan) THEN
 #endif
   RelaxToDo = .FALSE.
 !enach = 0.5* Species(PartSpecies(PartReac1))%MassIC &
-!  * ((PartState(4,PartReac1)+DSMC_RHS(PartReac1,1))**2+(PartState(5,PartReac1) &
-!  +DSMC_RHS(PartReac1,2))**2+(PartState(6,PartReac1)+DSMC_RHS(PartReac1,3))**2) &
-!  + 0.5* Species(PartSpecies(iPart_p3))%MassIC* ((PartState(4,iPart_p3)+DSMC_RHS(iPart_p3,1))**2 &
-! +(PartState(iPart_p3,5)+DSMC_RHS(iPart_p3,2))**2+(PartState(6,iPart_p3)+DSMC_RHS(iPart_p3,3))**2) &
+!  * ((PartState(4,PartReac1)+DSMC_RHS(1,PartReac1))**2+(PartState(5,PartReac1) &
+!  +DSMC_RHS(2,PartReac1))**2+(PartState(6,PartReac1)+DSMC_RHS(3,PartReac1))**2) &
+!  + 0.5* Species(PartSpecies(iPart_p3))%MassIC* ((PartState(4,iPart_p3)+DSMC_RHS(1,iPart_p3))**2 &
+! +(PartState(iPart_p3,5)+DSMC_RHS(2,iPart_p3))**2+(PartState(6,iPart_p3)+DSMC_RHS(3,iPart_p3))**2) &
 !  + PartStateIntEn(PartReac1,3)
 !print*, evor, enach, evor-enach
 !read*

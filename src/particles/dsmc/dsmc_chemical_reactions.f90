@@ -886,9 +886,9 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RanVec(3)
 
     ! Determine right-hand side for the second product molecule (only required due to the push procedure in the timedisc)
-    DSMC_RHS(React2Inx,1) = VeloMx - FracMassCent1*RanVelox - PartState(4,React2Inx)
-    DSMC_RHS(React2Inx,2) = VeloMy - FracMassCent1*RanVeloy - PartState(5,React2Inx)
-    DSMC_RHS(React2Inx,3) = VeloMz - FracMassCent1*RanVeloz - PartState(6,React2Inx)
+    DSMC_RHS(1,React2Inx) = VeloMx - FracMassCent1*RanVelox - PartState(4,React2Inx)
+    DSMC_RHS(2,React2Inx) = VeloMy - FracMassCent1*RanVeloy - PartState(5,React2Inx)
+    DSMC_RHS(3,React2Inx) = VeloMz - FracMassCent1*RanVeloz - PartState(6,React2Inx)
 
 #ifdef CODE_ANALYZE
     Energy_new=0.5*Species(PartSpecies(React2Inx))%MassIC*((VeloMx - FracMassCent1*RanVelox)**2 &
@@ -927,15 +927,15 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RanVec(3)
 
     !deltaV particle 1
-    DSMC_RHS(React1Inx,1) = VxPseuMolec + FracMassCent2*RanVelox - PartState(4,React1Inx)
-    DSMC_RHS(React1Inx,2) = VyPseuMolec + FracMassCent2*RanVeloy - PartState(5,React1Inx)
-    DSMC_RHS(React1Inx,3) = VzPseuMolec + FracMassCent2*RanVeloz - PartState(6,React1Inx)
+    DSMC_RHS(1,React1Inx) = VxPseuMolec + FracMassCent2*RanVelox - PartState(4,React1Inx)
+    DSMC_RHS(2,React1Inx) = VyPseuMolec + FracMassCent2*RanVeloy - PartState(5,React1Inx)
+    DSMC_RHS(3,React1Inx) = VzPseuMolec + FracMassCent2*RanVeloz - PartState(6,React1Inx)
 
     !deltaV particle 3
     PartState(4:6,React3Inx) = 0.
-    DSMC_RHS(React3Inx,1) = VxPseuMolec - FracMassCent1*RanVelox
-    DSMC_RHS(React3Inx,2) = VyPseuMolec - FracMassCent1*RanVeloy
-    DSMC_RHS(React3Inx,3) = VzPseuMolec - FracMassCent1*RanVeloz
+    DSMC_RHS(1,React3Inx) = VxPseuMolec - FracMassCent1*RanVelox
+    DSMC_RHS(2,React3Inx) = VyPseuMolec - FracMassCent1*RanVeloy
+    DSMC_RHS(3,React3Inx) = VzPseuMolec - FracMassCent1*RanVeloz
 
 #ifdef CODE_ANALYZE
     ! New total energy
@@ -1010,14 +1010,14 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RanVec(3)
 
     !deltaV particle 1
-    DSMC_RHS(React1Inx,1) = VxPseuMolec + FracMassCent2*RanVelox - PartState(4,React1Inx)
-    DSMC_RHS(React1Inx,2) = VyPseuMolec + FracMassCent2*RanVeloy - PartState(5,React1Inx)
-    DSMC_RHS(React1Inx,3) = VzPseuMolec + FracMassCent2*RanVeloz - PartState(6,React1Inx)
+    DSMC_RHS(1,React1Inx) = VxPseuMolec + FracMassCent2*RanVelox - PartState(4,React1Inx)
+    DSMC_RHS(2,React1Inx) = VyPseuMolec + FracMassCent2*RanVeloy - PartState(5,React1Inx)
+    DSMC_RHS(3,React1Inx) = VzPseuMolec + FracMassCent2*RanVeloz - PartState(6,React1Inx)
                                                                                         
     !deltaV particle 2                                                                  
-    DSMC_RHS(React2Inx,1) = VxPseuMolec - FracMassCent1*RanVelox - PartState(4,React2Inx)
-    DSMC_RHS(React2Inx,2) = VyPseuMolec - FracMassCent1*RanVeloy - PartState(5,React2Inx)
-    DSMC_RHS(React2Inx,3) = VzPseuMolec - FracMassCent1*RanVeloz - PartState(6,React2Inx)
+    DSMC_RHS(1,React2Inx) = VxPseuMolec - FracMassCent1*RanVelox - PartState(4,React2Inx)
+    DSMC_RHS(2,React2Inx) = VyPseuMolec - FracMassCent1*RanVeloy - PartState(5,React2Inx)
+    DSMC_RHS(3,React2Inx) = VzPseuMolec - FracMassCent1*RanVeloz - PartState(6,React2Inx)
 
 #ifdef CODE_ANALYZE
     ! New total energy of remaining products (here, recombination: 2 products)
@@ -1129,13 +1129,13 @@ SUBROUTINE simpleCEX(iReac, iPair, resetRHS_opt)
 
   IF (resetRHS) THEN
     ! deltaV particle 1
-    DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = 0.
-    DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = 0.
-    DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = 0.
+    DSMC_RHS(1,Coll_pData(iPair)%iPart_p1) = 0.
+    DSMC_RHS(2,Coll_pData(iPair)%iPart_p1) = 0.
+    DSMC_RHS(3,Coll_pData(iPair)%iPart_p1) = 0.
     ! deltaV particle 2
-    DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = 0.
-    DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = 0.
-    DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = 0.
+    DSMC_RHS(1,Coll_pData(iPair)%iPart_p2) = 0.
+    DSMC_RHS(2,Coll_pData(iPair)%iPart_p2) = 0.
+    DSMC_RHS(3,Coll_pData(iPair)%iPart_p2) = 0.
   END IF
 
 END SUBROUTINE simpleCEX

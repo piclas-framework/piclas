@@ -206,7 +206,7 @@ __STAMP__&
   ALLOCATE(PartStateBulkValues(PDM%maxParticleNumber,5))
   ALLOCATE(LD_RHS(PDM%maxParticleNumber,3))
   LD_RHS = 0.0
-  ALLOCATE(LD_DSMC_RHS(PDM%maxParticleNumber,3))
+  ALLOCATE(LD_DSMC_RHS(1:3,1:PDM%maxParticleNumber))
   LD_DSMC_RHS = 0.0
 
 ! Set Particle Bulk Values

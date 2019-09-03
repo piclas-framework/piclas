@@ -481,18 +481,18 @@ IF (nRelax.GT.0) THEN
   DO iLoop = 1, nRelax
     IF ((BGKCollModel.EQ.1).AND.(ESBGKModel.NE.3)) THEN
       tempVelo(1:3) = SQRT(BoltzmannConst*CellTemp/Species(1)%MassIC)*iRanPart(1:3,iLoop)
-      DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3) = vBulkAll(1:3) + MATMUL(SMat,tempVelo)
+      DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) = vBulkAll(1:3) + MATMUL(SMat,tempVelo)
     ELSE
       IF ((SBGKEnergyConsMethod.EQ.2).AND.(nRelax.GT.2)) THEN
-        DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3) = vBulkRelaxOld(1:3) &
+        DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) = vBulkRelaxOld(1:3) &
           + SQRT(BoltzmannConst*CellTemp/Species(1)%MassIC)*iRanPart(1:3,iLoop)
       ELSE
-        DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3) = vBulkAll(1:3) &
+        DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) = vBulkAll(1:3) &
           + SQRT(BoltzmannConst*CellTemp/Species(1)%MassIC)*iRanPart(1:3,iLoop)
       END IF
     END IF
     partWeight = GetParticleWeight(iPartIndx_NodeRelax(iLoop))
-    vBulkRelax(1:3) = vBulkRelax(1:3) + DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3) * partWeight
+    vBulkRelax(1:3) = vBulkRelax(1:3) + DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) * partWeight
     totalWeightRelax = totalWeightRelax + partWeight
   END DO
 END IF ! nRelax.GT.0
@@ -508,13 +508,13 @@ END IF
 IF ((SBGKEnergyConsMethod.EQ.2).AND.(nRelax.GT.2)) THEN
   DO iLoop = 1, nRelax
     partWeight = GetParticleWeight(iPartIndx_NodeRelax(iLoop))
-    V_rel(1:3) = DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3) - vBulkRelax(1:3)
+    V_rel(1:3) = DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) - vBulkRelax(1:3)
     NewEn = NewEn + (V_rel(1)**2. + V_rel(2)**2. + V_rel(3)**2.)*0.5*Species(1)%MassIC*partWeight
   END DO
 ELSE
   DO iLoop = 1, nRelax
     partWeight = GetParticleWeight(iPartIndx_NodeRelax(iLoop))
-    V_rel(1:3) = DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3) - vBulk(1:3)
+    V_rel(1:3) = DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) - vBulk(1:3)
     NewEn = NewEn + (V_rel(1)**2. + V_rel(2)**2. + V_rel(3)**2.)*0.5*Species(1)%MassIC*partWeight
   END DO
   DO iLoop = 1, nPart-nRelax
@@ -610,18 +610,18 @@ OldEn = OldEn + OldEnRot
 IF ((SBGKEnergyConsMethod.EQ.2).AND.(nRelax.GT.2)) THEN
   alpha = SQRT(OldEn/NewEn*(3.*(nRelax-1.))/(Xi_rot*nRotRelax+3.*(nRelax-1.)))
   DO iLoop = 1, nRelax
-    DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3) = vBulkRelaxOld(1:3) &
-                        + alpha*(DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3)-vBulkRelax(1:3)) &
+    DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) = vBulkRelaxOld(1:3) &
+                        + alpha*(DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop))-vBulkRelax(1:3)) &
                         - PartState(4:6,iPartIndx_NodeRelax(iLoop))
   END DO
 ELSE
   alpha = SQRT(OldEn/NewEn*(3.*(nPart-1.))/(Xi_rot*nRotRelax+3.*(nPart-1.)))
   DO iLoop = 1, nRelax
-    DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3) = vBulkAll(1:3) + alpha*(DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3)-vBulk(1:3)) &
+    DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) = vBulkAll(1:3) + alpha*(DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop))-vBulk(1:3)) &
                         - PartState(4:6,iPartIndx_NodeRelax(iLoop))
   END DO
   DO iLoop = 1, nPart-nRelax
-    DSMC_RHS(iPartIndx_NodeRelaxTemp(iLoop),1:3) = vBulkAll(1:3) &
+    DSMC_RHS(1:3,iPartIndx_NodeRelaxTemp(iLoop)) = vBulkAll(1:3) &
                         + alpha*(PartState(4:6,iPartIndx_NodeRelaxTemp(iLoop))-vBulk(1:3)) &
                         - PartState(4:6,iPartIndx_NodeRelaxTemp(iLoop))
   END DO
@@ -637,11 +637,11 @@ END DO
 #ifdef CODE_ANALYZE
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
-  Momentum_new(1:3) = Momentum_new(1:3) + (DSMC_RHS(iPartIndx_Node(iLoop),1:3) + PartState(4:6,iPartIndx_Node(iLoop)))*partWeight
+  Momentum_new(1:3) = Momentum_new(1:3) + (DSMC_RHS(1:3,iPartIndx_Node(iLoop)) + PartState(4:6,iPartIndx_Node(iLoop)))*partWeight
   Energy_new = Energy_new &
-          + ((DSMC_RHS(iPartIndx_Node(iLoop),1) + PartState(4,iPartIndx_Node(iLoop)))**2. &
-          +  (DSMC_RHS(iPartIndx_Node(iLoop),2) + PartState(5,iPartIndx_Node(iLoop)))**2. &
-          +  (DSMC_RHS(iPartIndx_Node(iLoop),3) + PartState(6,iPartIndx_Node(iLoop)))**2.)*0.5*Species(1)%MassIC*partWeight
+          + ((DSMC_RHS(1,iPartIndx_Node(iLoop)) + PartState(4,iPartIndx_Node(iLoop)))**2. &
+          +  (DSMC_RHS(2,iPartIndx_Node(iLoop)) + PartState(5,iPartIndx_Node(iLoop)))**2. &
+          +  (DSMC_RHS(3,iPartIndx_Node(iLoop)) + PartState(6,iPartIndx_Node(iLoop)))**2.)*0.5*Species(1)%MassIC*partWeight
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     Energy_new = Energy_new + (PartStateIntEn(iPartIndx_Node(iLoop),1) + PartStateIntEn(iPartIndx_Node(iLoop),2))*partWeight
   END IF

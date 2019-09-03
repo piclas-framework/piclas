@@ -91,9 +91,9 @@ REAL              :: tLBStart
 !===================================================================================================================================
 
 IF(.NOT.PRESENT(DoElement)) THEN
-  DSMC_RHS(1:PDM%ParticleVecLength,1) = 0
-  DSMC_RHS(1:PDM%ParticleVecLength,2) = 0
-  DSMC_RHS(1:PDM%ParticleVecLength,3) = 0
+  DSMC_RHS(1,1:PDM%ParticleVecLength) = 0
+  DSMC_RHS(2,1:PDM%ParticleVecLength) = 0
+  DSMC_RHS(3,1:PDM%ParticleVecLength) = 0
 END IF
 DSMCSumOfFormedParticles = 0
 
@@ -250,9 +250,9 @@ DO iElem = 1, nElems ! element/cell main loop
       END IF
     END IF
 #else /* --- LD-DSMC? */
-    LD_DSMC_RHS(1:PDM%ParticleVecLength,1) = DSMC_RHS(1:PDM%ParticleVecLength,1)
-    LD_DSMC_RHS(1:PDM%ParticleVecLength,2) = DSMC_RHS(1:PDM%ParticleVecLength,2)
-    LD_DSMC_RHS(1:PDM%ParticleVecLength,3) = DSMC_RHS(1:PDM%ParticleVecLength,3)
+    LD_DSMC_RHS(1,1:PDM%ParticleVecLength) = DSMC_RHS(1,1:PDM%ParticleVecLength)
+    LD_DSMC_RHS(2,1:PDM%ParticleVecLength) = DSMC_RHS(2,1:PDM%ParticleVecLength)
+    LD_DSMC_RHS(3,1:PDM%ParticleVecLength) = DSMC_RHS(3,1:PDM%ParticleVecLength)
 #endif /* --- END LD-DSMC? */
 END SUBROUTINE DSMC_main
 

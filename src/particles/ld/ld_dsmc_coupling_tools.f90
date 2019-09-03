@@ -138,9 +138,9 @@ DO iElem = 1, nElems
       PEM%Element(iCloneIndx) = PEM%Element(iPartIndx)
       PDM%ParticleInside(iCloneIndx) = .TRUE.
       PartSpecies(iCloneIndx) = PartSpecies(iPartIndx)
-      LD_DSMC_RHS(iCloneIndx,1)=0.0
-      LD_DSMC_RHS(iCloneIndx,2)=0.0
-      LD_DSMC_RHS(iCloneIndx,3)=0.0
+      LD_DSMC_RHS(1,iCloneIndx)=0.0
+      LD_DSMC_RHS(2,iCloneIndx)=0.0
+      LD_DSMC_RHS(3,iCloneIndx)=0.0
       IF (usevMPF) THEN
         PartMPF(iCloneIndx) = PartMPF(iPartIndx)
       END IF
@@ -195,9 +195,9 @@ DO iElem = 1, nElems
       PEM%Element(iCloneIndx) = PEM%Element(iPartIndx)
       PDM%ParticleInside(iCloneIndx) = .TRUE.
       PartSpecies(iCloneIndx) = PartSpecies(iPartIndx)
-      LD_DSMC_RHS(iCloneIndx,1)=0.0
-      LD_DSMC_RHS(iCloneIndx,2)=0.0
-      LD_DSMC_RHS(iCloneIndx,3)=0.0
+      LD_DSMC_RHS(1,iCloneIndx)=0.0
+      LD_DSMC_RHS(2,iCloneIndx)=0.0
+      LD_DSMC_RHS(3,iCloneIndx)=0.0
       IF (usevMPF) THEN
         PartMPF(iCloneIndx) = PartMPF(iPartIndx)
       END IF
