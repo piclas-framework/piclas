@@ -46,10 +46,10 @@ SUBROUTINE DSMC_main(DoElement)
   USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
   USE MOD_Mesh_Vars,             ONLY : nElems
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-  USE MOD_DSMC_Vars,             ONLY : ChemReac, SpecDSMC
+  USE MOD_DSMC_Vars,             ONLY : ChemReac, SpecDSMC, VarVibRelaxProb
   USE MOD_DSMC_Analyze,          ONLY : CalcMeanFreePath
   USE MOD_DSMC_SteadyState,      ONLY : QCrit_evaluation, SteadyStateDetection_main
-  USE MOD_Particle_Vars,         ONLY : PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D
+  USE MOD_Particle_Vars,         ONLY : PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D, PartSpecies
   USE MOD_Particle_Mesh_Vars,    ONLY : GEO
   USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
   USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib, &
@@ -57,7 +57,7 @@ SUBROUTINE DSMC_main(DoElement)
   USE MOD_DSMC_Relaxation,       ONLY : SetMeanVibQua
   USE MOD_DSMC_ParticlePairing,  ONLY : DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
   USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
-  USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
+  USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision, DSMC_calc_var_P_vib
   USE MOD_Particle_Vars,         ONLY : KeepWallParticles
 #if (PP_TimeDiscMethod==1001)
 USE MOD_LD_Vars               ,ONLY: BulkValues, LD_DSMC_RHS
@@ -81,8 +81,8 @@ LOGICAL,OPTIONAL  :: DoElement(nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER           :: iElem, nPart, nPair, iPair
-  REAL              :: iRan
+  INTEGER           :: iElem, nPart, nPair, iPair, cSpec1, cSpec2, iSpec
+  REAL              :: iRan, VibProb
 #if (PP_TimeDiscMethod!=1001)
 INTEGER           :: nOutput
 #endif
@@ -149,6 +149,27 @@ DO iElem = 1, nElems ! element/cell main loop
         nPair = INT(nPart/2)
 
         DO iPair = 1, nPair
+          ! variable vibrational relaxation probability has to average of all collisions
+          IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+            cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
+            cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
+            IF((SpecDSMC(cSpec1)%InterID.EQ.2).OR.(SpecDSMC(cSpec1)%InterID.EQ.20)) THEN
+              CALL DSMC_calc_var_P_vib(cSpec1,cSpec2,iPair,VibProb)
+              VarVibRelaxProb%ProbVibAvNew(cSpec1) = VarVibRelaxProb%ProbVibAvNew(cSpec1) + VibProb
+              VarVibRelaxProb%nCollis(cSpec1) = VarVibRelaxProb%nCollis(cSpec1) + 1
+              IF(DSMC%CalcQualityFactors) THEN
+                DSMC%CalcVibProb(cSpec1,2) = MAX(DSMC%CalcVibProb(cSpec1,2),VibProb)
+              END IF
+            END IF
+            IF((SpecDSMC(cSpec2)%InterID.EQ.2).OR.(SpecDSMC(cSpec2)%InterID.EQ.20)) THEN
+              CALL DSMC_calc_var_P_vib(cSpec2,cSpec1,iPair,VibProb)
+              VarVibRelaxProb%ProbVibAvNew(cSpec2) = VarVibRelaxProb%ProbVibAvNew(cSpec2) + VibProb
+              VarVibRelaxProb%nCollis(cSpec2) = VarVibRelaxProb%nCollis(cSpec2) + 1
+              IF(DSMC%CalcQualityFactors) THEN
+                DSMC%CalcVibProb(cSpec2,2) = MAX(DSMC%CalcVibProb(cSpec2,2),VibProb)
+              END IF
+            END IF
+          END IF
           IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
             CALL DSMC_prob_calc(iElem, iPair)
             CALL RANDOM_NUMBER(iRan)
@@ -176,7 +197,17 @@ DO iElem = 1, nElems ! element/cell main loop
           END IF
         END IF
         DEALLOCATE(Coll_pData)
-      END IF                                                                                     ! end no octree
+        IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+          DO iSpec=1,nSpecies
+            IF(VarVibRelaxProb%nCollis(iSpec).NE.0) THEN ! Calc new vibrational relaxation probability
+              VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VarVibRelaxProb%ProbVibAv(iElem,iSpec) &
+                                                     * VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec)) &
+                                                     + (1.-VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec))) &
+                                                     / (VarVibRelaxProb%nCollis(iSpec)) * VarVibRelaxProb%ProbVibAvNew(iSpec)
+            END IF
+          END DO
+        END IF
+      END IF ! end no octree
       IF(DSMC%CalcQualityFactors) THEN
         IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
             ! mean collision probability of all collision pairs
