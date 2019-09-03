@@ -3527,10 +3527,10 @@ DO iStage=2,nRKStages
       ! compute particle RHS at time^n
       IF(PartLorentzType.EQ.5)THEN
         LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+        CALL PartRHS(iPart,FieldAtParticle_loc(1:6),Pt(iPart,1:3),LorentzFacInv)
       ELSE
         LorentzFacInv = 1.0
-        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+        CALL PartRHS(iPart,FieldAtParticle_loc(1:6),Pt(iPart,1:3))
       END IF ! PartLorentzType.EQ.5
       ! compute current Pt_tmp for the particle
       Pt_tmp(1) = LorentzFacInv*PartState(iPart,4)
