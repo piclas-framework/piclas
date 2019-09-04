@@ -161,7 +161,7 @@ DO iPart = 1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     IF(PUSHPARTICLE(iPart))THEN
       CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
-      continue
+      CYCLE
     END IF ! PUSHPARTICLE(iPart)
   END IF ! PDM%ParticleInside(iPart)
   Pt(iPart,:)=0.
