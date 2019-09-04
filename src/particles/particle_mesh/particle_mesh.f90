@@ -6659,8 +6659,8 @@ IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velo
       IF (ManualTimeStep.EQ.0.0) THEN
          CALL abort(&
 __STAMP__&
-, 'ManualTimeStep.EQ.0.0 -> ManualTimeStep needs to be defined for Macorparticles! & 
-Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
+, 'ManualTimeStep.EQ.0.0 -> ManualTimeStep needs to be defined for Macorparticles!'// &
+' Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
       ELSE
         dtLocal=ManualTimeStep
       END IF
