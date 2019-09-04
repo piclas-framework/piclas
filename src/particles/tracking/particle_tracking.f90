@@ -48,8 +48,8 @@ PUBLIC::ParticleCollectCharges
 PUBLIC::ParticleSanityCheck
 
 TYPE,PUBLIC :: tIntersectLink
-  REAL                          :: alpha=1.0
-  REAL                          :: alpha2=1.0
+  REAL                          :: alpha=HUGE(1.)
+  REAL                          :: alpha2=HUGE(1.)
   REAL                          :: xi=-1
   REAL                          :: eta=-1
   INTEGER                       :: Side=0
@@ -673,30 +673,34 @@ DO iPart=1,PDM%ParticleVecLength
         currentIntersect => lastIntersect%prev
         IF (currentIntersect%IntersectCase.EQ.1) THEN
           iLocSide=currentIntersect%Side
-          CALL ComputeBiLinearIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,iLocSide &
+          SideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+          CALL ComputeBiLinearIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID &
               ,alpha2=currentIntersect%alpha)
-          currentIntersect%alpha=1.0
+          currentIntersect%alpha=HUGE(1.)
           currentIntersect%IntersectCase=0
           IF(foundHit) THEN
             CALL AssignListPosition(currentIntersect,locAlpha,iLocSide,1,xi_IN=xi,eta_IN=eta)
             IF((ABS(xi).GE.0.99).OR.(ABS(eta).GE.0.99)) markTol=.TRUE.
-            IF(ALMOSTZERO(locAlpha)) markTol=.TRUE.
+            !IF(ALMOSTZERO(locAlpha)) markTol=.TRUE.
             !IF(locAlpha/lengthPartTrajectory.GE.0.99 .OR. locAlpha/lengthPartTrajectory.LT.0.01) markTol=.TRUE.
           END IF
         ELSE IF (currentIntersect%IntersectCase.EQ.3) THEN
           iMP = currentIntersect%Side
           CALL ComputeMacroPartIntersection(foundHit,PartTrajectory,lengthPartTrajectory,iMP&
               ,locAlpha,locAlphaSphere,alphaDoneRel,iPart,alpha2=currentIntersect%alpha)
-          currentIntersect%alpha=1.0
+          currentIntersect%alpha=HUGE(1.)
           currentIntersect%IntersectCase=0
           IF(foundHit) CALL AssignListPosition(currentIntersect,locAlpha,iMP,3,alpha2_IN=locAlphaSphere)
         END IF
         ! if double check found no intersection reset entry in list and adjust lastentry pointer
         IF (.NOT.foundHit) THEN
-          currentIntersect%alpha = 1.0
+          currentIntersect%alpha = HUGE(1.)
           currentIntersect%intersectCase = 0
-          lastIntersect => currentIntersect
-          lastIntersect%prev => currentIntersect%prev%prev
+          IF (ASSOCIATED(currentIntersect%prev) .AND. .NOT.ASSOCIATED(currentIntersect%prev,firstIntersect)) THEN
+            lastIntersect => currentIntersect
+            !lastIntersect%prev => currentIntersect%prev%prev
+            lastIntersect%prev => currentIntersect%prev
+          END IF
         END IF
 
       ELSE ! NOT PartDoubleCheck
@@ -770,7 +774,7 @@ __STAMP__ &
             lastIntersect => currentIntersect%next
             lastIntersect%prev => currentIntersect
             IF((ABS(xi).GE.0.99).OR.(ABS(eta).GE.0.99)) markTol=.TRUE.
-            IF(ALMOSTZERO(locAlpha)) markTol=.TRUE.
+            !IF(ALMOSTZERO(locAlpha)) markTol=.TRUE.
             !IF(locAlpha/lengthPartTrajectory.GE.0.99 .OR. locAlpha/lengthPartTrajectory.LT.0.01) markTol=.TRUE.
           END IF
         END DO ! ilocSide
@@ -870,11 +874,12 @@ __STAMP__ &
           !------------------------------------
             SideID=PartElemToSide(E2S_SIDE_ID,currentIntersect%Side,ElemID)
             flip  =PartElemToSide(E2S_FLIP,currentIntersect%Side,ElemID)
-            OldElemID=ElemID
             CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,currentIntersect%Side,currentIntersect%Side &
                 ,PartTrajectory,lengthPartTrajectory,currentIntersect%xi,currentIntersect%eta,currentIntersect%alpha,iPart &
                 ,SideID,SideType(SideID),ElemID)
-            IF (ElemID.NE.OldElemID) SwitchedElement=.TRUE.
+            IF (ElemID.NE.OldElemID) THEN
+              IF (.NOT.crossedBC) SwitchedElement=.TRUE.
+            END IF
           !------------------------------------
           CASE(2) ! AuxBC intersection
           !------------------------------------
@@ -946,7 +951,7 @@ __STAMP__ &
           moveList=.FALSE.
           SELECT CASE (currentIntersect%intersectCase)
           CASE(1)
-            SideID=PartElemToSide(E2S_SIDE_ID,currentIntersect%Side,ElemID)
+            SideID=PartElemToSide(E2S_SIDE_ID,currentIntersect%Side,OldElemID)
             SELECT CASE(SideType(SideID))
             CASE(BILINEAR,PLANAR_NONRECT)
               moveList=.TRUE.
@@ -1012,7 +1017,7 @@ __STAMP__ &
       currentIntersect=>firstIntersect
       IF (currentIntersect%intersectCase.GT.0 .AND. .NOT.PartDoubleCheck)THEN
         DO WHILE (ASSOCIATED(currentIntersect))
-          currentIntersect%alpha = 1.0
+          currentIntersect%alpha = HUGE(1.)
           currentIntersect%intersectCase = 0
           IF(ASSOCIATED(currentIntersect,lastIntersect)) THEN
             lastIntersect => firstIntersect%next
