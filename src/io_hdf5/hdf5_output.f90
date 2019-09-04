@@ -406,11 +406,17 @@ SUBROUTINE ModifyElemData(mode)
 !> Modify ElemData fields before/after WriteAdditionalElemData() is called
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: abort
-USE MOD_TimeDisc_Vars          ,ONLY: Time
-USE MOD_Restart_Vars           ,ONLY: RestartTime
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCouplSpec
-USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_TimeDisc_Vars         ,ONLY: Time
+USE MOD_Restart_Vars          ,ONLY: RestartTime
+#ifdef PARTICLES
+USE MOD_Globals               ,ONLY: abort,mpiroot
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcCoupledPower,PCouplSpec
+USE MOD_Particle_Vars         ,ONLY: nSpecies,PDM,PEM,PartSpecies,Species
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+#endif /*PARTICLES*/
+#if USE_MPI
+USE MOD_Globals
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -421,8 +427,11 @@ INTEGER,INTENT(IN) :: mode ! 1: before WriteAdditionalElemData() is called
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL              :: timediff
-INTEGER           :: iSpec
+#ifdef PARTICLES
+REAL          :: timediff,PTotal(1:nSpecies),SumPTotal(1:nSpecies)
+INTEGER       :: iSpec,iElem,iPart
+CHARACTER(5) :: hilf
+#endif /*PARTICLES*/
 !===================================================================================================================================
 
 IF(ABS(Time-RestartTime).LE.0.0) RETURN
@@ -439,12 +448,12 @@ ELSE
 END IF ! mode.EQ.1
 
 ! Set coupled power to particles if output of coupled power is active
-IF (CalcCoupledPower) THEN
-  IF(timediff.GT.0.)THEN
-    DO iSpec = 1, nSpecies
+IF (CalcCoupledPower.AND.(timediff.GT.0.)) THEN
+  DO iSpec = 1, nSpecies
+    IF(ABS(Species(iSpec)%ChargeIC).GT.0.0)THEN
       PCouplSpec(iSpec)%DensityAvgElem = PCouplSpec(iSpec)%DensityAvgElem * timediff
-    END DO ! iSpec = 1, nSpecies
-  END IF ! timediff.GT.0.
+    END IF
+  END DO
 END IF
 #endif /*PARTICLES*/
 
