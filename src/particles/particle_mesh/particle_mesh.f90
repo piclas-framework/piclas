@@ -1513,9 +1513,6 @@ END IF
 ! check connectivity of particle mesh
 CALL ElemConnectivity()
 
-#if (PP_TimeDiscMethod==1001)
-FindNeighbourElems = .TRUE.
-#endif
 IF (FindNeighbourElems) THEN
   ! build node conectivity of particle mesh
   IF(PartMPI%MPIROOT)THEN
@@ -1710,7 +1707,7 @@ ELSE
   deltaT=ManualTimeStep
 END IF
 IF (halo_eps_velo.EQ.0) halo_eps_velo = c
-#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==1000)
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42)
 IF (halo_eps_velo.EQ.c) THEN
    CALL abort(&
 __STAMP__&

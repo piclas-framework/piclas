@@ -248,10 +248,6 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LSERK4-14, Poisson'
 #elif (PP_TimeDiscMethod==509)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Leapfrog, Poisson'
-#elif (PP_TimeDiscMethod==1000)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LD-Only'
-#elif (PP_TimeDiscMethod==1001)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LD-DSMC'
 # endif
 RKdtFrac=1.
 RKdtFracTotal=1.
@@ -641,10 +637,6 @@ DO !iter_t=0,MaxIter
   __STAMP__&
   ,'Timedisc 50x only available for EQNSYS Poisson!',PP_N,999.)
 #endif /*USE_HDG*/
-#elif (PP_TimeDiscMethod==1000)
-  CALL TimeStep_LD()
-#elif (PP_TimeDiscMethod==1001)
-  CALL TimeStep_LD_DSMC()
 #endif
   ! calling the analyze routines
   iter=iter+1
@@ -5059,170 +5051,6 @@ END SUBROUTINE TimeStepPoissonByLSERK
 #endif /*(PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)*/
 #endif /*USE_HDG*/
 
-#if (PP_TimeDiscMethod==1000)
-SUBROUTINE TimeStep_LD()
-!===================================================================================================================================
-! Low Diffusion Method (Mirza 2013)
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_TimeDisc_Vars,          ONLY:dt
-#ifdef PARTICLES
-USE MOD_Particle_Vars,          ONLY:PartState, LastPartPos, PDM,PEM
-USE MOD_LD_Vars,                ONLY:LD_RHS
-USE MOD_LD,                     ONLY:LD_main
-USE MOD_part_tools,             ONLY:UpdateNextFreePosition
-USE MOD_part_emission,          ONLY:ParticleInserting
-USE MOD_Particle_Tracking_Vars, ONLY:tTracking,tLocalization,MeasureTrackTime
-USE MOD_Particle_Tracking,      ONLY:ParticleRefTracking
-#if USE_MPI
-USE MOD_Particle_MPI,           ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfParticles
-#endif /*USE_MPI*/
-#endif /*PARTICLES*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                  :: timeStart, timeEnd
-!===================================================================================================================================
-
-  CALL LD_main()
-  LastPartPos(1,1:PDM%ParticleVecLength)=PartState(1,1:PDM%ParticleVecLength)
-  LastPartPos(2,1:PDM%ParticleVecLength)=PartState(2,1:PDM%ParticleVecLength)
-  LastPartPos(3,1:PDM%ParticleVecLength)=PartState(3,1:PDM%ParticleVecLength)
-  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-
-  PartState(4,1:PDM%ParticleVecLength) = PartState(4,1:PDM%ParticleVecLength) + LD_RHS(1:PDM%ParticleVecLength,1)
-  PartState(5,1:PDM%ParticleVecLength) = PartState(5,1:PDM%ParticleVecLength) + LD_RHS(1:PDM%ParticleVecLength,2)
-  PartState(6,1:PDM%ParticleVecLength) = PartState(6,1:PDM%ParticleVecLength) + LD_RHS(1:PDM%ParticleVecLength,3)
-  PartState(1,1:PDM%ParticleVecLength) = PartState(1,1:PDM%ParticleVecLength) + PartState(4,1:PDM%ParticleVecLength) * dt
-  PartState(2,1:PDM%ParticleVecLength) = PartState(2,1:PDM%ParticleVecLength) + PartState(5,1:PDM%ParticleVecLength) * dt
-  PartState(3,1:PDM%ParticleVecLength) = PartState(3,1:PDM%ParticleVecLength) + PartState(6,1:PDM%ParticleVecLength) * dt
-
-
-#if USE_MPI
-  CALL IRecvNbofParticles()
-#endif /*USE_MPI*/
-  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
-  CALL ParticleRefTracking()
-  IF(MeasureTrackTime) THEN
-    CALL CPU_TIME(TimeEnd)
-    tTracking=tTracking+TimeEnd-TimeStart
-  END IF
-#if USE_MPI
-  CALL SendNbOfParticles()
-  CALL MPIParticleSend()
-  CALL MPIParticleRecv()
-#endif
-
-  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
-  CALL ParticleInserting()
-  IF(MeasureTrackTime) THEN
-    CALL CPU_TIME(TimeEnd)
-    tLocalization=tLocalization+TimeEnd-TimeStart
-  END IF
-  CALL UpdateNextFreePosition()
-
-END SUBROUTINE TimeStep_LD
-#endif
-
-#if (PP_TimeDiscMethod==1001)
-SUBROUTINE TimeStep_LD_DSMC()
-!===================================================================================================================================
-! Low Diffusion Method (Mirza 2013)
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_TimeDisc_Vars,    ONLY: dt, iter, TEnd, time
-#ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos,  PDM,PEM, WriteMacroVolumeValues
-USE MOD_LD_Vars,          ONLY : LD_DSMC_RHS
-USE MOD_LD,               ONLY : LD_main
-USE MOD_DSMC,             ONLY : DSMC_main
-!USE MOD_LD_DSMC_TOOLS
-USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-USE MOD_part_emission,    ONLY : ParticleInserting
-USE MOD_DSMC_Vars,        ONLY : DSMC
-USE MOD_LD_DSMC_DOMAIN_DEC
-USE MOD_Particle_Tracking_Vars, ONLY:tTracking,tLocalization,MeasureTrackTime
-USE MOD_Particle_Tracking,      ONLY:ParticleRefTracking
-#endif
-#if USE_MPI
-USE MOD_Particle_MPI,           ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfParticles
-#endif
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  INTEGER           :: nOutput
-  REAL              :: timeStart, timeEnd
-!===================================================================================================================================
-
-  IF(iter.EQ. 0.0) CALL LD_DSMC_DOMAIN_DECOMPOSITION
-
-  LD_DSMC_RHS(1,1:PDM%ParticleVecLength) = 0
-  LD_DSMC_RHS(2,1:PDM%ParticleVecLength) = 0
-  LD_DSMC_RHS(3,1:PDM%ParticleVecLength) = 0
-  CALL LD_DSMC_Indicate_DSMC_Particles
-  CALL DSMC_main() ! first dsmc then ld due to RHS-calculation!
-  CALL LD_main()
-! ----- Start Analyze Particles
-  IF (.NOT.WriteMacroVolumeValues) THEN
-    IF(time.ge.(1-DSMC%TimeFracSamp)*TEnd) THEN
-      CALL LD_DSMC_data_sampling()  ! Data sampling for output
-      IF(DSMC%NumOutput.NE.0) THEN
-        nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
-        IF(time.ge.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
-          DSMC%NumOutput = DSMC%NumOutput - 1
-          CALL LD_DSMC_output_calc()
-        END IF
-      END IF
-    END IF
-  END IF
-! ----- End Analyze Particles
-  CALL LD_DSMC_Clone_Particles
-  LastPartPos(1,1:PDM%ParticleVecLength)=PartState(1,1:PDM%ParticleVecLength)
-  LastPartPos(2,1:PDM%ParticleVecLength)=PartState(2,1:PDM%ParticleVecLength)
-  LastPartPos(3,1:PDM%ParticleVecLength)=PartState(3,1:PDM%ParticleVecLength)
-  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-
-  PartState(4,1:PDM%ParticleVecLength) = PartState(4,1:PDM%ParticleVecLength) + LD_DSMC_RHS(1,1:PDM%ParticleVecLength)
-  PartState(5,1:PDM%ParticleVecLength) = PartState(5,1:PDM%ParticleVecLength) + LD_DSMC_RHS(2,1:PDM%ParticleVecLength)
-  PartState(6,1:PDM%ParticleVecLength) = PartState(6,1:PDM%ParticleVecLength) + LD_DSMC_RHS(3,1:PDM%ParticleVecLength)
-  PartState(1,1:PDM%ParticleVecLength) = PartState(1,1:PDM%ParticleVecLength) + PartState(4,1:PDM%ParticleVecLength) * dt
-  PartState(2,1:PDM%ParticleVecLength) = PartState(2,1:PDM%ParticleVecLength) + PartState(5,1:PDM%ParticleVecLength) * dt
-  PartState(3,1:PDM%ParticleVecLength) = PartState(3,1:PDM%ParticleVecLength) + PartState(6,1:PDM%ParticleVecLength) * dt
-#if USE_MPI
-  CALL IRecvNbofParticles()
-#endif /*USE_MPI*/
-  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
-  CALL ParticleRefTracking()
-  IF(MeasureTrackTime) THEN
-    CALL CPU_TIME(TimeEnd)
-    tTracking=tTracking+TimeEnd-TimeStart
-  END IF
-#if USE_MPI
-  CALL SendNbOfParticles()
-  CALL MPIParticleSend()
-  CALL MPIParticleRecv()
-#endif
-
-  CALL LD_DSMC_Clean_Bufferregion
-
-  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
-  CALL ParticleInserting()
-  IF(MeasureTrackTime) THEN
-    CALL CPU_TIME(TimeEnd)
-    tLocalization=tLocalization+TimeEnd-TimeStart
-  END IF
-  CALL UpdateNextFreePosition()
-
-END SUBROUTINE TimeStep_LD_DSMC
-#endif
 
 SUBROUTINE FillCFL_DFL()
 !===================================================================================================================================

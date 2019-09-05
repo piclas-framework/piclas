@@ -296,7 +296,6 @@ CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
                                 ' - cylinder \n'//&
                                 ' - cuboid_vpi \n'//&
                                 ' - cylinder_vpi \n'//&
-                                ' - LD_insert \n'//&
                                 ' - cell_local \n'//&
                                 ' - cuboid_equal \n'//&
                                 ' - cuboid_with_equidistant_distribution \n'//&
@@ -393,8 +392,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-ConstPressureRelaxFac' &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartDensity' &
                                 , 'Define particle density for species [$]. PartDensity (real particles per m^3).\n'//&
-                                  'Used for DSMC with (vpi_)cuboid/cylinder and cell_local initial inserting.\n'// &
-                                  'Also for LD_insert or (vpi_)cub./cyl. / cell_local as alternative to Part.Emis. in Type1', '0.'&
+                                  'Used for DSMC with (vpi_)cuboid/cylinder and cell_local initial inserting.', '0.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-ParticleEmissionType'  &
                                 , 'Define Emission Type for particles (volume emission)\n'//&
@@ -602,7 +600,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ConstPressureRelaxFac' 
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-PartDensity' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'PartDensity (real particles per m^3) for LD_insert or (vpi_)cub./cyl. '//&
+                                  'PartDensity (real particles per m^3) or (vpi_)cub./cyl. '//&
                                   'as alternative to Part.Emis. in Type1 ', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-ParticleEmissionType'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -964,8 +962,6 @@ USE MOD_part_emission              ,ONLY: InitializeParticleEmission,AdaptiveBCA
 USE MOD_surface_flux               ,ONLY: InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze               ,ONLY: InitHODSMC
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
-USE MOD_LD_Init                    ,ONLY: InitLD
-USE MOD_LD_Vars                    ,ONLY: useLD
 USE MOD_DSMC_Vars                  ,ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
 USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
 USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
@@ -1042,8 +1038,7 @@ END IF
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
 IF (useDSMC) THEN
-  CALL  InitDSMC()
-  IF (useLD) CALL InitLD
+  CALL InitDSMC()
   CALL InitSurfaceModel()
 #if (PP_TimeDiscMethod==300)
   CALL InitFPFlow()
@@ -1954,10 +1949,9 @@ __STAMP__&
 ,'Error in ParticleInit, ExcludeRegions are currently only implemented for the SpaceIC cuboid(_vpi) or cylinder(_vpi)!')
       END IF
     END IF
-    !--- stuff for calculating ParticleEmission/InitialParticleNumber from PartDensity when this value is not used for LD-stuff
-    !                                                                                  (additional not-LD checks might be necassary)
+    !--- stuff for calculating ParticleEmission/InitialParticleNumber from PartDensity
     PartDens_OnlyInit=.FALSE.
-    IF ((Species(iSpec)%Init(iInit)%PartDensity.GT.0.).AND.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'LD_insert')) THEN
+    IF ((Species(iSpec)%Init(iInit)%PartDensity.GT.0.)) THEN
       IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.1) THEN
         IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2 .OR. Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) &
             .AND. (Species(iSpec)%Init(iInit)%UseForInit) ) THEN
@@ -1965,7 +1959,7 @@ __STAMP__&
         ELSE
           CALL abort(&
 __STAMP__&
-            , 'PartDensity without LD is only supported for EmiType1 or initial ParticleInserting with EmiType1/2!')
+            , 'PartDensity is only supported for EmiType1 or initial ParticleInserting with EmiType1/2!')
         END IF
       END IF
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder') &
@@ -2001,7 +1995,7 @@ __STAMP__&
               ELSE
                 CALL abort(&
 __STAMP__&
-                  ,'PartDensity without LD is only supported for CalcHeightFromDt, vpi, or initial ParticleInserting!')
+                  ,'PartDensity is only supported for CalcHeightFromDt, vpi, or initial ParticleInserting!')
               END IF
             END IF
             IF ( TRIM(Species(iSpec)%Init(iInit)%SpaceIC) .EQ. 'cylinder' ) THEN
@@ -2041,7 +2035,7 @@ __STAMP__&
         ELSE
           CALL abort(&
 __STAMP__&
-          ,'Only const. or maxwell(_lpn) is supported as velocityDistr. for PartDensity without LD!')
+          ,'Only const. or maxwell(_lpn) is supported as velocityDistr. for PartDensity!')
         END IF
       ELSE IF (Species(iSpec)%Init(iInit)%VirtPreInsert) THEN
         IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
