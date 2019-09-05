@@ -886,9 +886,9 @@ DO iElem=1,PP_nElems
 
     ! Set the internal energies (vb, rot and electronic) to zero if needed
     IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
-      PartStateIntEn(ParticleIndexNbr, 1) = 0.
-      PartStateIntEn(ParticleIndexNbr, 2) = 0.
-      IF ( DSMC%ElectronicModel )  PartStateIntEn(ParticleIndexNbr, 3) = 0.
+      PartStateIntEn( 1,ParticleIndexNbr) = 0.
+      PartStateIntEn( 2,ParticleIndexNbr) = 0.
+      IF ( DSMC%ElectronicModel )  PartStateIntEn( 3,ParticleIndexNbr) = 0.
     END IF
 
     ! Set the element ID of the electron to the current element ID

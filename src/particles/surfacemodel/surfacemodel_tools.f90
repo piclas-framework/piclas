@@ -838,9 +838,9 @@ IF(SpecDSMC(SpecID)%InterID.EQ.2) THEN
   IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
     EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(SpecID)%EZeroPoint
     ! Calculation of the vibrational degree of freedom for the particle
-    IF (PartStateIntEn(PartID,1).GT.SpecDSMC(SpecID)%EZeroPoint) THEN
-      Xi_vib = 2.*(PartStateIntEn(PartID,1)-SpecDSMC(SpecID)%EZeroPoint) &
-              / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(PartID,1), SpecID))
+    IF (PartStateIntEn(1,PartID).GT.SpecDSMC(SpecID)%EZeroPoint) THEN
+      Xi_vib = 2.*(PartStateIntEn(1,PartID)-SpecDSMC(SpecID)%EZeroPoint) &
+              / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(1,PartID), SpecID))
     ELSE
       Xi_vib = 0.0
     END IF
@@ -851,10 +851,10 @@ IF(SpecDSMC(SpecID)%InterID.EQ.2) THEN
     END IF
   ELSE
     EZeroPoint_Educt = EZeroPoint_Educt + DSMC%GammaQuant*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
-    IF((PartStateIntEn(PartID,1)-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib).GT.0.0) THEN
+    IF((PartStateIntEn(1,PartID)-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib).GT.0.0) THEN
 !           IF(ChemReac%MeanEVibQua_PerIter(SpecID).GT.0.0) THEN
-      Xi_vib = 2.*(PartStateIntEn(PartID,1)-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) &
-              / (BoltzmannConst*CalcTVib(SpecDSMC(SpecID)%CharaTVib, PartStateIntEn(PartID,1), SpecDSMC(SpecID)%MaxVibQuant))
+      Xi_vib = 2.*(PartStateIntEn(1,PartID)-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) &
+              / (BoltzmannConst*CalcTVib(SpecDSMC(SpecID)%CharaTVib, PartStateIntEn(1,PartID), SpecDSMC(SpecID)%MaxVibQuant))
 !             Xi_vib = 2.0*ChemReac%MeanEVibQua_PerIter(SpecID) &
 !                     * LOG(1.0/ChemReac%MeanEVibQua_PerIter(SpecID) + 1.0)
     ELSE
@@ -870,7 +870,7 @@ END IF
 CalcAdsorbReactProb = 0.0
 IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
   !PartVelo = VECNORM(PartState(4:6,PartID))
-  !Norm_Ec = PartVelo**2 * 0.5*Species(SpecID)%MassIC !+ PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
+  !Norm_Ec = PartVelo**2 * 0.5*Species(SpecID)%MassIC !+ PartStateIntEn(2,PartID) + PartStateIntEn(1,PartID) - EZeroPoint_Educt
   !Xi_Total = 1.! Xi_vib + Xi_rot + 3.
   !AdsorptionTemp=2.*Norm_Ec/Xi_Total/BoltzmannConst
   !MeanNormalVelo = SQRT((BoltzmannConst*AdsorptionTemp) / (2*PI*Species(SpecID)%MassIC)) ! equilibrium mean thermal velo for AdsorptionTemp
@@ -887,7 +887,7 @@ IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
   END SELECT
 ELSE
   Beta = 0.0
-  Norm_Ec = NormalVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
+  Norm_Ec = NormalVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(2,PartID) + PartStateIntEn(1,PartID) - EZeroPoint_Educt
   Xi_Total = Xi_vib + Xi_rot + 1.
   SELECT CASE(ReactionCase)
   CASE(1) ! adsorption

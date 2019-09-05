@@ -52,7 +52,8 @@ INTEGER                       :: SelectionProc              ! Mode of Selection 
 INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for energy redistribution
                                                             ! 2: partical with minimal MPF of this Pair
 LOGICAL                       :: useDSMC
-REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! (npartmax,1:3) with 2nd index: Evib, Erot, Eel
+REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! 1st index: 1:npartmax 
+!                                                           ! 2nd index: Evib, Erot, Eel
 
 INTEGER                         :: LD_MultiTemperaturMod   ! Modell choice for MultiTemperature
                                                               ! 0 = no MultiTemperature Modeling

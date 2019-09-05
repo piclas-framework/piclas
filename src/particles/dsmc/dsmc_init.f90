@@ -528,9 +528,9 @@ END IF
 
 ! allocate internal energy arrays
 IF ( DSMC%ElectronicModel ) THEN
-  ALLOCATE(PartStateIntEn(PDM%maxParticleNumber,3))
+  ALLOCATE(PartStateIntEn(1:3,PDM%maxParticleNumber))
 ELSE
-  ALLOCATE(PartStateIntEn(PDM%maxParticleNumber,2))
+  ALLOCATE(PartStateIntEn(1:2,PDM%maxParticleNumber))
 ENDIF
 PartStateIntEn = 0. ! nullify
 
@@ -1492,14 +1492,14 @@ __STAMP__&
       iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)
     END DO
     !evtl muss partstateinten nochmal geändert werden, mpi, resize etc..
-    PartStateIntEn(iPart, 1) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpecies)%CharaTVib*BoltzmannConst
+    PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpecies)%CharaTVib*BoltzmannConst
     ! Set rotational energy
     CALL RANDOM_NUMBER(iRan)
-    PartStateIntEn(iPart, 2) = -BoltzmannConst*TRot*LOG(iRan)
+    PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
   ELSE
     ! Nullify energy for atomic species
-    PartStateIntEn(iPart, 1) = 0
-    PartStateIntEn(iPart, 2) = 0
+    PartStateIntEn( 1,iPart) = 0
+    PartStateIntEn( 2,iPart) = 0
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set electronic energy
@@ -1508,7 +1508,7 @@ __STAMP__&
     IF((SpecDSMC(iSpecies)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpecies)%FullyIonized)) THEN
       CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
     ELSE
-      PartStateIntEn(iPart, 3) = 0.
+      PartStateIntEn( 3,iPart) = 0.
     END IF
   ENDIF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1517,14 +1517,14 @@ __STAMP__&
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
   IF (LD_MultiTemperaturMod .EQ. 3 ) THEN ! no discret vib levels for this LD method
     IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THEN
-      PartStateIntEn(iPart, 1) = (BoltzmannConst*SpecDSMC(iSpecies)%CharaTVib) &
+      PartStateIntEn( 1,iPart) = (BoltzmannConst*SpecDSMC(iSpecies)%CharaTVib) &
                                / (EXP(SpecDSMC(iSpecies)%CharaTVib/TVib) - 1.0) &
                                + DSMC%GammaQuant * BoltzmannConst*SpecDSMC(iSpecies)%CharaTVib
     !set rotational energy
-      PartStateIntEn(iPart, 2) = BoltzmannConst*TRot
+      PartStateIntEn( 2,iPart) = BoltzmannConst*TRot
     ELSE
-      PartStateIntEn(iPart, 1) = 0
-      PartStateIntEn(iPart, 2) = 0
+      PartStateIntEn( 1,iPart) = 0
+      PartStateIntEn( 2,iPart) = 0
     END IF
   END IF
 #endif

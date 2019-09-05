@@ -1153,7 +1153,7 @@ USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools              ,ONLY: UpdateNextFreePosition
-USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, radialWeighting
 USE MOD_SurfaceModel_Vars       ,ONLY: SurfModel
 USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
 USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
@@ -2160,7 +2160,7 @@ __STAMP__&
                   ! set rotational energies
                   ErotWall = 0
                   ErotOld  = ErotWall
-                  ErotNew  = PartStateIntEn(PartID,2)
+                  ErotNew  = PartStateIntEn(2,PartID)
                   ! fill rotational internal array
                   IntArray(1) = ErotOld
                   IntArray(2) = ErotWall
@@ -2168,7 +2168,7 @@ __STAMP__&
                   ! set vibrational energies
                   EvibWall = 0 ! calculated and added in particle desorption calculation
                   EvibOld  = EvibWall ! calculated and added in particle desorption calculation
-                  EvibNew  = PartStateIntEn(PartID,1)
+                  EvibNew  = PartStateIntEn(1,PartID)
                   ! fill vibrational internal array
                   IntArray(4) = EvibOld
                   IntArray(5) = EvibWall

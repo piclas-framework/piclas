@@ -152,7 +152,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
           ! counter for part num of spec per cell
     IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = &
                         ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
-                        + PartStateIntEn(iPart,1) !Calulation of mean evib per cell and iter, necessary for disso prob
+                        + PartStateIntEn(1,iPart) !Calulation of mean evib per cell and iter, necessary for disso prob
     IF(PartSpecies(iPart).NE.BGGas%BGGasSpecies) THEN
       Coll_pData(iPair)%iPart_p1 = iPart
       Coll_pData(iPair)%iPart_p2 = BGGas%PairingPartner(iPart)

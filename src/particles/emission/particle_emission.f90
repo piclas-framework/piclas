@@ -1088,11 +1088,11 @@ DO i=1,PDM%ParticleVecLength
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
         IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-          Source(8:9,ElemID, iSpec) = Source(8:9,ElemID, iSpec) + PartStateIntEn(i,1:2) * GetParticleWeight(i)
+          Source(8:9,ElemID, iSpec) = Source(8:9,ElemID, iSpec) + PartStateIntEn(1:2,i) * GetParticleWeight(i)
         END IF
       END IF
       IF (DSMC%ElectronicModel) THEN
-        Source(10,ElemID, iSpec) = Source(10,ElemID, iSpec) + PartStateIntEn(i,3) * GetParticleWeight(i)
+        Source(10,ElemID, iSpec) = Source(10,ElemID, iSpec) + PartStateIntEn(3,i) * GetParticleWeight(i)
       END IF
     END IF
     Source(11,ElemID, iSpec) = Source(11,ElemID, iSpec) + GetParticleWeight(i)

@@ -312,8 +312,8 @@ IF(DoCloning) THEN
   cloneIndex = RadialWeighting%ClonePartNum(DelayCounter)
   ClonedParticles(cloneIndex,DelayCounter)%PartState(1:6)= PartState(1:6,iPart)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-    ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(1:2) = PartStateIntEn(iPart,1:2)
-    IF(DSMC%ElectronicModel) ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(iPart,3)
+    ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(1:2) = PartStateIntEn(1:2,iPart)
+    IF(DSMC%ElectronicModel) ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(3,iPart)
     IF(SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
       IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%VibQuants)) &
@@ -419,8 +419,8 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   ! Creating a relative velocity in the z-direction
   PartState(6,PositionNbr) = - ClonedParticles(iPart,DelayCounter)%PartState(6)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-    PartStateIntEn(PositionNbr,1:2) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
-    IF(DSMC%ElectronicModel) PartStateIntEn(PositionNbr,3) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
+    PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
+    IF(DSMC%ElectronicModel) PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
     IF(SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%SpecToPolyArray
       IF(ALLOCATED(VibQuantsPar(PositionNbr)%Quants)) DEALLOCATE(VibQuantsPar(PositionNbr)%Quants)

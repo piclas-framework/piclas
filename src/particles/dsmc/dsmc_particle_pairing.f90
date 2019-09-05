@@ -88,7 +88,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
     ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
     DO iPart = 1, PartNum
       ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart)))=ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) &
-                                              + PartStateIntEn(iPartIndx_Node(iPart),1)*GetParticleWeight(iPartIndx_Node(iPart))
+                                              + PartStateIntEn(1,iPartIndx_Node(iPart))*GetParticleWeight(iPartIndx_Node(iPart))
     END DO
   END IF
 
@@ -260,7 +260,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
     ! Calculation of mean evib per cell and iter, necessary for disso prob
     IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
-                                                                  + PartStateIntEn(iPart,1) * GetParticleWeight(iPart)
+                                                                  + PartStateIntEn(1,iPart) * GetParticleWeight(iPart)
     ! Choose next particle in Element
     iPart = PEM%pNext(iPart)
   END DO
@@ -366,7 +366,7 @@ IF (CollisMode.EQ.3) THEN
   ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
   DO iPart = 1, PartNum
     ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart)))=ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) &
-      + PartStateIntEn(iPartIndx_Node(iPart),1) * GetParticleWeight(iPartIndx_Node(iPart))
+      + PartStateIntEn(1,iPartIndx_Node(iPart)) * GetParticleWeight(iPartIndx_Node(iPart))
   END DO
 END IF
 
@@ -1550,7 +1550,7 @@ IF (CollisMode.EQ.3) THEN
   ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
   DO iPart = 1, PartNum
     ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) &
-      + PartStateIntEn(iPartIndx_Node(iPart),1) * GetParticleWeight(iPartIndx_Node(iPart))
+      + PartStateIntEn(1,iPartIndx_Node(iPart)) * GetParticleWeight(iPartIndx_Node(iPart))
   END DO
 END IF
 

@@ -1182,7 +1182,7 @@ SELECT CASE(TRIM(HODSMC%SampleType))
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
           IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-            TSource(8:9)      =  PartStateIntEn(i,1:2)
+            TSource(8:9)      =  PartStateIntEn(1:2,i)
           ELSE
             TSource(8:9) = 0.0
           END IF
@@ -1190,7 +1190,7 @@ SELECT CASE(TRIM(HODSMC%SampleType))
             IF ((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
               TSource(10) = 0.0
             ELSE
-              TSource(10) = PartStateIntEn(i,3)
+              TSource(10) = PartStateIntEn(3,i)
             END IF
           ELSE
             TSource(10) = 0.0
@@ -1335,11 +1335,11 @@ CASE('nearest_gausspoint')
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
           IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-            Source(8:9,k,l,m,iElem, iSpec) = Source(8:9,k,l,m,iElem, iSpec) + PartStateIntEn(i,1:2)
+            Source(8:9,k,l,m,iElem, iSpec) = Source(8:9,k,l,m,iElem, iSpec) + PartStateIntEn(1:2,i)
           END IF
           IF (DSMC%ElectronicModel) THEN
             IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-              Source(10,k,l,m,iElem, iSpec) = Source(10,k,l,m,iElem, iSpec) + PartStateIntEn(i,3)
+              Source(10,k,l,m,iElem, iSpec) = Source(10,k,l,m,iElem, iSpec) + PartStateIntEn(3,i)
             END IF
           END IF
         END IF
@@ -1363,12 +1363,12 @@ CASE('cell_mean')
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
           IF ((SpecDSMC(PartSpecies(iPart))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPart))%InterID.EQ.20)) THEN
             DSMC_HOSolution(8,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(8,kk,ll,mm,iElem, iSpec) &
-              + (PartStateIntEn(iPart,1) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
-            DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec)+PartStateIntEn(iPart,2)*partWeight
+              + (PartStateIntEn(1,iPart) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
+            DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec)+PartStateIntEn(2,iPart)*partWeight
           END IF
           IF (DSMC%ElectronicModel) THEN
             IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-              DSMC_HOSolution(10,kk,ll,mm,iElem,iSpec)=DSMC_HOSolution(10,kk,ll,mm,iElem,iSpec)+PartStateIntEn(iPart,3)*partWeight
+              DSMC_HOSolution(10,kk,ll,mm,iElem,iSpec)=DSMC_HOSolution(10,kk,ll,mm,iElem,iSpec)+PartStateIntEn(3,iPart)*partWeight
             END IF
           END IF
         END IF
@@ -1397,7 +1397,7 @@ CASE('cell_volweight')
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
         IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-          TSource(8:9)      =  PartStateIntEn(iPart,1:2)
+          TSource(8:9)      =  PartStateIntEn(1:2,iPart)
         ELSE
           TSource(8:9) = 0.0
         END IF
@@ -1405,7 +1405,7 @@ CASE('cell_volweight')
           IF ((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
             TSource(10) = 0.0
           ELSE
-            TSource(10) = PartStateIntEn(iPart,3)
+            TSource(10) = PartStateIntEn(3,iPart)
           END IF
         ELSE
           TSource(10) = 0.0

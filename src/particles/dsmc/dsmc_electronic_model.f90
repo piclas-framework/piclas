@@ -107,7 +107,7 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
   SpecDSMC(iSpecies)%levelcounter(iQua) = SpecDSMC(iSpecies)%levelcounter(iQua) + 1
 #endif
 #endif
-  PartStateIntEn(iPart,3) = BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
+  PartStateIntEn(3,iPart) = BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
 END SUBROUTINE InitElectronShell
 
 
@@ -159,7 +159,7 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi)
     END IF
   END DO
   IF(gmax.LE.0.0) THEN
-    PartStateIntEn(iPart1,3) = 0.0
+    PartStateIntEn(3,iPart1) = 0.0
     RETURN
   END IF
   CALL RANDOM_NUMBER(iRan)
@@ -179,7 +179,7 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi)
 ! Reservoir simulation for obtaining the reaction rate at one given point does not require to performe the reaction
   IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-   PartStateIntEn(iPart1,3) = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
+   PartStateIntEn(3,iPart1) = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
 #if (PP_TimeDiscMethod==42)
   END IF
 #endif
@@ -219,7 +219,7 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi)
 !  iQuaold=0
 !  ! determine old Quant
 !  DO iQua = 0, MaxElecQuant
-!    IF ( PartStateIntEn(iPart1,3) / BoltzmannConst .ge. &
+!    IF ( PartStateIntEn(3,iPart1) / BoltzmannConst .ge. &
 !      SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) ) THEN
 !      iQuaold = iQua
 !    ELSE
@@ -282,8 +282,8 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi)
 ! Reservoir simulation for obtaining the reaction rate at one given point does not require to performe the reaction
   IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-   PartStateIntEn(iPart1,3) = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
-   PartStateIntEn(iPart1,1) = (jQVib + DSMC%GammaQuant) * BoltzmannConst &
+   PartStateIntEn(3,iPart1) = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
+   PartStateIntEn(1,iPart1) = (jQVib + DSMC%GammaQuant) * BoltzmannConst &
                   * SpecDSMC(PartSpecies(iPart1))%CharaTVib
 #if (PP_TimeDiscMethod==42)
   END IF

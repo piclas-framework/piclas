@@ -2476,11 +2476,11 @@ IntTemp(:,:) = 0.
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     iSpec = PartSpecies(iPart)
-    EVib(iSpec) = EVib(iSpec) + PartStateIntEn(iPart,1) * GetParticleWeight(iPart)
-    ERot(iSpec) = ERot(iSpec) + PartStateIntEn(iPart,2) * GetParticleWeight(iPart)
+    EVib(iSpec) = EVib(iSpec) + PartStateIntEn(1,iPart) * GetParticleWeight(iPart)
+    ERot(iSpec) = ERot(iSpec) + PartStateIntEn(2,iPart) * GetParticleWeight(iPart)
     IF (DSMC%ElectronicModel) THEN
       IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-        Eelec(iSpec) = Eelec(iSpec) + PartStateIntEn(iPart,3) * GetParticleWeight(iPart)
+        Eelec(iSpec) = Eelec(iSpec) + PartStateIntEn(3,iPart) * GetParticleWeight(iPart)
       END IF
     END IF
   END IF

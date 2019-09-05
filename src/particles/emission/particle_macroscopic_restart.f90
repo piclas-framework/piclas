@@ -249,16 +249,16 @@ PartState(4:6,iPart) = CalcVelocity_maxwell_particle(iSpec,MacroRestartValues(iE
 ! 2) Set internal energies (rotational, vibrational, electronic)
 IF(CollisMode.GT.1) THEN
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    PartStateIntEn(iPart,1) = CalcEVib_particle(iSpec,iPart,MacroRestartValues(iElem,iSpec,DSMC_TVIB))
-    PartStateIntEn(iPart,2) = CalcERot_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TROT))
+    PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,iPart,MacroRestartValues(iElem,iSpec,DSMC_TVIB))
+    PartStateIntEn(2,iPart) = CalcERot_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TROT))
   ELSE
-    PartStateIntEn(iPart,1:2) = 0.0
+    PartStateIntEn(1:2,iPart) = 0.0
   END IF
   IF(DSMC%ElectronicModel) THEN
     IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-      PartStateIntEn(iPart,3) = CalcEElec_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TELEC))
+      PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TELEC))
     ELSE
-      PartStateIntEn(iPart,3) = 0.0
+      PartStateIntEn(3,iPart) = 0.0
     END IF
   END IF
 END IF

@@ -756,7 +756,7 @@ IF (.NOT.IsAuxBC) THEN
       IF(CalcSurfaceImpact) THEN
         EtraOld = 0.5*Species(PartSpecies(PartID))%MassIC*VECNORM(v_old)**2
         CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,&
-            EtraOld,PartStateIntEn(PartID,2),PartStateIntEn(PartID,1),PartTrajectory,n_loc,p,q)
+            EtraOld,PartStateIntEn(2,PartID),PartStateIntEn(1,PartID),PartTrajectory,n_loc,p,q)
       END IF ! CalcSurfaceImpact
     END IF ! DoSample
   END IF ! (.NOT.Symmetry).AND.(.NOT.UseLD)
@@ -1124,7 +1124,7 @@ IF (.NOT.IsAuxBC) THEN
 
     ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
     IF(CalcSurfaceImpact) CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,EtraOld,&
-                                                        PartStateIntEn(PartID,2),PartStateIntEn(PartID,1),PartTrajectory,n_loc,p,q)
+                                                        PartStateIntEn(2,PartID),PartStateIntEn(1,PartID),PartTrajectory,n_loc,p,q)
   END IF
 END IF !.NOT.IsAuxBC
 
@@ -1168,16 +1168,16 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
           END DO
           ErotWall = ErotWall*BoltzmannConst*WallTemp
         END IF
-        ErotNew  = PartStateIntEn(PartID,2) + RotACC *(ErotWall - PartStateIntEn(PartID,2))
+        ErotNew  = PartStateIntEn(2,PartID) + RotACC *(ErotWall - PartStateIntEn(2,PartID))
 
         IF (DoSample) THEN
           !----  Sampling for internal energy accommodation at walls
-          SampWall(SurfSideID)%State(4,p,q)=SampWall(SurfSideID)%State(4,p,q)+PartStateIntEn(PartID,2) * MacroParticleFactor
+          SampWall(SurfSideID)%State(4,p,q)=SampWall(SurfSideID)%State(4,p,q)+PartStateIntEn(2,PartID) * MacroParticleFactor
           SampWall(SurfSideID)%State(5,p,q)=SampWall(SurfSideID)%State(5,p,q)+ErotWall * MacroParticleFactor
           SampWall(SurfSideID)%State(6,p,q)=SampWall(SurfSideID)%State(6,p,q)+ErotNew * MacroParticleFactor
         END IF
 
-        PartStateIntEn(PartID,2) = ErotNew
+        PartStateIntEn(2,PartID) = ErotNew
 
 #if (PP_TimeDiscMethod==400)
         IF (BGKDoVibRelaxation) THEN
@@ -1212,7 +1212,7 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
               END IF
             END DO
           ELSE
-            VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib) &
+            VibQuant     = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib) &
                 - DSMC%GammaQuant)
             CALL RANDOM_NUMBER(RanNum)
             VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(PartSpecies(PartID))%CharaTVib)
@@ -1251,7 +1251,7 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
             ! #endif
           END IF
           IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) VibQuantsPar(PartID)%Quants(:) = VibQuantTemp(:)
-          PartStateIntEn(PartID,1) = EvibNew
+          PartStateIntEn(1,PartID) = EvibNew
 #if (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==300)
         END IF ! FPDoVibRelaxation || BGKDoVibRelaxation
 #endif
@@ -1568,7 +1568,7 @@ IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) TH
       EtraOld = 0.5*Species(PartSpecies(PartID))%MassIC*VECNORM(PartState(4:6,PartID))**2
 #ifndef IMPA
       CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,&
-          EtraOld,PartStateIntEn(PartID,2),PartStateIntEn(PartID,1),PartTrajectory,n_loc,p,q)
+          EtraOld,PartStateIntEn(2,PartID),PartStateIntEn(1,PartID),PartTrajectory,n_loc,p,q)
 #else
       CALL abort(&
       __STAMP__&

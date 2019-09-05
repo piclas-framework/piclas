@@ -349,10 +349,10 @@ PartState(1:3,newParticleID) = Pos(1:3)
 PartState(4:6,newParticleID) = Velocity(1:3)
 
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-  PartStateIntEn(newParticleID, 1) = VibEnergy
-  PartStateIntEn(newParticleID, 2) = RotEnergy
+  PartStateIntEn(1,newParticleID) = VibEnergy
+  PartStateIntEn(2,newParticleID) = RotEnergy
   IF (DSMC%ElectronicModel) THEN
-    PartStateIntEn(newParticleID, 3) = ElecEnergy
+    PartStateIntEn(3,newParticleID) = ElecEnergy
   ENDIF
 END IF
 

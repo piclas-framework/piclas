@@ -141,8 +141,8 @@ SUBROUTINE SplitParticle(iPart, deltaE,CSquare)
   PartSpecies(PositionNbr) = PartSpecies(iPart)
   PartState(1:3,PositionNbr) = PartState(1:3,iPart)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-    PartStateIntEn(PositionNbr, 1) = PartStateIntEn(iPart, 1)
-    PartStateIntEn(PositionNbr, 2) =   PartStateIntEn(iPart, 2)
+    PartStateIntEn(1,PositionNbr) = PartStateIntEn(1,iPart)
+    PartStateIntEn(2,PositionNbr) = PartStateIntEn(2,iPart)
   END IF
   PEM%Element(PositionNbr) = PEM%Element(iPart)
 

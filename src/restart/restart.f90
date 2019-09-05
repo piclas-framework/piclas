@@ -811,28 +811,28 @@ __STAMP__&
         PartSpecies(iPart)= INT(PartData(offsetnPart+iLoop,7),4)
         IF (useDSMC.AND.(.NOT.(useLD))) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
-            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
-            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
-            PartStateIntEn(iPart,3)=PartData(offsetnPart+iLoop,10)
+            PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
+            PartStateIntEn(3,iPart)=PartData(offsetnPart+iLoop,10)
             PartMPF(iPart)=PartData(offsetnPart+iLoop,11)
           ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
-            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+            PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
             PartMPF(iPart)=PartData(offsetnPart+iLoop,10)
           ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
-            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
-            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
-            PartStateIntEn(iPart,3)=PartData(offsetnPart+iLoop,10)
+            PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
+            PartStateIntEn(3,iPart)=PartData(offsetnPart+iLoop,10)
           ELSE IF (CollisMode.GT.1) THEN
             IF (readVarFromState(8).AND.readVarFromState(9)) THEN
-              PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
-              PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+              PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
+              PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
             ELSE IF (SpecDSMC(PartSpecies(iPart))%InterID.EQ.1 .OR. &
                      SpecDSMC(PartSpecies(iPart))%InterID.EQ.10 .OR. &
                      SpecDSMC(PartSpecies(iPart))%InterID.EQ.15 ) THEN
               !- setting inner DOF to 0 for atoms
-              PartStateIntEn(iPart,1)=0.
-              PartStateIntEn(iPart,2)=0.
+              PartStateIntEn(1,iPart)=0.
+              PartStateIntEn(2,iPart)=0.
             ELSE
               CALL Abort(&
 __STAMP__&
@@ -844,18 +844,18 @@ __STAMP__&
           END IF
         ELSE IF (useLD) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
-            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
-            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+            PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
             PartMPF(iPart)=PartData(offsetnPart+iLoop,10)
-            PartStateIntEn(iPart,3)=PartData(offsetnPart+iLoop,11)
+            PartStateIntEn(3,iPart)=PartData(offsetnPart+iLoop,11)
             PartStateBulkValues(iPart,1)=PartData(offsetnPart+iLoop,12)
             PartStateBulkValues(iPart,2)=PartData(offsetnPart+iLoop,13)
             PartStateBulkValues(iPart,3)=PartData(offsetnPart+iLoop,14)
             PartStateBulkValues(iPart,4)=PartData(offsetnPart+iLoop,15)
             PartStateBulkValues(iPart,5)=PartData(offsetnPart+iLoop,16)
           ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
-            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+            PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
             PartMPF(iPart)=PartData(offsetnPart+iLoop,10)
             PartStateBulkValues(iPart,1)=PartData(offsetnPart+iLoop,11)
             PartStateBulkValues(iPart,2)=PartData(offsetnPart+iLoop,12)
@@ -863,17 +863,17 @@ __STAMP__&
             PartStateBulkValues(iPart,4)=PartData(offsetnPart+iLoop,14)
             PartStateBulkValues(iPart,5)=PartData(offsetnPart+iLoop,15)
           ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
-            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
-            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
-            PartStateIntEn(iPart,3)=PartData(offsetnPart+iLoop,10)
+            PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
+            PartStateIntEn(3,iPart)=PartData(offsetnPart+iLoop,10)
             PartStateBulkValues(iPart,1)=PartData(offsetnPart+iLoop,11)
             PartStateBulkValues(iPart,2)=PartData(offsetnPart+iLoop,12)
             PartStateBulkValues(iPart,3)=PartData(offsetnPart+iLoop,13)
             PartStateBulkValues(iPart,4)=PartData(offsetnPart+iLoop,14)
             PartStateBulkValues(iPart,5)=PartData(offsetnPart+iLoop,15)
           ELSE IF (CollisMode.GT.1) THEN
-            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
-            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+            PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
             PartStateBulkValues(iPart,1)=PartData(offsetnPart+iLoop,10)
             PartStateBulkValues(iPart,2)=PartData(offsetnPart+iLoop,11)
             PartStateBulkValues(iPart,3)=PartData(offsetnPart+iLoop,12)
@@ -1042,41 +1042,41 @@ __STAMP__&
           SendBuff(COUNTER+7)           = REAL(PartSpecies(i))
           IF (useDSMC.AND.(.NOT.(useLD))) THEN
             IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
-              SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
-              SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
+              SendBuff(COUNTER+8)  = PartStateIntEn(1,i)
+              SendBuff(COUNTER+9)  = PartStateIntEn(2,i)
               SendBuff(COUNTER+10) = PartMPF(i)
-              SendBuff(COUNTER+11) = PartStateIntEn(i,3)
+              SendBuff(COUNTER+11) = PartStateIntEn(3,i)
             ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-              SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
-              SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
+              SendBuff(COUNTER+8)  = PartStateIntEn(1,i)
+              SendBuff(COUNTER+9)  = PartStateIntEn(2,i)
               SendBuff(COUNTER+10) = PartMPF(i)
             ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
-              SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
-              SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
-              SendBuff(COUNTER+10) = PartStateIntEn(i,3)
+              SendBuff(COUNTER+8)  = PartStateIntEn(1,i)
+              SendBuff(COUNTER+9)  = PartStateIntEn(2,i)
+              SendBuff(COUNTER+10) = PartStateIntEn(3,i)
             ELSE IF (CollisMode.GT.1) THEN
-              SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
-              SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
+              SendBuff(COUNTER+8)  = PartStateIntEn(1,i)
+              SendBuff(COUNTER+9)  = PartStateIntEn(2,i)
             ELSE IF (usevMPF) THEN
               SendBuff(COUNTER+8) = PartMPF(i)
             END IF
           ELSE IF (useLD) THEN
             IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
-              SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
-              SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
+              SendBuff(COUNTER+8)  = PartStateIntEn(1,i)
+              SendBuff(COUNTER+9)  = PartStateIntEn(2,i)
               SendBuff(COUNTER+10) = PartMPF(i)
-              SendBuff(COUNTER+11) = PartStateIntEn(i,3)
+              SendBuff(COUNTER+11) = PartStateIntEn(3,i)
               SendBuff(COUNTER+12:COUNTER+16) = PartStateBulkValues(i,1:5)
             ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-              SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
-              SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
+              SendBuff(COUNTER+8)  = PartStateIntEn(1,i)
+              SendBuff(COUNTER+9)  = PartStateIntEn(2,i)
               SendBuff(COUNTER+10) = PartMPF(i)
               SendBuff(COUNTER+11:COUNTER+15) = PartStateBulkValues(i,1:5)
             ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
-              SendBuff(COUNTER+8:COUNTER+10)  = PartStateIntEn(i,1:3)
+              SendBuff(COUNTER+8:COUNTER+10)  = PartStateIntEn(1:3,i)
              SendBuff(COUNTER+11:COUNTER+15) = PartStateBulkValues(i,1:5)
             ELSE IF (CollisMode.GT.1) THEN
-              SendBuff(COUNTER+8:COUNTER+9)  = PartStateIntEn(i,1:2)
+              SendBuff(COUNTER+8:COUNTER+9)  = PartStateIntEn(1:2,i)
               SendBuff(COUNTER+10:COUNTER+14) = PartStateBulkValues(i,1:5)
             ELSE IF (usevMPF) THEN
               SendBuff(COUNTER+8) = PartMPF(i)
@@ -1137,44 +1137,44 @@ __STAMP__&
           PartSpecies(CurrentPartNum) = INT(RecBuff(COUNTER+7))
           IF (useDSMC.AND.(.NOT.(useLD))) THEN
             IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
-              PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-              PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
-              PartStateIntEn(CurrentPartNum,3) = RecBuff(COUNTER+11)
+              PartStateIntEn(1,CurrentPartNum) = RecBuff(COUNTER+8)
+              PartStateIntEn(2,CurrentPartNum) = RecBuff(COUNTER+9)
+              PartStateIntEn(3,CurrentPartNum) = RecBuff(COUNTER+11)
               PartMPF(CurrentPartNum)          = RecBuff(COUNTER+10)
             ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-              PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-              PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
+              PartStateIntEn(1,CurrentPartNum) = RecBuff(COUNTER+8)
+              PartStateIntEn(2,CurrentPartNum) = RecBuff(COUNTER+9)
               PartMPF(CurrentPartNum)          = RecBuff(COUNTER+10)
             ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
-              PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-              PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
-              PartStateIntEn(CurrentPartNum,3) = RecBuff(COUNTER+10)
+              PartStateIntEn(1,CurrentPartNum) = RecBuff(COUNTER+8)
+              PartStateIntEn(2,CurrentPartNum) = RecBuff(COUNTER+9)
+              PartStateIntEn(3,CurrentPartNum) = RecBuff(COUNTER+10)
             ELSE IF (CollisMode.GT.1) THEN
-              PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-              PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
+              PartStateIntEn(1,CurrentPartNum) = RecBuff(COUNTER+8)
+              PartStateIntEn(2,CurrentPartNum) = RecBuff(COUNTER+9)
             ELSE IF (usevMPF) THEN
               PartMPF(CurrentPartNum)          = RecBuff(COUNTER+8)
             END IF
           ELSE IF (useLD) THEN
             IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
-              PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-              PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
-              PartStateIntEn(CurrentPartNum,3) = RecBuff(COUNTER+11)
+              PartStateIntEn(1,CurrentPartNum) = RecBuff(COUNTER+8)
+              PartStateIntEn(2,CurrentPartNum) = RecBuff(COUNTER+9)
+              PartStateIntEn(3,CurrentPartNum) = RecBuff(COUNTER+11)
               PartMPF(CurrentPartNum)          = RecBuff(COUNTER+10)
               PartStateBulkValues(CurrentPartNum,1:5) = RecBuff(COUNTER+12:COUNTER+16)
             ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-              PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-              PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
+              PartStateIntEn(1,CurrentPartNum) = RecBuff(COUNTER+8)
+              PartStateIntEn(2,CurrentPartNum) = RecBuff(COUNTER+9)
               PartMPF(CurrentPartNum)          = RecBuff(COUNTER+10)
               PartStateBulkValues(CurrentPartNum,1:5) = RecBuff(COUNTER+11:COUNTER+15)
             ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
-              PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-              PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
-              PartStateIntEn(CurrentPartNum,3) = RecBuff(COUNTER+10)
+              PartStateIntEn(1,CurrentPartNum) = RecBuff(COUNTER+8)
+              PartStateIntEn(2,CurrentPartNum) = RecBuff(COUNTER+9)
+              PartStateIntEn(3,CurrentPartNum) = RecBuff(COUNTER+10)
               PartStateBulkValues(CurrentPartNum,1:5) = RecBuff(COUNTER+11:COUNTER+15)
             ELSE IF (CollisMode.GT.1) THEN
-              PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-              PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
+              PartStateIntEn(1,CurrentPartNum) = RecBuff(COUNTER+8)
+              PartStateIntEn(2,CurrentPartNum) = RecBuff(COUNTER+9)
               PartStateBulkValues(CurrentPartNum,1:5) = RecBuff(COUNTER+10:COUNTER+14)
             ELSE IF (usevMPF) THEN
               PartMPF(CurrentPartNum)          = RecBuff(COUNTER+8)

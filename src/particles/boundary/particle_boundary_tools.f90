@@ -131,8 +131,8 @@ __STAMP__&
   TransArray(ETransID) = ETrans
   IF (useDSMC .AND. CollisMode.GT.1) THEN
     IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.SpecDSMC(PartSpecies(PartID))%InterID.EQ.20) THEN
-      IntArray(ERotID) = PartStateIntEn(PartID,2)
-      IntArray(EVibID) = PartStateIntEn(PartID,1)
+      IntArray(ERotID) = PartStateIntEn(2,PartID)
+      IntArray(EVibID) = PartStateIntEn(1,PartID)
     END IF
   END IF
 END IF
@@ -320,7 +320,7 @@ IF (useDSMC .AND. CollisMode.GT.1) THEN
       iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
       IF(ALLOCATED(VibQuantsPar(PartID)%Quants)) DEALLOCATE(VibQuantsPar(PartID)%Quants)
       ALLOCATE(VibQuantsPar(PartID)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-      PartStateIntEn(PartID, 1) = 0.0
+      PartStateIntEn( 1,PartID) = 0.0
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
         CALL RANDOM_NUMBER(RanNum)
         VibQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
@@ -328,25 +328,25 @@ IF (useDSMC .AND. CollisMode.GT.1) THEN
           CALL RANDOM_NUMBER(RanNum)
           VibQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
         END DO
-        PartStateIntEn(PartID, 1) = PartStateIntEn(PartID, 1) &
+        PartStateIntEn( 1,PartID) = PartStateIntEn( 1,PartID) &
                                    + (VibQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
         VibQuantsPar(PartID)%Quants(iDOF)=VibQuant
       END DO
       IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.2) THEN
         CALL RANDOM_NUMBER(RanNum)
-        PartStateIntEn(PartID, 2) = -BoltzmannConst*WallTemp*LOG(RanNum)
+        PartStateIntEn( 2,PartID) = -BoltzmannConst*WallTemp*LOG(RanNum)
       ELSE IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.3) THEN
         CALL RANDOM_NUMBER(RanNum)
-        PartStateIntEn(PartID, 2) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-        NormProb = SQRT(PartStateIntEn(PartID, 2))*EXP(-PartStateIntEn(PartID, 2))/(SQRT(0.5)*EXP(-0.5))
+        PartStateIntEn( 2,PartID) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+        NormProb = SQRT(PartStateIntEn( 2,PartID))*EXP(-PartStateIntEn( 2,PartID))/(SQRT(0.5)*EXP(-0.5))
         CALL RANDOM_NUMBER(RanNum)
         DO WHILE (RanNum.GE.NormProb)
           CALL RANDOM_NUMBER(RanNum)
-          PartStateIntEn(PartID, 2) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-          NormProb = SQRT(PartStateIntEn(PartID, 2))*EXP(-PartStateIntEn(PartID, 2))/(SQRT(0.5)*EXP(-0.5))
+          PartStateIntEn( 2,PartID) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+          NormProb = SQRT(PartStateIntEn( 2,PartID))*EXP(-PartStateIntEn( 2,PartID))/(SQRT(0.5)*EXP(-0.5))
           CALL RANDOM_NUMBER(RanNum)
         END DO
-        PartStateIntEn(PartID, 2) = PartStateIntEn(PartID, 2)*BoltzmannConst*WallTemp
+        PartStateIntEn( 2,PartID) = PartStateIntEn( 2,PartID)*BoltzmannConst*WallTemp
       END IF
     ELSE
       ! Set vibrational energy
@@ -356,15 +356,15 @@ IF (useDSMC .AND. CollisMode.GT.1) THEN
         CALL RANDOM_NUMBER(RanNum)
         VibQuant = INT(-LOG(RanNum)*WallTemp/SpecDSMC(PartSpecies(PartID))%CharaTVib)
       END DO
-      PartStateIntEn(PartID, 1) = (VibQuant + DSMC%GammaQuant)*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst
+      PartStateIntEn( 1,PartID) = (VibQuant + DSMC%GammaQuant)*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst
       ! Set rotational energy
       CALL RANDOM_NUMBER(RanNum)
-      PartStateIntEn(PartID, 2) = -BoltzmannConst*WallTemp*LOG(RanNum)
+      PartStateIntEn( 2,PartID) = -BoltzmannConst*WallTemp*LOG(RanNum)
     END IF
   ELSE
     ! Nullify energy for atomic species
-    PartStateIntEn(PartID, 1) = 0.0
-    PartStateIntEn(PartID, 2) = 0.0
+    PartStateIntEn( 1,PartID) = 0.0
+    PartStateIntEn( 2,PartID) = 0.0
   END IF
 END IF
 !End internal energy accomodation

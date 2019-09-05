@@ -950,38 +950,38 @@ DO iElem_loc=1,PP_nElems
       IF (withDSMC.AND.(.NOT.(useLD))) THEN
       !IF (withDSMC) THEN
         IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
-          PartData(iPart,10)=PartStateIntEn(pcount,3)
+          PartData(iPart,8)=PartStateIntEn(1,pcount)
+          PartData(iPart,9)=PartStateIntEn(2,pcount)
+          PartData(iPart,10)=PartStateIntEn(3,pcount)
           PartData(iPart,11)=PartMPF(pcount)
         ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
+          PartData(iPart,8)=PartStateIntEn(1,pcount)
+          PartData(iPart,9)=PartStateIntEn(2,pcount)
           PartData(iPart,10)=PartMPF(pcount)
         ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
-          PartData(iPart,10)=PartStateIntEn(pcount,3)
+          PartData(iPart,8)=PartStateIntEn(1,pcount)
+          PartData(iPart,9)=PartStateIntEn(2,pcount)
+          PartData(iPart,10)=PartStateIntEn(3,pcount)
         ELSE IF (CollisMode.GT.1) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
+          PartData(iPart,8)=PartStateIntEn(1,pcount)
+          PartData(iPart,9)=PartStateIntEn(2,pcount)
         ELSE IF (usevMPF) THEN
           PartData(iPart,8)=PartMPF(pcount)
         END IF
       ELSE IF (useLD) THEN
         IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
+          PartData(iPart,8)=PartStateIntEn(1,pcount)
+          PartData(iPart,9)=PartStateIntEn(2,pcount)
           PartData(iPart,10)=PartMPF(pcount)
-          PartData(iPart,11)=PartStateIntEn(pcount,3)
+          PartData(iPart,11)=PartStateIntEn(3,pcount)
           PartData(iPart,12)=PartStateBulkValues(pcount,1)
           PartData(iPart,13)=PartStateBulkValues(pcount,2)
           PartData(iPart,14)=PartStateBulkValues(pcount,3)
           PartData(iPart,15)=PartStateBulkValues(pcount,4)
           PartData(iPart,16)=PartStateBulkValues(pcount,5)
         ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
+          PartData(iPart,8)=PartStateIntEn(1,pcount)
+          PartData(iPart,9)=PartStateIntEn(2,pcount)
           PartData(iPart,10)=PartMPF(pcount)
           PartData(iPart,11)=PartStateBulkValues(pcount,1)
           PartData(iPart,12)=PartStateBulkValues(pcount,2)
@@ -989,17 +989,17 @@ DO iElem_loc=1,PP_nElems
           PartData(iPart,14)=PartStateBulkValues(pcount,4)
           PartData(iPart,15)=PartStateBulkValues(pcount,5)
         ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
-          PartData(iPart,10)=PartStateIntEn(pcount,3)
+          PartData(iPart,8)=PartStateIntEn(1,pcount)
+          PartData(iPart,9)=PartStateIntEn(2,pcount)
+          PartData(iPart,10)=PartStateIntEn(3,pcount)
           PartData(iPart,11)=PartStateBulkValues(pcount,1)
           PartData(iPart,12)=PartStateBulkValues(pcount,2)
           PartData(iPart,13)=PartStateBulkValues(pcount,3)
           PartData(iPart,14)=PartStateBulkValues(pcount,4)
           PartData(iPart,15)=PartStateBulkValues(pcount,5)
         ELSE IF (CollisMode.GT.1) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
+          PartData(iPart,8)=PartStateIntEn(1,pcount)
+          PartData(iPart,9)=PartStateIntEn(2,pcount)
           PartData(iPart,10)=PartStateBulkValues(pcount,1)
           PartData(iPart,11)=PartStateBulkValues(pcount,2)
           PartData(iPart,12)=PartStateBulkValues(pcount,3)

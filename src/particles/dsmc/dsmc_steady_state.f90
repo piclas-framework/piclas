@@ -833,14 +833,14 @@ SUBROUTINE SteadyStateDetection_Sampling()
       IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
         IF((SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.20)) THEN
           Sampler(iElem,PartSpecies(PartIndex))%EVib        = Sampler(iElem,PartSpecies(PartIndex))%EVib &
-                                                            + PartStateIntEn(PartIndex,1) * GetParticleWeight(PartIndex)
+                                                            + PartStateIntEn(1,PartIndex) * GetParticleWeight(PartIndex)
           Sampler(iElem,PartSpecies(PartIndex))%ERot        = Sampler(iElem,PartSpecies(PartIndex))%ERot &
-                                                            + PartStateIntEn(PartIndex,2) * GetParticleWeight(PartIndex)
+                                                            + PartStateIntEn(2,PartIndex) * GetParticleWeight(PartIndex)
         END IF
       END IF
       IF(DSMC%ElectronicModel) THEN
         Sampler(iElem,PartSpecies(PartIndex))%EElec       = Sampler(iElem,PartSpecies(PartIndex))%EElec &
-                                                          + PartStateIntEn(PartIndex,2) * GetParticleWeight(PartIndex)
+                                                          + PartStateIntEn(2,PartIndex) * GetParticleWeight(PartIndex)
       ENDIF
       PartIndex = PEM%pNext(PartIndex)
     ENDDO
