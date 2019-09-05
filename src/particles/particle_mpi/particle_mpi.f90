@@ -780,7 +780,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       PartSendBuf(iProc)%content(       1+jPos) = REAL(PartSpecies(iPart),KIND=8)
       jPos=jPos+1
 #if defined(LSERK)
-      PartSendBuf(iProc)%content(1+jPos:6+jPos) = Pt_temp(iPart,1:6)
+      PartSendBuf(iProc)%content(1+jPos:6+jPos) = Pt_temp(1:6,iPart)
       IF (PDM%IsNewPart(iPart)) THEN
         PartSendBuf(iProc)%content(7+jPos) = 1.
       ELSE
@@ -1080,7 +1080,7 @@ DO iPart=1,PDM%ParticleVecLength
   PartState(1:6,iPart)=0.
   PartSpecies(iPart)=0
 #if defined(LSERK)
-  Pt_temp(iPart,1:6)=0.
+  Pt_temp(1:6,iPart)=0.
 #endif
 END DO ! iPart=1,PDM%ParticleVecLength
 
@@ -1313,7 +1313,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     PartSpecies(PartID)     = INT(PartRecvBuf(iProc)%content( 1+jPos),KIND=4)
     jPos=jPos+1
 #if defined(LSERK)
-    Pt_temp(PartID,1:6)     = PartRecvBuf(iProc)%content( 1+jPos:6+jPos)
+    Pt_temp(1:6,PartID)     = PartRecvBuf(iProc)%content( 1+jPos:6+jPos)
     IF ( INT(PartRecvBuf(iProc)%content( 7+jPos)) .EQ. 1) THEN
       PDM%IsNewPart(PartID)=.TRUE.
     ELSE IF ( INT(PartRecvBuf(iProc)%content( 7+jPos)) .EQ. 0) THEN

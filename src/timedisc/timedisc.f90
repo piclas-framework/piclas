@@ -981,11 +981,11 @@ PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
 IF (time.GE.DelayTime) THEN
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
-      Pt_temp(iPart,1:3) = PartState(4:6,iPart)
+      Pt_temp(1:3,iPart) = PartState(4:6,iPart)
       PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * b_dt(1)
       ! Don't push the velocity component of neutral particles!
       IF(PUSHPARTICLE(iPart))THEN
-        Pt_temp(iPart,4:6) = Pt(1:3,iPart)
+        Pt_temp(4:6,iPart) = Pt(1:3,iPart)
         PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart)*b_dt(1)
       END IF
     END IF ! PDM%ParticleInside(iPart)
@@ -1150,12 +1150,12 @@ DO iStage=2,nRKStages
     PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
-        Pt_temp(iPart,1:3) = PartState(4:6,iPart) - RK_a(iStage) * Pt_temp(iPart,1:3)
-        PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(iPart,1:3)*b_dt(iStage)
+        Pt_temp(1:3,iPart) = PartState(4:6,iPart) - RK_a(iStage) * Pt_temp(1:3,iPart)
+        PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)
         ! Don't push the velocity component of neutral particles!
         IF(PUSHPARTICLE(iPart))THEN
-          Pt_temp(iPart,4:6) =        Pt(1:3,iPart) - RK_a(iStage) * Pt_temp(iPart,4:6)
-          PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(iPart,4:6)*b_dt(iStage)
+          Pt_temp(4:6,iPart) =        Pt(1:3,iPart) - RK_a(iStage) * Pt_temp(4:6,iPart)
+          PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(4:6,iPart)*b_dt(iStage)
         END IF
       END IF ! PDM%ParticleInside(iPart)
     END DO ! iPart=1,PDM%ParticleVecLength
@@ -4754,11 +4754,11 @@ IF (time.GE.DelayTime) THEN
       END IF
       !-- Particle Push
       IF (.NOT.PDM%IsNewPart(iPart)) THEN
-        Pt_temp(iPart,1:3) = PartState(4:6,iPart)
+        Pt_temp(1:3,iPart) = PartState(4:6,iPart)
         PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * b_dt(1)
         ! Don't push the velocity component of neutral particles!
         IF(PUSHPARTICLE(iPart))THEN
-          Pt_temp(iPart,4:6) = Pt(1:3,iPart)
+          Pt_temp(4:6,iPart) = Pt(1:3,iPart)
           PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart)*b_dt(1)
         END IF
       ELSE !IsNewPart: no Pt_temp history available!
@@ -4793,12 +4793,12 @@ __STAMP__&
             Pv_rebuilt(1:3,iStage_loc) = v_rebuilt(1:3,iStage_loc-1) - RK_a(iStage_loc)*Pv_rebuilt(1:3,iStage_loc-1)
           END IF
         END DO
-        Pt_temp(iPart,1:3) = Pv_rebuilt(1:3,iStage)
-        PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(iPart,1:3)*b_dt(iStage)*RandVal
+        Pt_temp(1:3,iPart) = Pv_rebuilt(1:3,iStage)
+        PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)*RandVal
         ! Don't push the velocity component of neutral particles!
         IF(PUSHPARTICLE(iPart))THEN
-          Pt_temp(iPart,4:6) = Pa_rebuilt(1:3,iStage)
-          PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(iPart,4:6)*b_dt(iStage)*RandVal
+          Pt_temp(4:6,iPart) = Pa_rebuilt(1:3,iStage)
+          PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(4:6,iPart)*b_dt(iStage)*RandVal
         END IF
         PDM%dtFracPush(iPart) = .FALSE.
         IF (.NOT.DoForceFreeSurfaceFlux) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
@@ -4912,12 +4912,12 @@ DO iStage=2,nRKStages
         ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
         IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before',EDiff)
         IF (.NOT.PDM%IsNewPart(iPart)) THEN
-          Pt_temp(iPart,1:3) = PartState(4:6,iPart) - RK_a(iStage) * Pt_temp(iPart,1:3)
-          PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(iPart,1:3)*b_dt(iStage)
+          Pt_temp(1:3,iPart) = PartState(4:6,iPart) - RK_a(iStage) * Pt_temp(1:3,iPart)
+          PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)
           ! Don't push the velocity component of neutral particles!
           IF(PUSHPARTICLE(iPart))THEN
-            Pt_temp(iPart,4:6) = Pt(1:3,iPart) - RK_a(iStage) * Pt_temp(iPart,4:6)
-            PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(iPart,4:6)*b_dt(iStage)
+            Pt_temp(4:6,iPart) = Pt(1:3,iPart) - RK_a(iStage) * Pt_temp(4:6,iPart)
+            PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(4:6,iPart)*b_dt(iStage)
           END IF
         ELSE !IsNewPart: no Pt_temp history available!
           IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !SF, new in current RKStage
@@ -4951,12 +4951,12 @@ DO iStage=2,nRKStages
               Pv_rebuilt(1:3,iStage_loc) = v_rebuilt(1:3,iStage_loc-1) - RK_a(iStage_loc)*Pv_rebuilt(1:3,iStage_loc-1)
             END IF
           END DO
-          Pt_temp(iPart,1:3) = Pv_rebuilt(1:3,iStage)
-          PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(iPart,1:3)*b_dt(iStage)*RandVal
+          Pt_temp(1:3,iPart) = Pv_rebuilt(1:3,iStage)
+          PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)*RandVal
           ! Don't push the velocity component of neutral particles!
           IF(PUSHPARTICLE(iPart))THEN
-            Pt_temp(iPart,4:6) = Pa_rebuilt(1:3,iStage)
-            PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(iPart,4:6)*b_dt(iStage)*RandVal
+            Pt_temp(4:6,iPart) = Pa_rebuilt(1:3,iStage)
+            PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(4:6,iPart)*b_dt(iStage)*RandVal
           END IF
           IF (.NOT.DoForceFreeSurfaceFlux .OR. iStage.EQ.nRKStages) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
         END IF !IsNewPart
