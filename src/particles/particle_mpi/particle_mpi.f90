@@ -1090,7 +1090,7 @@ PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(1,:))
 ! temporary storage
 IF(DoExternalParts) THEN
   NbrOfExtParticles =SUM(PartMPIExchange%nPartsSend(1,:))+SUM(PartMPIExchange%nPartsRecv(2,:))
-  ALLOCATE(ExtPartState  (1:NbrOfExtParticles,1:6) &
+  ALLOCATE(ExtPartState  (1:6,1:NbrOfExtParticles) &
           ,ExtPartSpecies(1:NbrOfExtParticles)     &
           !,ExtPartToFIBGM(1:6,1:NbrOfExtParticles) &
           ,STAT=ALLOCSTAT)
@@ -1109,7 +1109,7 @@ IF(DoExternalParts) THEN
   DO iPart=1,PDM%ParticleVecLength
     IF(PartTargetProc(iPart).EQ.-1) CYCLE
     iExtPart=iExtPart+1
-    ExtPartState(iExtPart,1:6)        = PartState(1:6,iPart)
+    ExtPartState(1:6,iExtPart)        = PartState(1:6,iPart)
     ExtPartSpecies(iExtPart)          = PartSpecies(iPart)
     IF (usevMPF) ExtPartMPF(iExtPart) = PartMPF(iPart)
   END DO ! iPart=1,PDM%ParticleVecLength
@@ -1571,7 +1571,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     MessageSize=nRecvExtParticles*ExtPartCommSize+jPos
     DO iPos=jPos,MessageSize-1,ExtPartCommSize
       iExtPart=iExtPart+1
-      ExtPartState(iExtPart,1:6) = PartRecvBuf(iProc)%content( 1+iPos: 6+iPos)
+      ExtPartState(1:6,iExtPart) = PartRecvBuf(iProc)%content( 1+iPos: 6+iPos)
       ExtPartSpecies(iExtPart)   = INT(PartRecvBuf(iProc)%content( 7+iPos),KIND=4)
       IF (usevMPF) ExtPartMPF(iExtPart) = PartRecvBuf(iProc)%content( 8+iPos)
     END DO ! iPos

@@ -1932,13 +1932,13 @@ CASE('shape_function','shape_function_simple')
     IF (usevMPF) THEN
       DO iPart=1,NbrOfextParticles  !external Particles
         CALL calcSfSource(4,Species(ExtPartSpecies(iPart))%ChargeIC*ExtPartMPF(iPart)*w_sf &
-          ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),-iPart,PartVelo=ExtPartState(iPart,4:6))
+          ,Vec1,Vec2,Vec3,ExtPartState(1:3,iPart),-iPart,PartVelo=ExtPartState(4:6,iPart))
       END DO
     ELSE
       DO iPart=1,NbrOfextParticles  !external Particles
         CALL calcSfSource(4 &
           ,Species(ExtPartSpecies(iPart))%ChargeIC*Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf &
-          ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),-iPart,PartVelo=ExtPartState(iPart,4:6))
+          ,Vec1,Vec2,Vec3,ExtPartState(1:3,iPart),-iPart,PartVelo=ExtPartState(4:6,iPart))
       END DO
     END IF ! usevMPF
     ! deallocate external state
@@ -2137,12 +2137,12 @@ CASE('shape_function_1d')
       ELSE
         Fac(4)= Species(ExtPartSpecies(iPart))%ChargeIC * Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf
       END IF ! usevMPF
-      Fac(1:3) = ExtPartState(iPart,4:6)*Fac(4)
+      Fac(1:3) = ExtPartState(4:6,iPart)*Fac(4)
       chargedone(:) = .FALSE.
       !-- determine which background mesh cells (and interpolation points within) need to be considered
       DO iCase = 1, NbrOfCases
         DO ind = 1,3
-          ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+          ShiftedPart(ind) = ExtPartState(ind,iPart) + casematrix(iCase,1)*Vec1(ind) + &
                casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
         END DO
         IF(sf1d_dir.EQ.1)THEN
@@ -2404,7 +2404,7 @@ CASE('shape_function_2d')
       ELSE
         Fac(4)= Species(ExtPartSpecies(iPart))%ChargeIC * Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf
       END IF ! usevMPF
-      Fac(1:3) = ExtPartState(iPart,4:6)*Fac(4)
+      Fac(1:3) = ExtPartState(4:6,iPart)*Fac(4)
       chargedone(:) = .FALSE.
       !-- determine which background mesh cells (and interpolation points within) need to be considered
       DO iCase = 1, NbrOfCases
