@@ -805,16 +805,16 @@ END IF
 ! rotation for IMEX and Rosenbrock Method (requires the rotation of the previous rk-stages... simplification of boundary condition)
 ! results in an order reduction
 #ifdef IMPA
-!IF(SUM(ABS(PEM%NormVec(PartID,1:3))).GT.0)THEN
+!IF(SUM(ABS(PEM%NormVec(1:3,PartID))).GT.0)THEN
 !   IPWRITE(*,*) ' Caution: Field rotation for several reflection is not implemented!', iStage,PartIsImplicit(PartID), PartID
 ! END IF
-PEM%NormVec(PartID,1:3)=n_loc
+PEM%NormVec(1:3,PartID)=n_loc
 #endif /*IMPA*/
 #ifdef ROS
-! IF(SUM(ABS(PEM%NormVec(PartID,1:3))).GT.0)THEN
+! IF(SUM(ABS(PEM%NormVec(1:3,PartID))).GT.0)THEN
 !   !IPWRITE(*,*) ' Caution: Field rotation for several reflection is not implemented!'
 ! END IF
-PEM%NormVec(PartID,1:3)=n_loc
+PEM%NormVec(1:3,PartID)=n_loc
 #endif /*ROS*/
 
 END SUBROUTINE PerfectReflection

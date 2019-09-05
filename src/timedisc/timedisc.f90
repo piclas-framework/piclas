@@ -2193,7 +2193,7 @@ IF(time.GE.DelayTime)THEN
   CALL PartVeloToImp(VeloToImp=.TRUE.)
   PartStateN(1:6,1:PDM%ParticleVecLength)=PartState(1:6,1:PDM%ParticleVecLength)
   PEM%ElementN(1:PDM%ParticleVecLength)  =PEM%Element(1:PDM%ParticleVecLength)
-  IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:PDM%ParticleVecLength,1:3) =0.
+  IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,1:PDM%ParticleVecLength) =0.
   PEM%PeriodicMoved(1:PDM%ParticleVecLength) = .FALSE.
   IF(iter.EQ.0)THEN ! caution with emission: fields should also be interpolated to new particles, this is missing
                     ! or should be done directly during emission...
@@ -2246,7 +2246,7 @@ IF(time.GE.DelayTime)THEN
           PartStateN(4:6,iPart) = PartState(4:6,iPart)
           ! gives entry point into domain
           PEM%ElementN(iPart)      = PEM%Element(iPart)
-          IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)   = 0.
+          IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,iPart)   = 0.
           PEM%PeriodicMoved(iPart) = .FALSE.
           CALL RANDOM_NUMBER(RandVal)
           PartDtFrac(iPart)=RandVal
@@ -2349,8 +2349,8 @@ DO iStage=2,nRKStages
         ! caution, implicit is already back-roated for the computation of Pt and Velocity/Momentum
         reMap=.FALSE.
         IF(PartMeshHasReflectiveBCs)THEN
-          IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
-            PEM%NormVec(iPart,1:3)=0.
+          IF(SUM(ABS(PEM%NormVec(1:3,iPart))).GT.0.)THEN
+            PEM%NormVec(1:3,iPart)=0.
             reMap=.TRUE.
           END IF
         END IF
@@ -2378,13 +2378,13 @@ DO iStage=2,nRKStages
         CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
         reMap=.FALSE.
         IF(PartMeshHasReflectiveBCs)THEN
-          IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
-            n_loc=PEM%NormVec(iPart,1:3)
+          IF(SUM(ABS(PEM%NormVec(1:3,iPart))).GT.0.)THEN
+            n_loc=PEM%NormVec(1:3,iPart)
             ! particle is actually located outside, hence, it moves in the mirror field
             ! mirror electric field, constant B field
             FieldAtParticle(1:3,iPart)=FieldAtParticle(1:3,iPart)-2.*DOT_PRODUCT(FieldAtParticle(1:3,iPart),n_loc)*n_loc
             FieldAtParticle(4:6,iPart)=FieldAtParticle(4:6,iPart)!-2.*DOT_PRODUCT(FieldAtParticle(4:6,iPart),n_loc)*n_loc
-            PEM%NormVec(iPart,1:3)=0.
+            PEM%NormVec(1:3,iPart)=0.
             ! and of coarse, the velocity has to be back-rotated, because the particle has not hit the wall
             reMap=.TRUE.
           END IF
@@ -2446,7 +2446,7 @@ DO iStage=2,nRKStages
         LastPartPos(3,iPart)  =PartStateN(3,iPart)
         PEM%lastElement(iPart)=PEM%ElementN(iPart)
         ! delete rotation || periodic movement
-        IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3) = 0.
+        IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,iPart) = 0.
         PEM%PeriodicMoved(iPart) =.FALSE.
         ! compute explicit push
         PartState(1:6,iPart) = ERK_a(iStage,iStage-1)*PartStage(1:6,iStage-1,iPart)
@@ -2563,7 +2563,7 @@ DO iStage=2,nRKStages
         LastPartPos(2,iPart)=PartStateN(2,iPart)
         LastPartPos(3,iPart)=PartStateN(3,iPart)
         PEM%lastElement(iPart)=PEM%ElementN(iPart)
-        IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3) =0.
+        IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,iPart) =0.
         PEM%PeriodicMoved(iPart) = .FALSE.
         ! compute Q and U
         PartQ(1:6,iPart) = ESDIRK_a(iStage,iStage-1)*PartStage(1:6,iStage-1,iPart)
@@ -2713,13 +2713,13 @@ IF (time.GE.DelayTime) THEN
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
       reMap=.FALSE.
       IF(PartMeshHasReflectiveBCs)THEN
-        IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
-          n_loc=PEM%NormVec(iPart,1:3)
+        IF(SUM(ABS(PEM%NormVec(1:3,iPart))).GT.0.)THEN
+          n_loc=PEM%NormVec(1:3,iPart)
           ! particle is actually located outside, hence, it moves in the mirror field
           ! mirror electric field, constant B field
           FieldAtParticle(1:3,iPart)=FieldAtParticle(1:3,iPart)-2.*DOT_PRODUCT(FieldAtParticle(1:3,iPart),n_loc)*n_loc
           FieldAtParticle(4:6,iPart)=FieldAtParticle(4:6,iPart)!-2.*DOT_PRODUCT(FieldAtParticle(4:6,iPart),n_loc)*n_loc
-          PEM%NormVec(iPart,1:3)=0.
+          PEM%NormVec(1:3,iPart)=0.
           ! and of coarse, the velocity has to be back-rotated, because the particle has not hit the wall
           reMap=.TRUE.
         END IF
@@ -3166,7 +3166,7 @@ IF(time.GE.DelayTime)THEN
     LastPartPos(3,iPart)  =PartStateN(iPart,3)
     ! copy date
     PEM%lastElement(iPart)=PEM%ElementN(iPart)
-    IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
+    IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,iPart)=0.
     PEM%PeriodicMoved(iPart) = .FALSE.
     ! build RHS of particle with current DG solution and particle position
     CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
@@ -3402,13 +3402,13 @@ DO iStage=2,nRKStages
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle_loc(1:6))
       reMap=.FALSE.
       IF(PartMeshHasReflectiveBCs)THEN
-        IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
-          n_loc=PEM%NormVec(iPart,1:3)
+        IF(SUM(ABS(PEM%NormVec(1:3,iPart))).GT.0.)THEN
+          n_loc=PEM%NormVec(1:3,iPart)
           ! particle is actually located outside, hence, it moves in the mirror field
           ! mirror electric field, constant B field
           FieldAtParticle(1:3,iPart)=FieldAtParticle(1:3,iPart)-2.*DOT_PRODUCT(FieldAtParticle(1:3,iPart),n_loc)*n_loc
           FieldAtParticle(4:6,iPart)=FieldAtParticle(4:6,iPart)!-2.*DOT_PRODUCT(FieldAtParticle(4:6,iPart),n_loc)*n_loc
-          PEM%NormVec(iPart,1:3)=0.
+          PEM%NormVec(1:3,iPart)=0.
           ! and of coarse, the velocity has to be back-rotated, because the particle has not hit the wall
           reMap=.TRUE.
         END IF

@@ -1266,7 +1266,7 @@ IF (ALLOCSTAT.NE.0) THEN
    ,' Cannot allocate the stage position and element arrays!')
 END IF
 PEM%ElementN=0
-ALLOCATE(PEM%NormVec(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
+ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
  __STAMP__&
@@ -1304,7 +1304,7 @@ IF (ALLOCSTAT.NE.0) THEN
    ,' Cannot allocate the stage position and element arrays!')
 END IF
 PEM%ElementN=0
-ALLOCATE(PEM%NormVec(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
+ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
  __STAMP__&

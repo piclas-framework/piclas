@@ -817,8 +817,8 @@ DO iProc=1, PartMPI%nMPINeighbors
       ! fieldatparticle
       PartSendBuf(iProc)%content(jPos+1:jPos+6) = FieldAtParticle(1:6,iPart)
       jPos=jPos+6
-      PartSendBuf(iProc)%content(jPos+1:jPos+3) = PEM%NormVec(iPart,1:3)
-      PEM%NormVec(iPart,1:3)=0.
+      PartSendBuf(iProc)%content(jPos+1:jPos+3) = PEM%NormVec(1:3,iPart)
+      PEM%NormVec(1:3,iPart)=0.
       jPos=jPos+3
       PartSendBuf(iProc)%content(jPos+1) =REAL(ElemToGlobalElemID(PEM%ElementN(iPart)))
       jPos=jPos+1
@@ -1357,7 +1357,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     ! fieldatparticle
     FieldAtParticle(1:6,PartID)  = PartRecvBuf(iProc)%content(jPos+1:jPos+6)
     jPos=jPos+6
-    PEM%NormVec(PartID,1:3)  = PartRecvBuf(iProc)%content(jPos+1:jPos+3)
+    PEM%NormVec(1:3,PartID)  = PartRecvBuf(iProc)%content(jPos+1:jPos+3)
     jPos=jPos+3
     LocElemID=INT(PartRecvBuf(iProc)%content(jPos+1),KIND=4)
     IF((LocElemID-OffSetElem.GE.1).AND.(LocElemID-OffSetElem.LE.PP_nElems))THEN

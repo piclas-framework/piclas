@@ -330,21 +330,21 @@ IF(opt)THEN ! compute zero state
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
       reMap=.FALSE.
       IF(PartMeshHasReflectiveBCs)THEN
-        IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
-          n_loc=PEM%NormVec(iPart,1:3)
+        IF(SUM(ABS(PEM%NormVec(1:3,iPart))).GT.0.)THEN
+          n_loc=PEM%NormVec(1:3,iPart)
           ! particle is actually located outside, hence, it moves in the mirror field
           FieldAtParticle(1:3,iPart)=FieldAtParticle(1:3,iPart)-2.*DOT_PRODUCT(FieldAtParticle(1:3,iPart),n_loc)*n_loc
           FieldAtParticle(4:6,iPart)=FieldAtParticle(4:6,iPart)!-2.*DOT_PRODUCT(FieldAtParticle(4:6,iPart),n_loc)*n_loc
           ! and of coarse, the velocity has to be back-rotated, because the particle has not hit the wall
           reMap=.TRUE.
-          PEM%NormVec(iPart,1:3)=0.
+          PEM%NormVec(1:3,iPart)=0.
         END IF
       END IF
       IF(PEM%PeriodicMoved(iPart)) THEN
         reMap=.TRUE.
         PEM%PeriodicMoved(iPart)=.FALSE.
       END IF
-      IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
+      IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,iPart)=0.
       PEM%PeriodicMoved(iPart)=.FALSE.
       IF(reMap)THEN
         PartState(1:6,iPart)=PartXK(1:6,iPart)+PartDeltaX(1:6,iPart)
@@ -395,9 +395,9 @@ ELSE
       PEM%lastElement(iPart)=PEM%ElementN(iPart)
       reMap=.FALSE.
       IF(PartMeshHasReflectiveBCs)THEN
-        IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
+        IF(SUM(ABS(PEM%NormVec(1:3,iPart))).GT.0.)THEN
           reMap=.TRUE.
-          PEM%NormVec(iPart,1:3)=0.
+          PEM%NormVec(1:3,iPart)=0.
         END IF
       END IF
       IF(PEM%PeriodicMoved(iPart)) reMap=.TRUE.
@@ -748,7 +748,7 @@ DO iPart=1,PDM%ParticleVecLength
     LastPartPos(3,iPart)=PartStateN(3,iPart)
     PEM%lastElement(iPart)=PEM%ElementN(iPart)
     ! and disable periodic movement
-    IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,:)=0.
+    IF(PartMeshHasReflectiveBCs) PEM%NormVec(:,iPart)=0.
     PEM%PeriodicMoved(iPart)=.FALSE.
     ! new part: of Armijo algorithm: check convergence
     ! compute new function value
@@ -853,13 +853,13 @@ DO iPart=1,PDM%ParticleVecLength
     CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
     reMap=.FALSE.
     IF(PartMeshHasReflectiveBCs)THEN
-      IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
-        n_loc=PEM%NormVec(iPart,1:3)
+      IF(SUM(ABS(PEM%NormVec(1:3,iPart))).GT.0.)THEN
+        n_loc=PEM%NormVec(1:3,iPart)
         ! particle is actually located outside, hence, it moves in the mirror field
         FieldAtParticle(1:3,iPart)=FieldAtParticle(1:3,iPart)-2.*DOT_PRODUCT(FieldAtParticle(1:3,iPart),n_loc)*n_loc
         FieldAtParticle(4:6,iPart)=FieldAtParticle(4:6,iPart)!-2.*DOT_PRODUCT(FieldAtParticle(4:6,iPart),n_loc)*n_loc
         ! reset part state to the not-reflected position
-        !PEM%NormVec(iPart,1:3)=0.
+        !PEM%NormVec(1:3,iPart)=0.
         reMap=.TRUE.
       END IF
     END IF
@@ -982,7 +982,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       LastPartPos(2,iPart)=PartStateN(2,iPart)
       LastPartPos(3,iPart)=PartStateN(3,iPart)
       PEM%lastElement(iPart)=PEM%ElementN(iPart)
-      IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
+      IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,iPart)=0.
       PEM%PeriodicMoved(iPart)=.FALSE.
       ! recompute part state
       PartState(1:6,iPart)=PartXK(:,iPart)+lambda*PartDeltaX(:,iPart)
@@ -1055,8 +1055,8 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
       reMap=.FALSE.
       IF(PartMeshHasReflectiveBCs)THEN
-        IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
-          n_loc=PEM%NormVec(iPart,1:3)
+        IF(SUM(ABS(PEM%NormVec(1:3,iPart))).GT.0.)THEN
+          n_loc=PEM%NormVec(1:3,iPart)
           ! particle is actually located outside, hence, it moves in the mirror field
           FieldAtParticle(1:3,iPart)=FieldAtParticle(1:3,iPart)-2.*DOT_PRODUCT(FieldAtParticle(1:3,iPart),n_loc)*n_loc
           FieldAtParticle(4:6,iPart)=FieldAtParticle(4:6,iPart)!-2.*DOT_PRODUCT(FieldAtParticle(4:6,iPart),n_loc)*n_loc
