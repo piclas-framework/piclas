@@ -844,15 +844,15 @@ CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 ! Read-in of dimensions of the particle array (1: Number of particles, 2: Number of variables)
 CALL GetDataSize(File_ID,'PartData',nDims,HSize)
 ! First 3 entries are the particle positions, which are used as the coordinates for the output and not included as a variable
-nPartsVar=INT(HSize(2),4)-3
-nParts=INT(HSize(1),4)
+nPartsVar=INT(HSize(1),4)-3
+nParts=INT(HSize(2),4)
 ! Allocating the array for the variables and a temporary array since ParticlePositionX,Y,Z are included in the read-in
 ALLOCATE(VarNamesParticle(nPartsVar),tmpArray(nPartsVar+3))
 CALL ReadAttribute(File_ID,'VarNamesParticles',nPartsVar+3,StrArray=tmpArray)
 VarNamesParticle(1:nPartsVar)=tmpArray(4:nPartsVar+3)
 
 IF(nParts.GT.0) THEN
-  ALLOCATE(PartData(1:nPartsVar+3,1:nParts),tmpPartData(1:nParts,1:nPartsVar+3))
+  ALLOCATE(PartData(1:nPartsVar+3,1:nParts),tmpPartData(1:nPartsVar+3,1:nParts))
   PartData = 0.
   tmpPartData = 0.
   SDEALLOCATE(ConnectInfo)
@@ -862,11 +862,11 @@ END IF
 
 ASSOCIATE(nParts    => INT(nParts,IK),  &
           nPartsVar => INT(nPartsVar,IK))
-CALL ReadArray('PartData',2,(/nParts, nPartsVar+3_IK/),0_IK,1,RealArray=tmpPartData)
+CALL ReadArray('PartData',2,(/nPartsVar+3_IK,nParts/),0_IK,1,RealArray=tmpPartData)
 END ASSOCIATE
 
 DO iPart=1,nParts
-  PartData(1:nPartsVar+3,iPart) = tmpPartData(iPart,1:nPartsVar+3)
+  PartData(1:nPartsVar+3,iPart) = tmpPartData(1:nPartsVar+3,iPart)
   ConnectInfo(1,iPart)=iPart-1
 END DO
 

@@ -718,9 +718,9 @@ __STAMP__&
           END IF
         END DO
       END IF
-      ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,PartDataSize_HDF5))
+      ALLOCATE(PartData(PartDataSize_HDF5,offsetnPart+1_IK:offsetnPart+locnPart))
 
-      CALL ReadArray('PartData',2,(/locnPart,INT(PartDataSize_HDF5,IK)/),offsetnPart,1,RealArray=PartData)!,&
+      CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,1,RealArray=PartData)!,&
       !xfer_mode_independent=.TRUE.)
 
       IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
@@ -736,33 +736,33 @@ __STAMP__&
 
       iPart=0
       DO iLoop = 1_IK,locnPart
-        IF(SpecReset(INT(PartData(offsetnPart+iLoop,7),4))) CYCLE
+        IF(SpecReset(INT(PartData(7,offsetnPart+iLoop),4))) CYCLE
         iPart = iPart + 1
-        PartState(1,iPart)   = PartData(offsetnPart+iLoop,1)
-        PartState(2,iPart)   = PartData(offsetnPart+iLoop,2)
-        PartState(3,iPart)   = PartData(offsetnPart+iLoop,3)
-        PartState(4,iPart)   = PartData(offsetnPart+iLoop,4)
-        PartState(5,iPart)   = PartData(offsetnPart+iLoop,5)
-        PartState(6,iPart)   = PartData(offsetnPart+iLoop,6)
-        PartSpecies(iPart)= INT(PartData(offsetnPart+iLoop,7),4)
+        PartState(1,iPart)   = PartData(1,offsetnPart+iLoop)
+        PartState(2,iPart)   = PartData(2,offsetnPart+iLoop)
+        PartState(3,iPart)   = PartData(3,offsetnPart+iLoop)
+        PartState(4,iPart)   = PartData(4,offsetnPart+iLoop)
+        PartState(5,iPart)   = PartData(5,offsetnPart+iLoop)
+        PartState(6,iPart)   = PartData(6,offsetnPart+iLoop)
+        PartSpecies(iPart)= INT(PartData(7,offsetnPart+iLoop),4)
         IF (useDSMC) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
-            PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
-            PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
-            PartStateIntEn(3,iPart)=PartData(offsetnPart+iLoop,10)
-            PartMPF(iPart)=PartData(offsetnPart+iLoop,11)
+            PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
+            PartStateIntEn(2,iPart)=PartData(9,offsetnPart+iLoop)
+            PartStateIntEn(3,iPart)=PartData(10,offsetnPart+iLoop)
+            PartMPF(iPart)=PartData(11,offsetnPart+iLoop)
           ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-            PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
-            PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
-            PartMPF(iPart)=PartData(offsetnPart+iLoop,10)
+            PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
+            PartStateIntEn(2,iPart)=PartData(9,offsetnPart+iLoop)
+            PartMPF(iPart)=PartData(10,offsetnPart+iLoop)
           ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
-            PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
-            PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
-            PartStateIntEn(3,iPart)=PartData(offsetnPart+iLoop,10)
+            PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
+            PartStateIntEn(2,iPart)=PartData(9,offsetnPart+iLoop)
+            PartStateIntEn(3,iPart)=PartData(10,offsetnPart+iLoop)
           ELSE IF (CollisMode.GT.1) THEN
             IF (readVarFromState(8).AND.readVarFromState(9)) THEN
-              PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
-              PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
+              PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
+              PartStateIntEn(2,iPart)=PartData(9,offsetnPart+iLoop)
             ELSE IF (SpecDSMC(PartSpecies(iPart))%InterID.EQ.1 .OR. &
                      SpecDSMC(PartSpecies(iPart))%InterID.EQ.10 .OR. &
                      SpecDSMC(PartSpecies(iPart))%InterID.EQ.15 ) THEN
@@ -773,13 +773,13 @@ __STAMP__&
               CALL Abort(&
 __STAMP__&
 ,"resetting inner DOF for molecules is not implemented yet!"&
-,SpecDSMC(PartSpecies(iPart))%InterID , PartData(offsetnPart+iLoop,7))
+,SpecDSMC(PartSpecies(iPart))%InterID , PartData(7,offsetnPart+iLoop))
             END IF
           ELSE IF (usevMPF) THEN
-            PartMPF(iPart)=PartData(offsetnPart+iLoop,8)
+            PartMPF(iPart)=PartData(8,offsetnPart+iLoop)
           END IF
         ELSE IF (usevMPF) THEN
-          PartMPF(iPart)=PartData(offsetnPart+iLoop,8)
+          PartMPF(iPart)=PartData(8,offsetnPart+iLoop)
         END IF
 
         IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
@@ -798,7 +798,7 @@ __STAMP__&
       DO iElem=FirstElemInd,LastElemInd
         IF (PartInt(iElem,ELEM_LastPartInd).GT.PartInt(iElem,ELEM_FirstPartInd)) THEN
           DO iLoop = PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1_IK , PartInt(iElem,ELEM_LastPartInd)- offsetnPart
-            IF(SpecReset(INT(PartData(offsetnPart+iLoop,7),4))) CYCLE
+            IF(SpecReset(INT(PartData(7,offsetnPart+iLoop),4))) CYCLE
             iPart = iPart +1
             PEM%Element(iPart)  = iElem-offsetElem
             PEM%LastElement(iPart)  = iElem-offsetElem
