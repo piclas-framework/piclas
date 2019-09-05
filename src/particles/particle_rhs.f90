@@ -158,11 +158,13 @@ INTEGER                          :: iPart
 ! Loop all particles and call particle right-hand-side calculation
 DO iPart = 1,PDM%ParticleVecLength
   ! Particle is inside and not a neutral particle
-  IF (PDM%ParticleInside(iPart).AND.PUSHPARTICLE(iPart)) THEN
-    CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
-  ELSE
-    Pt(iPart,:)=0.
-  END IF
+  IF(PDM%ParticleInside(iPart))THEN
+    IF(PUSHPARTICLE(iPart))THEN
+      CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+      CYCLE
+    END IF ! PUSHPARTICLE(iPart)
+  END IF ! PDM%ParticleInside(iPart)
+  Pt(iPart,:)=0.
 END DO
 END SUBROUTINE CalcPartRHS
 
