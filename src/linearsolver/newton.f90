@@ -484,7 +484,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
           LastPartPos(1:3,iPart)=PartState(1:3,iPart)
           PEM%lastElement(iPart)=PEM%Element(iPart)
           tmpFac=(1.0-PartRelaxationFac)
-          PartState(1:6,iPart) = PartRelaxationFac*PartState(1:6,iPart)+tmpFac*PartStateN(iPart,1:6)
+          PartState(1:6,iPart) = PartRelaxationFac*PartState(1:6,iPart)+tmpFac*PartStateN(1:6,iPart)
           DO iCounter=1,iStage-1
             tmpFac=tmpFac*dt*ESDIRK_a(iStage-1,iCounter)
             PartState(1:6,iPart) = PartState(1:6,iPart) + tmpFac*PartStage(iPart,1:6,iCounter)

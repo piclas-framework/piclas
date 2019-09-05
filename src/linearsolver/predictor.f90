@@ -306,7 +306,7 @@ SELECT CASE(PredictorType)
       PartState(1:6,PartID) = PartState(1:6,PartID) + &
                           (RK_bs(iCounter,1)*tphi+RK_bs(iCounter,2)*tphi2)*PartStage(PartID,1:6,iCounter)
     END DO
-    PartState(1:6,PartID)=PartStateN(PartID,1:6)+dt*PartState(1:6,PartID)
+    PartState(1:6,PartID)=PartStateN(1:6,PartID)+dt*PartState(1:6,PartID)
 #else
    CALL abort(&
 __STAMP__&
@@ -326,7 +326,7 @@ __STAMP__&
                             + (RK_bsO3(iCounter,1)*tphi+RK_bsO3(iCounter,2)*tphi2+RK_bsO3(iCounter,3)*tphi3) &
                             * (PartStage(PartID,1:6,iCounter) )
     END DO
-    PartState(1:6,PartID)=PartStateN(PartID,1:6)+dt*PartState(1:6,PartID)
+    PartState(1:6,PartID)=PartStateN(1:6,PartID)+dt*PartState(1:6,PartID)
 #else
    CALL abort(&
 __STAMP__&

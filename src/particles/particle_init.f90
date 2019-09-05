@@ -1174,7 +1174,7 @@ IF (ALLOCSTAT.NE.0) THEN
 __STAMP__&
   ,' Cannot allocate PartStage arrays!')
 END IF
-ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)
+ALLOCATE(PartStateN(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
@@ -1245,7 +1245,7 @@ IF (ALLOCSTAT.NE.0) THEN
 __STAMP__&
   ,' Cannot allocate PartStage arrays!')
 END IF
-ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)
+ALLOCATE(PartStateN(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&

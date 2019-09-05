@@ -2199,7 +2199,7 @@ IF(time.GE.DelayTime)THEN
 #endif /*USE_LOADBALANCE*/
   ! velocity to impulse
   CALL PartVeloToImp(VeloToImp=.TRUE.)
-  PartStateN(1:PDM%ParticleVecLength,1:6)=PartState(1:6,1:PDM%ParticleVecLength)
+  PartStateN(1:6,1:PDM%ParticleVecLength)=PartState(1:6,1:PDM%ParticleVecLength)
   PEM%ElementN(1:PDM%ParticleVecLength)  =PEM%Element(1:PDM%ParticleVecLength)
   IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:PDM%ParticleVecLength,1:3) =0.
   PEM%PeriodicMoved(1:PDM%ParticleVecLength) = .FALSE.
@@ -2249,9 +2249,9 @@ IF(time.GE.DelayTime)THEN
           ! f(u^n) for velocity
           IF(.NOT.DoForceFreeSurfaceFlux) PartStage(iPart,4:6,1)=Pt(1:3,iPart)
           ! position NOT known but we backup the state
-          PartStateN(iPart,1:3) = PartState(1:3,iPart)
+          PartStateN(1:3,iPart) = PartState(1:3,iPart)
           ! initial velocity equals velocity of surface flux
-          PartStateN(iPart,4:6) = PartState(4:6,iPart)
+          PartStateN(4:6,iPart) = PartState(4:6,iPart)
           ! gives entry point into domain
           PEM%ElementN(iPart)      = PEM%Element(iPart)
           IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)   = 0.
@@ -2407,7 +2407,7 @@ DO iStage=2,nRKStages
           DO iCounter=1,iStage-2
             PartState(4:6,iPart)=PartState(4:6,iPart)+ERK_a(iStage-1,iCounter)*PartStage(iPart,4:6,iCounter)
           END DO ! iCounter=1,iStage-2
-          PartState(4:6,iPart)=PartStateN(iPart,4:6)+dt*PartState(4:6,iPart)
+          PartState(4:6,iPart)=PartStateN(4:6,iPart)+dt*PartState(4:6,iPart)
           ! luckily - nothing to do
         END IF
         IF(PartLorentzType.EQ.5)THEN
@@ -2449,9 +2449,9 @@ DO iStage=2,nRKStages
       IF(.NOT.PDM%ParticleInside(iPart))CYCLE
       IF(.NOT.PartIsImplicit(iPart))THEN !explicit particles only
         ! particle movement from PartSateN
-        LastPartPos(1,iPart)  =PartStateN(iPart,1)
-        LastPartPos(2,iPart)  =PartStateN(iPart,2)
-        LastPartPos(3,iPart)  =PartStateN(iPart,3)
+        LastPartPos(1,iPart)  =PartStateN(1,iPart)
+        LastPartPos(2,iPart)  =PartStateN(2,iPart)
+        LastPartPos(3,iPart)  =PartStateN(3,iPart)
         PEM%lastElement(iPart)=PEM%ElementN(iPart)
         ! delete rotation || periodic movement
         IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3) = 0.
@@ -2461,7 +2461,7 @@ DO iStage=2,nRKStages
         DO iCounter=1,iStage-2
           PartState(1:6,iPart)=PartState(1:6,iPart)+ERK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
         END DO ! iCounter=1,iStage-2
-        PartState(1:6,iPart)=PartStateN(iPart,1:6)+dt*PartState(1:6,iPart)
+        PartState(1:6,iPart)=PartStateN(1:6,iPart)+dt*PartState(1:6,iPart)
       END IF ! ParticleIsExplicit
     END DO ! iPart
 #if USE_LOADBALANCE
@@ -2567,9 +2567,9 @@ DO iStage=2,nRKStages
         ! ignore surface flux particle
         ! dirty hack, if particle does not take part in implicit treating, it is removed from this list
         ! surface flux particles
-        LastPartPos(1,iPart)=PartStateN(iPart,1)
-        LastPartPos(2,iPart)=PartStateN(iPart,2)
-        LastPartPos(3,iPart)=PartStateN(iPart,3)
+        LastPartPos(1,iPart)=PartStateN(1,iPart)
+        LastPartPos(2,iPart)=PartStateN(2,iPart)
+        LastPartPos(3,iPart)=PartStateN(3,iPart)
         PEM%lastElement(iPart)=PEM%ElementN(iPart)
         IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3) =0.
         PEM%PeriodicMoved(iPart) = .FALSE.
@@ -2583,7 +2583,7 @@ DO iStage=2,nRKStages
         ELSE
           Dtloc=dt
         END IF
-        PartQ(1:6,iPart) = PartStateN(iPart,1:6) + dtloc* PartQ(1:6,iPart)
+        PartQ(1:6,iPart) = PartStateN(1:6,iPart) + dtloc* PartQ(1:6,iPart)
         ! do not use a predictor
         ! position is already safed
         ! caution: has to use 4:6 because particle is not tracked
@@ -2593,7 +2593,7 @@ DO iStage=2,nRKStages
         !  PartState(4:6,iPart)=PartQ(4:6,iPart)
         !END IF
         ! store the information before the Newton method || required for init
-        PartDeltaX(1:6,iPart) = 0. ! PartState(1:6,iPart)-PartStateN(iPart,1:6)
+        PartDeltaX(1:6,iPart) = 0. ! PartState(1:6,iPart)-PartStateN(1:6,iPart)
         PartXk(1:6,iPart)     = PartState(1:6,iPart)
       END IF ! PartIsImplicit
     END DO ! iPart
@@ -2709,9 +2709,9 @@ IF (time.GE.DelayTime) THEN
    __STAMP__&
    ,' Particle error with surfaceflux. Part-ID: ',iPart)
     END IF
-    LastPartPos(1,iPart)=PartStateN(iPart,1)
-    LastPartPos(2,iPart)=PartStateN(iPart,2)
-    LastPartPos(3,iPart)=PartStateN(iPart,3)
+    LastPartPos(1,iPart)=PartStateN(1,iPart)
+    LastPartPos(2,iPart)=PartStateN(2,iPart)
+    LastPartPos(3,iPart)=PartStateN(3,iPart)
     PEM%lastElement(iPart)=PEM%ElementN(iPart)
     IF(.NOT.PartIsImplicit(iPart))THEN
       ! LastPartPos(1,iPart)=PartState(1,iPart)
@@ -2743,7 +2743,7 @@ IF (time.GE.DelayTime) THEN
         DO iCounter=1,iStage-2
           PartState(4:6,iPart)=PartState(4:6,iPart)+ERK_a(iStage,iCounter)*PartStage(iPart,4:6,iCounter)
         END DO ! iCounter=1,iStage-2
-        PartState(4:6,iPart)=PartStateN(iPart,4:6)+dt*PartState(4:6,iPart)
+        PartState(4:6,iPart)=PartStateN(4:6,iPart)+dt*PartState(4:6,iPart)
       END IF
       ! compute acceleration
       IF(PartLorentzType.EQ.5)THEN
@@ -2762,7 +2762,7 @@ IF (time.GE.DelayTime) THEN
         PartState(1:6,iPart) = PartState(1:6,iPart)   &
                              + RK_b(iCounter)*PartStage(iPart,1:6,iCounter)
       END DO ! counter
-      PartState(1:6,iPart) = PartStateN(iPart,1:6)+dt*PartState(1:6,iPart)
+      PartState(1:6,iPart) = PartStateN(1:6,iPart)+dt*PartState(1:6,iPart)
 
     END IF ! ParticleIsExplicit
   END DO ! iPart

@@ -795,7 +795,7 @@ DO iProc=1, PartMPI%nMPINeighbors
         IF(iStage.EQ.1) CALL Abort(&
                __STAMP__&
          ,' You should never send particles now!')
-        PartSendBuf(iProc)%content(1+jpos:6+jpos)        = PartStateN(iPart,1:6)
+        PartSendBuf(iProc)%content(1+jpos:6+jpos)        = PartStateN(1:6,iPart)
         DO iCounter=1,iStage-1
           PartSendBuf(iProc)%content(jpos+7+(iCounter-1)*6:jpos+6+iCounter*6) = PartStage(iPart,1:6,iCounter)
         END DO
@@ -1371,7 +1371,7 @@ DO iProc=1,PartMPI%nMPINeighbors
       IF(iStage.EQ.1) CALL Abort(&
              __STAMP__&
        ,' You should never receive particle now!')
-      PartStateN(PartID,1:6)     = PartRecvBuf(iProc)%content(jpos+1:jpos+6)
+      PartStateN(1:6,PartID)     = PartRecvBuf(iProc)%content(jpos+1:jpos+6)
       DO iCounter=1,iStage-1
         PartStage(PartID,1:6,iCounter) = PartRecvBuf(iProc)%content(jpos+7+(iCounter-1)*6:jpos+6+iCounter*6)
       END DO

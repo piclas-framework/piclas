@@ -599,7 +599,7 @@ DO iPart=1,PDM%ParticleVecLength
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' IntersectionPoint: ', IntersectionPoint
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' LastPartPos:       ', LastPartPos(1:3,iPart)
 #ifdef IMPA
-     IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartStateN:       ', PartStateN(iPart,1:3)
+     IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartStateN:       ', PartStateN(1:3,iPart)
 #endif /*IMPA*/
      IPWRITE(UNIT_stdOut,'(I0,A)')            ' PartPos:           '
      IPWRITE(UNIt_stdOut,'(I0,A18,x,A18,x,A18)')                  '    min ', ' value ', ' max '
@@ -1469,9 +1469,9 @@ DO iPart=1,PDM%ParticleVecLength
 #endif
 #if defined(ROS) || defined(IMPA)
           IPWRITE(UNIT_stdOut,'(I0,A,I0)')             ' CurrentStage:    ', iStage
-          Vec=PartState(1:3,iPart)-PartStateN(iPart,1:3)
+          Vec=PartState(1:3,iPart)-PartStateN(1:3,iPart)
           IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' displacementN/halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
-          IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartStateN             ', PartStateN(iPart,1:3)
+          IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartStateN             ', PartStateN(1:3,iPart)
 #if USE_MPI
           inelem=PEM%ElementN(ipart)
           IF(inelem.LE.PP_nElems)THEN
@@ -1560,9 +1560,9 @@ DO iPart=1,PDM%ParticleVecLength
               IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' displacement /halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
 #if defined(ROS) || defined(IMPA)
               IPWRITE(UNIT_stdOut,'(I0,A,I0)')             ' CurrentStage:    ', iStage
-              Vec=PartState(1:3,iPart)-PartStateN(iPart,1:3)
+              Vec=PartState(1:3,iPart)-PartStateN(1:3,iPart)
               IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' displacementN/halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
-              IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartStateN             ', PartStateN(iPart,1:3)
+              IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartStateN             ', PartStateN(1:3,iPart)
 #if USE_MPI
               inelem=PEM%ElementN(ipart)
               IF(inelem.LE.PP_nElems)THEN
