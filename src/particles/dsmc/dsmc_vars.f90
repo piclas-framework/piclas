@@ -624,6 +624,7 @@ TYPE (tOctreeVdm), POINTER                  :: OctreeVdm => null()
 
 TYPE tMCC
   CHARACTER(LEN=256)                       :: Database
+  INTEGER                                  :: TotalPairNum
 END TYPE tMCC
 
 TYPE(tMCC)                     :: MCC
@@ -633,7 +634,6 @@ TYPE tSpecMCC
                                                                                   ! 2: Cross-section at energy level [m^2]
   REAL                                     :: ProbNull                            ! 
   LOGICAL                                  :: UseCollXSec
-  INTEGER                                  :: PairNum
 END TYPE tSpecMCC
 
 TYPE(tSpecMCC),ALLOCATABLE                 :: SpecMCC(:)
