@@ -301,10 +301,10 @@ SELECT CASE(PredictorType)
     !tphi = 1.+RK_c(iStage)
     tphi = RK_c(iStage)
     tphi2= tphi*tphi
-    PartState(1:6,PartID)=(RK_bs(iStage-1,1)*tphi+RK_bs(iStage-1,2)*tphi2)*PartStage(PartID,1:6,iStage-1)
+    PartState(1:6,PartID)=(RK_bs(iStage-1,1)*tphi+RK_bs(iStage-1,2)*tphi2)*PartStage(1:6,iStage-1,PartID)
     DO iCounter=1,iStage-2
       PartState(1:6,PartID) = PartState(1:6,PartID) + &
-                          (RK_bs(iCounter,1)*tphi+RK_bs(iCounter,2)*tphi2)*PartStage(PartID,1:6,iCounter)
+                          (RK_bs(iCounter,1)*tphi+RK_bs(iCounter,2)*tphi2)*PartStage(1:6,iCounter,PartID)
     END DO
     PartState(1:6,PartID)=PartStateN(1:6,PartID)+dt*PartState(1:6,PartID)
 #else
@@ -320,11 +320,11 @@ __STAMP__&
     tphi2= tphi*tphi
     tphi3= tphi*tphi2
     PartState(1:6,PartID)=(RK_bsO3(iStage-1,1)*tphi+RK_bsO3(iStage-1,2)*tphi2+RK_bsO3(iStage-1,3)*tphi3) &
-                         * PartStage(PartID,1:6,iStage-1)
+                         * PartStage(1:6,iStage-1,PartID)
     DO iCounter = 1,iStage-2
       PartState(1:6,PartID) = PartState(1:6,PartID) &
                             + (RK_bsO3(iCounter,1)*tphi+RK_bsO3(iCounter,2)*tphi2+RK_bsO3(iCounter,3)*tphi3) &
-                            * (PartStage(PartID,1:6,iCounter) )
+                            * (PartStage(1:6,iCounter,PartID) )
     END DO
     PartState(1:6,PartID)=PartStateN(1:6,PartID)+dt*PartState(1:6,PartID)
 #else

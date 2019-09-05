@@ -796,7 +796,7 @@ DO iProc=1, PartMPI%nMPINeighbors
          ,' You should never send particles now!')
         PartSendBuf(iProc)%content(1+jpos:6+jpos)        = PartStateN(1:6,iPart)
         DO iCounter=1,iStage-1
-          PartSendBuf(iProc)%content(jpos+7+(iCounter-1)*6:jpos+6+iCounter*6) = PartStage(iPart,1:6,iCounter)
+          PartSendBuf(iProc)%content(jpos+7+(iCounter-1)*6:jpos+6+iCounter*6) = PartStage(1:6,iCounter,iPart)
         END DO
         jPos=jPos+iStage*6
       ENDIF
@@ -1332,7 +1332,7 @@ DO iProc=1,PartMPI%nMPINeighbors
        ,' You should never receive particle now!')
       PartStateN(1:6,PartID)     = PartRecvBuf(iProc)%content(jpos+1:jpos+6)
       DO iCounter=1,iStage-1
-        PartStage(PartID,1:6,iCounter) = PartRecvBuf(iProc)%content(jpos+7+(iCounter-1)*6:jpos+6+iCounter*6)
+        PartStage(1:6,iCounter,PartID) = PartRecvBuf(iProc)%content(jpos+7+(iCounter-1)*6:jpos+6+iCounter*6)
       END DO
       jPos=jPos+iStage*6
     END IF

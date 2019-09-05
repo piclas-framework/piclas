@@ -487,7 +487,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
           PartState(1:6,iPart) = PartRelaxationFac*PartState(1:6,iPart)+tmpFac*PartStateN(1:6,iPart)
           DO iCounter=1,iStage-1
             tmpFac=tmpFac*dt*ESDIRK_a(iStage-1,iCounter)
-            PartState(1:6,iPart) = PartState(1:6,iPart) + tmpFac*PartStage(iPart,1:6,iCounter)
+            PartState(1:6,iPart) = PartState(1:6,iPart) + tmpFac*PartStage(1:6,iCounter,iPart)
           END DO
         END IF ! ParticleInside
       END DO ! iPart
