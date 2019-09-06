@@ -574,14 +574,16 @@ IF(nMortarSides.GT.0)THEN
         IF(aSide%tmp.EQ.-2)THEN ! MPI mortars, renumber SideIDs
           iMortarMPISide=iMortarMPISide+1
           aSide%SideID=iMortarMPISide
+#ifdef PARTICLES
+          SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
+#endif /*PARTICLES*/
         ELSEIF(aSide%tmp.EQ.-1)THEN ! innermortars mortars, renumber SideIDs
           iMortarInnerSide=iMortarInnerSide+1
           aSide%SideID=iMortarInnerSide
-        END IF ! aSide%tmp==-1
 #ifdef PARTICLES
-        ! Set BC alpha for all cases (not only MPI mortars and innermortars mortars)
-        SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
+          SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
 #endif /*PARTICLES*/
+        END IF ! aSide%tmp==-1
       END DO ! iLocSide
     END DO ! iElem
   END IF ! addToInnerMortars>0
