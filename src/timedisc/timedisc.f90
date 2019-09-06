@@ -352,6 +352,7 @@ IMPLICIT NONE
 REAL                         :: tPreviousAnalyze         !> time of previous analyze.
                                                          !> Used for Nextfile info written into previous file if greater tAnalyze
 REAL                         :: tPreviousAverageAnalyze  !> time of previous Average analyze.
+REAL                         :: tZero
 INTEGER(KIND=8)              :: iter_PID                 !> iteration counter since last InitPiclas call for PID calculation
 REAL                         :: WallTimeStart            !> wall time of simulation start
 REAL                         :: WallTimeEnd              !> wall time of simulation end
@@ -371,6 +372,11 @@ LOGICAL                      :: finalIter
 tPreviousAnalyze=RestartTime
 ! first average analyze is not written at start but at first tAnalyze
 tPreviousAverageAnalyze=tAnalyze
+! saving the start of the simulation as restart time is overwritten during load balance step
+!   In case the overwritten one is used, state write out is performed only next Nth analze-dt after restart instead after analyze-dt
+!   w/o  tZero: nSkipAnalyze=5 , restart after iAnalyze=2 , next write out witout any restarts after iAnalyze=7
+!   with tZero: nSkipAnalyze=5 , restart after iAnalyze=2 , next write out witout any restarts after iAnalyze=5
+tZero = RestartTime
 
 ! write number of grid cells and dofs only once per computation
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#GridCells : ',REAL(nGlobalElems)
@@ -757,7 +763,7 @@ DO !iter_t=0,MaxIter
 #endif /*USE_LOADBALANCE*/
     ! count analyze dts passed
     iAnalyze=iAnalyze+1
-    tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd)
+    tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd)
     WallTimeStart=PICLASTIME()
   END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
@@ -823,7 +829,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,Ext
 USE MOD_vMPF                   ,ONLY: SplitMerge_main
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1374,26 +1380,29 @@ SUBROUTINE TimeStep_DSMC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
-USE MOD_Globals,          ONLY : abort
-USE MOD_Particle_Vars,    ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, &
-                                WriteMacroSurfaceValues, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep,usevMPF
-USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode, RadialWeighting
-USE MOD_DSMC,             ONLY : DSMC_main
-USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
-USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel,     ONLY: UpdateSurfModelVars, SurfaceModel_main
-USE MOD_Particle_Boundary_Porous, ONLY: PorousBoundaryRemovalProb_Pressure
-USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC
-USE MOD_vMPF,             ONLY: SplitMerge_main
+USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
+#ifdef PARTICLES
+USE MOD_Globals                  ,ONLY: abort
+USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, &
+                                WriteMacroSurfaceValues, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, usevMPF
+USE MOD_DSMC_Vars                ,ONLY: DSMC_RHS, DSMC, CollisMode, RadialWeighting
+USE MOD_DSMC                     ,ONLY: DSMC_main
+USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
+USE MOD_part_emission            ,ONLY: ParticleInserting
+USE MOD_surface_flux             ,ONLY: ParticleSurfaceflux
+USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking        ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_SurfaceModel             ,ONLY: UpdateSurfModelVars, SurfaceModel_main
+USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryRemovalProb_Pressure
+USE MOD_Particle_Boundary_Vars   ,ONLY: nPorousBC
+USE MOD_vMPF                     ,ONLY: SplitMerge_main
 #if USE_MPI
-USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers       ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1413,6 +1422,7 @@ REAL                  :: tLBStart
   IF (DoSurfaceFlux) THEN
     ! treat surface with respective model
     CALL SurfaceModel_main()
+    CALL UpdateSurfModelVars()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1515,6 +1525,7 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
+  ! absorptions could have happened
   CALL UpdateSurfModelVars()
 
 #if USE_LOADBALANCE
@@ -1540,7 +1551,7 @@ REAL                  :: tLBStart
 
   IF ((iter.EQ.1).AND.(usevMPF).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
     CALL SplitMerge_main()
-    CALL UpdateNextFreePosition()    
+    CALL UpdateNextFreePosition()
   END IF
 
   CALL DSMC_main()
@@ -1772,20 +1783,22 @@ SUBROUTINE TimeStep_DSMC_Debug()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,ONLY: dt
-USE MOD_Filter,ONLY:Filter
+USE MOD_TimeDisc_Vars          ,ONLY: dt
+USE MOD_Filter                 ,ONLY: Filter
 #ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : DoSurfaceFlux
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM,PEM
-USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC
-USE MOD_DSMC,             ONLY : DSMC_main
-USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux, SetParticleVelocity
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
-USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel,     ONLY: UpdateSurfModelVars, SurfaceModel_main
+USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
+USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM,PEM
+USE MOD_DSMC_Vars              ,ONLY: DSMC_RHS, DSMC
+USE MOD_DSMC                   ,ONLY: DSMC_main
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_part_emission          ,ONLY: ParticleInserting
+USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
+USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
+USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_SurfaceModel           ,ONLY: UpdateSurfModelVars, SurfaceModel_main
 #if USE_MPI
-USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -2043,70 +2056,70 @@ SUBROUTINE TimeStepByImplicitRK()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,dt_old, time
-USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, DoPrintConvInfo,FieldStage
-USE MOD_DG_Vars,                 ONLY:U,Un
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,iStage, nRKStages,dt_old, time
+USE MOD_TimeDisc_Vars          ,ONLY: ERK_a,ESDIRK_a,RK_b,RK_c
+USE MOD_LinearSolver_Vars      ,ONLY: ImplicitSource, DoPrintConvInfo,FieldStage
+USE MOD_DG_Vars                ,ONLY: U,Un
 #if USE_HDG
-USE MOD_HDG,                     ONLY:HDG
+USE MOD_HDG                    ,ONLY: HDG
 #else /*pure DG*/
-USE MOD_DG_Vars,                 ONLY:Ut
-USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
-USE MOD_Predictor,               ONLY:Predictor,StorePredictor
-USE MOD_LinearSolver_Vars,       ONLY:LinSolverRHS
-USE MOD_Equation,                ONLY:DivCleaningDamping
-USE MOD_Equation,                ONLY:CalcSource
+USE MOD_DG_Vars                ,ONLY: Ut
+USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
+USE MOD_Predictor              ,ONLY: Predictor,StorePredictor
+USE MOD_LinearSolver_Vars      ,ONLY: LinSolverRHS
+USE MOD_Equation               ,ONLY: DivCleaningDamping
+USE MOD_Equation               ,ONLY: CalcSource
 #ifdef maxwell
-USE MOD_Precond,                 ONLY:BuildPrecond
-USE MOD_Precond_Vars,            ONLY:UpdatePrecond
+USE MOD_Precond                ,ONLY: BuildPrecond
+USE MOD_Precond_Vars           ,ONLY: UpdatePrecond
 #endif /*maxwell*/
 #endif /*USE_HDG*/
-USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
+USE MOD_Newton                 ,ONLY: ImplicitNorm,FullNewton
 #ifdef PARTICLES
-USE MOD_TimeDisc_Vars,           ONLY:RK_fillSF
-USE MOD_Equation_Vars,           ONLY:c2_inv
-USE MOD_Particle_Mesh,           ONLY:CountPartsPerElem
-USE MOD_PICDepo_Vars,            ONLY:PartSource,DoDeposition
-USE MOD_LinearSolver_Vars,       ONLY:ExplicitPartSource
-USE MOD_Timedisc_Vars,           ONLY:RKdtFrac,RKdtFracTotal
-USE MOD_LinearSolver_Vars,       ONLY:DoUpdateInStage,PartXk
-USE MOD_Predictor,               ONLY:PartPredictor,PredictorType
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac &
+USE MOD_TimeDisc_Vars          ,ONLY: RK_fillSF
+USE MOD_Equation_Vars          ,ONLY: c2_inv
+USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
+USE MOD_PICDepo_Vars           ,ONLY: PartSource,DoDeposition
+USE MOD_LinearSolver_Vars      ,ONLY: ExplicitPartSource
+USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
+USE MOD_LinearSolver_Vars      ,ONLY: DoUpdateInStage,PartXk
+USE MOD_Predictor              ,ONLY: PartPredictor,PredictorType
+USE MOD_Particle_Vars          ,ONLY: PartIsImplicit,PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac &
                                       ,DoForceFreeSurfaceFlux,PartStateN,PartStage,PartQ,DoSurfaceFlux,PEM,PDM  &
                                       , Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs,PartDeltaX
-USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
-USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
-USE MOD_PICDepo,                 ONLY:Deposition
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
-USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
-USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
-USE MOD_DSMC,                    ONLY:DSMC_main
-USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS
-USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping,TriaTracking
-USE MOD_ParticleSolver,          ONLY:ParticleNewton, SelectImplicitParticles
-USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH&
-                                     ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
-USE MOD_part_MPFtools,           ONLY:StartParticleMerge
+USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
+USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
+USE MOD_part_RHS               ,ONLY: CalcPartRHS,PartVeloToImp
+USE MOD_part_emission          ,ONLY: ParticleInserting
+USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
+USE MOD_DSMC                   ,ONLY: DSMC_main
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_ParticleSolver         ,ONLY: ParticleNewton, SelectImplicitParticles
+USE MOD_Part_RHS               ,ONLY: PartRHS
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 #if USE_MPI
-USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
-USE MOD_Particle_MPI_Vars,       ONLY:DoExternalParts,PartMPI
-USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
+USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts,PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif /*USE_MPI*/
-USE MOD_PIC_Analyze,             ONLY:CalcDepositedCharge
-USE MOD_part_tools,              ONLY:UpdateNextFreePosition
+USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Mesh_Vars,      ONLY:Geo
-USE MOD_Particle_Tracking,       ONLY:ParticleSanityCheck
+USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
+USE MOD_Particle_Tracking      ,ONLY: ParticleSanityCheck
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #ifdef maxwell
-USE MOD_Precond_Vars,            ONLY:UpdatePrecondLB
+USE MOD_Precond_Vars           ,ONLY: UpdatePrecondLB
 #endif /*maxwell*/
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
@@ -2289,17 +2302,7 @@ IF(time.GE.DelayTime)THEN
       IF(.NOT.PDM%ParticleInside(iPart))CYCLE
       IF(PartIsImplicit(iPart))THEN
         CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
-        SELECT CASE(PartLorentzType)
-        CASE(0)
-          Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-        CASE(1)
-          Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-        CASE(3)
-          Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-        CASE(5)
-          Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-        CASE DEFAULT
-        END SELECT
+        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
       END IF ! ParticleIsImplicit
       PDM%IsNewPart(iPart)=.FALSE.
       !PEM%ElementN(iPart) = PEM%Element(iPart)
@@ -2334,17 +2337,7 @@ IF(time.GE.DelayTime)THEN
           ! interpolate field at surface position
           CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
           ! RHS at interface
-          SELECT CASE(PartLorentzType)
-          CASE(0)
-            Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-          CASE(1)
-            Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-          CASE(3)
-            Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-          CASE(5)
-            Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-          CASE DEFAULT
-          END SELECT
+          CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
           ! f(u^n) for velocity
           IF(.NOT.DoForceFreeSurfaceFlux) PartStage(iPart,4:6,1)=Pt(iPart,1:3)
           ! position NOT known but we backup the state
@@ -2509,21 +2502,13 @@ DO iStage=2,nRKStages
           PartState(iPart,4:6)=PartStateN(iPart,4:6)+dt*PartState(iPart,4:6)
           ! luckily - nothing to do
         END IF
-        SELECT CASE(PartLorentzType)
-        CASE(0)
-          Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-        CASE(1)
-          Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        IF(PartLorentzType.EQ.5)THEN
+          LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
+          CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+        ELSE
           LorentzFacInv = 1.0
-        CASE(3)
-          Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-          LorentzFacInv = 1.0
-        CASE(5)
-          LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
-          LorentzFacInv=1.0/SQRT(LorentzFacInv)
-          Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
-        CASE DEFAULT
-        END SELECT
+          CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+        END IF ! PartLorentzType.EQ.5
         PartStage(iPart,1,iStage-1) = PartState(iPart,4)*LorentzFacInv
         PartStage(iPart,2,iStage-1) = PartState(iPart,5)*LorentzFacInv
         PartStage(iPart,3,iStage-1) = PartState(iPart,6)*LorentzFacInv
@@ -2853,21 +2838,13 @@ IF (time.GE.DelayTime) THEN
         PartState(iPart,4:6)=PartStateN(iPart,4:6)+dt*PartState(iPart,4:6)
       END IF
       ! compute acceleration
-      SELECT CASE(PartLorentzType)
-      CASE(0)
-        Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-      CASE(1)
-        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      IF(PartLorentzType.EQ.5)THEN
+        LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
+        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+      ELSE
         LorentzFacInv = 1.0
-      CASE(3)
-        Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-        LorentzFacInv = 1.0
-      CASE(5)
-        LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
-        LorentzFacInv=1.0/SQRT(LorentzFacInv)
-        Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
-      CASE DEFAULT
-      END SELECT
+        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+      END IF ! PartLorentzType.EQ.5
       PartState(iPart,1  ) = RK_b(nRKStages)*LorentzFacInv*PartState(iPart,4)
       PartState(iPart,2  ) = RK_b(nRKStages)*LorentzFacInv*PartState(iPart,5)
       PartState(iPart,3  ) = RK_b(nRKStages)*LorentzFacInv*PartState(iPart,6)
@@ -3001,69 +2978,61 @@ SUBROUTINE TimeStepByRosenbrock()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,dt_inv,dt_old, time
-USE MOD_TimeDisc_Vars,           ONLY:RK_a,RK_c,RK_g,RK_b,RK_gamma
-USE MOD_LinearSolver_Vars,       ONLY:FieldStage,DoPrintConvInfo
-USE MOD_DG_Vars,                 ONLY:U,Un
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,iStage, nRKStages,dt_inv,dt_old, time
+USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_c,RK_g,RK_b,RK_gamma
+USE MOD_LinearSolver_Vars      ,ONLY: FieldStage,DoPrintConvInfo
+USE MOD_DG_Vars                ,ONLY: U,Un
 #if USE_HDG
-USE MOD_HDG,                     ONLY:HDG
+USE MOD_HDG                    ,ONLY: HDG
 #else /*pure DG*/
-USE MOD_Precond_Vars,            ONLY:UpdatePrecond
-USE MOD_LinearOperator,          ONLY:MatrixVector
-USE MOD_LinearSolver,            ONLY:LinearSolver
-USE MOD_DG_Vars,                 ONLY:Ut
-USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
-USE MOD_LinearSolver_Vars,       ONLY:LinSolverRHS
-USE MOD_Equation,                ONLY:DivCleaningDamping
-USE MOD_Equation,                ONLY:CalcSource
+USE MOD_Precond_Vars           ,ONLY: UpdatePrecond
+USE MOD_LinearOperator         ,ONLY: MatrixVector
+USE MOD_LinearSolver           ,ONLY: LinearSolver
+USE MOD_DG_Vars                ,ONLY: Ut
+USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
+USE MOD_LinearSolver_Vars      ,ONLY: LinSolverRHS
+USE MOD_Equation               ,ONLY: DivCleaningDamping
+USE MOD_Equation               ,ONLY: CalcSource
 #ifdef maxwell
-USE MOD_Precond,                 ONLY:BuildPrecond
+USE MOD_Precond                ,ONLY: BuildPrecond
 #endif /*maxwell*/
 #endif /*USE_HDG*/
 #ifdef PARTICLES
-USE MOD_Equation_Vars,           ONLY:c2_inv
-USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
-USE MOD_ParticleSolver,          ONLY:Particle_GMRES
-USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,DoFieldUpdate
-USE MOD_Particle_Mesh,           ONLY:CountPartsPerElem
-!USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource
-USE MOD_Particle_Vars,           ONLY:PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac,PartStateN,PartStage,PartQ &
-                                     ,DoSurfaceFlux,PEM,PDM,Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs
-USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
-USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
-USE MOD_PICDepo,                 ONLY:Deposition
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
-USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
-USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
-USE MOD_DSMC,                    ONLY:DSMC_main
-USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS
-USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping,TriaTracking
-USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH&
-                                     ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
-USE MOD_part_MPFtools,           ONLY:StartParticleMerge
+USE MOD_Equation_Vars          ,ONLY: c2_inv
+USE MOD_LinearOperator         ,ONLY: PartMatrixVector, PartVectorDotProduct
+USE MOD_ParticleSolver         ,ONLY: Particle_GMRES
+USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK,DoFieldUpdate
+USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
+USE MOD_Particle_Vars          ,ONLY: PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac,PartStateN,PartStage,PartQ &
+    ,DoSurfaceFlux,PEM,PDM,Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs
+USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
+USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
+USE MOD_part_RHS               ,ONLY: CalcPartRHS,PartVeloToImp
+USE MOD_part_emission          ,ONLY: ParticleInserting
+USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
+USE MOD_DSMC                   ,ONLY: DSMC_main
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Part_RHS               ,ONLY: PartRHS
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 #if USE_MPI
-USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
-USE MOD_Particle_MPI_Vars,       ONLY:DoExternalParts,PartMPI
-USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
-#ifdef CODE_ANALYZE
-USE MOD_MPI_Vars,                ONLY:offsetElemMPI
-USE MOD_Mesh_Vars,               ONLY:OffSetElem
-#endif /*CODE_ANALYZE*/
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
+USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts,PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif /*USE_MPI*/
-USE MOD_PIC_Analyze,             ONLY:CalcDepositedCharge
-USE MOD_part_tools,              ONLY:UpdateNextFreePosition
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Mesh_Vars,      ONLY:Geo
-#endif /*CODE_ANALYZE*/
+USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY:LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #ifdef maxwell
-USE MOD_Precond_Vars,            ONLY:UpdatePrecondLB
+USE MOD_Precond_Vars           ,ONLY: UpdatePrecondLB
 #endif /*maxwell*/
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
@@ -3084,7 +3053,7 @@ REAL               :: tRatio
 INTEGER            :: iCounter
 #ifdef PARTICLES
 REAL               :: coeff_loc,dt_inv_loc, LorentzFacInv
-REAL               :: PartDeltaX(1:6), PartRHS(1:6), Norm_P2, Pt_tmp(1:6), PartRHS_tild(1:6),FieldAtParticle_loc(1:6)
+REAL               :: PartDeltaX(1:6), PartRHS_loc(1:6), Norm_P2, Pt_tmp(1:6), PartRHS_tild(1:6),FieldAtParticle_loc(1:6)
 REAL               :: RandVal!, LorentzFac
 REAL               :: AbortCrit
 INTEGER            :: iPart,nParts
@@ -3307,22 +3276,13 @@ IF(time.GE.DelayTime)THEN
     ! build RHS of particle with current DG solution and particle position
     CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
     ! compute particle RHS at time^n
-    SELECT CASE(PartLorentzType)
-    CASE(0)
-      Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+    IF(PartLorentzType.EQ.5)THEN
+      LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
+      CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+    ELSE
       LorentzFacInv = 1.0
-    CASE(1)
-      Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-      LorentzFacInv = 1.0
-    CASE(3)
-      Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-      LorentzFacInv = 1.0
-    CASE(5)
-      LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
-      LorentzFacInv=1.0/SQRT(LorentzFacInv)
-      Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
-    CASE DEFAULT
-    END SELECT
+      CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+    END IF ! PartLorentzType.EQ.5
     ! compute current Pt_tmp for the particle
     Pt_tmp(1) =LorentzFacInv*PartState(iPart,4)
     Pt_tmp(2) =LorentzFacInv*PartState(iPart,5)
@@ -3343,11 +3303,11 @@ IF(time.GE.DelayTime)THEN
     ! guess for new value is Pt_tmp: remap to reuse old GMRES
     ! OLD
     ! CALL PartMatrixVector(time,Coeff_inv,iPart,Pt_tmp,PartDeltaX)
-    ! PartRHS =Pt_tmp - PartDeltaX
-    ! CALL PartVectorDotProduct(PartRHS,PartRHS,Norm_P2)
+    ! PartRHS_loc =Pt_tmp - PartDeltaX
+    ! CALL PartVectorDotProduct(PartRHS_loc,PartRHS_loc,Norm_P2)
     ! AbortCrit=1e-16
     ! PartDeltaX=0.
-    ! CALL Particle_GMRES(time,coeff_inv,iPart,PartRHS,SQRT(Norm_P2),AbortCrit,PartDeltaX)
+    ! CALL Particle_GMRES(time,coeff_inv,iPart,PartRHS_loc,SQRT(Norm_P2),AbortCrit,PartDeltaX)
     ! NEW version is more stable, hence we use it!
     IF(DoSurfaceFlux)THEN
       coeff_loc=PartDtFrac(iPart)*coeff
@@ -3356,11 +3316,11 @@ IF(time.GE.DelayTime)THEN
     END IF
     Pt_tmp=coeff_loc*Pt_Tmp
     CALL PartMatrixVector(time,Coeff_loc,iPart,Pt_tmp,PartDeltaX)
-    PartRHS =Pt_tmp - PartDeltaX
-    CALL PartVectorDotProduct(PartRHS,PartRHS,Norm_P2)
+    PartRHS_loc =Pt_tmp - PartDeltaX
+    CALL PartVectorDotProduct(PartRHS_loc,PartRHS_loc,Norm_P2)
     AbortCrit=1e-16
     PartDeltaX=0.
-    CALL Particle_GMRES(time,coeff_loc,iPart,PartRHS,SQRT(Norm_P2),AbortCrit,PartDeltaX)
+    CALL Particle_GMRES(time,coeff_loc,iPart,PartRHS_loc,SQRT(Norm_P2),AbortCrit,PartDeltaX)
     ! update particle
     PartState(iPart,1:6)=Pt_tmp+PartDeltaX(1:6)
     PartStage(iPart,1,1) = PartState(iPart,1)
@@ -3573,22 +3533,13 @@ DO iStage=2,nRKStages
         PartState(iPart,1:6)=PartStateN(iPart,1:6)+PartState(iPart,1:6)
       END IF ! PartMeshHasReflectiveBCs
       ! compute particle RHS at time^n
-      SELECT CASE(PartLorentzType)
-      CASE(0)
-        Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle_loc(1:6))
+      IF(PartLorentzType.EQ.5)THEN
+        LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
+        CALL PartRHS(iPart,FieldAtParticle_loc(1:6),Pt(iPart,1:3),LorentzFacInv)
+      ELSE
         LorentzFacInv = 1.0
-      CASE(1)
-        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle_loc(1:6))
-        LorentzFacInv = 1.0
-      CASE(3)
-        Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle_loc(1:6))
-        LorentzFacInv = 1.0
-      CASE(5)
-        LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
-        LorentzFacInv=1.0/SQRT(LorentzFacInv)
-        Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle_loc(1:6),LorentzFacInvIn=LorentzFacInv)
-      CASE DEFAULT
-      END SELECT
+        CALL PartRHS(iPart,FieldAtParticle_loc(1:6),Pt(iPart,1:3))
+      END IF ! PartLorentzType.EQ.5
       ! compute current Pt_tmp for the particle
       Pt_tmp(1) = LorentzFacInv*PartState(iPart,4)
       Pt_tmp(2) = LorentzFacInv*PartState(iPart,5)
@@ -3601,17 +3552,17 @@ DO iStage=2,nRKStages
       ELSE
         coeff_loc=coeff
       END IF
-      PartRHS =(Pt_tmp + PartQ(1:6,iPart))*coeff_loc
+      PartRHS_loc =(Pt_tmp + PartQ(1:6,iPart))*coeff_loc
       ! guess for new particleposition is PartState || reuse of OLD GMRES
-      CALL PartMatrixVector(time,Coeff_loc,iPart,PartRHS,PartDeltaX)
-      PartRHS_tild = PartRHS - PartDeltaX
+      CALL PartMatrixVector(time,Coeff_loc,iPart,PartRHS_loc,PartDeltaX)
+      PartRHS_tild = PartRHS_loc - PartDeltaX
       PartDeltaX=0.
       CALL PartVectorDotProduct(PartRHS_tild,PartRHS_tild,Norm_P2)
       AbortCrit=1e-16
       CALL Particle_GMRES(time,coeff_loc,iPart,PartRHS_tild,SQRT(Norm_P2),AbortCrit,PartDeltaX)
       ! update particle to k_iStage
-      PartState(iPart,1:6)=PartRHS+PartDeltaX(1:6)
-      !PartState(iPart,1:6)=PartRHS+PartDeltaX(1:6)
+      PartState(iPart,1:6)=PartRHS_loc+PartDeltaX(1:6)
+      !PartState(iPart,1:6)=PartRHS_loc+PartDeltaX(1:6)
       ! and store value as k_iStage
       IF(iStage.LT.nRKStages)THEN
         PartStage(iPart,1,iStage) = PartState(iPart,1)
@@ -4183,10 +4134,10 @@ USE MOD_Particle_Vars             ,ONLY: PartState, LastPartPos, PDM, PEM, DoSur
 USE MOD_Particle_Vars             ,ONLY: VarTimeStep, Symmetry2D, Symmetry2DAxisymmetric
 USE MOD_DSMC_Vars                 ,ONLY: DSMC_RHS, DSMC, CollisMode
 USE MOD_part_tools                ,ONLY: UpdateNextFreePosition
-USE MOD_part_emission             ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission             ,ONLY: ParticleInserting
+USE MOD_surface_flux              ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars    ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking         ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel              ,ONLY: Evaporation
 #if USE_MPI
 USE MOD_Particle_MPI              ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -4332,10 +4283,10 @@ USE MOD_Particle_Vars             ,ONLY: PartState, LastPartPos, PDM, PEM, DoSur
 USE MOD_Particle_Vars             ,ONLY: VarTimeStep, Symmetry2D, Symmetry2DAxisymmetric
 USE MOD_DSMC_Vars                 ,ONLY: DSMC_RHS, DSMC, CollisMode
 USE MOD_part_tools                ,ONLY: UpdateNextFreePosition
-USE MOD_part_emission             ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission             ,ONLY: ParticleInserting
+USE MOD_surface_flux              ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars    ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking         ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel              ,ONLY: Evaporation
 #if USE_MPI
 USE MOD_Particle_MPI              ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -4493,7 +4444,8 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
-USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission          ,ONLY: ParticleInserting
+USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS, RadialWeighting
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
@@ -4511,7 +4463,7 @@ USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,Partic
 USE MOD_vMPF                   ,ONLY: SplitMerge_main
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -4816,7 +4768,8 @@ USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, Delay
                                       Species,PartSpecies
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
-USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission          ,ONLY: ParticleInserting
+USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
@@ -4839,7 +4792,7 @@ USE MOD_SurfaceModel           ,ONLY: UpdateSurfModelVars, SurfaceModel_main
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

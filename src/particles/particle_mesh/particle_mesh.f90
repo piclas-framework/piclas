@@ -758,6 +758,7 @@ SDEALLOCATE(ListDistance)
 SDEALLOCATE(isTracingTrouble)
 SDEALLOCATE(ElemTolerance)
 SDEALLOCATE(ElemToGlobalElemID)
+SDEALLOCATE(ElemHaloInfoProc)
 
 ParticleMeshInitIsDone=.FALSE.
 
@@ -1173,7 +1174,6 @@ USE MOD_Particle_Intersection  ,ONLY: ComputeCurvedIntersection
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #ifdef CODE_ANALYZE
 USE MOD_Globals                ,ONLY: MyRank,UNIT_stdout
-USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 USE MOD_Particle_Surfaces      ,ONLY: OutputBezierControlPoints
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D

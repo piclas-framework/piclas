@@ -57,14 +57,15 @@ SUBROUTINE DSMC_InitBGGas()
 !> 3. Adjust ParticleVecLength and currentNextFreePosition
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                ONLY: Abort
-USE MOD_DSMC_Init,              ONLY: DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_Vars,              ONLY: BGGas, SpecDSMC
-USE MOD_DSMC_PolyAtomicModel,   ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_PARTICLE_Vars,          ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef, usevMPF, PartMPF
-USE MOD_part_emission,          ONLY: SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF
-USE MOD_part_tools,             ONLY: UpdateNextFreePosition
-USE MOD_Particle_Tracking_Vars, ONLY: DoRefmapping
+USE MOD_Globals                ,ONLY: Abort
+USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef, usevMPF, PartMPF
+USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF
+USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

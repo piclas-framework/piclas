@@ -4,7 +4,7 @@ SOURCESDIR=/opt/Installsources
 MODULETEMPLATEDIR=/opt/Installsources/moduletemplates
 
 cd $INSTALLDIR
-if [ ! -e ${SOURCESDIR} ]; then
+if [ ! -e "${SOURCESDIR}" ]; then
   mkdir -p ${SOURCESDIR}
 fi
 
@@ -22,19 +22,19 @@ if [[ -n ${1} ]]; then
   fi
 fi
 
-if [ ! -e ${MODULEFILE} ]; then
+if [ ! -e "${MODULEFILE}" ]; then
   echo "creating Compiler GCC-${GCCVERSION}"
   cd ${SOURCESDIR}
-  if [ ! -e ${SOURCESDIR}'/gcc-'${GCCVERSION}'.tar.gz' ]; then
+  if [ ! -e "${SOURCESDIR}/gcc-${GCCVERSION}.tar.gz" ]; then
     wget -O gcc-${GCCVERSION}.tar.gz "ftp://ftp.fu-berlin.de/unix/languages/gcc/releases/gcc-${GCCVERSION}/gcc-${GCCVERSION}.tar.gz"
   fi
-  if [ ! -e ${SOURCESDIR}'/gcc-'${GCCVERSION}'.tar.gz' ]; then
+  if [ ! -e "${SOURCESDIR}/gcc-${GCCVERSION}.tar.gz" ]; then
     echo "no gcc install-file downloaded for GCC-${GCCVERSION}"
     echo "check if ftp://ftp.fu-berlin.de/unix/languages/gcc/releases/gcc-${GCCVERSION}/gcc-${GCCVERSION}.tar.gz exists"
     break
   fi
   tar -xzf gcc-${GCCVERSION}.tar.gz && rm -rf gcc-${GCCVERSION}.tar.gz
-  if [ ! -d ${SOURCESDIR}/gcc-${GCCVERSION}/build ]; then
+  if [ ! -d "${SOURCESDIR}/gcc-${GCCVERSION}/build" ]; then
     mkdir -p gcc-${GCCVERSION}/build
   fi
   if [[ ${1} =~ ^-r(erun)?$ ]] ; then
@@ -54,11 +54,11 @@ if [ ! -e ${MODULEFILE} ]; then
   make -j 2 2>&1 | tee make.out
   make install 2>&1 | tee install.out
 
-  if [ ! -d ${MODULEFILEDIR} ]; then
+  if [ ! -d "${MODULEFILEDIR}" ]; then
     mkdir -p ${MODULEFILEDIR}
   fi
 
-  if [ -e ${COMPILERDIR}/bin/gcc ] && [ -e ${COMPILERDIR}/bin/gfortran ]; then
+  if [ -e "${COMPILERDIR}/bin/gcc" ] && [ -e "${COMPILERDIR}/bin/gfortran" ]; then
     cp ${MODULETEMPLATEDIR}/compilers/gcc/v_temp ${MODULEFILE}
     sed -i 's/versionflag/'${GCCVERSION}'/gI' ${MODULEFILE}
   else

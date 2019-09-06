@@ -121,7 +121,7 @@ INTEGER                        :: OpenStat
 CHARACTER(LEN=8)               :: StrDate
 CHARACTER(LEN=10)              :: StrTime
 LOGICAL                        :: WriteErrorFiles
-LOGICAL                        :: LogIsOpen 
+LOGICAL                        :: LogIsOpen
 INTEGER                        :: inifile_len
 !===================================================================================================================================
 IF (OutputInitIsDone) THEN

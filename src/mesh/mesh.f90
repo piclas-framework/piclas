@@ -112,7 +112,7 @@ USE MOD_HDF5_Input
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------                                                                                             ! -----------------------------------------------------------------------------------------------------------------------------------
-USE MOD_Mesh_ReadIn            ,ONLY: readMesh
+USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
@@ -873,7 +873,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes
 
 
-SUBROUTINE setSideRanges() 
+SUBROUTINE setSideRanges()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Set the ranges in the different side lists
 !
@@ -907,7 +907,7 @@ USE mpi
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 ! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -940,7 +940,7 @@ nSidesSlave     = lastSlaveSide -firstSlaveSide+1
 
 ! Set nGlobalUniqueSides: Note that big mortar sides are appended to the end of the list
 #if USE_HDG
-nUniqueSides = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list! 
+nUniqueSides = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list!
 #if USE_MPI
 CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #else

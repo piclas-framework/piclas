@@ -46,7 +46,7 @@
 #define CHARGEDPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
 
 ! Check for particles to be interpolated or deposited: x = iPart
-#if (PP_TimeDiscMethod==300) /*FP-Flow*/ 
+#if (PP_TimeDiscMethod==300) /*FP-Flow*/
 #define PUSHPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
 #define DEPOSITPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
 #define INTERPOLATEPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
@@ -155,7 +155,7 @@
 #define WRITEFORMAT '(ES25.14E3)'
 ! print to csv file like "0.1414213562373095E+001,-.1414213562373095E+001,-.1414213562373095E+001"
 ! (does not look that good but it saves disk space)
-#define CSVFORMAT '(A1,E23.16E3))'
+#define CSVFORMAT '(A1,E23.16E3)'
 
 ! Load Balance (LB) position in array for measuring the time that is spent on specific operations
 #define LB_DG            1
@@ -196,3 +196,19 @@
 #define DSMC_TEMPMEAN    12
 
 #define DSMC_NVARS       12
+
+! Sampwall_analyze indeces used in arrays
+#define SAMPWALL_ETRANSOLD        1
+#define SAMPWALL_ETRANSWALL       2
+#define SAMPWALL_ETRANSNEW        3
+#define SAMPWALL_EROTOLD          4
+#define SAMPWALL_EROTWALL         5
+#define SAMPWALL_EROTNEW          6
+#define SAMPWALL_EVIBOLD          7
+#define SAMPWALL_EVIBWALL         8
+#define SAMPWALL_EVIBNEW          9
+#define SAMPWALL_DELTA_MOMENTUMX  10
+#define SAMPWALL_DELTA_MOMENTUMY  11
+#define SAMPWALL_DELTA_MOMENTUMZ  12
+
+#define SAMPWALL_NVARS            12
