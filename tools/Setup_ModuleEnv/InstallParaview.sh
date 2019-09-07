@@ -25,9 +25,10 @@ do
   if [ "$arg" == "--modules" ] || [ "$arg" == "-m" ]
   then
     LOADMODULES=0
-    CMAKEVERSION=3.13.3-d
-    GCCVERSION=7.4.0
+    CMAKEVERSION=3.15.3-d
+    GCCVERSION=8.3.0
     OPENMPIVERSION=3.1.3
+    #OPENMPIVERSION=4.0.1 # does not work with paraview 5.2.0 due to deprected functions?
     HDF5VERSION=1.10.5
     break
   fi
@@ -91,7 +92,9 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz
   ERRORCODE=$?
   if [ ${ERRORCODE} -ne 0 ]; then
+    echo " "
     echo "Failed: ["tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz paraview-${PARAVIEWVERSION}"]"
+    exit
   else
     # Check if decompressed directory exists
     if [ -d "${SOURCEDIR}/ParaView-v${PARAVIEWVERSION}" ]; then
@@ -119,7 +122,13 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
     -DCMAKE_INSTALL_PREFIX=${PARAVIEWINSTALLDIR} \
     ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
   make -j 2>&1 | tee make.out
-  make install 2>&1 | tee install.out
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo " "
+    echo "Failed: [make -j 2>&1 | tee make.out]"
+    exit
+  else
+    make install 2>&1 | tee install.out
+  fi
 
   # create modulefile if installation seems succesfull (check if mpicc, mpicxx, mpifort exists in installdir)
   if [ -e "${PARAVIEWINSTALLDIR}/bin/paraview" ]; then

@@ -62,7 +62,13 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
         ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/single --with-pic --enable-fortran --enable-fortran2003 --disable-shared CC=$(which icc) CXX=$(which icpc) FC=$(which ifort)
       fi
       make -j 2>&1 | tee make.out
-      make install 2>&1 | tee install.out
+      if [ ${PIPESTATUS[0]} -ne 0 ]; then
+        echo " "
+        echo "Failed: [make -j 2>&1 | tee make.out]"
+        break
+      else
+        make install 2>&1 | tee install.out
+      fi
 
       cp ${TEMPLATEDIR}/libraries/hdf5/single_template ${MODULEFILE}
       sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}

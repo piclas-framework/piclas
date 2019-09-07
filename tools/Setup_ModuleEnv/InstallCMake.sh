@@ -37,7 +37,13 @@ if [ ! -e "${MODULEFILE}" ]; then
   cd ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
   ../bootstrap --prefix=${CMAKEDIR}
   make -j 2 2>&1 | tee make.out
-  make install 2>&1 | tee install.out
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo " "
+    echo "Failed: [make -j 2 2>&1 | tee make.out]"
+    exit
+  else
+    make install 2>&1 | tee install.out
+  fi
 
   if [ -e "${CMAKEDIR}/bin/cmake" ] && [ -e "${CMAKEDIR}/bin/ccmake" ]; then
     if [ ! -e "${INSTALLDIR}/modules/modulefiles/utilities/cmake" ]; then

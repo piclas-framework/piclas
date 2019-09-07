@@ -9,7 +9,8 @@ if [ "${WHICHMPI}" == "openmpi" ]; then
   # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
   #MPIVERSION=2.1.6
   #MPIVERSION=3.1.3
-  MPIVERSION=4.0.1
+  MPIVERSION=3.1.4
+  #MPIVERSION=4.0.1
 elif [ "${WHICHMPI}" == "mpich" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
   MPIVERSION=3.2
@@ -90,7 +91,13 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
         ../configure --prefix=${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION} CC=$(which icc) CXX=$(which icpc) FC=$(which ifort)
       fi
       make -j 2 2>&1 | tee make.out
-      make install 2>&1 | tee install.out
+      if [ ${PIPESTATUS[0]} -ne 0 ]; then
+        echo " "
+        echo "Failed: [make -j 2 2>&1 | tee make.out]"
+        break
+      else
+        make install 2>&1 | tee install.out
+      fi
 
       # create modulefile if installation seems succesfull (check if mpicc, mpicxx, mpifort exists in installdir)
       if [ -e "${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION}/bin/mpicc" ] && [ -e "${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION}/bin/mpicxx" ] && [ -e "${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION}/bin/mpifort" ]; then
