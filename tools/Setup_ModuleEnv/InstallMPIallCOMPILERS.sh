@@ -8,13 +8,11 @@ WHICHCOMPILER=gcc
 if [ "${WHICHMPI}" == "openmpi" ]; then
   # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
   #MPIVERSION=2.1.6
-  MPIVERSION=3.1.3
-  #MPIVERSIONTAG=2.1
-  MPIVERSIONTAG=3.1
+  #MPIVERSION=3.1.3
+  MPIVERSION=4.0.1
 elif [ "${WHICHMPI}" == "mpich" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
   MPIVERSION=3.2
-  MPIVERSIONTAG=3.2
 else
   echo "flag neither 'openmpi' nor 'mpich'"
   echo "no mpi installed"
@@ -60,11 +58,11 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
       cd ${SOURCEDIR}
       if [ "${WHICHMPI}" == "openmpi" ]; then
         if [ ! -e "${SOURCEDIR}/${WHICHMPI}-${MPIVERSION}.tar.gz" ]; then
-          wget "https://www.open-mpi.org/software/ompi/v${MPIVERSIONTAG}/downloads/openmpi-${MPIVERSION}.tar.gz"
+          wget "https://www.open-mpi.org/software/ompi/v${MPIVERSION%.*}/downloads/openmpi-${MPIVERSION}.tar.gz"
         fi
         if [ ! -e "${SOURCEDIR}/openmpi-${MPIVERSION}.tar.gz" ]; then
           echo "no mpi install-file downloaded for OpenMPI-${MPIVERSION}"
-          echo "check if https://www.open-mpi.org/software/ompi/v${MPIVERSIONTAG}/downloads/openmpi-${MPIVERSION}.tar.gz exists"
+          echo "check if https://www.open-mpi.org/software/ompi/v${MPIVERSION%.*}/downloads/openmpi-${MPIVERSION}.tar.gz exists"
           break
         fi
       elif [ "${WHICHMPI}" == "mpich" ]; then

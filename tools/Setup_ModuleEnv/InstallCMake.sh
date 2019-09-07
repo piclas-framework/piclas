@@ -8,8 +8,10 @@ if [ ! -d "${SOURCESDIR}" ]; then
 fi
 
 # DOWNLOAD and INSTALL CMAKE (example cmake-3.4.3)
-# CMAKEVERSION='3.4.3'
-CMAKEVERSION='3.13.3'
+# For current releases, see: https://github.com/Kitware/CMake/releases/
+#CMAKEVERSION='3.4.3'
+#CMAKEVERSION='3.13.3'
+CMAKEVERSION='3.15.3'
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}-d
 

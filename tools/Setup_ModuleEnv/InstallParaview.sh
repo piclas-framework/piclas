@@ -35,7 +35,6 @@ done
 
 # DOWNLOAD and INSTALL PARAVIEW (example Paraview-2.1.6)
 PARAVIEWVERSION=5.2.0
-PARAVIEWVERSIONTAG=5.2
 
 INSTALLDIR=/opt
 SOURCEDIR=/opt/Installsources
@@ -82,11 +81,11 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   # build and installation
   cd ${SOURCEDIR}
   if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}-source.tar.gz" ]; then
-    wget --output-document=paraview-${PARAVIEWVERSION}-source.tar.gz "https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSIONTAG}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}.tar.gz"
+    wget --output-document=paraview-${PARAVIEWVERSION}-source.tar.gz "https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSION%.*}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}.tar.gz"
   fi
   if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}-source.tar.gz" ]; then
     echo "no source-file downloaded for Paraview-${PARAVIEWVERSION}"
-    echo "check if https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSIONTAG}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}-source.tar.gz"
+    echo "check if https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSION%.*}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}-source.tar.gz"
     exit
   fi
   tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz

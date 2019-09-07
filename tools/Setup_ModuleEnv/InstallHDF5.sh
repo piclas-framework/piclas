@@ -8,12 +8,10 @@ if [ ! -d "${SOURCESDIR}" ]; then
 fi
 
 # DOWNLOAD and INSTALL HDF5 for every compiler openmpi / mpich combination (example HDF5-1.8.18)
-# 1.8.18 , 1.10.4
 #HDF5VERSION=1.8.18
-#HDF5VERSIONtag=1.8
-
+#HDF5VERSION=1.10.4
 HDF5VERSION=1.10.5
-HDF5VERSIONtag=1.10
+
 HDF5DIR=${INSTALLDIR}'/hdf5/'${HDF5VERSION}
 
 COMPILERNAMES='gcc intel'
@@ -43,11 +41,11 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
 
       cd ${SOURCESDIR}
       if [ ! -e "${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz" ]; then
-        wget "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSIONtag}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz"
+        wget "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz"
       fi
       if [ ! -e "${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz" ]; then
         echo "no hdf5 install-file downloaded for HDF5-${HDF5VERSION}"
-        echo "check if https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSIONtag}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz exists"
+        echo "check if https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz exists"
         break
       fi
       tar -xzf hdf5-${HDF5VERSION}.tar.gz hdf5-${HDF5VERSION}
