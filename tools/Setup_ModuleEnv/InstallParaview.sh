@@ -25,14 +25,15 @@ do
   if [ "$arg" == "--modules" ] || [ "$arg" == "-m" ]
   then
     LOADMODULES=0
+    # Set desired versions
     CMAKEVERSION=3.15.3-d
-    GCCVERSION=8.3.0
-    OPENMPIVERSION=3.1.3
-    #OPENMPIVERSION=4.0.1 # does not work with paraview 5.2.0 due to deprected functions?
+    GCCVERSION=9.2.0
+    #OPENMPIVERSION=3.1.4
+    OPENMPIVERSION=4.0.1
     HDF5VERSION=1.10.5
     break
   fi
-done                
+done
 
 # DOWNLOAD and INSTALL PARAVIEW (example Paraview-2.1.6)
 PARAVIEWVERSION=5.2.0
