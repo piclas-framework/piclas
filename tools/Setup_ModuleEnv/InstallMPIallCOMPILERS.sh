@@ -9,8 +9,8 @@ if [ "${WHICHMPI}" == "openmpi" ]; then
   # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
   #MPIVERSION=2.1.6
   #MPIVERSION=3.1.3
-  MPIVERSION=3.1.4
-  #MPIVERSION=4.0.1
+  #MPIVERSION=3.1.4
+  MPIVERSION=4.0.1
 elif [ "${WHICHMPI}" == "mpich" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
   MPIVERSION=3.2
@@ -49,7 +49,7 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
     if [ ! -e "${MPIMODULEFILE}" ]; then
       echo "creating ${WHICHMPI}-${MPIVERSION} for ${WHICHCOMPILER}-${COMPILERVERSION}"
       module purge
-      if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION}) ]]; then
+      if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
         echo "module ${WHICHCOMPILER}/${COMPILERVERSION} not found "
         break
       fi
@@ -119,8 +119,8 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
       continue
     fi
   done
-  cd ${SOURCEDIR}
-  rm -rf ${WHICHMPI}-${MPIVERSION}.tar.gz
+  #cd ${SOURCEDIR}
+  #rm -rf ${WHICHMPI}-${MPIVERSION}.tar.gz
 else
   echo "WHICHCOMPILER-flag neither 'gcc' nor 'intel'"
   echo "no mpi installed"
