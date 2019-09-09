@@ -112,13 +112,11 @@ DO iElem = 1, nElems ! element/cell main loop
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
       DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
-      IF(CollisMode.GE.2) THEN
-        IF(DSMC%RotRelaxProb.EQ.2) THEN
-          DSMC%CalcRotProb = 0.
-        END IF
-        IF(DSMC%VibRelaxProb.EQ.2) THEN
-          DSMC%CalcVibProb = 0.
-        END IF
+      IF(DSMC%RotRelaxProb.EQ.2) THEN
+        DSMC%CalcRotProb = 0.
+      END IF
+      IF(DSMC%VibRelaxProb.EQ.2) THEN
+        DSMC%CalcVibProb = 0.
       END IF
     END IF
     IF (CollisMode.NE.0) THEN
