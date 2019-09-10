@@ -645,39 +645,39 @@ IF(SurfCOMM%MyOutputRank.EQ.0 .AND. OutputOnProc) THEN
 !   WRITE(UNIT_stdout,'(A18,I5,A6)') 'SURF OUTPUT-COMM: ',SurfCOMM%nOutputProcs,' procs'
 END IF
 
-IF(SurfMesh%nMasterSides.EQ.0) RETURN
+IF(SurfMesh%nSides.EQ.0) RETURN
 
 ! get correct offsets
-ALLOCATE(offsetSurfSideMPI(0:SurfCOMM%nOutputProcs))
+ALLOCATE(offsetSurfSideMPI(0:SurfCOMM%nProcs))
 offsetSurfSideMPI=0
-ALLOCATE(countSurfSideMPI(0:SurfCOMM%nOutputProcs-1))
+ALLOCATE(countSurfSideMPI(0:SurfCOMM%nProcs-1))
 countSurfSideMPI=0
 
-CALL MPI_GATHER(SurfMesh%nMasterSides,1,MPI_INTEGER,countSurfSideMPI,1,MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
+CALL MPI_GATHER(SurfMesh%nSides,1,MPI_INTEGER,countSurfSideMPI,1,MPI_INTEGER,0,SurfCOMM%COMM,iError)
 
 ! new offsets due to InnerSurfSides
-ALLOCATE(offsetInnerSurfSideMPI(0:SurfCOMM%nOutputProcs))
+ALLOCATE(offsetInnerSurfSideMPI(0:SurfCOMM%nProcs))
 offsetInnerSurfSideMPI=0
-ALLOCATE(countInnerSurfSideMPI(0:SurfCOMM%nOutputProcs-1))
+ALLOCATE(countInnerSurfSideMPI(0:SurfCOMM%nProcs-1))
 countInnerSurfSideMPI=0
 
-CALL MPI_GATHER(SurfMesh%nInnerSides,1,MPI_INTEGER,countInnerSurfSideMPI,1,MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
+CALL MPI_GATHER(SurfMesh%nInnerSides,1,MPI_INTEGER,countInnerSurfSideMPI,1,MPI_INTEGER,0,SurfCOMM%COMM,iError)
 
 IF (SurfCOMM%MPIOutputRoot) THEN
-  DO iProc=1,SurfCOMM%nOutputProcs-1
+  DO iProc=1,SurfCOMM%nProcs-1
     offsetSurfSideMPI(iProc)=SUM(countSurfSideMPI(0:iProc-1))-SUM(countInnerSurfSideMPI(0:iProc-1))
     offsetInnerSurfSideMPI(iProc)=SUM(countInnerSurfSideMPI(0:iProc-1))
   END DO
-  offsetSurfSideMPI(SurfCOMM%nOutputProcs)=SUM(countSurfSideMPI(:))-SUM(countInnerSurfSideMPI(:))
-  offsetInnerSurfSideMPI(SurfCOMM%nOutputProcs)=SUM(countInnerSurfSideMPI(:))
+  offsetSurfSideMPI(SurfCOMM%nProcs)=SUM(countSurfSideMPI(:))-SUM(countInnerSurfSideMPI(:))
+  offsetInnerSurfSideMPI(SurfCOMM%nProcs)=SUM(countInnerSurfSideMPI(:))
   ! add BC offset to InnerSurfSide offset
-  offsetInnerSurfSideMPI(0:SurfCOMM%nOutputProcs) = &
-  offsetInnerSurfSideMPI(0:SurfCOMM%nOutputProcs) + offsetSurfSideMPI(SurfCOMM%nOutputProcs)
+  offsetInnerSurfSideMPI(0:SurfCOMM%nProcs) = &
+  offsetInnerSurfSideMPI(0:SurfCOMM%nProcs) + offsetSurfSideMPI(SurfCOMM%nProcs)
 END IF
 
-CALL MPI_BCAST (offsetSurfSideMPI,size(offsetSurfSideMPI),MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
+CALL MPI_BCAST (offsetSurfSideMPI,size(offsetSurfSideMPI),MPI_INTEGER,0,SurfCOMM%COMM,iError)
 offsetSurfSide=offsetSurfSideMPI(SurfCOMM%MyOutputRank)
-CALL MPI_BCAST (offsetInnerSurfSideMPI,size(offsetInnerSurfSideMPI),MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
+CALL MPI_BCAST (offsetInnerSurfSideMPI,size(offsetInnerSurfSideMPI),MPI_INTEGER,0,SurfCOMM%COMM,iError)
 offsetInnerSurfSide=offsetInnerSurfSideMPI(SurfCOMM%MyOutputRank)
 
 ! is there any innerBC with reflective surface
