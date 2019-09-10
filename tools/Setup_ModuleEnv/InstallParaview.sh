@@ -25,17 +25,18 @@ do
   if [ "$arg" == "--modules" ] || [ "$arg" == "-m" ]
   then
     LOADMODULES=0
-    CMAKEVERSION=3.13.3-d
-    GCCVERSION=7.4.0
-    OPENMPIVERSION=3.1.3
+    # Set desired versions
+    CMAKEVERSION=3.15.3-d
+    GCCVERSION=9.2.0
+    #OPENMPIVERSION=3.1.4
+    OPENMPIVERSION=4.0.1
     HDF5VERSION=1.10.5
     break
   fi
-done                
+done
 
 # DOWNLOAD and INSTALL PARAVIEW (example Paraview-2.1.6)
 PARAVIEWVERSION=5.2.0
-PARAVIEWVERSIONTAG=5.2
 
 INSTALLDIR=/opt
 SOURCEDIR=/opt/Installsources
@@ -82,17 +83,19 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   # build and installation
   cd ${SOURCEDIR}
   if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}-source.tar.gz" ]; then
-    wget --output-document=paraview-${PARAVIEWVERSION}-source.tar.gz "https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSIONTAG}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}.tar.gz"
+    wget --output-document=paraview-${PARAVIEWVERSION}-source.tar.gz "https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSION%.*}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}.tar.gz"
   fi
   if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}-source.tar.gz" ]; then
     echo "no source-file downloaded for Paraview-${PARAVIEWVERSION}"
-    echo "check if https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSIONTAG}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}-source.tar.gz"
+    echo "check if https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSION%.*}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}-source.tar.gz"
     exit
   fi
   tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz
   ERRORCODE=$?
   if [ ${ERRORCODE} -ne 0 ]; then
+    echo " "
     echo "Failed: ["tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz paraview-${PARAVIEWVERSION}"]"
+    exit
   else
     # Check if decompressed directory exists
     if [ -d "${SOURCEDIR}/ParaView-v${PARAVIEWVERSION}" ]; then
@@ -120,7 +123,13 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
     -DCMAKE_INSTALL_PREFIX=${PARAVIEWINSTALLDIR} \
     ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
   make -j 2>&1 | tee make.out
-  make install 2>&1 | tee install.out
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo " "
+    echo "Failed: [make -j 2>&1 | tee make.out]"
+    exit
+  else
+    make install 2>&1 | tee install.out
+  fi
 
   # create modulefile if installation seems succesfull (check if mpicc, mpicxx, mpifort exists in installdir)
   if [ -e "${PARAVIEWINSTALLDIR}/bin/paraview" ]; then
