@@ -9,8 +9,9 @@ if [ ! -e "${SOURCESDIR}" ]; then
 fi
 
 # DOWNLOAD and INSTALL GCC COMPILER (example gcc-7.4.0)
-GCCVERSION='7.4.0'
-# GCCVERSION='8.2.0'
+#GCCVERSION='7.4.0'
+#GCCVERSION='8.3.0'
+GCCVERSION='9.2.0'
 MODULEFILEDIR=${INSTALLDIR}/modules/modulefiles/compilers/gcc
 MODULEFILE=${MODULEFILEDIR}/${GCCVERSION}
 
@@ -31,7 +32,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   if [ ! -e "${SOURCESDIR}/gcc-${GCCVERSION}.tar.gz" ]; then
     echo "no gcc install-file downloaded for GCC-${GCCVERSION}"
     echo "check if ftp://ftp.fu-berlin.de/unix/languages/gcc/releases/gcc-${GCCVERSION}/gcc-${GCCVERSION}.tar.gz exists"
-    break
+    exit
   fi
   tar -xzf gcc-${GCCVERSION}.tar.gz && rm -rf gcc-${GCCVERSION}.tar.gz
   if [ ! -d "${SOURCESDIR}/gcc-${GCCVERSION}/build" ]; then
@@ -52,7 +53,13 @@ if [ ! -e "${MODULEFILE}" ]; then
     --with-system-zlib
     # --enable-valgrind-annotations
   make -j 2 2>&1 | tee make.out
-  make install 2>&1 | tee install.out
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo " "
+    echo "Failed: [make -j 2 2>&1 | tee make.out]"
+    exit
+  else
+    make install 2>&1 | tee install.out
+  fi
 
   if [ ! -d "${MODULEFILEDIR}" ]; then
     mkdir -p ${MODULEFILEDIR}
