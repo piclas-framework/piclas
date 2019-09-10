@@ -645,7 +645,7 @@ IF(SurfCOMM%MyOutputRank.EQ.0 .AND. OutputOnProc) THEN
 !   WRITE(UNIT_stdout,'(A18,I5,A6)') 'SURF OUTPUT-COMM: ',SurfCOMM%nOutputProcs,' procs'
 END IF
 
-IF(SurfMesh%nSides.EQ.0) RETURN
+IF(SurfMesh%nTotalSides.EQ.0) RETURN
 
 ! get correct offsets
 ALLOCATE(offsetSurfSideMPI(0:SurfCOMM%nProcs))
@@ -1599,7 +1599,7 @@ ASSOCIATE (&
                             nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides/)  , &
                             nVal       =(/nVar2D_Spec       , nSurfSample , nSurfSample , LocalnBCSides/)        , &
                             offset     =(/INT(nVarCount,IK) , 0_IK        , 0_IK        , offsetSurfSide/), &
-                            collective =.TRUE.,&
+                            collective =.FALSE.,&
                             RealArray=MacroSurfaceSpecVal(1:nVar2D_Spec,1:nSurfSample,1:nSurfSample,1:LocalnBCSides,iSpec))
     nVarCount = nVarCount + INT(nVar2D_Spec)
   END DO
@@ -1607,7 +1607,7 @@ ASSOCIATE (&
                         nValGlobal =(/nVar2D_Total     , nSurfSample, nSurfSample , nGlobalSides/)  , &
                         nVal       =(/nVar2D           , nSurfSample, nSurfSample , LocalnBCSides/)        , &
                         offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetSurfSide/), &
-                        collective =.TRUE.         ,&
+                        collective =.FALSE.         ,&
                         RealArray=MacroSurfaceVal(1:nVar2D,1:nSurfSample,1:nSurfSample,1:LocalnBCSides))
   ! Output of InnerSurfSide Array
   ! HDF5 Output: collective=false is required to avoid a deadlock, since not all procs in this routine have inner sides
