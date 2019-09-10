@@ -758,36 +758,10 @@ CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition'  &
                                   '- simple_anode\n'//&
                                   '- simple_cathode.\n'//&
                                  'If condition=open, the following parameters are'//&
-                                  ' used: (Part-Boundary[$]-=PB) PB-Ambient ,PB-AmbientTemp,PB-AmbientMeanPartMass,'//&
-                                  'PB-AmbientVelo,PB-AmbientDens,PB-AmbientDynamicVisc,PB-AmbientThermalCond,PB-Voltage\n'//&
+                                  ' used: (Part-Boundary[$]-=PB) PB-Voltage\n'//&
                                  'If condition=reflective: PB-MomentumACC,PB-WallTemp,PB-TransACC,PB-VibACC,PB-RotACC,'//&
                                   'PB-WallVelo,Voltage,SpeciesSwaps.If condition=periodic:Part-nPeriodicVectors,'//&
                                   'Part-PeriodicVector[$]', 'open', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-AmbientCondition'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Use ambient condition (condition "behind" boundary).', '.FALSE.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-AmbientConditionFix'  &
-                                , 'TODO-DEFINE-PARAMETER', '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientTemp'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient temperature ', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientMeanPartMass'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient mean particle mass', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-AmbientVelo'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient velocity', '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientDens'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient density', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientDynamicVisc'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient dynamic viscosity', '1.72326582572253E-5', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientThermalCond'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient thermal conductivity', '2.42948500556027E-2'&
-                                , numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Adaptive'  &
   , 'Define if particle boundary [$] is adaptive [.TRUE.] or not [.FALSE.]', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-AdaptiveType'  &
@@ -2162,15 +2136,6 @@ ALLOCATE(PartBound%RotACC(1:nPartBound))
 ALLOCATE(PartBound%ElecACC(1:nPartBound))
 ALLOCATE(PartBound%Resample(1:nPartBound))
 ALLOCATE(PartBound%WallVelo(1:3,1:nPartBound))
-ALLOCATE(PartBound%AmbientCondition(1:nPartBound))
-ALLOCATE(PartBound%AmbientConditionFix(1:nPartBound))
-ALLOCATE(PartBound%AmbientTemp(1:nPartBound))
-ALLOCATE(PartBound%AmbientMeanPartMass(1:nPartBound))
-ALLOCATE(PartBound%AmbientBeta(1:nPartBound))
-ALLOCATE(PartBound%AmbientVelo(1:3,1:nPartBound))
-ALLOCATE(PartBound%AmbientDens(1:nPartBound))
-ALLOCATE(PartBound%AmbientDynamicVisc(1:nPartBound))
-ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
 ALLOCATE(PartBound%SurfaceModel(1:nPartBound))
 ALLOCATE(PartBound%Reactive(1:nPartBound))
 ALLOCATE(PartBound%SolidState(1:nPartBound))
@@ -2222,20 +2187,6 @@ DO iPartBound=1,nPartBound
   SELECT CASE (TRIM(tmpString))
   CASE('open')
      PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
-     PartBound%AmbientCondition(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-AmbientCondition','.FALSE.')
-     IF(PartBound%AmbientCondition(iPartBound)) THEN
-       PartBound%AmbientConditionFix(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-AmbientConditionFix','.TRUE.')
-       PartBound%AmbientTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientTemp','0')
-       PartBound%AmbientMeanPartMass(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientMeanPartMass','0')
-       PartBound%AmbientBeta(iPartBound) = &
-       SQRT(PartBound%AmbientMeanPartMass(iPartBound)/(2*BoltzmannConst*PartBound%AmbientTemp(iPartBound)))
-       PartBound%AmbientVelo(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-AmbientVelo',3,'0. , 0. , 0.')
-       PartBound%AmbientDens(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientDens','0')
-       PartBound%AmbientDynamicVisc(iPartBound)=&
-           GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientDynamicVisc','1.72326582572253E-5') ! N2:T=288K
-       PartBound%AmbientThermalCond(iPartBound)=&
-           GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientThermalCond','2.42948500556027E-2') ! N2:T=288K
-     END IF
      PartBound%Adaptive(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Adaptive','.FALSE.')
      IF(PartBound%Adaptive(iPartBound)) THEN
        nAdaptiveBC = nAdaptiveBC + 1
@@ -2283,7 +2234,7 @@ __STAMP__&
      IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
        IF (.NOT.useDSMC) CALL abort(&
 __STAMP__&
-,'Cannot use surfacemodel>0 with useDSMC=F for partcle boundary: ',iPartBound)
+,'Cannot use surfacemodel>0 with useDSMC=F for particle boundary: ',iPartBound)
        SELECT CASE (PartBound%SurfaceModel(iPartBound))
        CASE (0)
          PartBound%Reactive(iPartBound)        = .FALSE.
@@ -2366,8 +2317,6 @@ IF (nMacroRestartFiles.GT.0) THEN
   END DO
 END IF
 
-DEALLOCATE(PartBound%AmbientMeanPartMass)
-DEALLOCATE(PartBound%AmbientTemp)
 ! Set mapping from field boundary to particle boundary index
 ALLOCATE(PartBound%MapToPartBC(1:nBCs))
 PartBound%MapToPartBC(:)=-10
@@ -3311,15 +3260,6 @@ SDEALLOCATE(PartBound%RotACC)
 SDEALLOCATE(PartBound%ElecACC)
 SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
-SDEALLOCATE(PartBound%AmbientCondition)
-SDEALLOCATE(PartBound%AmbientConditionFix)
-SDEALLOCATE(PartBound%AmbientTemp)
-SDEALLOCATE(PartBound%AmbientMeanPartMass)
-SDEALLOCATE(PartBound%AmbientBeta)
-SDEALLOCATE(PartBound%AmbientVelo)
-SDEALLOCATE(PartBound%AmbientDens)
-SDEALLOCATE(PartBound%AmbientDynamicVisc)
-SDEALLOCATE(PartBound%AmbientThermalCond)
 SDEALLOCATE(PartBound%Adaptive)
 SDEALLOCATE(PartBound%AdaptiveType)
 SDEALLOCATE(PartBound%AdaptiveMacroRestartFileID)
