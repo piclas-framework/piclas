@@ -553,7 +553,7 @@ INTEGER                   :: color,iProc
 INTEGER                   :: noSurfrank,Surfrank
 LOGICAL                   :: hasSurf
 INTEGER,ALLOCATABLE       :: countSurfSideMPI(:),countInnerSurfSideMPI(:)
-LOGICAL                   :: OutputOnProc
+LOGICAL                   :: OutputOnProc, InnerSlaveBCs
 !===================================================================================================================================
 color=MPI_UNDEFINED
 IF(SurfMesh%SurfOnProc) color=2
@@ -646,46 +646,47 @@ IF(SurfCOMM%MyOutputRank.EQ.0 .AND. OutputOnProc) THEN
 END IF
 
 IF(SurfMesh%nTotalSides.EQ.0) RETURN
+! check if any proc has innersides and set flag for all proc to do additional communication and slave mapping
+IF((SurfMesh%nSides-SurfMesh%nMasterSides).GT.0) THEN
+  InnerSlaveBCs = .TRUE.
+ELSE
+  InnerSlaveBCs = .FALSE.
+END IF
+CALL MPI_ALLREDUCE(SurfCOMM%InnerBCs,InnerSlaveBCs,1,MPI_LOGICAL,MPI_LOR,SurfCOMM%COMM,iError)
 
-! get correct offsets
-ALLOCATE(offsetSurfSideMPI(0:SurfCOMM%nProcs))
+IF(SurfMesh%nMasterSides.EQ.0) RETURN
+! get correct offsets for output of hdf5 file (master sides)
+ALLOCATE(offsetSurfSideMPI(0:SurfCOMM%nOutputProcs))
 offsetSurfSideMPI=0
-ALLOCATE(countSurfSideMPI(0:SurfCOMM%nProcs-1))
+ALLOCATE(countSurfSideMPI(0:SurfCOMM%nOutputProcs-1))
 countSurfSideMPI=0
 
-CALL MPI_GATHER(SurfMesh%nSides,1,MPI_INTEGER,countSurfSideMPI,1,MPI_INTEGER,0,SurfCOMM%COMM,iError)
+CALL MPI_GATHER(SurfMesh%nMasterSides,1,MPI_INTEGER,countSurfSideMPI,1,MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
 
 ! new offsets due to InnerSurfSides
-ALLOCATE(offsetInnerSurfSideMPI(0:SurfCOMM%nProcs))
+ALLOCATE(offsetInnerSurfSideMPI(0:SurfCOMM%nOutputProcs))
 offsetInnerSurfSideMPI=0
-ALLOCATE(countInnerSurfSideMPI(0:SurfCOMM%nProcs-1))
+ALLOCATE(countInnerSurfSideMPI(0:SurfCOMM%nOutputProcs-1))
 countInnerSurfSideMPI=0
 
-CALL MPI_GATHER(SurfMesh%nInnerSides,1,MPI_INTEGER,countInnerSurfSideMPI,1,MPI_INTEGER,0,SurfCOMM%COMM,iError)
+CALL MPI_GATHER(SurfMesh%nInnerSides,1,MPI_INTEGER,countInnerSurfSideMPI,1,MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
 
 IF (SurfCOMM%MPIOutputRoot) THEN
-  DO iProc=1,SurfCOMM%nProcs-1
+  DO iProc=1,SurfCOMM%nOutputProcs-1
     offsetSurfSideMPI(iProc)=SUM(countSurfSideMPI(0:iProc-1))-SUM(countInnerSurfSideMPI(0:iProc-1))
     offsetInnerSurfSideMPI(iProc)=SUM(countInnerSurfSideMPI(0:iProc-1))
   END DO
-  offsetSurfSideMPI(SurfCOMM%nProcs)=SUM(countSurfSideMPI(:))-SUM(countInnerSurfSideMPI(:))
-  offsetInnerSurfSideMPI(SurfCOMM%nProcs)=SUM(countInnerSurfSideMPI(:))
+  offsetSurfSideMPI(SurfCOMM%nOutputProcs)=SUM(countSurfSideMPI(:))-SUM(countInnerSurfSideMPI(:))
+  offsetInnerSurfSideMPI(SurfCOMM%nOutputProcs)=SUM(countInnerSurfSideMPI(:))
   ! add BC offset to InnerSurfSide offset
-  offsetInnerSurfSideMPI(0:SurfCOMM%nProcs) = &
-  offsetInnerSurfSideMPI(0:SurfCOMM%nProcs) + offsetSurfSideMPI(SurfCOMM%nProcs)
+  offsetInnerSurfSideMPI(0:SurfCOMM%nOutputProcs) = &
+  offsetInnerSurfSideMPI(0:SurfCOMM%nOutputProcs) + offsetSurfSideMPI(SurfCOMM%nOutputProcs)
 END IF
 
-CALL MPI_BCAST (offsetSurfSideMPI,size(offsetSurfSideMPI),MPI_INTEGER,0,SurfCOMM%COMM,iError)
+CALL MPI_BCAST (offsetSurfSideMPI,size(offsetSurfSideMPI),MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
 offsetSurfSide=offsetSurfSideMPI(SurfCOMM%MyOutputRank)
-CALL MPI_BCAST (offsetInnerSurfSideMPI,size(offsetInnerSurfSideMPI),MPI_INTEGER,0,SurfCOMM%COMM,iError)
+CALL MPI_BCAST (offsetInnerSurfSideMPI,size(offsetInnerSurfSideMPI),MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
 offsetInnerSurfSide=offsetInnerSurfSideMPI(SurfCOMM%MyOutputRank)
-
-! is there any innerBC with reflective surface
-IF((MAXVAL(offsetInnerSurfSideMPI)-MINVAL(offsetInnerSurfSideMPI)).GT.0) THEN
-  SurfCOMM%InnerBCs = .TRUE.
-ELSE
-  SurfCOMM%InnerBCs = .FALSE.
-END IF
 
 END SUBROUTINE InitSurfCommunicator
 
