@@ -4242,7 +4242,7 @@ END SUBROUTINE CalcCoupledPowerPart
 
 SUBROUTINE DisplayCoupledPowerPart()
 !===================================================================================================================================
-!> Modify ElemData fields before/after WriteAdditionalElemData() is called
+!> Print accumulated power transferred to particles to std out (power for each species and total power over all particles)
 !===================================================================================================================================
 ! MODULES
 USE MOD_TimeDisc_Vars         ,ONLY: Time
