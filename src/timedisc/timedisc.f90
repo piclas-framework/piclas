@@ -4439,7 +4439,7 @@ IF (time.GE.DelayTime) THEN
 #if (PP_TimeDiscMethod==509)
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart) .AND. .NOT.DoForceFreeSurfaceFlux) THEN
         !-- x(BC) => x(n+1) by v(BC+X):
-        PartState(iPart,1:3) = PartState(iPart,1:3) + ( PartState(iPart,4:6) + Pt(1,iPart) * dtFrac*0.5 ) * dtFrac
+        PartState(1:3,iPart) = PartState(1:3,iPart) + ( PartState(4:6,iPart) + Pt(1,iPart) * dtFrac*0.5 ) * dtFrac
         ! Don't push the velocity component of neutral particles!
         IF(PUSHPARTICLE(iPart))THEN
           !-- v(BC) => v(n+0.5) by a(BC):
@@ -4448,7 +4448,7 @@ IF (time.GE.DelayTime) THEN
         PDM%dtFracPush(iPart) = .FALSE.
       ELSE IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoForceFreeSurfaceFlux
         !-- x(n) => x(n+1) by v(n+0.5)=v(BC)
-        PartState(iPart,1:3) = PartState(iPart,1:3) + PartState(iPart,4:6) * dtFrac
+        PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtFrac
         PDM%dtFracPush(iPart) = .FALSE.
       ELSE
         ! Don't push the velocity component of neutral particles!
@@ -4457,11 +4457,11 @@ IF (time.GE.DelayTime) THEN
           PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt
         END IF
         !-- x(n) => x(n+1) by v(n+0.5):
-        PartState(iPart,1:3) = PartState(iPart,1:3) + PartState(iPart,4:6) * dt
+        PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dt
       END IF
 #else /*(PP_TimeDiscMethod==509)*/
         !-- x(n) => x(n+1) by v(n):
-        PartState(iPart,1:3) = PartState(iPart,1:3) + PartState(iPart,4:6) * dtFrac
+        PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtFrac
       IF (DoForceFreeSurfaceFlux .AND. DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN
         PDM%dtFracPush(iPart) = .FALSE.
       ELSE
