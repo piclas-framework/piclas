@@ -3102,7 +3102,7 @@ ALLOCATE(DielectricGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='DielectricEpsGlobal'
 StrVarNames(2)='DielectricMuGlobal'
-DielectricGlobal=1.
+DielectricGlobal=0.
 DO iElem=1,PP_nElems
   IF(isDielectricElem(iElem))THEN
     DielectricGlobal(1,:,:,:,iElem)=DielectricEps(:,:,:,ElemToDielectric(iElem))

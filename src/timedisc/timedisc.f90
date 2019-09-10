@@ -3010,16 +3010,9 @@ USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIPar
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts,PartMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
-#ifdef CODE_ANALYZE
-USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
-USE MOD_Mesh_Vars              ,ONLY: OffSetElem
-#endif /*CODE_ANALYZE*/
 #endif /*USE_MPI*/
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
-#endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -3527,10 +3520,10 @@ DO iStage=2,nRKStages
       ! compute particle RHS at time^n
       IF(PartLorentzType.EQ.5)THEN
         LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3),LorentzFacInv)
+        CALL PartRHS(iPart,FieldAtParticle_loc(1:6),Pt(iPart,1:3),LorentzFacInv)
       ELSE
         LorentzFacInv = 1.0
-        CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+        CALL PartRHS(iPart,FieldAtParticle_loc(1:6),Pt(iPart,1:3))
       END IF ! PartLorentzType.EQ.5
       ! compute current Pt_tmp for the particle
       Pt_tmp(1) = LorentzFacInv*PartState(iPart,4)
