@@ -781,22 +781,22 @@ PartTrajectory=PartTrajectory/lengthPartTrajectory
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
    ! correction for Runge-Kutta (correct position!!)
 !---------- old ----------
-!  absPt_temp=SQRT(Pt_temp(PartID,1)*Pt_temp(PartID,1)+Pt_temp(PartID,2)*Pt_temp(PartID,2)+Pt_temp(PartID,3)*Pt_temp(PartID,3))
+!  absPt_temp=SQRT(Pt_temp(1,PartID)*Pt_temp(1,PartID)+Pt_temp(2,PartID)*Pt_temp(2,PartID)+Pt_temp(3,PartID)*Pt_temp(3,PartID))
 !  ! scale PartTrajectory to new Pt_temp
-!  Pt_temp(PartID,1:3)=absPt_temp*PartTrajectory(1:3)
+!  Pt_temp(1:3,PartID)=absPt_temp*PartTrajectory(1:3)
 !  ! deleate force history
-!  Pt_temp(PartID,4:6)=0.
+!  Pt_temp(4:6,PartID)=0.
 !  ! what happens with force term || acceleration?
 !-------------------------
 IF (.NOT.ALMOSTZERO(DOT_PRODUCT(WallVelo,WallVelo))) THEN
   PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 #if defined(LSERK)
 ELSE
-  Pt_temp(PartID,1:3)=Pt_temp(PartID,1:3)-2.*DOT_PRODUCT(Pt_temp(PartID,1:3),n_loc)*n_loc
+  Pt_temp(1:3,PartID)=Pt_temp(1:3,PartID)-2.*DOT_PRODUCT(Pt_temp(1:3,PartID),n_loc)*n_loc
   IF (Symmetry) THEN !reflect also force history for symmetry
-    Pt_temp(PartID,4:6)=Pt_temp(PartID,4:6)-2.*DOT_PRODUCT(Pt_temp(PartID,4:6),n_loc)*n_loc
+    Pt_temp(4:6,PartID)=Pt_temp(4:6,PartID)-2.*DOT_PRODUCT(Pt_temp(4:6,PartID),n_loc)*n_loc
   ELSE
-    Pt_temp(PartID,4:6)=0. !produces best result compared to analytical solution in plate capacitor...
+    Pt_temp(4:6,PartID)=0. !produces best result compared to analytical solution in plate capacitor...
   END IF
 #endif  /*LSERK*/
 END IF
@@ -805,16 +805,16 @@ END IF
 ! rotation for IMEX and Rosenbrock Method (requires the rotation of the previous rk-stages... simplification of boundary condition)
 ! results in an order reduction
 #ifdef IMPA
-!IF(SUM(ABS(PEM%NormVec(PartID,1:3))).GT.0)THEN
+!IF(SUM(ABS(PEM%NormVec(1:3,PartID))).GT.0)THEN
 !   IPWRITE(*,*) ' Caution: Field rotation for several reflection is not implemented!', iStage,PartIsImplicit(PartID), PartID
 ! END IF
-PEM%NormVec(PartID,1:3)=n_loc
+PEM%NormVec(1:3,PartID)=n_loc
 #endif /*IMPA*/
 #ifdef ROS
-! IF(SUM(ABS(PEM%NormVec(PartID,1:3))).GT.0)THEN
+! IF(SUM(ABS(PEM%NormVec(1:3,PartID))).GT.0)THEN
 !   !IPWRITE(*,*) ' Caution: Field rotation for several reflection is not implemented!'
 ! END IF
-PEM%NormVec(PartID,1:3)=n_loc
+PEM%NormVec(1:3,PartID)=n_loc
 #endif /*ROS*/
 
 END SUBROUTINE PerfectReflection

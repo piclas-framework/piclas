@@ -780,7 +780,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       PartSendBuf(iProc)%content(       1+jPos) = REAL(PartSpecies(iPart),KIND=8)
       jPos=jPos+1
 #if defined(LSERK)
-      PartSendBuf(iProc)%content(1+jPos:6+jPos) = Pt_temp(iPart,1:6)
+      PartSendBuf(iProc)%content(1+jPos:6+jPos) = Pt_temp(1:6,iPart)
       IF (PDM%IsNewPart(iPart)) THEN
         PartSendBuf(iProc)%content(7+jPos) = 1.
       ELSE
@@ -796,7 +796,7 @@ DO iProc=1, PartMPI%nMPINeighbors
          ,' You should never send particles now!')
         PartSendBuf(iProc)%content(1+jpos:6+jpos)        = PartStateN(1:6,iPart)
         DO iCounter=1,iStage-1
-          PartSendBuf(iProc)%content(jpos+7+(iCounter-1)*6:jpos+6+iCounter*6) = PartStage(iPart,1:6,iCounter)
+          PartSendBuf(iProc)%content(jpos+7+(iCounter-1)*6:jpos+6+iCounter*6) = PartStage(1:6,iCounter,iPart)
         END DO
         jPos=jPos+iStage*6
       ENDIF
@@ -817,8 +817,8 @@ DO iProc=1, PartMPI%nMPINeighbors
       ! fieldatparticle
       PartSendBuf(iProc)%content(jPos+1:jPos+6) = FieldAtParticle(1:6,iPart)
       jPos=jPos+6
-      PartSendBuf(iProc)%content(jPos+1:jPos+3) = PEM%NormVec(iPart,1:3)
-      PEM%NormVec(iPart,1:3)=0.
+      PartSendBuf(iProc)%content(jPos+1:jPos+3) = PEM%NormVec(1:3,iPart)
+      PEM%NormVec(1:3,iPart)=0.
       jPos=jPos+3
       PartSendBuf(iProc)%content(jPos+1) =REAL(ElemToGlobalElemID(PEM%ElementN(iPart)))
       jPos=jPos+1
@@ -1080,7 +1080,7 @@ DO iPart=1,PDM%ParticleVecLength
   PartState(1:6,iPart)=0.
   PartSpecies(iPart)=0
 #if defined(LSERK)
-  Pt_temp(iPart,1:6)=0.
+  Pt_temp(1:6,iPart)=0.
 #endif
 END DO ! iPart=1,PDM%ParticleVecLength
 
@@ -1313,7 +1313,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     PartSpecies(PartID)     = INT(PartRecvBuf(iProc)%content( 1+jPos),KIND=4)
     jPos=jPos+1
 #if defined(LSERK)
-    Pt_temp(PartID,1:6)     = PartRecvBuf(iProc)%content( 1+jPos:6+jPos)
+    Pt_temp(1:6,PartID)     = PartRecvBuf(iProc)%content( 1+jPos:6+jPos)
     IF ( INT(PartRecvBuf(iProc)%content( 7+jPos)) .EQ. 1) THEN
       PDM%IsNewPart(PartID)=.TRUE.
     ELSE IF ( INT(PartRecvBuf(iProc)%content( 7+jPos)) .EQ. 0) THEN
@@ -1332,7 +1332,7 @@ DO iProc=1,PartMPI%nMPINeighbors
        ,' You should never receive particle now!')
       PartStateN(1:6,PartID)     = PartRecvBuf(iProc)%content(jpos+1:jpos+6)
       DO iCounter=1,iStage-1
-        PartStage(PartID,1:6,iCounter) = PartRecvBuf(iProc)%content(jpos+7+(iCounter-1)*6:jpos+6+iCounter*6)
+        PartStage(1:6,iCounter,PartID) = PartRecvBuf(iProc)%content(jpos+7+(iCounter-1)*6:jpos+6+iCounter*6)
       END DO
       jPos=jPos+iStage*6
     END IF
@@ -1357,7 +1357,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     ! fieldatparticle
     FieldAtParticle(1:6,PartID)  = PartRecvBuf(iProc)%content(jPos+1:jPos+6)
     jPos=jPos+6
-    PEM%NormVec(PartID,1:3)  = PartRecvBuf(iProc)%content(jPos+1:jPos+3)
+    PEM%NormVec(1:3,PartID)  = PartRecvBuf(iProc)%content(jPos+1:jPos+3)
     jPos=jPos+3
     LocElemID=INT(PartRecvBuf(iProc)%content(jPos+1),KIND=4)
     IF((LocElemID-OffSetElem.GE.1).AND.(LocElemID-OffSetElem.LE.PP_nElems))THEN
