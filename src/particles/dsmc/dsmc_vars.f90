@@ -622,21 +622,23 @@ END TYPE
 
 TYPE (tOctreeVdm), POINTER                  :: OctreeVdm => null()
 
+LOGICAL                                     :: UseMCC
+
 TYPE tMCC
-  CHARACTER(LEN=256)                       :: Database
-  INTEGER                                  :: TotalPairNum
+  CHARACTER(LEN=256)                        :: Database
+  INTEGER                                   :: TotalPairNum
 END TYPE tMCC
 
-TYPE(tMCC)                     :: MCC
+TYPE(tMCC)                                  :: MCC
 
 TYPE tSpecMCC
-  REAL,ALLOCATABLE                         :: CollXSec(:,:)                       ! 1: Energy [eV]
-                                                                                  ! 2: Cross-section at energy level [m^2]
-  REAL                                     :: ProbNull                            ! 
-  LOGICAL                                  :: UseCollXSec
+  REAL,ALLOCATABLE                          :: CollXSec(:,:)                       ! 1: Energy [eV]
+                                                                                   ! 2: Cross-section at energy level [m^2]
+  REAL                                      :: ProbNull                            ! 
+  LOGICAL                                   :: UseCollXSec
 END TYPE tSpecMCC
 
-TYPE(tSpecMCC),ALLOCATABLE                 :: SpecMCC(:)
+TYPE(tSpecMCC),ALLOCATABLE                  :: SpecMCC(:)
 
 !===================================================================================================================================
 END MODULE MOD_DSMC_Vars

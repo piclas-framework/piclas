@@ -46,7 +46,7 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, MCC_pairing_bggas, DSMC_FinalizeBGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-USE MOD_DSMC_Vars             ,ONLY: ChemReac, SpecDSMC, SpecMCC, MCC
+USE MOD_DSMC_Vars             ,ONLY: ChemReac, SpecDSMC, MCC, UseMCC
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D
@@ -114,7 +114,7 @@ DO iElem = 1, nElems ! element/cell main loop
     END IF
     IF (CollisMode.NE.0) THEN
       ChemReac%nPairForRec = 0
-      IF(ANY(SpecMCC(:)%UseCollXSec)) THEN
+      IF(UseMCC) THEN
         CALL MCC_pairing_bggas(iElem)
       ELSE IF(BGGas%BGGasSpecies.NE.0) THEN
         CALL DSMC_pairing_bggas(iElem)
@@ -140,7 +140,7 @@ DO iElem = 1, nElems ! element/cell main loop
           nPart = PEM%pNumber(iElem)
         END IF
 
-        IF(ANY(SpecMCC(:)%UseCollXSec)) THEN
+        IF(UseMCC) THEN
           nPair = MCC%TotalPairNum
         ELSE
           nPair = INT(nPart/2)

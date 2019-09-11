@@ -43,7 +43,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_PARTICLE_Vars         ,ONLY: nSpecies
-USE MOD_DSMC_Vars             ,ONLY: MCC, BGGas, SpecDSMC, SpecMCC
+USE MOD_DSMC_Vars             ,ONLY: MCC, BGGas, SpecDSMC, SpecMCC, UseMCC
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -54,7 +54,12 @@ INTEGER       :: iSpec
 
 MCC%Database = TRIM(GETSTR('Particles-CollXSec-Database'))
 
-IF(TRIM(MCC%Database).EQ.'none') RETURN
+IF(TRIM(MCC%Database).EQ.'none') THEN
+  UseMCC = .FALSE.
+  RETURN
+ELSE
+  UseMCC = .TRUE.
+END IF
 
 ALLOCATE(SpecMCC(nSpecies))
 DO iSpec = 1, nSpecies
@@ -62,7 +67,10 @@ DO iSpec = 1, nSpecies
   SpecMCC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
 END DO
 
-IF(.NOT.ANY(SpecMCC(:)%UseCollXSec)) RETURN
+IF(.NOT.ANY(SpecMCC(:)%UseCollXSec)) THEN
+  UseMCC = .FALSE.
+  RETURN
+END IF
 
 IF (BGGas%BGGasSpecies.EQ.0) THEN
   CALL abort(&
