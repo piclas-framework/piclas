@@ -144,7 +144,7 @@ FUNCTION DiceDeflectedVector(CRela2,ur,vr,wr,alpha)
  REAL                        :: iRan, eps, cos_chi, sin_chi
  REAL,DIMENSION(3,3)         :: trafoMatrix
 !===================================================================================================================================
-  ! determination of DiceDeflectedVector in independent coordinate system and scaling
+  ! determination of DiceDeflectedVector in reduced mass system and scaling
   CRela=SQRT(CRela2)
   CALL RANDOM_NUMBER(iRan)
   cos_chi                  = 2.*iRan**(1./alpha)-1.     ! deflected (anisotrop) scattering angle chi 
@@ -160,7 +160,7 @@ FUNCTION DiceDeflectedVector(CRela2,ur,vr,wr,alpha)
       ! In case the impact plane system points into the same direction as the
       ! original coordinate system the DiceDeflectedVector needs no change.
     ELSE   
-      ! Transformation to original coordinate system via Bird1994 p.36
+      ! Transformation back to the LAB frame via Bird1994 p.36
       ! Matrix-wise coordinate transformation A*b=(2.22) since it is faster
       ! Initializing rotation matrix
       trafoMatrix(1,1)=ur/CRela
