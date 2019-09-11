@@ -781,36 +781,29 @@ END IF
 IF(nPart.LE.0) RETURN
 
 ! Calculation of mixture reference diameter
-IF (nPart.EQ.0) RETURN
-    DO iSpec = 1, nSpecies
-      DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%dref / nPart
-    END DO
+DO iSpec = 1, nSpecies
+  DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%Dref / nPart
+END DO
 ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
 ! (only defined for a single weighting factor, if omega is present calculation of the mean free path with the VHS model)
 IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
   omega = opt_omega
   Temp = opt_temp
-                           !   write(*,*) "temp vor schleife",temp
-  IF (Temp.LE.0) RETURN
-      DO iSpec = 1, nSpecies
-        MFP_Tmp = 0.0
-        IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
-          DO jSpec = 1, nSpecies
-            IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-              MFP_Tmp = MFP_Tmp + (Pi * DrefMixture ** 2. * SpecPartNum(jSpec) * MacroParticleFactor / Volume &
-                                * (CollInf%Tref(iSpec,jSpec)/ Temp) ** (omega) &
-                                * SQRT(1. + Species(iSpec)%MassIC / Species(jSpec)%MassIC))
-                       !       WRITE(*,*) "MFP_TMP omega gg",mfp_tmp
-                              !write(*,*) "drefmixture",drefmixture
-                          !    write(*,*) "temp",temp
-                             ! write(*,*) "SpecPartNum",SpecPartNum
-                             ! write(*,*) "nPart",nPart
-            END IF
-          END DO
-          CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
-        END IF
-      END DO
-ELSE !Tref/T =1
+  IF(Temp.LE.0.0) RETURN
+    DO iSpec = 1, nSpecies
+      MFP_Tmp = 0.0
+      IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+        DO jSpec = 1, nSpecies
+          IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+            MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
+                                  * (CollInf%Tref(iSpec,jSpec)/Temp)**(CollInf%omega(iSpec,jSpec)) &
+                                  * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+          END IF
+        END DO
+        CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
+      END IF
+    END DO
+ELSE
   DO iSpec = 1, nSpecies
     MFP_Tmp = 0.0
     IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
@@ -818,15 +811,14 @@ ELSE !Tref/T =1
         IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
           MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
                                 * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
-                              WRITE(*,*) "MFP_TMP ohne omega",mfp_tmp
         END IF
       END DO
       CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
     END IF
   END DO
 END IF
-                          !    write(*,*) "temp nach schleife",temp
 RETURN
+
 END FUNCTION CalcMeanFreePath
 
 SUBROUTINE CalcGammaVib()
