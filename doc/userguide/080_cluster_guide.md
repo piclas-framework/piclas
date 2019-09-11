@@ -8,6 +8,8 @@ Unfortunately, the GitHub and GitLab servers are not available on machines at th
 
 ### Cloning with the SSH protocol
 
+#### Method 1
+
 You can use the SSH protocol to clone the repository. You have to connect to the cluster with the `RemoteForward` option
 
     ssh -R 7777:github.com:22 username@hazelhen.hww.de
@@ -22,6 +24,24 @@ To avoid using the above command every time, you can add the following to your `
 and login with `ssh hlrs`. Now you can clone the repository when logged onto the cluster by
 
     git clone ssh://git@localhost:7777/piclas/piclas.git
+
+#### Method 2
+Add a new host to the `.ssh/config` file:
+
+    Host hazelhen
+       User myusername1
+       HostName hazelhen.hww.de
+       ForwardX11 yes
+       ProxyCommand ssh -R 1413:gitlab.com:22 myusername2@ssh1.iag.uni-stuttgart.de /bin/nc -w 100 hazelhen.hww.de 22
+       ServerAliveInterval 60
+
+where *myusername1* is the account at hazelhen.hww.de and myusername2 is the account at
+ssh1.iag.uni-stuttgart.de. The latter must have direct access to hazelhen.hww.de, which is why it is
+used as bouncehost.
+
+Now simply login with `ssh hazelhen` and clone from the cluster with
+
+    git clone git@git@gitlab.com:piclas/piclas.git
 
 ### Cloning with the HTTPS protocol
 

@@ -457,6 +457,7 @@ SDEALLOCATE(VarNamesFlucOut)
 SDEALLOCATE(DoPowerDensity)
 SDEALLOCATE(PowerDensity)
 #endif /*PARTICLES*/
+SDEALLOCATE(FlucAvgMap)
 END SUBROUTINE FinalizeTimeAverage
 
 END MODULE MOD_TimeAverage

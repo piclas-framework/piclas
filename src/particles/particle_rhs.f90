@@ -108,6 +108,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: PartLorentzType
+REAL                    :: dummy(1:3)
 !==================================================================================================================================
 PartLorentzType = GETINTFROMSTR('Part-LorentzType')
 SELECT CASE(PartLorentzType)
@@ -127,6 +128,15 @@ CASE DEFAULT
   CALL CollectiveStop(__STAMP__,&
     'Part-LorentzType-new not defined!')
 END SELECT
+
+! Suppress compiler warning
+RETURN
+CALL PartRHS_NR(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_D(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_W(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_RN(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_REM(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_RM(0,(/0.,0.,0.,0.,0.,0./),dummy)
 END SUBROUTINE InitPartRHS
 
 
@@ -148,11 +158,13 @@ INTEGER                          :: iPart
 ! Loop all particles and call particle right-hand-side calculation
 DO iPart = 1,PDM%ParticleVecLength
   ! Particle is inside and not a neutral particle
-  IF (PDM%ParticleInside(iPart).AND.PUSHPARTICLE(iPart)) THEN
-    CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
-  ELSE
-    Pt(iPart,:)=0.
-  END IF
+  IF(PDM%ParticleInside(iPart))THEN
+    IF(PUSHPARTICLE(iPart))THEN
+      CALL PartRHS(iPart,FieldAtParticle(iPart,1:6),Pt(iPart,1:3))
+      CYCLE
+    END IF ! PUSHPARTICLE(iPart)
+  END IF ! PDM%ParticleInside(iPart)
+  Pt(iPart,:)=0.
 END DO
 END SUBROUTINE CalcPartRHS
 
