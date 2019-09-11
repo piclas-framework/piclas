@@ -1633,6 +1633,7 @@ SDEALLOCATE(BGGas%PairingPartner)
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
+SDEALLOCATE(SpecMCC)
 END SUBROUTINE FinalizeDSMC
 
 
