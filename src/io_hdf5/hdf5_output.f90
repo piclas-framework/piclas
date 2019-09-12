@@ -411,8 +411,7 @@ USE MOD_Restart_Vars          ,ONLY: RestartTime
 #ifdef PARTICLES
 USE MOD_Globals               ,ONLY: abort,mpiroot
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcCoupledPower,PCouplSpec
-USE MOD_Particle_Vars         ,ONLY: nSpecies,PDM,PEM,PartSpecies,Species
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_Particle_Vars         ,ONLY: nSpecies,Species
 #endif /*PARTICLES*/
 #if USE_MPI
 USE MOD_Globals
@@ -428,9 +427,8 @@ INTEGER,INTENT(IN) :: mode ! 1: before WriteAdditionalElemData() is called
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #ifdef PARTICLES
-REAL          :: timediff,PTotal(1:nSpecies),SumPTotal(1:nSpecies)
-INTEGER       :: iSpec,iElem,iPart
-CHARACTER(5) :: hilf
+REAL          :: timediff
+INTEGER       :: iSpec
 #endif /*PARTICLES*/
 !===================================================================================================================================
 

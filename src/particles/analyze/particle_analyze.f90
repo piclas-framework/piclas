@@ -4204,7 +4204,7 @@ END SUBROUTINE RemoveParticle
 !===================================================================================================================================
 SUBROUTINE CalcCoupledPowerPart(iPart,mode,EDiff)
 ! MODULES
-USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies, PEM, PDM
+USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies, PEM
 USE MOD_Particle_Analyze_Vars  ,ONLY: PCoupl, PCouplAverage, PCouplSpec
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
@@ -4248,8 +4248,8 @@ SUBROUTINE DisplayCoupledPowerPart()
 USE MOD_TimeDisc_Vars         ,ONLY: Time
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_Globals               ,ONLY: abort,mpiroot
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcCoupledPower,PCouplSpec
-USE MOD_Particle_Vars         ,ONLY: nSpecies,PDM,PEM,PartSpecies,Species
+USE MOD_Particle_Analyze_Vars ,ONLY: PCouplSpec
+USE MOD_Particle_Vars         ,ONLY: nSpecies,Species
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_Mesh_Vars             ,ONLY: nElems
 #if USE_MPI
@@ -4264,8 +4264,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL          :: timediff,PTotal(1:nSpecies),SumPTotal(1:nSpecies)
-INTEGER       :: iSpec,iElem,iPart
-CHARACTER(5) :: hilf
+INTEGER       :: iSpec,iElem
+CHARACTER(5)  :: hilf
 !===================================================================================================================================
 
 IF(ABS(Time-RestartTime).LE.0.0) RETURN
