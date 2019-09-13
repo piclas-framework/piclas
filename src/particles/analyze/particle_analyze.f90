@@ -4255,6 +4255,7 @@ USE MOD_Mesh_Vars             ,ONLY: nElems
 #if USE_MPI
 USE MOD_Globals
 #endif /*USE_MPI*/
+USE MOD_Globals               ,ONLY: UNIT_StdOut
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
