@@ -652,7 +652,7 @@ IF((SurfMesh%nSides-SurfMesh%nMasterSides).GT.0) THEN
 ELSE
   InnerSlaveBCs = .FALSE.
 END IF
-CALL MPI_ALLREDUCE(SurfCOMM%InnerBCs,InnerSlaveBCs,1,MPI_LOGICAL,MPI_LOR,SurfCOMM%COMM,iError)
+CALL MPI_ALLREDUCE(InnerSlaveBCs,SurfCOMM%InnerBCs,1,MPI_LOGICAL,MPI_LOR,SurfCOMM%COMM,iError)
 
 IF(SurfMesh%nMasterSides.EQ.0) RETURN
 ! get correct offsets for output of hdf5 file (master sides)
