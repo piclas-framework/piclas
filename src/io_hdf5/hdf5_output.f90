@@ -409,7 +409,7 @@ SUBROUTINE ModifyElemData(mode)
 USE MOD_TimeDisc_Vars         ,ONLY: Time
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 #ifdef PARTICLES
-USE MOD_Globals               ,ONLY: abort,mpiroot
+USE MOD_Globals               ,ONLY: abort
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcCoupledPower,PCouplSpec
 USE MOD_Particle_Vars         ,ONLY: nSpecies,Species
 #endif /*PARTICLES*/
