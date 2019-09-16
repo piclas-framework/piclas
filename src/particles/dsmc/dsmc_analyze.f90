@@ -2116,7 +2116,6 @@ IF(nSpecies.GT.1) THEN
         nvarcount=nvarcount+2
       END IF
     END IF
-    IPWRITE(*,*) nvarcount
   END DO ! iSpec=1,nSpecies
 END IF
 ! fill varnames for total values
@@ -2145,7 +2144,6 @@ IF(DSMC%CalcQualityFactors.AND.(CollisMode.GE.2)) THEN
     nvarcount=nvarcount+2
   END IF
 END IF
-IPWRITE(*,*) nvarcount
 
 IF (DSMC%CalcQualityFactors) THEN
   StrVarNames(nVarCount+1) ='DSMC_MaxCollProb'
@@ -2177,7 +2175,6 @@ IF (DSMC%CalcQualityFactors) THEN
     nVarCount=nVarCount+5
   END IF
 END IF
-IPWRITE(*,*) nvarcount
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DSMCHOState',OutputTime))//'.h5'
