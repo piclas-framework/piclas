@@ -27,7 +27,7 @@ LOGICAL             :: DoDielectric                   ! True/false switch for Di
 LOGICAL             :: DielectricFluxNonConserving    ! True/false switch for using conserving or non-conserving fluxes at
 !                                                     !dielectric interfaces between a dielectric region and vacuum
 LOGICAL             :: DielectricInitIsDone           ! Initialization flag
-LOGICAL             :: DielectricNoParticles          ! Do not insert/emit particles into dielectric regions (default=F).
+LOGICAL             :: DielectricNoParticles          ! Do not insert/emit particles into dielectric regions (default=T).
 LOGICAL,ALLOCATABLE :: isDielectricElem(:)            ! True if iElem is an element located within the Dielectric.
 !                                                     ! This vector is allocated to (region.1:PP_nElems)
 LOGICAL,ALLOCATABLE :: isDielectricFace(:)            ! True if iFace is a Face located within or on the boarder (interface) of the
