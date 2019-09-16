@@ -1237,8 +1237,12 @@ IF(PartMPI%MPIRoot) THEN
     IF(ABS(Time-RestartTime).GT.0.0) PCouplAverage = PCouplAverage / (Time-RestartTime)
     ! current PCoupl (Delta_E / Timestep)
     PCoupl = PCoupl / dt
-    CALL DisplayCoupledPowerPart()
   END IF
+END IF
+
+IF(CalcCoupledPower) THEN
+  ! Moving Average of PCoupl for each species
+  CALL DisplayCoupledPowerPart()
 END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==1000)
