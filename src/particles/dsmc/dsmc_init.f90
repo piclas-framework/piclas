@@ -448,7 +448,6 @@ IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
         ,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
   END IF
 END IF
-LD_MultiTemperaturMod        = GETINT('LD-ModelForMultiTemp','0')
 DSMC%ElectronicModel         = GETLOGICAL('Particles-DSMC-ElectronicModel','.FALSE.')
 DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
 IF ((DSMC%ElectronicModelDatabase .NE. 'none').AND.&
@@ -535,10 +534,10 @@ ENDIF
 PartStateIntEn = 0. ! nullify
 
 IF (CollisMode.EQ.0) THEN
-#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001) || (PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==42)
   CALL Abort(&
       __STAMP__&
-      , "Free Molecular Flow (CollisMode=0) is not supported for LD or DEBUG!")
+      , "Free Molecular Flow (CollisMode=0) is not supported for reservoir!")
 #endif
 ELSE !CollisMode.GT.0
 
@@ -982,7 +981,7 @@ ELSE !CollisMode.GT.0
 #endif
 #endif
 
-#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001) && (PP_TimeDiscMethod!=300)
+#if (PP_TimeDiscMethod!=300)
     DEALLOCATE(PDM%PartInit)
 #endif
   END IF ! CollisMode .EQ. 2 or 3
@@ -1400,9 +1399,6 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
   USE MOD_Globals,               ONLY : abort
   USE MOD_Globals_Vars,          ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,             ONLY : PartStateIntEn, SpecDSMC, DSMC
-#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-  USE MOD_DSMC_Vars,             ONLY : LD_MultiTemperaturMod
-#endif
   USE MOD_Particle_Vars,         ONLY : Species, PEM, Adaptive_MacroVal
   USE MOD_Particle_Boundary_Vars,ONLY: PartBound
   USE MOD_DSMC_ElectronicModel,  ONLY : InitElectronShell
@@ -1511,23 +1507,6 @@ __STAMP__&
       PartStateIntEn(iPart, 3) = 0.
     END IF
   ENDIF
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Set internal energy for LD
-!-----------------------------------------------------------------------------------------------------------------------------------
-#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-  IF (LD_MultiTemperaturMod .EQ. 3 ) THEN ! no discret vib levels for this LD method
-    IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THEN
-      PartStateIntEn(iPart, 1) = (BoltzmannConst*SpecDSMC(iSpecies)%CharaTVib) &
-                               / (EXP(SpecDSMC(iSpecies)%CharaTVib/TVib) - 1.0) &
-                               + DSMC%GammaQuant * BoltzmannConst*SpecDSMC(iSpecies)%CharaTVib
-    !set rotational energy
-      PartStateIntEn(iPart, 2) = BoltzmannConst*TRot
-    ELSE
-      PartStateIntEn(iPart, 1) = 0
-      PartStateIntEn(iPart, 2) = 0
-    END IF
-  END IF
-#endif
 
 END SUBROUTINE DSMC_SetInternalEnr_LauxVFD
 

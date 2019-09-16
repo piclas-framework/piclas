@@ -778,7 +778,6 @@ USE MOD_Mesh_Vars         ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Vars     ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell, nSpecies, VarTimeStep
 USE MOD_part_tools        ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars         ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
-USE MOD_LD_Vars           ,ONLY: UseLD, PartStateBulkValues
 #if (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars,           ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
@@ -826,7 +825,7 @@ MaxQuantNum=-1
 
 !!added for Evib, Erot writeout
 withDSMC=useDSMC
-IF (withDSMC.AND.(.NOT.(useLD))) THEN
+IF (withDSMC) THEN
 !IF (withDSMC) THEN
   IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
     PartDataSize=11
@@ -839,19 +838,6 @@ IF (withDSMC.AND.(.NOT.(useLD))) THEN
     PartDataSize=8 !+ 1 vmpf
   ELSE
     PartDataSize=7 !+ 0
-  END IF
-ELSE IF (useLD) THEN
-  IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
-    PartDataSize=16
-  ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicModel ) ) THEN !int ener + 2 and vmpf + 1
-                                                                           ! or int energ +3 but no vmpf +1
-    PartDataSize=15
-  ELSE IF (CollisMode.GT.1) THEN
-    PartDataSize=14!int ener + 2
-  ELSE IF (usevMPF) THEN
-    PartDataSize=13!+ 1 vmpf
-  ELSE
-    PartDataSize=12 !+ 0
   END IF
 ELSE IF (usevMPF) THEN
   PartDataSize=8 !vmpf +1
@@ -954,7 +940,7 @@ DO iElem_loc=1,PP_nElems
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
-      IF (withDSMC.AND.(.NOT.(useLD))) THEN
+      IF (withDSMC) THEN
       !IF (withDSMC) THEN
         IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
@@ -974,57 +960,6 @@ DO iElem_loc=1,PP_nElems
           PartData(iPart,9)=PartStateIntEn(pcount,2)
         ELSE IF (usevMPF) THEN
           PartData(iPart,8)=PartMPF(pcount)
-        END IF
-      ELSE IF (useLD) THEN
-        IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
-          PartData(iPart,10)=PartMPF(pcount)
-          PartData(iPart,11)=PartStateIntEn(pcount,3)
-          PartData(iPart,12)=PartStateBulkValues(pcount,1)
-          PartData(iPart,13)=PartStateBulkValues(pcount,2)
-          PartData(iPart,14)=PartStateBulkValues(pcount,3)
-          PartData(iPart,15)=PartStateBulkValues(pcount,4)
-          PartData(iPart,16)=PartStateBulkValues(pcount,5)
-        ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
-          PartData(iPart,10)=PartMPF(pcount)
-          PartData(iPart,11)=PartStateBulkValues(pcount,1)
-          PartData(iPart,12)=PartStateBulkValues(pcount,2)
-          PartData(iPart,13)=PartStateBulkValues(pcount,3)
-          PartData(iPart,14)=PartStateBulkValues(pcount,4)
-          PartData(iPart,15)=PartStateBulkValues(pcount,5)
-        ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
-          PartData(iPart,10)=PartStateIntEn(pcount,3)
-          PartData(iPart,11)=PartStateBulkValues(pcount,1)
-          PartData(iPart,12)=PartStateBulkValues(pcount,2)
-          PartData(iPart,13)=PartStateBulkValues(pcount,3)
-          PartData(iPart,14)=PartStateBulkValues(pcount,4)
-          PartData(iPart,15)=PartStateBulkValues(pcount,5)
-        ELSE IF (CollisMode.GT.1) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
-          PartData(iPart,10)=PartStateBulkValues(pcount,1)
-          PartData(iPart,11)=PartStateBulkValues(pcount,2)
-          PartData(iPart,12)=PartStateBulkValues(pcount,3)
-          PartData(iPart,13)=PartStateBulkValues(pcount,4)
-          PartData(iPart,14)=PartStateBulkValues(pcount,5)
-        ELSE IF (usevMPF) THEN
-          PartData(iPart,8)=PartMPF(pcount)
-          PartData(iPart,9)=PartStateBulkValues(pcount,1)
-          PartData(iPart,10)=PartStateBulkValues(pcount,2)
-          PartData(iPart,11)=PartStateBulkValues(pcount,3)
-          PartData(iPart,12)=PartStateBulkValues(pcount,4)
-          PartData(iPart,13)=PartStateBulkValues(pcount,5)
-        ELSE
-          PartData(iPart,8)=PartStateBulkValues(pcount,1)
-          PartData(iPart,9)=PartStateBulkValues(pcount,2)
-          PartData(iPart,10)=PartStateBulkValues(pcount,3)
-          PartData(iPart,11)=PartStateBulkValues(pcount,4)
-          PartData(iPart,12)=PartStateBulkValues(pcount,5)
         END IF
       ELSE IF (usevMPF) THEN
           PartData(iPart,8)=PartMPF(pcount)
@@ -1106,7 +1041,7 @@ ASSOCIATE (&
   StrVarNames(6)='VelocityZ'
   StrVarNames(7)='Species'
 
-  IF(withDSMC.AND.(.NOT.(useLD)))THEN
+  IF(withDSMC)THEN
     ! IF(withDSMC)THEN
     IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
       StrVarNames( 8)='Vibrational'
@@ -1126,57 +1061,6 @@ ASSOCIATE (&
       StrVarNames( 9)='Rotational'
     ELSE IF (usevMPF) THEN
       StrVarNames( 8)='MPF'
-    END IF
-  ELSE IF (useLD) THEN
-    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-      StrVarNames(10)='Electronic'
-      StrVarNames(11)='MPF'
-      StrVarNames(12)='BulkVelocityX'
-      StrVarNames(13)='BulkVelocityY'
-      StrVarNames(14)='BulkVelocityZ'
-      StrVarNames(15)='BulkTemperature'
-      StrVarNames(16)='BulkDOF'
-    ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-      StrVarNames(10)='MPF'
-      StrVarNames(11)='BulkVelocityX'
-      StrVarNames(12)='BulkVelocityY'
-      StrVarNames(13)='BulkVelocityZ'
-      StrVarNames(14)='BulkTemperature'
-      StrVarNames(15)='BulkDOF'
-    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-      StrVarNames(10)='Electronic'
-      StrVarNames(11)='BulkVelocityX'
-      StrVarNames(12)='BulkVelocityY'
-      StrVarNames(13)='BulkVelocityZ'
-      StrVarNames(14)='BulkTemperature'
-      StrVarNames(15)='BulkDOF'
-    ELSE IF (CollisMode.GT.1) THEN
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-      StrVarNames(10)='BulkVelocityX'
-      StrVarNames(11)='BulkVelocityY'
-      StrVarNames(12)='BulkVelocityZ'
-      StrVarNames(13)='BulkTemperature'
-      StrVarNames(14)='BulkDOF'
-    ELSE IF (usevMPF) THEN
-      StrVarNames( 8)='MPF'
-      StrVarNames( 9)='BulkVelocityX'
-      StrVarNames(10)='BulkVelocityY'
-      StrVarNames(11)='BulkVelocityZ'
-      StrVarNames(12)='BulkTemperature'
-      StrVarNames(13)='BulkDOF'
-    ELSE
-      StrVarNames( 8)='BulkVelocityX'
-      StrVarNames( 9)='BulkVelocityY'
-      StrVarNames(10)='BulkVelocityZ'
-      StrVarNames(11)='BulkTemperature'
-      StrVarNames(12)='BulkDOF'
     END IF
   ELSE IF (usevMPF) THEN
     StrVarNames( 8)='MPF'

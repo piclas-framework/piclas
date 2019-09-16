@@ -514,7 +514,6 @@ USE MOD_Particle_Surfaces_vars  ,ONLY: SideNormVec,SideType,epsilontol
 USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC,RadialWeighting,PartStateIntEn
 USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
-USE MOD_LD_Vars                 ,ONLY: useLD
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
 USE MOD_TImeDisc_Vars           ,ONLY: tend,time
 USE MOD_Particle_Boundary_Vars  ,ONLY: AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
@@ -701,7 +700,7 @@ DoSample = (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(D
 
 IF (.NOT.IsAuxBC) THEN
   ! Wall sampling Macrovalues
-  IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not built for the symmetry BC!?!
+  IF(.NOT.Symmetry) THEN !surface mesh is not built for the symmetry BC!?!
     IF (DoSample) THEN ! DoSample
       SurfSideID=SurfMesh%SideIDToSurfID(SideID)
       ! compute p and q
@@ -764,7 +763,7 @@ IF (.NOT.IsAuxBC) THEN
             EtraOld,PartStateIntEn(PartID,2),PartStateIntEn(PartID,1),PartTrajectory,n_loc,p,q)
       END IF ! CalcSurfaceImpact
     END IF ! DoSample
-  END IF ! (.NOT.Symmetry).AND.(.NOT.UseLD)
+  END IF ! .NOT.Symmetry
 END IF !.NOT.IsAuxBC
 
 
@@ -1759,7 +1758,6 @@ USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:DSMC
-!USE MOD_LD_Vars,                ONLY:useLD
 USE MOD_TImeDisc_Vars,          ONLY:tend,time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1821,7 +1819,7 @@ END IF
 
 
 ! Wall sampling Macrovalues
-!IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the symmetry BC!?!
+!IF(.NOT.Symmetry) THEN !surface mesh is not build for the symmetry BC!?!
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
     !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
     IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN

@@ -862,37 +862,6 @@ INTEGER             :: dir
             OutputCounter = OutputCounter + 1
           END DO
         END IF
-#if (PP_TimeDiscMethod==1000)
-        IF (CollisMode.GT.1) THEN
-          DO iSpec=1, nSpecAnalyze
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EVib',iSpec,' '
-            OutputCounter = OutputCounter + 1
-          END DO
-          DO iSpec=1, nSpecAnalyze
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-ERot',iSpec,' '
-            OutputCounter = OutputCounter + 1
-          END DO
-          IF ( DSMC%ElectronicModel ) THEN
-            DO iSpec = 1, nSpecAnalyze
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EElec',iSpec,' '
-              OutputCounter = OutputCounter + 1
-            END DO
-          END IF
-          DO iSpec=1, nSpecies
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-TempVib',iSpec,' '
-            OutputCounter = OutputCounter + 1
-          END DO
-          DO iSpec=1, nSpecies
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-TempRot',iSpec,' '
-            OutputCounter = OutputCounter + 1
-          END DO
-        END IF
-#endif
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
         IF (CollisMode.GT.1) THEN
           IF(CalcEint) THEN
@@ -1245,9 +1214,6 @@ IF(CalcCoupledPower) THEN
   CALL DisplayCoupledPowerPart()
 END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
-#if (PP_TimeDiscMethod==1000)
-  IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
-#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the collision rates and reaction rate coefficients (Arrhenius-type chemistry)
 #if (PP_TimeDiscMethod==42)
@@ -1348,33 +1314,6 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
 
-#if (PP_TimeDiscMethod==1000)
-    IF (CollisMode.GT.1) THEN
-      DO iSpec=1, nSpecAnalyze
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') IntEn(iSpec,1)
-      END DO
-      DO iSpec=1, nSpecAnalyze
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') IntEn(iSpec,2)
-      END DO
-      IF ( DSMC%ElectronicModel ) THEN
-        DO iSpec=1, nSpecAnalyze
-        ! currently set to one
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') IntEn(iSpec,3)
-        END DO
-      END IF
-      DO iSpec=1, nSpecies
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') IntTemp(iSpec,1)
-      END DO
-      DO iSpec=1, nSpecies
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') IntTemp(iSpec,2)
-      END DO
-    END IF
-#endif
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
     IF (CollisMode.GT.1) THEN
       IF(CalcEint) THEN
@@ -2134,14 +2073,7 @@ REAL, INTENT(OUT)                  :: Xi_Vib(nSpecies), Xi_Elec(nSpecies)
 INTEGER                            :: iPolyatMole,iDOF,iSpec
 !===================================================================================================================================
 
-
-! next, calctranstemp
-
-#if (PP_TimeDiscMethod!=1000)
 CALL CalcTransTemp(NumSpec, Temp)
-#else
-CALL CalcTransTemp(Temp)
-#endif
 
 IF (CollisMode.GT.1) THEN
   CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
@@ -2201,12 +2133,7 @@ END IF
 END SUBROUTINE CalcTemperature
 
 
-
-#if (PP_TimeDiscMethod!=1000)
 SUBROUTINE CalcTransTemp(NumSpec, Temp)
-#else
-SUBROUTINE CalcTransTemp(Temp)
-#endif
 !===================================================================================================================================
 ! calculate the translational temperature of each species
 !===================================================================================================================================
@@ -2215,22 +2142,15 @@ USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY : BoltzmannConst
 USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: nSpecies
-#if (PP_TimeDiscMethod==1000)
-USE MOD_LD_Vars               ,ONLY: BulkValues
-#endif
-#if (PP_TimeDiscMethod!=1000)
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, PDM
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#if (PP_TimeDiscMethod!=1000)
 REAL, INTENT(IN)                :: NumSpec(:)    !< global number of REAL particles in domain
-#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Temp(:)       !< output value is already the GLOBAL temperature
@@ -2238,21 +2158,13 @@ REAL,INTENT(OUT)                :: Temp(:)       !< output value is already the 
 ! LOCAL VARIABLES
 INTEGER           :: iSpec
 REAL              :: TempDirec(nSpecies,3)
-#if (PP_TimeDiscMethod!=1000)
 REAL              :: PartVandV2(nSpecies, 6), Mean_PartV2(nSpecies, 3), MeanPartV_2(nSpecies,3)
 INTEGER           :: i
-#endif
 !===================================================================================================================================
 
 ! Compute velocity averages
 Temp = 0.0
 ! Sum up velocity
-#if (PP_TimeDiscMethod==1000)
-DO iSpec=1, nSpecies
-  TempDirec(iSpec,1:3) = BulkValues(1)%BulkTemperature
-  Temp(iSpec) = BulkValues(1)%BulkTemperature
-END DO
-#else
 PartVandV2 = 0.
 DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
@@ -2295,7 +2207,7 @@ IF(PartMPI%MPIRoot)THEN
     END IF
   END IF
 END IF
-#endif
+
 END SUBROUTINE CalcTransTemp
 
 
