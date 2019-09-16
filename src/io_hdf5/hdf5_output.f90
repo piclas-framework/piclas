@@ -1758,11 +1758,13 @@ IF(CollisMode.GT.1) THEN
     CALL CloseDataFile()
     SDEALLOCATE(StrVarNames)
   ELSE ! DSMC%VibRelaxProb < 2.0
-    IF(MPIRoot)THEN
-      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-      CALL WriteAttributeToHDF5(File_ID,'VibProbConstInfo',1,RealScalar=DSMC%VibRelaxProb)
-      CALL CloseDataFile()
-    END IF
+#if USE_MPI
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
+    CALL WriteAttributeToHDF5(File_ID,'VibProbConstInfo',1,RealScalar=DSMC%VibRelaxProb)
+    CALL CloseDataFile()
   END IF
 ELSE ! CollisMode <= 1
   IF(MPIRoot)THEN
