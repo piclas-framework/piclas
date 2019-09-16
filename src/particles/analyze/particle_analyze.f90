@@ -196,7 +196,7 @@ USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
-USE MOD_Particle_Vars         ,ONLY: nSpecies, VarTimeStep, PDM
+USE MOD_Particle_Vars         ,ONLY: Species,nSpecies, VarTimeStep, PDM
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
@@ -493,10 +493,12 @@ IF(CalcCoupledPower) THEN
   ! Allocate type array for all ranks
   ALLOCATE(PCouplSpec(1:nSpecies))
   DO iSpec = 1, nSpecies
-    ALLOCATE(PCouplSpec(iSpec)%DensityAvgElem(1:PP_nElems))
-    PCouplSpec(iSpec)%DensityAvgElem = 0.
-    WRITE(UNIT=hilf,FMT='(I0)') iSpec
-    CALL AddToElemData(ElementOut,'PCouplDensityAvgElem-Spec-'//TRIM(hilf),RealArray=PCouplSpec(iSpec)%DensityAvgElem)
+    IF(ABS(Species(iSpec)%ChargeIC).GT.0.0)THEN
+      ALLOCATE(PCouplSpec(iSpec)%DensityAvgElem(1:PP_nElems))
+      PCouplSpec(iSpec)%DensityAvgElem = 0.
+      WRITE(UNIT=hilf,FMT='(I0.3)') iSpec
+      CALL AddToElemData(ElementOut,'Spec'//TRIM(hilf)//'_PCouplDensityAvgElem',RealArray=PCouplSpec(iSpec)%DensityAvgElem)
+    END IF ! ABS(Species(iSpec)%ChargeIC).GT.0.0
   END DO ! iSpec = 1, nSpecies
 END IF
 
@@ -876,37 +878,6 @@ INTEGER             :: dir
             OutputCounter = OutputCounter + 1
           END DO
         END IF
-#if (PP_TimeDiscMethod==1000)
-        IF (CollisMode.GT.1) THEN
-          DO iSpec=1, nSpecAnalyze
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EVib',iSpec,' '
-            OutputCounter = OutputCounter + 1
-          END DO
-          DO iSpec=1, nSpecAnalyze
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-ERot',iSpec,' '
-            OutputCounter = OutputCounter + 1
-          END DO
-          IF ( DSMC%ElectronicModel ) THEN
-            DO iSpec = 1, nSpecAnalyze
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EElec',iSpec,' '
-              OutputCounter = OutputCounter + 1
-            END DO
-          END IF
-          DO iSpec=1, nSpecies
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-TempVib',iSpec,' '
-            OutputCounter = OutputCounter + 1
-          END DO
-          DO iSpec=1, nSpecies
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-TempRot',iSpec,' '
-            OutputCounter = OutputCounter + 1
-          END DO
-        END IF
-#endif
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
         IF (CollisMode.GT.1) THEN
           IF(CalcEint) THEN
@@ -1268,10 +1239,12 @@ IF(PartMPI%MPIRoot) THEN
     PCoupl = PCoupl / dt
   END IF
 END IF
+
+IF(CalcCoupledPower) THEN
+  ! Moving Average of PCoupl for each species
+  CALL DisplayCoupledPowerPart()
+END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
-#if (PP_TimeDiscMethod==1000)
-  IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
-#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the collision rates and reaction rate coefficients (Arrhenius-type chemistry)
 #if (PP_TimeDiscMethod==42)
@@ -1372,33 +1345,6 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
 
-#if (PP_TimeDiscMethod==1000)
-    IF (CollisMode.GT.1) THEN
-      DO iSpec=1, nSpecAnalyze
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') IntEn(iSpec,1)
-      END DO
-      DO iSpec=1, nSpecAnalyze
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') IntEn(iSpec,2)
-      END DO
-      IF ( DSMC%ElectronicModel ) THEN
-        DO iSpec=1, nSpecAnalyze
-        ! currently set to one
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') IntEn(iSpec,3)
-        END DO
-      END IF
-      DO iSpec=1, nSpecies
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') IntTemp(iSpec,1)
-      END DO
-      DO iSpec=1, nSpecies
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') IntTemp(iSpec,2)
-      END DO
-    END IF
-#endif
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
     IF (CollisMode.GT.1) THEN
       IF(CalcEint) THEN
@@ -1543,9 +1489,9 @@ IF (CalcCoupledPower) THEN
 END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-  IF( CalcPartBalance) CALL CalcParticleBalance()
+IF(CalcPartBalance) CALL CalcParticleBalance()
 !-----------------------------------------------------------------------------------------------------------------------------------
-#if ( PP_TimeDiscMethod ==42 )
+#if ( PP_TimeDiscMethod==42 )
 #ifdef CODE_ANALYZE
 IF (DSMC%ElectronicModel.AND.DSMC%ReservoirSimuRate) THEN
   ! Debug output for initialized electronic state
@@ -1566,9 +1512,10 @@ IF (DSMC%ElectronicModel.AND.DSMC%ReservoirSimuRate) THEN
     END IF
   END DO
 END IF
-#endif
-#endif
+#endif /*CODE_ANALYZE*/
+#endif /*PP_TimeDiscMethod==42*/
 !-----------------------------------------------------------------------------------------------------------------------------------
+
 END SUBROUTINE AnalyzeParticles
 
 ! all other analysis with particles
@@ -2167,14 +2114,7 @@ REAL, INTENT(OUT)                  :: Xi_Vib(nSpecies), Xi_Elec(nSpecies)
 INTEGER                            :: iPolyatMole,iDOF,iSpec
 !===================================================================================================================================
 
-
-! next, calctranstemp
-
-#if (PP_TimeDiscMethod!=1000)
 CALL CalcTransTemp(NumSpec, Temp)
-#else
-CALL CalcTransTemp(Temp)
-#endif
 
 IF (CollisMode.GT.1) THEN
   CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
@@ -2314,11 +2254,7 @@ END IF
 END SUBROUTINE CalcRelaxProbRotVib
 
 
-#if (PP_TimeDiscMethod!=1000)
 SUBROUTINE CalcTransTemp(NumSpec, Temp)
-#else
-SUBROUTINE CalcTransTemp(Temp)
-#endif
 !===================================================================================================================================
 ! calculate the translational temperature of each species
 !===================================================================================================================================
@@ -2327,22 +2263,15 @@ USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY : BoltzmannConst
 USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: nSpecies
-#if (PP_TimeDiscMethod==1000)
-USE MOD_LD_Vars               ,ONLY: BulkValues
-#endif
-#if (PP_TimeDiscMethod!=1000)
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, PDM
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#if (PP_TimeDiscMethod!=1000)
 REAL, INTENT(IN)                :: NumSpec(:)    !< global number of REAL particles in domain
-#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Temp(:)       !< output value is already the GLOBAL temperature
@@ -2350,21 +2279,13 @@ REAL,INTENT(OUT)                :: Temp(:)       !< output value is already the 
 ! LOCAL VARIABLES
 INTEGER           :: iSpec
 REAL              :: TempDirec(nSpecies,3)
-#if (PP_TimeDiscMethod!=1000)
 REAL              :: PartVandV2(nSpecies, 6), Mean_PartV2(nSpecies, 3), MeanPartV_2(nSpecies,3)
 INTEGER           :: i
-#endif
 !===================================================================================================================================
 
 ! Compute velocity averages
 Temp = 0.0
 ! Sum up velocity
-#if (PP_TimeDiscMethod==1000)
-DO iSpec=1, nSpecies
-  TempDirec(iSpec,1:3) = BulkValues(1)%BulkTemperature
-  Temp(iSpec) = BulkValues(1)%BulkTemperature
-END DO
-#else
 PartVandV2 = 0.
 DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
@@ -2407,7 +2328,7 @@ IF(PartMPI%MPIRoot)THEN
     END IF
   END IF
 END IF
-#endif
+
 END SUBROUTINE CalcTransTemp
 
 
@@ -4345,15 +4266,77 @@ CASE('before')
   EDiff = (-1.) * CalcEkinPart(iPart)
 CASE('after')
   ! Kinetic energy after particle push (positive)
-  EDiff = ABS(EDiff + CalcEkinPart(iPart))
-  PCoupl = PCoupl + EDiff
+  EDiff         = ABS(EDiff + CalcEkinPart(iPart))
+  PCoupl        = PCoupl + EDiff
   PCouplAverage = PCouplAverage + EDiff
-  iElem = PEM%Element(iPart)
-  iSpec = PartSpecies(iPart)
+  iElem         = PEM%Element(iPart)
+  iSpec         = PartSpecies(iPart)
   PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
 END SELECT
 
 END SUBROUTINE CalcCoupledPowerPart
+
+
+SUBROUTINE DisplayCoupledPowerPart()
+!===================================================================================================================================
+!> Print accumulated power transferred to particles to std out (power for each species and total power over all particles)
+!===================================================================================================================================
+! MODULES
+USE MOD_TimeDisc_Vars         ,ONLY: Time
+USE MOD_Restart_Vars          ,ONLY: RestartTime
+USE MOD_Globals               ,ONLY: abort,mpiroot
+USE MOD_Particle_Analyze_Vars ,ONLY: PCouplSpec
+USE MOD_Particle_Vars         ,ONLY: nSpecies,Species
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_Mesh_Vars             ,ONLY: nElems
+#if USE_MPI
+USE MOD_Globals
+#endif /*USE_MPI*/
+USE MOD_Globals               ,ONLY: UNIT_StdOut
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL          :: timediff,PTotal(1:nSpecies),SumPTotal(1:nSpecies)
+INTEGER       :: iSpec,iElem
+CHARACTER(5)  :: hilf
+!===================================================================================================================================
+
+IF(ABS(Time-RestartTime).LE.0.0) RETURN
+
+timediff = 1.0 / (Time-RestartTime)
+! Sanity check: integrate cell-averaged PCoupl
+PTotal = 0.
+
+DO iSpec = 1, nSpecies
+  IF(ABS(Species(iSpec)%ChargeIC).GT.0.0)THEN
+    DO iElem = 1, nElems
+      PTotal(iSpec) = PTotal(iSpec) + PCouplSpec(iSpec)%DensityAvgElem(iElem) * GEO%Volume(iElem)
+    END DO ! iElem = 1, nElems
+  END IF ! ABS(Species(iSpec)%ChargeIC).GT.0.0)
+END DO ! iSpec = 1, nSpecies
+
+! Sum the power
+#if USE_MPI
+CALL MPI_REDUCE(PTotal(1:nSpecies),SumPTotal(1:nSpecies),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+#else
+SumPTotal(1:nSpecies)=PTotal(1:nSpecies)
+#endif
+IF(mpiroot)THEN
+  SumPTotal = SumPTotal * timediff
+  WRITE(UNIT_StdOut,*) "    Averaged coupled power per species [W]"
+  DO iSpec = 1, nSpecies
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    WRITE (UNIT_StdOut,*) "    "//hilf//" : ",SumPTotal(iSpec)
+  END DO ! iSpec = 1, nSpecies
+  WRITE (UNIT_StdOut,*) "    Total : ",SUM(SumPTotal)
+END IF ! mpiroot
+
+END SUBROUTINE DisplayCoupledPowerPart
 
 
 SUBROUTINE FinalizeParticleAnalyze()

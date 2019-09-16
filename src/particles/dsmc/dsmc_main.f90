@@ -40,35 +40,30 @@ SUBROUTINE DSMC_main(DoElement)
 !> Performs DSMC routines (containing loop over all cells)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_TimeDisc_Vars,         ONLY : time, TEnd
-  USE MOD_Globals
-  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-  USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
-  USE MOD_Mesh_Vars,             ONLY : nElems
-  USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-  USE MOD_DSMC_Vars,             ONLY : ChemReac, SpecDSMC, VarVibRelaxProb
-  USE MOD_DSMC_Analyze,          ONLY : CalcMeanFreePath
-  USE MOD_DSMC_SteadyState,      ONLY : QCrit_evaluation, SteadyStateDetection_main
-  USE MOD_Particle_Vars,         ONLY : PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D, PartSpecies
-  USE MOD_Particle_Mesh_Vars,    ONLY : GEO
-  USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
-  USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib, &
-                                        SamplingRotVibRelaxProb
-  USE MOD_DSMC_Relaxation,       ONLY : SetMeanVibQua
-  USE MOD_DSMC_ParticlePairing,  ONLY : DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
-  USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
-  USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision, DSMC_calc_var_P_vib
-  USE MOD_Particle_Vars,         ONLY : KeepWallParticles
-#if (PP_TimeDiscMethod==1001)
-USE MOD_LD_Vars               ,ONLY: BulkValues, LD_DSMC_RHS
-#endif
-#if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
+USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
+USE MOD_Globals
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
+USE MOD_DSMC_Vars             ,ONLY: ChemReac, SpecDSMC, VarVibRelaxProb
+USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
+USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
+USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D, PartSpecies
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcEkin
+USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib, &
+                                     SamplingRotVibRelaxProb
+USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
+USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
+USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
+USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision, DSMC_calc_var_P_vib
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_Mesh_Vars             ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars         ,ONLY: iter
 USE MOD_DSMC_Vars             ,ONLY: UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
-#endif
+USE MOD_Particle_Vars,         ONLY: KeepWallParticles
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -83,9 +78,7 @@ LOGICAL,OPTIONAL  :: DoElement(nElems)
 ! LOCAL VARIABLES
   INTEGER           :: iElem, nPart, nPair, iPair, cSpec1, cSpec2, iSpec
   REAL              :: iRan, VibProb
-#if (PP_TimeDiscMethod!=1001)
 INTEGER           :: nOutput
-#endif
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -106,9 +99,6 @@ DO iElem = 1, nElems ! element/cell main loop
   IF(PRESENT(DoElement)) THEN
     IF (.NOT.DoElement(iElem)) CYCLE
   END IF
-#if (PP_TimeDiscMethod==1001)
-  IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN  ! --- DSMC Cell ?
-#endif
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
       DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
@@ -222,15 +212,11 @@ DO iElem = 1, nElems ! element/cell main loop
           END IF
         END IF
       END IF  ! --- CollisMode.NE.0
-#if (PP_TimeDiscMethod==1001)
-    END IF  ! --- END DSMC Cell?
-#endif
 #if USE_LOADBALANCE
     CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END DO ! iElem Loop
   ! Output!
-#if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
   PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
   IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_FinalizeBGGas
@@ -289,11 +275,6 @@ DO iElem = 1, nElems ! element/cell main loop
         END IF
       END IF
     END IF
-#else /* --- LD-DSMC? */
-    LD_DSMC_RHS(1:PDM%ParticleVecLength,1) = DSMC_RHS(1:PDM%ParticleVecLength,1)
-    LD_DSMC_RHS(1:PDM%ParticleVecLength,2) = DSMC_RHS(1:PDM%ParticleVecLength,2)
-    LD_DSMC_RHS(1:PDM%ParticleVecLength,3) = DSMC_RHS(1:PDM%ParticleVecLength,3)
-#endif /* --- END LD-DSMC? */
 END SUBROUTINE DSMC_main
 
 END MODULE MOD_DSMC

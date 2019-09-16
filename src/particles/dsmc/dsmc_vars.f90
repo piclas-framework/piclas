@@ -54,12 +54,6 @@ INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for
 LOGICAL                       :: useDSMC
 REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! (npartmax,1:3) with 2nd index: Evib, Erot, Eel
 
-INTEGER                       :: LD_MultiTemperaturMod      ! Modell choice for MultiTemperature
-                                                              ! 0 = no MultiTemperature Modeling
-                                                              ! 1 = LD1 see Paper
-                                                              ! 2 = LD2
-                                                              ! 3 = LD3
-
 LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
 
 TYPE tVarVibRelaxProb
