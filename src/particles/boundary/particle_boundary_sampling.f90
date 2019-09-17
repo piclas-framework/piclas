@@ -330,7 +330,6 @@ SurfCOMM%MPIRoot=.TRUE.
 SurfCOMM%nProcs=1
 SurfCOMM%MyOutputRank=0
 SurfCOMM%MPIOutputRoot=.TRUE.
-SurfCOMM%nOutputProcs = 1
 SurfCOMM%nOutputProcs=1
 ! get correct offsets
 OffSetSurfSide=0
@@ -1574,13 +1573,11 @@ IF(SurfCOMM%MPIOutputRoot)THEN
 END IF
 
 CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
-#endif /*USE_MPI*/
 
-!   IF(SurfCOMM%nProcs.GT.1)THEN
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
-!   ELSE
-!     CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.)
-!   END IF
+#else
+CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
 
 nVarCount=0
 WRITE(H5_Name,'(A)') 'SurfaceData'
@@ -1948,6 +1945,8 @@ SDEALLOCATE(SurfSendBuf)
 SDEALLOCATE(SurfRecvBuf)
 SDEALLOCATE(OffSetSurfSideMPI)
 SDEALLOCATE(OffSetInnerSurfSideMPI)
+IF(SurfCOMM%OutputCOMM.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%OutputCOMM,iERROR)
+IF(SurfCOMM%COMM.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%COMM,iERROR)
 #endif /*USE_MPI*/
 SDEALLOCATE(CalcSurfCollis%SpeciesFlags)
 SDEALLOCATE(AnalyzeSurfCollis%Data)
@@ -1956,9 +1955,6 @@ SDEALLOCATE(AnalyzeSurfCollis%BCid)
 SDEALLOCATE(AnalyzeSurfCollis%Number)
 !SDEALLOCATE(AnalyzeSurfCollis%Rate)
 SDEALLOCATE(AnalyzeSurfCollis%BCs)
-
-IF(SurfCOMM%OutputCOMM.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%OutputCOMM,iERROR)
-IF(SurfCOMM%COMM.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%COMM,iERROR)
 
 END SUBROUTINE FinalizeParticleBoundarySampling
 
