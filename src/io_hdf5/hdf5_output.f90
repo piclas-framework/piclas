@@ -2563,7 +2563,7 @@ CALL MPI_ALLREDUCE(DataOnProc,DoNotSplit, 1, MPI_LOGICAL, MPI_LAND, COMMUNICATOR
 IF(.NOT.DoNotSplit)THEN
 ! 2: if any proc has no data, split the communicator and write only with the new communicator
   color=MPI_UNDEFINED
-  IF(DataOnProc) color=87
+  IF(DataOnProc) color=2001
   MyOutputRank=0
 
   CALL MPI_COMM_SPLIT(COMMUNICATOR, color, MyOutputRank, OutputCOMM,iError)
