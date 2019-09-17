@@ -553,7 +553,7 @@ INTEGER                   :: color,iProc
 INTEGER                   :: noSurfrank,Surfrank
 LOGICAL                   :: hasSurf
 INTEGER,ALLOCATABLE       :: countSurfSideMPI(:),countInnerSurfSideMPI(:)
-LOGICAL                   :: OutputOnProc
+LOGICAL                   :: OutputOnProc, InnerSlaveBCs
 !===================================================================================================================================
 color=MPI_UNDEFINED
 IF(SurfMesh%SurfOnProc) color=2
@@ -645,9 +645,17 @@ IF(SurfCOMM%MyOutputRank.EQ.0 .AND. OutputOnProc) THEN
 !   WRITE(UNIT_stdout,'(A18,I5,A6)') 'SURF OUTPUT-COMM: ',SurfCOMM%nOutputProcs,' procs'
 END IF
 
-IF(SurfMesh%nMasterSides.EQ.0) RETURN
+IF(SurfMesh%nTotalSides.EQ.0) RETURN
+! check if any proc has innersides and set flag for all proc to do additional communication and slave mapping
+IF((SurfMesh%nSides-SurfMesh%nMasterSides).GT.0) THEN
+  InnerSlaveBCs = .TRUE.
+ELSE
+  InnerSlaveBCs = .FALSE.
+END IF
+CALL MPI_ALLREDUCE(InnerSlaveBCs,SurfCOMM%InnerBCs,1,MPI_LOGICAL,MPI_LOR,SurfCOMM%COMM,iError)
 
-! get correct offsets
+IF(SurfMesh%nMasterSides.EQ.0) RETURN
+! get correct offsets for output of hdf5 file (master sides)
 ALLOCATE(offsetSurfSideMPI(0:SurfCOMM%nOutputProcs))
 offsetSurfSideMPI=0
 ALLOCATE(countSurfSideMPI(0:SurfCOMM%nOutputProcs-1))
@@ -679,13 +687,6 @@ CALL MPI_BCAST (offsetSurfSideMPI,size(offsetSurfSideMPI),MPI_INTEGER,0,SurfCOMM
 offsetSurfSide=offsetSurfSideMPI(SurfCOMM%MyOutputRank)
 CALL MPI_BCAST (offsetInnerSurfSideMPI,size(offsetInnerSurfSideMPI),MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
 offsetInnerSurfSide=offsetInnerSurfSideMPI(SurfCOMM%MyOutputRank)
-
-! is there any innerBC with reflective surface
-IF((MAXVAL(offsetInnerSurfSideMPI)-MINVAL(offsetInnerSurfSideMPI)).GT.0) THEN
-  SurfCOMM%InnerBCs = .TRUE.
-ELSE
-  SurfCOMM%InnerBCs = .FALSE.
-END IF
 
 END SUBROUTINE InitSurfCommunicator
 
@@ -1599,7 +1600,7 @@ ASSOCIATE (&
                             nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides/)  , &
                             nVal       =(/nVar2D_Spec       , nSurfSample , nSurfSample , LocalnBCSides/)        , &
                             offset     =(/INT(nVarCount,IK) , 0_IK        , 0_IK        , offsetSurfSide/), &
-                            collective =.TRUE.,&
+                            collective =.FALSE.,&
                             RealArray=MacroSurfaceSpecVal(1:nVar2D_Spec,1:nSurfSample,1:nSurfSample,1:LocalnBCSides,iSpec))
     nVarCount = nVarCount + INT(nVar2D_Spec)
   END DO
@@ -1607,7 +1608,7 @@ ASSOCIATE (&
                         nValGlobal =(/nVar2D_Total     , nSurfSample, nSurfSample , nGlobalSides/)  , &
                         nVal       =(/nVar2D           , nSurfSample, nSurfSample , LocalnBCSides/)        , &
                         offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetSurfSide/), &
-                        collective =.TRUE.         ,&
+                        collective =.FALSE.         ,&
                         RealArray=MacroSurfaceVal(1:nVar2D,1:nSurfSample,1:nSurfSample,1:LocalnBCSides))
   ! Output of InnerSurfSide Array
   ! HDF5 Output: collective=false is required to avoid a deadlock, since not all procs in this routine have inner sides

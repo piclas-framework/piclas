@@ -55,16 +55,11 @@ USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
-#if (PP_TimeDiscMethod==1001)
-USE MOD_LD_Vars               ,ONLY: BulkValues, LD_DSMC_RHS
-#endif
-#if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_Mesh_Vars             ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars         ,ONLY: iter
 USE MOD_DSMC_Vars             ,ONLY: UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -77,10 +72,8 @@ LOGICAL,OPTIONAL  :: DoElement(nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER           :: iElem
-#if (PP_TimeDiscMethod!=1001)
+INTEGER           :: iElem
 INTEGER           :: nOutput
-#endif
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -101,9 +94,6 @@ DO iElem = 1, nElems ! element/cell main loop
   IF(PRESENT(DoElement)) THEN
     IF (.NOT.DoElement(iElem)) CYCLE
   END IF
-#if (PP_TimeDiscMethod==1001)
-  IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN  ! --- DSMC Cell ?
-#endif
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
       DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
@@ -135,15 +125,11 @@ DO iElem = 1, nElems ! element/cell main loop
         END IF
       END IF
     END IF  ! --- CollisMode.NE.0
-#if (PP_TimeDiscMethod==1001)
-  END IF  ! --- END DSMC Cell?
-#endif
 #if USE_LOADBALANCE
     CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END DO ! iElem Loop
   ! Output!
-#if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
   PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
   IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_FinalizeBGGas
@@ -202,11 +188,6 @@ DO iElem = 1, nElems ! element/cell main loop
         END IF
       END IF
     END IF
-#else /* --- LD-DSMC? */
-    LD_DSMC_RHS(1:PDM%ParticleVecLength,1) = DSMC_RHS(1:PDM%ParticleVecLength,1)
-    LD_DSMC_RHS(1:PDM%ParticleVecLength,2) = DSMC_RHS(1:PDM%ParticleVecLength,2)
-    LD_DSMC_RHS(1:PDM%ParticleVecLength,3) = DSMC_RHS(1:PDM%ParticleVecLength,3)
-#endif /* --- END LD-DSMC? */
 END SUBROUTINE DSMC_main
 
 END MODULE MOD_DSMC

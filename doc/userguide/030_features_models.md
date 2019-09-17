@@ -786,7 +786,7 @@ In general, simulation results are either available spatially resolved based on 
 
 WIP
 
-### Flowfield and Surface Variables
+### Particle-flow Field and Surface variables
 
 A sampling over a certain number of iterations is performed to calculate the macroscopic values such as number density, bulk velocity and temperature from the microscopic particle information. Output and sampling on surfaces can be enabled by
 
@@ -813,13 +813,14 @@ The second variant can be used to produce outputs for unsteady simulations, whil
 
 Example: The simulation end time is $T_\mathrm{end}=1$ with a time step of $\Delta t = 0.001$. With the parameters given above, we would sample for 100 iterations up to $T = 0.1$ and get the first output. Afterwards, the sample is deleted and the sampling begins anew for the following output at $T=0.2$. This procedure is repeated until the simulation end, resulting in 10 outputs with independent samples.
 
-#### Sampling of surface impacts 
+#### Sampling of Particle-surface Impacts 
 
 Additional surface values can be sampled by using
 
     CalcSurfaceImpact = T
 
-which determines the species-dependent averaged impact energy (trans, rot, vib), impact vector, angle (between particle trajectory and surface tangential vector) and number of impacts.
+which calculates the species-dependent averaged impact energy (trans, rot, vib), impact vector, angle (between particle trajectory and surface tangential vector) and number of impacts due to particle-surface collisions.
+The output of the surface-sampled data is written to `*_DSMCSurfState_*.h5`.
 
 ### Integral Variables
 
@@ -828,7 +829,30 @@ PartAnalyze/FieldAnalyze
 ### Element-constant properties
 The determined properties are given by a single value within each cell.
 
-#### Analysis of particle properties via *Particle Analyze*
+
+#### Power Coupled to Particles
+The energy transferred to particles during the push (acceleration due to electromagnetic fields) is
+determined by using
+
+    CalcCoupledPower = T
+
+which calculates the properties `PCoupl` (instantaneous) and a time-averaged (moving average) value
+`PCoupledMoAv` that are stored in the `ParticleAnalysis.csv` output file. Additionally, the power
+coupled to the particles in each cell (average power per cubic metre) is time-averaged (moving average) 
+and stored in `PCouplDensityAvgElem` for each species separately, which is written to `*_State_*.h5`. 
+Furthermore, the accumulated power over all particles of the same species is displayed in STD-out via
+
+     Averaged coupled power per species [W]
+     1     :    0.0000000000000000     
+     2     :    2.6614384806763068E-003
+     3     :    2.6837037798108634E-006
+     4     :    0.0000000000000000     
+     5     :    8.8039637450978475E-006
+     Total :    2.6729261482012156E-003
+
+for the time-averaged (moving average) power.
+
+#### Analysis of Particle Properties via *Particle Analyze*
 
 **Plasma Frequency**
 The (cold) plasma frequency can be calculated via
