@@ -336,11 +336,13 @@ SUBROUTINE FindInterfacesInRegion(isFace,isInterFace,isElem)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides
+USE MOD_Mesh_Vars              ,ONLY: nSides,nBCSides
 #if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI,             ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+USE MOD_Mesh_Vars              ,ONLY: NGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -355,14 +357,15 @@ LOGICAL,ALLOCATABLE,INTENT(INOUT):: isInterFace(:)      ! True/False face: speci
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides):: isFace_Slave,isFace_Master,isFace_combined ! the dimension is only used because of
                                                                                       ! the prolong to face routine and MPI logic
 INTEGER                                 :: iSide
+INTEGER           :: i,iElem
 !===================================================================================================================================
 ! General workflow:
 ! 1.  initialize Master, Slave and combined side array (it is a dummy array for which only a scalar value is communicated)
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
 ! 3.  MPI: communicate slave sides to master
-! 4.  calculate combinded value 'isFace_combined' which determines the type of the interface on the master side, where the
+! 4.  comminucate the values to the slave sides (currently done but not used anywhere)
+! 5.  calculate combinded value 'isFace_combined' which determines the type of the interface on the master side, where the
 !     information is later used when fluxes are determined
-! 5.  comminucate the calculated value 'isFace_combined' to the slave sides (currently done but not used anywhere)
 ! 6.  loop over all sides and use the calculated value 'isFace_combined' to determine 'isFace' and 'interFace'
 
 ! 1.  initialize Master, Slave and combined side array (it is a dummy array for which only a scalar value is communicated)
@@ -388,22 +391,8 @@ CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -re
 #endif /*USE_MPI*/
 
 
-
-! 4.  Calculate combined value 'isFace_combined' which determines the type of the interface on the master side, where the
-!     information is later used when fluxes are determined
-!         add isFace_Master to isFace_Slave and send
-! Build four-states-array for the 4 different combinations phy/phy(0), spec/phy(1), phy/spec(2) and spec/spec(3) a face can be.
-isFace_combined=2*isFace_Slave+isFace_Master
-! use numbering:  2*isFace_Slave+isFace_Master  = 1: Master side is special (e.g. dielectric)
-!                                                 2: Slave  side is special (e.g. dielectric)
-!                                                 3: both sides are special (e.g. dielectric) sides
-!                                                 0: normal face in physical region (no special region involved)
-
-
-
-! 5.  comminucate the calculated value 'isFace_combined' to the slave sides (currently done but not used anywhere)
+! 4.  Communicate the values to the slave sides
 !         communicate information to slave sides
-!         CURRENTLY NOT NEEDED!
 CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.FALSE.)
 
 #if USE_MPI
@@ -415,16 +404,36 @@ CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=1) !Send YOUR -re
 #endif /*USE_MPI*/
 
 
+! 5.  Calculate combined value 'isFace_combined' which determines the type of the interface on the master side, where the
+!     information is later used when fluxes are determined
+!         add isFace_Master to isFace_Slave and send
+! Build four-states-array for the 4 different combinations phy/phy(0), spec/phy(1), phy/spec(2) and spec/spec(3) a face can be.
+!isFace_combined=2*isFace_Master+isFace_Slave
+isFace_combined=2*isFace_Slave+isFace_Master
+! use numbering:  2*isFace_Slave+isFace_Master  = 1: Master side is special (e.g. dielectric)
+!                                                 2: Slave  side is special (e.g. dielectric)
+!                                                 3: both sides are special (e.g. dielectric) sides
+!                                                 0: normal face in physical region (no special region involved)
+
+
 ! 6.  loop over all sides and use the calculated value 'isFace_combined' to determine 'isFace' and 'interFace'
 !         set 'isFace' for sides that have at least one special region on either side
 !         set 'interFace' for sides that are between two different region, e.g., between a PML and the physical domain
+
 DO iSide=1,nSides
-  IF(isFace_combined(1,0,0,iSide).GT.0)THEN
+  IF(isFace_combined(1,0,0,iSide).GT.0.)THEN
     isFace(iSide)=.TRUE. ! mixed or pure special region face: when my side is not special but neighbor is special
-    IF((isFace_combined(1,0,0,iSide).EQ.1).OR.&
-       (isFace_combined(1,0,0,iSide).EQ.2))THEN
+    IF((NINT(isFace_combined(1,0,0,iSide)).EQ.1).OR.&
+       (NINT(isFace_combined(1,0,0,iSide)).EQ.2))THEN
         isInterFace(iSide)=.TRUE. ! set all mixed sides as InterFaces, exclude BCs later on
     END IF
+  ELSEIF(isFace_combined(1,0,0,iSide).LT.0.)THEN
+    IPWRITE (*,*) "X: BezierControlPoints3D(1,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(1,0:NGeo,0:NGeo,iSide)
+    IPWRITE (*,*) "Y: BezierControlPoints3D(2,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(2,0:NGeo,0:NGeo,iSide)
+    IPWRITE (*,*) "Z: BezierControlPoints3D(3,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(3,0:NGeo,0:NGeo,iSide)
+    CALL abort(&
+    __STAMP__&
+    ,'isFace_combined(1,0,0,iSide).LT.0. -> ',RealInfoOpt=isFace_combined(1,0,0,iSide))
   END IF
 END DO
 isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
