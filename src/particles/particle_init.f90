@@ -762,6 +762,9 @@ CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition'  &
                                  'If condition=reflective: PB-MomentumACC,PB-WallTemp,PB-TransACC,PB-VibACC,PB-RotACC,'//&
                                   'PB-WallVelo,Voltage,SpeciesSwaps.If condition=periodic:Part-nPeriodicVectors,'//&
                                   'Part-PeriodicVector[$]', 'open', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Dielectric' , 'Define if particle boundary [$] is a'//&
+                              'dielectric interface, i.e. an interface between a dielectric and a non-dielectric or a between to'//&
+                              'different dielectrics [.TRUE.] or not [.FALSE.]', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Adaptive'  &
   , 'Define if particle boundary [$] is adaptive [.TRUE.] or not [.FALSE.]', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-AdaptiveType'  &
@@ -2177,6 +2180,9 @@ IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
   ALLOCATE(PartBound%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nPartBound))
 END IF
 !--
+ALLOCATE(PartBound%Dielectric(1:nPartBound))
+PartBound%Dielectric=.FALSE.
+
 PartMeshHasPeriodicBCs=.FALSE.
 #if defined(IMPA) || defined(ROS)
 PartMeshHasReflectiveBCs=.FALSE.
@@ -2214,7 +2220,7 @@ __STAMP__&
 __STAMP__&
 ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptivePressure not defined')
      END IF
-     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
+     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0.')
   CASE('reflective')
 #if defined(IMPA) || defined(ROS)
      PartMeshHasReflectiveBCs=.TRUE.
@@ -2301,8 +2307,9 @@ __STAMP__&
 __STAMP__&
          ,'Particle Boundary Condition does not exist')
   END SELECT
+  PartBound%Dielectric(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
-  PartBound%UseForQCrit(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseForQCrit','.TRUE.')
+  PartBound%UseForQCrit(iPartBound)     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseForQCrit','.TRUE.')
   SWRITE(*,*)"PartBound",iPartBound,"is used for the Q-Criterion"
 END DO
 

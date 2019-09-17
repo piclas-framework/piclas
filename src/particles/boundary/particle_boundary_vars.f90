@@ -249,8 +249,12 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: AdaptiveMacroRestartFileID(:)
   REAL    , ALLOCATABLE                  :: AdaptivePressure(:)
   REAL    , ALLOCATABLE                  :: AdaptiveTemp(:)
-  LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                   !Use Boundary for Q-Criterion ?
-  LOGICAL , ALLOCATABLE                  :: Resample(:)                      !Resample Equilibirum Distribution with reflection
+  LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                ! Use Boundary for Q-Criterion ?
+  LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibirum Distribution with reflection
+  LOGICAL , ALLOCATABLE                  :: Dielectric(:)                 ! Define if particle boundary [$] is a dielectric
+!                                                                         ! interface, i.e. an interface between a dielectric and 
+!                                                                         ! a non-dielectric or a between to different dielectrics 
+!                                                                         ! [.TRUE.] or not [.FALSE.] (Default=FALSE.)
 END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries

@@ -60,24 +60,24 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,                ONLY:Abort
-USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies, UseCircularInflow, UseAdaptive, Species
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound,nPorousBC
-USE MOD_Particle_Boundary_Porous, ONLY: PorousBoundaryTreatment
-USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
-USE MOD_SurfaceModel,           ONLY:ReactiveSurfaceTreatment
-USE MOD_Particle_Analyze,       ONLY:RemoveParticle
-USE MOD_Mesh_Vars,              ONLY:BC
-!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+USE MOD_Globals                  ,ONLY: Abort
+USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Vars            ,ONLY: PDM,PartSpecies, UseCircularInflow, UseAdaptive, Species,PartState,LastPartPos
+USE MOD_Particle_Tracking_Vars   ,ONLY: TriaTracking
+USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC
+USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryTreatment
+USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType,epsilontol
+USE MOD_SurfaceModel             ,ONLY: ReactiveSurfaceTreatment
+USE MOD_Particle_Analyze         ,ONLY: RemoveParticle
+USE MOD_Mesh_Vars                ,ONLY: BC
 #if defined(LSERK)
-USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
+USE MOD_TimeDisc_Vars            ,ONLY: RK_a
 #endif
 #if defined(IMPA)
-USE MOD_Particle_Vars,          ONLY:PartIsImplicit
-USE MOD_Particle_Vars,          ONLY:DoPartInNewton
+USE MOD_Particle_Vars            ,ONLY: PartIsImplicit
+USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 #endif /*IMPA*/
+USE MOD_Dielectric_Vars          ,ONLY: DoDielectric
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -148,7 +148,13 @@ CASE(2) !PartBound%ReflectiveBC)
     CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
 #endif /*NOT IMPA*/
   END IF
-  IF (PDM%ParticleInside(iPart)) THEN ! Particle did not Swap to species 0 !deleted particle -> particle swapped to species 0
+  !---- swap species?
+  DoSurfaceCharge=.FALSE.
+  IF(DoDielectric.AND.PartBound%Dielectric(PartBound%MapToPartBC(BC(SideID))))THEN ! deposit charge on surface
+    ! set last particle position on face: stop particle
+    PartState(iPart,1:3) = LastPartPos(iPart,1:3) + PartTrajectory(1:3)*alpha
+    PartState(iPart,4:6) = (/1.,0.,0./)
+  ELSEIF (PDM%ParticleInside(iPart)) THEN ! Particle did not Swap to species 0 !deleted particle -> particle swapped to species 0
     IF (PartBound%Reactive(PartBound%MapToPartBC(BC(SideID)))) THEN
       ! Decide which interaction (reflection, reaction, adsorption)
       CALL ReactiveSurfaceTreatment(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
