@@ -357,7 +357,6 @@ LOGICAL,ALLOCATABLE,INTENT(INOUT):: isInterFace(:)      ! True/False face: speci
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides):: isFace_Slave,isFace_Master,isFace_combined ! the dimension is only used because of
                                                                                       ! the prolong to face routine and MPI logic
 INTEGER                                 :: iSide
-INTEGER           :: i,iElem
 !===================================================================================================================================
 ! General workflow:
 ! 1.  initialize Master, Slave and combined side array (it is a dummy array for which only a scalar value is communicated)
