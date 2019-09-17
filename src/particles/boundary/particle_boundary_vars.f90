@@ -16,6 +16,9 @@ MODULE MOD_Particle_Boundary_Vars
 ! Contains global variables provided by the particle surfaces routines
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -62,11 +65,11 @@ TYPE tSurfaceCOMM
   INTEGER                               :: nOutputProcs                  ! number of output processes
 #if USE_MPI
   LOGICAL                               :: InnerBCs                      ! are there InnerSides with reflective properties
-  INTEGER                               :: COMM                          ! communicator
+  INTEGER                               :: COMM=MPI_COMM_NULL            ! communicator
   INTEGER                               :: nMPINeighbors                 ! number of processes to communicate with
   TYPE(tSurfaceSendList),ALLOCATABLE    :: MPINeighbor(:)                ! list containing all mpi neighbors
+  INTEGER                               :: OutputCOMM=MPI_COMM_NULL      ! communicator for output
 #endif /*USE_MPI*/
-  INTEGER                               :: OutputCOMM                    ! communicator for output
 END TYPE
 TYPE (tSurfaceCOMM)                     :: SurfCOMM
 
