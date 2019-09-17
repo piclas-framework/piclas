@@ -1244,7 +1244,11 @@ DO iSurfSide = 1,SurfMesh%nMasterSides
 END DO
 
 WRITE(H5_Name,'(A)') 'SurfaceModelType'
+#if USE_MPI
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+#else
+CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
@@ -1313,8 +1317,11 @@ WRITE(H5_Name,'(A)') 'SurfCalcData'
 !                        offset=    (/0   ,0          ,0          ,offsetSurfSide       ,0       /),&
 !                        collective=.TRUE.,  RealArray=SurfCalcData)
 !#else
+#if USE_MPI
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
-!CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#else
+CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
@@ -1461,7 +1468,11 @@ ASSOCIATE (&
       nGlobalSides     => INT(SurfMesh%nGlobalSides,IK),&
       nSides           => INT(SurfMesh%nMasterSides,IK),&
       offsetSurfSide   => INT(offsetSurfSide,IK))
+#if USE_MPI
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
   CALL WriteArrayToHDF5(DataSetName = 'SurfPartInt'    , rank = 5                                                      , &
                         nValGlobal  = (/nGlobalSides   , nSurfSample , nSurfSample , Coordinations , SurfPartIntSize/) , &
                         nVal        = (/nSides         , nSurfSample , nSurfSample , Coordinations , SurfPartIntSize/) , &
@@ -1484,7 +1495,7 @@ ASSOCIATE (&
                              collective   = .FALSE.       , offSetDim = 1          , &
                              communicator = SurfCOMM%OutputCOMM  , IntegerArray_i4 = SurfPartData(:,:))
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName = 'SurfPartData'    , rank = 2                          , &
                         nValGlobal  = (/nSurfPart_glob  , SurfPartDataSize/)                , &
                         nVal        = (/locnSurfPart    , SurfPartDataSize/)                , &
