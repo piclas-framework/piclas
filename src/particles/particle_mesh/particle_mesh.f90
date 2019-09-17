@@ -6733,8 +6733,8 @@ INTEGER                          :: nRecvHaloElems        ! Number of halo eleme
 
 
 CHARACTER(32)                    :: hilf                  ! Auxiliary variable
-INTEGER                          :: yourrank,myelem,iProc,iPos,jPos,messagesize,iElem,ALLOCSTAT,iRank
-INTEGER,PARAMETER                :: HaloInfoCommSize=2
+INTEGER                          :: yourrank,myelem,iProc,iPos,jPos,messagesize,iElem,ALLOCSTAT,iRank,yourelemid
+INTEGER,PARAMETER                :: HaloInfoCommSize=3
 INTEGER                          :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
 !===================================================================================================================================
 ! Allocate type array for all ranks
@@ -6743,7 +6743,7 @@ ALLOCATE(ElemHaloInfoProc(0:nProcessors-1))
 ! Allocate for local elements: Container with information of my local elements and your halo elements
 DO iRank = 0, nProcessors-1
   ALLOCATE(ElemHaloInfoProc(iRank)%ElemHaloInfo(PP_nElems))
-  ElemHaloInfoProc(iRank)%ElemHaloInfo = -1 ! Elements that do not belong to the processor and are not halo elements are marked "-1"
+  ElemHaloInfoProc(iRank)%ElemHaloInfo = 0 ! Elements that do not belong to the processor and are not halo elements are marked "0"
 END DO ! iRank = 1, nProcessors
 
 ! Mark each local element with its ID
@@ -6856,6 +6856,11 @@ DO iProc=1, PartMPI%nMPINeighbors
     ! local element ID of new host proc: PEM%Element(PartID)
     HaloInfoSendBuf(iProc)%content(    1+jPos)    = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,iElem),KIND=8)
     jPos=jPos+1
+
+    ! local element ID of old proc (halo elem id)
+    HaloInfoSendBuf(iProc)%content(    1+jPos)    = REAL(iElem,KIND=8)
+    jPos=jPos+1
+
     IF(MOD(jPos,HaloInfoCommSize).NE.0) THEN
       IPWRITE(UNIT_stdOut,*)  'HaloInfoCommSize',HaloInfoCommSize
       IPWRITE(UNIT_stdOut,*)  'jPos',jPos
@@ -6957,6 +6962,9 @@ DO iProc=1,PartMPI%nMPINeighbors
     myelem     = INT(HaloInfoRecvBuf(iProc)%content( 1+jPos),KIND=4)
     jPos=jPos+1
 
+    yourelemid     = INT(HaloInfoRecvBuf(iProc)%content( 1+jPos),KIND=4)
+    jPos=jPos+1
+
     IF(MOD(jPos,HaloInfoCommSize).NE.0)THEN
       IPWRITE(UNIT_stdOut,*)  'HaloInfoCommSize',HaloInfoCommSize
       IPWRITE(UNIT_stdOut,*)  'jPos',jPos
@@ -6966,7 +6974,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     END IF
 
     ! Set halo info: halo elements are marked with "0"
-    ElemHaloInfoProc(yourrank)%ElemHaloInfo(myelem) = 0
+    ElemHaloInfoProc(yourrank)%ElemHaloInfo(myelem) = -yourelemid
   END DO
 END DO ! iProc
 
