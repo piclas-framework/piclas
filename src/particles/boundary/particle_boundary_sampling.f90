@@ -1070,7 +1070,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     IF(NativeElemID.GT.PP_nElems)THEN
      CALL abort(&
 __STAMP__&
-          ,' Cannot send halo-data to other progs. big error! ', ElemID, REAL(PP_nElems))
+          ,' Cannot send halo-data to other procs. big error! ', ElemID, REAL(PP_nElems))
     END IF
     SideID=PartElemToSide(E2S_SIDE_ID,NativeLocSideID,NativeElemID)
     IF(SideID.GT.nSides)THEN
