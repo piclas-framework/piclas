@@ -120,10 +120,11 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 ! MODULES
 USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, VarVibRelaxProb, DSMC
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, DSMC
 USE MOD_Particle_Vars          ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species, WriteMacroVolumeValues
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_DSMC_Collis            ,ONLY: DSMC_perform_collision, DSMC_calc_var_P_vib
+USE MOD_DSMC_Collis            ,ONLY: DSMC_perform_collision
+USE MOD_DSMC_Collis            ,ONLY: FinalizeCalcVibRelaxProb, SumVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_Particle_Vars          ,ONLY: KeepWallParticles
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEkin
@@ -138,18 +139,13 @@ USE MOD_DSMC_Relaxation        ,ONLY: SetMeanVibQua
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: nPair, iPair, iPart, iLoop, nPart, iSpec
+  INTEGER                       :: nPair, iPair, iPart, iLoop, nPart
   INTEGER                       :: cSpec1, cSpec2, iCase
-  REAL                          :: iRan, VibProb
+  REAL                          :: iRan
 !===================================================================================================================================
   nPart = PEM%pNumber(iElem)
   nPair = INT(nPart/2)
-  IF(DSMC%VibRelaxProb.EQ.2.0) THEN ! Set summs for variable vibrational relaxation to zero
-    DO iSpec=1,nSpecies
-      VarVibRelaxProb%ProbVibAvNew(iSpec) = 0
-      VarVibRelaxProb%nCollis(iSpec) = 0
-    END DO
-  END IF
+  CALL InitCalcVibRelaxProb()
 
   CollInf%Coll_SpecPartNum = 0
   CollInf%Coll_CaseNum = 0
@@ -225,27 +221,7 @@ USE MOD_DSMC_Relaxation        ,ONLY: SetMeanVibQua
   nPair = INT(nPart/2)
 
   DO iPair = 1, nPair
-    ! variable vibrational relaxation probability has to average of all collisions
-    IF(DSMC%VibRelaxProb.EQ.2.0) THEN
-      cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
-      cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
-      IF((SpecDSMC(cSpec1)%InterID.EQ.2).OR.(SpecDSMC(cSpec1)%InterID.EQ.20)) THEN
-        CALL DSMC_calc_var_P_vib(cSpec1,cSpec2,iPair,VibProb)
-        VarVibRelaxProb%ProbVibAvNew(cSpec1) = VarVibRelaxProb%ProbVibAvNew(cSpec1) + VibProb
-        VarVibRelaxProb%nCollis(cSpec1) = VarVibRelaxProb%nCollis(cSpec1) + 1
-        IF(DSMC%CalcQualityFactors) THEN
-          DSMC%CalcVibProb(cSpec1,2) = MAX(DSMC%CalcVibProb(cSpec1,2),VibProb)
-        END IF
-      END IF
-      IF((SpecDSMC(cSpec2)%InterID.EQ.2).OR.(SpecDSMC(cSpec2)%InterID.EQ.20)) THEN
-        CALL DSMC_calc_var_P_vib(cSpec2,cSpec1,iPair,VibProb)
-        VarVibRelaxProb%ProbVibAvNew(cSpec2) = VarVibRelaxProb%ProbVibAvNew(cSpec2) + VibProb
-        VarVibRelaxProb%nCollis(cSpec2) = VarVibRelaxProb%nCollis(cSpec2) + 1
-        IF(DSMC%CalcQualityFactors) THEN
-          DSMC%CalcVibProb(cSpec2,2) = MAX(DSMC%CalcVibProb(cSpec2,2),VibProb)
-        END IF
-      END IF
-    END IF
+    CALL SumVibRelaxProb(iPair)
     IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
       CALL DSMC_prob_calc(iElem, iPair)
       CALL RANDOM_NUMBER(iRan)
@@ -273,16 +249,7 @@ USE MOD_DSMC_Relaxation        ,ONLY: SetMeanVibQua
     END IF
   END IF
   DEALLOCATE(Coll_pData)
-  IF(DSMC%VibRelaxProb.EQ.2.0) THEN
-    DO iSpec=1,nSpecies
-      IF(VarVibRelaxProb%nCollis(iSpec).NE.0) THEN ! Calc new vibrational relaxation probability
-        VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VarVibRelaxProb%ProbVibAv(iElem,iSpec) &
-                                               * VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec)) &
-                                               + (1.-VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec))) &
-                                               / (VarVibRelaxProb%nCollis(iSpec)) * VarVibRelaxProb%ProbVibAvNew(iSpec)
-      END IF
-    END DO
-  END IF
+  CALL FinalizeCalcVibRelaxProb(iElem)
 
 END SUBROUTINE DSMC_pairing_bggas
 
