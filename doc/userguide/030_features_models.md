@@ -619,14 +619,14 @@ $$ \alpha = 3 N_\mathrm{atom} - 3 - \xi_\mathrm{rot} $$
 
 As an example the parameters of CH$_3$ are given below. The molecule has four vibrational modes, with two of them having a degeneracy of two. These values are simply given the according amount of times
 
-    Part-Species2-NumOfAtoms = 4
-    Part-Species2-LinearMolec = FALSE
-    Part-Species2-CharaTempVib1 = 4320.6
-    Part-Species2-CharaTempVib2 = 872.1
-    Part-Species2-CharaTempVib3 = 4545.5
-    Part-Species2-CharaTempVib4 = 4545.5
-    Part-Species2-CharaTempVib5 = 2016.2
-    Part-Species2-CharaTempVib6 = 2016.2
+    Part-Species1-NumOfAtoms = 4
+    Part-Species1-LinearMolec = FALSE
+    Part-Species1-CharaTempVib1 = 4320.6
+    Part-Species1-CharaTempVib2 = 872.1
+    Part-Species1-CharaTempVib3 = 4545.5
+    Part-Species1-CharaTempVib4 = 4545.5
+    Part-Species1-CharaTempVib5 = 2016.2
+    Part-Species1-CharaTempVib6 = 2016.2
 
 These parameters allow the simulation of non-reactive gases. Additional parameters required for the consideration of chemical reaction are given in Section \ref{sec:dsmc_chemistry}.
 
@@ -637,6 +637,71 @@ WIP: octree, nearest neighbor, VHS
 Particles-DSMC-ProhibitDoubleCollision [@Shevyrin2005,@Akhlaghi2018]
 
 ### Relaxation \label{sec:dsmc_relaxation}
+
+To determine the different relaxation probabilities of the different internal degrees of freedom, different models are implemented. The first and easiest model are constant relaxation probabilities and second more complex models with variable, mostly temperature dependent, relaxation probabilities. Three different kinds of internal degrees of freedom are implemented in piclas: rotational, vibrational and electronical ones. For each one, different relaxation models are neccesary. Also different selection procedures are implemented: multi-relaxation and prohibiting-double-relaxation. The following flag has to be set true to enable the correction factor of Lumpkin [@Lumpkin1991],:
+
+    Particles-DSMC-useRelaxProbCorrFactor = false
+
+#### Rotational Relaxation \label{sec:dsmc_rotational_relxation}
+
+To adjust the rotational relaxation this variable has to be changed with its default value of $0.2$:
+
+    Particles-DSMC-RotRelaxProb = 0.2
+
+If the Rotational Relaxation Probability is between 0 and 1, this value is set as constant probability, is it 2 the variable rotational relaxation model is activated according to Boyd [@Boyd1990a]. Therefore, for each molecular species two additional parameters has to be defined; the rotational collision number and the rotational reference temperature. As example nitrogen is used [@Boyd1990b].
+
+    Part-Species1-CollNumRotInf = 23.3
+    Part-Species1-TempRefRot = 91.5
+
+If the relaxation probability is equal 3, the relaxation model of Zhang et al. [@Zhang2012] is used. But, it is only implemented for nitrogen and is not tested. It is not recommended to use it! 
+
+#### Vibrational Relaxation \label{sec:dsmc_vibrational_relxation}
+
+Equal to the rotational relaxation probability, the vibrational relaxation probability is implemented. This variable has to be changed, if the vibrational relaxation probability should be adjusted:
+
+    Particles-DSMC-VibRelaxProb = 0.004
+
+$0.004$ is the default. If the value of this variable is between 0 and 1, this value is used as constant vibrational relaxation probability. Is it set to 2, the variable vibrational relaxation model of Boyd [@Boyd1990b] is used. For each molecular species pair the constants A and B according to Millikan and White [@MillikanWhite1963] (which will be used for the calculation of the characteristic velocity and vibrational collision number according to Abe [@Abe1994]) and the vibrational cross section has to be defined. The given example below is a 2 species mixture of nitrogen and oxygen and the values of A and B are used Farbar [@Farbar2010] and the vibrational cross section is used Boyd [@Boyd1990b]:
+
+    Part-Species1-MWConstA-1-1 = 220.00
+    Part-Species1-MWConstA-1-2 = 115.10
+    Part-Species1-MWConstB-1-1 = -12.27
+    Part-Species1-MWConstB-1-2 = -6.92
+    Part-Species1-VibCrossSection = 1e-19
+
+    Part-Species2-MWConstA-2-2 = 129.00
+    Part-Species2-MWConstA-2-1 = 115.10
+    Part-Species2-MWConstB-2-2 = -9.76
+    Part-Species2-MWConstB-2-1 = -6.92
+    Part-Species2-VibCrossSection = 1e-19
+
+It is not possible to calculate an instantanious vibrational relaxation probability with this model [@Boyd1992]. Thus, the probablility is calculated for every colission and is averaged. To avoid large errors in cells containing only a few particles, a relaxation of this average probability is implemented. The relaxation factor alpha can be changed with the following parameter in the ini file:
+
+    Particles-DSMC-alpha = 0.99
+    
+The new probability is calculated with the vibrational relaxation probability of the $n^{th}$ iteration $VibProb_{n}$, the number of Collision Pairs $n_{Pair}$ and the average vibrational relaxation probability of the actual iteration $VibProbIter$. 
+
+$$VibProb_{n+1}= VibProb_{n}  \cdot  \alpha^{2  \cdot  n_{Pair}} + (1-\alpha^{2  \cdot  n_{Pair}}) \cdot VibProbIter $$
+
+This model is extended to more species by calculating for each species a separate probability. An initial vibrational relaxation probability is set by calculating $INT(1/(1-\alpha))$ vibrational relaxation probabilities for each species and cell with using the instantanious cell temperature. The collision partner is choosen by the mole fraction of them inside the cell. 
+
+#### Electronic Relaxation \label{sec:dsmc_electronic_relxation}
+
+WIP
+
+#### Multi-Relaxation \label{sec:dsmc_multi_relxation}
+
+default
+
+    Particles-DSMC-SelectionProcedure = 1
+
+WIP
+
+#### Prohibiting-Double-Relaxation \label{sec:dsmc_prohibiting_double_relxation}
+
+    Particles-DSMC-SelectionProcedure = 2
+
+It is not recommended to use this relaxation procedure with `Particles-DSMC-RotRelaxProb=2`. Low collision energies results in high relaxation probabilities, which results again in a summed relaxation probability greater than 1.
 
 WIP
 

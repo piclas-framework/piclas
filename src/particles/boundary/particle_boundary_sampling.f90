@@ -330,7 +330,6 @@ SurfCOMM%MPIRoot=.TRUE.
 SurfCOMM%nProcs=1
 SurfCOMM%MyOutputRank=0
 SurfCOMM%MPIOutputRoot=.TRUE.
-SurfCOMM%nOutputProcs = 1
 SurfCOMM%nOutputProcs=1
 ! get correct offsets
 OffSetSurfSide=0
@@ -556,7 +555,7 @@ INTEGER,ALLOCATABLE       :: countSurfSideMPI(:),countInnerSurfSideMPI(:)
 LOGICAL                   :: OutputOnProc, InnerSlaveBCs
 !===================================================================================================================================
 color=MPI_UNDEFINED
-IF(SurfMesh%SurfOnProc) color=2
+IF(SurfMesh%SurfOnProc) color=1001
 ! THEN
 ! color=2
 ! ELSE
@@ -605,7 +604,7 @@ OutputOnProc=.FALSE.
 color=MPI_UNDEFINED
 IF(SurfMesh%nMasterSides.GT.0) THEN
   OutputOnProc=.TRUE.
-  color=4
+  color=1002
 END IF
 
 IF(PartMPI%MPIRoot) THEN
@@ -1574,13 +1573,11 @@ IF(SurfCOMM%MPIOutputRoot)THEN
 END IF
 
 CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
-#endif /*USE_MPI*/
 
-!   IF(SurfCOMM%nProcs.GT.1)THEN
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
-!   ELSE
-!     CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.)
-!   END IF
+#else
+CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
 
 nVarCount=0
 WRITE(H5_Name,'(A)') 'SurfaceData'
@@ -1886,6 +1883,7 @@ SUBROUTINE FinalizeParticleBoundarySampling()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
 USE MOD_Particle_Boundary_Vars
 #if USE_MPI
 USE MOD_Particle_MPI_Vars           ,ONLY:SurfSendBuf,SurfRecvBuf,SurfExchange,PartHaloSideToProc
@@ -1947,6 +1945,8 @@ SDEALLOCATE(SurfSendBuf)
 SDEALLOCATE(SurfRecvBuf)
 SDEALLOCATE(OffSetSurfSideMPI)
 SDEALLOCATE(OffSetInnerSurfSideMPI)
+IF(SurfCOMM%OutputCOMM.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%OutputCOMM,iERROR)
+IF(SurfCOMM%COMM.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%COMM,iERROR)
 #endif /*USE_MPI*/
 SDEALLOCATE(CalcSurfCollis%SpeciesFlags)
 SDEALLOCATE(AnalyzeSurfCollis%Data)
@@ -1955,6 +1955,7 @@ SDEALLOCATE(AnalyzeSurfCollis%BCid)
 SDEALLOCATE(AnalyzeSurfCollis%Number)
 !SDEALLOCATE(AnalyzeSurfCollis%Rate)
 SDEALLOCATE(AnalyzeSurfCollis%BCs)
+
 END SUBROUTINE FinalizeParticleBoundarySampling
 
 END MODULE MOD_Particle_Boundary_Sampling

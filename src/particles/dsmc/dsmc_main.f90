@@ -47,7 +47,7 @@ USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_Fi
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, DSMCSumOfFormedParticles, BGGas, CollisMode
 USE MOD_DSMC_Vars             ,ONLY: ChemReac
-USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
+USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SamplingRotVibRelaxProb
 USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
 USE MOD_Particle_Vars         ,ONLY: PDM, WriteMacroVolumeValues, Symmetry2D
 USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
@@ -97,6 +97,12 @@ DO iElem = 1, nElems ! element/cell main loop
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
       DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
+      IF(DSMC%RotRelaxProb.GT.2) THEN
+        DSMC%CalcRotProb = 0.
+      END IF
+      IF(DSMC%VibRelaxProb.EQ.2) THEN
+        DSMC%CalcVibProb = 0.
+      END IF
     END IF
     IF (CollisMode.NE.0) THEN
       ChemReac%nPairForRec = 0
@@ -110,7 +116,7 @@ DO iElem = 1, nElems ! element/cell main loop
         END IF
       ELSE
         CALL DSMC_pairing_statistical(iElem)  ! pairing of particles per cell
-      END IF ! end no octree
+      END IF
       IF(DSMC%CalcQualityFactors) THEN
         IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
           ! mean collision probability of all collision pairs
@@ -122,7 +128,13 @@ DO iElem = 1, nElems ! element/cell main loop
           IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
           ! Counting sample size
           DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
+          ! Sample rotation relaxation probability
+          IF((DSMC%RotRelaxProb.EQ.2).OR.(DSMC%VibRelaxProb.EQ.2)) CALL SamplingRotVibRelaxProb(iElem)
         END IF
+        ! mean collision separation distance of actual collisions
+        IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
+        ! Counting sample size
+        DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
       END IF
     END IF  ! --- CollisMode.NE.0
 #if USE_LOADBALANCE
@@ -134,7 +146,7 @@ DO iElem = 1, nElems ! element/cell main loop
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
   IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_FinalizeBGGas
 #if (PP_TimeDiscMethod==42)
-  IF ((.NOT.DSMC%ReservoirSimu).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
+    IF ((.NOT.DSMC%ReservoirSimu).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
 #else
     IF (.NOT.WriteMacroVolumeValues .AND. .NOT.WriteMacroSurfaceValues) THEN
 #endif

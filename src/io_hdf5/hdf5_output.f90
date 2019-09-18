@@ -369,6 +369,7 @@ END ASSOCIATE
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
 IF(UseAdaptive.OR.(nAdaptiveBC.GT.0).OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
+CALL WriteVibProbInfoToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
 IF(RadialWeighting%DoRadialWeighting) CALL WriteClonesToHDF5(FileName)
 #if USE_MPI
@@ -1244,7 +1245,11 @@ DO iSurfSide = 1,SurfMesh%nMasterSides
 END DO
 
 WRITE(H5_Name,'(A)') 'SurfaceModelType'
+#if USE_MPI
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+#else
+CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
@@ -1313,8 +1318,11 @@ WRITE(H5_Name,'(A)') 'SurfCalcData'
 !                        offset=    (/0   ,0          ,0          ,offsetSurfSide       ,0       /),&
 !                        collective=.TRUE.,  RealArray=SurfCalcData)
 !#else
+#if USE_MPI
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
-!CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#else
+CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
@@ -1461,7 +1469,11 @@ ASSOCIATE (&
       nGlobalSides     => INT(SurfMesh%nGlobalSides,IK),&
       nSides           => INT(SurfMesh%nMasterSides,IK),&
       offsetSurfSide   => INT(offsetSurfSide,IK))
+#if USE_MPI
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
   CALL WriteArrayToHDF5(DataSetName = 'SurfPartInt'    , rank = 5                                                      , &
                         nValGlobal  = (/nGlobalSides   , nSurfSample , nSurfSample , Coordinations , SurfPartIntSize/) , &
                         nVal        = (/nSides         , nSurfSample , nSurfSample , Coordinations , SurfPartIntSize/) , &
@@ -1484,7 +1496,7 @@ ASSOCIATE (&
                              collective   = .FALSE.       , offSetDim = 1          , &
                              communicator = SurfCOMM%OutputCOMM  , IntegerArray_i4 = SurfPartData(:,:))
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName = 'SurfPartData'    , rank = 2                          , &
                         nValGlobal  = (/nSurfPart_glob  , SurfPartDataSize/)                , &
                         nVal        = (/locnSurfPart    , SurfPartDataSize/)                , &
@@ -1589,6 +1601,82 @@ SDEALLOCATE(StrVarNames)
 SDEALLOCATE(AdaptiveData)
 
 END SUBROUTINE WriteAdaptiveInfoToHDF5
+
+
+SUBROUTINE WriteVibProbInfoToHDF5(FileName)
+!===================================================================================================================================
+!> Subroutine that generates the adaptive boundary info and writes it out into State-File
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_IO_HDF5
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_DSMC_Vars              ,ONLY: VarVibRelaxProb, CollisMode, DSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+CHARACTER(LEN=255)             :: H5_Name
+CHARACTER(LEN=255)             :: SpecID
+INTEGER                        :: iSpec
+!===================================================================================================================================
+IF(CollisMode.GT.1) THEN
+  IF(DSMC%VibRelaxProb.GE.2.0) THEN
+    ALLOCATE(StrVarNames(nSpecies))
+    DO iSpec=1,nSpecies
+      WRITE(SpecID,'(I3.3)') iSpec
+      StrVarNames(iSpec)   = 'Spec'//TRIM(SpecID)//'-VibProbRelax'
+    END DO
+
+    IF(MPIRoot)THEN
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+      CALL WriteAttributeToHDF5(File_ID,'VarNamesVibProbInfo',nSpecies,StrArray=StrVarNames)
+      CALL CloseDataFile()
+    END IF
+
+    WRITE(H5_Name,'(A)') 'VibProbInfo'
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+
+    ! Associate construct for integer KIND=8 possibility
+    ASSOCIATE (&
+          nGlobalElems    => INT(nGlobalElems,IK)    ,&
+          nElems          => INT(nElems,IK)          ,&
+          nSpecies        => INT(nSpecies,IK)        ,&
+          offsetElem      => INT(offsetElem,IK)      )
+      CALL WriteArrayToHDF5(DataSetName = H5_Name , rank = 2        , &
+                            nValGlobal  = (/nGlobalElems, nSpecies/) , &
+                            nVal        = (/nElems      , nSpecies/) , &
+                            offset      = (/offsetElem  ,0_IK     /) , &
+                            collective  = .false. , RealArray = VarVibRelaxProb%ProbVibAv)
+    END ASSOCIATE
+    CALL CloseDataFile()
+    SDEALLOCATE(StrVarNames)
+  ELSE ! DSMC%VibRelaxProb < 2.0
+#if USE_MPI
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
+    CALL WriteAttributeToHDF5(File_ID,'VibProbConstInfo',1,RealScalar=DSMC%VibRelaxProb)
+    CALL CloseDataFile()
+  END IF
+ELSE ! CollisMode <= 1
+  IF(MPIRoot)THEN
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL WriteAttributeToHDF5(File_ID,'VibProbConstInfo',1,RealScalar=0.)
+    CALL CloseDataFile()
+  END IF
+END IF
+
+END SUBROUTINE WriteVibProbInfoToHDF5
 
 
 SUBROUTINE WriteClonesToHDF5(FileName)
@@ -2563,7 +2651,7 @@ CALL MPI_ALLREDUCE(DataOnProc,DoNotSplit, 1, MPI_LOGICAL, MPI_LAND, COMMUNICATOR
 IF(.NOT.DoNotSplit)THEN
 ! 2: if any proc has no data, split the communicator and write only with the new communicator
   color=MPI_UNDEFINED
-  IF(DataOnProc) color=87
+  IF(DataOnProc) color=2001
   MyOutputRank=0
 
   CALL MPI_COMM_SPLIT(COMMUNICATOR, color, MyOutputRank, OutputCOMM,iError)
