@@ -41,161 +41,55 @@ PUBLIC :: DSMC_CalcSubNodeVolumes2D, GeoCoordToMap2D
 CONTAINS
 
 
-SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
+SUBROUTINE FindNearestNeigh(iPartIndx_Node, nPart, iPair)
 !===================================================================================================================================
 ! Finds nearest neighbour for collision pairing
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars              ,ONLY: CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
-  USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, useRelaxProbCorrFactor
-  USE MOD_Particle_Vars          ,ONLY: PartState, nSpecies, PartSpecies, WriteMacroVolumeValues, VarTimeStep
-  USE MOD_DSMC_Relaxation        ,ONLY: SetMeanVibQua
-  USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
-  USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEkin
-  USE MOD_DSMC_CollisionProb     ,ONLY: DSMC_prob_calc
-  USE MOD_DSMC_Collis            ,ONLY: DSMC_perform_collision, SumVibRelaxProb
-  USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
-  USE MOD_part_tools             ,ONLY: GetParticleWeight
+  USE MOD_DSMC_Vars              ,ONLY: Coll_pData
+  USE MOD_Particle_Vars          ,ONLY: PartState
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL, INTENT(IN)                        :: NodeVolume
-  INTEGER, INTENT(IN)                     :: PartNum
-  INTEGER, INTENT(IN)                     :: iElem
+  INTEGER, INTENT(INOUT)                  :: nPart
+  INTEGER, INTENT(IN)                     :: iPair
   INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iPair, iPart1, iPart2, iLoop, iPart, nPart
-  INTEGER                       :: cSpec1, cSpec2, iCase , PairNum_Node
+  INTEGER                       :: iPart1, iPart2, iLoop
   REAL                          :: Dist1, Dist2, iRan
 !===================================================================================================================================
 
-  PairNum_Node = INT(PartNum/2)
-  CollInf%Coll_SpecPartNum = 0
-  CollInf%Coll_CaseNum = 0
-
-  IF(VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
-
-  IF (CollisMode.EQ.3) THEN
-    ChemReac%RecombParticle = 0
-    ChemReac%nPairForRec = 0
-    ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
-    DO iPart = 1, PartNum
-      ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart)))=ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) &
-                                              + PartStateIntEn(iPartIndx_Node(iPart),1)*GetParticleWeight(iPartIndx_Node(iPart))
-    END DO
+CALL RANDOM_NUMBER(iRan)
+iPart1 = 1 + INT(nPart * iRan)
+Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(iPart1)
+iPartIndx_Node(iPart1) = iPartIndx_Node(nPart)
+nPart = nPart - 1
+iPart2 = 1
+Dist1 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
+        - PartState(iPartIndx_Node(iPart2),1))**2 &
+        +(PartState(Coll_pData(iPair)%iPart_p1,2) &
+        - PartState(iPartIndx_Node(iPart2),2))**2 &
+        +(PartState(Coll_pData(iPair)%iPart_p1,3) &
+        - PartState(iPartIndx_Node(iPart2),3))**2
+DO iLoop = 2, nPart
+  Dist2 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
+          - PartState(iPartIndx_Node(iLoop),1))**2 &
+          +(PartState(Coll_pData(iPair)%iPart_p1,2) &
+          - PartState(iPartIndx_Node(iLoop),2))**2 &
+          +(PartState(Coll_pData(iPair)%iPart_p1,3) &
+          - PartState(iPartIndx_Node(iLoop),3))**2
+  IF (Dist2.LT.Dist1) THEN
+    iPart2 = iLoop
+    Dist1 = Dist2
   END IF
-
-  DO iPart = 1, PartNum
-    CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
-              CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + GetParticleWeight(iPartIndx_Node(iPart))
-  END DO
-
-  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
-                    .OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1))) THEN
-    ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
-    !           relaxation probability (CalcGammaVib)
-    ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
-    ! 3. Case: Temperature required for the mean free path with the VHS model
-    ! 4. Case: Needed to calculate the correction factor
-    CALL CalcInstantTransTemp(iPartIndx_Node,PartNum)
-    IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
-  END IF
-
-  ALLOCATE(Coll_pData(PairNum_Node))
-  nPart = PartNum
-
-  DO iPair = 1, PairNum_Node
-    CALL RANDOM_NUMBER(iRan)
-    iPart1 = 1 + INT(nPart * iRan)
-    Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(iPart1)
-    iPartIndx_Node(iPart1) = iPartIndx_Node(nPart)
-    nPart = nPart - 1
-    iPart2 = 1
-    Dist1 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
-           - PartState(iPartIndx_Node(iPart2),1))**2 &
-           +(PartState(Coll_pData(iPair)%iPart_p1,2) &
-           - PartState(iPartIndx_Node(iPart2),2))**2 &
-           +(PartState(Coll_pData(iPair)%iPart_p1,3) &
-           - PartState(iPartIndx_Node(iPart2),3))**2
-    DO iLoop = 2, nPart
-      Dist2 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
-             - PartState(iPartIndx_Node(iLoop),1))**2 &
-             +(PartState(Coll_pData(iPair)%iPart_p1,2) &
-             - PartState(iPartIndx_Node(iLoop),2))**2 &
-             +(PartState(Coll_pData(iPair)%iPart_p1,3) &
-             - PartState(iPartIndx_Node(iLoop),3))**2
-      IF (Dist2.LT.Dist1) THEN
-        iPart2 = iLoop
-        Dist1 = Dist2
-      END IF
-    END DO
-    Coll_pData(iPair)%iPart_p2 = iPartIndx_Node(iPart2)
-    iPartIndx_Node(iPart2) = iPartIndx_Node(nPart)
-    nPart = nPart - 1
-
-    cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
-    cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
-
-    iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-
-    IF(VarTimeStep%UseVariableTimeStep) THEN
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
-                                                           + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
-    END IF
-
-    CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
-    Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                             + (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                             + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
-    Coll_pData(iPair)%PairType = iCase
-    Coll_pData(iPair)%NeedForRec = .FALSE.
-  END DO
-  IF ((PairNum_Node.NE.0).AND.(CollisMode.EQ.3).and.(MOD(PartNum, PairNum_Node).NE.0)) THEN
-    ChemReac%RecombParticle = iPartIndx_Node(1)
-  END IF
-
-  IF (CollisMode.EQ.3) THEN
-    CALL SetMeanVibQua()
-  END IF
-
-  DO iPair = 1,  PairNum_Node
-    IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-      CALL SumVibRelaxProb(iPair)
-      CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
-      CALL RANDOM_NUMBER(iRan)
-      IF (Coll_pData(iPair)%Prob.GE.iRan) THEN
-#if (PP_TimeDiscMethod==42)
-        IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN
-#else
-        IF(CalcEkin) THEN
-#endif
-          DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
-          DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
-        END IF
-        CALL DSMC_perform_collision(iPair, iElem, NodeVolume, PartNum)  ! call collision from octree
-      END IF
-    END IF
-  END DO
-
-  IF(DSMC%CalcQualityFactors) THEN
-    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-      ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
-      DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
-                                            SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
-      ! Determination of the maximum MCS/MFP for the cell
-    IF((DSMC%CollSepCount.GT.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = &
-                                                    MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
-    END IF
-  END IF
-
-  DEALLOCATE(Coll_pData)
+END DO
+Coll_pData(iPair)%iPart_p2 = iPartIndx_Node(iPart2)
+iPartIndx_Node(iPart2) = iPartIndx_Node(nPart)
+nPart = nPart - 1
 
 END SUBROUTINE FindNearestNeigh
 
@@ -251,130 +145,177 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     ! Choose next particle in Element
     iPart = PEM%pNext(iPart)
   END DO
-  CALL FindStatisticalNeigh(iPartIndx, nPart, iElem , GEO%Volume(iElem))
+  CALL PerformPairingAndCollision(iPartIndx, nPart, iElem , GEO%Volume(iElem))
   CALL FinalizeCalcVibRelaxProb(iElem)
   DEALLOCATE(iPartIndx)
 END SUBROUTINE DSMC_pairing_statistical
 
 
-SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoint, Depth)
+SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, nPart, iPair)
 !===================================================================================================================================
 ! Finds nearest neighbour for collision pairing
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars,              ONLY: CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
-USE MOD_DSMC_Vars,              ONLY: DSMC, RadialWeighting, SamplingActive, SpecDSMC, useRelaxProbCorrFactor
-USE MOD_DSMC_Symmetry2D,        ONLY: CalcRadWeightMPF
-USE MOD_Particle_Vars,          ONLY: PartState, nSpecies, PartSpecies, PartMPF, WriteMacroVolumeValues, VarTimeStep
-USE MOD_DSMC_Relaxation,        ONLY: SetMeanVibQua
-USE MOD_DSMC_Analyze,           ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
-USE MOD_Particle_Analyze_Vars,  ONLY: CalcEkin
-USE MOD_DSMC_CollisionProb,     ONLY: DSMC_prob_calc
-USE MOD_DSMC_Collis,            ONLY: DSMC_perform_collision, SumVibRelaxProb
-USE MOD_TimeDisc_Vars,          ONLY: TEnd, Time
-USE MOD_part_tools,             ONLY: GetParticleWeight
+USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf
+USE MOD_Particle_Vars,          ONLY: PartState
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)                :: NodeVolume, MidPoint(3)
-INTEGER, INTENT(IN)             :: PartNum
-INTEGER, INTENT(IN)             :: iElem, Depth
+INTEGER, INTENT(INOUT)          :: nPart
+INTEGER, INTENT(IN)             :: iPair
 INTEGER, INTENT(INOUT)          :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iPair, iPart1, iPart2, iLoop, iPart, nPart, loopStart
-INTEGER                         :: cSpec1, cSpec2, iCase , PairNum_Node, tempPart
+INTEGER                         :: iPart1, iPart2, iLoop, loopStart
 REAL                            :: Dist1, Dist2, iRan
-REAL                            :: iRanVec(2), NodeLength
 !===================================================================================================================================
 
-PairNum_Node = INT(PartNum/2)
+loopStart = 0
+CALL RANDOM_NUMBER(iRan)
+iPart1 = 1 + INT(nPart * iRan)
+Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(iPart1)
+iPartIndx_Node(iPart1) = iPartIndx_Node(nPart)
+nPart = nPart - 1
+iPart2 = 1
+IF (CollInf%ProhibitDoubleColl) THEN
+  IF (nPart.GT.1) THEN
+    IF (iPartIndx_Node(ipart2).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
+      iPart2 = 2
+      loopStart = 1
+    END IF
+  END IF
+END IF
+Dist1 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
+        - PartState(iPartIndx_Node(iPart2),1))**2 &
+        +(PartState(Coll_pData(iPair)%iPart_p1,2) &
+        - PartState(iPartIndx_Node(iPart2),2))**2
+DO iLoop = 2 + loopStart, nPart
+  IF (CollInf%ProhibitDoubleColl) THEN
+      IF (iPartIndx_Node(iLoop).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
+        CYCLE
+      END IF
+  END IF
+  Dist2 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
+          - PartState(iPartIndx_Node(iLoop),1))**2 &
+          +(PartState(Coll_pData(iPair)%iPart_p1,2) &
+          - PartState(iPartIndx_Node(iLoop),2))**2
+  IF (Dist2.LT.Dist1) THEN
+    iPart2 = iLoop
+    Dist1 = Dist2
+  END IF
+END DO
+Coll_pData(iPair)%iPart_p2 = iPartIndx_Node(iPart2)
+iPartIndx_Node(iPart2) = iPartIndx_Node(nPart)
+nPart = nPart - 1
+
+END SUBROUTINE FindNearestNeigh2D
+
+
+SUBROUTINE PerformPairingAndCollision(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoint, Depth)
+!===================================================================================================================================
+! Classic statistical pairing method for the use in the octree routines
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
+USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
+USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision, SumVibRelaxProb
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: SamplingActive, SelectionProc, SpecDSMC, tTreeNode, useRelaxProbCorrFactor
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, PartMPF, Symmetry2D
+USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
+USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcEkin
+USE MOD_DSMC_Symmetry2D,        ONLY: CalcRadWeightMPF
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                        :: NodeVolume
+INTEGER, INTENT(IN)                     :: PartNum, iElem
+INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
+REAL, INTENT(IN), OPTIONAL              :: MidPoint(3)
+INTEGER, INTENT(IN), OPTIONAL           :: Depth
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: nPair, iPair, iPart, nPart, tempPart
+INTEGER                       :: cSpec1, cSpec2, iCase
+REAL                          :: iRan
+REAL                          :: iRanVec(2), NodeLength
+!===================================================================================================================================
+
+nPart = PartNum
+nPair = INT(nPart/2)
 CollInf%Coll_SpecPartNum = 0
 CollInf%Coll_CaseNum = 0
+ALLOCATE(Coll_pData(nPair))
+Coll_pData%Ec=0
+
 IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
 IF (CollisMode.EQ.3) THEN
   ChemReac%RecombParticle = 0
   ChemReac%nPairForRec = 0
-END IF
-
-IF (CollisMode.EQ.3) THEN
+! Determination of the mean vibrational energy for the cell, only needed for chemical reactions
   ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
   DO iPart = 1, PartNum
-    ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart)))=ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) &
+    ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) &
       + PartStateIntEn(iPartIndx_Node(iPart),1) * GetParticleWeight(iPartIndx_Node(iPart))
   END DO
 END IF
 
-
 DO iPart = 1, PartNum
-  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
-            CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + GetParticleWeight(iPartIndx_Node(iPart))
+  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) &
+                                                                  + GetParticleWeight(iPartIndx_Node(iPart))
 END DO
 
 IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
-                  .OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1))) THEN
+.OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1))) THEN
   ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
   !           relaxation probability (CalcGammaVib)
   ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
   ! 3. Case: Temperature required for the mean free path with the VHS model
-  ! 4. Case: Needed to calculate the correction factor
   CALL CalcInstantTransTemp(iPartIndx_Node,PartNum)
   IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
 END IF
 
-ALLOCATE(Coll_pData(PairNum_Node))
-nPart = PartNum
-DO iPair = 1, PairNum_Node
-  loopStart = 0
-  CALL RANDOM_NUMBER(iRan)
-  iPart1 = 1 + INT(nPart * iRan)
-  Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(iPart1)
-  iPartIndx_Node(iPart1) = iPartIndx_Node(nPart)
-  nPart = nPart - 1
-  iPart2 = 1
-  IF (CollInf%ProhibitDoubleColl) THEN
-    IF (nPart.GT.1) THEN
-      IF (iPartIndx_Node(ipart2).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
-        iPart2 = 2
-        loopStart = 1
-      END IF
+IF (CollInf%ProhibitDoubleColl.AND.(nPair.EQ.1)) THEN
+! Do not get stuck in an endless loop if only two particles/one pair are present in the cell
+  CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
+  CollInf%OldCollPartner(iPartIndx_Node(2)) = 0
+END IF
+
+DO iPair = 1, nPair
+  IF(DSMC%UseNearestNeighbour) THEN
+    IF(Symmetry2D) THEN
+      CALL FindNearestNeigh2D(iPartIndx_Node, nPart, iPair)
+    ELSE
+      CALL FindNearestNeigh(iPartIndx_Node, nPart, iPair)
     END IF
+  ELSE
+    CALL FindStatisticalNeigh(iPartIndx_Node, nPart, iPair, nPair)
   END IF
-  Dist1 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
-          - PartState(iPartIndx_Node(iPart2),1))**2 &
-          +(PartState(Coll_pData(iPair)%iPart_p1,2) &
-          - PartState(iPartIndx_Node(iPart2),2))**2
-  DO iLoop = 2 + loopStart, nPart
-    IF (CollInf%ProhibitDoubleColl) THEN
-        IF (iPartIndx_Node(iLoop).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
-          CYCLE
-        END IF
-    END IF
-    Dist2 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
-            - PartState(iPartIndx_Node(iLoop),1))**2 &
-            +(PartState(Coll_pData(iPair)%iPart_p1,2) &
-            - PartState(iPartIndx_Node(iLoop),2))**2
-    IF (Dist2.LT.Dist1) THEN
-      iPart2 = iLoop
-      Dist1 = Dist2
-    END IF
-  END DO
-  Coll_pData(iPair)%iPart_p2 = iPartIndx_Node(iPart2)
-  iPartIndx_Node(iPart2) = iPartIndx_Node(nPart)
-  nPart = nPart - 1
 
   cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
   cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
 
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+  ! Summation of the average weighting factor of the collision pairs for each case (AA, AB, BB)
   IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
                                                         + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
+  END IF
+
+  IF(VarTimeStep%UseVariableTimeStep) THEN
+    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
+                                                         + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
   END IF
 
   CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
@@ -387,27 +328,121 @@ DO iPair = 1, PairNum_Node
   Coll_pData(iPair)%PairType = iCase
   Coll_pData(iPair)%NeedForRec = .FALSE.
 END DO
-
-IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
-
-IF ((PairNum_Node.NE.0).AND.(CollisMode.EQ.3).and.(MOD(PartNum, PairNum_Node).NE.0)) THEN
+IF ((nPair.NE.0).AND.(CollisMode.EQ.3).AND.(MOD(nPart, nPair).NE.0)) THEN
   ChemReac%RecombParticle = iPartIndx_Node(1)
 END IF
+
+! Resetting the previous collision partner of the remaining particle due to uneven PartNum
+IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
 
 IF (CollisMode.EQ.3) THEN
   CALL SetMeanVibQua()
 END IF
-DO iPair = 1,  PairNum_Node
-  IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-    IF(RadialWeighting%DoRadialWeighting) THEN
-      ! Two particles with the exact same velocities at the same positions -> sick clones
-      IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
-        IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
-          IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
+
+IF(RadialWeighting%DoRadialWeighting) THEN
+  DO iPair = 1, nPair
+    IF(DSMC%UseOctree) THEN
+      IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
+        ! Two particles with the exact same velocities at the same positions -> sick clones
+        IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
+          IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
+            IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
+          END IF
+          IF (iPair.LT.nPair) THEN
+            ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
+            ! are swapped but first, changing z-direction
+            PartState(Coll_pData(iPair)%iPart_p1,6) = - PartState(Coll_pData(iPair)%iPart_p1,6)
+            ! Removing the pairs from the weighting factor and the case num sums
+            CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
+              -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
+            CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
+              - (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))*0.5
+            CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
+            CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
+            ! Breaking up the next pair and swapping partners
+            tempPart = Coll_pData(iPair)%iPart_p1
+            Coll_pData(iPair)%iPart_p1 = Coll_pData(iPair + 1)%iPart_p1
+            Coll_pData(iPair + 1)%iPart_p1 = tempPart
+            ! Calculation of the relative velocity for the new first pair
+            cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
+            cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
+            iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+            ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
+            CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
+            CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
+            Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
+                                      -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
+                                      + (PartState(Coll_pData(iPair)%iPart_p1,5) &
+                                      -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
+                                      + (PartState(Coll_pData(iPair)%iPart_p1,6) &
+                                      -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
+            Coll_pData(iPair)%PairType = iCase
+            ! Calculation of the relative velocity for the new follow-up pair
+            cSpec1 = PartSpecies(Coll_pData(iPair+1)%iPart_p1)
+            cSpec2 = PartSpecies(Coll_pData(iPair+1)%iPart_p2)
+            iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+            ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
+            CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
+            CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
+            Coll_pData(iPair+1)%CRela2 = (PartState(Coll_pData(iPair+1)%iPart_p1,4) &
+                                        -  PartState(Coll_pData(iPair+1)%iPart_p2,4))**2 &
+                                        + (PartState(Coll_pData(iPair+1)%iPart_p1,5) &
+                                        -  PartState(Coll_pData(iPair+1)%iPart_p2,5))**2 &
+                                        + (PartState(Coll_pData(iPair+1)%iPart_p1,6) &
+                                        -  PartState(Coll_pData(iPair+1)%iPart_p2,6))**2
+            Coll_pData(iPair+1)%PairType = iCase
+          ELSE
+            ! For the last pair, the z-direction is changed and a random position for the first particle is chosen (last resort)
+            CALL RANDOM_NUMBER(iRanVec)
+            NodeLength = 2./2.**(Depth)
+            PartState(Coll_pData(iPair)%iPart_p1,1) = MidPoint(1) - NodeLength + 2.*NodeLength*iRanVec(1)
+            PartState(Coll_pData(iPair)%iPart_p1,2) = MidPoint(2) - NodeLength + 2.*NodeLength*iRanVec(2)
+            PartState(Coll_pData(iPair)%iPart_p1,1:2) = MapToGeo2D(PartState(Coll_pData(iPair)%iPart_p1,1:2),iElem)
+            PartState(Coll_pData(iPair)%iPart_p1,3) = 0.0
+            ! creating relative velocity
+            PartState(Coll_pData(iPair)%iPart_p1,6) = - PartState(Coll_pData(iPair)%iPart_p1,6)
+            Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,6) - PartState(Coll_pData(iPair)%iPart_p2,6))**2
+            PartMPF(Coll_pData(iPair)%iPart_p1) = &
+                                CalcRadWeightMPF(PartState(Coll_pData(iPair)%iPart_p1,2),cSpec1,Coll_pData(iPair)%iPart_p1)
+          END IF
         END IF
-        IF (iPair.LT.PairNum_Node) THEN
-          ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
-          ! are swapped but first, changing z-direction
+      END IF
+    ELSE
+      ! Two particles with the exact same velocities at the same positions -> clones that did not interact with other particles/walls
+      IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
+        IF(DSMC%CalcQualityFactors.AND.(SamplingActive.OR.WriteMacroVolumeValues)) THEN
+          DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
+        END IF
+        ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
+        ! are swapped but first, changing z-direction
+        IF (nPart.EQ.1) THEN
+          ! Uneven number of particles in the cell, a single particle is left without a pair
+          PartState(Coll_pData(iPair)%iPart_p1,6) = - PartState(Coll_pData(iPair)%iPart_p1,6)
+          ! Removing the pairs from the weighting factor and the case num sums
+          CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
+            -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
+          CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
+          ! Swapping particle without a pair with the first particle of the current pair
+          tempPart = Coll_pData(iPair)%iPart_p1
+          Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(1)
+          iPartIndx_Node(1) = tempPart
+          IF (CollisMode.EQ.3) ChemReac%RecombParticle = iPartIndx_Node(1)
+          IF (CollInf%ProhibitDoubleColl)  CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
+          ! Calculation of the relative velocity for the new first pair
+          cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
+          cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
+          iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+          ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
+          CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
+          CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
+          Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
+                                    -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
+                                    + (PartState(Coll_pData(iPair)%iPart_p1,5) &
+                                    -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
+                                    + (PartState(Coll_pData(iPair)%iPart_p1,6) &
+                                    -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
+          Coll_pData(iPair)%PairType = iCase
+        ELSE IF (iPair.LT.nPair) THEN
           PartState(Coll_pData(iPair)%iPart_p1,6) = - PartState(Coll_pData(iPair)%iPart_p1,6)
           ! Removing the pairs from the weighting factor and the case num sums
           CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
@@ -448,22 +483,14 @@ DO iPair = 1,  PairNum_Node
                                       + (PartState(Coll_pData(iPair+1)%iPart_p1,6) &
                                       -  PartState(Coll_pData(iPair+1)%iPart_p2,6))**2
           Coll_pData(iPair+1)%PairType = iCase
-        ELSE
-          ! For the last pair, the z-direction is changed and a random position for the first particle is chosen (last resort)
-          CALL RANDOM_NUMBER(iRanVec)
-          NodeLength = 2./2.**(Depth)
-          PartState(Coll_pData(iPair)%iPart_p1,1) = MidPoint(1) - NodeLength + 2.*NodeLength*iRanVec(1)
-          PartState(Coll_pData(iPair)%iPart_p1,2) = MidPoint(2) - NodeLength + 2.*NodeLength*iRanVec(2)
-          PartState(Coll_pData(iPair)%iPart_p1,1:2) = MapToGeo2D(PartState(Coll_pData(iPair)%iPart_p1,1:2),iElem)
-          PartState(Coll_pData(iPair)%iPart_p1,3) = 0.0
-          ! creating relative velocity
-          PartState(Coll_pData(iPair)%iPart_p1,6) = - PartState(Coll_pData(iPair)%iPart_p1,6)
-          Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,6) - PartState(Coll_pData(iPair)%iPart_p2,6))**2
-          PartMPF(Coll_pData(iPair)%iPart_p1) = &
-                              CalcRadWeightMPF(PartState(Coll_pData(iPair)%iPart_p1,2),cSpec1,Coll_pData(iPair)%iPart_p1)
         END IF
-      END IF
-    END IF
+      END IF  ! Coll_pData(iPair)%CRela2.EQ.0.0
+    END IF    ! UseOctree
+  END DO      ! DO iPair=1, nPair
+END IF        ! DoRadialWeighting
+
+DO iPair = 1, nPair
+  IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
     CALL SumVibRelaxProb(iPair)
     CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
     CALL RANDOM_NUMBER(iRan)
@@ -476,11 +503,11 @@ DO iPair = 1,  PairNum_Node
         DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
         DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
       END IF
+      CALL DSMC_perform_collision(iPair,iElem, NodeVolume, PartNum)
       IF (CollInf%ProhibitDoubleColl) THEN
         CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1) = Coll_pData(iPair)%iPart_p2
         CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p2) = Coll_pData(iPair)%iPart_p1
       END IF
-      CALL DSMC_perform_collision(iPair, iElem, NodeVolume, PartNum)  ! call collision from octree
     ELSE
       IF (CollInf%ProhibitDoubleColl) THEN
         CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1) = 0
@@ -503,7 +530,7 @@ END IF
 
 DEALLOCATE(Coll_pData)
 
-END SUBROUTINE FindNearestNeigh2D
+END SUBROUTINE PerformPairingAndCollision
 
 
 SUBROUTINE DSMC_pairing_octree(iElem)
@@ -578,18 +605,10 @@ IF (nPart.GT.1) THEN
       CALL AddOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
       DEALLOCATE(TreeNode%MappedPartStates)
     ELSE
-      IF(DSMC%UseNearestNeighbour) THEN
-        CALL FindNearestNeigh(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
-      ELSE
-        CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem))
-      END IF
+      CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
     END IF
   ELSE  IF (nPart.GT.1) THEN
-    IF(DSMC%UseNearestNeighbour) THEN
-      CALL FindNearestNeigh(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
-    ELSE
-      CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem))
-    END IF
+    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
   END IF
 
   DEALLOCATE(TreeNode%iPartIndx_Node)
@@ -765,22 +784,12 @@ __STAMP__&
         DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
         DEALLOCATE(TreeNode%ChildNode)
       ELSE
-        IF(DSMC%UseNearestNeighbour) THEN
-        CALL FindNearestNeigh(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+        CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
                 PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
-        ELSE
-        CALL FindStatisticalNeigh(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
-        END IF
       END IF
     ELSE IF (PartNumChildNode(iLoop).GT.1) THEN
-      IF(DSMC%UseNearestNeighbour) THEN
-      CALL FindNearestNeigh(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+      CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
               PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
-      ELSE
-      CALL FindStatisticalNeigh(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-              PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
-      END IF
     END IF
   END DO
 
@@ -851,18 +860,10 @@ TYPE(tTreeNode), POINTER      :: TreeNode
         CALL AddQuadTreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
         DEALLOCATE(TreeNode%MappedPartStates)
       ELSE
-        IF(DSMC%UseNearestNeighbour) THEN
-          CALL FindNearestNeigh2D(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem),  (/0.0,0.0,0.0/), 1)
-        ELSE
-          CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem))
-        END IF
+        CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem), (/0.0,0.0,0.0/), 1)
       END IF
-    ELSE  IF (nPart.GT.1) THEN
-      IF(DSMC%UseNearestNeighbour) THEN
-        CALL FindNearestNeigh2D(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem),  (/0.0,0.0,0.0/), 1)
-      ELSE
-        CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem))
-      END IF
+    ELSE IF (nPart.GT.1) THEN
+      CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem), (/0.0,0.0,0.0/), 1)
     ELSE IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) THEN
       CollInf%OldCollPartner(TreeNode%iPartIndx_Node(1)) = 0
     END IF
@@ -1047,22 +1048,12 @@ DO iLoop = 1, 4
       DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
       DEALLOCATE(TreeNode%ChildNode)
     ELSE
-      IF(DSMC%UseNearestNeighbour) THEN
-        CALL FindNearestNeigh2D(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), TreeNode%MidPoint(1:3), TreeNode%NodeDepth)
-      ELSE
-        CALL FindStatisticalNeigh(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)),PartNumChildNode(iLoop), &
-                                  iElem, NodeVolumeTemp(iLoop))
-      END IF
+      CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+            PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), TreeNode%MidPoint(1:3), TreeNode%NodeDepth)
     END IF
   ELSE IF (PartNumChildNode(iLoop).GT.1) THEN
-    IF(DSMC%UseNearestNeighbour) THEN
-      CALL FindNearestNeigh2D(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-            PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), TreeNode%MidPoint(1:3), TreeNode%NodeDepth)
-    ELSE
-      CALL FindStatisticalNeigh(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)),PartNumChildNode(iLoop), &
-                                  iElem, NodeVolumeTemp(iLoop))
-    END IF
+    CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+          PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), TreeNode%MidPoint(1:3), TreeNode%NodeDepth)
   ELSE IF (CollInf%ProhibitDoubleColl.AND.(PartNumChildNode(iLoop).EQ.1)) THEN
     CollInf%OldCollPartner(iPartIndx_ChildNode(iLoop, 1)) = 0
   END IF
@@ -1453,261 +1444,50 @@ END IF
 END SUBROUTINE AddNodeVolumes2D
 
 
-SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
+SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, nPart, iPair, nPair)
 !===================================================================================================================================
 ! Classic statistical pairing method for the use in the octree routines
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
-USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
-USE MOD_DSMC_Collis           ,ONLY : DSMC_perform_collision, SumVibRelaxProb
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
-USE MOD_DSMC_Vars             ,ONLY: SamplingActive, SelectionProc, SpecDSMC
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep
-USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
-USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
-USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcEkin
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)                        :: NodeVolume
-INTEGER, INTENT(IN)                     :: PartNum
-INTEGER, INTENT(IN)                     :: iElem
+INTEGER, INTENT(INOUT)                  :: nPart
+INTEGER, INTENT(IN)                     :: iPair, nPair
 INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: nPair, iPair, iPart, cPart1, cPart2, nPart, tempPart
-INTEGER                       :: cSpec1, cSpec2, iCase
+INTEGER                       :: cPart1, cPart2
 REAL                          :: iRan
 !===================================================================================================================================
 
-nPart = PartNum
-nPair = INT(nPart/2)
-IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
+CALL RANDOM_NUMBER(iRan)
+cPart1 = 1 + INT(nPart * iRan)                       ! first pair particle
+Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(cPart1)
+iPartIndx_Node(cPart1) = iPartIndx_Node(nPart)
+nPart = nPart - 1
 
-IF (CollisMode.EQ.3) THEN
-  ChemReac%RecombParticle = 0
-  ChemReac%nPairForRec = 0
-END IF
+CALL RANDOM_NUMBER(iRan)
+cPart2 = 1 + INT(nPart * iRan)                       ! second pair particle
 
-CollInf%Coll_SpecPartNum = 0
-CollInf%Coll_CaseNum = 0
-
-ALLOCATE(Coll_pData(nPair))
-Coll_pData%Ec=0
-
-IF (CollisMode.EQ.3) THEN
-! Determination of the mean vibrational energy for the cell, only needed for chemical reactions
-  ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
-  DO iPart = 1, PartNum
-    ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) &
-      + PartStateIntEn(iPartIndx_Node(iPart),1) * GetParticleWeight(iPartIndx_Node(iPart))
-  END DO
-END IF
-
-DO iPart = 1, PartNum
-  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) &
-                                                                  + GetParticleWeight(iPartIndx_Node(iPart))
-END DO
-
-IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
-  ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
-  !           relaxation probability (CalcGammaVib)
-  ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
-  ! 3. Case: Temperature required for the mean free path with the VHS model
-  CALL CalcInstantTransTemp(iPartIndx_Node,PartNum)
-  IF(SelectionProc.EQ.2) CALL CalcGammaVib()
-END IF
-
-IF (CollInf%ProhibitDoubleColl.AND.(nPair.EQ.1)) THEN
-! Do not get stuck in an endless loop if only two particles/one pair are present in the cell
-  CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
-  CollInf%OldCollPartner(iPartIndx_Node(2)) = 0
-END IF
-
-DO iPair = 1, nPair                               ! statistical pairing
-  CALL RANDOM_NUMBER(iRan)
-  cPart1 = 1 + INT(nPart * iRan)                       ! first pair particle
-  Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(cPart1)
-  iPartIndx_Node(cPart1) = iPartIndx_Node(nPart)
-  nPart = nPart - 1
-
-  CALL RANDOM_NUMBER(iRan)
-  cPart2 = 1 + INT(nPart * iRan)                       ! second pair particle
-
-  IF(CollInf%ProhibitDoubleColl) THEN
-    IF(iPartIndx_Node(cPart2).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
-      IF(iPair.LT.nPair) THEN
-        DO WHILE (iPartIndx_Node(cPart2).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1))
-          CALL RANDOM_NUMBER(iRan)
-          cPart2 = 1 + INT(nPart * iRan)
-        END DO
+IF(CollInf%ProhibitDoubleColl) THEN
+  IF(iPartIndx_Node(cPart2).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
+    IF(iPair.LT.nPair) THEN
+      DO WHILE (iPartIndx_Node(cPart2).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1))
+        CALL RANDOM_NUMBER(iRan)
+        cPart2 = 1 + INT(nPart * iRan)
+      END DO
 !        ELSE ! Last pair did collide last iteration, might require additional treatment, split up another pair
-      END IF
     END IF
   END IF
-
-  Coll_pData(iPair)%iPart_p2 = iPartIndx_Node(cPart2)
-  iPartIndx_Node(cPart2) = iPartIndx_Node(nPart)
-  nPart = nPart - 1
-
-  cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
-  cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
-
-  iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-  ! Summation of the average weighting factor of the collision pairs for each case (AA, AB, BB)
-  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
-                                                        + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
-  END IF
-
-  CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
-  Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                            -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                            + (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                            -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                            + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                            -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
-  Coll_pData(iPair)%PairType = iCase
-  Coll_pData(iPair)%NeedForRec = .FALSE.
-END DO
-IF ((nPair.NE.0).AND.(CollisMode.EQ.3).AND.(MOD(nPart, nPair).NE.0)) THEN
-  ChemReac%RecombParticle = iPartIndx_Node(1)
 END IF
-
-! Resetting the previous collision partner of the remaining particle due to uneven PartNum
-IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
-
-IF (CollisMode.EQ.3) THEN
-  CALL SetMeanVibQua()
-END IF
-
-IF(RadialWeighting%DoRadialWeighting) THEN
-  DO iPair = 1, nPair
-    ! Two particles with the exact same velocities at the same positions -> clones that did not interact with other particles/walls
-    IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
-      IF(DSMC%CalcQualityFactors.AND.(SamplingActive.OR.WriteMacroVolumeValues)) THEN
-        DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
-      END IF
-      ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
-      ! are swapped but first, changing z-direction
-      IF (nPart.EQ.1) THEN
-        ! Uneven number of particles in the cell, a single particle is left without a pair
-        PartState(Coll_pData(iPair)%iPart_p1,6) = - PartState(Coll_pData(iPair)%iPart_p1,6)
-        ! Removing the pairs from the weighting factor and the case num sums
-        CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-          -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
-        CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
-        ! Swapping particle without a pair with the first particle of the current pair
-        tempPart = Coll_pData(iPair)%iPart_p1
-        Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(1)
-        iPartIndx_Node(1) = tempPart
-        IF (CollisMode.EQ.3) ChemReac%RecombParticle = iPartIndx_Node(1)
-        IF (CollInf%ProhibitDoubleColl)  CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
-        ! Calculation of the relative velocity for the new first pair
-        cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
-        cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
-        iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-        ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-        CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
-        CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-        Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                                  -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                                  + (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                                  -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                                  + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                                  -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
-        Coll_pData(iPair)%PairType = iCase
-      ELSE IF (iPair.LT.nPair) THEN
-        PartState(Coll_pData(iPair)%iPart_p1,6) = - PartState(Coll_pData(iPair)%iPart_p1,6)
-        ! Removing the pairs from the weighting factor and the case num sums
-        CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-          -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
-        CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
-          - (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))*0.5
-        CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
-        CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
-        ! Breaking up the next pair and swapping partners
-        tempPart = Coll_pData(iPair)%iPart_p1
-        Coll_pData(iPair)%iPart_p1 = Coll_pData(iPair + 1)%iPart_p1
-        Coll_pData(iPair + 1)%iPart_p1 = tempPart
-        ! Calculation of the relative velocity for the new first pair
-        cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
-        cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
-        iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-        ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-        CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
-        CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-        Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                                  -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                                  + (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                                  -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                                  + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                                  -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
-        Coll_pData(iPair)%PairType = iCase
-        ! Calculation of the relative velocity for the new follow-up pair
-        cSpec1 = PartSpecies(Coll_pData(iPair+1)%iPart_p1)
-        cSpec2 = PartSpecies(Coll_pData(iPair+1)%iPart_p2)
-        iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-        ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-        CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
-        CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-        Coll_pData(iPair+1)%CRela2 = (PartState(Coll_pData(iPair+1)%iPart_p1,4) &
-                                    -  PartState(Coll_pData(iPair+1)%iPart_p2,4))**2 &
-                                    + (PartState(Coll_pData(iPair+1)%iPart_p1,5) &
-                                    -  PartState(Coll_pData(iPair+1)%iPart_p2,5))**2 &
-                                    + (PartState(Coll_pData(iPair+1)%iPart_p1,6) &
-                                    -  PartState(Coll_pData(iPair+1)%iPart_p2,6))**2
-        Coll_pData(iPair+1)%PairType = iCase
-      END IF
-    END IF    ! Coll_pData(iPair)%CRela2.EQ.0.0
-  END DO      ! DO iPair=1, nPair
-END IF        ! DoRadialWeighting
-
-DO iPair = 1, nPair
-  IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-    CALL SumVibRelaxProb(iPair)
-    CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
-    CALL RANDOM_NUMBER(iRan)
-    IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
-#if (PP_TimeDiscMethod==42)
-      IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN
-#else
-      IF(CalcEkin) THEN
-#endif
-        DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
-        DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
-      END IF
-      CALL DSMC_perform_collision(iPair,iElem, NodeVolume, PartNum)
-      IF (CollInf%ProhibitDoubleColl) THEN
-        CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1) = Coll_pData(iPair)%iPart_p2
-        CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p2) = Coll_pData(iPair)%iPart_p1
-      END IF
-    ELSE
-      IF (CollInf%ProhibitDoubleColl) THEN
-        CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1) = 0
-        CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p2) = 0
-      END IF
-    END IF
-  END IF
-END DO
-
-IF(DSMC%CalcQualityFactors) THEN
-  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-    ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
-    DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
-                                          SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
-    ! Determination of the maximum MCS/MFP for the cell
-    IF((DSMC%CollSepCount.GT.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = &
-                                                    MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
-  END IF
-END IF
-
-DEALLOCATE(Coll_pData)
+Coll_pData(iPair)%iPart_p2 = iPartIndx_Node(cPart2)
+iPartIndx_Node(cPart2) = iPartIndx_Node(nPart)
+nPart = nPart - 1
 
 END SUBROUTINE FindStatisticalNeigh
 
