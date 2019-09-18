@@ -257,53 +257,54 @@ SUBROUTINE Restart()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_IO_HDF5
-USE MOD_DG_Vars,                 ONLY:U
-USE MOD_Mesh_Vars,               ONLY:offsetElem,DoWriteStateToHDF5
+USE MOD_DG_Vars                ,ONLY: U
+USE MOD_Mesh_Vars              ,ONLY: OffsetElem,DoWriteStateToHDF5
 #if USE_HDG
-USE MOD_Mesh_Vars,               ONLY:offsetSide,nSides,nMPISides_YOUR, offsetSide
+USE MOD_Mesh_Vars              ,ONLY: offsetSide,nSides,nMPISides_YOUR, offsetSide
 #endif
-#if (USE_QDS_DG) || !(USE_HDG)
-USE MOD_Restart_Vars,            ONLY:Vdm_GaussNRestart_GaussN
+#if (USE_QDS_DG) || ! (USE_HDG)
+USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
 #endif /*USE_HDG*/
-USE MOD_Restart_Vars,            ONLY:DoRestart,N_Restart,RestartFile,RestartTime,InterpolateSolution,RestartNullifySolution
-USE MOD_ChangeBasis,             ONLY:ChangeBasis3D
-USE MOD_HDF5_input ,             ONLY:OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
-USE MOD_HDF5_Output,             ONLY:FlushHDF5
-#if !(USE_HDG)
-USE MOD_PML_Vars,                ONLY:DoPML,PMLToElem,U2,nPMLElems,PMLnVar
+USE MOD_Restart_Vars           ,ONLY: DoRestart,N_Restart,RestartFile,RestartTime,InterpolateSolution,RestartNullifySolution
+USE MOD_Restart_Tools          ,ONLY: ReadNodeSourceExtFromHDF5
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+USE MOD_HDF5_input             ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
+USE MOD_HDF5_Output            ,ONLY: FlushHDF5
+#if ! (USE_HDG)
+USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 #endif /*not USE_HDG*/
 #ifdef PP_POIS
-USE MOD_Equation_Vars,           ONLY:Phi
+USE MOD_Equation_Vars          ,ONLY: Phi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
-USE MOD_Restart_Vars,            ONLY:DoMacroscopicRestart
-USE MOD_Particle_Vars,           ONLY:PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset
-USE MOD_part_tools,              ONLY:UpdateNextFreePosition
-USE MOD_DSMC_Vars,               ONLY:UseDSMC,CollisMode,PartStateIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC,RadialWeighting
-USE MOD_Eval_XYZ,                ONLY:GetPositionInRefElem
-USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
-USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
-USE MOD_Particle_Mesh_Vars,      ONLY:epsOneCell
-USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping, TriaTracking
-USE MOD_Mesh_Vars,               ONLY:BC
-USE MOD_SurfaceModel_Vars,       ONLY:SurfDistInfo, Adsorption
-USE MOD_Particle_Boundary_Vars,  ONLY:nSurfBC
-USE MOD_Particle_Boundary_Vars,  ONLY:nSurfSample,SurfMesh,offSetSurfSide,PartBound,nPartBound
+USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
+USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartStateIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC,RadialWeighting
+USE MOD_Eval_XYZ               ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Mesh          ,ONLY: SingleParticleToExactElement,SingleParticleToExactElementNoMap
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Mesh_Vars     ,ONLY: epsOneCell
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfBC
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample,SurfMesh,offSetSurfSide,PartBound,nPartBound
 #if USE_MPI
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
-USE MOD_Particle_Tracking,       ONLY:ParticleCollectCharges
-USE MOD_PICDepo_Vars,            ONLY:DoDeposition, RelaxDeposition, PartSourceOld
+USE MOD_Particle_Tracking      ,ONLY: ParticleCollectCharges
+USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition, PartSourceOld
 #endif /*PARTICLES*/
 #if USE_HDG
-USE MOD_HDG_Vars,                ONLY:lambda, nGP_face
-USE MOD_HDG,                     ONLY:RestartHDG
+USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
+USE MOD_HDG                    ,ONLY: RestartHDG
 #endif /*USE_HDG*/
 #if USE_QDS_DG
-USE MOD_QDS_DG_Vars,             ONLY:DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesMass
+USE MOD_QDS_DG_Vars            ,ONLY: DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesMass
 #endif /*USE_QDS_DG*/
 #if (USE_QDS_DG) || (PARTICLES) || (USE_HDG)
-USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists,nDims,HSize
+USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists,nDims,HSize
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -386,7 +387,6 @@ IF(DoRestart)THEN
   StartT=MPI_WTIME()
 #endif
 
-
   ! Temp. vars for integer KIND=8 possibility
   PP_NTmp       = INT(PP_N,IK)
   OffsetElemTmp = INT(OffsetElem,IK)
@@ -430,10 +430,9 @@ IF(DoRestart)THEN
             QDSMacroValues(2:4,i,j,k,iElem) = QDSMacroValues(2:4,i,j,k,iElem) * QDSMacroValues(1,i,j,k,iElem)
           END DO; END DO; END DO
         END DO
-        CALL CloseDataFile()
       ELSE! We need to interpolate the solution to the new computational grid
         ALLOCATE(U_local(6,0:N_Restart,0:N_Restart,0:N_Restart,nQDSElems))
-        CALL ReadArray('DG_Solution',5,(/6_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+        CALL ReadArray('DG_Solution',5,(/6_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,INT(nQDSElems,IK)/),&
             OffsetElemTmp,5,RealArray=U_local)
         DO iElem =1, nQDSElems
           DO k=0, N_Restart; DO j=0, N_Restart; DO i=0, N_Restart
@@ -444,7 +443,8 @@ IF(DoRestart)THEN
         END DO
         DEALLOCATE(U_local)
       END IF
-    END IF
+      CALL CloseDataFile()
+    END IF ! DoQDS
 #endif /*USE_QDS_DG*/
 
     CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
@@ -588,6 +588,11 @@ IF(DoRestart)THEN
       SWRITE(UNIT_stdOut,*)' DONE!'
     END IF ! IF(.NOT. InterpolateSolution)
   END IF ! IF(.NOT. RestartNullifySolution)
+
+  ! ------------------------------------------------
+  ! NodeSourceExt (external/additional charge source terms)
+  ! ------------------------------------------------
+  CALL ReadNodeSourceExtFromHDF5()
 
 
 #ifdef PARTICLES
