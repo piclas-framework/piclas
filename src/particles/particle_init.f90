@@ -762,9 +762,9 @@ CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition'  &
                                  'If condition=reflective: PB-MomentumACC,PB-WallTemp,PB-TransACC,PB-VibACC,PB-RotACC,'//&
                                   'PB-WallVelo,Voltage,SpeciesSwaps.If condition=periodic:Part-nPeriodicVectors,'//&
                                   'Part-PeriodicVector[$]', 'open', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Dielectric' , 'Define if particle boundary [$] is a'//&
+CALL prms%CreateLogicalOption('Part-Boundary[$]-Dielectric' , 'Define if particle boundary [$] is a'//&
                               'dielectric interface, i.e. an interface between a dielectric and a non-dielectric or a between to'//&
-                              'different dielectrics [.TRUE.] or not [.FALSE.]', '.FALSE.', numberedmulti=.TRUE.)
+                              'different dielectrics [.TRUE.] or not [.FALSE.] (requires reflective BC)', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Adaptive'  &
   , 'Define if particle boundary [$] is adaptive [.TRUE.] or not [.FALSE.]', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-AdaptiveType'  &

@@ -254,7 +254,8 @@ TYPE tPartBoundary
   LOGICAL , ALLOCATABLE                  :: Dielectric(:)                 ! Define if particle boundary [$] is a dielectric
 !                                                                         ! interface, i.e. an interface between a dielectric and 
 !                                                                         ! a non-dielectric or a between to different dielectrics 
-!                                                                         ! [.TRUE.] or not [.FALSE.] (Default=FALSE.)
+!                                                                         ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
+!                                                                         ! (Default=FALSE.)
 END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries
