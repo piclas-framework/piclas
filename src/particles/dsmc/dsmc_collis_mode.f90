@@ -3036,7 +3036,7 @@ END SUBROUTINE SumVibRelaxProb
 
 SUBROUTINE FinalizeCalcVibRelaxProb(iElem)
 !===================================================================================================================================
-  ! Initialize the calculation of the variable vibrational relaxation probability in the cell for each iteration
+  ! Finalize the calculation of the variable vibrational relaxation probability in the cell for each iteration
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb 
