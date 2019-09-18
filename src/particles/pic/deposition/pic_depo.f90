@@ -262,6 +262,10 @@ CASE('cell_volweight_mean', 'cell_volweight_mean2')
   ALLOCATE(CellLocNodes_Volumes(nNodes))
   CALL CalcCellLocNodeVolumes()
   FindNeighbourElems = .TRUE.
+
+  ! Additional source for cell_volweight_mean (external or surface charge)
+  ALLOCATE(NodeSourceExt(1:4,1:nNodes))
+  NodeSourceExt = 0.0
 CASE('epanechnikov')
   r_sf     = GETREAL('PIC-epanechnikov-radius','1.')
   r2_sf = r_sf * r_sf
@@ -1421,7 +1425,7 @@ END IF ! TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'
 doPartInExists=.FALSE.
 IF(PRESENT(doParticle_In)) doPartInExists=.TRUE.
 
-! Check whether charge and current density have to be compute or just the charge density
+! Check whether charge and current density have to be computed or just the charge density
 #if ((USE_HDG) && (PP_nVar==1))
 IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
   doCalculateCurrentDensity=.TRUE.
@@ -1629,6 +1633,9 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
 #endif /*USE_LOADBALANCE*/
     END IF
   END DO
+
+  ! Add external node source (e.g. surface charging)
+  NodeSource = NodeSource + NodeSourceExt
 
   ! Node MPI communication
 #if USE_MPI
