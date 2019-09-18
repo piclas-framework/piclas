@@ -71,5 +71,7 @@ LOGICAL                               :: poyntingusemur_inv             ! True/f
 !                                                                       ! Poynting vector planes on the same face
 REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_MuR_Master_inv      ! face array containing 1./MuR for each DOF
 REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_MuR_Slave_inv
+! Charges on dielectric surfaces
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: NodeSourceExtGlobal      ! Write NodeSourceExt (external charge density) field to HDF5 file
 !===================================================================================================================================
 END MODULE MOD_Dielectric_Vars

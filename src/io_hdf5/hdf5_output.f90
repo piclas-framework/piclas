@@ -132,6 +132,7 @@ USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -394,6 +395,9 @@ CALL ModifyElemData(mode=2)
 #if (PP_nVar==8)
 CALL WritePMLDataToHDF5(FileName)
 #endif
+
+! Write NodeSourceExt (external charge density) field to HDF5 file
+IF(DoDielectric) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
 
 EndT=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
@@ -2827,7 +2831,6 @@ CHARACTER(LEN=255)  :: FileName
 REAL                :: StartT,EndT
 #endif
 REAL                :: OutputTime!,FutureTime
-!REAL,ALLOCATABLE    :: Uout(4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 INTEGER             :: iElem
 !===================================================================================================================================
 N_variables=3
@@ -2893,6 +2896,109 @@ END SUBROUTINE WritePMLzetaGlobalToHDF5
 #endif /*USE_HDG*/
 
 
+SUBROUTINE WriteNodeSourceExtToHDF5(OutputTime)
+!===================================================================================================================================
+! Write NodeSourceExt (external charge density) field to HDF5 file
+!===================================================================================================================================
+! MODULES
+USE MOD_io_HDF5
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Dielectric_Vars    ,ONLY: NodeSourceExtGlobal,isDielectricElem
+USE MOD_Mesh_Vars          ,ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Globals_Vars       ,ONLY: ProgramName,FileVersion,ProjectName
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,CellLocNodes_Volumes
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Interpolation_Vars ,ONLY: NodeTypeVISU,NodeType
+USE MOD_Interpolation      ,ONLY: GetVandermonde
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)     :: OutputTime
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER,PARAMETER   :: N_variables=1
+CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
+CHARACTER(LEN=255)  :: FileName
+#if USE_MPI
+REAL                :: StartT,EndT
+#endif
+INTEGER             :: iElem
+REAL                :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1)
+REAL                :: Vdm_EQ_N(0:PP_N,0:1)
+!===================================================================================================================================
+! create global Eps field for parallel output of Eps distribution
+ALLOCATE(NodeSourceExtGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+ALLOCATE(StrVarNames(1:N_variables))
+StrVarNames(1)='NodeSourceExt'
+NodeSourceExtGlobal=0.
+
+CALL GetVandermonde(1, NodeTypeVISU, PP_N, NodeType, Vdm_EQ_N, modal=.FALSE.)
+
+DO iElem=1,PP_nElems
+  ASSOCIATE( NodeID => GEO%ElemToNodeID(:,iElem) )
+    ! Copy values to equidistant distribution
+    NodeSourceExtEqui(1,0,0,0) = NodeSourceExt(NodeID(1))/CellLocNodes_Volumes(NodeID(1))
+    NodeSourceExtEqui(1,1,0,0) = NodeSourceExt(NodeID(2))/CellLocNodes_Volumes(NodeID(2))
+    NodeSourceExtEqui(1,1,1,0) = NodeSourceExt(NodeID(3))/CellLocNodes_Volumes(NodeID(3))
+    NodeSourceExtEqui(1,0,1,0) = NodeSourceExt(NodeID(4))/CellLocNodes_Volumes(NodeID(4))
+    NodeSourceExtEqui(1,0,0,1) = NodeSourceExt(NodeID(5))/CellLocNodes_Volumes(NodeID(5))
+    NodeSourceExtEqui(1,1,0,1) = NodeSourceExt(NodeID(6))/CellLocNodes_Volumes(NodeID(6))
+    NodeSourceExtEqui(1,1,1,1) = NodeSourceExt(NodeID(7))/CellLocNodes_Volumes(NodeID(7))
+    NodeSourceExtEqui(1,0,1,1) = NodeSourceExt(NodeID(8))/CellLocNodes_Volumes(NodeID(8)) 
+    ! Map equidistant distribution to G/GL (current node type)
+    CALL ChangeBasis3D(1, 1, PP_N, Vdm_EQ_N, NodeSourceExtEqui(:,:,:,:),NodeSourceExtGlobal(:,:,:,:,iElem))
+  END ASSOCIATE
+END DO!iElem
+
+IF(MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE NodeSourceExtGlobal TO HDF5 FILE...'
+#if USE_MPI
+  StartT=MPI_WTIME()
+#endif
+END IF
+!FutureTime=0.0
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_NodeSourceExtGlobal',OutputTime))//'.h5'
+IF(MPIRoot) CALL GenerateFileSkeleton('NodeSourceExtGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL WriteAttributeToHDF5(File_ID,'VarNamesNodeSourceExtGlobal',N_variables,StrArray=StrVarNames)
+CALL CloseDataFile()
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+        nGlobalElems    => INT(nGlobalElems,IK)    ,&
+        PP_nElems       => INT(PP_nElems,IK)       ,&
+        N_variables     => INT(N_variables,IK)     ,&
+        PP_N            => INT(PP_N,IK)            ,&
+        offsetElem      => INT(offsetElem,IK)      )
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                          DataSetName='DG_Solution' , rank=5                                             , &
+                          nValGlobal =(/N_variables , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+                          nVal       =(/N_variables , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems   /) , &
+                          offset     =(/       0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem  /) , &
+                          collective =.TRUE.        , RealArray=NodeSourceExtGlobal)
+END ASSOCIATE
+#if USE_MPI
+IF(MPIROOT)THEN
+  EndT=MPI_WTIME()
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+END IF
+#else
+WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+#endif
+SDEALLOCATE(NodeSourceExtGlobal)
+SDEALLOCATE(StrVarNames)
+END SUBROUTINE WriteNodeSourceExtToHDF5
+
+
 SUBROUTINE WriteDielectricGlobalToHDF5()
 !===================================================================================================================================
 ! write DielectricGlobal field to HDF5 file
@@ -2900,7 +3006,7 @@ SUBROUTINE WriteDielectricGlobalToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars, ONLY: DielectricGlobal,DielectricEps,isDielectricElem,ElemToDielectric
+USE MOD_Dielectric_Vars, ONLY: DielectricGlobal,DielectricEps
 USE MOD_Dielectric_Vars, ONLY: DielectricMu,isDielectricElem,ElemToDielectric
 USE MOD_Mesh_Vars,       ONLY: MeshFile,nGlobalElems,offsetElem
 USE MOD_Globals_Vars,    ONLY: ProgramName,FileVersion,ProjectName
@@ -2920,7 +3026,6 @@ CHARACTER(LEN=255)  :: FileName
 REAL                :: StartT,EndT
 #endif
 REAL                :: OutputTime!,FutureTime
-!REAL,ALLOCATABLE    :: Uout(4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 INTEGER             :: iElem
 !===================================================================================================================================
 ! create global Eps field for parallel output of Eps distribution

@@ -268,7 +268,7 @@ CASE('cell_volweight_mean', 'cell_volweight_mean2')
   FindNeighbourElems = .TRUE.
 
   ! Additional source for cell_volweight_mean (external or surface charge)
-  ALLOCATE(NodeSourceExt(1:4,1:nNodes))
+  ALLOCATE(NodeSourceExt(1:nNodes))
   NodeSourceExt = 0.0
 CASE('epanechnikov')
   r_sf     = GETREAL('PIC-epanechnikov-radius','1.')
@@ -1646,7 +1646,7 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
   END DO
 
   ! Add external node source (e.g. surface charging)
-  NodeSource = NodeSource + NodeSourceExt
+  NodeSource(4,:) = NodeSource(4,:) + NodeSourceExt
 
   ! Node MPI communication
 #if USE_MPI
@@ -1680,6 +1680,7 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
     NodeSource = tempNodeSource
   END IF
 
+  ! Interpolate node source values to volume polynomial
   DO iElem = 1, nElems
     DO kk = 0, PP_N
       DO ll = 0, PP_N

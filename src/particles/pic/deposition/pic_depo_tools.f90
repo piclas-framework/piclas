@@ -74,51 +74,28 @@ INTEGER,INTENT(IN)  :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3)
-REAL                             :: TSource(1:4)
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
-#if !((USE_HDG) && (PP_nVar==1))
-INTEGER, PARAMETER               :: SourceDim=1
-LOGICAL, PARAMETER               :: doCalculateCurrentDensity=.TRUE.
-#else
-LOGICAL                          :: doCalculateCurrentDensity
-INTEGER                          :: SourceDim
-#endif
 !===================================================================================================================================
-! Check whether charge and current density have to be computed or just the charge density
-#if ((USE_HDG) && (PP_nVar==1))
-IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
-doCalculateCurrentDensity=.TRUE.
-SourceDim=1
-ELSE ! do not calculate current density
-doCalculateCurrentDensity=.FALSE.
-SourceDim=4
-END IF
-#endif
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 
 CALL GetPositionInRefElem(PartPos,TempPartPos(1:3),ElemID,ForceMode=.TRUE.)
-TSource(:) = 0.0
-IF(doCalculateCurrentDensity)THEN
-TSource(1:3) = PartPos*Charge
-END IF
-TSource(4) = Charge
 
 alpha1=0.5*(TempPartPos(1)+1.0)
 alpha2=0.5*(TempPartPos(2)+1.0)
 alpha3=0.5*(TempPartPos(3)+1.0)
-ASSOCIATE( NodeID     => GEO%ElemToNodeID(:,ElemID) )
-NodeSourceExt(:,NodeID(1)) = NodeSourceExt(:,NodeID(1))+(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
-NodeSourceExt(:,NodeID(2)) = NodeSourceExt(:,NodeID(2))+(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
-NodeSourceExt(:,NodeID(3)) = NodeSourceExt(:,NodeID(3))+(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
-NodeSourceExt(:,NodeID(4)) = NodeSourceExt(:,NodeID(4))+(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*(1-alpha3))
-NodeSourceExt(:,NodeID(5)) = NodeSourceExt(:,NodeID(5))+(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*  (alpha3))
-NodeSourceExt(:,NodeID(6)) = NodeSourceExt(:,NodeID(6))+(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
-NodeSourceExt(:,NodeID(7)) = NodeSourceExt(:,NodeID(7))+(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
-NodeSourceExt(:,NodeID(8)) = NodeSourceExt(:,NodeID(8))+(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
+ASSOCIATE( NodeID => GEO%ElemToNodeID(:,ElemID) )
+NodeSourceExt(NodeID(1)) = NodeSourceExt(NodeID(1))+(Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
+NodeSourceExt(NodeID(2)) = NodeSourceExt(NodeID(2))+(Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
+NodeSourceExt(NodeID(3)) = NodeSourceExt(NodeID(3))+(Charge*  (alpha1)*  (alpha2)*(1-alpha3))
+NodeSourceExt(NodeID(4)) = NodeSourceExt(NodeID(4))+(Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
+NodeSourceExt(NodeID(5)) = NodeSourceExt(NodeID(5))+(Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
+NodeSourceExt(NodeID(6)) = NodeSourceExt(NodeID(6))+(Charge*  (alpha1)*(1-alpha2)*  (alpha3))
+NodeSourceExt(NodeID(7)) = NodeSourceExt(NodeID(7))+(Charge*  (alpha1)*  (alpha2)*  (alpha3))
+NodeSourceExt(NodeID(8)) = NodeSourceExt(NodeID(8))+(Charge*(1-alpha1)*  (alpha2)*  (alpha3))
 END ASSOCIATE
 #if USE_LOADBALANCE
 CALL LBElemPauseTime(ElemID,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to ElemID
