@@ -273,6 +273,8 @@ CASE('cell_volweight_mean', 'cell_volweight_mean2')
   ! Additional source for cell_volweight_mean (external or surface charge)
   ALLOCATE(NodeSourceExt(1:nNodes))
   NodeSourceExt = 0.0
+  ALLOCATE(NodeSourceExtTmp(1:nNodes))
+  NodeSourceExtTmp = 0.0
 
   ! Allocate and determine Vandermonde mapping from equidistant (visu) to NodeType node set
   ALLOCATE(Vdm_EQ_N(0:PP_N,0:1))
@@ -1382,6 +1384,7 @@ USE MOD_PICDepo_MPI            ,ONLY: MPISourceExchangeBGM
 #else /*NOT USE_MPI*/
 USE MOD_PICDepo_MPI            ,ONLY: PeriodicSourceExchange
 #endif /*USE_MPI*/
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1653,8 +1656,6 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
     END IF
   END DO
 
-  ! Add external node source (e.g. surface charging)
-  NodeSource(4,:) = NodeSource(4,:) + NodeSourceExt
 
   ! Node MPI communication
 #if USE_MPI
@@ -1664,7 +1665,15 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
     CALL AddHaloNodeData(NodeSource(3,:))
   END IF
   CALL AddHaloNodeData(NodeSource(4,:))
+  IF(DoDielectric) THEN
+    CALL AddHaloNodeData(NodeSourceExtTmp)
+    NodeSourceExt = NodeSourceExt + NodeSourceExtTmp
+    NodeSourceExtTmp = 0.
+  END IF
 #endif /*USE_MPI*/
+
+  ! Add external node source (e.g. surface charging)
+  IF(DoDielectric) NodeSource(4,:) = NodeSource(4,:) + NodeSourceExt
 
 
   ! Currently also "Nodes" are included in time measurement that is averaged across all elements. Can this be improved?

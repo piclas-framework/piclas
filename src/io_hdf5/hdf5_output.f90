@@ -3030,13 +3030,6 @@ DO iElem=1,PP_nElems
   END ASSOCIATE
 END DO!iElem
 
-IF(MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE NodeSourceExtGlobal TO HDF5 FILE...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#endif
-END IF
-
 ! Write data twice to .h5 file
 ! 1. to separate file (for visu) 
 ! 2. to _State_.h5 file (or restart)
@@ -3075,14 +3068,6 @@ DO i = 1, 2
   END ASSOCIATE
 END DO ! i = 1, 2
 
-#if USE_MPI
-IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
-#else
-WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif
 SDEALLOCATE(NodeSourceExtGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteNodeSourceExtToHDF5

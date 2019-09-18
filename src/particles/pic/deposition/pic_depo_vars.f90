@@ -38,6 +38,9 @@ INTEGER,ALLOCATABLE                   :: PartToFIBGM(:,:)   ! Mapping form Parti
 REAL,ALLOCATABLE                      :: ElemRadius2_sf(:)  ! elem radius plus radius_sf
 REAL, ALLOCATABLE                     :: BGMSource(:,:,:,:)
 REAL, ALLOCATABLE                     :: NodeSourceExt(:)   ! Additional source for cell_volweight_mean (external or surface charge)
+!                                                           ! accumulates over time
+REAL, ALLOCATABLE                     :: NodeSourceExtTmp(:)! Additional source for cell_volweight_mean (external or surface charge)
+!                                                           ! temporary variable, which is nullified repeatedly
 REAL                                  :: r_sf               ! cutoff radius of shape function
 REAL                                  :: r2_sf              ! cutoff radius of shape function * cutoff radius of shape function
 REAL                                  :: r2_sf_inv          ! 1/cutoff radius of shape function * cutoff radius of shape function

@@ -49,32 +49,31 @@ PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta,DeBo
 CONTAINS
 
 
-SUBROUTINE DepositParticleOnNodes(Charge,PartPos,ElemID) 
+SUBROUTINE DepositParticleOnNodes(iPart,PartPos,ElemID) 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Deposit the charge of a single particle on the nodes corresponding to the deposition method 'cell_volweight_mean', where the
-! charge is stored in NodeSourceExt, which is added to NodeSource in the standard deposition procedure.
+! charge is stored in NodeSourceExtTmp, which is added to NodeSource in the standard deposition procedure.
 ! Note that the corresponding volumes are not accounted for yet. The volumes are applied in the deposition routine.
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_PICDepo_Vars             ,ONLY: NodeSourceExt
-USE MOD_Particle_Mesh_Vars       ,ONLY: GEO
-#if ((USE_HDG) && (PP_nVar==1))
-USE MOD_TimeDisc_Vars            ,ONLY: dt,tAnalyzeDiff,tEndDiff
-#endif
-USE MOD_Eval_xyz                 ,ONLY: GetPositionInRefElem
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers       ,ONLY: LBStartTime,LBElemPauseTime
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
+USE MOD_Particle_Vars      ,ONLY: PartSpecies,Species
+USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
-REAL,INTENT(IN)     :: Charge
+INTEGER,INTENT(IN)  :: iPart
 REAL,INTENT(IN)     :: PartPos(1:3)
 INTEGER,INTENT(IN)  :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3)
+REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3), Charge
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -82,6 +81,11 @@ REAL                             :: tLBStart
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
+IF (usevMPF) THEN
+  Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
+ELSE
+  Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
+END IF
 
 CALL GetPositionInRefElem(PartPos,TempPartPos(1:3),ElemID,ForceMode=.TRUE.)
 
@@ -91,14 +95,14 @@ alpha3=0.5*(TempPartPos(3)+1.0)
 
 ! Apply charge to nodes (note that the volumes are not accounted for yet here!)
 ASSOCIATE( NodeID => GEO%ElemToNodeID(:,ElemID) )
-  NodeSourceExt(NodeID(1)) = NodeSourceExt(NodeID(1))+(Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
-  NodeSourceExt(NodeID(2)) = NodeSourceExt(NodeID(2))+(Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
-  NodeSourceExt(NodeID(3)) = NodeSourceExt(NodeID(3))+(Charge*  (alpha1)*  (alpha2)*(1-alpha3))
-  NodeSourceExt(NodeID(4)) = NodeSourceExt(NodeID(4))+(Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
-  NodeSourceExt(NodeID(5)) = NodeSourceExt(NodeID(5))+(Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
-  NodeSourceExt(NodeID(6)) = NodeSourceExt(NodeID(6))+(Charge*  (alpha1)*(1-alpha2)*  (alpha3))
-  NodeSourceExt(NodeID(7)) = NodeSourceExt(NodeID(7))+(Charge*  (alpha1)*  (alpha2)*  (alpha3))
-  NodeSourceExt(NodeID(8)) = NodeSourceExt(NodeID(8))+(Charge*(1-alpha1)*  (alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(1)) = NodeSourceExtTmp(NodeID(1))+(Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(2)) = NodeSourceExtTmp(NodeID(2))+(Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(3)) = NodeSourceExtTmp(NodeID(3))+(Charge*  (alpha1)*  (alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(4)) = NodeSourceExtTmp(NodeID(4))+(Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
+  NodeSourceExtTmp(NodeID(5)) = NodeSourceExtTmp(NodeID(5))+(Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(6)) = NodeSourceExtTmp(NodeID(6))+(Charge*  (alpha1)*(1-alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(7)) = NodeSourceExtTmp(NodeID(7))+(Charge*  (alpha1)*  (alpha2)*  (alpha3))
+  NodeSourceExtTmp(NodeID(8)) = NodeSourceExtTmp(NodeID(8))+(Charge*(1-alpha1)*  (alpha2)*  (alpha3))
 END ASSOCIATE
 
 #if USE_LOADBALANCE

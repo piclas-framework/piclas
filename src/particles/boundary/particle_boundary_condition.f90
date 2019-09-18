@@ -69,7 +69,7 @@ USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType,epsilontol
 USE MOD_SurfaceModel             ,ONLY: ReactiveSurfaceTreatment
 USE MOD_Particle_Analyze         ,ONLY: RemoveParticle
-USE MOD_Mesh_Vars                ,ONLY: BC
+USE MOD_Mesh_Vars                ,ONLY: BC,nElems
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars            ,ONLY: RK_a
 #endif
@@ -79,8 +79,8 @@ USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 #endif /*IMPA*/
 USE MOD_Dielectric_Vars          ,ONLY: DoDielectric
 USE MOD_PICDepo_Tools            ,ONLY: DepositParticleOnNodes
-USE MOD_Particle_Vars            ,ONLY: useVMPF,PartMPF
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
+USE MOD_Part_Tools               ,ONLY: CreateParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -98,7 +98,6 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 REAL                                 :: n_loc(1:3),RanNum
 INTEGER                              :: ReflectionIndex, iSpec, iSF
 LOGICAL                              :: isSpeciesSwap, PorousReflection
-REAL                                 :: Charge
 !===================================================================================================================================
 
 IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
@@ -155,13 +154,15 @@ CASE(2) !PartBound%ReflectiveBC)
       ,'Dielectric particle-surface interaction: Particle not inside element.')
     END IF ! .NOT.PDM%ParticleInside(iPart)
 
-    ! Deposit single particle charge on surface
-    IF (usevMPF) THEN
-    Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
-    ELSE
-    Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
-    END IF
-    IF(CHARGEDPARTICLE(iPart)) CALL DepositParticleOnNodes(Charge,LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID)
+    IF(CHARGEDPARTICLE(iPart))THEN
+      IF(ElemID.GT.nElems)THEN
+        ! Particle is now located in halo element: Create ghost particle, which is sent to new host Processor and removed there (set
+        ! negative SpeciesID in order to remove particle in host Processor)
+        CALL CreateParticle(-PartSpecies(iPart),LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.)
+      ELSE ! Deposit single particle charge on surface here and 
+        CALL DepositParticleOnNodes(iPart,LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID)
+      END IF ! ElemID.GT.nElems
+    END IF ! CHARGEDPARTICLE(iPart)
 
     ! For testing, remove the particle
     CALL RemoveParticle(iPart,alpha=alpha,crossedBC=crossedBC)
