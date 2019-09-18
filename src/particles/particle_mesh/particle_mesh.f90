@@ -6973,7 +6973,7 @@ DO iProc=1,PartMPI%nMPINeighbors
           ,' HaloInfoCommSize-wrong receiving message size!')
     END IF
 
-    ! Set halo info: halo elements are marked with "0"
+    ! Set halo info: halo elements are marked with "-yourelemid" (negative ElemID of the halo region element)
     ElemHaloInfoProc(yourrank)%ElemHaloInfo(myelem) = -yourelemid
   END DO
 END DO ! iProc
