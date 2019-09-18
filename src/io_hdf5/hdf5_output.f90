@@ -397,8 +397,10 @@ CALL ModifyElemData(mode=2)
 CALL WritePMLDataToHDF5(FileName)
 #endif
 
+#if PARTICLES
 ! Write NodeSourceExt (external charge density) field to HDF5 file
 IF(DoDielectric) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
+#endif /*PARTICLES*/
 
 EndT=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
@@ -2973,6 +2975,7 @@ END SUBROUTINE WritePMLzetaGlobalToHDF5
 #endif /*USE_HDG*/
 
 
+#if PARTICLES
 SUBROUTINE WriteNodeSourceExtToHDF5(OutputTime)
 !===================================================================================================================================
 ! Write NodeSourceExt (external charge density) field to HDF5 file
@@ -3083,6 +3086,7 @@ WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 SDEALLOCATE(NodeSourceExtGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteNodeSourceExtToHDF5
+#endif /*PARTICLES*/
 
 
 SUBROUTINE WriteDielectricGlobalToHDF5()

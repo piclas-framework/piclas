@@ -22,12 +22,15 @@ IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 
+#if PARTICLES
 PUBLIC :: ReadNodeSourceExtFromHDF5
+#endif /*PARTICLES*/
 !===================================================================================================================================
 
 CONTAINS
 
 
+#if PARTICLES
 SUBROUTINE ReadNodeSourceExtFromHDF5() 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Read NodeSourceExt from h5 file, which is stored as DG solution type field. Map this solution to equidistant-node polynomial and
@@ -99,6 +102,7 @@ DEALLOCATE(U_local)
 END IF ! DG_SourceExtExists
 
 END SUBROUTINE ReadNodeSourceExtFromHDF5
+#endif /*PARTICLES*/
 
 
 END MODULE MOD_Restart_Tools
