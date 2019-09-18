@@ -2913,7 +2913,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: N_variables
+INTEGER,PARAMETER   :: N_variables=2
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
 #if USE_MPI
@@ -2923,7 +2923,6 @@ REAL                :: OutputTime!,FutureTime
 !REAL,ALLOCATABLE    :: Uout(4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 INTEGER             :: iElem
 !===================================================================================================================================
-N_variables=2
 ! create global Eps field for parallel output of Eps distribution
 ALLOCATE(DielectricGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ALLOCATE(StrVarNames(1:N_variables))
