@@ -65,6 +65,9 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 #if USE_MPI
 USE MOD_PICDepo_MPI            ,ONLY: MPIBackgroundMeshInit
 #endif /*USE_MPI*/
+USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
+USE MOD_Interpolation          ,ONLY: GetVandermonde
+USE MOD_Mesh_Vars              ,ONLY: Vdm_EQ_N
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -270,6 +273,11 @@ CASE('cell_volweight_mean', 'cell_volweight_mean2')
   ! Additional source for cell_volweight_mean (external or surface charge)
   ALLOCATE(NodeSourceExt(1:nNodes))
   NodeSourceExt = 0.0
+
+  ! Allocate and determine Vandermonde mapping from equidistant (visu) to NodeType node set
+  ALLOCATE(Vdm_EQ_N(0:PP_N,0:1))
+  CALL GetVandermonde(1, NodeTypeVISU, PP_N, NodeType, Vdm_EQ_N, modal=.FALSE.)
+
 CASE('epanechnikov')
   r_sf     = GETREAL('PIC-epanechnikov-radius','1.')
   r2_sf = r_sf * r_sf
