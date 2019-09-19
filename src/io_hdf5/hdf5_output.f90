@@ -3002,9 +3002,6 @@ REAL,INTENT(IN)     :: OutputTime
 INTEGER,PARAMETER   :: N_variables=1
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName,DataSetName
-#if USE_MPI
-REAL                :: StartT,EndT
-#endif
 INTEGER             :: iElem,i
 REAL                :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1)
 !===================================================================================================================================
