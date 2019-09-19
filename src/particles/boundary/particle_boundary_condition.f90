@@ -164,8 +164,6 @@ CASE(2) !PartBound%ReflectiveBC)
       END IF ! ElemID.GT.nElems
     END IF ! CHARGEDPARTICLE(iPart)
 
-    ! For testing, remove the particle
-    CALL RemoveParticle(iPart,alpha=alpha,crossedBC=crossedBC)
   END IF
 
   !---- swap species?
@@ -243,11 +241,6 @@ CALL abort(&
 __STAMP__&
 ,' ERROR: PartBound not associated!. (unknown case)',999,999.)
 END SELECT !PartBound%MapToPartBC(BC(SideID)
-
-! compiler warnings
-IF(1.EQ.2)THEN
-  WRITE(*,*) 'ElemID', ElemID
-END IF
 
 END SUBROUTINE GetBoundaryInteraction
 
