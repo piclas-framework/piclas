@@ -54,10 +54,10 @@ SUBROUTINE WriteDielectricGlobalToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars, ONLY: DielectricGlobal,DielectricEps
-USE MOD_Dielectric_Vars, ONLY: DielectricMu,isDielectricElem,ElemToDielectric
-USE MOD_Mesh_Vars,       ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars,    ONLY: ProgramName,FileVersion,ProjectName
+USE MOD_Dielectric_Vars ,ONLY: DielectricGlobal,DielectricEps
+USE MOD_Dielectric_Vars ,ONLY: DielectricMu,isDielectricElem,ElemToDielectric
+USE MOD_Mesh_Vars       ,ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Globals_Vars    ,ONLY: ProgramName,FileVersion,ProjectName
 USE MOD_io_HDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -142,10 +142,9 @@ SUBROUTINE WritePMLzetaGlobalToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_PML_Vars,      ONLY: PMLzetaGlobal,PMLzeta0,PMLzeta,isPMLElem,ElemToPML
-!USE MOD_HDF5_output,   ONLY: WriteArrayToHDF5,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
-USE MOD_Mesh_Vars,     ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars,  ONLY: ProgramName,FileVersion,ProjectName
+USE MOD_PML_Vars     ,ONLY: PMLzetaGlobal,PMLzeta0,PMLzeta,isPMLElem,ElemToPML
+USE MOD_Mesh_Vars    ,ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Globals_Vars ,ONLY: ProgramName,FileVersion,ProjectName
 USE MOD_io_HDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -235,10 +234,10 @@ SUBROUTINE WriteQDSToHDF5(OutputTime,PreviousTime)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars,       ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars,    ONLY: ProgramName,FileVersion,ProjectName
+USE MOD_Mesh_Vars    ,ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Globals_Vars ,ONLY: ProgramName,FileVersion,ProjectName
 USE MOD_io_HDF5
-USE MOD_QDS_DG_Vars,     ONLY: nQDSElems,QDSSpeciesMass,QDSMacroValues
+USE MOD_QDS_DG_Vars  ,ONLY: nQDSElems,QDSSpeciesMass,QDSMacroValues
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -751,20 +751,20 @@ SUBROUTINE WriteParticleToHDF5(FileName)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars         ,ONLY: nGlobalElems, offsetElem
-USE MOD_Particle_Vars     ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell, nSpecies, VarTimeStep
-USE MOD_part_tools        ,ONLY: UpdateNextFreePosition
-USE MOD_DSMC_Vars         ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
+USE MOD_Particle_Vars          ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell, nSpecies, VarTimeStep
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
 #if (PP_TimeDiscMethod==509)
-USE MOD_Particle_Vars,           ONLY: velocityAtTime, velocityOutputAtTime
+USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
 #if USE_MPI
-USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
+USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
-USE MOD_LoadBalance_Vars  ,ONLY: nPartsPerElem
+USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1662,10 +1662,10 @@ SUBROUTINE WriteClonesToHDF5(FileName)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars,          ONLY: offsetElem
-USE MOD_DSMC_Vars,          ONLY: UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
-USE MOD_DSMC_Vars,          ONLY: RadialWeighting, ClonedParticles
-USE MOD_PARTICLE_Vars,      ONLY: nSpecies, usevMPF
+USE MOD_Mesh_Vars     ,ONLY: offsetElem
+USE MOD_DSMC_Vars     ,ONLY: UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
+USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, ClonedParticles
+USE MOD_PARTICLE_Vars ,ONLY: nSpecies, usevMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1865,9 +1865,7 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
 END IF
 END ASSOCIATE
 
-
 CALL CloseDataFile()
-
 
 DEALLOCATE(StrVarNames)
 DEALLOCATE(PartData)
@@ -1883,8 +1881,8 @@ SUBROUTINE WriteTimeAverage(MeshFileName,OutputTime,PreviousTime,VarNamesAvg,Var
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars,   ONLY:ProjectName
-USE MOD_Mesh_Vars,      ONLY:offsetElem,nGlobalElems,nElems
+USE MOD_Globals_Vars ,ONLY: ProjectName
+USE MOD_Mesh_Vars    ,ONLY: offsetElem,nGlobalElems,nElems
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -1981,8 +1979,7 @@ IF(MPIROOT)THEN
 END IF
 END SUBROUTINE WriteTimeAverage
 
-! PO: old
-!SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
+
 SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
@@ -1990,12 +1987,12 @@ SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputT
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars,ONLY: ProjectName
-USE MOD_Output_Vars  ,ONLY: UserBlockTmpFile,userblock_total_len
-USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
-USE MOD_Interpolation_Vars, ONLY:NodeType
+USE MOD_Globals_Vars       ,ONLY: ProjectName
+USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
+USE MOD_Mesh_Vars          ,ONLY: nGlobalElems
+USE MOD_Interpolation_Vars ,ONLY: NodeType
 #ifdef INTEL
-USE IFPORT,                 ONLY:SYSTEM
+USE IFPORT                 ,ONLY: SYSTEM
 #endif
 !USE MOD_PreProcFlags
 ! IMPLICIT VARIABLE HANDLING
@@ -2063,10 +2060,10 @@ SUBROUTINE GenerateNextFileInfo(TypeString,OutputTime,PreviousTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars,ONLY: ProjectName
-USE MOD_Interpolation_Vars, ONLY:NodeType
+USE MOD_Globals_Vars       ,ONLY: ProjectName
+USE MOD_Interpolation_Vars ,ONLY: NodeType
 #ifdef INTEL
-USE IFPORT,                 ONLY:SYSTEM
+USE IFPORT                 ,ONLY: SYSTEM
 #endif
 !USE MOD_PreProcFlags
 ! IMPLICIT VARIABLE HANDLING
@@ -2098,13 +2095,13 @@ SUBROUTINE FlushHDF5(FlushTime_In)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,      ONLY:ProjectName
-USE MOD_HDF5_Input,        ONLY:GetHDF5NextFileName
+USE MOD_Globals_Vars     ,ONLY: ProjectName
+USE MOD_HDF5_Input       ,ONLY: GetHDF5NextFileName
 #if USE_LOADBALANCE
-USE MOD_Loadbalance_Vars,  ONLY:DoLoadBalance,nLoadBalance
+USE MOD_Loadbalance_Vars ,ONLY: DoLoadBalance,nLoadBalance
 #endif /*USE_LOADBALANCE*/
 #if USE_QDS_DG
-USE MOD_QDS_DG_Vars,       ONLY:DoQDS
+USE MOD_QDS_DG_Vars      ,ONLY: DoQDS
 #endif /*USE_QDS_DG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2191,7 +2188,7 @@ SUBROUTINE WriteHDF5Header(FileType_in,File_ID)
 ! Subroutine to write a distinct file header to each HDF5 file
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,ONLY:ProgramName,FileVersion,ProjectName
+USE MOD_Globals_Vars ,ONLY: ProgramName,FileVersion,ProjectName
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
