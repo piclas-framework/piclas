@@ -97,7 +97,7 @@ IF(.NOT.PRESENT(DoElement)) THEN
 END IF
 DSMCSumOfFormedParticles = 0
 
-IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_InitBGGas
+IF((BGGas%BGGasSpecies.NE.0).AND.(.NOT.UseMCC)) CALL DSMC_InitBGGas
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/

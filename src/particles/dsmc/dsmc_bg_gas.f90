@@ -270,7 +270,6 @@ DO iSpec = 1,nSpecies
   END IF
 END DO
 
-MCC%TotalPairNum = MCC%TotalPairNum
 ALLOCATE(Coll_pData(MCC%TotalPairNum))
 Coll_pData%Ec = 0.
 ALLOCATE(PairingPartner(MCC%TotalPairNum))
