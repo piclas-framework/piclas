@@ -78,7 +78,7 @@ IF(DG_SourceExtExists)THEN
       OffsetElemTmp,5,RealArray=U_local)
 
   ! Allocate and determine Vandermonde mapping from NodeType to equidistant (visu) node set
-  ALLOCATE(Vdm_N_EQ(0:1,N_Restart))
+  ALLOCATE(Vdm_N_EQ(0:1,0:N_Restart))
   CALL GetVandermonde(N_Restart, NodeType, 1, NodeTypeVISU, Vdm_N_EQ, modal=.FALSE.)
 
   DO iElem =1, PP_nElems
