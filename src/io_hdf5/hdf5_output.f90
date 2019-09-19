@@ -370,6 +370,7 @@ END ASSOCIATE
 CALL WriteParticleToHDF5(FileName)
 CALL WriteMacroParticleToHDF5(FileName)
 IF(UseAdaptive.OR.(nAdaptiveBC.GT.0).OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
+CALL WriteVibProbInfoToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
 IF(RadialWeighting%DoRadialWeighting) CALL WriteClonesToHDF5(FileName)
 #if USE_MPI
@@ -407,11 +408,16 @@ SUBROUTINE ModifyElemData(mode)
 !> Modify ElemData fields before/after WriteAdditionalElemData() is called
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: abort
-USE MOD_TimeDisc_Vars          ,ONLY: Time
-USE MOD_Restart_Vars           ,ONLY: RestartTime
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCouplSpec
-USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_TimeDisc_Vars         ,ONLY: Time
+USE MOD_Restart_Vars          ,ONLY: RestartTime
+#ifdef PARTICLES
+USE MOD_Globals               ,ONLY: abort
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcCoupledPower,PCouplSpec
+USE MOD_Particle_Vars         ,ONLY: nSpecies,Species
+#endif /*PARTICLES*/
+#if USE_MPI
+USE MOD_Globals
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -422,8 +428,10 @@ INTEGER,INTENT(IN) :: mode ! 1: before WriteAdditionalElemData() is called
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL              :: timediff
-INTEGER           :: iSpec
+#ifdef PARTICLES
+REAL          :: timediff
+INTEGER       :: iSpec
+#endif /*PARTICLES*/
 !===================================================================================================================================
 
 IF(ABS(Time-RestartTime).LE.0.0) RETURN
@@ -440,12 +448,12 @@ ELSE
 END IF ! mode.EQ.1
 
 ! Set coupled power to particles if output of coupled power is active
-IF (CalcCoupledPower) THEN
-  IF(timediff.GT.0.)THEN
-    DO iSpec = 1, nSpecies
+IF (CalcCoupledPower.AND.(timediff.GT.0.)) THEN
+  DO iSpec = 1, nSpecies
+    IF(ABS(Species(iSpec)%ChargeIC).GT.0.0)THEN
       PCouplSpec(iSpec)%DensityAvgElem = PCouplSpec(iSpec)%DensityAvgElem * timediff
-    END DO ! iSpec = 1, nSpecies
-  END IF ! timediff.GT.0.
+    END IF
+  END DO
 END IF
 #endif /*PARTICLES*/
 
@@ -772,7 +780,6 @@ USE MOD_Mesh_Vars         ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Vars     ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell, nSpecies, VarTimeStep
 USE MOD_part_tools        ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars         ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
-USE MOD_LD_Vars           ,ONLY: UseLD, PartStateBulkValues
 #if (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars,           ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
@@ -820,7 +827,7 @@ MaxQuantNum=-1
 
 !!added for Evib, Erot writeout
 withDSMC=useDSMC
-IF (withDSMC.AND.(.NOT.(useLD))) THEN
+IF (withDSMC) THEN
 !IF (withDSMC) THEN
   IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
     PartDataSize=11
@@ -833,19 +840,6 @@ IF (withDSMC.AND.(.NOT.(useLD))) THEN
     PartDataSize=8 !+ 1 vmpf
   ELSE
     PartDataSize=7 !+ 0
-  END IF
-ELSE IF (useLD) THEN
-  IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
-    PartDataSize=16
-  ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicModel ) ) THEN !int ener + 2 and vmpf + 1
-                                                                           ! or int energ +3 but no vmpf +1
-    PartDataSize=15
-  ELSE IF (CollisMode.GT.1) THEN
-    PartDataSize=14!int ener + 2
-  ELSE IF (usevMPF) THEN
-    PartDataSize=13!+ 1 vmpf
-  ELSE
-    PartDataSize=12 !+ 0
   END IF
 ELSE IF (usevMPF) THEN
   PartDataSize=8 !vmpf +1
@@ -948,7 +942,7 @@ DO iElem_loc=1,PP_nElems
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
-      IF (withDSMC.AND.(.NOT.(useLD))) THEN
+      IF (withDSMC) THEN
       !IF (withDSMC) THEN
         IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
@@ -968,57 +962,6 @@ DO iElem_loc=1,PP_nElems
           PartData(iPart,9)=PartStateIntEn(pcount,2)
         ELSE IF (usevMPF) THEN
           PartData(iPart,8)=PartMPF(pcount)
-        END IF
-      ELSE IF (useLD) THEN
-        IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
-          PartData(iPart,10)=PartMPF(pcount)
-          PartData(iPart,11)=PartStateIntEn(pcount,3)
-          PartData(iPart,12)=PartStateBulkValues(pcount,1)
-          PartData(iPart,13)=PartStateBulkValues(pcount,2)
-          PartData(iPart,14)=PartStateBulkValues(pcount,3)
-          PartData(iPart,15)=PartStateBulkValues(pcount,4)
-          PartData(iPart,16)=PartStateBulkValues(pcount,5)
-        ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
-          PartData(iPart,10)=PartMPF(pcount)
-          PartData(iPart,11)=PartStateBulkValues(pcount,1)
-          PartData(iPart,12)=PartStateBulkValues(pcount,2)
-          PartData(iPart,13)=PartStateBulkValues(pcount,3)
-          PartData(iPart,14)=PartStateBulkValues(pcount,4)
-          PartData(iPart,15)=PartStateBulkValues(pcount,5)
-        ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
-          PartData(iPart,10)=PartStateIntEn(pcount,3)
-          PartData(iPart,11)=PartStateBulkValues(pcount,1)
-          PartData(iPart,12)=PartStateBulkValues(pcount,2)
-          PartData(iPart,13)=PartStateBulkValues(pcount,3)
-          PartData(iPart,14)=PartStateBulkValues(pcount,4)
-          PartData(iPart,15)=PartStateBulkValues(pcount,5)
-        ELSE IF (CollisMode.GT.1) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
-          PartData(iPart,10)=PartStateBulkValues(pcount,1)
-          PartData(iPart,11)=PartStateBulkValues(pcount,2)
-          PartData(iPart,12)=PartStateBulkValues(pcount,3)
-          PartData(iPart,13)=PartStateBulkValues(pcount,4)
-          PartData(iPart,14)=PartStateBulkValues(pcount,5)
-        ELSE IF (usevMPF) THEN
-          PartData(iPart,8)=PartMPF(pcount)
-          PartData(iPart,9)=PartStateBulkValues(pcount,1)
-          PartData(iPart,10)=PartStateBulkValues(pcount,2)
-          PartData(iPart,11)=PartStateBulkValues(pcount,3)
-          PartData(iPart,12)=PartStateBulkValues(pcount,4)
-          PartData(iPart,13)=PartStateBulkValues(pcount,5)
-        ELSE
-          PartData(iPart,8)=PartStateBulkValues(pcount,1)
-          PartData(iPart,9)=PartStateBulkValues(pcount,2)
-          PartData(iPart,10)=PartStateBulkValues(pcount,3)
-          PartData(iPart,11)=PartStateBulkValues(pcount,4)
-          PartData(iPart,12)=PartStateBulkValues(pcount,5)
         END IF
       ELSE IF (usevMPF) THEN
           PartData(iPart,8)=PartMPF(pcount)
@@ -1100,7 +1043,7 @@ ASSOCIATE (&
   StrVarNames(6)='VelocityZ'
   StrVarNames(7)='Species'
 
-  IF(withDSMC.AND.(.NOT.(useLD)))THEN
+  IF(withDSMC)THEN
     ! IF(withDSMC)THEN
     IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
       StrVarNames( 8)='Vibrational'
@@ -1120,57 +1063,6 @@ ASSOCIATE (&
       StrVarNames( 9)='Rotational'
     ELSE IF (usevMPF) THEN
       StrVarNames( 8)='MPF'
-    END IF
-  ELSE IF (useLD) THEN
-    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-      StrVarNames(10)='Electronic'
-      StrVarNames(11)='MPF'
-      StrVarNames(12)='BulkVelocityX'
-      StrVarNames(13)='BulkVelocityY'
-      StrVarNames(14)='BulkVelocityZ'
-      StrVarNames(15)='BulkTemperature'
-      StrVarNames(16)='BulkDOF'
-    ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-      StrVarNames(10)='MPF'
-      StrVarNames(11)='BulkVelocityX'
-      StrVarNames(12)='BulkVelocityY'
-      StrVarNames(13)='BulkVelocityZ'
-      StrVarNames(14)='BulkTemperature'
-      StrVarNames(15)='BulkDOF'
-    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-      StrVarNames(10)='Electronic'
-      StrVarNames(11)='BulkVelocityX'
-      StrVarNames(12)='BulkVelocityY'
-      StrVarNames(13)='BulkVelocityZ'
-      StrVarNames(14)='BulkTemperature'
-      StrVarNames(15)='BulkDOF'
-    ELSE IF (CollisMode.GT.1) THEN
-      StrVarNames( 8)='Vibrational'
-      StrVarNames( 9)='Rotational'
-      StrVarNames(10)='BulkVelocityX'
-      StrVarNames(11)='BulkVelocityY'
-      StrVarNames(12)='BulkVelocityZ'
-      StrVarNames(13)='BulkTemperature'
-      StrVarNames(14)='BulkDOF'
-    ELSE IF (usevMPF) THEN
-      StrVarNames( 8)='MPF'
-      StrVarNames( 9)='BulkVelocityX'
-      StrVarNames(10)='BulkVelocityY'
-      StrVarNames(11)='BulkVelocityZ'
-      StrVarNames(12)='BulkTemperature'
-      StrVarNames(13)='BulkDOF'
-    ELSE
-      StrVarNames( 8)='BulkVelocityX'
-      StrVarNames( 9)='BulkVelocityY'
-      StrVarNames(10)='BulkVelocityZ'
-      StrVarNames(11)='BulkTemperature'
-      StrVarNames(12)='BulkDOF'
     END IF
   ELSE IF (usevMPF) THEN
     StrVarNames( 8)='MPF'
@@ -1499,7 +1391,11 @@ DO iSurfSide = 1,SurfMesh%nMasterSides
 END DO
 
 WRITE(H5_Name,'(A)') 'SurfaceModelType'
+#if USE_MPI
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+#else
+CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
@@ -1568,8 +1464,11 @@ WRITE(H5_Name,'(A)') 'SurfCalcData'
 !                        offset=    (/0   ,0          ,0          ,offsetSurfSide       ,0       /),&
 !                        collective=.TRUE.,  RealArray=SurfCalcData)
 !#else
+#if USE_MPI
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
-!CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#else
+CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
@@ -1716,7 +1615,11 @@ ASSOCIATE (&
       nGlobalSides     => INT(SurfMesh%nGlobalSides,IK),&
       nSides           => INT(SurfMesh%nMasterSides,IK),&
       offsetSurfSide   => INT(offsetSurfSide,IK))
+#if USE_MPI
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
   CALL WriteArrayToHDF5(DataSetName = 'SurfPartInt'    , rank = 5                                                      , &
                         nValGlobal  = (/nGlobalSides   , nSurfSample , nSurfSample , Coordinations , SurfPartIntSize/) , &
                         nVal        = (/nSides         , nSurfSample , nSurfSample , Coordinations , SurfPartIntSize/) , &
@@ -1739,7 +1642,7 @@ ASSOCIATE (&
                              collective   = .FALSE.       , offSetDim = 1          , &
                              communicator = SurfCOMM%OutputCOMM  , IntegerArray_i4 = SurfPartData(:,:))
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName = 'SurfPartData'    , rank = 2                          , &
                         nValGlobal  = (/nSurfPart_glob  , SurfPartDataSize/)                , &
                         nVal        = (/locnSurfPart    , SurfPartDataSize/)                , &
@@ -1844,6 +1747,82 @@ SDEALLOCATE(StrVarNames)
 SDEALLOCATE(AdaptiveData)
 
 END SUBROUTINE WriteAdaptiveInfoToHDF5
+
+
+SUBROUTINE WriteVibProbInfoToHDF5(FileName)
+!===================================================================================================================================
+!> Subroutine that generates the adaptive boundary info and writes it out into State-File
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_IO_HDF5
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_DSMC_Vars              ,ONLY: VarVibRelaxProb, CollisMode, DSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+CHARACTER(LEN=255)             :: H5_Name
+CHARACTER(LEN=255)             :: SpecID
+INTEGER                        :: iSpec
+!===================================================================================================================================
+IF(CollisMode.GT.1) THEN
+  IF(DSMC%VibRelaxProb.GE.2.0) THEN
+    ALLOCATE(StrVarNames(nSpecies))
+    DO iSpec=1,nSpecies
+      WRITE(SpecID,'(I3.3)') iSpec
+      StrVarNames(iSpec)   = 'Spec'//TRIM(SpecID)//'-VibProbRelax'
+    END DO
+
+    IF(MPIRoot)THEN
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+      CALL WriteAttributeToHDF5(File_ID,'VarNamesVibProbInfo',nSpecies,StrArray=StrVarNames)
+      CALL CloseDataFile()
+    END IF
+
+    WRITE(H5_Name,'(A)') 'VibProbInfo'
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+
+    ! Associate construct for integer KIND=8 possibility
+    ASSOCIATE (&
+          nGlobalElems    => INT(nGlobalElems,IK)    ,&
+          nElems          => INT(nElems,IK)          ,&
+          nSpecies        => INT(nSpecies,IK)        ,&
+          offsetElem      => INT(offsetElem,IK)      )
+      CALL WriteArrayToHDF5(DataSetName = H5_Name , rank = 2        , &
+                            nValGlobal  = (/nGlobalElems, nSpecies/) , &
+                            nVal        = (/nElems      , nSpecies/) , &
+                            offset      = (/offsetElem  ,0_IK     /) , &
+                            collective  = .false. , RealArray = VarVibRelaxProb%ProbVibAv)
+    END ASSOCIATE
+    CALL CloseDataFile()
+    SDEALLOCATE(StrVarNames)
+  ELSE ! DSMC%VibRelaxProb < 2.0
+#if USE_MPI
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
+    CALL WriteAttributeToHDF5(File_ID,'VibProbConstInfo',1,RealScalar=DSMC%VibRelaxProb)
+    CALL CloseDataFile()
+  END IF
+ELSE ! CollisMode <= 1
+  IF(MPIRoot)THEN
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL WriteAttributeToHDF5(File_ID,'VibProbConstInfo',1,RealScalar=0.)
+    CALL CloseDataFile()
+  END IF
+END IF
+
+END SUBROUTINE WriteVibProbInfoToHDF5
 
 
 SUBROUTINE WriteClonesToHDF5(FileName)
@@ -2818,7 +2797,7 @@ CALL MPI_ALLREDUCE(DataOnProc,DoNotSplit, 1, MPI_LOGICAL, MPI_LAND, COMMUNICATOR
 IF(.NOT.DoNotSplit)THEN
 ! 2: if any proc has no data, split the communicator and write only with the new communicator
   color=MPI_UNDEFINED
-  IF(DataOnProc) color=87
+  IF(DataOnProc) color=2001
   MyOutputRank=0
 
   CALL MPI_COMM_SPLIT(COMMUNICATOR, color, MyOutputRank, OutputCOMM,iError)
@@ -3173,7 +3152,7 @@ ALLOCATE(DielectricGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='DielectricEpsGlobal'
 StrVarNames(2)='DielectricMuGlobal'
-DielectricGlobal=1.
+DielectricGlobal=0.
 DO iElem=1,PP_nElems
   IF(isDielectricElem(iElem))THEN
     DielectricGlobal(1,:,:,:,iElem)=DielectricEps(:,:,:,ElemToDielectric(iElem))

@@ -196,7 +196,7 @@ TYPE tInit                                                                   ! P
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
   REAL                                   :: ConstantPressure                 ! Pressure for an Area with a Constant Pressure
   REAL                                   :: ConstPressureRelaxFac            ! RelaxFac. for ConstPressureSamp
-  REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) for LD_insert or
+  REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) or
                                                                              ! (vpi_)cub./cyl. as alternative to Part.Emis. in Type1
   INTEGER                                :: ElemTemperatureFileID
   REAL , ALLOCATABLE                     :: ElemTemperatureIC(:,:)           ! Temperature from macrorestart [1:3,1:nElems)

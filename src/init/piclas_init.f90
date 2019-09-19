@@ -44,7 +44,6 @@ CALL prms%SetSection("Piclas Initialization")
 CALL prms%CreateIntOption(      'TimeStampLength', 'Length of the floating number time stamp', '21')
 #ifdef PARTICLES
 CALL prms%CreateLogicalOption(  'UseDSMC'        , "Flag for using DSMC in Calculation", '.FALSE.')
-CALL prms%CreateLogicalOption(  'UseLD'          , "Flag for using LD in Calculation", '.FALSE.')
 #endif
 
 END SUBROUTINE DefineParametersPiclas
@@ -89,7 +88,6 @@ USE MOD_MPI                  ,ONLY: InitMPIvars
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC, RadialWeighting
 USE MOD_Particle_Vars        ,ONLY: Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
 USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_Init
-USE MOD_LD_Vars              ,ONLY: UseLD
 USE MOD_ParticleInit         ,ONLY: InitParticles
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
@@ -144,8 +142,6 @@ ELSE
   RadialWeighting%DoRadialWeighting = .FALSE.
 END IF
 
-useLD=GETLOGICAL('UseLD','.FALSE.')
-IF(useLD) useDSMC=.TRUE.
 #endif /*PARTICLES*/
 
 ! Initialization

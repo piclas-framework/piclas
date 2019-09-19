@@ -797,21 +797,17 @@ USE MOD_SurfaceModel_Analyze      ,ONLY: AnalyzeSurface
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
 USE MOD_DSMC_Vars                 ,ONLY: DSMC_HOSolution, DSMC_VolumeSample
 USE MOD_Particle_Tracking_vars    ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
-USE MOD_LD_Analyze                ,ONLY: LD_data_sampling, LD_output_calc
 USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep
 USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
 #if !defined(LSERK)
 USE MOD_DSMC_Vars                 ,ONLY: useDSMC
 #endif
-#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
 USE MOD_Particle_Boundary_Vars    ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh, SampWall, PartBound, CalcSurfaceImpact
 USE MOD_DSMC_Analyze              ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
-#endif
 #if (PP_TimeDiscMethod!=42) && !defined(LSERK)
-USE MOD_LD_Vars                   ,ONLY: useLD
 USE MOD_Particle_Vars             ,ONLY: DelayTime
 #endif /*PP_TimeDiscMethod!=42 && !defined(LSERK)*/
 #endif /*PARTICLES*/
@@ -848,9 +844,7 @@ LOGICAL,INTENT(IN)            :: OutputHDF5
 LOGICAL                       :: ProlongToFaceNeeded
 #endif /*Maxwell*/
 #ifdef PARTICLES
-#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
 INTEGER                       :: iSide
-#endif
 #if USE_MPI
 INTEGER                       :: RECI
 REAL                          :: RECR
@@ -1065,29 +1059,17 @@ IF(OutPutHDF5 .OR. FirstOrLastIter) CALL CalculatePartElemData()
 #endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
-! DSMC & LD
+! DSMC
 !----------------------------------------------------------------------------------------------------------------------------------
 ! update of time here
 #ifdef PARTICLES
 
 ! write volume data for DSMC macroscopic values
 IF ((WriteMacroVolumeValues).AND.(.NOT.OutputHDF5))THEN
-#if (PP_TimeDiscMethod==1000)
-  CALL LD_data_sampling()  ! Data sampling for output
-#elif(PP_TimeDiscMethod==1001)
-  CALL LD_DSMC_data_sampling()
-#else
   CALL DSMCHO_data_sampling()
-#endif
   IF (iter.GT.0) iter_macvalout = iter_macvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
-#if (PP_TimeDiscMethod==1000)
-    CALL LD_output_calc()  ! Data sampling for output
-#elif(PP_TimeDiscMethod==1001)
-    CALL LD_DSMC_output_calc()
-#else
     CALL WriteDSMCHOToHDF5(TRIM(MeshFile),OutputTime)
-#endif
     iter_macvalout = 0
     DSMC%SampNum = 0
     DSMC_HOSolution = 0.0
@@ -1104,8 +1086,7 @@ END IF
 IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
   IF (iter.GT.0) iter_macsurfvalout = iter_macsurfvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
-#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
-    CALL CalcSurfaceValues
+    CALL CalcSurfaceValues()
     DO iSide=1,SurfMesh%nTotalSides
       SampWall(iSide)%State=0.
       IF (ANY(PartBound%Reactive)) THEN
@@ -1132,7 +1113,6 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
       AnalyzeSurfCollis%Number=0
       !AnalyzeSurfCollis%Rate=0.
     END IF
-#endif
     iter_macsurfvalout = 0
   END IF
 END IF
@@ -1180,7 +1160,7 @@ IF(OutPutHDF5)THEN
   END IF
 #else
   IF((LastIter).AND.(useDSMC).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
-    IF ((.NOT. useLD).AND.(DSMC%NumOutput.GT.0)) THEN
+    IF (DSMC%NumOutput.GT.0) THEN
       CALL WriteDSMCHOToHDF5(TRIM(MeshFile),OutputTime)
     END IF
     IF ((OutputTime.GE.DelayTime).AND.(DSMC%NumOutput.GT.0)) THEN

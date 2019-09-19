@@ -1185,10 +1185,6 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: PartOut, MPIRankOut
 USE MOD_Timedisc_Vars           ,ONLY: iStage,nRKStages
 #endif
 #endif /*CODE_ANALYZE*/
-#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-USE MOD_LD_Init                 ,ONLY: CalcDegreeOfFreedom
-USE MOD_LD_Vars
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
@@ -2056,23 +2052,6 @@ __STAMP__&
         iPart = iPart + 1
       END DO
     END IF
-#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-       iPart = 1
-       DO WHILE (iPart .le. NbrOfParticle)
-         PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-         IF (PositionNbr .ne. 0) THEN
-           PartStateBulkValues(PositionNbr,1) = Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1) &
-                                              * Species(iSpec)%Surfaceflux(iSF)%VeloIC
-           PartStateBulkValues(PositionNbr,2) = Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(2) &
-                                              * Species(iSpec)%Surfaceflux(iSF)%VeloIC
-           PartStateBulkValues(PositionNbr,3) = Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(3) &
-                                              * Species(iSpec)%Surfaceflux(iSF)%VeloIC
-           PartStateBulkValues(PositionNbr,4) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
-           PartStateBulkValues(PositionNbr,5) = CalcDegreeOfFreedom(PositionNbr)
-         END IF
-         iPart = iPart + 1
-       END DO
-#endif
 !    CALL UpdateNextFreePosition()
 
     ! compute number of input particles and energy
