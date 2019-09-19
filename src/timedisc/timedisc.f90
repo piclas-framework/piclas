@@ -311,12 +311,12 @@ USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSam
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
-USE MOD_HDF5_output            ,ONLY: WriteIMDStateToHDF5
+USE MOD_HDF5_Output_Tools      ,ONLY: WriteIMDStateToHDF5
 #else
 USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #endif /*PARTICLES*/
 #if USE_QDS_DG
-USE MOD_HDF5_output            ,ONLY: WriteQDSToHDF5
+USE MOD_HDF5_Output_Tools      ,ONLY: WriteQDSToHDF5
 USE MOD_QDS_DG_Vars            ,ONLY: DoQDS
 #endif /*USE_QDS_DG*/
 #ifdef PARTICLES
