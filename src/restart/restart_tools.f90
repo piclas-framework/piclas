@@ -33,8 +33,9 @@ CONTAINS
 #if PARTICLES
 SUBROUTINE ReadNodeSourceExtFromHDF5() 
 !----------------------------------------------------------------------------------------------------------------------------------!
-! Read NodeSourceExt from h5 file, which is stored as DG solution type field. Map this solution to equidistant-node polynomial and
-! then to the global nodes
+! Read NodeSourceExt from h5 file, which is stored as DG solution type field 'DG_SourceExt'. 
+! Map this solution to equidistant-node polynomial (NodeTypeVISU with N=1) and then map the solution to the global nodes
+! 'NodeSourceExt'.
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PreProc
@@ -85,6 +86,7 @@ IF(DG_SourceExtExists)THEN
     ! Map G/GL (current node type) to equidistant distribution
     CALL ChangeBasis3D(1, N_Restart, 1, Vdm_N_EQ, U_local(:,:,:,:,iElem),NodeSourceExtEqui(:,:,:,:))
 
+    ! Map the solution to the global nodes 'NodeSourceExt' and apply the volumes (charge density -> charge)
     ASSOCIATE( NodeID => GEO%ElemToNodeID(:,iElem) )
       ! Copy values from equidistant distribution to Nodees
       NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * CellLocNodes_Volumes(NodeID(1))
