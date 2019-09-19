@@ -56,7 +56,7 @@ IMPLICIT NONE
 ! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
+REAL                               :: U_local(1,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems)
 LOGICAL                            :: DG_SourceExtExists
 REAL                               :: NodeSourceExtEqui(1,0:1,0:1,0:1)
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp,N_RestartTmp
@@ -73,32 +73,30 @@ CALL DatasetExists(File_ID,'DG_SourceExt',DG_SourceExtExists)
 
 IF(DG_SourceExtExists)THEN
 
-! We need to interpolate the solution to the new computational grid
-ALLOCATE(U_local(1,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-CALL ReadArray('DG_SourceExt',5,(/1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
-OffsetElemTmp,5,RealArray=U_local)
+  ! We need to interpolate the solution to the new computational grid
+  CALL ReadArray('DG_SourceExt',5,(/1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+      OffsetElemTmp,5,RealArray=U_local)
 
-! Allocate and determine Vandermonde mapping from NodeType to equidistant (visu) node set
-ALLOCATE(Vdm_N_EQ(0:1,N_Restart))
-CALL GetVandermonde(N_Restart, NodeType, 1, NodeTypeVISU, Vdm_N_EQ, modal=.FALSE.)
+  ! Allocate and determine Vandermonde mapping from NodeType to equidistant (visu) node set
+  ALLOCATE(Vdm_N_EQ(0:1,N_Restart))
+  CALL GetVandermonde(N_Restart, NodeType, 1, NodeTypeVISU, Vdm_N_EQ, modal=.FALSE.)
 
-DO iElem =1, PP_nElems
-  ! Map G/GL (current node type) to equidistant distribution
-  CALL ChangeBasis3D(1, N_Restart, 1, Vdm_N_EQ, U_local(:,:,:,:,iElem),NodeSourceExtEqui(:,:,:,:))
+  DO iElem =1, PP_nElems
+    ! Map G/GL (current node type) to equidistant distribution
+    CALL ChangeBasis3D(1, N_Restart, 1, Vdm_N_EQ, U_local(:,:,:,:,iElem),NodeSourceExtEqui(:,:,:,:))
 
-  ASSOCIATE( NodeID => GEO%ElemToNodeID(:,iElem) )
-    ! Copy values from equidistant distribution to Nodees
-    NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * CellLocNodes_Volumes(NodeID(1))
-    NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * CellLocNodes_Volumes(NodeID(2))
-    NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * CellLocNodes_Volumes(NodeID(3))
-    NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * CellLocNodes_Volumes(NodeID(4))
-    NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * CellLocNodes_Volumes(NodeID(5))
-    NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * CellLocNodes_Volumes(NodeID(6))
-    NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * CellLocNodes_Volumes(NodeID(7))
-    NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * CellLocNodes_Volumes(NodeID(8)) 
-  END ASSOCIATE
-END DO
-DEALLOCATE(U_local)
+    ASSOCIATE( NodeID => GEO%ElemToNodeID(:,iElem) )
+      ! Copy values from equidistant distribution to Nodees
+      NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * CellLocNodes_Volumes(NodeID(1))
+      NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * CellLocNodes_Volumes(NodeID(2))
+      NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * CellLocNodes_Volumes(NodeID(3))
+      NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * CellLocNodes_Volumes(NodeID(4))
+      NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * CellLocNodes_Volumes(NodeID(5))
+      NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * CellLocNodes_Volumes(NodeID(6))
+      NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * CellLocNodes_Volumes(NodeID(7))
+      NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * CellLocNodes_Volumes(NodeID(8)) 
+    END ASSOCIATE
+  END DO
 END IF ! DG_SourceExtExists
 
 END SUBROUTINE ReadNodeSourceExtFromHDF5
