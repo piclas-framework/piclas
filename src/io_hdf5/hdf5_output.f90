@@ -63,7 +63,7 @@ END INTERFACE
 
 PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header,GatheredWriteArray
 PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
-PUBLIC :: WriteTimeAverage
+PUBLIC :: WriteTimeAverage,GenerateNextFileInfo
 !===================================================================================================================================
 
 CONTAINS
@@ -86,6 +86,7 @@ USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
 USE MOD_Particle_Vars          ,ONLY: UseAdaptive
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: E,Phi
@@ -102,7 +103,6 @@ USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectric
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -406,6 +406,8 @@ INTEGER,INTENT(IN) :: mode ! 1: before WriteAdditionalElemData() is called
 #ifdef PARTICLES
 REAL          :: timediff
 INTEGER       :: iSpec
+#else
+INTEGER       :: dummy ! dummy variable for compiler warning suppression
 #endif /*PARTICLES*/
 !===================================================================================================================================
 
@@ -431,6 +433,12 @@ IF (CalcCoupledPower.AND.(timediff.GT.0.)) THEN
   END DO
 END IF
 #endif /*PARTICLES*/
+
+#if !(PARTICLES)
+! Suppress compiler warning
+RETURN
+dummy=mode
+#endif /*!(PARTICLES)*/
 
 END SUBROUTINE ModifyElemData
 
