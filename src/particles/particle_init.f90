@@ -1082,6 +1082,7 @@ USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_VarTimeStep   ,ONLY: VarTimeStep_CalcElemFacs
 USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
 USE MOD_part_RHS               ,ONLY: InitPartRHS
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

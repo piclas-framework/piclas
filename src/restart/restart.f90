@@ -295,6 +295,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Particle_Tracking      ,ONLY: ParticleCollectCharges
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition, PartSourceOld
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #endif /*PARTICLES*/
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face

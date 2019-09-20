@@ -24,6 +24,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Dielectric region damping factor
 LOGICAL             :: DoDielectric                   ! True/false switch for Dielectric calculation procedures
+LOGICAL             :: DoDielectricSurfaceCharge      ! Flag set automatically if dielectric boundaries are used
 LOGICAL             :: DielectricFluxNonConserving    ! True/false switch for using conserving or non-conserving fluxes at
 !                                                     !dielectric interfaces between a dielectric region and vacuum
 LOGICAL             :: DielectricInitIsDone           ! Initialization flag

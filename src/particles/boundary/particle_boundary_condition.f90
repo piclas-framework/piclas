@@ -77,7 +77,7 @@ USE MOD_TimeDisc_Vars            ,ONLY: RK_a
 USE MOD_Particle_Vars            ,ONLY: PartIsImplicit
 USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 #endif /*IMPA*/
-USE MOD_Dielectric_Vars          ,ONLY: DoDielectric
+USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
 USE MOD_PICDepo_Tools            ,ONLY: DepositParticleOnNodes
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_Part_Tools               ,ONLY: CreateParticle

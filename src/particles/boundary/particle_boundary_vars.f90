@@ -260,7 +260,6 @@ END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries
 INTEGER                                  :: nAdaptiveBC
-LOGICAL                                  :: DoDielectricSurfaceCharge     ! Flag set automatically if dielectric boundaries are used
 TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
 
 INTEGER                                  :: nAuxBCs                     ! number of aux. BCs that are checked during tracing

@@ -68,6 +68,7 @@ USE MOD_PICDepo_MPI            ,ONLY: MPIBackgroundMeshInit
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Mesh_Vars              ,ONLY: Vdm_EQ_N
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1386,7 +1387,7 @@ USE MOD_PICDepo_MPI            ,ONLY: MPISourceExchangeBGM
 #else /*NOT USE_MPI*/
 USE MOD_PICDepo_MPI            ,ONLY: PeriodicSourceExchange
 #endif /*USE_MPI*/
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectric
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
