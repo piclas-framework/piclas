@@ -593,7 +593,7 @@ IF(DoRestart)THEN
   ! NodeSourceExt (external/additional charge source terms)
   ! ------------------------------------------------
 #if PARTICLES
-  CALL ReadNodeSourceExtFromHDF5()
+  IF(DoDielectricSurfaceCharge) CALL ReadNodeSourceExtFromHDF5()
 #endif /*PARTICLES*/
 
 

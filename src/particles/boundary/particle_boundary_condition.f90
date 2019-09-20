@@ -145,7 +145,7 @@ CASE(2) !PartBound%ReflectiveBC)
   IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PorousReflection)
 
   !---- Dielectric particle-surface interaction
-  IF(DoDielectric.AND.PartBound%Dielectric(PartBound%MapToPartBC(BC(SideID))))THEN ! deposit charge on surface
+  IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(PartBound%MapToPartBC(BC(SideID))))THEN ! deposit charge on surface
     IF(.NOT.PDM%ParticleInside(iPart))THEN
       IPWRITE (*,*) "iPart  :", iPart
       IPWRITE (*,*) "ElemID :", ElemID

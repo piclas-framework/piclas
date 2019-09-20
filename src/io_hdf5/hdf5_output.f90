@@ -369,7 +369,7 @@ CALL WritePMLDataToHDF5(FileName)
 
 #if PARTICLES
 ! Write NodeSourceExt (external charge density) field to HDF5 file
-IF(DoDielectric) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
+IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
 #endif /*PARTICLES*/
 
 EndT=PICLASTIME()

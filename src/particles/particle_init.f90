@@ -2183,6 +2183,7 @@ END IF
 !--
 ALLOCATE(PartBound%Dielectric(1:nPartBound))
 PartBound%Dielectric=.FALSE.
+DoDielectricSurfaceCharge=.FALSE.
 
 PartMeshHasPeriodicBCs=.FALSE.
 #if defined(IMPA) || defined(ROS)
@@ -2282,6 +2283,8 @@ DO iPartBound=1,nPartBound
         CALL abort(&
             __STAMP__&
             ,'PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies: PartBound%Dielectric=T requires supplying species swap for every species!')
+      ELSE
+        DoDielectricSurfaceCharge=.TRUE.
       END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies
     END IF ! PartBound%Dielectric(iPartBound)
   CASE('periodic')

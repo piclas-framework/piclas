@@ -271,10 +271,12 @@ CASE('cell_volweight_mean', 'cell_volweight_mean2')
   FindNeighbourElems = .TRUE.
 
   ! Additional source for cell_volweight_mean (external or surface charge)
-  ALLOCATE(NodeSourceExt(1:nNodes))
-  NodeSourceExt = 0.0
-  ALLOCATE(NodeSourceExtTmp(1:nNodes))
-  NodeSourceExtTmp = 0.0
+  IF(DoDielectricSurfaceCharge)THEN
+    ALLOCATE(NodeSourceExt(1:nNodes))
+    NodeSourceExt = 0.0
+    ALLOCATE(NodeSourceExtTmp(1:nNodes))
+    NodeSourceExtTmp = 0.0
+  END IF ! DoDielectricSurfaceCharge
 
   ! Allocate and determine Vandermonde mapping from equidistant (visu) to NodeType node set
   ALLOCATE(Vdm_EQ_N(0:PP_N,0:1))
@@ -1620,6 +1622,8 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
   ! Return here for 2nd Deposition() call as it is not required for this deposition method, 
   ! because the MPI communication is done here directly
   IF(.NOT.doInnerParts) RETURN
+
+  ! Allocate NodeSource array and deallocate at the end of this procedure
   ALLOCATE(NodeSource(SourceDim:4,1:nNodes))
   NodeSource = 0.0
 
@@ -1668,18 +1672,19 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
     CALL AddHaloNodeData(NodeSource(3,:))
   END IF
   CALL AddHaloNodeData(NodeSource(4,:))
-  IF(DoDielectric)THEN
+  IF(DoDielectricSurfaceCharge)THEN
     CALL AddHaloNodeData(NodeSourceExtTmp)
-  END IF
+  END IF ! DoDielectricSurfaceCharge
 #endif /*USE_MPI*/
 
-  IF(DoDielectric)THEN
+  IF(DoDielectricSurfaceCharge)THEN
     NodeSourceExt    = NodeSourceExt + NodeSourceExtTmp
     NodeSourceExtTmp = 0.
-  END IF
 
-  ! Add external node source (e.g. surface charging)
-  IF(DoDielectric) NodeSource(4,:) = NodeSource(4,:) + NodeSourceExt
+    ! Add external node source (e.g. surface charging)
+    NodeSource(4,:) = NodeSource(4,:) + NodeSourceExt
+  END IF ! DoDielectricSurfaceCharge
+
 
 
   ! Currently also "Nodes" are included in time measurement that is averaged across all elements. Can this be improved?
