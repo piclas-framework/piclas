@@ -1479,7 +1479,7 @@ END IF
 SELECT CASE(TRIM(DepositionType))
 CASE('nearest_blurrycenter')
   ! TODO: Info why and under which conditions the following 'RETURN' is called
-  IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
+  IF((doInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   ALLOCATE(ElemSource(SourceDim:4,1:nElems))
   ElemSource=0.0
 #if USE_LOADBALANCE
@@ -1617,6 +1617,9 @@ CASE('cell_volweight')
 #endif /*USE_LOADBALANCE*/
  DEALLOCATE(BGMSourceCellVol)
 CASE('cell_volweight_mean','cell_volweight_mean2')
+  ! Return here for 2nd Deposition() call as it is not required for this deposition method, 
+  ! because the MPI communication is done here directly
+  IF(.NOT.doInnerParts) RETURN
   ALLOCATE(NodeSource(SourceDim:4,1:nNodes))
   NodeSource = 0.0
 
@@ -1665,12 +1668,15 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
     CALL AddHaloNodeData(NodeSource(3,:))
   END IF
   CALL AddHaloNodeData(NodeSource(4,:))
-  IF(DoDielectric) THEN
+  IF(DoDielectric)THEN
     CALL AddHaloNodeData(NodeSourceExtTmp)
-    NodeSourceExt = NodeSourceExt + NodeSourceExtTmp
-    NodeSourceExtTmp = 0.
   END IF
 #endif /*USE_MPI*/
+
+  IF(DoDielectric)THEN
+    NodeSourceExt    = NodeSourceExt + NodeSourceExtTmp
+    NodeSourceExtTmp = 0.
+  END IF
 
   ! Add external node source (e.g. surface charging)
   IF(DoDielectric) NodeSource(4,:) = NodeSource(4,:) + NodeSourceExt
