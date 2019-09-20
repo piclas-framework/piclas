@@ -219,6 +219,31 @@ For surface sampling output, where the surface is split into, e.g., $3\times3$ s
 
 where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over 200 interations.
 
+### Deposition of Charges on Dielectric Surfaces
+
+Charged particles can be absorbed (or reflected and leave their charge behind) at dielectric surfaces 
+when using the deposition method `cell_volweight_mean`. The boundary can be used by specifying 
+
+    ```
+    Part-Boundary1-Condition         = reflective
+    Part-Boundary1-Dielectric        = T
+    Part-Boundary1-NbrOfSpeciesSwaps = 3
+    Part-Boundary1-SpeciesSwaps1     = (/1,0/) ! e-
+    Part-Boundary1-SpeciesSwaps2     = (/2,2/) ! Ar
+    Part-Boundary1-SpeciesSwaps3     = (/3,2/) ! Ar+
+    ```
+    
+which sets the boundary dielectric and the given species swap parameters effectively remove 
+electrons ($e^{-}$) on impact, reflect $Ar$ atoms and neutralize $Ar^{+}$ ions by swapping these to $Ar$ atoms. 
+Note that currently only singly charged particles can be handled this way. When multiple charged 
+particles would be swapped, their complete charge mus be deposited at the moment.
+
+The boundary must also be specified as an *inner* boundary via
+
+    BoundaryName                     = BC_INNER
+    BoundaryType                     = (/100,0/)
+
+or directly in the *hopr.ini* file that is used for creating the mesh.
 
 ## Particle Initialization & Emission
 
