@@ -483,8 +483,8 @@ userguide:
   tags:
     - withmodules-concurrent
   script:
-    - cd doc/userguide ; make; cd ..
-    - cd doc/developerguide ; make; cd ..
+    - cd doc/userguide ; make; cd ../..
+    - cd doc/developerguide ; make; cd ../..
     #- if [ -n "${DO_DEPLOY}" ]; then scp -r userguide flexi@euler:~/homepage/. ; fi
   artifacts:
     name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
