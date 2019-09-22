@@ -186,7 +186,7 @@ ELSE ! find all elements located outside of 'xyzPhysicalMinMax'
 END IF
 
 ! find all faces in the PML region
-CALL FindInterfacesInRegion(isPMLFace,isPMLInterFace,isPMLElem)
+CALL FindInterfacesInRegion(isPMLFace,isPMLInterFace,isPMLElem,info_opt='find all faces in the PML region')
 
 ! Get number of PML Elems, Faces and Interfaces. Create Mappngs PML <-> physical region
 CALL CountAndCreateMappings('PML',&

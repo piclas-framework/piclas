@@ -321,7 +321,7 @@ END IF
 END SUBROUTINE  FindElementInRegion
 
 
-SUBROUTINE FindInterfacesInRegion(isFace,isInterFace,isElem)
+SUBROUTINE FindInterfacesInRegion(isFace,isInterFace,isElem,info_opt)
 !===================================================================================================================================
 !> Check if a face is in a special region (e.g. Dielectric) and/or connects a special region (e.g. Dielectric) to the physical
 !> region. This is used, e.g., for dielectric or PML regions
@@ -336,27 +336,29 @@ SUBROUTINE FindInterfacesInRegion(isFace,isInterFace,isElem)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
+USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Mesh_Vars              ,ONLY: nSides,nBCSides
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 #if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
-USE MOD_Mesh_Vars              ,ONLY: NGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)               :: isElem(1:PP_nElems) ! True/False element: special region
+LOGICAL,INTENT(IN)                   :: isElem(1:PP_nElems) ! True/False element: special region
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: info_opt            ! Optional information regarding the type of faces/interfaces to be found
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-LOGICAL,ALLOCATABLE,INTENT(INOUT):: isFace(:)           ! True/False face: special region <-> special region
-LOGICAL,ALLOCATABLE,INTENT(INOUT):: isInterFace(:)      ! True/False face: special region <-> physical region (or vice versa)
+LOGICAL,ALLOCATABLE,INTENT(INOUT) :: isFace(:)      ! True/False face: special region <-> special region
+LOGICAL,ALLOCATABLE,INTENT(INOUT) :: isInterFace(:) ! True/False face: special region <-> physical region (or vice versa)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides):: isFace_Slave,isFace_Master,isFace_combined ! the dimension is only used because of
-                                                                                      ! the prolong to face routine and MPI logic
-INTEGER                                 :: iSide
+REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides) :: isFace_Slave,isFace_Master,isFace_combined ! the dimension is only used because of
+                                                                                       ! the prolong to face routine and MPI logic
+INTEGER                                  :: iSide ! Side iterator
+CHARACTER(LEN=255)                       :: info  ! Output info on failure
 !===================================================================================================================================
 ! General workflow:
 ! 1.  initialize Master, Slave and combined side array (it is a dummy array for which only a scalar value is communicated)
@@ -427,6 +429,12 @@ DO iSide=1,nSides
         isInterFace(iSide)=.TRUE. ! set all mixed sides as InterFaces, exclude BCs later on
     END IF
   ELSEIF(isFace_combined(1,0,0,iSide).LT.0.)THEN
+    IF(PRESENT(info_opt))THEN
+      info=": "//TRIM(info_opt)
+    ELSE
+      info=''
+    END IF ! PRESENT(info_opt)
+    IPWRITE (*,*) " ERROR in FindInterfacesInRegion()"//TRIM(info)
     IPWRITE (*,*) "X: BezierControlPoints3D(1,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(1,0:NGeo,0:NGeo,iSide)
     IPWRITE (*,*) "Y: BezierControlPoints3D(2,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(2,0:NGeo,0:NGeo,iSide)
     IPWRITE (*,*) "Z: BezierControlPoints3D(3,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(3,0:NGeo,0:NGeo,iSide)
