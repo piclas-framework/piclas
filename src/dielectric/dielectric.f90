@@ -55,7 +55,7 @@ CALL prms%CreateLogicalOption(  'DielectricFluxNonConserving'  , 'Use non-conser
                                                                //'dielectric region and vacuum' , '.FALSE.')
 CALL prms%CreateRealOption(     'DielectricEpsR'               , 'Relative permittivity' , '1.')
 CALL prms%CreateRealOption(     'DielectricMuR'                , 'Relative permeability' , '1.')
-CALL prms%CreateLogicalOption(  'DielectricNoParticles'        , 'Do not insert/emit particles into dielectric regions' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'DielectricNoParticles'        , 'Do not insert/emit particles into dielectric regions' , '.TRUE.')
 CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Test cases, e.g., "FishEyeLens" or "FH_lens"' , 'default')
 CALL prms%CreateRealOption(     'DielectricRmax'               , 'Radius parameter for functions' , '1.')
 CALL prms%CreateLogicalOption(  'DielectricCheckRadius'        , 'Use additional parameter "DielectricRadiusValue" for checking'&
@@ -79,12 +79,12 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars
-USE MOD_HDF5_output     ,ONLY: WriteDielectricGlobalToHDF5
-USE MOD_Equation_Vars   ,ONLY: c
-USE MOD_Interfaces      ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
-USE MOD_Mesh            ,ONLY: GetMeshMinMaxBoundaries
-#if !(USE_HDG)
-USE MOD_Equation_Vars   ,ONLY: c_corr
+USE MOD_HDF5_Output_Tools ,ONLY: WriteDielectricGlobalToHDF5
+USE MOD_Equation_Vars     ,ONLY: c
+USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
+USE MOD_Mesh              ,ONLY: GetMeshMinMaxBoundaries
+#if ! (USE_HDG)
+USE MOD_Equation_Vars     ,ONLY: c_corr
 #endif /*if not USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -159,7 +159,7 @@ ELSE ! find all elements located outside of 'xyzPhysicalMinMaxDielectric'
 END IF
 
 ! find all faces in the Dielectric region
-CALL FindInterfacesInRegion(isDielectricFace,isDielectricInterFace,isDielectricElem)
+CALL FindInterfacesInRegion(isDielectricFace,isDielectricInterFace,isDielectricElem,info_opt='find all faces in the Dielectric region')
 
 ! Get number of Dielectric Elems, Faces and Interfaces. Create Mappngs Dielectric <-> physical region
 CALL CountAndCreateMappings('Dielectric',&

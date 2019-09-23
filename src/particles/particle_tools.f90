@@ -345,6 +345,7 @@ newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+1)
 IF (newParticleID .EQ. 0) CALL abort(&
 __STAMP__&
 ,'ERROR in CreateParticle: newParticleID.EQ.0 - maximum nbr of particles reached?')
+PDM%ParticleVecLength = PDM%ParticleVecLength + 1 ! Increase particle vector length
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
 
 PartSpecies(newParticleID) = Species

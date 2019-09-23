@@ -1275,7 +1275,7 @@ ELSE !CollisMode.GT.0
       END IF
       ALLOCATE(DSMC%CalcVibProb(1:nSpecies,1:3))
       DSMC%QualityFacSampVib = 0.
-      DSMC%QualityFacSampVibSamp = 0.
+      DSMC%QualityFacSampVibSamp = 0
       DSMC%CalcVibProb = 0.
     END IF
     CALL SetVarVibProb2Elems()
@@ -1296,7 +1296,7 @@ ELSE !CollisMode.GT.0
     END IF
     ALLOCATE(DSMC%CalcRotProb(1:nSpecies,1:3))
     DSMC%QualityFacSampRot = 0.
-    DSMC%QualityFacSampRotSamp = 0.
+    DSMC%QualityFacSampRotSamp = 0
     DSMC%CalcRotProb = 0.
   END IF
 

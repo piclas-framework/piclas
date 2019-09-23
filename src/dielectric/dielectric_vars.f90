@@ -24,10 +24,11 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Dielectric region damping factor
 LOGICAL             :: DoDielectric                   ! True/false switch for Dielectric calculation procedures
+LOGICAL             :: DoDielectricSurfaceCharge      ! Flag set automatically if dielectric boundaries are used
 LOGICAL             :: DielectricFluxNonConserving    ! True/false switch for using conserving or non-conserving fluxes at
 !                                                     !dielectric interfaces between a dielectric region and vacuum
 LOGICAL             :: DielectricInitIsDone           ! Initialization flag
-LOGICAL             :: DielectricNoParticles          ! Do not insert/emit particles into dielectric regions (default=F).
+LOGICAL             :: DielectricNoParticles          ! Do not insert/emit particles into dielectric regions (default=T).
 LOGICAL,ALLOCATABLE :: isDielectricElem(:)            ! True if iElem is an element located within the Dielectric.
 !                                                     ! This vector is allocated to (region.1:PP_nElems)
 LOGICAL,ALLOCATABLE :: isDielectricFace(:)            ! True if iFace is a Face located within or on the boarder (interface) of the
@@ -71,5 +72,7 @@ LOGICAL                               :: poyntingusemur_inv             ! True/f
 !                                                                       ! Poynting vector planes on the same face
 REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_MuR_Master_inv      ! face array containing 1./MuR for each DOF
 REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_MuR_Slave_inv
+! Charges on dielectric surfaces
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: NodeSourceExtGlobal      ! Write NodeSourceExt (external charge density) field to HDF5 file
 !===================================================================================================================================
 END MODULE MOD_Dielectric_Vars

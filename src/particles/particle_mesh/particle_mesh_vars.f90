@@ -80,9 +80,9 @@ LOGICAL,ALLOCATABLE :: IsLocalDepositionBCElem(:)             ! is an element wh
                                                               ! would result in the truncation of the shape function at the boundary.
 TYPE tElemHaloInfo
   INTEGER,ALLOCATABLE            :: ElemHaloInfo(:)           !< Contains information regarding the halo region of each rank
-                                                              !< ElemHaloInfo = -1            : element not in list
-                                                              !<              = 0             : halo elements
-                                                              !<              = 1 to PP_nElems: local elements
+                                                              !< ElemHaloInfo = 0                           : element not in list
+                                                              !<              = -nTotalElems to -PP_nElems  : halo elements (negative numbers)
+                                                              !<              = 1 to PP_nElems              : local elements
                                                               !< the default value of this variable is FALSE
 END TYPE
 TYPE(tElemHaloInfo),ALLOCATABLE      :: ElemHaloInfoProc(:)   ! ElemHaloInfo array for each rank
