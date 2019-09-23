@@ -211,10 +211,10 @@ SurfMesh%nInnerSides=0
 DO iSide=1,nBCSides
   IF(BC(iSide).EQ.0) CYCLE
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
-    SurfMesh%nSides = SurfMesh%nSides + 1
-    SurfMesh%nMasterSides = SurfMesh%nMasterSides + 1
-    SurfMesh%nBCSides = SurfMesh%nBCSides + 1
-    SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nSides
+    SurfMesh%nSides                = SurfMesh%nSides + 1
+    SurfMesh%nMasterSides          = SurfMesh%nMasterSides + 1
+    SurfMesh%nBCSides              = SurfMesh%nBCSides + 1
+    SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
   END IF
 END DO
 ! own inner BCsides (inner sides with refelctive PartBC)
@@ -226,10 +226,10 @@ DO iSide=nBCSides+1,nSides
   IF(BC(iSide).EQ.0) CYCLE
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
     IF(PartSideToElem(S2E_ELEM_ID,iSide).NE.-1) THEN
-      SurfMesh%nSides = SurfMesh%nSides + 1
-      SurfMesh%nMasterSides = SurfMesh%nMasterSides + 1
-      SurfMesh%nInnerSides = SurfMesh%nInnerSides + 1  ! increment only for MasterSides
-      SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nSides
+      SurfMesh%nSides                = SurfMesh%nSides + 1
+      SurfMesh%nMasterSides          = SurfMesh%nMasterSides + 1
+      SurfMesh%nInnerSides           = SurfMesh%nInnerSides + 1  ! increment only for MasterSides
+      SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
       IF(PartSideToElem(S2E_NB_ELEM_ID,iSide).EQ.-1) THEN
         ElemOfInnerBC(iSide)= PartSideToElem(S2E_ELEM_ID,iSide)
       END IF
