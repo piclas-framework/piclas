@@ -246,15 +246,10 @@ END IF
 END SUBROUTINE InitMPIvars
 
 
+!===================================================================================================================================
+!> Subroutine does the receive operations for the face data that has to be exchanged between processors.
+!===================================================================================================================================
 SUBROUTINE StartReceiveMPIData(firstDim,FaceData,LowerBound,UpperBound,MPIRequest,SendID)
-!===================================================================================================================================
-! Subroutine does the receive operations for the face data that has to be exchanged between processors.
-! FaceData: the complete face data (for inner, BC and MPI sides).
-! DataSize: size of one entry in array (e.g. one side: nVar*(N+1)*(N+1))
-! LowerBound / UpperBound: lower side index and upper side index for last dimension of FaceData
-! MPIRequest: communication handles
-! SendID: defines the send / receive direction -> 1=send MINE / receive YOUR  2=send YOUR / receive MINE
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -263,12 +258,16 @@ USE MOD_MPI_Vars
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)          :: SendID
-INTEGER,INTENT(IN)          :: firstDim,LowerBound,UpperBound
+INTEGER,INTENT(IN)  :: SendID                                                 !< defines the send / receive direction -> 1=send MINE
+                                                                              !< / receive YOUR, 3=send YOUR / receive MINE
+INTEGER,INTENT(IN)  :: firstDim                                               !< size of one entry in array (e.g. one side: 
+                                                                              !< nVar*(N+1)*(N+1))
+INTEGER,INTENT(IN)  :: LowerBound                                             !< lower side index for last dimension of FaceData
+INTEGER,INTENT(IN)  :: UpperBound                                             !< upper side index for last dimension of FaceData
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER,INTENT(OUT)         :: MPIRequest(nNbProcs)
-REAL,INTENT(OUT)            :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound)
+INTEGER,INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
+REAL,INTENT(OUT)    :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound) !< the complete face data (for inner, BC and MPI sides).
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
