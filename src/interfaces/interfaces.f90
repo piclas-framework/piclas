@@ -343,6 +343,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_MPI_Vars
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif
+!USE MOD_Mesh_Vars             ,ONLY: nBCSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -375,12 +376,24 @@ ALLOCATE(isInterFace(1:nSides))
 isFace=.FALSE.
 isInterFace=.FALSE.
 ! For MPI sides send the info to all other procs
-isFace_Slave=-3.
-isFace_Master=-3.
-isFace_combined=-3.
+isFace_Slave    = -3.
+isFace_Master   = -3.
+isFace_combined = -3.
+
 
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
 CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.) ! Includes Mortar sides
+!      !DEBUGGING
+!      DO iSide = 1, nSides
+!        IF(iSide.LE.nBCSides)THEN
+!          WRITE (*,*) "iSide, Master, Slave =", iSide, isFace_Master(1,0,0,iSide), isFace_Slave(1,0,0,iSide)," (BC)"
+!        ELSE
+!          WRITE (*,*) "iSide, Master, Slave =", iSide, isFace_Master(1,0,0,iSide), isFace_Slave(1,0,0,iSide)
+!        END IF ! iSide.LE.nBCSides
+!        IF(isFace_Master(1,0,0,iSide).LT.0..OR.isFace_Slave(1,0,0,iSide).LT.0.)THEN
+!          EXIT
+!        END IF ! isFace_Master(1,0,0,iSide).LT.0..OR.isFace_Slave(1,0,0,iSide).LT.0.
+!      END DO ! iSide = 1, nSides
 #if USE_MPI
 CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)  ! Includes Mortar sides
 
@@ -402,6 +415,8 @@ CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.TRUE.)
 CALL StartReceiveMPIData(1,isFace_Master,1,nSides ,RecRequest_U,SendID=1) ! Receive YOUR
 CALL StartSendMPIData(   1,isFace_Master,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=1) !Send YOUR -receive MINE
+!#else ! is this required for MPI=OFF?
+!isFace_Slave=isFace_Master
 #endif /*USE_MPI*/
 
 
@@ -411,6 +426,19 @@ CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=1) !Send YOUR -re
 ! Build four-states-array for the 4 different combinations phy/phy(0), spec/phy(1), phy/spec(2) and spec/spec(3) a face can be.
 !isFace_combined=2*isFace_Master+isFace_Slave
 isFace_combined=2*isFace_Slave+isFace_Master
+
+!      !DEBUGGING
+!      DO iSide = 1, nSides
+!        IF(iSide.LE.nBCSides)THEN
+!          WRITE (*,*) "iSide, isFace_combined =", iSide, isFace_combined(1,0,0,iSide)," (BC)"
+!        ELSE
+!          WRITE (*,*) "iSide, isFace_combined =", iSide, isFace_combined(1,0,0,iSide)
+!        END IF ! iSide.LE.nBCSides
+!        IF(isFace_combined(1,0,0,iSide).LT.0.)THEN
+!          EXIT
+!        END IF ! isFace_Master(1,0,0,iSide).LT.0..OR.isFace_Slave(1,0,0,iSide).LT.0.
+!      END DO ! iSide = 1, nSides
+
 ! use numbering:  2*isFace_Slave+isFace_Master  = 1: Master side is special (e.g. dielectric)
 !                                                 2: Slave  side is special (e.g. dielectric)
 !                                                 3: both sides are special (e.g. dielectric) sides
@@ -428,16 +456,31 @@ DO iSide=1,nSides
        (NINT(isFace_combined(1,0,0,iSide)).EQ.2))THEN
         isInterFace(iSide)=.TRUE. ! set all mixed sides as InterFaces, exclude BCs later on
     END IF
-  ELSEIF(isFace_combined(1,0,0,iSide).LT.0.)THEN
+  ! The following sanity check is currently deactivated (numbers cannot be <-6.)
+  ELSEIF(isFace_combined(1,0,0,iSide).LT.-100.)THEN ! set back to 0. when fixed
     IF(PRESENT(info_opt))THEN
       info=": "//TRIM(info_opt)
     ELSE
       info=''
     END IF ! PRESENT(info_opt)
-    IPWRITE (*,*) " ERROR in FindInterfacesInRegion()"//TRIM(info)
-    IPWRITE (*,*) "X: BezierControlPoints3D(1,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(1,0:NGeo,0:NGeo,iSide)
-    IPWRITE (*,*) "Y: BezierControlPoints3D(2,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(2,0:NGeo,0:NGeo,iSide)
-    IPWRITE (*,*) "Z: BezierControlPoints3D(3,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(3,0:NGeo,0:NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " ERROR in FindInterfacesInRegion()"//TRIM(info)
+    IPWRITE (UNIT_stdOut,*) " iSide =", iSide
+    IPWRITE (UNIT_stdOut,*) " X: BezierControlPoints3D(1,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(1,0:NGeo,0:NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " Y: BezierControlPoints3D(2,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(2,0:NGeo,0:NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " Z: BezierControlPoints3D(3,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(3,0:NGeo,0:NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " Corner nodes are:"
+    IPWRITE (UNIT_stdOut,*) " X: BezierControlPoints3D(1,0/NGeo,0/NGeo,iSide) =", BezierControlPoints3D(1,0,0,iSide),&
+                                                                                  BezierControlPoints3D(1,0,NGeo,iSide),&
+                                                                                  BezierControlPoints3D(1,NGeo,0,iSide),&
+                                                                                  BezierControlPoints3D(1,NGeo,NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " X: BezierControlPoints3D(2,0/NGeo,0/NGeo,iSide) =", BezierControlPoints3D(2,0,0,iSide),&
+                                                                                  BezierControlPoints3D(2,0,NGeo,iSide),&
+                                                                                  BezierControlPoints3D(2,NGeo,0,iSide),&
+                                                                                  BezierControlPoints3D(2,NGeo,NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " X: BezierControlPoints3D(3,0/NGeo,0/NGeo,iSide) =", BezierControlPoints3D(3,0,0,iSide),&
+                                                                                  BezierControlPoints3D(3,0,NGeo,iSide),&
+                                                                                  BezierControlPoints3D(3,NGeo,0,iSide),&
+                                                                                  BezierControlPoints3D(3,NGeo,NGeo,iSide)
     CALL abort(&
     __STAMP__&
     ,'isFace_combined(1,0,0,iSide).LT.0. -> ',RealInfoOpt=isFace_combined(1,0,0,iSide))
@@ -569,7 +612,7 @@ INTEGER                 :: iMortar,nMortars
 INTEGER                 :: firstMortarSideID,lastMortarSideID
 INTEGER                 :: MortarSideID,SideID,iSide,flip
 !===================================================================================================================================
-! get 1st and last SideID depeding on doMPISides=T/F
+! get 1st and last SideID depending on doMPISides=T/F
 firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
  lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
 
