@@ -111,6 +111,7 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
 USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList,PartElemToElemAndSide
 USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping,TriaTracking
 USE MOD_DSMC_Symmetry2D         ,ONLY:DSMC_2D_CalcSymmetryArea
+USE MOD_Mesh_Vars               ,ONLY:MortarType
 #if USE_MPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 #else
@@ -225,6 +226,12 @@ END DO
 DO iSide=nBCSides+1,nSides
   IF(BC(iSide).EQ.0) CYCLE
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
+! Mortar and InnerBC can not be used in combination
+    IF(MortarType(1,iSide).NE.-1) THEN
+      CALL abort(&
+__STAMP__&
+,' Error in assignment of innerBCSide: Mortar and InnerBC can not be used in combination', iSide)
+    END IF
     IF(PartSideToElem(S2E_ELEM_ID,iSide).NE.-1) THEN
       SurfMesh%nSides                = SurfMesh%nSides + 1
       SurfMesh%nMasterSides          = SurfMesh%nMasterSides + 1
@@ -253,7 +260,7 @@ END DO
 ALLOCATE(SurfMesh%innerBCSideToHaloMap(1:nTotalSides))
 SurfMesh%innerBCSideToHaloMap(1:nTotalSides)=-1
 
-
+#if USE_MPI
 ! halo sides and Mapping for SlaveSide
 SurfMesh%nTotalSides=SurfMesh%nSides
 DO iHaloSide=nSides+1,nTotalSides
@@ -289,9 +296,11 @@ __STAMP__&
   END IF
 END DO
 ! end sanity check
+#endif
 
 DEALLOCATE(ElemOfInnerBC)
 DEALLOCATE(NBElemOfHalo)
+DEALLOCATE(IsSlaveSide)
 
 ALLOCATE(SurfMesh%SurfIDToSideID(1:SurfMesh%nTotalSides))
 SurfMesh%SurfIDToSideID(:) = -1
