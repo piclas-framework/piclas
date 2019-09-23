@@ -1092,7 +1092,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,Aux
 USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO, nTotalElems
 USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, TriaSurfaceFlux
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas, RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas, RadialWeighting, ConsiderVolumePortions
 USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
 USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_PICInit                ,ONLY: InitPIC
@@ -2736,10 +2736,6 @@ halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 CALL InitFIBGM()
 
 !-- MacroPart
-nPointsMCVolumeEstimate = GETINT('Particles-nPointsMCVolumeEstimate')
-IF (nPointsMCVolumeEstimate.LT.1) CALL abort(&
-__STAMP__&
-,'nPointsMCVolumeEstimate is must be above 0')
 nMacroParticle = GETINT('MacroPart-nMacroParticle')
 IF (nMacroparticle.GT.0) THEN
   IF (DoRefMapping) CALL abort(&
@@ -2774,7 +2770,9 @@ ELSE
   MacroPartFluxesEnabled=.FALSE.
   CalcMPVolumePortion=.FALSE.
 END IF
+ConsiderVolumePortions=.FALSE.
 IF (UseMacropart) THEN
+  ConsiderVolumePortions=.TRUE.
   ALLOCATE(ElemHasMacroPart(1:nTotalElems, 1:nMacroParticle))
   ElemHasMacroPart(:,:)=.FALSE.
   MacroPartWriteElemData=GETLOGICAL('MacroPart-WriteElemData')
@@ -2782,6 +2780,12 @@ IF (UseMacropart) THEN
     CALL AddToElemData(ElementOut,'ElemHasMacroPart',LogArray=ElemHasMacroPart(:,1))
     CALL AddToElemData(ElementOut,'MPVolumePortion',RealArray=GEO%MPVolumePortion(:))
   END IF
+END IF
+IF (ConsiderVolumePortions) THEN
+  nPointsMCVolumeEstimate = GETINT('Particles-nPointsMCVolumeEstimate')
+  IF (nPointsMCVolumeEstimate.LT.1) CALL abort(&
+  __STAMP__&
+  ,'nPointsMCVolumeEstimate is must be above 0')
 END IF
 CALL MarkMacroPartElems()
 

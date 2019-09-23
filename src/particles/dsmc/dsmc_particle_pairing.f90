@@ -623,7 +623,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
-  USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, VarVibRelaxProb
+  USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, VarVibRelaxProb, ConsiderVolumePortions
   USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies,PartPosRef
   USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
   USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
@@ -641,6 +641,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
   INTEGER                       :: iPart, iLoop, nPart, iSpec
   REAL                          :: SpecPartNum(nSpecies)
   TYPE(tTreeNode), POINTER      :: TreeNode
+  REAL                          :: elemVolume
 !===================================================================================================================================
 
 SpecPartNum = 0.
@@ -668,7 +669,12 @@ IF (nPart.GT.1) THEN
               SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + GetParticleWeight(TreeNode%iPartIndx_Node(iLoop))
   END DO
 
-  DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem)))
+  IF (ConsiderVolumePortions) THEN
+    elemVolume=GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem))
+  ELSE
+    elemVolume=GEO%Volume(iElem)
+  END IF
+  DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
   ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
   IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
@@ -694,16 +700,16 @@ IF (nPart.GT.1) THEN
       DEALLOCATE(TreeNode%MappedPartStates)
     ELSE
       IF(DSMC%UseNearestNeighbour) THEN
-        CALL FindNearestNeigh(TreeNode%iPartIndx_Node    ,nPart,iElem, GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem)))
+        CALL FindNearestNeigh(TreeNode%iPartIndx_Node    ,nPart,iElem, elemVolume)
       ELSE
-        CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem)))
+        CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, elemVolume)
       END IF
     END IF
   ELSE  IF (nPart.GT.1) THEN
     IF(DSMC%UseNearestNeighbour) THEN
-      CALL FindNearestNeigh(TreeNode%iPartIndx_Node    ,nPart,iElem, GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem)))
+      CALL FindNearestNeigh(TreeNode%iPartIndx_Node    ,nPart,iElem, elemVolume)
     ELSE
-      CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem)))
+      CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, elemVolume)
     END IF
   END IF
 
@@ -731,7 +737,7 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Analyze,           ONLY : CalcMeanFreePath
-  USE MOD_DSMC_Vars,              ONLY : tTreeNode, DSMC, tNodeVolume
+  USE MOD_DSMC_Vars,              ONLY : tTreeNode, DSMC, tNodeVolume, ConsiderVolumePortions
   USE MOD_Particle_Vars,          ONLY : nSpecies, PartSpecies
   USE MOD_DSMC_Vars,              ONLY : ElemNodeVol
 ! IMPLICIT VARIABLE HANDLING
@@ -786,16 +792,27 @@ __STAMP__&
     CALL DSMC_CalcSubNodeVolumes(iElem, localDepth, ElemNodeVol(iElem)%Root)
   END IF
 
-  CALL CalcSubNodeMPVolumePortions(iElem, TreeNode%NodeDepth, ElemNodeVol(iElem)%Root)
+  IF (ConsiderVolumePortions) THEN
+    CALL CalcSubNodeMPVolumePortions(iElem, TreeNode%NodeDepth, ElemNodeVol(iElem)%Root)
 
-  NodeVolumeTemp(1) = NodeVol%SubNode1%Volume *(1.-NodeVol%SubNode1%MPVolumePortion)
-  NodeVolumeTemp(2) = NodeVol%SubNode2%Volume *(1.-NodeVol%SubNode2%MPVolumePortion)
-  NodeVolumeTemp(3) = NodeVol%SubNode3%Volume *(1.-NodeVol%SubNode3%MPVolumePortion)
-  NodeVolumeTemp(4) = NodeVol%SubNode4%Volume *(1.-NodeVol%SubNode4%MPVolumePortion)
-  NodeVolumeTemp(5) = NodeVol%SubNode5%Volume *(1.-NodeVol%SubNode5%MPVolumePortion)
-  NodeVolumeTemp(6) = NodeVol%SubNode6%Volume *(1.-NodeVol%SubNode6%MPVolumePortion)
-  NodeVolumeTemp(7) = NodeVol%SubNode7%Volume *(1.-NodeVol%SubNode7%MPVolumePortion)
-  NodeVolumeTemp(8) = NodeVol%SubNode8%Volume *(1.-NodeVol%SubNode8%MPVolumePortion)
+    NodeVolumeTemp(1) = NodeVol%SubNode1%Volume *(1.-NodeVol%SubNode1%MPVolumePortion)
+    NodeVolumeTemp(2) = NodeVol%SubNode2%Volume *(1.-NodeVol%SubNode2%MPVolumePortion)
+    NodeVolumeTemp(3) = NodeVol%SubNode3%Volume *(1.-NodeVol%SubNode3%MPVolumePortion)
+    NodeVolumeTemp(4) = NodeVol%SubNode4%Volume *(1.-NodeVol%SubNode4%MPVolumePortion)
+    NodeVolumeTemp(5) = NodeVol%SubNode5%Volume *(1.-NodeVol%SubNode5%MPVolumePortion)
+    NodeVolumeTemp(6) = NodeVol%SubNode6%Volume *(1.-NodeVol%SubNode6%MPVolumePortion)
+    NodeVolumeTemp(7) = NodeVol%SubNode7%Volume *(1.-NodeVol%SubNode7%MPVolumePortion)
+    NodeVolumeTemp(8) = NodeVol%SubNode8%Volume *(1.-NodeVol%SubNode8%MPVolumePortion)
+  ELSE
+    NodeVolumeTemp(1) = NodeVol%SubNode1%Volume
+    NodeVolumeTemp(2) = NodeVol%SubNode2%Volume
+    NodeVolumeTemp(3) = NodeVol%SubNode3%Volume
+    NodeVolumeTemp(4) = NodeVol%SubNode4%Volume
+    NodeVolumeTemp(5) = NodeVol%SubNode5%Volume
+    NodeVolumeTemp(6) = NodeVol%SubNode6%Volume
+    NodeVolumeTemp(7) = NodeVol%SubNode7%Volume
+    NodeVolumeTemp(8) = NodeVol%SubNode8%Volume
+  END IF
 
   DO iLoop = 1, 8
     IF (PartNumChildNode(iLoop).GT.1) THEN

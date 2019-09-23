@@ -607,6 +607,8 @@ TYPE(tHODSMC)             :: HODSMC
 REAL,ALLOCATABLE          :: DSMC_HOSolution(:,:,:,:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
 REAL,ALLOCATABLE          :: DSMC_VolumeSample(:)         !sampnum samples of volume in element
 
+LOGICAL                   :: ConsiderVolumePortions       ! Flag set in case volume portions are required, enables MC volume calc
+
 TYPE tTreeNode
 !  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
   TYPE (tTreeNode), POINTER       :: ChildNode       => null()       !8 Childnodes of Octree Treenode

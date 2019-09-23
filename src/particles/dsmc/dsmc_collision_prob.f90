@@ -42,6 +42,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
+  USE MOD_DSMC_Vars,              ONLY : ConsiderVolumePortions
   USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, PartState, VarTimeStep
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_TimeDisc_Vars,          ONLY : dt
@@ -76,7 +77,11 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   IF (PRESENT(NodeVolume)) THEN
     Volume = NodeVolume
   ELSE
-    Volume = GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem))
+    IF (ConsiderVolumePortions) THEN
+      Volume = GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem))
+    ELSE
+      Volume = GEO%Volume(iElem)
+    END IF
   END IF
 
   SpecNum1 = CollInf%Coll_SpecPartNum(iSpec_p1)
