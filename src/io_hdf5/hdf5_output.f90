@@ -2702,9 +2702,12 @@ USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: NodeSourceExtGlobal
 USE MOD_Mesh_Vars          ,ONLY: MeshFile,nGlobalElems,offsetElem,Vdm_EQ_N
 USE MOD_Globals_Vars       ,ONLY: ProgramName,FileVersion,ProjectName
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,CellLocNodes_Volumes
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,CellLocNodes_Volumes,NodeSourceExtTmp
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+#if USE_MPI
+USE MOD_Particle_MPI       ,ONLY: AddHaloNodeData
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2726,6 +2729,19 @@ ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='NodeSourceExt'
 NodeSourceExtGlobal=0.
 
+! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
+#if USE_MPI
+IF(MAXVAL(ABS(NodeSourceExtTmp)).LE.0.0)THEN
+  IPWRITE (*,*) "WriteNodeSourceExtToHDF5: NodeSourceExtTmp is zero"
+END IF ! MAXVAL(ABS(NodeSourceExtTmp)).GT.0.0
+CALL AddHaloNodeData(NodeSourceExtTmp)
+#endif /*USE_MPI*/
+
+! Add NodeSourceExtTmp values of the last boundary interaction
+NodeSourceExt    = NodeSourceExt + NodeSourceExtTmp
+NodeSourceExtTmp = 0.
+
+! Loop over all elements and store charge density values in equidistantly distributed nodes of N=1
 DO iElem=1,PP_nElems
   ASSOCIATE( NodeID => GEO%ElemToNodeID(:,iElem) )
     ! Copy values to equidistant distribution

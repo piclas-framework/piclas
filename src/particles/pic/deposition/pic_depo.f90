@@ -1677,12 +1677,15 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
     CALL AddHaloNodeData(NodeSource(3,:))
   END IF
   CALL AddHaloNodeData(NodeSource(4,:))
+
+  ! Communicate dielectric surface charges stored in NodeSourceExtTmp
   IF(DoDielectricSurfaceCharge)THEN
     CALL AddHaloNodeData(NodeSourceExtTmp)
   END IF ! DoDielectricSurfaceCharge
 #endif /*USE_MPI*/
 
   IF(DoDielectricSurfaceCharge)THEN
+    ! Update external node source containing dielectric surface charges and nullify
     NodeSourceExt    = NodeSourceExt + NodeSourceExtTmp
     NodeSourceExtTmp = 0.
 
