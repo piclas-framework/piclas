@@ -1462,9 +1462,9 @@ END IF
 #endif
 
 IF(doInnerParts)THEN
-  PartSource=0.0
-  firstPart=1
-  lastPart =PDM%ParticleVecLength
+  PartSource = 0.0
+  firstPart  = 1
+  lastPart   = PDM%ParticleVecLength
   !IF(firstPart.GT.lastPart) RETURN
 ELSE
 #if USE_MPI
@@ -1537,6 +1537,10 @@ CASE('nearest_blurrycenter')
 #endif /*USE_LOADBALANCE*/
   END IF ! .NOT. doInnerParts
 CASE('cell_volweight')
+  ! Return here for 2nd Deposition() call as it is not required for this deposition method, 
+  ! because the MPI communication is done here directly
+  IF(.NOT.doInnerParts) RETURN
+
   ALLOCATE(BGMSourceCellVol(SourceDim:4,0:1,0:1,0:1,1:nElems))
   BGMSourceCellVol(:,:,:,:,:) = 0.0
 #if USE_LOADBALANCE
