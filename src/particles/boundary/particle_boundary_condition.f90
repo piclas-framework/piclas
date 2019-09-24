@@ -64,7 +64,7 @@ USE MOD_Globals                  ,ONLY: Abort,myrank
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars            ,ONLY: PDM,PartSpecies, UseCircularInflow, UseAdaptive, Species
 USE MOD_Particle_Tracking_Vars   ,ONLY: TriaTracking
-USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC
+USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC,DoBoundaryParticleOutput
 USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType,epsilontol
 USE MOD_SurfaceModel             ,ONLY: ReactiveSurfaceTreatment
@@ -81,6 +81,7 @@ USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
 USE MOD_PICDepo_Tools            ,ONLY: DepositParticleOnNodes
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_Part_Tools               ,ONLY: CreateParticle
+USE MOD_Particle_Boundary_Tools  ,ONLY: BoundaryParticleOutput
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -107,11 +108,18 @@ __STAMP__&
 END IF
 IsSpeciesSwap=.FALSE.
 crossedBC    =.FALSE.
-! Select the corresponding boundary condition and calculate particle treatment
-SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
-!-----------------------------------------------------------------------------------------------------------------------------------
+
+ASSOCIATE( iBC => PartBound%MapToPartBC(BC(SideID)) )
+  ! Surface particle output to .h5
+  IF(DoBoundaryParticleOutput.AND.PartBound%BoundaryParticleOutput(iBC))THEN
+    CALL BoundaryParticleOutput(iPart,LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha)
+  END IF
+
+  ! Select the corresponding boundary condition and calculate particle treatment
+  SELECT CASE(PartBound%TargetBoundCond(iBC))
+  !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartBound%OpenBC)
-!----------------------------------------------------------------------------------------------------------------------------------
+  !----------------------------------------------------------------------------------------------------------------------------------
   IF (.NOT.TriaTracking) THEN
     IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
       SELECT CASE(SideType(SideID))
@@ -129,23 +137,23 @@ CASE(1) !PartBound%OpenBC)
   IF(UseAdaptive) THEN
     iSpec = PartSpecies(iPart)
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-      IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.PartBound%MapToPartBC(BC(SideID))) THEN
-          IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = &
-                                                                  Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
+      IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.iBC) THEN
+        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = &
+            Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
       END IF
     END DO
   END IF
   CALL RemoveParticle(iPart,alpha=alpha,crossedBC=crossedBC)
-!-----------------------------------------------------------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
-!-----------------------------------------------------------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------------------------------------------------------------
   !---- Treatment of adaptive and porous boundary conditions (deletion of particles in case of circular inflow or porous BC)
   PorousReflection = .FALSE.
   IF(UseCircularInflow) CALL SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,lengthPartTrajectory,flip,xi,eta)
   IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PorousReflection)
 
   !---- Dielectric particle-surface interaction
-  IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(PartBound%MapToPartBC(BC(SideID))))THEN ! deposit charge on surface
+  IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC))THEN ! deposit charge on surface
     ! Sanity checks
     IF(.NOT.PDM%ParticleInside(iPart))THEN
       IPWRITE (*,*) "iPart  :", iPart
@@ -178,7 +186,7 @@ CASE(2) !PartBound%ReflectiveBC)
   END IF
 
   !---- swap species?
-  IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
+  IF (PartBound%NbrOfSpeciesSwaps(iBC).gt.0) THEN
 #ifndef IMPA
     CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,flip=flip,TriNum=TriNum)
 #else
@@ -186,15 +194,15 @@ CASE(2) !PartBound%ReflectiveBC)
 #endif /*NOT IMPA*/
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! Particle did not Swap to species 0 (deleted particle -> particle is swapped to species 0)
-    IF (PartBound%Reactive(PartBound%MapToPartBC(BC(SideID)))) THEN
+    IF (PartBound%Reactive(iBC)) THEN
       ! Decide which interaction (reflection, reaction, adsorption)
       CALL ReactiveSurfaceTreatment(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
-                                    ,ReflectionIndex,opt_Reflected=crossedBC,TriNum=TriNum)
+          ,ReflectionIndex,opt_Reflected=crossedBC,TriNum=TriNum)
     ELSE
       ! simple reflection (Maxwellian scattering)
       ReflectionIndex=2 ! diffuse reflection
       CALL RANDOM_NUMBER(RanNum)
-      IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID))).OR.PorousReflection) ReflectionIndex=1 ! perfect reflection
+      IF(RanNum.GE.PartBound%MomentumACC(iBC).OR.PorousReflection) ReflectionIndex=1 ! perfect reflection
     END IF
     ! assign right treatment
     SELECT CASE (ReflectionIndex)
@@ -209,49 +217,50 @@ CASE(2) !PartBound%ReflectiveBC)
     CASE(3) ! reflection performed in reactive treatment routine
     CASE DEFAULT
       CALL abort(&
-__STAMP__&
-,'ERROR: wrong interaction case in Boundary Condition! ReflectionIndex=',IntInfoOpt=ReflectionIndex)
+          __STAMP__&
+          ,'ERROR: wrong interaction case in Boundary Condition! ReflectionIndex=',IntInfoOpt=ReflectionIndex)
     END SELECT
   END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
-!-----------------------------------------------------------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------------------------------------------------------------
   CALL PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID &
-                        ,ElemID,opt_perimoved=crossedBC,TriNum=TriNum) ! opt_reflected is peri-moved
+      ,ElemID,opt_perimoved=crossedBC,TriNum=TriNum) ! opt_reflected is peri-moved
 
-!-----------------------------------------------------------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) !PartBound%SimpleAnodeBC)
-!-----------------------------------------------------------------------------------------------------------------------------------
-CALL abort(&
-__STAMP__&
-,' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)',999,999.)
-!-----------------------------------------------------------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  CALL abort(&
+      __STAMP__&
+      ,' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)',999,999.)
+  !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(5) !PartBound%SimpleCathodeBC)
-!-----------------------------------------------------------------------------------------------------------------------------------
-CALL abort(&
-__STAMP__&
-,' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)',999,999.)
-!-----------------------------------------------------------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  CALL abort(&
+      __STAMP__&
+      ,' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)',999,999.)
+  !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(6) !PartBound%MPINeighborhoodBC)
-!-----------------------------------------------------------------------------------------------------------------------------------
-CALL abort(&
-__STAMP__&
-,' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
-!-----------------------------------------------------------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  CALL abort(&
+      __STAMP__&
+      ,' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
+  !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(10,11) !PartBound%SymmetryBC
-!-----------------------------------------------------------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------------------------------------------------------------
   CALL  PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
-                            ,opt_Symmetry=.TRUE.,opt_Reflected=crossedBC,TriNum=TriNum)
+      ,opt_Symmetry=.TRUE.,opt_Reflected=crossedBC,TriNum=TriNum)
 CASE(100) !PartBound%AnalyzeBC
-!-----------------------------------------------------------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------------------------------------------------------------
   CALL  SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,locSideID,ElemID &
-                    ,IsSpeciesSwap,opt_crossed=crossedBC)
+      ,IsSpeciesSwap,opt_crossed=crossedBC)
 
 CASE DEFAULT
-CALL abort(&
-__STAMP__&
-,' ERROR: PartBound not associated!. (unknown case)',999,999.)
+  CALL abort(&
+      __STAMP__&
+      ,' ERROR: PartBound not associated!. (unknown case)',999,999.)
 END SELECT !PartBound%MapToPartBC(BC(SideID)
+END ASSOCIATE
 
 END SUBROUTINE GetBoundaryInteraction
 

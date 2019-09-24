@@ -65,6 +65,10 @@ INTERFACE CountSurfaceImpact
   MODULE PROCEDURE CountSurfaceImpact
 END INTERFACE
 
+INTERFACE BoundaryParticleOutput
+  MODULE PROCEDURE BoundaryParticleOutput
+END INTERFACE
+
 PUBLIC :: AddPartInfoToSample
 PUBLIC :: CalcWallSample
 PUBLIC :: AnalyzeSurfaceCollisions
@@ -75,6 +79,7 @@ PUBLIC :: ALPHALIQUID
 PUBLIC :: BETALIQUID
 PUBLIC :: TSURUTACONDENSCOEFF
 PUBLIC :: CountSurfaceImpact
+PUBLIC :: BoundaryParticleOutput
 !===================================================================================================================================
 
 CONTAINS
@@ -555,6 +560,45 @@ SampWall(SurfSideID)%ImpactAngle(SpecID,p,q) = SampWall(SurfSideID)%ImpactAngle(
 SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) = SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) + MPF
 
 END SUBROUTINE CountSurfaceImpact
+
+
+SUBROUTINE BoundaryParticleOutput(iPart,PartPos) 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Save particle position, velocity and species to PartDataBoundary container for writing to .h5 later
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals                ,ONLY: abort
+USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState,PDM
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,PartStateBoundarySpec
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)  :: iPart
+REAL,INTENT(IN)     :: PartPos(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL              :: MPF
+!===================================================================================================================================
+IF (usevMPF) THEN
+  MPF = PartMPF(iPart)
+ELSE
+  MPF = Species(PartSpecies(iPart))%MacroParticleFactor
+END IF
+
+ASSOCIATE( iMax => PartStateBoundaryVecLength )
+  iMax = iMax + 1
+  IF(iMax.GT.PDM%MaxParticleNumber)THEN
+    CALL abort(&
+        __STAMP__&
+        ,'BoundaryParticleOutput: PartStateBoundaryVecLength.GT.PDM%MaxParticleNumber. iMax=', IntInfoOpt=iMax)
+  END IF
+  PartStateBoundary(1:3,iMax) = PartPos
+  PartStateBoundary(4:6,iMax) = PartState(iPart,4:6)
+  PartStateBoundarySpec(iMax) = PartSpecies(iPart)
+END ASSOCIATE
+
+END SUBROUTINE BoundaryParticleOutput
 
 
 END MODULE MOD_Particle_Boundary_Tools
