@@ -88,7 +88,7 @@ REAL,INTENT(INOUT)   :: Flux_Slave(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
 ! Check every face and set the correct identifier for selecting the corresponding Riemann solver
 ! possible connections are (Master <-> Slave direction is important):
 SELECT CASE(InterfaceRiemann(SideID))
-  !   - vaccuum    <-> vacuum       : RIEMANN_VACUUM            = 0
+  !   - vacuum     <-> vacuum       : RIEMANN_VACUUM            = 0
   !   - PML        <-> vacuum       : RIEMANN_PML               = 1
   !   - PML        <-> PML          : RIEMANN_PML               = 1
   !   - dielectric <-> dielectric   : RIEMANN_DIELECTRIC        = 2

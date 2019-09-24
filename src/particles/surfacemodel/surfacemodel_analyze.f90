@@ -285,7 +285,6 @@ IF (SurfMesh%nMasterSides.EQ.0) RETURN
             CALL WriteDataHeaderInfo(unit_index,'Alpha-Spec',OutputCounter,nSpecies)
           END IF
           IF (CalcAdsorbProb) THEN
-            CALL WriteDataHeaderInfo(unit_index,'Prob_adsorption-Spec',OutputCounter,nSpecies)
             DO iSpec = 1, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
               WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-P_Molec-Adsorb-Spec-',iSpec

@@ -311,12 +311,12 @@ USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSam
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
-USE MOD_HDF5_output            ,ONLY: WriteIMDStateToHDF5
+USE MOD_HDF5_Output_Tools      ,ONLY: WriteIMDStateToHDF5
 #else
 USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #endif /*PARTICLES*/
 #if USE_QDS_DG
-USE MOD_HDF5_output            ,ONLY: WriteQDSToHDF5
+USE MOD_HDF5_Output_Tools      ,ONLY: WriteQDSToHDF5
 USE MOD_QDS_DG_Vars            ,ONLY: DoQDS
 #endif /*USE_QDS_DG*/
 #ifdef PARTICLES
@@ -4301,7 +4301,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell ! , usevMPF
+USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: Species,PartSpecies
 USE MOD_Particle_Analyze       ,ONLY: CalcCoupledPowerPart
