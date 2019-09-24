@@ -2731,9 +2731,6 @@ NodeSourceExtGlobal=0.
 
 ! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
 #if USE_MPI
-IF(MAXVAL(ABS(NodeSourceExtTmp)).LE.0.0)THEN
-  IPWRITE (*,*) "WriteNodeSourceExtToHDF5: NodeSourceExtTmp is zero"
-END IF ! MAXVAL(ABS(NodeSourceExtTmp)).GT.0.0
 CALL AddHaloNodeData(NodeSourceExtTmp)
 #endif /*USE_MPI*/
 
