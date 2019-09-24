@@ -1583,6 +1583,12 @@ DEALLOCATE(PartData)
 !                 !!! Ende kleiner Hack von JN (Teil 2/2)
 
 
+! Nullify and reset boundary parts container after write out
+PartStateBoundaryVecLength = 0
+PartStateBoundary          = 0.
+PartStateBoundarySpec      = 0.
+
+
 END SUBROUTINE WriteBoundaryParticleToHDF5
 
 
