@@ -996,9 +996,6 @@ SUBROUTINE FinalizeMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
-#ifdef PARTICLES
-!USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
-#endif
 #ifdef CODE_ANALYZE
 #ifndef PARTICLES
 USE MOD_Particle_Surfaces_Vars, ONLY: SideBoundingBoxVolume
@@ -1022,6 +1019,8 @@ SDEALLOCATE(VdM_CLN_GaussN)
 SDEALLOCATE(VdM_CLNGeo_GaussN)
 SDEALLOCATE(Vdm_CLNGeo_CLN)
 SDEALLOCATE(Vdm_NGeo_CLNgeo)
+SDEALLOCATE(Vdm_N_EQ)
+SDEALLOCATE(Vdm_EQ_N)
 ! BCS
 SDEALLOCATE(BoundaryName)
 SDEALLOCATE(BoundaryType)

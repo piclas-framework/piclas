@@ -68,10 +68,6 @@ USE MOD_PICInterpolation       ,ONLY: InterpolateVariableExternalField
 USE MOD_PICInterpolation_Vars  ,ONLY: VariableExternalField
 USE MOD_PICInterpolation_vars  ,ONLY: useVariableExternalField
 USE MOD_Equation_vars          ,ONLY: c_inv
-USE MOD_LD                     ,ONLY: LD_SetParticlePosition
-#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-USE MOD_Timedisc_Vars          ,ONLY: DoDisplayIter, iter, IterDisplayStep
-#endif
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_part_emission_tools    ,ONLY: IntegerDivide,CalcVelocity_maxwell_lpn,SamplePoissonDistri,SetCellLocalParticlePosition
 USE MOD_part_emission_tools    ,ONLY: InsideExcludeRegionCheck
@@ -111,7 +107,6 @@ REAL                                     :: IMD_array(12),xMin,xMax,yMin,yMax,zM
 INTEGER                                  :: Nshift,ioUnit,io_error,IndNum
 CHARACTER(LEN=255)                       :: StrTmp
 INTEGER                                  :: iPart
-REAL,ALLOCATABLE                         :: particle_positions_Temp(:)
 REAL                                     :: Vec3D(3), l_ins, v_line, delta_l, v_drift_line, A_ins, PartIns
 REAL                                     :: v_drift_BV(2), lrel_ins_BV(4), BV_lengths(2), v_BV(2), delta_lBV(2)
 REAL                                     :: intersecPoint(3), orifice_delta, lPeri, ParaCheck(3)
@@ -364,8 +359,7 @@ IF(( (nbrOfParticle.GT.PartMPI%InitGroup(InitGroup)%nProcs*10                   
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'circle_equidistant'                 ) .AND.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'sin_deviation'                      ) .AND.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'cuboid_with_equidistant_distribution').AND.  &
-     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'line_with_equidistant_distribution' )).OR.   &
-     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'LD_insert'                          ) )THEN
+     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'line_with_equidistant_distribution' )))THEN
    nChunks = PartMPI%InitGroup(InitGroup)%nProcs
 ELSE
    nChunks = 1
@@ -967,23 +961,6 @@ __STAMP__&
         i=i+1
         chunkSize2=chunkSize2+1
       END DO
-    !------------------SpaceIC-case: LD_insert--------------------------------------------------------------------------------------
-    CASE('LD_insert')
-      CALL LD_SetParticlePosition(chunkSize2,particle_positions_Temp,FractNbr,iInit)
-      DEALLOCATE( particle_positions, STAT=allocStat )
-      IF (allocStat .NE. 0) THEN
-        CALL abort(&
-__STAMP__&
-,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
-      END IF
-      NbrOfParticle=chunkSize2
-      ALLOCATE(particle_positions(3*chunkSize2))
-      particle_positions(1:3*chunkSize2) = particle_positions_Temp(1:3*chunkSize2)
-      DEALLOCATE( particle_positions_Temp, STAT=allocStat )
-      IF (allocStat .NE. 0) THEN
-        CALL abort(__STAMP__,&
-          'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
-      END IF
     !------------------SpaceIC-case: cuboid_equal-----------------------------------------------------------------------------------
     CASE('cuboid_equal')
 #if USE_MPI
@@ -1535,22 +1512,10 @@ __STAMP__&
         SWRITE(UNIT_StdOut,'(A,I0,A)')'matched only ', sumOfMatchedParticles, ' particles'
         SWRITE(UNIT_StdOut,'(A,I0,A)')'when ', NbrOfParticle, ' particles were required!'
       ELSE IF (nbrOfParticle .LT. sumOfMatchedParticles) THEN
-#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-       IF(DoDisplayIter)THEN
-         IF(MOD(iter,IterDisplayStep).EQ.0) THEN
-#endif
             SWRITE(UNIT_StdOut,'(A)')'ERROR in ParticleEmission_parallel:'
             SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
             SWRITE(UNIT_StdOut,'(A,I0,A)')'matched ', sumOfMatchedParticles, ' particles'
             SWRITE(UNIT_StdOut,'(A,I0,A)')'when ', NbrOfParticle, ' particles were required!'
-#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-         END IF
-       END IF
-#endif
-#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
-!        CALL abort(__STAMP__&
-!          'selected timedisk does not allow num of inserted part .gt. required')
-#endif
       ELSE IF (nbrOfParticle .EQ. sumOfMatchedParticles) THEN
       !  WRITE(UNIT_stdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
       !  WRITE(UNIT_stdOut,'(A,I0,A)')'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'

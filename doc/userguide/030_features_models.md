@@ -219,6 +219,31 @@ For surface sampling output, where the surface is split into, e.g., $3\times3$ s
 
 where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over 200 interations.
 
+### Deposition of Charges on Dielectric Surfaces
+
+Charged particles can be absorbed (or reflected and leave their charge behind) at dielectric surfaces 
+when using the deposition method `cell_volweight_mean`. The boundary can be used by specifying 
+
+    ```
+    Part-Boundary1-Condition         = reflective
+    Part-Boundary1-Dielectric        = T
+    Part-Boundary1-NbrOfSpeciesSwaps = 3
+    Part-Boundary1-SpeciesSwaps1     = (/1,0/) ! e-
+    Part-Boundary1-SpeciesSwaps2     = (/2,2/) ! Ar
+    Part-Boundary1-SpeciesSwaps3     = (/3,2/) ! Ar+
+    ```
+    
+which sets the boundary dielectric and the given species swap parameters effectively remove 
+electrons ($e^{-}$) on impact, reflect $Ar$ atoms and neutralize $Ar^{+}$ ions by swapping these to $Ar$ atoms. 
+Note that currently only singly charged particles can be handled this way. When multiple charged 
+particles would be swapped, their complete charge mus be deposited at the moment.
+
+The boundary must also be specified as an *inner* boundary via
+
+    BoundaryName                     = BC_INNER
+    BoundaryType                     = (/100,0/)
+
+or directly in the *hopr.ini* file that is used for creating the mesh.
 
 ## Particle Initialization & Emission
 
@@ -619,14 +644,14 @@ $$ \alpha = 3 N_\mathrm{atom} - 3 - \xi_\mathrm{rot} $$
 
 As an example the parameters of CH$_3$ are given below. The molecule has four vibrational modes, with two of them having a degeneracy of two. These values are simply given the according amount of times
 
-    Part-Species2-NumOfAtoms = 4
-    Part-Species2-LinearMolec = FALSE
-    Part-Species2-CharaTempVib1 = 4320.6
-    Part-Species2-CharaTempVib2 = 872.1
-    Part-Species2-CharaTempVib3 = 4545.5
-    Part-Species2-CharaTempVib4 = 4545.5
-    Part-Species2-CharaTempVib5 = 2016.2
-    Part-Species2-CharaTempVib6 = 2016.2
+    Part-Species1-NumOfAtoms = 4
+    Part-Species1-LinearMolec = FALSE
+    Part-Species1-CharaTempVib1 = 4320.6
+    Part-Species1-CharaTempVib2 = 872.1
+    Part-Species1-CharaTempVib3 = 4545.5
+    Part-Species1-CharaTempVib4 = 4545.5
+    Part-Species1-CharaTempVib5 = 2016.2
+    Part-Species1-CharaTempVib6 = 2016.2
 
 These parameters allow the simulation of non-reactive gases. Additional parameters required for the consideration of chemical reaction are given in Section \ref{sec:dsmc_chemistry}.
 
@@ -637,6 +662,71 @@ WIP: octree, nearest neighbor, VHS
 Particles-DSMC-ProhibitDoubleCollision [@Shevyrin2005,@Akhlaghi2018]
 
 ### Relaxation \label{sec:dsmc_relaxation}
+
+To determine the different relaxation probabilities of the different internal degrees of freedom, different models are implemented. The first and easiest model are constant relaxation probabilities and second more complex models with variable, mostly temperature dependent, relaxation probabilities. Three different kinds of internal degrees of freedom are implemented in piclas: rotational, vibrational and electronical ones. For each one, different relaxation models are neccesary. Also different selection procedures are implemented: multi-relaxation and prohibiting-double-relaxation. The following flag has to be set true to enable the correction factor of Lumpkin [@Lumpkin1991],:
+
+    Particles-DSMC-useRelaxProbCorrFactor = false
+
+#### Rotational Relaxation \label{sec:dsmc_rotational_relxation}
+
+To adjust the rotational relaxation this variable has to be changed with its default value of $0.2$:
+
+    Particles-DSMC-RotRelaxProb = 0.2
+
+If the Rotational Relaxation Probability is between 0 and 1, this value is set as constant probability, is it 2 the variable rotational relaxation model is activated according to Boyd [@Boyd1990a]. Therefore, for each molecular species two additional parameters has to be defined; the rotational collision number and the rotational reference temperature. As example nitrogen is used [@Boyd1990b].
+
+    Part-Species1-CollNumRotInf = 23.3
+    Part-Species1-TempRefRot = 91.5
+
+If the relaxation probability is equal 3, the relaxation model of Zhang et al. [@Zhang2012] is used. But, it is only implemented for nitrogen and is not tested. It is not recommended to use it! 
+
+#### Vibrational Relaxation \label{sec:dsmc_vibrational_relxation}
+
+Equal to the rotational relaxation probability, the vibrational relaxation probability is implemented. This variable has to be changed, if the vibrational relaxation probability should be adjusted:
+
+    Particles-DSMC-VibRelaxProb = 0.004
+
+$0.004$ is the default. If the value of this variable is between 0 and 1, this value is used as constant vibrational relaxation probability. Is it set to 2, the variable vibrational relaxation model of Boyd [@Boyd1990b] is used. For each molecular species pair the constants A and B according to Millikan and White [@MillikanWhite1963] (which will be used for the calculation of the characteristic velocity and vibrational collision number according to Abe [@Abe1994]) and the vibrational cross section has to be defined. The given example below is a 2 species mixture of nitrogen and oxygen and the values of A and B are used Farbar [@Farbar2010] and the vibrational cross section is used Boyd [@Boyd1990b]:
+
+    Part-Species1-MWConstA-1-1 = 220.00
+    Part-Species1-MWConstA-1-2 = 115.10
+    Part-Species1-MWConstB-1-1 = -12.27
+    Part-Species1-MWConstB-1-2 = -6.92
+    Part-Species1-VibCrossSection = 1e-19
+
+    Part-Species2-MWConstA-2-2 = 129.00
+    Part-Species2-MWConstA-2-1 = 115.10
+    Part-Species2-MWConstB-2-2 = -9.76
+    Part-Species2-MWConstB-2-1 = -6.92
+    Part-Species2-VibCrossSection = 1e-19
+
+It is not possible to calculate an instantanious vibrational relaxation probability with this model [@Boyd1992]. Thus, the probablility is calculated for every colission and is averaged. To avoid large errors in cells containing only a few particles, a relaxation of this average probability is implemented. The relaxation factor alpha can be changed with the following parameter in the ini file:
+
+    Particles-DSMC-alpha = 0.99
+    
+The new probability is calculated with the vibrational relaxation probability of the $n^{th}$ iteration $VibProb_{n}$, the number of Collision Pairs $n_{Pair}$ and the average vibrational relaxation probability of the actual iteration $VibProbIter$. 
+
+$$VibProb_{n+1}= VibProb_{n}  \cdot  \alpha^{2  \cdot  n_{Pair}} + (1-\alpha^{2  \cdot  n_{Pair}}) \cdot VibProbIter $$
+
+This model is extended to more species by calculating for each species a separate probability. An initial vibrational relaxation probability is set by calculating $INT(1/(1-\alpha))$ vibrational relaxation probabilities for each species and cell with using the instantanious cell temperature. The collision partner is choosen by the mole fraction of them inside the cell. 
+
+#### Electronic Relaxation \label{sec:dsmc_electronic_relxation}
+
+WIP
+
+#### Multi-Relaxation \label{sec:dsmc_multi_relxation}
+
+default
+
+    Particles-DSMC-SelectionProcedure = 1
+
+WIP
+
+#### Prohibiting-Double-Relaxation \label{sec:dsmc_prohibiting_double_relxation}
+
+    Particles-DSMC-SelectionProcedure = 2
+
+It is not recommended to use this relaxation procedure with `Particles-DSMC-RotRelaxProb=2`. Low collision energies results in high relaxation probabilities, which results again in a summed relaxation probability greater than 1.
 
 WIP
 
@@ -786,7 +876,7 @@ In general, simulation results are either available spatially resolved based on 
 
 WIP
 
-### Flowfield and Surface Variables
+### Particle-flow Field and Surface variables
 
 A sampling over a certain number of iterations is performed to calculate the macroscopic values such as number density, bulk velocity and temperature from the microscopic particle information. Output and sampling on surfaces can be enabled by
 
@@ -813,13 +903,14 @@ The second variant can be used to produce outputs for unsteady simulations, whil
 
 Example: The simulation end time is $T_\mathrm{end}=1$ with a time step of $\Delta t = 0.001$. With the parameters given above, we would sample for 100 iterations up to $T = 0.1$ and get the first output. Afterwards, the sample is deleted and the sampling begins anew for the following output at $T=0.2$. This procedure is repeated until the simulation end, resulting in 10 outputs with independent samples.
 
-#### Sampling of surface impacts 
+#### Sampling of Particle-surface Impacts 
 
 Additional surface values can be sampled by using
 
     CalcSurfaceImpact = T
 
-which determines the species-dependent averaged impact energy (trans, rot, vib), impact vector, angle (between particle trajectory and surface tangential vector) and number of impacts.
+which calculates the species-dependent averaged impact energy (trans, rot, vib), impact vector, angle (between particle trajectory and surface tangential vector) and number of impacts due to particle-surface collisions.
+The output of the surface-sampled data is written to `*_DSMCSurfState_*.h5`.
 
 ### Integral Variables
 
@@ -828,7 +919,30 @@ PartAnalyze/FieldAnalyze
 ### Element-constant properties
 The determined properties are given by a single value within each cell.
 
-#### Analysis of particle properties via *Particle Analyze*
+
+#### Power Coupled to Particles
+The energy transferred to particles during the push (acceleration due to electromagnetic fields) is
+determined by using
+
+    CalcCoupledPower = T
+
+which calculates the properties `PCoupl` (instantaneous) and a time-averaged (moving average) value
+`PCoupledMoAv` that are stored in the `ParticleAnalysis.csv` output file. Additionally, the power
+coupled to the particles in each cell (average power per cubic metre) is time-averaged (moving average) 
+and stored in `PCouplDensityAvgElem` for each species separately, which is written to `*_State_*.h5`. 
+Furthermore, the accumulated power over all particles of the same species is displayed in STD-out via
+
+     Averaged coupled power per species [W]
+     1     :    0.0000000000000000     
+     2     :    2.6614384806763068E-003
+     3     :    2.6837037798108634E-006
+     4     :    0.0000000000000000     
+     5     :    8.8039637450978475E-006
+     Total :    2.6729261482012156E-003
+
+for the time-averaged (moving average) power.
+
+#### Analysis of Particle Properties via *Particle Analyze*
 
 **Plasma Frequency**
 The (cold) plasma frequency can be calculated via

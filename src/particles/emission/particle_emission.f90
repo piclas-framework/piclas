@@ -108,7 +108,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-MWTemperatureIC'
                                   'Temperature for Maxwell Distribution', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-PartDensity' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'PartDensity (real particles per m^3) for LD_insert or  (vpi_)cub./cyl. as alternative  to'//&
+                                  'PartDensity (real particles per m^3) or  (vpi_)cub./cyl. as alternative  to'//&
                                   ' Part.Emis. in Type1'  , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-ReduceNoise' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -384,10 +384,6 @@ USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, RadialWeighting
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
-#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
-USE MOD_LD_Vars
-#endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 USE MOD_part_pressure          ,ONLY: ParticlePressure, ParticlePressureRem
@@ -577,20 +573,6 @@ __STAMP__&
            iPart = iPart + 1
          END DO
        END IF
-!#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-!       iPart = 1
-!       DO WHILE (iPart .le. NbrOfParticle)
-!         PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-!         IF (PositionNbr .ne. 0) THEN
-!           PartStateBulkValues(PositionNbr,1) = Species(i)%Init(iInit)%VeloVecIC(1) * Species(i)%Init(iInit)%VeloIC
-!           PartStateBulkValues(PositionNbr,2) = Species(i)%Init(iInit)%VeloVecIC(2) * Species(i)%Init(iInit)%VeloIC
-!           PartStateBulkValues(PositionNbr,3) = Species(i)%Init(iInit)%VeloVecIC(3) * Species(i)%Init(iInit)%VeloIC
-!           PartStateBulkValues(PositionNbr,4) = Species(i)%Init(iInit)%MWTemperatureIC
-!           PartStateBulkValues(PositionNbr,5) = CalcDegreeOfFreedom(PositionNbr)
-!         END IF
-!         iPart = iPart + 1
-!       END DO
-!#endif
        ! instead of UpdateNextfreePosition we update the
        ! particleVecLength only.
        ! and doing it later, after calcpartbalance
@@ -627,18 +609,6 @@ __STAMP__&
           iPart = iPart + 1
         END DO
       END IF
-!#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001) !      iPart = 1 !      DO WHILE (iPart .le. NbrOfParticle)
-!        PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-!        IF (PositionNbr .ne. 0) THEN
-!          PartStateBulkValues(PositionNbr,1) = Species(i)%Init(iInit)%VeloVecIC(1) * Species(i)%Init(iInit)%VeloIC
-!          PartStateBulkValues(PositionNbr,2) = Species(i)%Init(iInit)%VeloVecIC(2) * Species(i)%Init(iInit)%VeloIC
-!          PartStateBulkValues(PositionNbr,3) = Species(i)%Init(iInit)%VeloVecIC(3) * Species(i)%Init(iInit)%VeloIC
-!          PartStateBulkValues(PositionNbr,4) = Species(i)%Init(iInit)%MWTemperatureIC
-!          PartStateBulkValues(PositionNbr,5) = CalcDegreeOfFreedom(PositionNbr)
-!        END IF
-!        iPart = iPart + 1
-!      END DO
-!#endif
       ! instead of UpdateNextfreePosition we update the
       ! particleVecLength only.
       ! and doing it after calcpartbalance
