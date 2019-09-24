@@ -146,19 +146,29 @@ CASE(2) !PartBound%ReflectiveBC)
 
   !---- Dielectric particle-surface interaction
   IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(PartBound%MapToPartBC(BC(SideID))))THEN ! deposit charge on surface
+    ! Sanity checks
     IF(.NOT.PDM%ParticleInside(iPart))THEN
       IPWRITE (*,*) "iPart  :", iPart
       IPWRITE (*,*) "ElemID :", ElemID
       CALL abort(&
-      __STAMP__&
-      ,'Dielectric particle-surface interaction: Particle not inside element.')
-    END IF ! .NOT.PDM%ParticleInside(iPart)
+          __STAMP__&
+          ,'Dielectric particle-surface interaction: Particle not inside element.')
+    ELSEIF(PartSpecies(iPart).LT.0)THEN
+      IF(myrank.eq.1)THEN
+        IPWRITE (*,*) "iPart =", iPart
+        IPWRITE (*,*) "PDM%ParticleVecLength =", PDM%ParticleVecLength
+      END IF ! myrank.eq.1
+      CALL abort(&
+          __STAMP__&
+          ,'Negative speciesID')
+    END IF ! PartSpecies(iPart)
 
     IF(CHARGEDPARTICLE(iPart))THEN
       IF(ElemID.GT.nElems)THEN
-        ! Particle is now located in halo element: Create ghost particle, which is sent to new host Processor and removed there (set
+        ! Particle is now located in halo element: Create phantom particle, which is sent to new host Processor and removed there (set
         ! negative SpeciesID in order to remove particle in host Processor)
         CALL CreateParticle(-PartSpecies(iPart),LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
+        ! Set inside to F (it is set to T in SendNbOfParticles if species ID is negative)
         PDM%ParticleInside(NewPartID)=.FALSE.
       ELSE ! Deposit single particle charge on surface here and 
         CALL DepositParticleOnNodes(iPart,LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID)
