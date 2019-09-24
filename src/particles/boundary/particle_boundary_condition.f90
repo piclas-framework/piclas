@@ -96,7 +96,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
-INTEGER                              :: ReflectionIndex, iSpec, iSF
+INTEGER                              :: ReflectionIndex, iSpec, iSF,NewPartID
 LOGICAL                              :: isSpeciesSwap, PorousReflection
 !===================================================================================================================================
 
@@ -158,7 +158,8 @@ CASE(2) !PartBound%ReflectiveBC)
       IF(ElemID.GT.nElems)THEN
         ! Particle is now located in halo element: Create ghost particle, which is sent to new host Processor and removed there (set
         ! negative SpeciesID in order to remove particle in host Processor)
-        CALL CreateParticle(-PartSpecies(iPart),LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.)
+        CALL CreateParticle(-PartSpecies(iPart),LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
+        PDM%ParticleInside(NewPartID)=.FALSE.
       ELSE ! Deposit single particle charge on surface here and 
         CALL DepositParticleOnNodes(iPart,LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID)
       END IF ! ElemID.GT.nElems
@@ -580,7 +581,7 @@ INTEGER                              :: p,q, SurfSideID, locBCID
 LOGICAL                              :: Symmetry, IsAuxBC
 REAL                                 :: MacroParticleFactor, POI_Y
 LOGICAL                              :: DoSample
-REAL                                 :: EtraOld
+REAL                                 :: EtraOld,EvibOld,ErotOld
 !===================================================================================================================================
 
 IF (PRESENT(AuxBCIdx)) THEN
@@ -780,8 +781,14 @@ IF (.NOT.IsAuxBC) THEN
       ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
       IF(CalcSurfaceImpact) THEN
         EtraOld = 0.5*Species(PartSpecies(PartID))%MassIC*VECNORM(v_old)**2
-        CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,&
-            EtraOld,PartStateIntEn(PartID,2),PartStateIntEn(PartID,1),PartTrajectory,n_loc,p,q)
+        IF(ALLOCATED(PartStateIntEn))THEN
+          EvibOld=PartStateIntEn(PartID,1)
+          ErotOld=PartStateIntEn(PartID,2)
+        ELSE
+          EvibOld=0.
+          ErotOld=0.
+        END IF ! ALLOCATED(PartStateIntEn)
+        CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,EtraOld,EvibOld,ErotOld,PartTrajectory,n_loc,p,q)
       END IF ! CalcSurfaceImpact
     END IF ! DoSample
   END IF ! .NOT.Symmetry
@@ -927,6 +934,7 @@ REAL                                :: POI_Y
 REAL                                :: nx, ny, nz, nVal
 INTEGER                             :: LocSideID, ElemID
 LOGICAL                             :: DoSample
+REAL                                :: EvibOld,ErotOld
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN
   IsAuxBC=.TRUE.
@@ -1150,8 +1158,15 @@ IF (.NOT.IsAuxBC) THEN
     SampWall(SurfSideID)%State(3,p,q) = SampWall(SurfSideID)%State(3,p,q) + EtraNew * MacroParticleFactor
 
     ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
-    IF(CalcSurfaceImpact) CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,EtraOld,&
-                                                        PartStateIntEn(PartID,2),PartStateIntEn(PartID,1),PartTrajectory,n_loc,p,q)
+    IF(ALLOCATED(PartStateIntEn))THEN
+      EvibOld=PartStateIntEn(PartID,1)
+      ErotOld=PartStateIntEn(PartID,2)
+    ELSE
+      EvibOld=0.
+      ErotOld=0.
+    END IF ! ALLOCATED(PartStateIntEn)
+    IF(CalcSurfaceImpact) CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,EtraOld,EvibOld,ErotOld,&
+                                                  PartTrajectory,n_loc,p,q)
   END IF
 END IF !.NOT.IsAuxBC
 
@@ -1368,14 +1383,13 @@ IF(Symmetry2DAxisymmetric) THEN
   PartTrajectory(3) = 0.
   lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                           +PartTrajectory(2)*PartTrajectory(2))
-  PartTrajectory=PartTrajectory/lengthPartTrajectory
 ELSE
   PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
   lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                           +PartTrajectory(2)*PartTrajectory(2) &
                           +PartTrajectory(3)*PartTrajectory(3) )
-  PartTrajectory=PartTrajectory/lengthPartTrajectory
 END IF
+IF(ABS(lengthPartTrajectory).GT.0.) PartTrajectory=PartTrajectory/lengthPartTrajectory
 
 #if defined(LSERK) || (PP_TimeDiscMethod==509)
 PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
@@ -1443,7 +1457,7 @@ REAL                              :: n_loc(1:3)
 LOGICAL                           :: IsAuxBC
 REAL                              :: MacroParticleFactor, POI_Y
 LOGICAL                           :: DoSample
-REAL                              :: EtraOld
+REAL                              :: EtraOld,EvibOld,ErotOld
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN
   IsAuxBC=.TRUE.
@@ -1603,8 +1617,14 @@ IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) TH
     IF(CalcSurfaceImpact) THEN
       EtraOld = 0.5*Species(PartSpecies(PartID))%MassIC*VECNORM(PartState(PartID,4:6))**2
 #ifndef IMPA
-      CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,&
-          EtraOld,PartStateIntEn(PartID,2),PartStateIntEn(PartID,1),PartTrajectory,n_loc,p,q)
+    IF(ALLOCATED(PartStateIntEn))THEN
+      EvibOld=PartStateIntEn(PartID,1)
+      ErotOld=PartStateIntEn(PartID,2)
+    ELSE
+      EvibOld=0.
+      ErotOld=0.
+    END IF ! ALLOCATED(PartStateIntEn)
+      CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,EtraOld,EvibOld,ErotOld,PartTrajectory,n_loc,p,q)
 #else
       CALL abort(&
           __STAMP__&

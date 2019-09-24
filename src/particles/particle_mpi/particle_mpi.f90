@@ -371,6 +371,9 @@ PartMPIExchange%nPartsSend=0
 !    ' Cannot allocate PartMPIDepoSend!')
 PartTargetProc=-1
 DO iPart=1,PDM%ParticleVecLength
+  ! Activate phantom particles
+  IF(PartSpecies(iPart).LT.0) PDM%ParticleInside(iPart) = .TRUE.
+
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
