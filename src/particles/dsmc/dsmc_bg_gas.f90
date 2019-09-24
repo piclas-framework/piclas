@@ -120,6 +120,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 ! MODULES
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
+  USE MOD_DSMC_Vars,              ONLY : DSMC, VarVibRelaxProb
   USE MOD_Particle_Vars,          ONLY : PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
@@ -131,11 +132,17 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: nPair, iPair, iPart, iLoop, nPart
+  INTEGER                       :: nPair, iPair, iPart, iLoop, nPart, iSpec
   INTEGER                       :: cSpec1, cSpec2, iCase
 !===================================================================================================================================
   nPart = PEM%pNumber(iElem)
   nPair = INT(nPart/2)
+  IF(DSMC%VibRelaxProb.EQ.2.0) THEN ! Set summs for variable vibrational relaxation to zero
+    DO iSpec=1,nSpecies
+      VarVibRelaxProb%ProbVibAvNew(iSpec) = 0
+      VarVibRelaxProb%nCollis(iSpec) = 0
+    END DO
+  END IF
 
   CollInf%Coll_SpecPartNum = 0
   CollInf%Coll_CaseNum = 0

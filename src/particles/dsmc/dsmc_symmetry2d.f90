@@ -252,6 +252,7 @@ USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC, PartStateIntEn, us
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC, CollInf
 USE MOD_Particle_Vars           ,ONLY: PartMPF, PDM, PartSpecies, PartState, Species, LastPartPos
 USE MOD_TimeDisc_Vars           ,ONLY: iter
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartOut
 USE Ziggurat
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -330,6 +331,8 @@ ELSE
 ! ######## Particle Delete #######################################################################################################
 ! 2b.) Particle deletion, if the local weighting factor is greater than the previous (particle travelling upwards)
   IF(NewMPF.GT.OldMPF) THEN
+    ! Start deleting particles after the clone delay has passed and particles are also inserted
+    IF((INT(iter,4)+RadialWeighting%CloneDelayDiff).LE.RadialWeighting%CloneInputDelay) RETURN
     DeleteProb = 1. - CloneProb
     IF (DeleteProb.GT.0.5) THEN
       IPWRITE(*,*) 'New weighting factor:', NewMPF, 'Old weighting factor:', OldMPF
@@ -341,6 +344,9 @@ ELSE
     IF(DeleteProb.GT.iRan) THEN
       PDM%ParticleInside(iPart) = .FALSE.
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(iPart) = 0
+      IF(CalcPartBalance) THEN
+        nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
+      END IF ! CalcPartBalance
     END IF
   END IF
 END IF
@@ -357,12 +363,13 @@ SUBROUTINE DSMC_2D_SetInClones()
 !> 3.) Reset the list
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_DSMC_Vars             ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, RadialWeighting
-  USE MOD_DSMC_Vars             ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive
-  USE MOD_Particle_Vars         ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, VarTimeStep
-  USE MOD_Particle_VarTimeStep  ,ONLY: CalcVarTimeStep
-  USE MOD_TimeDisc_Vars         ,ONLY: iter
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive
+USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, VarTimeStep
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_TimeDisc_Vars           ,ONLY: iter
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -442,6 +449,9 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
     IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(PEM%Element(PositionNbr),5) = &
                                             DSMC%QualityFacSamp(PEM%Element(PositionNbr),5) + 1
   END IF
+  IF(CalcPartBalance) THEN
+    nPartIn(PartSpecies(PositionNbr))=nPartIn(PartSpecies(PositionNbr)) + 1
+  END IF ! CalcPartBalance
 END DO
 
 ! 3.) Reset the list
