@@ -1462,9 +1462,9 @@ END IF
 #endif
 
 IF(doInnerParts)THEN
-  PartSource=0.0
-  firstPart=1
-  lastPart =PDM%ParticleVecLength
+  PartSource = 0.0
+  firstPart  = 1
+  lastPart   = PDM%ParticleVecLength
   !IF(firstPart.GT.lastPart) RETURN
 ELSE
 #if USE_MPI
@@ -1537,6 +1537,10 @@ CASE('nearest_blurrycenter')
 #endif /*USE_LOADBALANCE*/
   END IF ! .NOT. doInnerParts
 CASE('cell_volweight')
+  ! Return here for 2nd Deposition() call as it is not required for this deposition method, 
+  ! because the MPI communication is done here directly
+  IF(.NOT.doInnerParts) RETURN
+
   ALLOCATE(BGMSourceCellVol(SourceDim:4,0:1,0:1,0:1,1:nElems))
   BGMSourceCellVol(:,:,:,:,:) = 0.0
 #if USE_LOADBALANCE
@@ -1673,12 +1677,15 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
     CALL AddHaloNodeData(NodeSource(3,:))
   END IF
   CALL AddHaloNodeData(NodeSource(4,:))
+
+  ! Communicate dielectric surface charges stored in NodeSourceExtTmp
   IF(DoDielectricSurfaceCharge)THEN
     CALL AddHaloNodeData(NodeSourceExtTmp)
   END IF ! DoDielectricSurfaceCharge
 #endif /*USE_MPI*/
 
   IF(DoDielectricSurfaceCharge)THEN
+    ! Update external node source containing dielectric surface charges and nullify
     NodeSourceExt    = NodeSourceExt + NodeSourceExtTmp
     NodeSourceExtTmp = 0.
 
