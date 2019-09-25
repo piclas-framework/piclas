@@ -385,7 +385,7 @@ USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, RadialWeig
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
-USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_part_pressure          ,ONLY: ParticlePressure, ParticlePressureRem
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity

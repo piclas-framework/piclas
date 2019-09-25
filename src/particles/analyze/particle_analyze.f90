@@ -38,10 +38,6 @@ INTERFACE CalcShapeEfficiencyR
   MODULE PROCEDURE CalcShapeEfficiencyR
 END INTERFACE
 
-INTERFACE CalcEkinPart
-  MODULE PROCEDURE CalcEkinPart
-END INTERFACE
-
 INTERFACE RemoveParticle
   MODULE PROCEDURE RemoveParticle
 END INTERFACE
@@ -73,7 +69,7 @@ END INTERFACE
 #endif /*CODE_ANALYZE*/
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
-PUBLIC:: CalcEkinPart, AnalyzeParticles, PartIsElectron, RemoveParticle
+PUBLIC:: AnalyzeParticles, PartIsElectron, RemoveParticle
 PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
@@ -3211,58 +3207,6 @@ END SUBROUTINE WriteParticleTrackingDataAnalytic
 #endif /* CODE_ANALYZE */
 
 
-PURE FUNCTION CalcEkinPart(iPart)
-!===================================================================================================================================
-! computes the kinetic energy of one particle
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Equation_Vars ,ONLY: c2, c2_inv
-USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species
-USE MOD_PARTICLE_Vars ,ONLY: usevMPF
-USE MOD_Particle_Vars ,ONLY: PartLorentzType
-USE MOD_DSMC_Vars     ,ONLY: RadialWeighting
-USE MOD_part_tools    ,ONLY: GetParticleWeight
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER,INTENT(IN)                 :: iPart
-REAL                               :: CalcEkinPart
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                               :: partV2, gamma1, WeightingFactor
-!===================================================================================================================================
-
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-  WeightingFactor = GetParticleWeight(iPart)
-ELSE
-  WeightingFactor = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
-END IF
-
-IF (PartLorentzType.EQ.5)THEN
-  ! gamma v is pushed instead of gamma, therefore, only the relativistic kinetic energy is computed
-  ! compute gamma
-  gamma1=SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
-  CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
-ELSE
-  partV2 = PartState(iPart,4) * PartState(iPart,4) &
-         + PartState(iPart,5) * PartState(iPart,5) &
-         + PartState(iPart,6) * PartState(iPart,6)
-  IF (partV2.LT.1E12)THEN
-    CalcEkinPart= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * WeightingFactor
-  ELSE
-    gamma1=partV2*c2_inv
-    gamma1=1.0/SQRT(1.-gamma1)
-    CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
-  END IF ! ipartV2
-END IF
-END FUNCTION CalcEkinPart
-
-
 SUBROUTINE CalcPowerDensity()
 !===================================================================================================================================
 ! Used to average the source terms per species
@@ -3506,13 +3450,14 @@ SUBROUTINE CalculateElectronTemperatureCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass,ElementaryCharge
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO,NbrOfRegions
-USE MOD_Preproc               ,ONLY: PP_nElems
-USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell
-USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartState,RegionElectronRef
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
-USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElectronMass,ElementaryCharge
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,NbrOfRegions
+USE MOD_Preproc                ,ONLY: PP_nElems
+USE MOD_Particle_Analyze_Vars  ,ONLY: ElectronTemperatureCell
+USE MOD_Particle_Vars          ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartState,RegionElectronRef
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_part_tools             ,ONLY: GetParticleWeight
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -4203,12 +4148,13 @@ SUBROUTINE RemoveParticle(PartID,alpha,crossedBC)
 !>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Particle_Vars         ,ONLY: PDM, PartSpecies
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
+USE MOD_Particle_Vars          ,ONLY: PDM, PartSpecies
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
 #if defined(IMPA)
-USE MOD_Particle_Vars         ,ONLY: PartIsImplicit
-USE MOD_Particle_Vars         ,ONLY: DoPartInNewton
+USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
+USE MOD_Particle_Vars          ,ONLY: DoPartInNewton
 #endif /*IMPA*/
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -4244,6 +4190,7 @@ SUBROUTINE CalcCoupledPowerPart(iPart,mode,EDiff)
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies, PEM
 USE MOD_Particle_Analyze_Vars  ,ONLY: PCoupl, PCouplAverage, PCouplSpec
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

@@ -1165,7 +1165,7 @@ USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance
 USE MOD_Particle_Analyze_Vars   ,ONLY: nPartIn,PartEkinIn
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac,RKdtFracTotal,Time
-USE MOD_Particle_Analyze        ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars               ,ONLY: SideToElem!, ElemBaryNGeo
 USE MOD_Mesh_Vars               ,ONLY: NGeo!,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh_Vars      ,ONLY: PartElemToSide, GEO

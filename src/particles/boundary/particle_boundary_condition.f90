@@ -434,14 +434,13 @@ SUBROUTINE GetBoundaryInteractionAuxBC(PartTrajectory,lengthPartTrajectory,alpha
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,                ONLY:Abort
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies
-USE MOD_Particle_Boundary_Vars, ONLY:PartAuxBC
-!USE MOD_Particle_Surfaces_vars, ONLY:epsilontol
-USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
-USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
+USE MOD_Globals                ,ONLY: Abort
+USE MOD_Particle_Vars          ,ONLY: PDM,PartSpecies
+USE MOD_Particle_Boundary_Vars ,ONLY: PartAuxBC
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
 #if defined(LSERK)
-USE MOD_TimeDisc_Vars,          ONLY:RK_a
+USE MOD_TimeDisc_Vars          ,ONLY: RK_a
 #endif
 !USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 ! IMPLICIT VARIABLE HANDLING
@@ -1433,7 +1432,7 @@ USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,PDM,Var
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
-USE MOD_Particle_Analyze        ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC, RadialWeighting
 USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
@@ -2019,14 +2018,14 @@ SUBROUTINE SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,l
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PDM, Species, LastPartPos, PartSpecies
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound
-USE MOD_Mesh_Vars,              ONLY:BC
-USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
-USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
-USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
+USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Vars          ,ONLY: PDM, Species, LastPartPos, PartSpecies
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
+USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType,epsilontol
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
