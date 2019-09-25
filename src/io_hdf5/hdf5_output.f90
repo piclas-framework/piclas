@@ -1163,24 +1163,26 @@ SUBROUTINE WriteBoundaryParticleToHDF5(OutputTime_loc,PreviousTime_loc,usePrevio
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
-USE MOD_Particle_Vars          ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell, nSpecies, VarTimeStep
-USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
-USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
-#if (PP_TimeDiscMethod==509)
-USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
-#endif /*(PP_TimeDiscMethod==509)*/
+!USE MOD_Particle_Vars          ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell, nSpecies, VarTimeStep
+!USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+!USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
+!#if (PP_TimeDiscMethod==509)
+!USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
+!#endif /*(PP_TimeDiscMethod==509)*/
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
-USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
+!USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Restart_Vars           ,ONLY: RestartFile
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,PartStateBoundarySpec
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1201,17 +1203,17 @@ INTEGER(KIND=IK)               :: nParticles(0:nProcessors-1)
 #endif
 LOGICAL                        :: reSwitch
 INTEGER                        :: pcount
-LOGICAL                        :: withDSMC=.FALSE.
+!LOGICAL                        :: withDSMC=.FALSE.
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart,nPart_glob
-INTEGER                        :: iElem_glob, iElem_loc
-INTEGER(KIND=IK),ALLOCATABLE   :: PartInt(:,:)
+!INTEGER                        :: iElem_glob, iElem_loc
+!INTEGER(KIND=IK),ALLOCATABLE   :: PartInt(:,:)
 REAL,ALLOCATABLE               :: PartData(:,:)
-INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
-INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
+!INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
+!INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
 INTEGER(KIND=IK)               :: locnPart_max
-INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
+!INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
 CHARACTER(LEN=255)             :: FileName
 !===================================================================================================================================
 
@@ -1242,8 +1244,10 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 
 
-
-PartDataSize=7
+! 3xPos [m], 3xvelo [m/s], species [-]
+PartDataSize = 7               
+! Kinetic energy [eV]
+PartDataSize = PartDataSize + 1
 
 ! TODO: write additional data, such as molecular properties
 !                 ! Required default values for KIND=IK
@@ -1325,6 +1329,9 @@ DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
   
   ! SpeciesID
   PartData(iPart,7)=PartStateBoundarySpec(pcount)
+  
+  ! Kinetic energy [J->eV]
+  PartData(iPart,8)=CalcEkinPart(pcount) / ElementaryCharge
 
   pcount = pcount +1
 END DO ! iPart=offsetnPart+1_IK,offsetnPart+locnPart
@@ -1457,7 +1464,7 @@ ASSOCIATE (&
       nVar            => INT(nVar,IK)            ,&
       PP_nElems       => INT(PP_nElems,IK)       ,&
       offsetElem      => INT(offsetElem,IK)      ,&
-      MaxQuantNum     => INT(MaxQuantNum,IK)     ,&
+      !MaxQuantNum     => INT(MaxQuantNum,IK)     ,&
       PartDataSize    => INT(PartDataSize,IK)    )
 
   ALLOCATE(StrVarNames2(PartDataSize))
@@ -1468,6 +1475,8 @@ ASSOCIATE (&
   StrVarNames2(5)='VelocityY'
   StrVarNames2(6)='VelocityZ'
   StrVarNames2(7)='Species'
+
+  StrVarNames2(8)='KineticEnergy_eV'
 
 ! TODO: write additional data, such as molecular properties
   !                   IF(withDSMC)THEN
@@ -1586,7 +1595,7 @@ DEALLOCATE(PartData)
 ! Nullify and reset boundary parts container after write out
 PartStateBoundaryVecLength = 0
 PartStateBoundary          = 0.
-PartStateBoundarySpec      = 0.
+PartStateBoundarySpec      = 0
 
 
 END SUBROUTINE WriteBoundaryParticleToHDF5
