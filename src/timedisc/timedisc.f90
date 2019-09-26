@@ -597,6 +597,8 @@ DO !iter_t=0,MaxIter
   CALL TimeStepByLSERK()
 #elif (PP_TimeDiscMethod==42)
   CALL TimeStep_DSMC_Debug() ! Reservoir and Debug
+#elif (PP_TimeDiscMethod==43)
+  CALL TimeStep_DSMC_MacroBody() ! DSMC with MacroBody
 #elif (PP_TimeDiscMethod==100)
   CALL TimeStepByEulerImplicit() ! O1 Euler Implicit
 #elif (PP_TimeDiscMethod==120)
@@ -1892,9 +1894,9 @@ END SUBROUTINE TimeStep_DSMC_Debug
 #endif
 
 #if (PP_TimeDiscMethod==43)
-SUBROUTINE TimeStep_DSMC_MacroPart()
+SUBROUTINE TimeStep_DSMC_MacroBody()
 !===================================================================================================================================
-!> Timedisc solving DSMC with MacroSpheres in domain
+!> Timedisc solving DSMC with macroscopic bodies in domain
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -2086,7 +2088,7 @@ REAL                       :: tLBStart
   CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-END SUBROUTINE TimeStep_DSMC_MacroPart
+END SUBROUTINE TimeStep_DSMC_MacroBody
 #endif
 
 #if (PP_TimeDiscMethod==100)
