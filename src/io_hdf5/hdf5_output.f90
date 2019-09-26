@@ -1182,7 +1182,9 @@ USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Restart_Vars           ,ONLY: RestartFile
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,PartStateBoundarySpec
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_Particle_Vars          ,ONLY: VarTimeStep,Species,usevMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1215,6 +1217,7 @@ INTEGER                        :: PartDataSize       !number of entries in each 
 INTEGER(KIND=IK)               :: locnPart_max
 !INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
 CHARACTER(LEN=255)             :: FileName
+REAL                           :: WeightingFactor
 !===================================================================================================================================
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
@@ -1331,7 +1334,14 @@ DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
   PartData(iPart,7)=PartStateBoundarySpec(pcount)
   
   ! Kinetic energy [J->eV]
-  PartData(iPart,8)=CalcEkinPart(pcount) / ElementaryCharge
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    CALL abort(&
+    __STAMP__&
+    ,'usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep not implemented for DoBoundaryParticleOutput')
+  ELSE
+    WeightingFactor = Species(PartStateBoundarySpec(pcount))%MacroParticleFactor
+  END IF
+  PartData(iPart,8)=CalcEkinPart2(PartStateBoundary(4:6,pcount),PartStateBoundarySpec(pcount),WeightingFactor) / ElementaryCharge
 
   pcount = pcount +1
 END DO ! iPart=offsetnPart+1_IK,offsetnPart+locnPart

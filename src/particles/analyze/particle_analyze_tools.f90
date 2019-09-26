@@ -26,7 +26,11 @@ INTERFACE CalcEkinPart
   MODULE PROCEDURE CalcEkinPart
 END INTERFACE
 
-PUBLIC :: CalcEkinPart
+INTERFACE CalcEkinPart2
+  MODULE PROCEDURE CalcEkinPart2
+END INTERFACE
+
+PUBLIC :: CalcEkinPart,CalcEkinPart2
 !===================================================================================================================================
 
 CONTAINS
@@ -81,6 +85,49 @@ ELSE
   END IF ! ipartV2
 END IF
 END FUNCTION CalcEkinPart
+
+
+PURE FUNCTION CalcEkinPart2(velocity,Species_IN,WeightingFactor)
+!===================================================================================================================================
+! computes the kinetic energy of one particle given its velocity, species and weighting factor
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Equation_Vars ,ONLY: c2, c2_inv
+USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species
+USE MOD_Particle_Vars ,ONLY: PartLorentzType
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                 :: velocity(1:3)
+INTEGER,INTENT(IN)              :: Species_IN
+REAL,INTENT(IN)                 :: WeightingFactor
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                            :: CalcEkinPart2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: partV2, gamma1
+!===================================================================================================================================
+partV2 = DOT_PRODUCT(velocity,velocity)
+
+IF (PartLorentzType.EQ.5)THEN
+  ! gamma v is pushed instead of gamma, therefore, only the relativistic kinetic energy is computed
+  ! compute gamma
+  gamma1=SQRT(1.0+partV2*c2_inv)
+  CalcEkinPart2=(gamma1-1.0)*Species(Species_IN)%MassIC*c2 * WeightingFactor
+ELSE
+  IF (partV2.LT.1E12)THEN
+    CalcEkinPart2= 0.5 * Species(Species_IN)%MassIC * partV2 * WeightingFactor
+  ELSE
+    gamma1=partV2*c2_inv
+    gamma1=1.0/SQRT(1.-gamma1)
+    CalcEkinPart2=(gamma1-1.0)*Species(Species_IN)%MassIC*c2 * WeightingFactor
+  END IF ! ipartV2
+END IF
+END FUNCTION CalcEkinPart2
 #endif /*PARTICLES*/
 
 
