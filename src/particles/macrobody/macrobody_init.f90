@@ -41,33 +41,33 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("MacroParticle")
 
-CALL prms%CreateIntOption(      'MacroPart-nMacroParticle'  &
+CALL prms%CreateIntOption(      'MacroBody-nMacroBody'  &
                            , 'Number of macro particle, which are checked during tracing',  '0')
-CALL prms%CreateLogicalOption(  'MacroPart-AccelerationEnabled'  &
+CALL prms%CreateLogicalOption(  'MacroBody-AccelerationEnabled'  &
                            , 'Enables momentum changes of macro particle',  '.FALSE.')
-CALL prms%CreateLogicalOption(  'MacroPart-FluxesEnabled'  &
+CALL prms%CreateLogicalOption(  'MacroBody-FluxesEnabled'  &
                            , 'Enables mass and energy changes of macro particle',  '.FALSE.')
-CALL prms%CreateLogicalOption(  'MacroPart-WriteElemData'  &
+CALL prms%CreateLogicalOption(  'MacroBody-WriteElemData'  &
                            , 'Enables write out of elem data for Macro-spheres in state file. e.g. volumeportion','.FALSE.')
-CALL prms%CreateRealArrayOption('MacroPart[$]-center'  &
+CALL prms%CreateRealArrayOption('MacroBody[$]-center'  &
                            , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('MacroPart[$]-velocity'  &
+CALL prms%CreateRealArrayOption('MacroBody[$]-velocity'  &
                            , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('MacroPart[$]-rotation'  &
+CALL prms%CreateRealArrayOption('MacroBody[$]-rotation'  &
                            , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'MacroPart[$]-radius'  &
+CALL prms%CreateRealOption(     'MacroBody[$]-radius'  &
                            , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'MacroPart[$]-temp'  &
+CALL prms%CreateRealOption(     'MacroBody[$]-temp'  &
                            , 'TODO-DEFINE-PARAMETER',  '273.15', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'MacroPart[$]-density'  &
+CALL prms%CreateRealOption(     'MacroBody[$]-density'  &
                            , 'TODO-DEFINE-PARAMETER',  '997', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'MacroPart[$]-momentumACC'  &
+CALL prms%CreateRealOption(     'MacroBody[$]-momentumACC'  &
                            , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'MacroPart[$]-transACC'  &
+CALL prms%CreateRealOption(     'MacroBody[$]-transACC'  &
                            , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'MacroPart[$]-vibACC'  &
+CALL prms%CreateRealOption(     'MacroBody[$]-vibACC'  &
                            , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'MacroPart[$]-rotACC'  &
+CALL prms%CreateRealOption(     'MacroBody[$]-rotACC'  &
                            , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersMacroBody
 
@@ -92,54 +92,55 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 CHARACTER(32) :: hilf
-INTEGER       :: iMP
+INTEGER       :: iMB
 !----------------------------------------------------------------------------------------------------------------------------------!
 #if (PP_TimeDiscMethod==43)
-nMacroParticle = GETINT('MacroPart-nMacroParticle')
+nMacroBody = GETINT('MacroBody-nMacroBody')
 #else
-nMacroParticle = 0
+nMacroBody = 0
 #endif
-IF (nMacroparticle.GT.0) THEN
+IF (nMacroBody.GT.0) THEN
   IF (DoRefMapping.OR.TriaTracking) CALL abort(&
       __STAMP__&
       ,'Macroparticle not possible with dorefmapping or TriaTracking')
   ! if implementation for triatracking intended, fix number of envelopes in halo region build (particle_mpi_halo.f90)
-  UseMacroPart=.TRUE.
-  MacroPartFluxesEnabled = GETLOGICAL('MacroPart-FluxesEnabled')
-  MacroPartFluxesEnabled = GETLOGICAL('MacroPart-AccelerationEnabled')
-  ALLOCATE (MacroPart(1:nMacroParticle))
-  DO iMP = 1,nMacroParticle
-    WRITE(UNIT=hilf,FMT='(I0)') iMP
-    MacroPart(iMP)%center=GETREALARRAY('MacroPart'//TRIM(hilf)//'-center',3)
-    MacroPart(iMP)%velocity(1:3)=GETREALARRAY('MacroPart'//TRIM(hilf)//'-velocity',3)
-    MacroPart(iMP)%velocity(4:6)=GETREALARRAY('MacroPart'//TRIM(hilf)//'-rotation',3)
-    MacroPart(iMP)%radius=GETREAL('MacroPart'//TRIM(hilf)//'-radius')
-    MacroPart(iMP)%temp=GETREAL('MacroPart'//TRIM(hilf)//'-temp')
-    MacroPart(iMP)%density=GETREAL('MacroPart'//TRIM(hilf)//'-density')
-    IF (MacroPart(iMP)%density.LE.0.) CALL abort(&
+  UseMacroBody=.TRUE.
+  MacroBodyFluxesEnabled = GETLOGICAL('MacroBody-FluxesEnabled')
+  MacroBodyAccelerationEnabled = GETLOGICAL('MacroBody-AccelerationEnabled')
+  ALLOCATE (MacroSphere(1:nMacroBody))
+  DO iMB = 1,nMacroBody
+    WRITE(UNIT=hilf,FMT='(I0)') iMB
+    MacroSphere(iMB)%center=GETREALARRAY('MacroBody'//TRIM(hilf)//'-center',3)
+    MacroSphere(iMB)%velocity(1:3)=GETREALARRAY('MacroBody'//TRIM(hilf)//'-velocity',3)
+    MacroSphere(iMB)%velocity(4:6)=GETREALARRAY('MacroBody'//TRIM(hilf)//'-rotation',3)
+    MacroSphere(iMB)%radius=GETREAL('MacroBody'//TRIM(hilf)//'-radius')
+    MacroSphere(iMB)%temp=GETREAL('MacroBody'//TRIM(hilf)//'-temp')
+    MacroSphere(iMB)%density=GETREAL('MacroBody'//TRIM(hilf)//'-density')
+    IF (MacroSphere(iMB)%density.LE.0.) CALL abort(&
         __STAMP__&
-        ,'density must be above 0 for MacroPart',iMP)
-    MacroPart(iMP)%mass=4./3.*MacroPart(iMP)%radius**3*PI*MacroPart(iMP)%density
-    MacroPart(iMP)%momentumACC=GETREAL('MacroPart'//TRIM(hilf)//'-momentumACC')
-    MacroPart(iMP)%transAcc=GETREAL('MacroPart'//TRIM(hilf)//'-transACC')
-    MacroPart(iMP)%vibAcc=GETREAL('MacroPart'//TRIM(hilf)//'-vibACC')
-    MacroPart(iMP)%rotACC=GETREAL('MacroPart'//TRIM(hilf)//'-rotACC')
-    MacroPart(iMP)%RHS(:)=0.
+        ,'density must be above 0 for MacroBody',iMB)
+    MacroSphere(iMB)%mass=4./3.*MacroSphere(iMB)%radius**3*PI*MacroSphere(iMB)%density
+    MacroSphere(iMB)%momentumACC=GETREAL('MacroBody'//TRIM(hilf)//'-momentumACC')
+    MacroSphere(iMB)%transAcc=GETREAL('MacroBody'//TRIM(hilf)//'-transACC')
+    MacroSphere(iMB)%vibAcc=GETREAL('MacroBody'//TRIM(hilf)//'-vibACC')
+    MacroSphere(iMB)%rotACC=GETREAL('MacroBody'//TRIM(hilf)//'-rotACC')
+    MacroSphere(iMB)%RHS(:)=0.
   END DO
   CalcMPVolumePortion=.TRUE.
 ELSE
-  UseMacroPart=.FALSE.
-  MacroPartFluxesEnabled=.FALSE.
+  UseMacroBody=.FALSE.
+  MacroBodyFluxesEnabled=.FALSE.
+  MacroBodyAccelerationEnabled=.FALSE.
   CalcMPVolumePortion=.FALSE.
 END IF
 ConsiderVolumePortions=.FALSE.
-IF (UseMacropart) THEN
+IF (UseMacroBody) THEN
   ConsiderVolumePortions=.TRUE.
-  ALLOCATE(ElemHasMacroPart(1:nTotalElems, 1:nMacroParticle))
-  ElemHasMacroPart(:,:)=.FALSE.
-  MacroPartWriteElemData=GETLOGICAL('MacroPart-WriteElemData')
+  ALLOCATE(ElemHasMacroBody(1:nTotalElems, 1:nMacroBody))
+  ElemHasMacroBody(:,:)=.FALSE.
+  MacroPartWriteElemData=GETLOGICAL('MacroBody-WriteElemData')
   IF (MacroPartWriteElemData) THEN
-    CALL AddToElemData(ElementOut,'ElemHasMacroPart',LogArray=ElemHasMacroPart(:,1))
+    CALL AddToElemData(ElementOut,'ElemHasMacroBody',LogArray=ElemHasMacroBody(:,1))
     CALL AddToElemData(ElementOut,'MPVolumePortion',RealArray=GEO%MPVolumePortion(:))
   END IF
 END IF

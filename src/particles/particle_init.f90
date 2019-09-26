@@ -1071,7 +1071,7 @@ USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_Particle_Mesh          ,ONLY: GetMeshMinMax,InitFIBGM,MapRegionToElem,MarkAuxBCElems
 USE MOD_MacroBody_Init         ,ONLY: InitMacroBody
-USE MOD_MacroBody_tools        ,ONLY: MarkMacroPartElems
+USE MOD_MacroBody_tools        ,ONLY: MarkMacroBodyElems
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo
 USE MOD_part_pressure          ,ONLY: ParticlePressureIni,ParticlePressureCellIni
@@ -2727,7 +2727,7 @@ CALL InitFIBGM()
 
 !-- Macroscopic bodies inside domain
 CALL InitMacroBody()
-CALL MarkMacroPartElems()
+CALL MarkMacroBodyElems()
 
 ! === 2D/Axisymmetric initialization
 ! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)

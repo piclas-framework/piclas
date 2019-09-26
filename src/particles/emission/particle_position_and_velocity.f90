@@ -64,8 +64,8 @@ USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac
 USE MOD_Particle_Mesh          ,ONLY: SingleParticleToExactElement,SingleParticleToExactElementNoMap
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR
-USE MOD_MacroBody_Vars         ,ONLY: UseMacroPart
-USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROPART
+USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
+USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROBODY
 USE MOD_PICInterpolation       ,ONLY: InterpolateVariableExternalField
 USE MOD_PICInterpolation_Vars  ,ONLY: VariableExternalField
 USE MOD_PICInterpolation_vars  ,ONLY: useVariableExternalField
@@ -741,8 +741,8 @@ __STAMP__&
             Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal(3)
           END IF
         END SELECT
-        IF (UseMacroPart) THEN
-          IF (INSIDEMACROPART(Particle_pos)) THEN
+        IF (UseMacroBody) THEN
+          IF (INSIDEMACROBODY(Particle_pos)) THEN
             i=i+1
             CYCLE !particle is inside MacroParticle
           END IF
@@ -768,8 +768,8 @@ __STAMP__&
         CALL RANDOM_NUMBER(RandVal1)
         radius = Species(FractNbr)%Init(iInit)%RadiusIC*RandVal1**(1./3.)
         Particle_pos = DICEUNITVECTOR()*radius + Species(FractNbr)%Init(iInit)%BasePointIC
-        IF (UseMacroPart) THEN
-          IF (INSIDEMACROPART(Particle_pos)) THEN
+        IF (UseMacroBody) THEN
+          IF (INSIDEMACROBODY(Particle_pos)) THEN
             i=i+1
             CYCLE !particle is inside MacroParticle
           END IF
@@ -883,8 +883,8 @@ __STAMP__&
 __STAMP__&
 ,'wrong vpiDomainType for virtual Pre-Inserting region!')
         END SELECT
-        IF (UseMacroPart) THEN
-          IF (INSIDEMACROPART(Particle_pos)) THEN
+        IF (UseMacroBody) THEN
+          IF (INSIDEMACROBODY(Particle_pos)) THEN
             i=i+1
             CYCLE !particle is inside MacroParticle
           END IF
@@ -964,8 +964,8 @@ __STAMP__&
 __STAMP__&
 ,'wrong vpiDomainType for virtual Pre-Inserting region!')
         END SELECT
-        IF (UseMacroPart) THEN
-          IF (INSIDEMACROPART(Particle_pos)) THEN
+        IF (UseMacroBody) THEN
+          IF (INSIDEMACROBODY(Particle_pos)) THEN
             i=i+1
             CYCLE !particle is inside MacroParticle
           END IF

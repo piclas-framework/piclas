@@ -24,7 +24,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-TYPE tMacroParticle
+TYPE tMacroSphere
   REAL    :: center(3)
   REAL    :: velocity(6)
   REAL    :: radius
@@ -38,13 +38,13 @@ TYPE tMacroParticle
   REAL    :: rotAcc
 END TYPE
 
-TYPE(tMacroParticle), ALLOCATABLE :: MacroPart(:)
-INTEGER                           :: nMacroParticle
-LOGICAL                           :: MacroPartFluxesEnabled
-LOGICAL                           :: MacroPartAccelerationEnabled
+TYPE(tMacroSphere), ALLOCATABLE   :: MacroSphere(:)
+INTEGER                           :: nMacroBody
+LOGICAL                           :: MacroBodyFluxesEnabled
+LOGICAL                           :: MacroBodyAccelerationEnabled
 LOGICAL                           :: MacroPartWriteElemData
-LOGICAL                           :: UseMacroPart
-LOGICAL,ALLOCATABLE               :: ElemHasMacroPart(:,:)
+LOGICAL                           :: UseMacroBody
+LOGICAL,ALLOCATABLE               :: ElemHasMacroBody(:,:)
 LOGICAL                           :: CalcMPVolumePortion
 
 END MODULE MOD_MacroBody_Vars

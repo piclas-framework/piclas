@@ -36,32 +36,32 @@ CONTAINS
 SUBROUTINE MacroBody_main()
 ! MODULES                                                                                                                          !
 USE MOD_TimeDisc_Vars  ,ONLY: dt
-USE MOD_MacroBody_Vars ,ONLY: nMacroParticle, MacroPart, UseMacroPart
-USE MOD_MacroBody_Vars ,ONLY: MacroPartFluxesEnabled, MacroPartAccelerationEnabled
+USE MOD_MacroBody_Vars ,ONLY: nMacroBody, UseMacroBody, MacroSphere
+USE MOD_MacroBody_Vars ,ONLY: MacroBodyFluxesEnabled, MacroBodyAccelerationEnabled
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER                    :: iMP
+INTEGER                    :: iMB
 !----------------------------------------------------------------------------------------------------------------------------------!
-IF (.NOT.UseMacroPart) RETURN
+IF (.NOT.UseMacroBody) RETURN
 
-MacroPart(:)%center(1) = MacroPart(:)%center(1) + MacroPart(:)%velocity(1)*dt
-MacroPart(:)%center(2) = MacroPart(:)%center(2) + MacroPart(:)%velocity(2)*dt
-MacroPart(:)%center(3) = MacroPart(:)%center(3) + MacroPart(:)%velocity(3)*dt
-IF(MacroPartAccelerationEnabled) THEN
-  DO iMP=1,nMacroParticle
-    MacroPart(iMP)%velocity(1:6) = MacroPart(iMP)%velocity(1:6) + MacroPart(iMP)%RHS(1:6)
-    MacroPart(iMP)%RHS(1:6)=0.
+MacroSphere(:)%center(1) = MacroSphere(:)%center(1) + MacroSphere(:)%velocity(1)*dt
+MacroSphere(:)%center(2) = MacroSphere(:)%center(2) + MacroSphere(:)%velocity(2)*dt
+MacroSphere(:)%center(3) = MacroSphere(:)%center(3) + MacroSphere(:)%velocity(3)*dt
+IF(MacroBodyAccelerationEnabled) THEN
+  DO iMB=1,nMacroBody
+    MacroSphere(iMB)%velocity(1:6) = MacroSphere(iMB)%velocity(1:6) + MacroSphere(iMB)%RHS(1:6)
+    MacroSphere(iMB)%RHS(1:6)=0.
   END DO
 END IF
-IF(MacroPartFluxesEnabled) THEN
-  DO iMP=1,nMacroParticle
-    MacroPart(iMP)%radius = MacroPart(iMP)%radius + MacroPart(iMP)%RHS(7)
-    MacroPart(iMP)%temp   = MacroPart(iMP)%temp   + MacroPart(iMP)%RHS(8)
-    MacroPart(iMP)%mass   = MacroPart(iMP)%mass   + MacroPart(iMP)%RHS(9)
-    MacroPart(iMP)%RHS(7:9)=0.
+IF(MacroBodyFluxesEnabled) THEN
+  DO iMB=1,nMacroBody
+    MacroSphere(iMB)%radius = MacroSphere(iMB)%radius + MacroSphere(iMB)%RHS(7)
+    MacroSphere(iMB)%temp   = MacroSphere(iMB)%temp   + MacroSphere(iMB)%RHS(8)
+    MacroSphere(iMB)%mass   = MacroSphere(iMB)%mass   + MacroSphere(iMB)%RHS(9)
+    MacroSphere(iMB)%RHS(7:9)=0.
   END DO
 END IF
 

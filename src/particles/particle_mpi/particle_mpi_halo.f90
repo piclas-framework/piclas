@@ -776,7 +776,7 @@ SUBROUTINE ExchangeHaloGeometry(iProc,ElemList)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_MacroBody_Vars         ,ONLY: UseMacroPart
+USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartHaloElemToProc, PartHaloNodeToProc
 USE MOD_Mesh_Vars              ,ONLY: nElems, nBCSides, BC,nGeo,ElemBaryNGeo,CurvedElem, nNodes
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalNodes,nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nPartSides,ElemHasAuxBCs
@@ -1101,7 +1101,7 @@ IF (TriaTracking) THEN
   END IF
 END IF
 
-IF(DoRefMapping.OR.UseMacroPart)THEN
+IF(DoRefMapping.OR.UseMacroBody)THEN
   ! XCL_NGeo for exchange
   IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
     ALLOCATE(SendMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
@@ -1333,7 +1333,7 @@ END IF
 ! ElemtoSide
 DO iElem = 1,nElems
   IF (ElemIndex(iElem).NE.0) THEN
-    IF(DoRefMapping.OR.UseMacroPart)THEN
+    IF(DoRefMapping.OR.UseMacroBody)THEN
       SendMsg%XCL_NGeo(:,:,:,:,ElemIndex(iElem))=XCL_NGeo(:,:,:,:,iElem)
     END IF
     IF(DoRefMapping)THEN
@@ -1471,7 +1471,7 @@ IF (PartMPI%MyRank.LT.iProc) THEN
       CALL MPI_SEND(SendMsg%SideSlabIntervals,SendMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%BoundingBoxIsEmpty,SendMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,IERROR)
-  IF(DoRefMapping.OR.UseMacroPart)THEN
+  IF(DoRefMapping.OR.UseMacroBody)THEN
     IF (SendMsg%nElems.GT.0) &
         CALL MPI_SEND(SendMsg%XCL_NGeo,SendMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
   END IF
@@ -1538,7 +1538,7 @@ IF (PartMPI%MyRank.LT.iProc) THEN
       CALL MPI_RECV(RecvMsg%SideSlabIntervals,RecvMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%BoundingBoxIsEmpty,RecvMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,MPISTATUS,IERROR)
-  IF(DoRefMapping.OR.UseMacroPart)THEN
+  IF(DoRefMapping.OR.UseMacroBody)THEN
     IF (RecvMsg%nElems.GT.0) &
         CALL MPI_RECV(RecvMsg%XCL_NGeo,RecvMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
@@ -1605,7 +1605,7 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
       CALL MPI_RECV(RecvMsg%SideSlabIntervals,RecvMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%BoundingBoxIsEmpty,RecvMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,MPISTATUS,IERROR)
-  IF(DoRefMapping.OR.UseMacroPart)THEN
+  IF(DoRefMapping.OR.UseMacroBody)THEN
     IF (RecvMsg%nElems.GT.0) &
         CALL MPI_RECV(RecvMsg%XCL_NGeo,RecvMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
@@ -1668,7 +1668,7 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%BoundingBoxIsEmpty,SendMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,IERROR)
 
-  IF(DoRefMapping.OR.UseMacroPart)THEN
+  IF(DoRefMapping.OR.UseMacroBody)THEN
     IF (SendMsg%nElems.GT.0) &
         CALL MPI_SEND(SendMsg%XCL_NGeo,SendMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
   END IF
@@ -1931,7 +1931,7 @@ ELSE ! DoRefMappping=F
       IF (UseAuxBCs) THEN
         ElemHasAuxBCs(newElemID,:)  = RecvMsg%ElemHasAuxBCs(iElem,:)
       END IF
-      IF (UseMacroPart) THEN
+      IF (UseMacroBody) THEN
         XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
       END IF
       IF (TriaTracking) THEN
@@ -1980,7 +1980,7 @@ SUBROUTINE ResizeParticleMeshData(nOldSides,nOldElems,nTotalSides,nTotalElems,nO
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_MacroBody_Vars         ,ONLY: UseMacroPart
+USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
 USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc, PartHaloNodeToProc
 USE MOD_Mesh_Vars              ,ONLY: BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType,ElemBaryNGeo,CurvedElem,nNodes
 USE MOD_Particle_Mesh_Vars     ,ONLY: SidePeriodicType,PartBCSideList,GEO,ElemType,ElemHasAuxBCs
@@ -2068,7 +2068,7 @@ DEALLOCATE(DummyElemToSide)
 !ElemToElemGlob(:,:,offSetElem+1:offSetElem+nOldElems) =DummyElemToElemGlob(:,:,1:nOldElems)
 !DEALLOCATE(DummyElemToSide)
 
-IF(DoRefMapping.OR.UseMacroPart)THEN
+IF(DoRefMapping.OR.UseMacroBody)THEN
   ! XCL_NGeo
   ALLOCATE(DummyXCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems))
   IF (.NOT.ALLOCATED(DummyXCL_NGeo)) CALL abort(&

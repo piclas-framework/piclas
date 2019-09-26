@@ -1460,8 +1460,8 @@ SUBROUTINE CalcSubNodeMPVolumePortions(iElem, NodeDepth, Node)
 USE MOD_DSMC_Vars          ,ONLY: tNodeVolume, tTreeNode
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, epsOneCell
 USE MOD_Particle_Vars      ,ONLY: nPointsMCVolumeEstimate
-USE MOD_MacroBody_Vars     ,ONLY: UseMacroPart, MacroPart
-USE MOD_MacroBody_tools    ,ONLY: INSIDEMACROPART
+USE MOD_MacroBody_Vars     ,ONLY: UseMacroBody, MacroSphere
+USE MOD_MacroBody_tools    ,ONLY: INSIDEMACROBODY
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1478,14 +1478,14 @@ INTEGER                  :: iPart, LocalNodeDepth
 REAL                     :: refPos(1:3),physPos(1:3)
 TYPE(tTreeNode), POINTER :: TreeNode
 !===================================================================================================================================
-IF (UseMacroPart .AND. NodeDepth.EQ.1) THEN
-  IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velocity(2))).GT.0. &
-      .OR. MAXVAL(ABS(MacroPart(:)%velocity(3))).GT.0.) THEN
+IF (UseMacroBody .AND. NodeDepth.EQ.1) THEN
+  IF (MAXVAL(ABS(MacroSphere(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroSphere(:)%velocity(2))).GT.0. &
+      .OR. MAXVAL(ABS(MacroSphere(:)%velocity(3))).GT.0.) THEN
       CALL ResetMPVolDone(Node)
   END IF
 END IF
 IF (GETMPVOLDONE(NodeDepth,1,Node)) RETURN
-IF (UseMacroPart .AND. GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePortion(iElem).GT.0.) THEN
+IF (UseMacroBody .AND. GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePortion(iElem).GT.0.) THEN
   NULLIFY(TreeNode)
   ALLOCATE(TreeNode)
   TreeNode%PNum_Node = nPointsMCVolumeEstimate*(8**(NodeDepth))
@@ -1506,7 +1506,7 @@ IF (UseMacroPart .AND. GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePorti
     END DO
     TreeNode%iPartIndx_Node(iPart) = iPart
     TreeNode%MappedPartStates(iPart,1:3)= refPos(1:3)
-    IF (INSIDEMACROPART(physPos)) THEN
+    IF (INSIDEMACROBODY(physPos)) THEN
       TreeNode%MatchedPart(iPart) = .TRUE.
     END IF
   END DO

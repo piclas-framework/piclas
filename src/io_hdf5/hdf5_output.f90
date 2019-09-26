@@ -1160,7 +1160,7 @@ SUBROUTINE WriteMacroParticleToHDF5(FileName)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_MacroBody_Vars    ,ONLY: UseMacroPart, MacroPart, nMacroParticle
+USE MOD_MacroBody_Vars    ,ONLY: UseMacroBody, nMacroBody, MacroSphere
 #if USE_MPI
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /*USE_MPI*/
@@ -1188,8 +1188,8 @@ INTEGER(KIND=IK)               :: locnPart_max
 !===================================================================================================================================
 locnPart =   0_IK
 IF (PartMPI%MPIRoot) THEN
-  IF (UseMacroPart .AND. nMacroParticle.GT.0) THEN
-    DO pcount = 1,nMacroParticle
+  IF (UseMacroBody .AND. nMacroBody.GT.0) THEN
+    DO pcount = 1,nMacroBody
       !IF(MacroParticle(pcount)%particleLocal) THEN
         locnPart = locnPart + 1_IK
       !END IF
@@ -1220,12 +1220,12 @@ PartDataSize=13
 ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,INT(PartDataSize,IK)))
 
 DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
-  PartData(iPart,1:3)=MacroPart(iPart)%center(1:3)
-  PartData(iPart,4:9)=MacroPart(iPart)%velocity(1:6)
-  PartData(iPart,10)=MacroPart(iPart)%radius
-  PartData(iPart,11)=MacroPart(iPart)%temp
-  PartData(iPart,12)=MacroPart(iPart)%density
-  PartData(iPart,13)=MacroPart(iPart)%mass
+  PartData(iPart,1:3)=MacroSphere(iPart)%center(1:3)
+  PartData(iPart,4:9)=MacroSphere(iPart)%velocity(1:6)
+  PartData(iPart,10)=MacroSphere(iPart)%radius
+  PartData(iPart,11)=MacroSphere(iPart)%temp
+  PartData(iPart,12)=MacroSphere(iPart)%density
+  PartData(iPart,13)=MacroSphere(iPart)%mass
 END DO
 
 reSwitch=.FALSE.

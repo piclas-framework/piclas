@@ -25,8 +25,8 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE INSIDEMACROPART
-  MODULE PROCEDURE INSIDEMACROPART
+INTERFACE INSIDEMACROBODY
+  MODULE PROCEDURE INSIDEMACROBODY
 END INTERFACE
 
 INTERFACE ComputeMacroSphereIntersection
@@ -37,8 +37,8 @@ INTERFACE GetInteractionWithMacroBody
   MODULE PROCEDURE GetInteractionWithMacroBody
 END INTERFACE
 
-PUBLIC :: MarkMacroPartElems
-PUBLIC :: INSIDEMACROPART
+PUBLIC :: MarkMacroBodyElems
+PUBLIC :: INSIDEMACROBODY
 PUBLIC :: ComputeMacroSphereIntersection
 PUBLIC :: GetInteractionWithMacroBody
 !===================================================================================================================================
@@ -48,14 +48,14 @@ CONTAINS
 !> 1: check if MacroParticle are inside of Elements and add a safetyfactor to guarantee waterproof tracing
 !> 2: calcualte volume portion of each cell, which is occupied with macroparticles
 !===================================================================================================================================
-SUBROUTINE MarkMacroPartElems()
+SUBROUTINE MarkMacroBodyElems()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: epsMach
 USE MOD_Particle_Vars          ,ONLY: ManualTimeStep, nPointsMCVolumeEstimate
-USE MOD_MacroBody_Vars         ,ONLY: ElemHasMacroPart, CalcMPVolumePortion
-USE MOD_MacroBody_Vars         ,ONLY: MacroPart, nMacroParticle, UseMacroPart
+USE MOD_MacroBody_Vars         ,ONLY: ElemHasMacroBody, CalcMPVolumePortion
+USE MOD_MacroBody_Vars         ,ONLY: MacroSphere, nMacroBody, UseMacroBody
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems, GEO
 USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo, wBaryCL_NGeo, XiCL_NGeo
 USE MOD_Mesh_Vars              ,ONLY: NGeo, nElems
@@ -70,7 +70,7 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem!,TensorProductInterpo
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iElem,iMP,ElemID,ii,jj,kk
+INTEGER :: iElem,iMB,ElemID,ii,jj,kk
 INTEGER :: kBGM,jBGM,iBGM
 REAL    :: MPBounds(1:2,1:3)
 INTEGER :: BGMCellXmax,BGMCellXmin
@@ -86,19 +86,19 @@ INTEGER :: iPart
 REAL    :: refPos(1:3),physPos(1:3)
 REAL    :: dtLocal
 !===================================================================================================================================
-IF (.NOT.UseMacroPart) RETURN
+IF (.NOT.UseMacroBody) RETURN
 
 !set a factor for volume around spheres to be marked (necessary for tracking)
 safetyFac=1.1
 
 ! only if macroparticles are moving or volume portion has to be calculated
 ! also done in initial iteration
-IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velocity(2))).GT.0. &
-    .OR. MAXVAL(ABS(MacroPart(:)%velocity(3))).GT.0. .OR. CalcMPVolumePortion) THEN
+IF (MAXVAL(ABS(MacroSphere(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroSphere(:)%velocity(2))).GT.0. &
+    .OR. MAXVAL(ABS(MacroSphere(:)%velocity(3))).GT.0. .OR. CalcMPVolumePortion) THEN
   CalcMPVolumePortion=.TRUE.
   GEO%MPVolumePortion(:)=0.
   !--- 1: first coarse check if element has MP via BGM with Halo cells included
-  DO iMP=1,nMacroParticle
+  DO iMB=1,nMacroBody
     IF (iter.EQ.0) THEN
       IF (ManualTimeStep.EQ.0.0) THEN
          CALL abort(&
@@ -111,13 +111,13 @@ IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velo
     ELSE
       dtLocal=dt*RKdtfrac
     END IF
-    MacroPartTrajectory(1:3)=MacroPart(iMP)%velocity(1:3)*dtLocal
+    MacroPartTrajectory(1:3)=MacroSphere(iMB)%velocity(1:3)*dtLocal
     LengthMacroPartTrajectory=SQRT(DOT_PRODUCT(MacroPartTrajectory,MacroPartTrajectory))
     IF (LengthMacroPartTrajectory.GT.0) MacroPartTrajectory=MacroPartTrajectory/LengthMacroPartTrajectory
 
     ! define a box with BGM around sphere center
-    MPBounds(1,1:3)=MacroPart(iMP)%center(1:3)-(MacroPart(iMP)%radius*safetyFac+LengthMacroPartTrajectory+epsMach)
-    MPBounds(2,1:3)=MacroPart(iMP)%center(1:3)+(MacroPart(iMP)%radius*safetyFac+LengthMacroPartTrajectory+epsMach)
+    MPBounds(1,1:3)=MacroSphere(iMB)%center(1:3)-(MacroSphere(iMB)%radius*safetyFac+LengthMacroPartTrajectory+epsMach)
+    MPBounds(2,1:3)=MacroSphere(iMB)%center(1:3)+(MacroSphere(iMB)%radius*safetyFac+LengthMacroPartTrajectory+epsMach)
     BGMCellXmin = MAX(GEO%TFIBGMimin,CEILING((MPBounds(1,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)))
     BGMCellXmax = MIN(GEO%TFIBGMimax,CEILING((MPBounds(2,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)))
     BGMCellYmin = MAX(GEO%TFIBGMjmin,CEILING((MPBounds(1,2)-GEO%xminglob)/GEO%FIBGMdeltas(2)))
@@ -141,7 +141,7 @@ IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velo
       DO jBGM = BGMCellYmin,BGMCellYmax
         DO iBGM = BGMCellXmin,BGMCellXmax
           DO iElem = 1,GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem
-            ElemHasMacroPart(GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(iElem),iMP) = .TRUE.
+            ElemHasMacroBody(GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(iElem),iMB) = .TRUE.
           END DO
         END DO ! kBGM
       END DO ! jBGM
@@ -149,28 +149,28 @@ IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velo
 
     ! loop over all elements that have a MP in BGM and find those which are in a certain safety radius
     DO iElem=1,nTotalElems
-      IF (ElemHasMacroPart(iElem,iMP)) THEN
+      IF (ElemHasMacroBody(iElem,iMB)) THEN
         ! check with all 3 element diagonals wether macroparticle is smaller than element
         BoundsDiagonalVec(1:3)=GEO%BoundsOfElem(2,1:3,iElem)-GEO%BoundsOfElem(1,1:3,iElem)
         ! choose the greater length
-        BoundsDiagonal=MAX( SQRT(DOT_PRODUCT(BoundsDiagonalVec,BoundsDiagonalVec)) , MacroPart(iMP)%radius)*safetyFac
-        ElemHasMacroPart(iElem,iMP)=.FALSE.
+        BoundsDiagonal=MAX( SQRT(DOT_PRODUCT(BoundsDiagonalVec,BoundsDiagonalVec)) , MacroSphere(iMB)%radius)*safetyFac
+        ElemHasMacroBody(iElem,iMB)=.FALSE.
         nodesInside=0
         ! check distance of each node if it is within the defined distance (Distvec.LE.Boundsdiagonal) of te sphere center
         DO kk = 0,NGeo
-          IF (.NOT.ElemHasMacroPart(iElem,iMP) .OR. CalcMPVolumePortion) THEN
+          IF (.NOT.ElemHasMacroBody(iElem,iMB) .OR. CalcMPVolumePortion) THEN
             DO ii=0,NGeo
-              IF (.NOT.ElemHasMacroPart(iElem,iMP) .OR. CalcMPVolumePortion) THEN
+              IF (.NOT.ElemHasMacroBody(iElem,iMB) .OR. CalcMPVolumePortion) THEN
                 DO jj=0,NGeo
-                  IF (.NOT.ElemHasMacroPart(iElem,iMP) .OR. CalcMPVolumePortion) THEN
-                    DistVec(1:3)=XCL_NGeo(1:3,ii,jj,kk,iElem)-MacroPart(iMP)%center(1:3)
+                  IF (.NOT.ElemHasMacroBody(iElem,iMB) .OR. CalcMPVolumePortion) THEN
+                    DistVec(1:3)=XCL_NGeo(1:3,ii,jj,kk,iElem)-MacroSphere(iMB)%center(1:3)
                     DistVecLength=SQRT(DOT_PRODUCT(DistVec,DistVec))
                     IF (DistVecLength.GT.0) DistVec=DistVec/DistVecLength
                     eps = LengthMacroPartTrajectory*MAX(0.,DOT_PRODUCT(DistVec,MacroPartTrajectory))+epsMach
                     IF (DistVecLength.LE.BoundsDiagonal+eps) THEN
-                      ElemHasMacroPart(iElem,iMP)=.TRUE.
+                      ElemHasMacroBody(iElem,iMB)=.TRUE.
                     END IF
-                    IF (DistVecLength.LE.MacroPart(iMP)%radius) THEN
+                    IF (DistVecLength.LE.MacroSphere(iMB)%radius) THEN
                       nodesInside=nodesInside+1
                     END IF
                   END IF
@@ -190,7 +190,7 @@ IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velo
     !nInsertPartsY=nInsertPartsX
     !nInsertPartsZ=nInsertPartsX
     DO iElem=1,nElems
-      IF (ANY(ElemHasMacroPart(iElem,:)) .AND. GEO%MPVolumePortion(iElem).LT.1.0) THEN
+      IF (ANY(ElemHasMacroBody(iElem,:)) .AND. GEO%MPVolumePortion(iElem).LT.1.0) THEN
         matchedParts=0
         !! if element is a cube equidistant inserting in reference space
         !DO xref=1,nInsertPartsX
@@ -202,7 +202,7 @@ IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velo
         !      refPos(3) = (REAL(zref)-0.5) * 1./REAL(nInsertPartsZ)
         !      CALL TensorProductInterpolation(refPos(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem)&
         !                ,physPos(1:3)) !Map into phys. space
-        !      IF (INSIDEMACROPART(physPos)) matchedParts=matchedParts+1
+        !      IF (INSIDEMACROBODY(physPos)) matchedParts=matchedParts+1
         !    END DO
         !  END DO
         !END DO
@@ -214,7 +214,7 @@ IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velo
             CALL GetPositionInRefElem(physPos,refPos,iElem)
             IF(ALL(ABS(refPos).LE.1.0)) EXIT ! particle inside of element
           END DO
-          IF (INSIDEMACROPART(physPos)) matchedParts=matchedParts+1
+          IF (INSIDEMACROBODY(physPos)) matchedParts=matchedParts+1
         END DO
         GEO%MPVolumePortion(iElem)=REAL(matchedParts)/REAL(nPointsMCVolumeEstimate)
       END IF
@@ -224,15 +224,15 @@ END IF ! Velo_Macropart > 0 | CalcMPVolumePortion
 
 CalcMPVolumePortion=.FALSE.
 
-END SUBROUTINE MarkMacroPartElems
+END SUBROUTINE MarkMacroBodyElems
 
 
 !===================================================================================================================================
 !> Function for checking if particle position would be inside of any macro-particle in the local domain
 !===================================================================================================================================
-LOGICAL FUNCTION INSIDEMACROPART(Particle_pos)
+LOGICAL FUNCTION INSIDEMACROBODY(Particle_pos)
 ! MODULES
-USE MOD_MacroBody_Vars ,ONLY: MacroPart, nMacroParticle
+USE MOD_MacroBody_Vars ,ONLY: MacroSphere, nMacroBody
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -243,31 +243,30 @@ REAL,INTENT(IN) :: Particle_pos(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL    :: refPosSphere(1:3), distance
-INTEGER :: iMP
+INTEGER :: iMB
 !===================================================================================================================================
-INSIDEMACROPART = .FALSE.
-DO iMP=1,nMacroParticle
-  !IF (ElemHasMacroPart(ElemID,:))) THEN
-  refPosSphere(1:3) = MacroPart(iMP)%center(1:3)
+INSIDEMACROBODY = .FALSE.
+DO iMB=1,nMacroBody
+  refPosSphere(1:3) = MacroSphere(iMB)%center(1:3)
   distance=SQRT(DOT_PRODUCT((Particle_pos-refPosSphere),(Particle_pos-refPosSphere)))
-  IF (distance.LE.MacroPart(iMP)%radius) THEN
-    INSIDEMACROPART=.TRUE.
+  IF (distance.LE.MacroSphere(iMB)%radius) THEN
+    INSIDEMACROBODY=.TRUE.
     RETURN
   END IF
 END DO
-END FUNCTION INSIDEMACROPART
+END FUNCTION INSIDEMACROBODY
 
 
 !===================================================================================================================================
 !> Calculates intersection of particle path with defined spherical, solid, moving macroparticle
 !===================================================================================================================================
-SUBROUTINE ComputeMacroSphereIntersection(isHit,PartTrajectory,lengthPartTrajectory,macroPartID &
+SUBROUTINE ComputeMacroSphereIntersection(isHit,PartTrajectory,lengthPartTrajectory,macroBodyID &
                                          ,alpha,alphaSphere,alphaDoneRel,partID,alpha2)
 ! MODULES
 USE MOD_Globals
 USE MOD_Utils                  ,ONLY: QuadraticSolver
 USE MOD_Particle_Vars          ,ONLY: LastPartPos,PartState
-USE MOD_MacroBody_Vars         ,ONLY: MacroPart
+USE MOD_MacroBody_Vars         ,ONLY: MacroSphere
 USE MOD_TimeDisc_Vars          ,ONLY: dt,RKdtFrac
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -278,7 +277,7 @@ IMPLICIT NONE
 REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN)                   :: lengthPartTrajectory
 INTEGER,INTENT(IN)                :: partID
-INTEGER,INTENT(IN)                :: macroPartID
+INTEGER,INTENT(IN)                :: macroBodyID
 REAL,INTENT(IN)                   :: alphaDoneRel
 REAL,INTENT(IN),OPTIONAL          :: alpha2
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -308,17 +307,17 @@ isHit=.FALSE.
     IF(PartID.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(64("-"))')
       WRITE(UNIT_stdout,'((A,G0))')  '     | partID: ',PartID
-      WRITE(UNIT_stdout,'((A,G0))')  '     | MacroPartID: ',macroPartID
+      WRITE(UNIT_stdout,'((A,G0))')  '     | macroBodyID: ',macroBodyID
       WRITE(UNIT_stdout,'((A,G0))')  '     | alphaDoneRel: ',alphaDoneRel
     END IF
   END IF
 #endif /*CODE_ANALYZE*/
 
 ! transform particle trajectory to sphere system v2_rel=v2-v1
-MacroPartTrajectory(1:3)=MacroPart(macroPartID)%velocity(1:3)*dt*RKdtFrac*(1.-alphaDoneRel)
+MacroPartTrajectory(1:3)=MacroSphere(macroBodyID)%velocity(1:3)*dt*RKdtFrac*(1.-alphaDoneRel)
 relPartTrajectory(1:3)=PartTrajectory(1:3)*LengthPartTrajectory-MacroPartTrajectory(1:3)
 ! Transform particle position to sphere system
-PosSphere(1:3) = MacroPart(MacroPartID)%center(1:3)+MacroPart(macroPartID)%velocity(1:3)*dt*RKdtFrac*alphaDoneRel
+PosSphere(1:3) = MacroSphere(macroBodyID)%center(1:3)+MacroSphere(macroBodyID)%velocity(1:3)*dt*RKdtFrac*alphaDoneRel
 P2_rel(1:3)=LastPartPos(PartID,1:3)-PosSphere(1:3)
 
 #ifdef CODE_ANALYZE
@@ -343,7 +342,7 @@ IF (relLengthPartTrajectory.EQ.0) RETURN
 
 A = DOT_PRODUCT(relPartTrajectory,relPartTrajectory)
 B = 2*DOT_PRODUCT(P2_rel,relPartTrajectory)
-C = DOT_PRODUCT(P2_rel,P2_rel) - MacroPart(MacroPartID)%radius**2
+C = DOT_PRODUCT(P2_rel,P2_rel) - MacroSphere(macroBodyID)%radius**2
 
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -354,7 +353,7 @@ C = DOT_PRODUCT(P2_rel,P2_rel) - MacroPart(MacroPartID)%radius**2
   END IF
 #endif /*CODE_ANALYZE*/
 
-scaleFac = relLengthPartTrajectory**2 ! * MacroPart(MacroPartID)%radius !<...>^2 * cell-scale
+scaleFac = relLengthPartTrajectory**2 ! * MacroSphere(macroBodyID)%radius !<...>^2 * cell-scale
 scaleFac = 1./scaleFac
 A = A * scaleFac
 B = B * scaleFac
@@ -382,10 +381,10 @@ IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     WRITE(UNIT_stdout,'(64("-"))')
   END IF
 END IF
-IF (distance.LE.MacroPart(MacroPartID)%radius*0.99 .AND. distance2.LE.MacroPart(MacroPartID)%radius*0.99) THEN
+IF (distance.LE.MacroSphere(macroBodyID)%radius*0.99 .AND. distance2.LE.MacroSphere(macroBodyID)%radius*0.99) THEN
   WRITE(UNIT_stdout,'(A)') '     | Particle is inside of Macro particle (sphere): '
   WRITE(UNIT_stdout,'((A,G0))')  '     | partID: ',PartID
-  WRITE(UNIT_stdout,'((A,G0))')  '     | MacroPartID: ',macroPartID
+  WRITE(UNIT_stdout,'((A,G0))')  '     | macroBodyID: ',macroBodyID
   WRITE(UNIT_stdout,'(2(A,G0))') '     | distance last partpos: ',distance,' | distance partstate: ',distance2
   CALL abort(&
       __STAMP__&
@@ -476,21 +475,21 @@ END SUBROUTINE ComputeMacroSphereIntersection
 !> Computes the post boundary state of a particle that interacts with an spherical macro body
 !===================================================================================================================================
 SUBROUTINE GetInteractionWithMacroBody(PartTrajectory,lengthPartTrajectory &
-                                      ,alpha,alphaSphere,alphaDoneRel,macroPartID,partID,opt_Reflected)
+                                      ,alpha,alphaSphere,alphaDoneRel,macroBodyID,partID,opt_Reflected)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals                 ,ONLY: CROSSNORM,abort,UNITVECTOR,CROSS
 USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars           ,ONLY: PDM,PartSpecies
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species
-USE MOD_MacroBody_Vars          ,ONLY: MacroPart
+USE MOD_MacroBody_Vars          ,ONLY: MacroSphere
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Particle_Boundary_Tools ,ONLY: SurfaceToPartEnergyInternal
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                   :: PartID,macroPartID
+INTEGER,INTENT(IN)                   :: PartID,macroBodyID
 REAL   ,INTENT(IN)                   :: alpha
 REAL   ,INTENT(IN)                   :: alphaSphere
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -513,10 +512,10 @@ REAL                                 :: MacroPartTrajectory(1:3)
 REAL                                 :: force(1:3), moment(1:3), inertiaMoment
 !===================================================================================================================================
 ! transform particle trajectory to sphere system v2_rel=v2-v1
-MacroPartTrajectory(1:3)=MacroPart(macroPartID)%velocity(1:3)*dt*RKdtFrac*(1.-alphaDoneRel)
+MacroPartTrajectory(1:3)=MacroSphere(macroBodyID)%velocity(1:3)*dt*RKdtFrac*(1.-alphaDoneRel)
 relPartTrajectory(1:3)=PartTrajectory(1:3)*lengthPartTrajectory-MacroPartTrajectory(1:3)
 ! Transform particle posiiton to sphere system
-PosSphere(1:3) = MacroPart(MacroPartID)%center(1:3)+MacroPart(macroPartID)%velocity(1:3)*dt*RKdtFrac*alphaDoneRel
+PosSphere(1:3) = MacroSphere(macroBodyID)%center(1:3)+MacroSphere(macroBodyID)%velocity(1:3)*dt*RKdtFrac*alphaDoneRel
 !P2_rel(1:3)=LastPartPos(PartID,1:3)-PosSphere(1:3)
 
 ! already checked during intersection
@@ -548,13 +547,13 @@ END IF
 nLoc=-nLoc
 
 ! transform velocity in reference to sphere
-relVeloPart(1:3)=PartState(PartID,4:6)-MacroPart(macroPartID)%velocity(1:3)
+relVeloPart(1:3)=PartState(PartID,4:6)-MacroSphere(macroBodyID)%velocity(1:3)
 ! perfect reflection on sphere
 CALL RANDOM_NUMBER(RanNum)
-IF (RanNum.GE.MacroPart(macroPartID)%momentumACC) THEN
+IF (RanNum.GE.MacroSphere(macroBodyID)%momentumACC) THEN
   NewVelo(1:3) =  relVeloPart(1:3) - 2.*DOT_PRODUCT(relVeloPart(1:3),nLoc)*nLoc
 ELSE
-  WallVelo = CROSS(MacroPart(macroPartID)%velocity(4:6),-nLoc*Macropart(macroPartID)%radius)
+  WallVelo = CROSS(MacroSphere(macroBodyID)%velocity(4:6),-nLoc*MacroSphere(macroBodyID)%radius)
   relVeloPart(1:3)=relVelopart(1:3) - WallVelo
   IF (nLoc(3).NE.0.) THEN
     tang1(1) = 1.0
@@ -573,7 +572,7 @@ ELSE
       ELSE
         CALL abort(&
             __STAMP__&
-            ,'Error in GetInteractionWithMacroPart, n_vec is zero for macro particle',macroPartID)
+            ,'Error in GetInteractionWithMacroPart, n_vec is zero for macro particle',macroBodyID)
       END IF
     END IF
   END IF
@@ -581,8 +580,8 @@ ELSE
   tang2=CROSSNORM(nLoc,tang1)
 
   ! diffuse reflection
-  WallTemp   = MacroPart(macroPartID)%temp
-  TransAcc   = MacroPart(macroPartID)%transACC
+  WallTemp   = MacroSphere(macroBodyID)%temp
+  TransAcc   = MacroSphere(macroBodyID)%transACC
   CALL RANDOM_NUMBER(RanNum)
   VeloCrad    = SQRT(-LOG(RanNum))
   CALL RANDOM_NUMBER(RanNum)
@@ -604,7 +603,7 @@ ELSE
   CALL SurfaceToPartEnergyInternal(PartID,WallTemp)
 END IF
 ! transform velocity back to mesh reference
-PartState(PartID,4:6) = NewVelo(1:3) + MacroPart(macroPartID)%velocity(1:3)
+PartState(PartID,4:6) = NewVelo(1:3) + MacroSphere(macroBodyID)%velocity(1:3)
 
 ! intersection point with surface
 LastPartPos(PartID,1:3) = intersectPoint(1:3)
@@ -619,13 +618,13 @@ IF (lengthPartTrajectory.GT.0.) PartTrajectory=PartTrajectory/lengthPartTrajecto
 force(1:3) = Species(PartSpecies(PartID))%MassIC &
            * (relVeloPart(1:3) - NewVelo(1:3)) * Species(PartSpecies(PartID))%MacroParticleFactor / dt
 ! delta velocity
-MacroPart(macroPartID)%RHS(1:3) = MacroPart(macroPartID)%RHS(1:3) + force(1:3)*dt/MacroPart(macroPartID)%mass
+MacroSphere(macroBodyID)%RHS(1:3) = MacroSphere(macroBodyID)%RHS(1:3) + force(1:3)*dt/MacroSphere(macroBodyID)%mass
 
 ! moment and moment of inertia
-moment(1:3) = CROSS(-nLoc*macroPart(macroPartID)%radius,Force(1:3))
-inertiaMoment = 2./5.*MacroPart(macroPartID)%mass*MacroPart(macroPartID)%radius**2
+moment(1:3) = CROSS(-nLoc*MacroSphere(macroBodyID)%radius,Force(1:3))
+inertiaMoment = 2./5.*MacroSphere(macroBodyID)%mass*MacroSphere(macroBodyID)%radius**2
 ! delta rot velo
-MacroPart(macroPartID)%RHS(4:6) = MacroPart(macroPartID)%RHS(4:6) + moment(1:3)*dt/inertiaMoment
+MacroSphere(macroBodyID)%RHS(4:6) = MacroSphere(macroBodyID)%RHS(4:6) + moment(1:3)*dt/inertiaMoment
 
 END SUBROUTINE GetInteractionWithMacroBody
 

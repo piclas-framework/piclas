@@ -1906,7 +1906,7 @@ USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
 USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
 USE MOD_MacroBody                ,ONLY: MacroBody_main
-USE MOD_MacroBody_tools          ,ONLY: MarkMacroPartElems
+USE MOD_MacroBody_tools          ,ONLY: MarkMacroBodyElems
 USE MOD_DSMC_Vars                ,ONLY: DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC                     ,ONLY: DSMC_main
 USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
@@ -2071,7 +2071,7 @@ REAL                       :: tLBStart
   END IF
 
   CALL MacroBody_main()
-  CALL MarkMacroPartElems()
+  CALL MarkMacroBodyElems()
 
   CALL DSMC_main()
 

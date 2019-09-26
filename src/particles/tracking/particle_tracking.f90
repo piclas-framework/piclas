@@ -473,8 +473,8 @@ USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputeBiLinearIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputeAuxBCIntersection
 USE MOD_Eval_xyz                    ,ONLY: GetPositionInRefElem
-USE MOD_MacroBody_Vars              ,ONLY: nMacroParticle, useMacropart, ElemHasMacroPart
-USE MOD_MacroBody_tools             ,ONLY: INSIDEMACROPART
+USE MOD_MacroBody_Vars              ,ONLY: nMacroBody, UseMacroBody, ElemHasMacroBody
+USE MOD_MacroBody_tools             ,ONLY: INSIDEMACROBODY
 USE MOD_MacroBody_tools             ,ONLY: ComputeMacroSphereIntersection
 USE MOD_MacroBody_tools             ,ONLY: GetInteractionWithMacroBody
 #ifdef CODE_ANALYZE
@@ -513,7 +513,7 @@ REAL                          :: localpha,xi,eta,refpos(1:3)
 REAL                          :: locAlphaSphere
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL                       :: onlyMacroPart
-INTEGER                       :: iMP
+INTEGER                       :: iMB
 REAL                          :: alphaDoneRel, oldLengthPartTrajectory
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
@@ -608,7 +608,7 @@ DO iPart=1,PDM%ParticleVecLength
          __STAMP__ &
          ,'ERROR: Lastpartpos in wrong element. PartID:',iPart)
     END IF
-    IF (INSIDEMACROPART(LastPartPos(iPart,1:3))) CALL abort(&
+    IF (INSIDEMACROBODY(LastPartPos(iPart,1:3))) CALL abort(&
         __STAMP__&
         ,'ERROR: particle found inside macroscopic sphere. PartID: ',iPart)
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
@@ -625,7 +625,7 @@ DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo(ElemID)) .OR. LengthPartTrajectory.EQ.0)THEN
       ! if Macroparticle are in element, they might move and consequently have to be treated although lengthparttrajectory is 0
       ! partvelo - macropartvelo might be > 0 --> Relative lengthPartTrajectory > 0
-      IF (UseMacroPart) THEN
+      IF (UseMacroBody) THEN
         onlyMacroPart=.TRUE.
       ELSE
         PEM%Element(iPart)=ElemID
@@ -684,12 +684,12 @@ DO iPart=1,PDM%ParticleVecLength
             !IF(locAlpha/lengthPartTrajectory.GE.0.99 .OR. locAlpha/lengthPartTrajectory.LT.0.01) markTol=.TRUE.
           END IF
         ELSE IF (currentIntersect%IntersectCase.EQ.3) THEN
-          iMP = currentIntersect%Side
-          CALL ComputeMacroSphereIntersection(foundHit,PartTrajectory,lengthPartTrajectory,iMP&
+          iMB = currentIntersect%Side
+          CALL ComputeMacroSphereIntersection(foundHit,PartTrajectory,lengthPartTrajectory,iMB&
               ,locAlpha,locAlphaSphere,alphaDoneRel,iPart,alpha2=currentIntersect%alpha)
           currentIntersect%alpha=HUGE(1.)
           currentIntersect%IntersectCase=0
-          IF(foundHit) CALL AssignListPosition(currentIntersect,locAlpha,iMP,3,alpha2_IN=locAlphaSphere)
+          IF(foundHit) CALL AssignListPosition(currentIntersect,locAlpha,iMB,3,alpha2_IN=locAlphaSphere)
         END IF
 #ifdef CODE_ANALYZE
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
@@ -701,7 +701,7 @@ DO iPart=1,PDM%ParticleVecLength
             WRITE(UNIT_stdout,'(A,2(X,G0))') '     | Intersection xi/eta: ',xi,eta
             WRITE(UNIT_stdout,'((A,G0))') '     | RelAlpha: ',locAlpha/lengthpartTrajectory
           ELSE IF (currentIntersect%IntersectCase.EQ.3) THEN
-            WRITE(UNIT_stdout,'(A,I0,A,L)') '     | MaroPartID: ',iMP,' | Hit: ',foundHit
+            WRITE(UNIT_stdout,'(A,I0,A,L)') '     | MaroPartID: ',iMB,' | Hit: ',foundHit
             WRITE(UNIT_stdout,'(A,G0)') '     | AlphaSphere: ',locAlphaSphere
           END IF
           WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ', lengthPartTrajectory
@@ -732,7 +732,7 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*CODE_ANALYZE*/
         DO ilocSide=1,6
           locAlpha=-1.
-          IF (UseMacroPart) THEN
+          IF (UseMacroBody) THEN
             IF (OnlyMacroPart) CYCLE
           END IF
           IF(.NOT.dolocSide(ilocSide)) CYCLE
@@ -793,7 +793,7 @@ __STAMP__ &
         IF (UseAuxBCs) THEN
           DO iAuxBC=1,nAuxBCs
             locAlpha=-1
-            IF (UseMacroPart) THEN
+            IF (UseMacroBody) THEN
               IF (OnlyMacroPart) CYCLE
             END IF
             isCriticalParallelInFace=.FALSE.
@@ -834,11 +834,11 @@ __STAMP__ &
             END IF ! foundHit
           END DO !iAuxBC
         END IF !UseAuxBCs
-        IF (UseMacroPart) THEN
-          DO iMP=1,nMacroParticle
+        IF (UseMacroBody) THEN
+          DO iMB=1,nMacroBody
             locAlpha=-1
-            IF (ElemHasMacroPart(ElemID,iMP)) THEN
-              CALL ComputeMacroSphereIntersection(foundHit,PartTrajectory,lengthPartTrajectory,iMP&
+            IF (ElemHasMacroBody(ElemID,iMB)) THEN
+              CALL ComputeMacroSphereIntersection(foundHit,PartTrajectory,lengthPartTrajectory,iMB&
                                                ,locAlpha,locAlphaSphere,alphaDoneRel,iPart)
             ELSE
               foundHit=.FALSE.
@@ -848,7 +848,7 @@ __STAMP__ &
             IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN ; IF(iPart.EQ.PARTOUT)THEN
               WRITE(UNIT_stdout,'(30("-"))')
               WRITE(UNIT_stdout,'(A)') '     | Output after compute MacroPart intersection (Particle tracing): '
-              WRITE(UNIT_stdout,'(A,I0,A,L)') '     | MaroPartID: ',iMP,' | Hit: ',foundHit
+              WRITE(UNIT_stdout,'(A,I0,A,L)') '     | MaroPartID: ',iMB,' | Hit: ',foundHit
               WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ',lengthPartTrajectory
               WRITE(UNIT_stdout,'(A,G0)') '     | AlphaSphere: ',locAlphaSphere
             END IF ;END IF
@@ -856,7 +856,7 @@ __STAMP__ &
 #endif /*CODE_ANALYZE*/
             IF(foundHit) THEN
               currentIntersect => lastIntersect
-              CALL AssignListPosition(currentIntersect,locAlpha,iMP,3,alpha2_IN=locAlphaSphere)
+              CALL AssignListPosition(currentIntersect,locAlpha,iMB,3,alpha2_IN=locAlphaSphere)
               currentIntersect => lastIntersect
               lastIntersect => currentIntersect%next
               lastIntersect%prev => currentIntersect
@@ -947,7 +947,7 @@ __STAMP__ &
 #endif /*USE_LOADBALANCE*/
           IF(crossedBC) THEN
             firstElem=ElemID
-            IF (UseMacroPart) THEN
+            IF (UseMacroBody) THEN
               IF (currentIntersect%IntersectCase.EQ.1 .OR. currentIntersect%IntersectCase.EQ.2) THEN
                 alphaDoneRel = alphaDoneRel + (1.-alphaDoneRel)*(currentIntersect%alpha/oldLengthPartTrajectory)
               ELSE IF (currentIntersect%IntersectCase.EQ.3) THEN
