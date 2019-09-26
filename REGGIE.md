@@ -153,9 +153,10 @@ Testing of routines when using MacroBodies: [Link to build](regressioncheck/chec
 
 | **No.** |             **Case**              |    **CMAKE-CONFIG**  |           **Feature**           |                 **Execution**                  |          **Comparing**           |                                   **Readme**                                         |
 | :-----: | :-------------------------------: | :------------------: | :-----------------------------: | :--------------------------------------------: | :------------------------------: | :----------------------------------------------------------------------------------: |
-| 1       |   SphereElemData                  |    TD=MACROBODY(43)  |        nMacroBodies>0           |                  nProcs=1                      |                                  | [Link](regressioncheck/checks/NIG_MacroBody/SphereElemData/readme.md)                |
+| 1       |   SphereMovingInChannel           |    TD=MACROBODY(43)  |        nMacroBodies>0           |                  nProcs=1                      |                                  | [Link](regressioncheck/checks/NIG_MacroBody/SphereMovingInChannel/readme.md)         |
+| 1       |   SphereSample                    |    TD=MACROBODY(43)  |        nMacroBodies>0           |                  nProcs=1                      |                                  | [Link](regressioncheck/checks/NIG_MacroBody/SphereSample/readme.md)                  |
 | 2       |   SphereThroughCube               |    TD=MACROBODY(43)  |        nMacroBodies>0           |                  nProcs=1                      |                                  | [Link](regressioncheck/checks/NIG_MacroBody/SphereThroughCube/readme.md)             |
-| 3       |   SphereWithEmissionAndSampling   |    TD=MACROBODY(43)  |        nMacroBodies>0           |                  nProcs=1                      |                                  | [Link](regressioncheck/checks/NIG_MacroBody/SphereWithEmissionAndSampling/readme.md) |
+| 3       |   SphereWithEmission              |    TD=MACROBODY(43)  |        nMacroBodies>0           |                  nProcs=1                      |                                  | [Link](regressioncheck/checks/NIG_MacroBody/SphereWithEmission/readme.md)            |
 
 #### NIG_tracking_DSMC
 
