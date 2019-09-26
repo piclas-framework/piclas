@@ -191,7 +191,7 @@ DO i = 1,PDM%ParticleVecLength
         lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                                  +PartTrajectory(2)*PartTrajectory(2) &
                                  +PartTrajectory(3)*PartTrajectory(3) )
-        PartTrajectory=PartTrajectory/lengthPartTrajectory
+        IF(ABS(lengthPartTrajectory).GT.0.) PartTrajectory=PartTrajectory/lengthPartTrajectory
         DO iLocSide=1,6
           TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
           SideIDMortar=MortarType(2,TempSideID)

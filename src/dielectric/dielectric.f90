@@ -106,12 +106,12 @@ IF(.NOT.DoDielectric) THEN
   nDielectricElems=0
   RETURN
 END IF
-DielectricNoParticles            = GETLOGICAL('DielectricNoParticles','.FALSE.')
-DielectricFluxNonConserving      = GETLOGICAL('DielectricFluxNonConserving','.FALSE.')
-DielectricEpsR                   = GETREAL('DielectricEpsR','1.')
-DielectricMuR                    = GETREAL('DielectricMuR','1.')
-DielectricTestCase               = GETSTR('DielectricTestCase','default')
-DielectricRmax                   = GETREAL('DielectricRmax','1.')
+DielectricNoParticles            = GETLOGICAL('DielectricNoParticles')
+DielectricFluxNonConserving      = GETLOGICAL('DielectricFluxNonConserving')
+DielectricEpsR                   = GETREAL('DielectricEpsR')
+DielectricMuR                    = GETREAL('DielectricMuR')
+DielectricTestCase               = GETSTR('DielectricTestCase')
+DielectricRmax                   = GETREAL('DielectricRmax')
 IF((DielectricEpsR.LE.0.0).OR.(DielectricMuR.LE.0.0))THEN
   CALL abort(&
   __STAMP__&
@@ -125,12 +125,12 @@ DielectricConstant_RootInv       = 1./sqrt(DielectricEpsR*DielectricMuR) !      
 #endif /*if USE_HDG*/
   c_dielectric                     = c*DielectricConstant_RootInv          !          c/sqrt(EpsR*MuR)
   c2_dielectric                    = c*c/(DielectricEpsR*DielectricMuR)            !           c**2/(EpsR*MuR)
-DielectricCheckRadius            = GETLOGICAL('DielectricCheckRadius','.FALSE.')
-DielectricRadiusValue            = GETREAL('DielectricRadiusValue','-1.')
+DielectricCheckRadius            = GETLOGICAL('DielectricCheckRadius')
+DielectricRadiusValue            = GETREAL('DielectricRadiusValue')
 IF(DielectricRadiusValue.LE.0.0) DielectricCheckRadius=.FALSE.
 ! determine Dielectric elements
-xyzPhysicalMinMaxDielectric(1:6) = GETREALARRAY('xyzPhysicalMinMaxDielectric',6,'0.0,0.0,0.0,0.0,0.0,0.0')
-xyzDielectricMinMax(1:6)         = GETREALARRAY('xyzDielectricMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
+xyzPhysicalMinMaxDielectric(1:6) = GETREALARRAY('xyzPhysicalMinMaxDielectric',6)
+xyzDielectricMinMax(1:6)         = GETREALARRAY('xyzDielectricMinMax',6)
 ! use xyzPhysicalMinMaxDielectric before xyzDielectricMinMax:
 ! 1.) check for xyzPhysicalMinMaxDielectric
 ! 2.) check for xyzDielectricMinMax
@@ -190,7 +190,7 @@ CALL SetDielectricVolumeProfile()
       DielectricRatio=DielectricEpsR_inv
     END IF
     ! get the axial electric field strength in x-direction of the dielectric sphere setup
-    Dielectric_E_0 = GETREAL('Dielectric_E_0','1.')
+    Dielectric_E_0 = GETREAL('Dielectric_E_0')
   !END IF
 #endif /*USE_HDG*/
 
