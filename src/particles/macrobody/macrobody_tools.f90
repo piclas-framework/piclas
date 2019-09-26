@@ -102,8 +102,8 @@ IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velo
     IF (iter.EQ.0) THEN
       IF (ManualTimeStep.EQ.0.0) THEN
          CALL abort(&
-__STAMP__&
-, 'ManualTimeStep.EQ.0.0 -> ManualTimeStep needs to be defined for Macroparticles!'// &
+              __STAMP__&
+              , 'ManualTimeStep.EQ.0.0 -> ManualTimeStep needs to be defined for Macroparticles!'// &
 ' Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
       ELSE
         dtLocal=ManualTimeStep
@@ -388,8 +388,8 @@ IF (distance.LE.MacroPart(MacroPartID)%radius*0.99 .AND. distance2.LE.MacroPart(
   WRITE(UNIT_stdout,'((A,G0))')  '     | MacroPartID: ',macroPartID
   WRITE(UNIT_stdout,'(2(A,G0))') '     | distance last partpos: ',distance,' | distance partstate: ',distance2
   CALL abort(&
-  __STAMP__&
-  ,'Particle is inside of Macro particle (sphere)')
+      __STAMP__&
+      ,'Particle is inside of Macro particle (sphere)')
 END IF
 #endif /*CODE_ANALYZE*/
 
@@ -572,8 +572,8 @@ ELSE
         tang1(1) = -(nLoc(2)+nLoc(3))/nLoc(1)
       ELSE
         CALL abort(&
-__STAMP__&
-,'Error in GetInteractionWithMacroPart, n_vec is zero for macro particle',macroPartID)
+            __STAMP__&
+            ,'Error in GetInteractionWithMacroPart, n_vec is zero for macro particle',macroPartID)
       END IF
     END IF
   END IF

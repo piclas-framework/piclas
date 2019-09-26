@@ -101,8 +101,8 @@ nMacroParticle = 0
 #endif
 IF (nMacroparticle.GT.0) THEN
   IF (DoRefMapping.OR.TriaTracking) CALL abort(&
-__STAMP__&
-,'Macroparticle not possible with dorefmapping or TriaTracking')
+      __STAMP__&
+      ,'Macroparticle not possible with dorefmapping or TriaTracking')
   ! if implementation for triatracking intended, fix number of envelopes in halo region build (particle_mpi_halo.f90)
   UseMacroPart=.TRUE.
   MacroPartFluxesEnabled = GETLOGICAL('MacroPart-FluxesEnabled')
@@ -117,8 +117,8 @@ __STAMP__&
     MacroPart(iMP)%temp=GETREAL('MacroPart'//TRIM(hilf)//'-temp')
     MacroPart(iMP)%density=GETREAL('MacroPart'//TRIM(hilf)//'-density')
     IF (MacroPart(iMP)%density.LE.0.) CALL abort(&
-__STAMP__&
-,'density must be above 0 for MacroPart',iMP)
+        __STAMP__&
+        ,'density must be above 0 for MacroPart',iMP)
     MacroPart(iMP)%mass=4./3.*MacroPart(iMP)%radius**3*PI*MacroPart(iMP)%density
     MacroPart(iMP)%momentumACC=GETREAL('MacroPart'//TRIM(hilf)//'-momentumACC')
     MacroPart(iMP)%transAcc=GETREAL('MacroPart'//TRIM(hilf)//'-transACC')
@@ -146,8 +146,8 @@ END IF
 IF (ConsiderVolumePortions) THEN
   nPointsMCVolumeEstimate = GETINT('Particles-nPointsMCVolumeEstimate')
   IF (nPointsMCVolumeEstimate.LT.1) CALL abort(&
-  __STAMP__&
-  ,'nPointsMCVolumeEstimate is must be above 0')
+      __STAMP__&
+      ,'nPointsMCVolumeEstimate is must be above 0')
 END IF
 
 END SUBROUTINE InitMacroBody
