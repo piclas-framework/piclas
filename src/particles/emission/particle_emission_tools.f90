@@ -797,7 +797,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, epsOneCell
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry2D        ,ONLY: CalcRadWeightMPF
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
-USE MOD_Part_tools             ,ONLY: INSIDEMACROPART
+USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROPART
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

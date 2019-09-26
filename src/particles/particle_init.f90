@@ -1100,7 +1100,8 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas, RadialWeighting, Con
 USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
 USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_PICInit                ,ONLY: InitPIC
-USE MOD_Particle_Mesh          ,ONLY: GetMeshMinMax,InitFIBGM,MapRegionToElem,MarkAuxBCElems,MarkMacroPartElems
+USE MOD_Particle_Mesh          ,ONLY: GetMeshMinMax,InitFIBGM,MapRegionToElem,MarkAuxBCElems
+USE MOD_MacroBody_tools        ,ONLY: MarkMacroPartElems
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo
 USE MOD_part_pressure          ,ONLY: ParticlePressureIni,ParticlePressureCellIni
@@ -2756,7 +2757,11 @@ halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 CALL InitFIBGM()
 
 !-- MacroPart
+#if (PP_TimeDiscMethod==43)
 nMacroParticle = GETINT('MacroPart-nMacroParticle')
+#else
+nMacroParticle = 0
+#endif
 IF (nMacroparticle.GT.0) THEN
   IF (DoRefMapping) CALL abort(&
 __STAMP__&

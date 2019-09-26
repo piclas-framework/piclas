@@ -41,10 +41,6 @@ INTERFACE ComputeAuxBCIntersection
   MODULE PROCEDURE ComputeAuxBCIntersection
 END INTERFACE
 
-INTERFACE ComputeMacropartIntersection
-  MODULE PROCEDURE ComputeMacroPartIntersection
-END INTERFACE
-
 #ifdef CODE_ANALYZE
 INTERFACE OutputTrajectory
   MODULE PROCEDURE OutputTrajectory
@@ -55,7 +51,6 @@ PUBLIC::ComputePlanarCurvedIntersection
 PUBLIC::ComputeBilinearIntersection
 PUBLIC::ComputeCurvedIntersection
 PUBLIC::ComputeAuxBCIntersection
-PUBLIC::ComputeMacroPartIntersection
 #ifdef CODE_ANALYZE
 PUBLIC::OutputTrajectory
 #endif /*CODE_ANALYZE*/
@@ -546,9 +541,10 @@ SUBROUTINE ComputePlanarNonRectIntersection(isHit,PartTrajectory,lengthPartTraje
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
-USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
+!USE MOD_Utils                  ,ONLY: QuadraticSolver
+USE MOD_Particle_Vars          ,ONLY: LastPartPos
+USE MOD_Particle_Surfaces_Vars ,ONLY: epsilontol,Beziercliphit
+USE MOD_Particle_Surfaces_Vars ,ONLY: BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -661,20 +657,21 @@ SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
-!USE MOD_Particle_Surfaces_Vars,  ONLY:Beziercliphit
-USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
-USE MOD_Particle_Surfaces,       ONLY:CalcNormAndTangBilinear
-USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
+USE MOD_Utils                  ,ONLY: QuadraticSolver
+USE MOD_Particle_Vars          ,ONLY: LastPartPos
+USE MOD_Mesh_Vars              ,ONLY: nBCSides,nSides
+!USE MOD_Particle_Surfaces_Vars  ,ONLY: Beziercliphit
+USE MOD_Particle_Surfaces_Vars ,ONLY: BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
+USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
-USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
-USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Particle_Surfaces_Vars ,ONLY: epsilontol
 #endif /*CODE_ANALYZE*/
 #if USE_MPI
-USE MOD_Mesh_Vars,               ONLY:BC
+USE MOD_Mesh_Vars              ,ONLY: BC
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2497,74 +2494,6 @@ END IF
 END FUNCTION FlatBoundingBoxIntersection
 
 
-
-SUBROUTINE QuadraticSolver(A,B,C,nRoot,r1,r2)
-!================================================================================================================================
-! subroutine to compute the modified a,b,c equation, parameter already mapped in final version
-!================================================================================================================================
-#ifdef CODE_ANALYZE
-USE MOD_Globals,            ONLY:UNIT_stdOut,MyRank
-#endif /*CODE_ANALYZE*/
-IMPLICIT NONE
-!--------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)         :: A,B,C
-!--------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(OUT)     :: nRoot
-REAL,INTENT(OUT)        :: R1,R2
-!--------------------------------------------------------------------------------------------------------------------------------
-! local variables
-REAL                    :: radicant
-!================================================================================================================================
-
-! Use P-Q-formula and calculate first solution R1
-! Use Theorem of Vieta (R1*R2=C/A) to calculate R2
-! cf: wikipedia 2017.06.13 https://de.wikipedia.org/wiki/Quadratische_Gleichung
-IF (A.NE.0. .AND. B.EQ.0. .AND. C.EQ.0.) THEN
-  nRoot=1
-  R1=0.
-  R2=0.
-ELSE IF(A.NE.0.)THEN
-  radicant = (0.5*B/A)**2 - (C/A)
-  IF (radicant.LT.0.) THEN
-    nRoot=0
-    R1=0.
-    R2=0.
-  ELSE
-    nRoot=2
-    R1=-0.5*(B/A)-SIGN(1.,B/A)*SQRT(radicant)
-    R2=(C/A)/R1
-  END IF
-ELSE
-  IF(B.NE.0.)THEN
-    nRoot=1
-    R1=-C/B
-    R2=0.
-  ELSE
-    nRoot=0
-    R1=0.
-    R2=0.
-  END IF
-END IF
-
-#ifdef CODE_ANALYZE
-IF(nRoot.GT.0)THEN
-  IF((ABS(R1).LE.1.).AND.(ABS(A*R1**2+B*R1+C).GT.1e-10))THEN
-    IPWRITE(UNIT_stdOut,'(I0,A,G0,A)')    ' WARNING!!!: RHS of R1 is ',A*R1**2+B*R1+C &
-        ,' (.GT.1e-10) in quadratic solver of bilinear intersection'
-  END IF
-END IF
-IF(nRoot.GT.1)THEN
-  IF((ABS(R2).LE.1.).AND.(ABS(A*R2**2+B*R2+C).GT.1e-10))THEN
-    IPWRITE(UNIT_stdOut,'(I0,A,G0,A)')    ' WARNING!!!: RHS of R2 is ',A*R2**2+B*R2+C &
-        ,' (.GT.1e-10) in quadratic solver of bilinear intersection'
-  END IF
-END IF
-#endif /*CODE_ANALYZE*/
-
-END SUBROUTINE QuadraticSolver
-
-
 FUNCTION ComputeSurfaceDistance2(SideNormVec,BiLinearCoeff,xi,eta,PartTrajectory,PartID)
 !================================================================================================================================
 ! compute the required vector length to intersection
@@ -4173,10 +4102,11 @@ SUBROUTINE ComputeAuxBCIntersection     (isHit                       &
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-!USE MOD_Globals_Vars,           ONLY:epsMach
-USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
-USE MOD_Particle_Boundary_Vars,  ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
+USE MOD_Utils                  ,ONLY: QuadraticSolver
+!USE MOD_Globals_Vars           ,ONLY:  epsMach
+USE MOD_Particle_Vars          ,ONLY: LastPartPos
+USE MOD_Particle_Surfaces_Vars ,ONLY: epsilontol
+USE MOD_Particle_Boundary_Vars ,ONLY: AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -4440,218 +4370,6 @@ CASE DEFAULT
 END SELECT
 
 END SUBROUTINE ComputeAuxBCIntersection
-
-
-SUBROUTINE ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,macroPartID &
-                                       ,alpha,alphaSphere,alphaDoneRel,partID,alpha2)
-!===================================================================================================================================
-! Calculates intersection of particle path with defined spherical, solid, moving macroparticle
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: LastPartPos,PartState, MacroPart
-USE MOD_TimeDisc_Vars          ,ONLY: dt,RKdtFrac
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
-#endif /*CODE_ANALYZE*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
-REAL,INTENT(IN)                   :: lengthPartTrajectory
-INTEGER,INTENT(IN)                :: partID
-INTEGER,INTENT(IN)                :: macroPartID
-REAL,INTENT(IN)                   :: alphaDoneRel
-REAL,INTENT(IN),OPTIONAL          :: alpha2
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)                  :: alpha
-REAL,INTENT(OUT)                  :: alphaSphere
-LOGICAL,INTENT(OUT)               :: isHit
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                              :: A,B,C,alphaNorm
-REAL                              :: t(2), scaleFac
-INTEGER                           :: InterType,nRoot
-LOGICAL                           :: ElemCheck
-REAL                              :: PosSphere(1:3),P2_rel(1:3),relPartTrajectory(1:3)
-REAL                              :: relLengthPartTrajectory
-REAL                              :: MacroPartTrajectory(1:3)
-REAL                              :: LengthMacroPartTrajectory
-#ifdef CODE_ANALYZE
-REAL                              :: distance, distance2
-#endif /*CODE_ANALYZE*/
-!===================================================================================================================================
-! set alpha to minus one // no intersection
-alpha=-1.0
-isHit=.FALSE.
-#ifdef CODE_ANALYZE
-  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-    IF(PartID.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(64("-"))')
-      WRITE(UNIT_stdout,'((A,G0))')  '     | partID: ',PartID
-      WRITE(UNIT_stdout,'((A,G0))')  '     | MacroPartID: ',macroPartID
-      WRITE(UNIT_stdout,'((A,G0))')  '     | alphaDoneRel: ',alphaDoneRel
-    END IF
-  END IF
-#endif /*CODE_ANALYZE*/
-
-! transform particle trajectory to sphere system v2_rel=v2-v1
-MacroPartTrajectory(1:3)=MacroPart(macroPartID)%velocity(1:3)*dt*RKdtFrac*(1.-alphaDoneRel)
-relPartTrajectory(1:3)=PartTrajectory(1:3)*LengthPartTrajectory-MacroPartTrajectory(1:3)
-! Transform particle position to sphere system
-PosSphere(1:3) = MacroPart(MacroPartID)%center(1:3)+MacroPart(macroPartID)%velocity(1:3)*dt*RKdtFrac*alphaDoneRel
-P2_rel(1:3)=LastPartPos(PartID,1:3)-PosSphere(1:3)
-
-#ifdef CODE_ANALYZE
-  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-    IF(PartID.EQ.PARTOUT)THEN
-      CALL OutputTrajectory(PartID,PartState(PartID,1:3),PartTrajectory,lengthPartTrajectory)
-      WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | Macropart center Pos:       ', PosSphere(1:3)
-      WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | Macropart Trajectory:       ', MacroPartTrajectory(1:3)
-      WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | relative Position:       ', P2_rel(1:3)
-      WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | relative Trajectory:       ', relPartTrajectory(1:3)
-      WRITE(UNIT_stdOut,'(A,L)') '     | particle moves away from sphere:  ',(DOT_PRODUCT(P2_rel,relPartTrajectory).GT.0)
-      WRITE(UNIT_stdout,'(12("-"))')
-    END IF
-  END IF
-#endif /*CODE_ANALYZE*/
-
-! particle moves away from sphere in reference system
-IF (DOT_PRODUCT(P2_rel,relPartTrajectory).GT.0) RETURN
-! calculate lenght of v2_rel
-relLengthPartTrajectory=SQRT(DOT_PRODUCT(relPartTrajectory,relPartTrajectory))
-IF (relLengthPartTrajectory.EQ.0) RETURN
-
-A = DOT_PRODUCT(relPartTrajectory,relPartTrajectory)
-B = 2*DOT_PRODUCT(P2_rel,relPartTrajectory)
-C = DOT_PRODUCT(P2_rel,P2_rel) - MacroPart(MacroPartID)%radius**2
-
-#ifdef CODE_ANALYZE
-  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-    IF(PartID.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(A)') '     | Quadratic equation constants in MacroParticle intersection: '
-      WRITE(UNIT_stdout,'(3(A,G0))') '     | A: ',A,' | B: ',B,' | C: ',C
-    END IF
-  END IF
-#endif /*CODE_ANALYZE*/
-
-scaleFac = relLengthPartTrajectory**2 ! * MacroPart(MacroPartID)%radius !<...>^2 * cell-scale
-scaleFac = 1./scaleFac
-A = A * scaleFac
-B = B * scaleFac
-C = C * scaleFac
-
-#ifdef CODE_ANALYZE
-  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-    IF(PartID.EQ.PARTOUT)THEN
-      WRITE(UNIT_stdout,'(A)') '     | Quadratic equation constants in MacroParticle intersection (after scaling): '
-      WRITE(UNIT_stdout,'(3(A,G0))') '     | A: ',A,' | B: ',B,' | C: ',C
-    END IF
-  END IF
-#endif /*CODE_ANALYZE*/
-
-CALL QuadraticSolver(A,B,C,nRoot,t(1),t(2))
-
-#ifdef CODE_ANALYZE
-distance = SQRT(DOT_PRODUCT(P2_rel,P2_rel))
-distance2 = SQRT(DOT_PRODUCT(P2_rel+relPartTrajectory,P2_rel+relParttrajectory))
-IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-  IF(PartID.EQ.PARTOUT)THEN
-    WRITE(UNIT_stdout,'(2(A,G0))') '     | distance last partpos: ',distance,' | distance partstate: ',distance2
-    WRITE(UNIT_stdout,'(2(A,G0))') '     | rel_alpha1 [t(1)]: ',t(1),' | rel_alpha2 [t(2)]: ',t(2)
-    WRITE(UNIT_stdout,'(2(A,G0))') '     | alpha(1): ',t(1)*LengthPartTrajectory,' | alpha(2): ',t(2)*LengthPartTrajectory
-    WRITE(UNIT_stdout,'(64("-"))')
-  END IF
-END IF
-IF (distance.LE.MacroPart(MacroPartID)%radius*0.99 .AND. distance2.LE.MacroPart(MacroPartID)%radius*0.99) THEN
-  WRITE(UNIT_stdout,'(A)') '     | Particle is inside of Macro particle (sphere): '
-  WRITE(UNIT_stdout,'((A,G0))')  '     | partID: ',PartID
-  WRITE(UNIT_stdout,'((A,G0))')  '     | MacroPartID: ',macroPartID
-  WRITE(UNIT_stdout,'(2(A,G0))') '     | distance last partpos: ',distance,' | distance partstate: ',distance2
-  CALL abort(&
-  __STAMP__&
-  ,'Particle is inside of Macro particle (sphere)')
-END IF
-#endif /*CODE_ANALYZE*/
-
-IF(nRoot.EQ.0)THEN
-  RETURN
-END IF
-
-IF (nRoot.EQ.1) THEN
-  IF(t(1).LE.1.0 .AND. t(1).GE.0.) THEN
-    alpha=t(1)*LengthPartTrajectory
-    alphaSphere=t(1)
-    IF (PRESENT(alpha2)) THEN
-      IF (alpha2.GT.-1.0) THEN
-        IF (ALMOSTEQUAL(alpha,alpha2)) THEN
-          alpha=-1.0
-          RETURN
-        END IF
-      END IF
-    END IF
-    isHit=.TRUE.
-    RETURN
-  ELSE
-    RETURN
-  END IF
-ELSE
-  InterType=0
-
-  IF(t(1).LE.1.0 .AND. t(1).GE.0.) THEN
-    InterType=InterType+1
-    IF (PRESENT(alpha2)) THEN
-      IF (alpha2.GT.-1.0) THEN
-        IF (ALMOSTEQUAL(t(1)*LengthPartTrajectory,alpha2)) THEN
-          t(1)=-1.0
-          InterType=InterType-1
-        END IF
-      END IF
-    END IF
-  ELSE
-    t(1)=-1.
-  END IF
-
-  IF(t(2).LE.1.0 .AND. t(2).GE.0.) THEN
-    InterType=InterType+2
-    IF (PRESENT(alpha2)) THEN
-      IF (alpha2.GT.-1.0) THEN
-        IF (ALMOSTEQUAL(t(2)*LengthPartTrajectory,alpha2)) THEN
-          t(2)=-1.0
-          InterType=InterType-2
-        END IF
-      END IF
-    END IF
-  ELSE
-    t(2)=-1.
-  END IF
-
-  IF(InterType.EQ.0) THEN
-    RETURN
-  END IF
-  isHit=.TRUE.
-  SELECT CASE(InterType)
-  CASE(1)
-    alpha=t(1)*LengthPartTrajectory
-    alphaSphere=t(1)
-  CASE(2)
-    alpha=t(2)*LengthPartTrajectory
-    alphaSphere=t(2)
-  CASE DEFAULT
-   ! two intersections
-    IF(t(1).LT.t(2))THEN
-      alpha=t(1)*LengthPartTrajectory
-      alphaSphere=t(1)
-    ELSE
-      alpha=t(2)*LengthPartTrajectory
-      alphaSphere=t(2)
-    END IF
-  END SELECT
-  RETURN
-END IF
-
-END SUBROUTINE ComputeMacroPartIntersection
 
 
 END MODULE MOD_Particle_Intersection

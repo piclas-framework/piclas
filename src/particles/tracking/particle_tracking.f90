@@ -130,8 +130,8 @@ REAL                             :: det(6,2),detM,ratio,minRatio, detPartPos
 REAL                             :: PartTrajectory(1:3),lengthPartTrajectory
 REAL                             :: xi = -1. , eta = -1. , alpha = -1.
 REAL, PARAMETER                  :: eps = 0
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! variabes needed for tracking with macroparticles inside domain
+!-----------------------------------------------------------------------------------------------------------------------------------
+! variabes necessary for tracking with macroparticles inside domain
 !LOGICAL                          :: sphereHitExists, sideHitExists
 !REAL                             :: alphaPart, alphaPartTria
 !REAL                             :: locAlphaPart
@@ -465,7 +465,6 @@ USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
 USE MOD_Particle_Mesh_Vars          ,ONLY: PartElemToSide,ElemRadiusNGeo,ElemHasAuxBCs,ElemToGlobalElemID!,ElemType
 USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
-USE MOD_Particle_Boundary_Condition ,ONLY: GetInteractionWithMacroPart
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
 USE MOD_Particle_Mesh               ,ONLY: SingleParticleToExactElementNoMap,PartInElemCheck
 USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
@@ -473,8 +472,10 @@ USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputeBiLinearIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputeAuxBCIntersection
-USE MOD_Particle_Intersection       ,ONLY: ComputeMacroPartIntersection
 USE MOD_Eval_xyz                    ,ONLY: GetPositionInRefElem
+USE MOD_MacroBody_tools             ,ONLY: INSIDEMACROPART
+USE MOD_MacroBody_tools             ,ONLY: ComputeMacroPartIntersection
+USE MOD_MacroBody_tools             ,ONLY: GetInteractionWithMacroPart
 #ifdef CODE_ANALYZE
 #ifdef IMPA
 USE MOD_Particle_Vars               ,ONLY: PartIsImplicit,PartDtFrac
@@ -485,7 +486,6 @@ USE MOD_Particle_Tracking_Vars      ,ONLY: PartOut,MPIRankOut
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
 USE MOD_TimeDisc_Vars               ,ONLY: iStage
 USE MOD_Mesh_Vars                   ,ONLY: ElemBaryNGeo
-USE MOD_Part_tools                  ,ONLY: INSIDEMACROPART
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBElemPauseTime,LBElemSplitTime

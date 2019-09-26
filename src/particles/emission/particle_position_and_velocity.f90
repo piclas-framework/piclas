@@ -64,7 +64,7 @@ USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac
 USE MOD_Particle_Mesh          ,ONLY: SingleParticleToExactElement,SingleParticleToExactElementNoMap
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR
-USE MOD_Part_tools             ,ONLY: INSIDEMACROPART
+USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROPART
 USE MOD_PICInterpolation       ,ONLY: InterpolateVariableExternalField
 USE MOD_PICInterpolation_Vars  ,ONLY: VariableExternalField
 USE MOD_PICInterpolation_vars  ,ONLY: useVariableExternalField

@@ -33,16 +33,12 @@ INTERFACE CreateParticle
   MODULE PROCEDURE CreateParticle
 END INTERFACE
 
-INTERFACE INSIDEMACROPART
-  MODULE PROCEDURE INSIDEMACROPART
-END INTERFACE
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle, INSIDEMACROPART
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle
 !===================================================================================================================================
 
 CONTAINS
@@ -378,37 +374,6 @@ PEM%lastElement(newParticleID)    = ElemID
 IF (PRESENT(NewPartID)) NewPartID=newParticleID
 
 END SUBROUTINE CreateParticle
-
-
-LOGICAL FUNCTION INSIDEMACROPART(Particle_pos)
-!===================================================================================================================================
-!> Function for checking if particle position would be inside of any macro-particle in the local domain
-!===================================================================================================================================
-! MODULES
-USE MOD_Particle_Vars ,ONLY: MacroPart, nMacroParticle
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN) :: Particle_pos(3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL    :: refPosSphere(1:3), distance
-INTEGER :: iMP
-!===================================================================================================================================
-INSIDEMACROPART = .FALSE.
-DO iMP=1,nMacroParticle
-  !IF (ElemHasMacroPart(ElemID,:))) THEN
-  refPosSphere(1:3) = MacroPart(iMP)%center(1:3)
-  distance=SQRT(DOT_PRODUCT((Particle_pos-refPosSphere),(Particle_pos-refPosSphere)))
-  IF (distance.LE.MacroPart(iMP)%radius) THEN
-    INSIDEMACROPART=.TRUE.
-    RETURN
-  END IF
-END DO
-END FUNCTION INSIDEMACROPART
 
 
 END MODULE MOD_part_tools
