@@ -12,10 +12,10 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_MacroBody
 !===================================================================================================================================
 !> Main Module for macroscopic bodies inside particle domain
 !===================================================================================================================================
+MODULE MOD_MacroBody
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -27,18 +27,17 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
 PUBLIC :: MacroBody_main
-!PUBLIC :: UpdateMacroBodyVars
 !===================================================================================================================================
-
 CONTAINS
 
+!===================================================================================================================================
+!> main routine for macroscopic bodies 
+!===================================================================================================================================
 SUBROUTINE MacroBody_main()
-!===================================================================================================================================
-!>
-!===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_TimeDisc_Vars ,ONLY: dt
-USE MOD_Particle_Vars ,ONLY: MacroPartFluxesEnabled, MacroPart, UseMacroPart, nMacroParticle,MacroPartAccelerationEnabled
+USE MOD_TimeDisc_Vars  ,ONLY: dt
+USE MOD_MacroBody_Vars ,ONLY: nMacroParticle, MacroPart, UseMacroPart
+USE MOD_MacroBody_Vars ,ONLY: MacroPartFluxesEnabled, MacroPartAccelerationEnabled
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -67,46 +66,6 @@ IF(MacroPartFluxesEnabled) THEN
 END IF
 
 END SUBROUTINE MacroBody_main
-
-
-!SUBROUTINE UpdateMacroBodyVars()
-!!===================================================================================================================================
-!!>
-!!===================================================================================================================================
-!! MODULES                                                                                                                          !
-!USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
-!USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles, Species, nSpecies
-!USE MOD_DSMC_Vars              ,ONLY: DSMC
-!USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall, PartBound, SurfCOMM
-!USE MOD_TimeDisc_Vars          ,ONLY: tend,time
-!#if USE_LOADBALANCE
-!USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
-!#endif /*USE_LOADBALANCE*/
-!USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo, SurfModel
-!USE MOD_SurfaceModel_Tools     ,ONLY: CalcAdsorbProb, CalcDesorbProb
-!USE MOD_SurfaceModel_Tools     ,ONLY: SMCR_AdjustMapNum, IsReactiveSurface, SurfaceHasModelNum
-!#if USE_MPI
-!USE MOD_SurfaceModel_MPI       ,ONLY: ExchangeSurfaceHaloToOrigin, ExchangeSurfaceOriginToHalo, ExchangeSurfDistInfo
-!USE MOD_SurfaceModel_MPI       ,ONLY: MapHaloInnerToOriginInnerSurf
-!#endif /*USE_MPI*/
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!IMPLICIT NONE
-!! INPUT / OUTPUT VARIABLES
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!! LOCAL VARIABLES
-!INTEGER                          :: iSpec, iSurfSide, p, q, new_adsorbates, numSites
-!REAL                             :: maxPart
-!REAL                             :: coverage_tmp, coverage_corrected
-!#if USE_LOADBALANCE
-!REAL                             :: tLBStart
-!#endif /*USE_LOADBALANCE*/
-!#if (PP_TimeDiscMethod==42)
-!REAL                             :: desorbnum_covreduce
-!#endif
-!!----------------------------------------------------------------------------------------------------------------------------------!
-!IF (.NOT.UseMacroPart) RETURN
-
-!END SUBROUTINE UpdateMacroBodyVars
 
 
 END MODULE MOD_MacroBody

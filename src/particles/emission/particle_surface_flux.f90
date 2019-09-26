@@ -1153,6 +1153,7 @@ USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools              ,ONLY: UpdateNextFreePosition
+USE MOD_MacroBody_vars          ,ONLY: UseMacroPart
 USE MOD_MacroBody_tools         ,ONLY: INSIDEMACROPART
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, RadialWeighting
 USE MOD_SurfaceModel_Vars       ,ONLY: SurfModel

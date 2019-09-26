@@ -459,7 +459,7 @@ SUBROUTINE ParticleTracing()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars               ,ONLY: PEM,PDM, nMacroParticle, useMacropart, ElemHasMacroPart
+USE MOD_Particle_Vars               ,ONLY: PEM,PDM
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
 USE MOD_Particle_Mesh_Vars          ,ONLY: PartElemToSide,ElemRadiusNGeo,ElemHasAuxBCs,ElemToGlobalElemID!,ElemType
@@ -473,9 +473,10 @@ USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputeBiLinearIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputeAuxBCIntersection
 USE MOD_Eval_xyz                    ,ONLY: GetPositionInRefElem
+USE MOD_MacroBody_Vars              ,ONLY: nMacroParticle, useMacropart, ElemHasMacroPart
 USE MOD_MacroBody_tools             ,ONLY: INSIDEMACROPART
-USE MOD_MacroBody_tools             ,ONLY: ComputeMacroPartIntersection
-USE MOD_MacroBody_tools             ,ONLY: GetInteractionWithMacroPart
+USE MOD_MacroBody_tools             ,ONLY: ComputeMacroSphereIntersection
+USE MOD_MacroBody_tools             ,ONLY: GetInteractionWithMacroBody
 #ifdef CODE_ANALYZE
 #ifdef IMPA
 USE MOD_Particle_Vars               ,ONLY: PartIsImplicit,PartDtFrac
@@ -684,7 +685,7 @@ DO iPart=1,PDM%ParticleVecLength
           END IF
         ELSE IF (currentIntersect%IntersectCase.EQ.3) THEN
           iMP = currentIntersect%Side
-          CALL ComputeMacroPartIntersection(foundHit,PartTrajectory,lengthPartTrajectory,iMP&
+          CALL ComputeMacroSphereIntersection(foundHit,PartTrajectory,lengthPartTrajectory,iMP&
               ,locAlpha,locAlphaSphere,alphaDoneRel,iPart,alpha2=currentIntersect%alpha)
           currentIntersect%alpha=HUGE(1.)
           currentIntersect%IntersectCase=0
@@ -837,7 +838,7 @@ __STAMP__ &
           DO iMP=1,nMacroParticle
             locAlpha=-1
             IF (ElemHasMacroPart(ElemID,iMP)) THEN
-              CALL ComputeMacroPartIntersection(foundHit,PartTrajectory,lengthPartTrajectory,iMP&
+              CALL ComputeMacroSphereIntersection(foundHit,PartTrajectory,lengthPartTrajectory,iMP&
                                                ,locAlpha,locAlphaSphere,alphaDoneRel,iPart)
             ELSE
               foundHit=.FALSE.
@@ -916,7 +917,7 @@ __STAMP__ &
           !------------------------------------
           CASE(3) ! MacroPart intersection
           !------------------------------------
-            CALL GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory,currentIntersect%alpha&
+            CALL GetInteractionWithMacroBody(PartTrajectory,lengthPartTrajectory,currentIntersect%alpha&
                                             ,currentIntersect%alpha2,alphaDoneRel,currentIntersect%Side,iPart,crossedBC)
             IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
             dolocSide=.TRUE. !important when in previously traced portion an elemchange occured, check all sides again!

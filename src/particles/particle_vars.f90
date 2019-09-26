@@ -341,7 +341,9 @@ REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! M
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
 
 INTEGER                                  :: nSpecies                         ! number of species
-INTEGER                                  :: nPointsMCVolumeEstimate          !
+INTEGER                                  :: nPointsMCVolumeEstimate          ! numer of points seeded into one element for volume
+                                                                             ! portion (that is occupied) estimtaion 
+                                                                             ! with a Monte Carlo method
 INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
@@ -482,29 +484,6 @@ TYPE tVariableTimeStep
   REAL                                 :: TargetMaxRelaxFactor
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
-
-TYPE tMacroParticle
-  REAL    :: center(3)
-  REAL    :: velocity(6)
-  REAL    :: radius
-  REAL    :: temp
-  REAL    :: density
-  REAL    :: mass
-  REAL    :: RHS(1:9)
-  REAL    :: momentumAcc
-  REAL    :: transAcc
-  REAL    :: vibAcc
-  REAL    :: rotAcc
-END TYPE
-
-TYPE(tMacroParticle), ALLOCATABLE :: MacroPart(:)
-INTEGER                           :: nMacroParticle
-LOGICAL                           :: MacroPartFluxesEnabled
-LOGICAL                           :: MacroPartAccelerationEnabled
-LOGICAL                           :: MacroPartWriteElemData
-LOGICAL                           :: UseMacroPart
-LOGICAL,ALLOCATABLE               :: ElemHasMacroPart(:,:)
-LOGICAL                           :: CalcMPVolumePortion
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

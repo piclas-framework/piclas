@@ -1459,7 +1459,8 @@ SUBROUTINE CalcSubNodeMPVolumePortions(iElem, NodeDepth, Node)
 ! MODULES
 USE MOD_DSMC_Vars          ,ONLY: tNodeVolume, tTreeNode
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, epsOneCell
-USE MOD_Particle_Vars      ,ONLY: nPointsMCVolumeEstimate, UseMacroPart, MacroPart
+USE MOD_Particle_Vars      ,ONLY: nPointsMCVolumeEstimate
+USE MOD_MacroBody_Vars     ,ONLY: UseMacroPart, MacroPart
 USE MOD_MacroBody_tools    ,ONLY: INSIDEMACROPART
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 ! IMPLICIT VARIABLE HANDLING

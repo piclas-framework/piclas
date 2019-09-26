@@ -787,7 +787,6 @@ SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
-USE MOD_Particle_Vars          ,ONLY: UseMacroPart
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh          ,ONLY: PartInElemCheck
@@ -797,6 +796,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, epsOneCell
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry2D        ,ONLY: CalcRadWeightMPF
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+USE MOD_MacroBody_Vars         ,ONLY: UseMacroPart
 USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROPART
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -1160,7 +1160,7 @@ SUBROUTINE WriteMacroParticleToHDF5(FileName)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Particle_Vars     ,ONLY: UseMacroPart, MacroPart, nMacroParticle
+USE MOD_MacroBody_Vars    ,ONLY: UseMacroPart, MacroPart, nMacroParticle
 #if USE_MPI
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /*USE_MPI*/

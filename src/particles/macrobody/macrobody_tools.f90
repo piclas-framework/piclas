@@ -12,10 +12,10 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_MacroBody_Tools
 !===================================================================================================================================
 !> Tools for macroscopic bodies inside particle domain
 !===================================================================================================================================
+MODULE MOD_MacroBody_Tools
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -29,34 +29,33 @@ INTERFACE INSIDEMACROPART
   MODULE PROCEDURE INSIDEMACROPART
 END INTERFACE
 
-INTERFACE ComputeMacropartIntersection
-  MODULE PROCEDURE ComputeMacroPartIntersection
+INTERFACE ComputeMacroSphereIntersection
+  MODULE PROCEDURE ComputeMacroSphereIntersection
 END INTERFACE
 
-INTERFACE GetInteractionWithMacroPart
-  MODULE PROCEDURE GetInteractionWithMacroPart
+INTERFACE GetInteractionWithMacroBody
+  MODULE PROCEDURE GetInteractionWithMacroBody
 END INTERFACE
 
 PUBLIC :: MarkMacroPartElems
 PUBLIC :: INSIDEMACROPART
-PUBLIC :: ComputeMacroPartIntersection
-PUBLIC :: GetInteractionWithMacroPart
+PUBLIC :: ComputeMacroSphereIntersection
+PUBLIC :: GetInteractionWithMacroBody
 !===================================================================================================================================
-
 CONTAINS
 
-
-SUBROUTINE MarkMacroPartElems()
 !===================================================================================================================================
 !> 1: check if MacroParticle are inside of Elements and add a safetyfactor to guarantee waterproof tracing
 !> 2: calcualte volume portion of each cell, which is occupied with macroparticles
 !===================================================================================================================================
+SUBROUTINE MarkMacroPartElems()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: epsMach
-USE MOD_Particle_Vars          ,ONLY: ElemHasMacroPart, CalcMPVolumePortion, ManualTimeStep
-USE MOD_Particle_Vars          ,ONLY: MacroPart, nMacroParticle, UseMacroPart, nPointsMCVolumeEstimate
+USE MOD_Particle_Vars          ,ONLY: ManualTimeStep, nPointsMCVolumeEstimate
+USE MOD_MacroBody_Vars         ,ONLY: ElemHasMacroPart, CalcMPVolumePortion
+USE MOD_MacroBody_Vars         ,ONLY: MacroPart, nMacroParticle, UseMacroPart
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems, GEO
 USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo, wBaryCL_NGeo, XiCL_NGeo
 USE MOD_Mesh_Vars              ,ONLY: NGeo, nElems
@@ -228,12 +227,12 @@ CalcMPVolumePortion=.FALSE.
 END SUBROUTINE MarkMacroPartElems
 
 
-LOGICAL FUNCTION INSIDEMACROPART(Particle_pos)
 !===================================================================================================================================
 !> Function for checking if particle position would be inside of any macro-particle in the local domain
 !===================================================================================================================================
+LOGICAL FUNCTION INSIDEMACROPART(Particle_pos)
 ! MODULES
-USE MOD_Particle_Vars ,ONLY: MacroPart, nMacroParticle
+USE MOD_MacroBody_Vars ,ONLY: MacroPart, nMacroParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -259,15 +258,16 @@ END DO
 END FUNCTION INSIDEMACROPART
 
 
-SUBROUTINE ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,macroPartID &
-                                       ,alpha,alphaSphere,alphaDoneRel,partID,alpha2)
 !===================================================================================================================================
-! Calculates intersection of particle path with defined spherical, solid, moving macroparticle
+!> Calculates intersection of particle path with defined spherical, solid, moving macroparticle
 !===================================================================================================================================
+SUBROUTINE ComputeMacroSphereIntersection(isHit,PartTrajectory,lengthPartTrajectory,macroPartID &
+                                         ,alpha,alphaSphere,alphaDoneRel,partID,alpha2)
 ! MODULES
 USE MOD_Globals
 USE MOD_Utils                  ,ONLY: QuadraticSolver
-USE MOD_Particle_Vars          ,ONLY: LastPartPos,PartState, MacroPart
+USE MOD_Particle_Vars          ,ONLY: LastPartPos,PartState
+USE MOD_MacroBody_Vars         ,ONLY: MacroPart
 USE MOD_TimeDisc_Vars          ,ONLY: dt,RKdtFrac
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -469,20 +469,21 @@ ELSE
   RETURN
 END IF
 
-END SUBROUTINE ComputeMacroPartIntersection
+END SUBROUTINE ComputeMacroSphereIntersection
 
 
-SUBROUTINE GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory &
+!===================================================================================================================================
+!> Computes the post boundary state of a particle that interacts with an spherical macro body
+!===================================================================================================================================
+SUBROUTINE GetInteractionWithMacroBody(PartTrajectory,lengthPartTrajectory &
                                       ,alpha,alphaSphere,alphaDoneRel,macroPartID,partID,opt_Reflected)
-!===================================================================================================================================
-! Computes the post boundary state of a particle that interacts with an spherical macro particle
-!===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals                 ,ONLY: CROSSNORM,abort,UNITVECTOR,CROSS
 USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
-USE MOD_Particle_Vars           ,ONLY: PDM,PartSpecies,MacroPart
+USE MOD_Particle_Vars           ,ONLY: PDM,PartSpecies
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species
+USE MOD_MacroBody_Vars          ,ONLY: MacroPart
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Particle_Boundary_Tools ,ONLY: SurfaceToPartEnergyInternal
 ! IMPLICIT VARIABLE HANDLING
@@ -626,7 +627,7 @@ inertiaMoment = 2./5.*MacroPart(macroPartID)%mass*MacroPart(macroPartID)%radius*
 ! delta rot velo
 MacroPart(macroPartID)%RHS(4:6) = MacroPart(macroPartID)%RHS(4:6) + moment(1:3)*dt/inertiaMoment
 
-END SUBROUTINE GetInteractionWithMacroPart
+END SUBROUTINE GetInteractionWithMacroBody
 
 
 END MODULE MOD_MacroBody_Tools
