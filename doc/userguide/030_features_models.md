@@ -885,11 +885,13 @@ In order to start a smulation, the number of macroscopic bodies is enabled by de
 
     MacroBody-nMacroBody=1
 
-and setting it greater than 0. For each defined macroscopic body properties are assigned with
+and setting it greater than 0. For each defined macroscopic body properties are assigned with (Spheres)
 
     MacroBody1-center=(/ 10.0 , 0.1 , 0.5 /)
-    MacroBody1-velocity=(/-1165.,0.,0./)
     MacroBody1-radius=0.5e-5
+
+For surface interactions of DSMC particles with the bodies the appropriate accomodation coefficients and temperature can be defined
+
     MacroBody1-momentumAcc=1.
     MacroBody1-transAcc=1.
     MacroBody1-temp=300
@@ -898,7 +900,7 @@ If the the mesh cell sizes are by more than one order of magnitude bigger than t
 macroscopic body then the volume estimation must be controlled and adapted.
 The volume portions are calculated with a Monte Carlo approach with nPointsMCVolumeEstimate number
 of point per octree-subcell.
- with:
+with:
 
     Particles-nPointsMCVolumeEstimate=1000.
 
@@ -909,7 +911,11 @@ of point per octree-subcell.
 |     lvl=1      |                  8000           |
 |     lvl=2      |                  56000          |
 
-Currently, only calculations on nProcs=1 are possible if the macroscopic bodies move (MacroBody1-velocity $> 0$) inside the computational domain or any of the following parameters is enabled.
+### Macroscopic bodies, which move trough domain
+Note: Currently, restart and nProcs>1 only works for non-moving and non-size-changing Macro bodies.
+To let the macroscopic bodies move (MacroBody1-velocity $> 0$) inside the computational domain, enable
+
+    MacroBody1-velocity=(/-1165.,0.,0./)
 
 In order to enable influences of particle collisions on macroscopic bodies velocity (acceleration, brownian motion), the following parameter needs to be enabled
 
@@ -922,7 +928,7 @@ For influences of fluxes onto the macroscopic bodies' temperature, size or mass 
 ### Output of MacroBodies
 
 Information of macroscopic bodies is written into the state file (VarNamesmacroParticles,MacroPartData) at every analyzedt.
-In order to add additional elemdata output (for debug/analyze purposes) of ElemHasMacroBody of the first defined macroscopic body activate
+In order to add additional elemdata output (for debug/analyze purposes) of ElemHasMacroBody of the first defined macroscopic body, activate
 
     MacroBody-WriteElemData=T
 
