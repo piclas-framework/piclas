@@ -260,9 +260,9 @@ END DO
 ALLOCATE(SurfMesh%innerBCSideToHaloMap(1:nTotalSides))
 SurfMesh%innerBCSideToHaloMap(1:nTotalSides)=-1
 
+SurfMesh%nTotalSides=SurfMesh%nSides
 #if USE_MPI
 ! halo sides and Mapping for SlaveSide
-SurfMesh%nTotalSides=SurfMesh%nSides
 DO iHaloSide=nSides+1,nTotalSides
   IF(BC(iHaloSide).EQ.0) CYCLE
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iHaloSide))).EQ.PartBound%ReflectiveBC) THEN
