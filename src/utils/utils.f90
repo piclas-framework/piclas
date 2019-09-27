@@ -456,10 +456,10 @@ REAL ( KIND = 8)  :: bessel
 END SUBROUTINE RootsOfBesselFunctions
 
 
+!================================================================================================================================
+!> Stable algorithm to compute the number of (nRoot) non-complex solutions R1 and R2 for the quadratic equation A*x^2 + B*x + C 
+!================================================================================================================================
 SUBROUTINE QuadraticSolver(A,B,C,nRoot,r1,r2)
-!================================================================================================================================
-! subroutine to compute the modified a,b,c equation, parameter already mapped in final version
-!================================================================================================================================
 #ifdef CODE_ANALYZE
 USE MOD_Globals,            ONLY:UNIT_stdOut,MyRank
 #endif /*CODE_ANALYZE*/
