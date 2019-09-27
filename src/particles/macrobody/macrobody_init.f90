@@ -28,6 +28,7 @@ PRIVATE
 
 PUBLIC :: DefineParametersMacroBody
 PUBLIC :: InitMacroBody
+PUBLIC :: FinalizeMacroBody
 !===================================================================================================================================
 CONTAINS
 
@@ -152,6 +153,33 @@ IF (ConsiderVolumePortions) THEN
 END IF
 
 END SUBROUTINE InitMacroBody
+
+
+!===================================================================================================================================
+!> finalizes/deallocates variables used for macrobodies in domain
+!===================================================================================================================================
+SUBROUTINE FinalizeMacroBody()
+! MODULES                                                                                                                          !
+USE MOD_MacroBody_Vars
+USE MOD_DSMC_Vars              ,ONLY: ConsiderVolumePortions
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+nMacroBody = 0
+UseMacroBody=.FALSE.
+MacroBodyFluxesEnabled=.FALSE.
+MacroBodyAccelerationEnabled=.FALSE.
+CalcMPVolumePortion=.FALSE.
+ConsiderVolumePortions=.FALSE.
+MacroPartWriteElemData=.FALSE.
+
+SDEALLOCATE (MacroSphere)
+SDEALLOCATE(ElemHasMacroBody)
+
+END SUBROUTINE FinalizeMacroBody
 
 
 END MODULE MOD_MacroBody_Init
