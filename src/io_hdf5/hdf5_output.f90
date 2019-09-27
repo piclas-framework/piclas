@@ -1175,8 +1175,8 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 #if USE_MPI
-INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
-INTEGER(KIND=IK)               :: nParticles(0:nProcessors-1)
+!INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
+!INTEGER(KIND=IK)               :: nParticles(0:nProcessors-1)
 #endif /*USE_MPI*/
 LOGICAL                        :: reSwitch
 INTEGER                        :: pcount

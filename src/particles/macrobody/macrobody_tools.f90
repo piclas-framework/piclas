@@ -57,9 +57,8 @@ USE MOD_Particle_Vars          ,ONLY: ManualTimeStep, nPointsMCVolumeEstimate
 USE MOD_MacroBody_Vars         ,ONLY: ElemHasMacroBody, CalcMPVolumePortion
 USE MOD_MacroBody_Vars         ,ONLY: MacroSphere, nMacroBody, UseMacroBody
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems, GEO
-USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo, wBaryCL_NGeo, XiCL_NGeo
+USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo!, wBaryCL_NGeo, XiCL_NGeo
 USE MOD_Mesh_Vars              ,ONLY: NGeo, nElems
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_TimeDisc_Vars          ,ONLY: dt, RKdtFrac, iter
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem!,TensorProductInterpolation
 ! IMPLICIT VARIABLE HANDLING
@@ -70,17 +69,17 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem!,TensorProductInterpo
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iElem,iMB,ElemID,ii,jj,kk
+INTEGER :: iElem,iMB,ii,jj,kk
 INTEGER :: kBGM,jBGM,iBGM
 REAL    :: MPBounds(1:2,1:3)
 INTEGER :: BGMCellXmax,BGMCellXmin
 INTEGER :: BGMCellYmax,BGMCellYmin
 INTEGER :: BGMCellZmax,BGMCellZmin
-REAL    :: ElemBounds(1:2,1:3), DistVec(1:3)
-REAL    :: MacroPartTrajectory(1:3), LengthMacroPartTrajectory, eps, safetyFac
+REAL    :: DistVec(1:3)
+REAL    :: MacroBodyTrajectory(1:3), LengthMacroBodyTrajectory, eps, safetyFac
 REAL    :: DistVecLength, BoundsDiagonal, BoundsDiagonalVec(1:3)
 INTEGER :: nodesInside, matchedParts
-INTEGER :: nInsertPartsX!,nInsertPartsY,nInsertPartsZ
+!INTEGER :: nInsertPartsX!,nInsertPartsY,nInsertPartsZ
 !INTEGER :: xref,yref,zref
 INTEGER :: iPart
 REAL    :: refPos(1:3),physPos(1:3)
@@ -111,13 +110,13 @@ IF (MAXVAL(ABS(MacroSphere(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroSphere(:)%
     ELSE
       dtLocal=dt*RKdtfrac
     END IF
-    MacroPartTrajectory(1:3)=MacroSphere(iMB)%velocity(1:3)*dtLocal
-    LengthMacroPartTrajectory=SQRT(DOT_PRODUCT(MacroPartTrajectory,MacroPartTrajectory))
-    IF (LengthMacroPartTrajectory.GT.0) MacroPartTrajectory=MacroPartTrajectory/LengthMacroPartTrajectory
+    MacroBodyTrajectory(1:3)=MacroSphere(iMB)%velocity(1:3)*dtLocal
+    LengthMacroBodyTrajectory=SQRT(DOT_PRODUCT(MacroBodyTrajectory,MacroBodyTrajectory))
+    IF (LengthMacroBodyTrajectory.GT.0) MacroBodyTrajectory=MacroBodyTrajectory/LengthMacroBodyTrajectory
 
     ! define a box with BGM around sphere center
-    MPBounds(1,1:3)=MacroSphere(iMB)%center(1:3)-(MacroSphere(iMB)%radius*safetyFac+LengthMacroPartTrajectory+epsMach)
-    MPBounds(2,1:3)=MacroSphere(iMB)%center(1:3)+(MacroSphere(iMB)%radius*safetyFac+LengthMacroPartTrajectory+epsMach)
+    MPBounds(1,1:3)=MacroSphere(iMB)%center(1:3)-(MacroSphere(iMB)%radius*safetyFac+LengthMacroBodyTrajectory+epsMach)
+    MPBounds(2,1:3)=MacroSphere(iMB)%center(1:3)+(MacroSphere(iMB)%radius*safetyFac+LengthMacroBodyTrajectory+epsMach)
     BGMCellXmin = MAX(GEO%TFIBGMimin,CEILING((MPBounds(1,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)))
     BGMCellXmax = MIN(GEO%TFIBGMimax,CEILING((MPBounds(2,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)))
     BGMCellYmin = MAX(GEO%TFIBGMjmin,CEILING((MPBounds(1,2)-GEO%xminglob)/GEO%FIBGMdeltas(2)))
@@ -166,7 +165,7 @@ IF (MAXVAL(ABS(MacroSphere(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroSphere(:)%
                     DistVec(1:3)=XCL_NGeo(1:3,ii,jj,kk,iElem)-MacroSphere(iMB)%center(1:3)
                     DistVecLength=SQRT(DOT_PRODUCT(DistVec,DistVec))
                     IF (DistVecLength.GT.0) DistVec=DistVec/DistVecLength
-                    eps = LengthMacroPartTrajectory*MAX(0.,DOT_PRODUCT(DistVec,MacroPartTrajectory))+epsMach
+                    eps = LengthMacroBodyTrajectory*MAX(0.,DOT_PRODUCT(DistVec,MacroBodyTrajectory))+epsMach
                     IF (DistVecLength.LE.BoundsDiagonal+eps) THEN
                       ElemHasMacroBody(iElem,iMB)=.TRUE.
                     END IF
@@ -265,10 +264,11 @@ SUBROUTINE ComputeMacroSphereIntersection(isHit,PartTrajectory,lengthPartTraject
 ! MODULES
 USE MOD_Globals
 USE MOD_Utils                  ,ONLY: QuadraticSolver
-USE MOD_Particle_Vars          ,ONLY: LastPartPos,PartState
+USE MOD_Particle_Vars          ,ONLY: LastPartPos
 USE MOD_MacroBody_Vars         ,ONLY: MacroSphere
 USE MOD_TimeDisc_Vars          ,ONLY: dt,RKdtFrac
 #ifdef CODE_ANALYZE
+USE MOD_Particle_Vars          ,ONLY: PartState
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
@@ -287,14 +287,12 @@ REAL,INTENT(OUT)                  :: alphaSphere
 LOGICAL,INTENT(OUT)               :: isHit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                              :: A,B,C,alphaNorm
+REAL                              :: A,B,C
 REAL                              :: t(2), scaleFac
 INTEGER                           :: InterType,nRoot
-LOGICAL                           :: ElemCheck
 REAL                              :: PosSphere(1:3),P2_rel(1:3),relPartTrajectory(1:3)
 REAL                              :: relLengthPartTrajectory
-REAL                              :: MacroPartTrajectory(1:3)
-REAL                              :: LengthMacroPartTrajectory
+REAL                              :: MacroBodyTrajectory(1:3)
 #ifdef CODE_ANALYZE
 REAL                              :: distance, distance2
 #endif /*CODE_ANALYZE*/
@@ -314,8 +312,8 @@ isHit=.FALSE.
 #endif /*CODE_ANALYZE*/
 
 ! transform particle trajectory to sphere system v2_rel=v2-v1
-MacroPartTrajectory(1:3)=MacroSphere(macroBodyID)%velocity(1:3)*dt*RKdtFrac*(1.-alphaDoneRel)
-relPartTrajectory(1:3)=PartTrajectory(1:3)*LengthPartTrajectory-MacroPartTrajectory(1:3)
+MacroBodyTrajectory(1:3)=MacroSphere(macroBodyID)%velocity(1:3)*dt*RKdtFrac*(1.-alphaDoneRel)
+relPartTrajectory(1:3)=PartTrajectory(1:3)*LengthPartTrajectory-MacroBodyTrajectory(1:3)
 ! Transform particle position to sphere system
 PosSphere(1:3) = MacroSphere(macroBodyID)%center(1:3)+MacroSphere(macroBodyID)%velocity(1:3)*dt*RKdtFrac*alphaDoneRel
 P2_rel(1:3)=LastPartPos(PartID,1:3)-PosSphere(1:3)
@@ -324,8 +322,8 @@ P2_rel(1:3)=LastPartPos(PartID,1:3)-PosSphere(1:3)
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
       CALL OutputTrajectory(PartID,PartState(PartID,1:3),PartTrajectory,lengthPartTrajectory)
-      WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | Macropart center Pos:       ', PosSphere(1:3)
-      WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | Macropart Trajectory:       ', MacroPartTrajectory(1:3)
+      WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | Macrosphere center Pos:       ', PosSphere(1:3)
+      WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | Macrosphere Trajectory:       ', MacroBodyTrajectory(1:3)
       WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | relative Position:       ', P2_rel(1:3)
       WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | relative Trajectory:       ', relPartTrajectory(1:3)
       WRITE(UNIT_stdOut,'(A,L)') '     | particle moves away from sphere:  ',(DOT_PRODUCT(P2_rel,relPartTrajectory).GT.0)
@@ -480,7 +478,7 @@ SUBROUTINE GetInteractionWithMacroBody(PartTrajectory,lengthPartTrajectory &
 USE MOD_PreProc
 USE MOD_Globals                 ,ONLY: CROSSNORM,abort,UNITVECTOR,CROSS
 USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
-USE MOD_Particle_Vars           ,ONLY: PDM,PartSpecies
+USE MOD_Particle_Vars           ,ONLY: PartSpecies
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species
 USE MOD_MacroBody_Vars          ,ONLY: MacroSphere
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
@@ -502,18 +500,18 @@ LOGICAL,INTENT(OUT),OPTIONAL         :: opt_Reflected
 REAL                                 :: intersectPoint(1:3),nLoc(1:3),relVeloPart(1:3),sphereIntersectionPos(1:3)
 REAL                                 :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
 REAL                                 :: EtraWall, EtraNew
-REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
+REAL                                 :: WallVelo(1:3), WallTemp, TransACC
 REAL                                 :: tang1(1:3),tang2(1:3), NewVelo(3)
 REAL                                 :: POI_fak!,TildTrajectory(3)
-REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
+REAL                                 :: Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                                 :: relPartTrajectory(1:3)!,relLengthPartTrajectory
 REAL                                 :: PosSphere(1:3)!,P2_rel(1:3)
-REAL                                 :: MacroPartTrajectory(1:3)
+REAL                                 :: MacroBodyTrajectory(1:3)
 REAL                                 :: force(1:3), moment(1:3), inertiaMoment
 !===================================================================================================================================
 ! transform particle trajectory to sphere system v2_rel=v2-v1
-MacroPartTrajectory(1:3)=MacroSphere(macroBodyID)%velocity(1:3)*dt*RKdtFrac*(1.-alphaDoneRel)
-relPartTrajectory(1:3)=PartTrajectory(1:3)*lengthPartTrajectory-MacroPartTrajectory(1:3)
+MacroBodyTrajectory(1:3)=MacroSphere(macroBodyID)%velocity(1:3)*dt*RKdtFrac*(1.-alphaDoneRel)
+relPartTrajectory(1:3)=PartTrajectory(1:3)*lengthPartTrajectory-MacroBodyTrajectory(1:3)
 ! Transform particle posiiton to sphere system
 PosSphere(1:3) = MacroSphere(macroBodyID)%center(1:3)+MacroSphere(macroBodyID)%velocity(1:3)*dt*RKdtFrac*alphaDoneRel
 !P2_rel(1:3)=LastPartPos(PartID,1:3)-PosSphere(1:3)
@@ -534,7 +532,7 @@ PosSphere(1:3) = MacroSphere(macroBodyID)%center(1:3)+MacroSphere(macroBodyID)%v
 !relPartTrajectory=relPartTrajectory/relLengthPartTrajectory
 
 intersectPoint(1:3) = LastPartPos(PartID,1:3) + alpha*PartTrajectory(1:3)
-sphereIntersectionPos(1:3) = PosSphere(1:3) + alphaSphere*MacroPartTrajectory(1:3)
+sphereIntersectionPos(1:3) = PosSphere(1:3) + alphaSphere*MacroBodyTrajectory(1:3)
 nLoc = UNITVECTOR(intersectPoint - sphereIntersectionPos)
 ! nLoc points outwards of sphere
 IF(DOT_PRODUCT(nLoc,relPartTrajectory).GT.0.)  THEN

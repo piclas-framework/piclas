@@ -1708,7 +1708,7 @@ ELSE
   deltaT=ManualTimeStep
 END IF
 IF (halo_eps_velo.EQ.0) halo_eps_velo = c
-#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43)
 IF (halo_eps_velo.EQ.c) THEN
    CALL abort(&
 __STAMP__&
