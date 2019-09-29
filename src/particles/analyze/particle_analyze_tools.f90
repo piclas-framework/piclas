@@ -94,8 +94,8 @@ PURE FUNCTION CalcEkinPart2(velocity,Species_IN,WeightingFactor)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Equation_Vars ,ONLY: c2, c2_inv
-USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species
+USE MOD_Equation_Vars ,ONLY: c2,c2_inv
+USE MOD_Particle_Vars ,ONLY: Species
 USE MOD_Particle_Vars ,ONLY: PartLorentzType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
