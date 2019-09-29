@@ -3179,7 +3179,7 @@ REAL,INTENT(IN)     :: OutputTime
 INTEGER,PARAMETER   :: N_variables=1
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName,DataSetName
-INTEGER             :: iElem,i
+INTEGER             :: iElem,i,iMax
 REAL                :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1)
 !===================================================================================================================================
 ! create global Eps field for parallel output of Eps distribution
@@ -3215,12 +3215,22 @@ DO iElem=1,PP_nElems
 END DO!iElem
 
 ! Write data twice to .h5 file
-! 1. to separate file (for visu) 
-! 2. to _State_.h5 file (or restart)
-DO i = 1, 2
+! 1. to _State_.h5 file (or restart)
+! 2. to separate file (for visu) 
+#if USE_DEBUG
+iMax=2 ! write 2 files (one for debugging)
+#else
+iMax=1 ! write 1 file only
+#endif /*USE_DEBUGS*/
+DO i = 1, iMax
   IF(i.EQ.1)THEN
-    !FutureTime=0.0
-    ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+    ! Write field to _State_.h5 file (or restart)
+    FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
+    DataSetName='DG_SourceExt'
+  ELSE
+    ! Generate skeleton for the file with all relevant data on a single processor (MPIRoot)
+    ! Write field to separate file for debugging purposes
+    !FutureTime=0.0 ! not required
     FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_NodeSourceExtGlobal',OutputTime))//'.h5'
     IF(MPIRoot) CALL GenerateFileSkeleton('NodeSourceExtGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
 #if USE_MPI
@@ -3230,10 +3240,6 @@ DO i = 1, 2
     CALL WriteAttributeToHDF5(File_ID,'VarNamesNodeSourceExtGlobal',N_variables,StrArray=StrVarNames)
     CALL CloseDataFile()
     DataSetName='DG_Solution'
-  ELSE
-    ! Write again, but to _State_.h5 file (or restart)
-    FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
-    DataSetName='DG_SourceExt'
   END IF ! i.EQ.2
 
   ! Associate construct for integer KIND=8 possibility
