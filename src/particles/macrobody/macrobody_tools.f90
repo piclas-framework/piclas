@@ -270,6 +270,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt,RKdtFrac
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Vars          ,ONLY: PartState
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
+USE MOD_Particle_InterSection  ,ONLY: OutputTrajectory
 #endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
