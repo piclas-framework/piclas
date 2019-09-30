@@ -3218,9 +3218,9 @@ END DO!iElem
 ! 1. to _State_.h5 file (or restart)
 ! 2. to separate file (for visu) 
 #if USE_DEBUG
-iMax=2 ! write 2 files (one for debugging)
+iMax=2 ! write to state and to a separate file (for debugging)
 #else
-iMax=1 ! write 1 file only
+iMax=1 ! write to state file
 #endif /*USE_DEBUGS*/
 DO i = 1, iMax
   IF(i.EQ.1)THEN
