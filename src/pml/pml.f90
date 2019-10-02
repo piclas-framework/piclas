@@ -94,10 +94,10 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_PML_Vars
-USE MOD_HDF5_output,     ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
-USE MOD_HDF5_output,     ONLY: WritePMLzetaGlobalToHDF5
-USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
-USE MOD_IO_HDF5,         ONLY:AddToElemData,ElementOut
+USE MOD_HDF5_output       ,ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
+USE MOD_HDF5_Output_Tools ,ONLY: WritePMLzetaGlobalToHDF5
+USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
+USE MOD_IO_HDF5           ,ONLY: AddToElemData,ElementOut
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -186,7 +186,7 @@ ELSE ! find all elements located outside of 'xyzPhysicalMinMax'
 END IF
 
 ! find all faces in the PML region
-CALL FindInterfacesInRegion(isPMLFace,isPMLInterFace,isPMLElem)
+CALL FindInterfacesInRegion(isPMLFace,isPMLInterFace,isPMLElem,info_opt='find all faces in the PML region')
 
 ! Get number of PML Elems, Faces and Interfaces. Create Mappngs PML <-> physical region
 CALL CountAndCreateMappings('PML',&

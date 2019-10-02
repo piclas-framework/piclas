@@ -156,7 +156,8 @@ IF (dist.NE.dist) dist = SQRT(bx*bx+by*by+bz*bz)
 !VectorShift(3) = PnewZ - PoldZ
 
 alpha = PartTrajectory(1) * nx + PartTrajectory(2) * ny + PartTrajectory(3) * nz
-alpha = dist / alpha
+IF(ABS(alpha).GT.0.) alpha = dist / alpha
+
 
 !IntersectionPos(1) = PoldX + alpha * PartTrajectory(1)
 !IntersectionPos(2) = PoldY + alpha * PartTrajectory(2)

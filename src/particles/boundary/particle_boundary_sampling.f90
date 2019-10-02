@@ -111,6 +111,7 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
 USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList,PartElemToElemAndSide
 USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping,TriaTracking
 USE MOD_DSMC_Symmetry2D         ,ONLY:DSMC_2D_CalcSymmetryArea
+USE MOD_Mesh_Vars               ,ONLY:MortarType
 #if USE_MPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 #else
@@ -211,10 +212,10 @@ SurfMesh%nInnerSides=0
 DO iSide=1,nBCSides
   IF(BC(iSide).EQ.0) CYCLE
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
-    SurfMesh%nSides = SurfMesh%nSides + 1
-    SurfMesh%nMasterSides = SurfMesh%nMasterSides + 1
-    SurfMesh%nBCSides = SurfMesh%nBCSides + 1
-    SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nSides
+    SurfMesh%nSides                = SurfMesh%nSides + 1
+    SurfMesh%nMasterSides          = SurfMesh%nMasterSides + 1
+    SurfMesh%nBCSides              = SurfMesh%nBCSides + 1
+    SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
   END IF
 END DO
 ! own inner BCsides (inner sides with refelctive PartBC)
@@ -225,11 +226,17 @@ END DO
 DO iSide=nBCSides+1,nSides
   IF(BC(iSide).EQ.0) CYCLE
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
+! Mortar and InnerBC can not be used in combination
+    IF(MortarType(1,iSide).NE.-1) THEN
+      CALL abort(&
+__STAMP__&
+,' Error in assignment of innerBCSide: Mortar and InnerBC can not be used in combination', iSide)
+    END IF
     IF(PartSideToElem(S2E_ELEM_ID,iSide).NE.-1) THEN
-      SurfMesh%nSides = SurfMesh%nSides + 1
-      SurfMesh%nMasterSides = SurfMesh%nMasterSides + 1
-      SurfMesh%nInnerSides = SurfMesh%nInnerSides + 1  ! increment only for MasterSides
-      SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nSides
+      SurfMesh%nSides                = SurfMesh%nSides + 1
+      SurfMesh%nMasterSides          = SurfMesh%nMasterSides + 1
+      SurfMesh%nInnerSides           = SurfMesh%nInnerSides + 1  ! increment only for MasterSides
+      SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
       IF(PartSideToElem(S2E_NB_ELEM_ID,iSide).EQ.-1) THEN
         ElemOfInnerBC(iSide)= PartSideToElem(S2E_ELEM_ID,iSide)
       END IF
@@ -253,9 +260,9 @@ END DO
 ALLOCATE(SurfMesh%innerBCSideToHaloMap(1:nTotalSides))
 SurfMesh%innerBCSideToHaloMap(1:nTotalSides)=-1
 
-
-! halo sides and Mapping for SlaveSide
 SurfMesh%nTotalSides=SurfMesh%nSides
+#if USE_MPI
+! halo sides and Mapping for SlaveSide
 DO iHaloSide=nSides+1,nTotalSides
   IF(BC(iHaloSide).EQ.0) CYCLE
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iHaloSide))).EQ.PartBound%ReflectiveBC) THEN
@@ -289,9 +296,11 @@ __STAMP__&
   END IF
 END DO
 ! end sanity check
+#endif
 
 DEALLOCATE(ElemOfInnerBC)
 DEALLOCATE(NBElemOfHalo)
+DEALLOCATE(IsSlaveSide)
 
 ALLOCATE(SurfMesh%SurfIDToSideID(1:SurfMesh%nTotalSides))
 SurfMesh%SurfIDToSideID(:) = -1
@@ -1069,7 +1078,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     IF(NativeElemID.GT.PP_nElems)THEN
      CALL abort(&
 __STAMP__&
-          ,' Cannot send halo-data to other progs. big error! ', ElemID, REAL(PP_nElems))
+          ,' Cannot send halo-data to other procs. big error! ', ElemID, REAL(PP_nElems))
     END IF
     SideID=PartElemToSide(E2S_SIDE_ID,NativeLocSideID,NativeElemID)
     IF(SideID.GT.nSides)THEN

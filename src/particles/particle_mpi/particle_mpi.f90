@@ -371,6 +371,9 @@ PartMPIExchange%nPartsSend=0
 !    ' Cannot allocate PartMPIDepoSend!')
 PartTargetProc=-1
 DO iPart=1,PDM%ParticleVecLength
+  ! Activate phantom particles
+  IF(PartSpecies(iPart).LT.0) PDM%ParticleInside(iPart) = .TRUE.
+
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
@@ -1192,37 +1195,38 @@ SUBROUTINE MPIParticleRecv()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartCommSize, PartRecvBuf,PartSendBuf!,iMessage
-USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIExchange,PartCommSize, PartRecvBuf,PartSendBuf
+USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef
 #if defined(LSERK)
-USE MOD_Particle_Vars,            ONLY:Pt_temp
+USE MOD_Particle_Vars          ,ONLY: Pt_temp
 #endif
-USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 ! variables for parallel deposition
-USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,ExtPartCommSize
-USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF
-USE MOD_Mesh_Vars,                ONLY:nGlobalMortarSides
-USE MOD_Particle_Mesh_Vars,       ONLY:PartElemIsMortar
+USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts,ExtPartCommSize
+USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF
+USE MOD_Mesh_Vars              ,ONLY: nGlobalMortarSides
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemIsMortar
 #if defined(ROS) || defined(IMPA)
-USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage,PartDtFrac,PartQ
-USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
-USE MOD_Timedisc_Vars,            ONLY:iStage
-USE MOD_LinearSolver_Vars,        ONLY:PartXK,R_PartXK
-USE MOD_PICInterpolation_Vars,    ONLY:FieldAtParticle
-USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems
-USE MOD_Particle_Mesh_Vars,       ONLY:ElemToGlobalElemID
-USE MOD_Mesh_Vars,                ONLY:OffSetElem
+USE MOD_Particle_Vars          ,ONLY: PartStateN,PartStage,PartDtFrac,PartQ
+USE MOD_Particle_MPI_Vars      ,ONLY: PartCommSize0
+USE MOD_Timedisc_Vars          ,ONLY: iStage
+USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToGlobalElemID
+USE MOD_Mesh_Vars              ,ONLY: OffSetElem
 #endif /*ROS or IMPA*/
 #if defined(IMPA)
-USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton &
+USE MOD_Particle_Vars          ,ONLY: F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton &
                                      ,PartDeltaX,PartLambdaAccept
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 #endif /*IMPA*/
-USE MOD_DSMC_Vars,               ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D,         ONLY: DSMC_2D_RadialWeighting
-USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
-USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D_MortarMPI
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_RadialWeighting
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D_MortarMPI
+USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1417,6 +1421,19 @@ DO iProc=1,PartMPI%nMPINeighbors
     jPos=jPos+1
 #endif /*IMPA*/
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(1+jPos),KIND=4)
+    ! Consider special particles that are communicated with negative species ID (ghost partilces that are deposited on surface 
+    ! with their charge and are then removed)
+    IF(PartSpecies(PartID).LT.0)THEN
+      PartSpecies(PartID) = -PartSpecies(PartID) ! make positive species ID again
+      CALL DepositParticleOnNodes(PartID,PartState(PartID,1:3),PEM%Element(PartID))
+      PartSpecies(PartID) = 0 ! For safety: nullify the speciesID
+      PDM%ParticleInside(PartID) = .FALSE.
+#ifdef IMPA
+      PartIsImplicit(PartID) = .FALSE.
+      DoPartInNewton(PartID) = .FALSE.
+#endif /*IMPA*/
+      CYCLE ! Continue the loop with the next particle
+    END IF ! PartSpecies(PartID).LT.0
     jPos=jPos+1
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN
       IF (usevMPF .AND. DSMC%ElectronicModel) THEN
