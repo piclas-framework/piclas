@@ -2370,7 +2370,7 @@ IF(DoBoundaryParticleOutput)THEN
         __STAMP__&
         ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundarySpec array!')
   END IF
-  PartStateBoundarySpec=0.
+  PartStateBoundarySpec=0
 END IF
 
 ! Set mapping from field boundary to particle boundary index
