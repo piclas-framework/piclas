@@ -69,10 +69,6 @@ INTERFACE BoundaryParticleOutput
   MODULE PROCEDURE BoundaryParticleOutput
 END INTERFACE
 
-!INTERFACE SortArray
-!  MODULE PROCEDURE SortArray
-!END INTERFACE
-
 PUBLIC :: AddPartInfoToSample
 PUBLIC :: CalcWallSample
 PUBLIC :: AnalyzeSurfaceCollisions
@@ -605,9 +601,9 @@ END ASSOCIATE
 
 END SUBROUTINE BoundaryParticleOutput
 
-SUBROUTINE SortArray(EndID,ArrayA,ArrayB,MaxID)
+SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
 !----------------------------------------------------------------------------------------------------------------------------------!
-! sort arryA in ascending order of arrayB, kleiner Hack von SA
+! sort arryA in ascending order of arrayB
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -618,7 +614,6 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)    :: EndID
 INTEGER,INTENT(INOUT) :: ArrayA(EndID)
 INTEGER,INTENT(IN)    :: ArrayB(EndID)
-INTEGER,INTENT(IN)    :: MaxID
 ! insert IO variables here
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -629,36 +624,17 @@ INTEGER :: ArrayA_temp(EndID)
 !===================================================================================================================================
 ArrayA_temp=ArrayA
 unsorted = .TRUE.
-!unsorted(ALL(ArrayA.EQ.-1))=.FALSE.
-
-!WRITE(*,*) "EndID",EndID
-!WRITE(*,*) "SHAPE(ArrayA)",SHAPE(ArrayA),"SIZE(ArrayA)",SIZE(ArrayA)
-do i=1, EndID
-  if(ArrayA(i).EQ.-1) then
+DO i=1, EndID
+  IF(ArrayA(i).EQ.-1) THEN
     unsorted(i)=.FALSE.
-  end if
-end do
-  !WRITE(*,*) 'unsorted = ',unsorted
-!WRITE(*,*) "----------------------"
+  END IF
+END DO
 unsorted_tmp=unsorted
-!WRITE(*,*) 'MaxID = ',MaxID
-
-
 DO i = 1, EndID
-  IF(.not.unsorted_tmp(i)) CYCLE
-!  IF(i.EQ.MaxID)RETURN
-  ! minimum = MINVAL(ArrayB,unsorted)
+  IF(.NOT.unsorted_tmp(i)) CYCLE
    idx=MINLOC(ArrayB,1,unsorted)
-   !WRITE(*,*) 'idx = ',idx
-   !WRITE(*,*) 'ArrayB(idx) = ',ArrayB(idx)
-
    ArrayA(i) = ArrayA_temp(idx)
-
    unsorted(idx) = .FALSE.
-  !WRITE(*,*) 'unsorted = ',unsorted
-
-!   v_ascendente(ix) = MINVAL(vector,mk)
-!   mk(MINLOC(vector,mk)) = .FALSE.
 END DO
 
 END SUBROUTINE SortArray

@@ -253,7 +253,7 @@ USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
 #endif
 USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry2D
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
-USE MOD_Mesh_Vars                  ,ONLY: MeshFile, BC,nBCSides
+USE MOD_Mesh_Vars                  ,ONLY: MeshFile, BC, nBCSides
 USE MOD_Restart_Vars               ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -340,7 +340,6 @@ END IF
 
 OutputCounter = 0
 
-!DO iSurfSide=1,SurfMesh%nMasterSides
 DO iSurfSide=1,SurfMesh%nSides
   IF(iSurfSide.GT.nBCSides) THEN
     IF(SurfMesh%innerBCSideToHaloMap(SurfMesh%SurfIDToSideID(iSurfSide)).NE.-1) CYCLE
@@ -466,24 +465,6 @@ DO iSurfSide=1,SurfMesh%nSides
     END DO ! q=1,nSurfSample
   END DO ! p=1,nSurfSample
 END DO ! iSurfSide=1,SurfMesh%nMasterSides
-
-
-
-
-
-
-
-!IF(DebugCounter.NE.SurfMesh%nMasterSides) THEN
-!  CALL abort(&
-!  __STAMP__&
-!  ,'Hurensohn ich bring dich um!!!')
-!END IF
-
-
-
-
-
-
 
 IF (CalcSurfCollis%Output) THEN
 #if USE_MPI

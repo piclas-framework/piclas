@@ -253,8 +253,6 @@ BC          = 0
 AnalyzeSide = 0
 ! fill output definition for InnerBCs
 #ifdef PARTICLES
-ALLOCATE(InnerBCOutput(1:nSides))
-InnerBCOutput(:)=.FALSE.
 ALLOCATE(GlobalUniqueSideID(1:nSides))
 GlobalUniqueSideID(:)=-1
 #endif
@@ -1008,7 +1006,6 @@ SDEALLOCATE(ElemToSide)
 SDEALLOCATE(AnalyzeSide)
 SDEALLOCATE(SideToElem)
 SDEALLOCATE(BC)
-SDEALLOCATE(InnerBCOutput)
 SDEALLOCATE(GlobalUniqueSideID)
 ! elem-xgp and metrics
 SDEALLOCATE(Elem_xGP)

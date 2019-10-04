@@ -312,13 +312,6 @@ DO iElem=FirstElemInd,LastElemInd
 #endif /*PARTICLES*/
       END IF ! sideID EQ -1
     END DO ! iMortar
-
-    if( myrank.eq.2 ) then
-      IPWRITE(UNIT_stdOut,*) 'aSide%Ind,aSide%SideID = ',aSide%Ind,aSide%SideID
-    end if
-
-
-
   END DO ! iLocSide=1,6
 END DO !iElem
 IF(iSide.NE.nInnerSides+nBCSides+nMortarInnerSides) CALL abort(&
@@ -848,7 +841,7 @@ END SUBROUTINE setLocalSideIDs
 SUBROUTINE fillMeshInfo()
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems,InnerBCOutput
+USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
 USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nBCSides,nSides
 USE MOD_Mesh_Vars        ,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
 USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob,GlobalUniqueSideID
@@ -905,26 +898,7 @@ DO iElem=1,nElems
     BC(aSide%sideID)=aSide%BCIndex
 #ifdef PARTICLES
     GlobalUniqueSideID(aSide%sideID)=aSide%Ind
-!    if( myrank.eq.2 ) then
-!      IPWRITE(UNIT_stdOut,*) 'TTTT:aSide%Ind,aSide%sideID = ',aSide%Ind,aSide%sideID
-!    end if
-!    IPWRITE(UNIT_stdOut,*) 'aSide%Ind,aSide%sideID = ',aSide%Ind,aSide%sideID
 #endif /*PARTICLES*/
-
-
-
-#ifdef PARTICLES
-!    IF(.NOT.InnerBCOutput(aSide%sideID))THEN
-!      InnerBCOutput(aSide%sideID)=aSide%InnerBCOutput
-!    END IF
-!    IPWRITE(UNIT_stdout,*) 'aSide%sideID,aSide%InnerBCOutput',aSide%sideID,aSide%InnerBCOutput
-!read*
-#endif /*PARTICLES*/
-
-
-
-
-
   END DO ! LocSideID
 END DO ! iElem
 

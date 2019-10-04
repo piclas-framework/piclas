@@ -120,10 +120,8 @@ INTEGER,ALLOCATABLE :: ElemToSide(:,:,:) !< SideID    = ElemToSide(E2S_SIDE_ID,Z
 INTEGER,ALLOCATABLE :: SideToElem(:,:)   !< ElemID    = SideToElem(S2E_ELEM_ID,SideID)
                                          !< NB_ElemID = SideToElem(S2E_NB_ELEM_ID,SideID)
                                          !< locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
-INTEGER,ALLOCATABLE :: BC(:)             !< BCIndex   = BC(SideID), 1:BCSides
-LOGICAL,ALLOCATABLE :: InnerBCOutput(:)  !< Logical if proc writes InnerBC information
+INTEGER,ALLOCATABLE :: BC(:)             !< BCIndex   = BC(SideID), 1:nBCSides
 INTEGER,ALLOCATABLE :: GlobalUniqueSideID(:) !< SideInfo(SIDE_ID,iSide) = GlobalUniqueSideIDC(SideID), 1:nSides
-                                             !< (globalunique SideIDs)
 INTEGER,ALLOCATABLE :: BoundaryType(:,:) !< BCType    = BoundaryType(BC(SideID),BC_TYPE)
                                          !< BCState   = BoundaryType(BC(SideID),BC_STATE)
 INTEGER,ALLOCATABLE :: AnalyzeSide(:)    !< Marks, wheter a side belongs to a group of analyze sides (e.g. to a BC group)

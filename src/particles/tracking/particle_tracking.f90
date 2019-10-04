@@ -87,8 +87,6 @@ USE MOD_Particle_Intersection       ,ONLY: IntersectionWithWall
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
 USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
-USE MOD_Mesh_Vars                   ,ONLY: ElemBaryNGeo
-USE MOD_Particle_Boundary_Vars  ,ONLY:SurfMesh
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -347,14 +345,6 @@ DO i = 1,PDM%ParticleVecLength
         IF(BC(SideID).GT.0) THEN
           OldElemID=ElemID
           BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID)))
-
-          IF(BC(SideID).EQ.2) THEN
-            IPWRITE(UNIT_stdout,*) 'ElemID,SideID,i',ElemID,SideID,i
-            IPWRITE(UNIT_stdout,*) 'SurfMesh%SideIDToSurfID(SideID)',SurfMesh%SideIDToSurfID(SideID)
-            IPWRITE(UNIT_stdout,*) 'ElemBaryNGeo(1:3,ElemID)',ElemBaryNGeo(1:3,ElemID)
-          END IF
-
-
           IF(BCType.NE.1) CALL IntersectionWithWall(PartTrajectory,alpha,i,LocalSide,ElemID,TriNum)
           CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
                                                                        ,xi    &
