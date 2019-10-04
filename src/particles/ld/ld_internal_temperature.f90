@@ -79,7 +79,7 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
                  * ( 2.0 * 3.14159265359 * BoltzmannConst * SpecDSMC(PartSpecies(iPartIndx))%Tref &
                  * (Species(iSpec)%MassIC + Species(PartSpecies(iPartIndx))%MassIC) &
                  / (Species(iSpec)%MassIC * Species(PartSpecies(iPartIndx))%MassIC) )**0.5 &
-                 * (PartStateBulkValues(iPartIndx,4) / SpecDSMC(PartSpecies(iPartIndx))%Tref)**(0.5 - SpecDSMC(iSpec)%omega)
+                 * (PartStateBulkValues(iPartIndx,4) / SpecDSMC(PartSpecies(iPartIndx))%Tref)**(0.5 - SpecDSMC(iSpec)%omegaLaux)
     END DO
     CollNum = 18.1 / ( 1.0 + 0.5*3.14159265359**1.5*(91.5/ PartStateBulkValues(iPartIndx,4) )**0.5 &
             + (3.14159265359 + 0.25*3.14159265359**2.0)*91.5 / PartStateBulkValues(iPartIndx,4) )
@@ -321,12 +321,12 @@ ALLOCATE(TempPartVelo(PDM%maxParticleNumber,3))
     END IF
 
     LD_Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(LD_Coll_pData(iPair)%PairType))  &
-              * CollInf%Cab(LD_Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
+              * CollInf%crossSectionConstantCab(LD_Coll_pData(iPair)%PairType)                                               & ! crossSectionConstantCab species comb fac
               * Species(PartSpecies(LD_Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  &
                       ! weighting Fact, here only one MPF is used!!!
               / CollInf%Coll_CaseNum(LD_Coll_pData(iPair)%PairType)                                      & !sum of coll cases Sab
-              * LD_Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(cSpec1)%omega) &
-                      ! relative velo to the power of (1 -2omega) !! only one omega is used!!
+              * LD_Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(cSpec1)%omegaLaux) &
+                      ! relative velo to the power of (1 -2omegaLaux) !! only one omegaLaux is used!!
               * dt / GEO%Volume(iElem)
 
     LD_Coll_pData(iPair)%Prob = LD_Coll_pData(iPair)%Prob * ProbabilityFactor
@@ -350,8 +350,8 @@ ALLOCATE(TempPartVelo(PDM%maxParticleNumber,3))
       DoVib1  = .FALSE.
       DoVib2  = .FALSE.
 
-      Xi_rel = 2*(2 - SpecDSMC(cSpec1)%omega)
-        ! DOF of relative motion in VHS model, only for one omega!!
+      Xi_rel = 2*(2 - SpecDSMC(cSpec1)%omegaLaux)
+        ! DOF of relative motion in VHS model, only for one omegaLaux!!
 
       LD_Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(LD_Coll_pData(iPair)%PairType)*LD_Coll_pData(iPair)%CRela2
 
@@ -591,11 +591,11 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
       END IF
       CollPartion = CollPartion + PartionFactor &
                   * (nPart - 1.0) &
-                  * CollInf%Cab(PairType) & ! Cab species comb fac
+                  * CollInf%crossSectionConstantCab(PairType) & ! crossSectionConstantCab species comb fac
                   * Species(iSpec)%MacroParticleFactor                  &
                           ! weighting Fact, here only one MPF is used!!!
-                  * CRela2 ** (0.5-SpecDSMC(iSpec)%omega) &
-                          ! relative velo to the power of (1 -2omega) !! only one omega is used!!
+                  * CRela2 ** (0.5-SpecDSMC(iSpec)%omegaLaux) &
+                          ! relative velo to the power of (1 -2omegaLaux) !! only one omegaLaux is used!!
                   * dt / GEO%Volume(iElem)
     END DO
     RotRelaPart(iSpec) = SpecDSMC(iSpec)%RotRelaxProb * CollPartion
@@ -728,12 +728,12 @@ END SUBROUTINE CalcInternalTemp_LD_third
 !            / (3.1415926536 * CollInf%MassRed(PairType))
 !
 !     CollPartion = nPart*nPart/2  &
-!                 * CollInf%Cab(PairType)   & ! Cab species comb fac
+!                 * CollInf%crossSectionConstantCab(PairType)   & ! crossSectionConstantCab species comb fac
 !                 * Species(iSpec)%MacroParticleFactor                  &
 !                         ! weighting Fact, here only one MPF is used!!!
 !                 / (nPart * 0.5) & !sum of coll cases Sab
-!                 * CRela2 ** (0.5-SpecDSMC(iSpec)%omega) &
-!                         ! relative velo to the power of (1 -2omega) !! only one omega is used!!
+!                 * CRela2 ** (0.5-SpecDSMC(iSpec)%omegaLaux) &
+!                         ! relative velo to the power of (1 -2omegaLaux) !! only one omegaLaux is used!!
 !                 * dt / GEO%Volume(iElem)
 !
 !     RotRelaPart = SpecDSMC(iSpec)%RotRelaxProb * CollPartion

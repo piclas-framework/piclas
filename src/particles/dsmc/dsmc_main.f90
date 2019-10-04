@@ -46,7 +46,7 @@ SUBROUTINE DSMC_main(DoElement)
   USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
   USE MOD_Mesh_Vars,             ONLY : nElems
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-  USE MOD_DSMC_Vars,             ONLY : ChemReac, SpecDSMC, RadialWeighting
+  USE MOD_DSMC_Vars,             ONLY : ChemReac, RadialWeighting
   USE MOD_DSMC_Analyze,          ONLY : CalcMeanFreePath
   USE MOD_DSMC_SteadyState,      ONLY : QCrit_evaluation, SteadyStateDetection_main
   USE MOD_Particle_Vars,         ONLY : PEM, PDM, usevMPF, WriteMacroVolumeValues, nSpecies, Symmetry2D
@@ -165,7 +165,7 @@ SUBROUTINE DSMC_main(DoElement)
           IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
             ! Calculation of the mean free path
             DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),GEO%Volume(iElem), &
-                                                  SpecDSMC(1)%omega,DSMC%InstantTransTemp(nSpecies+1))
+                                                  CollInf%omegaLaux(1,1),DSMC%InstantTransTemp(nSpecies+1))
             ! Determination of the MCS/MFP for the case without octree
             IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
                                                                                             / DSMC%MeanFreePath

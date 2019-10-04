@@ -261,7 +261,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
     ((Coll_pData(iPair)%Ec-EZeroPoint_Prod).GE.(-1./NumWeightProd*(Weight1+Weight2+WeightProd)*ChemReac%EForm(iReac)))) THEN
     ! Determination of the total degree of freedom
     Xi_Total = Xi_vib1 + Xi_vib2 + SpecDSMC(EductReac(1))%Xi_Rot + SpecDSMC(EductReac(2))%Xi_Rot &
-               + 2.*(2.-SpecDSMC(EductReac(1))%omega)
+               + 2.*(2.-CollInf%omegaLaux(EductReac(1),EductReac(1)))
     IF(EductReac(3).NE.0) THEN
       Xi_Total = Xi_Total + 3. + Xi_vib3 + SpecDSMC(EductReac(3))%Xi_Rot
     END IF
@@ -325,50 +325,52 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
       END IF
       IF(DSMC%BackwardReacRate.AND.((iReac.GT.ChemReac%NumOfReact/2))) THEN
         Tcoll =ReducedMass*Coll_pData(iPair)%CRela2*2./(Weight1+Weight2)  &
-              / (BoltzmannConst * 2.*(2.-SpecDSMC(EductReac(1))%omega))
-        b=     (0.5 - SpecDSMC(EductReac(1))%omega)
+              / (BoltzmannConst * 2.*(2.-CollInf%omegaLaux(EductReac(1),EductReac(1))))
+        b=     (0.5 - CollInf%omegaLaux(EductReac(1),EductReac(1)))
         Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
-          * (SpecDSMC(EductReac(1))%dref/2. + SpecDSMC(EductReac(2))%dref/2.)**2 &
-          * (Tcoll / SpecDSMC(EductReac(1))%Tref)**(0.5 - SpecDSMC(EductReac(1))%omega) &
-          * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%Tref &
+          * (CollInf%dref(EductReac(1),EductReac(1))/2. + CollInf%dref(EductReac(2),EductReac(2))/2.)**2 &
+          * (Tcoll / CollInf%Tref(EductReac(1),EductReac(1)))**(0.5 - CollInf%omegaLaux(EductReac(1),EductReac(1))) &
+          * SQRT(2. * BoltzmannConst * CollInf%Tref(EductReac(1),EductReac(1)) &
           / (ReducedMass* 2./(Weight1+Weight2)))
-        Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omega)**b &
-             * gamma(2.-SpecDSMC(EductReac(1))%omega)/gamma(2.-SpecDSMC(EductReac(1))%omega+b)
+        Rcoll = Rcoll * (2.-CollInf%omegaLaux(EductReac(1),EductReac(1)))**b &
+             * gamma(2.-CollInf%omegaLaux(EductReac(1),EductReac(1)))/gamma(2.-CollInf%omegaLaux(EductReac(1),EductReac(1))+b)
         ReactionProb = BackwardRate / Rcoll * NumDens
       ELSE
         ! Reaction probability after regular TCE-model
         ReactionProb = BetaReaction * NumDens &
-                 * EReact**(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 + SpecDSMC(EductReac(3))%omega)
+                 * EReact**(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 + CollInf%omegaLaux(EductReac(3),EductReac(3)))
       END IF
     ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
       TiQK = (ReducedMass*Coll_pData(iPair)%CRela2*2./(Weight1+Weight2)  &
-                + 2.*PartStateIntEn(React1Inx,3))/((2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omega) &
+                + 2.*PartStateIntEn(React1Inx,3))/((2.*(2.& 
+                - CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))) &
                 + Xi_elec1)*BoltzmannConst)
       Tcoll = ReducedMass*Coll_pData(iPair)%CRela2 * 2./(Weight1+Weight2)  &
-              / (BoltzmannConst * 2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omega))
-      b=     (0.5 - SpecDSMC(EductReac(1))%omega)
+              / (BoltzmannConst * 2.*(2.-CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))))
+      b=     (0.5 - CollInf%omegaLaux(EductReac(1),EductReac(1)))
       Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
-        * (SpecDSMC(EductReac(1))%dref/2. + SpecDSMC(EductReac(2))%dref/2.)**2 &
-        * (Tcoll / SpecDSMC(EductReac(1))%Tref)**(0.5 - SpecDSMC(EductReac(1))%omega) &
-        * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%Tref &
+        * (CollInf%dref(EductReac(1),EductReac(1))/2. + CollInf%dref(EductReac(2),EductReac(2))/2.)**2 &
+        * (Tcoll / CollInf%Tref(EductReac(1),EductReac(1)))**(0.5 - CollInf%omegaLaux(EductReac(1),EductReac(1))) &
+        * SQRT(2. * BoltzmannConst * CollInf%Tref(EductReac(1),EductReac(1)) &
         / (ReducedMass * 2./(Weight1+Weight2)))
-      Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omega)**b &
-           * gamma(2.-SpecDSMC(EductReac(1))%omega)/gamma(2.-SpecDSMC(EductReac(1))%omega+b)
+      Rcoll = Rcoll * (2.-CollInf%omegaLaux(EductReac(1),EductReac(1)))**b &
+           * gamma(2.-CollInf%omegaLaux(EductReac(1),EductReac(1)))/gamma(2.-CollInf%omegaLaux(EductReac(1),EductReac(1))+b)
       ReactionProb = GetQKAnalyticRate(iReac,TiQK) / Rcoll
     ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D'.AND.ChemReac%QKProcedure(iReac)) THEN
       TiQK = (ReducedMass*Coll_pData(iPair)%CRela2*2./(Weight1+Weight2)  &
-                + 2.*PartStateIntEn(React1Inx,1))/((2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omega) &
+                + 2.*PartStateIntEn(React1Inx,1))/((2.*(2. &
+                - CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))) &
                 + Xi_vib1)*BoltzmannConst)
       Tcoll = ReducedMass*Coll_pData(iPair)%CRela2 * 2./(Weight1+Weight2)  &
-              / (BoltzmannConst * 2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omega))
-      b=     (0.5 - SpecDSMC(EductReac(1))%omega)
+              / (BoltzmannConst * 2.*(2.-CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))))
+      b=     (0.5 - CollInf%omegaLaux(EductReac(1),EductReac(1)))
       Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
-        * (SpecDSMC(EductReac(1))%dref/2. + SpecDSMC(EductReac(2))%dref/2.)**2 &
-        * (Tcoll / SpecDSMC(EductReac(1))%Tref)**(0.5 - SpecDSMC(EductReac(1))%omega) &
-        * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%Tref &
+        * (CollInf%dref(EductReac(1),EductReac(1))/2. + CollInf%dref(EductReac(2),EductReac(2))/2.)**2 &
+        * (Tcoll / CollInf%Tref(EductReac(1),EductReac(1)))**(0.5 - CollInf%omegaLaux(EductReac(1),EductReac(1))) &
+        * SQRT(2. * BoltzmannConst * CollInf%Tref(EductReac(1),EductReac(1)) &
         / (ReducedMass * 2./(Weight1+Weight2)))
-      Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omega)**b &
-           * gamma(2.-SpecDSMC(EductReac(1))%omega)/gamma(2.-SpecDSMC(EductReac(1))%omega+b)
+      Rcoll = Rcoll * (2.-CollInf%omegaLaux(EductReac(1),EductReac(1)))**b &
+           * gamma(2.-CollInf%omegaLaux(EductReac(1),EductReac(1)))/gamma(2.-CollInf%omegaLaux(EductReac(1),EductReac(1))+b)
       ! Get the analytic forward rate for QK
       ReactionProb = GetQKAnalyticRate(iReac,TiQK) / Rcoll
     ELSE
@@ -376,12 +378,13 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
         ! Energy is multiplied by a factor to increase the resulting exponent and avoid floating overflows for high vibrational
         ! degree of freedom, later the reaction probability is scaled again with the same factor and the respective exponents
         ReactionProb = BetaReaction * ((EReact - ChemReac%EActiv(iReac))*1E6)                                                   &
-              ** (ChemReac%Arrhenius_Powerfactor(iReac)-1.5+SpecDSMC(EductReac(1))%omega+Xi_Total/2.)    &
+              ** (ChemReac%Arrhenius_Powerfactor(iReac)-1.5+CollInf%omegaLaux(EductReac(1),EductReac(1))+Xi_Total/2.)    &
                * (EReact * 1E6)**(1.0 - Xi_Total/2.)
-        ReactionProb = ReactionProb / ((1E6)**(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 + SpecDSMC(EductReac(1))%omega))
+        ReactionProb = ReactionProb / ((1E6)**(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 &
+                     + CollInf%omegaLaux(EductReac(1),EductReac(1))))
       ELSE
         ReactionProb = BetaReaction * ((EReact - ChemReac%EActiv(iReac)))                                                       &
-              ** (ChemReac%Arrhenius_Powerfactor(iReac) - 1.5 + SpecDSMC(EductReac(1))%omega             &
+              ** (ChemReac%Arrhenius_Powerfactor(iReac) - 1.5 + CollInf%omegaLaux(EductReac(1),EductReac(1))             &
               + Xi_Total/2.) * (EReact) ** (1.0 - SpecDSMC(EductReac(1))%VFD_Phi3_Factor - Xi_Total/2.)
       END IF
     END IF
@@ -568,12 +571,12 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
   ! Rotational degrees of freedom
   !-------------------------------------------------------------------------------------------------------------------------------
   IF(ProductReac(3).EQ.0) THEN
-    Xi_rel = 2.*(2. - SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omega)
+    Xi_rel = 2.*(2. - CollInf%omegaLaux(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p1)))
     FakXi = 0.5*(Xi_rel + SpecDSMC(ProductReac(1))%Xi_Rot &
           + SpecDSMC(ProductReac(2))%Xi_Rot) - 1.0
     nProd = 2
   ELSE
-    Xi_rel = 4.*(2. - SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omega)
+    Xi_rel = 4.*(2. - CollInf%omegaLaux(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p1)))
     FakXi = 0.5*(Xi_rel + SpecDSMC(ProductReac(1))%Xi_Rot &
           + SpecDSMC(ProductReac(2))%Xi_Rot + SpecDSMC(ProductReac(3))%Xi_Rot) - 1.0
     nProd = 3
@@ -836,8 +839,8 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     CALL RANDOM_NUMBER(iRan)
     FacEtraDistri = iRan
     CALL RANDOM_NUMBER(iRan)
-    ! laux diss page 40, omega only of one species
-    DO WHILE ((4 *FacEtraDistri*(1-FacEtraDistri))**(1-SpecDSMC(EductReac(1))%omega).LT.iRan)
+    ! laux diss page 40, omegaLaux only of one species
+    DO WHILE ((4 *FacEtraDistri*(1-FacEtraDistri))**(1-CollInf%omegaLaux(EductReac(1),EductReac(1))).LT.iRan)
       CALL RANDOM_NUMBER(iRan)
       FacEtraDistri = iRan
       CALL RANDOM_NUMBER(iRan)
@@ -1424,9 +1427,9 @@ CalcQKAnalyticRate = 0.0
 z = 0.0
 iSpec1 = ChemReac%DefinedReact(iReac,1,1)
 iSpec2 = ChemReac%DefinedReact(iReac,1,2)
-Tref=(SpecDSMC(iSpec1)%Tref + SpecDSMC(iSpec2)%Tref)/2.
+Tref=(CollInf%Tref(iSpec1,iSpec1) + CollInf%Tref(iSpec2,iSpec2))/2.
 Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(iSpec1, iSpec2))) &
-    * (SpecDSMC(iSpec1)%dref/2. + SpecDSMC(iSpec2)%dref/2.)**2 &
+    * (CollInf%dref(iSpec1,iSpec1)/2. + CollInf%dref(iSpec2,iSpec2)/2.)**2 &
     * SQRT(2. * BoltzmannConst * Tref &
     / (CollInf%MassRed(CollInf%Coll_Case(iSpec1, iSpec2))))
 
@@ -1434,21 +1437,21 @@ SELECT CASE (ChemReac%ReactType(iReac))
 CASE('iQK')
   MaxElecQua=SpecDSMC(iSpec1)%MaxElecQuant - 1
   DO iQua = 0, MaxElecQua
-    Q = gammainc([2.-SpecDSMC(iSpec1)%omega,(SpecDSMC(iSpec1)%ElectronicState(2,MaxElecQua)- &
+    Q = gammainc([2.-CollInf%omegaLaux(iSpec1,iSpec1),(SpecDSMC(iSpec1)%ElectronicState(2,MaxElecQua)- &
         SpecDSMC(iSpec1)%ElectronicState(2,iQua))/Temp])
     CalcQKAnalyticRate= CalcQKAnalyticRate + Q * SpecDSMC(iSpec1)%ElectronicState(1,iQua) &
         * EXP(-SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp)
     z = z + SpecDSMC(iSpec1)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp)
   END DO
-  CalcQKAnalyticRate = CalcQKAnalyticRate*(Temp / Tref)**(0.5 - SpecDSMC(iSpec1)%omega)*Rcoll/z
+  CalcQKAnalyticRate = CalcQKAnalyticRate*(Temp / Tref)**(0.5 - CollInf%omegaLaux(iSpec1,iSpec1))*Rcoll/z
 CASE('D')
   MaxVibQuant = SpecDSMC(iSpec1)%DissQuant
   DO iQua = 0, MaxVibQuant - 1
-    Q = gammainc([2.-SpecDSMC(iSpec1)%omega,((MaxVibQuant-iQua)*SpecDSMC(iSpec1)%CharaTVib)/Temp])
+    Q = gammainc([2.-CollInf%omegaLaux(iSpec1,iSpec1),((MaxVibQuant-iQua)*SpecDSMC(iSpec1)%CharaTVib)/Temp])
     CalcQKAnalyticRate= CalcQKAnalyticRate + Q * EXP(- iQua*SpecDSMC(iSpec1)%CharaTVib / Temp)
   END DO
   z = 1. / (1. - EXP(-SpecDSMC(iSpec1)%CharaTVib / Temp))
-  CalcQKAnalyticRate = CalcQKAnalyticRate*(Temp / Tref)**(0.5 - SpecDSMC(iSpec1)%omega)*Rcoll/z
+  CalcQKAnalyticRate = CalcQKAnalyticRate*(Temp / Tref)**(0.5 - CollInf%omegaLaux(iSpec1,iSpec1))*Rcoll/z
 END SELECT
 
 END FUNCTION CalcQKAnalyticRate

@@ -130,7 +130,7 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iQuaMax, MaxColQua, iQua
-REAL                          :: Volume, nPartNode, omegaAB, ReactionProb, iRan, Xi, FakXi
+REAL                          :: Volume, nPartNode, omegaLauxAB, ReactionProb, iRan, Xi, FakXi
 LOGICAL                       :: recomb
 !===================================================================================================================================
 
@@ -149,17 +149,17 @@ SELECT CASE (ChemReac%QKMethod(iReac))
   CASE(1) ! Bird and Propability
   ! density of cell
   ! calculate collision temperature
-    omegaAB = 0.5 * ( SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omega          &
-                      + SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%omega  )
-    ReactionProb = ChemReac%QKCoeff(iReac,1) * ( (2 -omegaAB)**ChemReac%QKCoeff(iReac,2) )*GAMMA(2-omegaAB) / &
-                   GAMMA(2-omegaAB+ChemReac%QKCoeff(iReac,2) ) * nPartNode / Volume                         * &
+    omegaLauxAB = 0.5 * ( CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))          &
+                      + CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,2),ChemReac%DefinedReact(iReac,1,2)))
+    ReactionProb = ChemReac%QKCoeff(iReac,1) * ( (2 -omegaLauxAB)**ChemReac%QKCoeff(iReac,2) )*GAMMA(2-omegaLauxAB) / &
+                   GAMMA(2-omegaLauxAB+ChemReac%QKCoeff(iReac,2) ) * nPartNode / Volume                         * &
                    Species(PartSpecies(iPart_p3))%MacroParticleFactor                                            * &
                    ( ( ( CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2                    / &
-                               ( 2 * BoltzmannConst * ( 2 - omegaAB ) )  )                                       / &
-                             SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%CharaTVib)**ChemReac%QKCoeff(iReac,2) )  * &
-                            1.0/6.0 * PI * ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%dref           + &
-                                      SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%dref                  + &
-                                      SpecDSMC(PartSpecies(iPart_p3))%dref       )**3
+                   ( 2 * BoltzmannConst * ( 2 - omegaLauxAB ) )  )                                       / &
+                   SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%CharaTVib)**ChemReac%QKCoeff(iReac,2) )  * &
+                   1.0/6.0 * PI * ( CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p1))+&
+                   CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p2),PartSpecies(Coll_pData(iPair)%iPart_p2))                 +&
+                   CollInf%dref(PartSpecies(iPart_p3),PartSpecies(iPart_p3))       )**3
     IF ( ReactionProb .ge. 1 ) THEN
       IPWRITE(UNIT_stdOut,*) 'ERROR: Recombination probability  >1'
       IPWRITE(UNIT_stdOut,*) 'iReac: ',iReac
@@ -199,7 +199,8 @@ SELECT CASE (ChemReac%QKMethod(iReac))
     recomb = .FALSE.
     Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%CRela2 + &
                                          ChemReac%EForm(iReac)
-    Xi = 2.* ( 2. - SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%omega ) + SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%Xi_Rot
+    Xi = 2.* ( 2. - CollInf%omegaLaux(ChemReac%DefinedReact(iReac,2,1),ChemReac%DefinedReact(iReac,2,1))) &
+       + SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%Xi_Rot
             ! vibrational relaxation
     FakXi = 0.5*Xi -1. ! exponent factor of DOF, substitute of Xi_c - Xi_vib, lax diss page 40
     MaxColQua = INT(Coll_pData(iPair)%Ec/(BoltzmannConst *  SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%CharaTVib) &
@@ -214,10 +215,10 @@ SELECT CASE (ChemReac%QKMethod(iReac))
       CALL RANDOM_NUMBER(iRan)
     END DO
     IF ( iQua .EQ. 0 ) THEN
-      ReactionProb = nPartNode * Species(PartSpecies(iPart_p3))%MacroParticleFactor / Volume     * &
-                     1.0/6.0 * PI * ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%dref + &
-                                      SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%dref + &
-                                      SpecDSMC(PartSpecies(iPart_p3))%dref       )**3
+      ReactionProb = nPartNode * Species(PartSpecies(iPart_p3))%MacroParticleFactor / Volume * 1.0/6.0 * PI & 
+                   * ( CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p1)) + &
+                     CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p2),PartSpecies(Coll_pData(iPair)%iPart_p2)) + &
+                     CollInf%dref(PartSpecies(iPart_p3),PartSpecies(iPart_p3))       )**3
       CALL RANDOM_NUMBER(iRan)
       IF ( ReactionProb .gt. iRan) THEN
         IF ( MaxColQua .gt. 0 ) THEN
@@ -306,11 +307,11 @@ SELECT CASE (ChemReac%QKMethod(iReac))
       DO iQua = 0 , iQuaMax
         denominator = denominator + &
                       (1 - iQua*BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib  / &
-                       Coll_pData(iPair)%Ec)**(1-SpecDSMC(PartSpecies(PartToExec))%omega)
+                       Coll_pData(iPair)%Ec)**(1-CollInf%omegaLaux(PartSpecies(PartToExec),PartSpecies(PartToExec)))
       END DO
       ! normalized ReactionProbe
       ReactionProb =( (  1 - ChemReac%EActiv(iReac) /Coll_pData(iPair)%Ec)&
-                        **(1-SpecDSMC(PartSpecies(PartToExec))%omega) ) / denominator
+                        **(1-CollInf%omegaLaux(PartSpecies(PartToExec),PartSpecies(PartToExec))) ) / denominator
     ELSE
       ReactionProb = 0.
     END IF
@@ -346,8 +347,8 @@ SELECT CASE (ChemReac%QKMethod(iReac))
                         + PartStateIntEn(PartToExec,1)
     iQuaDiss = INT(ChemReac%EActiv(iReac)/(BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib) )
     ! trial GLB redistribution
-    Xi = 2.* ( 2. - SpecDSMC(PartSpecies(PartToExec))%omega ) + SpecDSMC(PartSpecies(PartToExec))%Xi_Rot
-    FakXi = 0.5*Xi -1. ! exponent factor of DOF, substitute of Xi_c - Xi_vib, lax diss page 40
+    Xi = 2.* ( 2. - CollInf%omegaLaux(PartSpecies(PartToExec),PartSpecies(PartToExec))) + SpecDSMC(PartSpecies(PartToExec))%Xi_Rot
+    FakXi = 0.5*Xi -1. ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
     MaxColQua = INT(Coll_pData(iPair)%Ec/(BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib) &
                     - DSMC%GammaQuant)
     iQuaMax = MIN( MaxColQua + 1, SpecDSMC(PartSpecies(PartToExec))%MaxVibQuant )
@@ -386,20 +387,20 @@ SELECT CASE (ChemReac%QKMethod(iReac))
         Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
                              + PartStateIntEn(PartToExec,1) + PartStateIntEn(PartToExec,2) &
                              + PartStateIntEn(PartReac2,2)  + PartStateIntEn(PartReac2,2)
-        iQua1 = INT(PartStateIntEn(PartToExec,1) / ( BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%omega ) - &
-                      DSMC%GammaQuant)
-        iQua2 = INT(PartStateIntEn(PartReac2,1)  / ( BoltzmannConst * SpecDSMC(PartSpecies(PartReac2 ))%omega ) - &
-                      DSMC%GammaQuant)
-        coeffT = (2. - SpecDSMC(PartSpecies(PartToExec))%omega + 0.5*SpecDSMC(PartSpecies(PartToExec))%Xi_Rot + &
-                                                                  0.5*SpecDSMC(PartSpecies(PartReac2 ))%Xi_Rot   + &
+        iQua1 = INT(PartStateIntEn(PartToExec,1) / ( BoltzmannConst & 
+              * CollInf%omegaLaux(PartSpecies(PartToExec),PartSpecies(PartToExec))) - DSMC%GammaQuant)
+        iQua2 = INT(PartStateIntEn(PartReac2,1)  / ( BoltzmannConst &
+              * CollInf%omegaLaux(PartSpecies(PartReac2),PartSpecies(PartReac2))) - DSMC%GammaQuant)
+        coeffT = (2. - CollInf%omegaLaux(PartSpecies(PartToExec),PartSpecies(PartToExec)) &
+               + 0.5*SpecDSMC(PartSpecies(PartToExec))%Xi_Rot + 0.5*SpecDSMC(PartSpecies(PartReac2 ))%Xi_Rot   + &
                                                 iQua1 * log(REAL(1 + 1/iQua1)) + iQua2 * log(real(1 + 1/iQua2) ) )
       CASE DEFAULT
         Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
                              + PartStateIntEn(PartToExec,1) + PartStateIntEn(PartToExec,2)
-        iQua1 = INT(PartStateIntEn(PartToExec,1) / ( BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%omega ) - &
-                       DSMC%GammaQuant)
-        coeffT = (2. - SpecDSMC(PartSpecies(PartToExec))%omega + 0.5*SpecDSMC(PartSpecies(PartToExec))%Xi_Rot + &
-                                      iQua1 * log(real(1 + 1/iQua1) ) )
+        iQua1 = INT(PartStateIntEn(PartToExec,1) / ( BoltzmannConst &
+              * CollInf%omegaLaux(PartSpecies(PartToExec),PartSpecies(PartToExec))) - DSMC%GammaQuant)
+        coeffT = (2. - CollInf%omegaLaux(PartSpecies(PartToExec),PartSpecies(PartToExec)) & 
+               + 0.5*SpecDSMC(PartSpecies(PartToExec))%Xi_Rot + iQua1 * log(real(1 + 1/iQua1) ) )
     END SELECT
     Tcoll = Coll_pData(iPair)%Ec / ( BoltzmannConst * coeffT )
     ! reaction probability
@@ -552,7 +553,7 @@ LOGICAL, INTENT(INOUT)              :: RelaxToDo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                             :: iQuaMax1, iQuaMax2,MaxElecQuant, iQua
-REAL                                :: Volume, nPartNode, omegaAB, ReactionProb, iRan, Vref, coeffT,Tcoll, acorrection
+REAL                                :: Volume, nPartNode, omegaLauxAB, ReactionProb, iRan, Vref, coeffT,Tcoll, acorrection
 INTEGER                             :: PartReac1,PartReac2
 !===================================================================================================================================
 
@@ -614,16 +615,16 @@ END DO
 
 ! Bird's recombination approach modified to ion - electron recombination
 ! reference radius
-Vref = 1.0/6.0 * PI * ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%dref + &
-                        SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%dref + &
-                        SpecDSMC(PartSpecies(iPart_p3))%dref       )**3
+Vref = 1.0/6.0 * PI * ( CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p1)) + &
+                        CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p2),PartSpecies(Coll_pData(iPair)%iPart_p2)) + &
+                        CollInf%dref(PartSpecies(iPart_p3),PartSpecies(iPart_p3))       )**3
 
-! omega VHS
-omegaAB = 0.5 * ( SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omega          &
-                + SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%omega  )
+! omegaLaux VHS
+omegaLauxAB = 0.5 * ( CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))          &
+                + CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,2),ChemReac%DefinedReact(iReac,1,2)))
 
 ! temperature coeff; therefore,shift iQuaMax, because iQua of first level is zero
-coeffT = 2 - omegaAB + (iQuaMax1+1) * LOG(1.0 + 1.0/REAL(iQuaMax1+1) ) + (iQuaMax2+1) * LOG(1.0 + 1.0/REAL(iQuaMax2+1) )
+coeffT = 2 - omegaLauxAB + (iQuaMax1+1) * LOG(1.0 + 1.0/REAL(iQuaMax1+1) ) + (iQuaMax2+1) * LOG(1.0 + 1.0/REAL(iQuaMax2+1) )
 
 Tcoll = (Coll_pData(iPair)%Ec/(2*BoltzmannConst)) / coeffT
 

@@ -91,15 +91,15 @@ REAL,INTENT(IN), OPTIONAL         :: NodeVolume
           BGGasDensity_new=BGGas%BGGasDensity
         END IF
         Coll_pData(iPair)%Prob = BGGasDensity_new/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType)) &
-                * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
-                * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omega) &
+                * CollInf%crossSectionConstantCab(Coll_pData(iPair)%PairType)                         & ! Cab species comb fac
+                * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaLaux) &
                 * dt
       ELSE
         Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
-                * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
+                * CollInf%crossSectionConstantCab(Coll_pData(iPair)%PairType)                           & ! Cab species comb fac
                 * MaxMPF                                                                                &
                 / CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType)                                      & ! sum of coll cases Sab
-                * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omega) &
+                * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaLaux) &
                 * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
       END IF
     CASE(5) !Atom - Electron
@@ -140,7 +140,7 @@ REAL,INTENT(IN), OPTIONAL         :: NodeVolume
                 * MaxMPF                                                                                &
                 / CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType)                                      & ! sum of coll cases Sab
                 * SQRT(Coll_pData(iPair)%CRela2)*Coll_pData(iPair)%Sigma(0)                             &
-                        ! relative velo to the power of (1 -2omega) !! only one omega is used!!
+                        ! relative velo to the power of (1 -2omegaLaux) !! only one omegaLaux is used!!
                 * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
       END IF
     CASE(8) !Electron - Electron
@@ -397,7 +397,7 @@ IMPLICIT NONE                                                                   
 !--------------------------------------------------------------------------------------------------!
 ! Vibrational Relaxation of AB and X (if X is a molecule)
 !--------------------------------------------------------------------------------------------------!
-  Xi = 2.0 * (2.0 - SpecDSMC(PartSpecies(iPart_p3))%omega) + SpecDSMC(PartSpecies(iPart_p3))%Xi_Rot &
+  Xi = 2.0 * (2.0 - SpecDSMC(PartSpecies(iPart_p3))%omegaLaux) + SpecDSMC(PartSpecies(iPart_p3))%Xi_Rot &
      + SpecDSMC(PartSpecies(React1Inx))%Xi_Rot
   FakXi = 0.5*Xi  - 1  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
 
@@ -599,8 +599,8 @@ SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
   CRela2 = (PartState(Part_1,4) - PartState(Part_2,4))**2 &
          + (PartState(Part_1,5) - PartState(Part_2,5))**2 &
          + (PartState(Part_1,6) - PartState(Part_2,6))**2
-  Xi_rel = 2*(2 - SpecDSMC(PartSpec1)%omega)
-    ! DOF of relative motion in VHS model, only for one omega!!
+  Xi_rel = 2*(2 - SpecDSMC(PartSpec1)%omegaLaux)
+    ! DOF of relative motion in VHS model, only for one omegaLaux!!
   CollisionEnergy = 0.5 * CollInf%MassRed(iCase)*CRela2
   Xi = Xi_rel ! Xi are all DOF in the collision
 

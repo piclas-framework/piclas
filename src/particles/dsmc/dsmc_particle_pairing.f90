@@ -47,7 +47,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
-  USE MOD_DSMC_Vars,              ONLY : DSMC, PairE_vMPF, SpecDSMC
+  USE MOD_DSMC_Vars,              ONLY : DSMC, PairE_vMPF
   USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, usevMPF, PartMPF, WriteMacroVolumeValues, VarTimeStep
   USE MOD_DSMC_Relaxation,        ONLY : SetMeanVibQua
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
@@ -211,16 +211,9 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 
   IF(DSMC%CalcQualityFactors) THEN
     IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-      !IF(.NOT.CollInf%aveOmega) THEN
-        ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
+      ! Calculation of the mean free path with VHS model and the current translational temperature in the cell !for only one omega
         DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
-                            SpecDSMC(1)%omega,DSMC%InstantTransTemp(nSpecies+1))
-      !                    WRITE (*,*) "meanfreepath notAveOmega",DSMC%MeanFreePath
-      !!ELSE ! Calculation of mean free path with VSS model without omega, since spec(1)%omega not necessarily spec(2)%omega
-      !  DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
-      !                      opt_temp=DSMC%InstantTransTemp(nSpecies+1))
-      !                    WRITE (*,*) "meanfreepath AveOmega",DSMC%MeanFreePath
-      !END IF
+                            CollInf%omegaLaux(1,1),DSMC%InstantTransTemp(nSpecies+1))
       ! Determination of the maximum MCS/MFP for the cell
     IF((DSMC%CollSepCount.GT.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = &
                                                     MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
@@ -372,7 +365,7 @@ SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoi
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars,              ONLY: CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
-USE MOD_DSMC_Vars,              ONLY: DSMC, PairE_vMPF, RadialWeighting, SamplingActive, SpecDSMC
+USE MOD_DSMC_Vars,              ONLY: DSMC, PairE_vMPF, RadialWeighting, SamplingActive
 USE MOD_DSMC_Symmetry2D,        ONLY: CalcRadWeightMPF
 USE MOD_Particle_Vars,          ONLY: PartState, nSpecies, PartSpecies, usevMPF, PartMPF, WriteMacroVolumeValues, VarTimeStep
 USE MOD_DSMC_Relaxation,        ONLY: SetMeanVibQua
@@ -614,7 +607,7 @@ IF(DSMC%CalcQualityFactors) THEN
   IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
     ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
     DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
-                                          SpecDSMC(1)%omega,DSMC%InstantTransTemp(nSpecies+1))
+                                          CollInf%omegaLaux(1,1),DSMC%InstantTransTemp(nSpecies+1))
     ! Determination of the maximum MCS/MFP for the cell
     IF((DSMC%CollSepCount.GT.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = &
                                                     MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
@@ -1577,7 +1570,7 @@ USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
 USE MOD_vmpf_collision        ,ONLY: DSMC_vmpf_prob
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,PairE_vMPF,BGGas,DSMC,RadialWeighting
-USE MOD_DSMC_Vars             ,ONLY: SamplingActive, SelectionProc, SpecDSMC
+USE MOD_DSMC_Vars             ,ONLY: SamplingActive, SelectionProc
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, usevMPF, PartMPF, WriteMacroVolumeValues, VarTimeStep
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
@@ -1831,7 +1824,7 @@ IF(DSMC%CalcQualityFactors) THEN
   IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
     ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
     DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
-                                          SpecDSMC(1)%omega,DSMC%InstantTransTemp(nSpecies+1))
+                                          CollInf%omegaLaux(1,1),DSMC%InstantTransTemp(nSpecies+1))
     ! Determination of the maximum MCS/MFP for the cell
     IF((DSMC%CollSepCount.GT.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = &
                                                     MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)

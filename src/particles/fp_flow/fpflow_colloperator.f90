@@ -47,7 +47,7 @@ USE MOD_FPFlow_Vars             ,ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuan
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, DSMC_RHS, VibQuantsPar
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, DSMC_RHS, VibQuantsPar, CollInf
 USE Ziggurat
 USE MOD_FPFlow_Init             ,ONLY: FP_BuildTransGaussNums
 USE MOD_DSMC_Analyze            ,ONLY: CalcTVibPoly
@@ -207,10 +207,10 @@ nu= 1.-3./(2.*Prandtl)
 Theta = BoltzmannConst*CellTemp/Species(1)%MassIC
 nu= MAX(nu,-Theta/(W(3)-Theta))
 dens = nPart * WeightingFactor / NodeVolume
-dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*SpecDSMC(1)%Tref/Pi) &
-        /(4.*(4.- 2.*SpecDSMC(1)%omega) * (6. - 2.*SpecDSMC(1)%omega)* SpecDSMC(1)%dref**2.)
-relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%Tref**(SpecDSMC(1)%omega + 0.5) &
-      /dynamicvis*CellTemp**(-SpecDSMC(1)%omega +0.5)
+dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*CollInf%Tref(1,1)/Pi) &
+        /(4.*(4.- 2.*CollInf%omegaLaux(1,1)) * (6. - 2.*CollInf%omegaLaux(1,1))* CollInf%dref(1,1)**2.)
+relaxfreq = dens*BoltzmannConst*CollInf%Tref(1,1)**(CollInf%omegaLaux(1,1) + 0.5) &
+      /dynamicvis*CellTemp**(-CollInf%omegaLaux(1,1) +0.5)
 IF (FPCollModel.EQ.2) THEN
 !  relaxtime = 2.0*(1.-nu)/relaxfreq
   relaxtime = 3.0/(Prandtl*relaxfreq)
@@ -228,7 +228,7 @@ IF(DSMC%CalcQualityFactors) THEN
 END IF
 
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
-  collisionfreq = SpecFP(1)%CollFreqPreFactor(1) * dens *CellTemp**(-SpecDSMC(1)%omega +0.5)
+  collisionfreq = SpecFP(1)%CollFreqPreFactor(1) * dens *CellTemp**(-CollInf%omegaLaux(1,1) +0.5)
   rotrelaxfreq = collisionfreq * DSMC%RotRelaxProb
   vibrelaxfreq = collisionfreq * DSMC%VibRelaxProb
   IF(SpecDSMC(1)%PolyatomicMol) THEN

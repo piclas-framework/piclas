@@ -753,7 +753,7 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: Pi
 USE MOD_Particle_Vars ,ONLY: Species, nSpecies
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, RadialWeighting, CollInf
+USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, CollInf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -782,7 +782,7 @@ IF(nPart.LE.0) RETURN
 
 ! Calculation of mixture reference diameter
 DO iSpec = 1, nSpecies
-  DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%Dref / nPart
+  DrefMixture = DrefMixture + SpecPartNum(iSpec)*CollInf%dref(iSpec,iSpec) / nPart
 END DO
 ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
 ! (only defined for a single weighting factor, if omega is present calculation of the mean free path with the VHS model)
@@ -796,7 +796,7 @@ IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
         DO jSpec = 1, nSpecies
           IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
             MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
-                                  * (CollInf%Tref(iSpec,jSpec)/Temp)**(CollInf%omega(iSpec,jSpec)) &
+                                  * (CollInf%Tref(iSpec,jSpec)/Temp)**(CollInf%omegaLaux(iSpec,jSpec)) &
                                   * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
           END IF
         END DO

@@ -79,7 +79,7 @@ USE MOD_Preproc               ,ONLY: PP_N
 USE MOD_Mesh_Vars             ,ONLY: NGeo, nElems
 USE MOD_Globals_Vars          ,ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC
+USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_PARTICLE_Vars         ,ONLY: nSpecies, Species, VarTimeStep, Symmetry2D
 USE MOD_FPFlow_Vars
@@ -101,9 +101,9 @@ ALLOCATE(SpecFP(nSpecies))
 DO iSpec = 1, nSpecies
   ALLOCATE(SpecFP(iSpec)%CollFreqPreFactor(nSpecies))
   DO iSpec2=1, nSpecies
-    SpecFP(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(SpecDSMC(iSpec)%dref + SpecDSMC(iSpec2)%dref)**2.0 &
-        * SQRT(2.*PI*BoltzmannConst*SpecDSMC(iSpec)%Tref*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
-        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/SpecDSMC(iSpec)%Tref**(-SpecDSMC(iSpec)%omega +0.5)
+    SpecFP(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(CollInf%dref(iSpec,iSpec) + CollInf%dref(iSpec2,iSpec2))**2.0 &
+        * SQRT(2.*PI*BoltzmannConst*CollInf%Tref(iSpec,iSpec)*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
+        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/CollInf%Tref(iSpec,iSpec)**(-CollInf%omegaLaux(iSpec,iSpec) +0.5)
   END DO
 END DO
 

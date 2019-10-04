@@ -577,7 +577,7 @@ DO iElem = 1, nElems ! element/cell main loop
       IF ((MacroDSMC(iElem,nSpecies+1)%PartNum.GT.0).AND.(MacroDSMC(iElem,nSpecies + 1)%Temp(4).GT.0)) THEN
         DSMC%QualityFactors(iElem,3) = DSMC%QualityFacSamp(iElem,3) &
                               / CalcMeanFreePath(MacroDSMC(iElem,1:nSpecies)%PartNum, MacroDSMC(iElem,nSpecies+1)%PartNum, &
-                                  GEO%Volume(iElem), SpecDSMC(1)%omega, MacroDSMC(iElem,nSpecies + 1)%Temp(4))
+                                  GEO%Volume(iElem), SpecDSMC(1)%omegaLaux, MacroDSMC(iElem,nSpecies + 1)%Temp(4))
       END IF
       IF(WriteMacroValues) THEN
         DSMC%QualityFactors(iElem,1) = DSMC%QualityFacSamp(iElem,1) / iter_macvalout

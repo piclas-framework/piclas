@@ -198,7 +198,7 @@ USE MOD_part_tools,               ONLY : GetParticleWeight
   CRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
   CRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
   ! Calculate deflection vector, scaling and retransformation to LAB frame
-  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(iSpec1,iSpec2))
+  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(iSpec1,iSpec2))
   
  ! deltaV particle 1 
   DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(iPart1, 4)
@@ -208,12 +208,7 @@ USE MOD_part_tools,               ONLY : GetParticleWeight
   DSMC_RHS(iPart2,1) = VeloMx - FracMassCent1*RanVec(1) - PartState(iPart2, 4)
   DSMC_RHS(iPart2,2) = VeloMy - FracMassCent1*RanVec(2) - PartState(iPart2, 5)
   DSMC_RHS(iPart2,3) = VeloMz - FracMassCent1*RanVec(3) - PartState(iPart2, 6)
-#if (PP_TimeDiscMethod == 42)
-  IF (.NOT.DSMC%ReservoirRateStatistic) THEN ! count number of collisions for part analyze
-    CollInf%CollCount(iColl) = CollInf%CollCount(iColl)+1    
-    WRITE(*,*) " DSMC elastic collision - collcount+1"
-  END IF
-#endif
+
   IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL vMPF_PostVelo(iPair, iElem)
 END SUBROUTINE DSMC_Elastic_Col
 
@@ -465,7 +460,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
     ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
   END IF
 
-  Xi_rel = 2*(2. - CollInf%omega(iSpec1,iSpec2))
+  Xi_rel = 2*(2. - CollInf%omegaLaux(iSpec1,iSpec2))
     ! DOF of relative motion in VHS model
 
   Coll_pData(iPair)%Ec = 0.5 * ReducedMass* Coll_pData(iPair)%CRela2
@@ -701,7 +696,7 @@ END IF
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
 
   !Calculate deflection vector, scaling and retransformation to LAB frame
-  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(iSpec1,iSpec2))
+  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(iSpec1,iSpec2))
   ! deltaV particle 1
   DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(iPart1, 4)
   DSMC_RHS(iPart1,2) = VeloMy + FracMassCent2*RanVec(2) - PartState(iPart1, 5)
@@ -715,12 +710,6 @@ END IF
 
 #if (PP_TimeDiscMethod==42)
   ! for TimeDisc 42 & only transition counting: prohibit relaxation and energy exchange
-  END IF
-#endif
-#if (PP_TimeDiscMethod == 42)
-  IF (.NOT.DSMC%ReservoirRateStatistic) THEN ! count number of collisions for part analyze
-    CollInf%CollCount(iColl) = CollInf%CollCount(iColl)+1    
-    WRITE(*,*) " DSMC relax laux tsho collision - collcount+1"
   END IF
 #endif
 END SUBROUTINE DSMC_Relax_Col_LauxTSHO
@@ -786,7 +775,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   ProbVib2 = 0.
   ProbRot2 = 0.
 
-  Xi_rel = 2.*(2. - CollInf%omega(iSpec1,iSpec2)) ! DOF of relative motion in VHS model
+  Xi_rel = 2.*(2. - CollInf%omegaLaux(iSpec1,iSpec2)) ! DOF of relative motion in VHS model
   FakXi  = 0.5*Xi_rel - 1.
 
   Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%CRela2
@@ -1081,7 +1070,7 @@ __STAMP__&
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
 
   !calculate deflection vector, scale it and retransformation to LAB frame
-  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alpha(iSpec1,iSpec2))
+  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(iSpec1,iSpec2))
 
   ! deltaV particle 1
   DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(iPart1, 4)
@@ -1092,12 +1081,6 @@ __STAMP__&
   DSMC_RHS(iPart2,2) = VeloMy - FracMassCent1*RanVec(2) - PartState(iPart2, 5)
   DSMC_RHS(iPart2,3) = VeloMz - FracMassCent1*RanVec(3) - PartState(iPart2, 6)
 
-#if (PP_TimeDiscMethod == 42)
-  IF (.NOT.DSMC%ReservoirRateStatistic) THEN ! count number of collisions for part analyze
-    CollInf%CollCount(iColl) = CollInf%CollCount(iColl)+1    
-    WRITE(*,*) " DSMC Gimelshein collision - collcount+1"
-  END IF
-#endif
   IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL vMPF_PostVelo(iPair, iElem)
 
 END SUBROUTINE DSMC_Relax_Col_Gimelshein
@@ -1480,8 +1463,9 @@ INTEGER                       :: iPart1, iPart2                         ! Collid
                              ChemReac%MeanEVibQua_PerIter(PartSpecies(PartToExecSec))                                            &
                              , ChemReac%MeanEVibQua_PerIter(PartSpecies(PartReac2Sec)))                                          &
                              * (Coll_pData(iPair)%Ec - ChemReac%EActiv(iReac2))                                                  &
-                             ! omegahow
-                          ** (ChemReac%Arrhenius_Powerfactor(iReac2) - 1.5 + SpecDSMC(ChemReac%DefinedReact(iReac2,1,1))%omega&
+                             ! omegaLauxhow
+                          ** (ChemReac%Arrhenius_Powerfactor(iReac2) - 1.5 &
+                            + CollInf%omegaLaux(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,1))&
                              + ChemReac%ReactInfo(iReac2)%Xi_Total(ChemReac%MeanEVibQua_PerIter(PartSpecies(PartToExecSec))      &
                             , ChemReac%MeanEVibQua_PerIter(PartSpecies(PartReac2Sec)))/2)                                        &
                              * Coll_pData(iPair)%Ec                                                                              &
@@ -2822,7 +2806,7 @@ SUBROUTINE DSMC_calc_P_rot(iSpec1, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
   USE MOD_Globals_Vars,       ONLY : Pi, BoltzmannConst
-  USE MOD_DSMC_Vars,          ONLY : SpecDSMC, Coll_pData, PartStateIntEn, DSMC
+  USE MOD_DSMC_Vars,          ONLY : SpecDSMC, Coll_pData, PartStateIntEn, DSMC, CollInf
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2852,11 +2836,12 @@ SUBROUTINE DSMC_calc_P_rot(iSpec1, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
   IF(DSMC%RotRelaxProb.GE.0.0.AND.DSMC%RotRelaxProb.LE.1.0) THEN
     ProbRot = DSMC%RotRelaxProb * CorrFact
   ELSEIF(DSMC%RotRelaxProb.EQ.2.0) THEN ! P_rot according to Boyd (based on Parker's model)i
-    !omegahow hier betrachtet man doch nur Spec1
-    ProbRot = 1/SpecDSMC(iSpec1)%CollNumRotInf * (1 + lacz_gamma(RotDOF+2.-SpecDSMC(iSpec1)%omega) &
-            / lacz_gamma(RotDOF+1.5-SpecDSMC(iSpec1)%omega) * (PI**(3./2.)/2.)*(BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
-            / (TransEn + RotEn) )**(1./2.) + lacz_gamma(RotDOF+2.-SpecDSMC(iSpec1)%omega)  &
-            / lacz_gamma(RotDOF+1.-SpecDSMC(iSpec1)%omega) * (BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
+    !omegaLauxhow hier betrachtet man doch nur Spec1
+    ProbRot = 1/SpecDSMC(iSpec1)%CollNumRotInf * (1 + lacz_gamma(RotDOF+2.-CollInf%omegaLaux(iSpec1,iSpec1)) &
+            / lacz_gamma(RotDOF+1.5-CollInf%omegaLaux(iSpec1,iSpec1)) &
+            * (PI**(3./2.)/2.)*(BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
+            / (TransEn + RotEn) )**(1./2.) + lacz_gamma(RotDOF+2.-CollInf%omegaLaux(iSpec1,iSpec1))  &
+            / lacz_gamma(RotDOF+1.-CollInf%omegaLaux(iSpec1,iSpec1)) * (BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
             / (TransEn + RotEn) ) * (PI**2./4. + PI)) &
             * CorrFact
 
@@ -2926,8 +2911,8 @@ INTEGER                   :: iPart1, iPart2                         ! Colliding 
     END IF
   ELSEIF(DSMC%VibRelaxProb.EQ.2.0) THEN ! P_vib according to Boyd, corrected by Abe, only V-T transfer
           ! instead of averaging over all collisions in a cell, for convenience a cell averaged relative velocity is used.
-    ! determine joint omega and Dref factor and rel velo of one vib quantum level below the current one
-    dref = 0.5 * (SpecDSMC(iSpec1)%dref + SpecDSMC(iSpec2)%dref)
+    ! determine joint omegaLaux and Dref factor and rel velo of one vib quantum level below the current one
+    dref = 0.5 * (CollInf%dref(iSpec1,iSpec1) + CollInf%dref(iSpec2,iSpec2))
     CRelaSub = CRelaAv - 2.*(BoltzmannConst*SpecDSMC(iSpec1)%CharaTVib) / CollInf%MassRed(Coll_pData(iPair)%PairType)
     IF(CRelaSub.LT.0.) THEN
       CRelaSub = 0.
@@ -2935,15 +2920,14 @@ INTEGER                   :: iPart1, iPart2                         ! Colliding 
       CRelaSub = SQRT(CRelaSub)
     END IF
     ! calculate non-corrected probabilities
-    ProbVib    = 1. /SpecDSMC(iSpec1)%CollNumVib* CRelaAv**(3.+2.*CollInf%omega(iSpec1,iSpec2)) &
+    ProbVib    = 1. /SpecDSMC(iSpec1)%CollNumVib* CRelaAv**(3.+2.*CollInf%omegaLaux(iSpec1,iSpec2)) &
                * EXP(-1*SpecDSMC(iSpec1)%CharaVelo(iSpec2)/CRelaAv)
-    ProbVibMax = 1. /SpecDSMC(iSpec1)%CollNumVib* CRelaMax**(3.+2.*CollInf%omega(iSpec1,iSpec2)) &
+    ProbVibMax = 1. /SpecDSMC(iSpec1)%CollNumVib* CRelaMax**(3.+2.*CollInf%omegaLaux(iSpec1,iSpec2)) &
                * EXP(-1*SpecDSMC(iSpec1)%CharaVelo(iSpec2)/CRelaMax)
     ! calculate high temperature correction
-    ! to be solved -fyi hier hab ich tref und dref ebenfalls eingebaut
     TempCorr   = SpecDSMC(iSpec1)%VibCrossSec / (SQRT(2.)*PI*CollInf%dref(iSpec1,iSpec2)**2.) * &
-                 (CollInf%MassRed(Coll_pData(iPair)%PairType) *CRelaAv  / (2.*(2.-CollInf%omega(iSpec1,iSpec2)) * &
-                 BoltzmannConst*CollInf%Tref(iSpec1,iSpec2)))**CollInf%omega(iSpec1,iSpec2)
+                 (CollInf%MassRed(Coll_pData(iPair)%PairType) *CRelaAv  / (2.*(2.-CollInf%omegaLaux(iSpec1,iSpec2)) * &
+                 BoltzmannConst*CollInf%Tref(iSpec1,iSpec2)))**CollInf%omegaLaux(iSpec1,iSpec2)
     ! determine corrected probabilities
     ProbVib    = ProbVib * TempCorr / (ProbVib + TempCorr) * CorrFact
     ProbVibMax = ProbVibMax * TempCorr / (ProbVibMax + TempCorr) * CorrFact

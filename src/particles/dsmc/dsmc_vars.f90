@@ -112,10 +112,10 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Param
                                                            !     100 : Excited atomic ion
                                                            !     200 : Excited molecule
                                                            !     400 : Excited molecular ion
-  REAL                        :: Tref                      ! collision model reference temp, ini_2
-  REAL                        :: dref                      ! collision model reference diameter, ini_2
-  REAL                        :: omega                     ! collision model temperature exponent,ini_2 details: bird1994 
-  REAL                        :: alphaVSS                     ! collision model temperature exponent,ini_2 details: bird1994 
+  REAL                        :: Tref                      ! collision model: reference temperature     , ini_2
+  REAL                        :: dref                      ! collision model: reference diameter        , ini_2
+  REAL                        :: omegaLaux                 ! collision model: temperature exponent      , ini_2 
+  REAL                        :: alphaVSS                  ! collision model: scattering exponent(VSS)  , ini_2 
   INTEGER                     :: NumOfPro                  ! Number of Protons, ini_2
   REAL                        :: Eion_eV                   ! Energy of Ionisation in eV, ini_2
   REAL                        :: RelPolarizability         ! relative polarizability, ini_2
@@ -312,44 +312,46 @@ END TYPE tBGGas
 TYPE(tBGGas)                    :: BGGas
 
 TYPE tPairData
-  REAL                          :: CRela2                  ! squared relative velo of the particles in a pair
-  REAL                          :: Prob                    ! collision probability
-  INTEGER                       :: iPart_p1                ! first particle of the pair
-  INTEGER                       :: iPart_p2                ! second particle of the pair
-  INTEGER                       :: PairType                ! type of pair (=iCase, CollInf%Coll_Case)
-  REAL, ALLOCATABLE             :: Sigma(:)                ! cross sections sigma of the pair
-                                                             !       0: sigma total
-                                                             !       1: sigma elast
-                                                             !       2: sigma ionization
-                                                             !       3: sigma excitation
-  REAL                          :: sigma_t                 ! not sure if sigma(0) gets overwritten somewhere
-  REAL                          :: CollProbCount           ! not sure if sigma(0) gets overwritten somewhere
-  REAL                          :: CollCount ! to be solved not matrix(:,:)          ! not sure if sigma(0) gets overwritten somewhere
-  REAL                          :: Ec                      ! Collision Energy
-  LOGICAL                       :: NeedForRec              ! Flag if pair is needed for Recombination
+  REAL                          :: CRela2                       ! squared relative velo of the particles in a pair
+  REAL                          :: Prob                         ! collision probability
+  INTEGER                       :: iPart_p1                     ! first particle of the pair
+  INTEGER                       :: iPart_p2                     ! second particle of the pair
+  INTEGER                       :: PairType                     ! type of pair (=iCase, CollInf%Coll_Case)
+  REAL, ALLOCATABLE             :: Sigma(:)                     ! cross sections sigma of the pair
+                                                                  !       0: sigma total
+                                                                  !       1: sigma elast
+                                                                  !       2: sigma ionization
+                                                                  !       3: sigma excitation
+  REAL                          :: sigma_t                      ! not sure if sigma(0) gets overwritten somewhere
+  REAL                          :: CollProbCount                ! not sure if sigma(0) gets overwritten somewhere
+  REAL                          :: Ec                           ! Collision Energy
+  LOGICAL                       :: NeedForRec                   ! Flag if pair is needed for Recombination
 END TYPE tPairData
 
-TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)           ! Data of collision pairs into a cell (nPair)
+TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)                ! Data of collision pairs into a cell (nPair)
 
-TYPE tCollInf                                              ! Collision information 
-  REAL                          :: CabMode                 ! Flags how the collision specific pre-factor is calculated.
-                                                           ! 1: 2: see * for details. to be solved Text ergänzen
-  LOGICAL                       :: aveCollPa               ! Flags if coll-specific(F) omega,Tref,dref,alphaVSS or coll-averaged(T)
-  INTEGER       , ALLOCATABLE   :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
-  INTEGER                       :: NumCase                 ! Number of possible collision combination
-  INTEGER       , ALLOCATABLE   :: Coll_CaseNum(:)         ! number of simulated species combination per cell Sab (number of cases)
-  REAL          , ALLOCATABLE   :: Coll_SpecPartNum(:)     ! number of simulated particles of species n per cell (nSpec)
-  REAL          , ALLOCATABLE   :: Cab(:)                  ! species factor for cross section (number of case)
-  INTEGER       , ALLOCATABLE   :: KronDelta(:)            ! (number of case)
-  REAL          , ALLOCATABLE   :: FracMassCent(:,:)       ! mx/(my+mx) (nSpec, number of cases)
+TYPE tCollInf                                                   ! Collision information 
+  INTEGER                       :: crossSectionConstantMode     ! Flags how Cab(Laux1996) is calculated. sigma=Cab * cr^(-2 omega).
+                                                                !   0: single omega for the computational domain + A_j calculation
+                                                                !   1: Cab will be calculated via species-specific factor A_j
+                                                                !   2: Cab will be calculated directly see Bird1981 eq (9)
+  LOGICAL                       :: averagedCollisionParameters  ! Flags if coll-specific(F) or -averaged(T) collision parameters:
+                                                                ! Tref, dref, omegaLaux, alphaVSS
+  INTEGER       , ALLOCATABLE   :: Coll_Case(:,:)               ! Case of species combination (Spec1, Spec2)
+  INTEGER                       :: NumCase                      ! number of possible collision combinations
+  INTEGER       , ALLOCATABLE   :: Coll_CaseNum(:)              ! number of simulated species combinations per cell Sab (number of cases)
+  REAL          , ALLOCATABLE   :: Coll_SpecPartNum(:)          ! number of simulated particles of species n per cell (nSpec)
+  REAL          , ALLOCATABLE   :: crossSectionConstantCab(:)   ! species factor for cross section (number of case)
+  INTEGER       , ALLOCATABLE   :: KronDelta(:)                 ! (number of case)
+  REAL          , ALLOCATABLE   :: FracMassCent(:,:)            ! mx/(my+mx) (nSpec, number of cases)
   REAL          , ALLOCATABLE   :: MeanMPF(:)
-  REAL          , ALLOCATABLE   :: MassRed(:)              ! reduced mass (number of cases)
-  REAL          , ALLOCATABLE   :: Tref(:,:)               ! Reference temperature of CollInf%omega, ini_2 
-  REAL          , ALLOCATABLE   :: dref(:,:)               ! Reference diameter for collision model, ini_2 
-  REAL          , ALLOCATABLE   :: omega(:,:)              ! temperature exponent, ini_2
-  REAL          , ALLOCATABLE   :: alpha(:,:)              ! exponent in VSS model for anisotropic scattering angle, ini_2
+  REAL          , ALLOCATABLE   :: MassRed(:)                   ! reduced mass (number of cases)
+  REAL          , ALLOCATABLE   :: Tref(:,:)                    ! collision model: reference temperature     , ini_2 
+  REAL          , ALLOCATABLE   :: dref(:,:)                    ! collision model: reference diameter        , ini_2 
+  REAL          , ALLOCATABLE   :: omegaLaux(:,:)               ! collision model: temperature exponent      , ini_2
+  REAL          , ALLOCATABLE   :: alphaVSS(:,:)                ! collision model: scattering exponent (VSS) , ini_2
   LOGICAL                       :: ProhibitDoubleColl = .FALSE.
-  INTEGER       , ALLOCATABLE   :: OldCollPartner(:)        ! index of old coll partner to prohibit double collisions(maxPartNum)
+  INTEGER       , ALLOCATABLE   :: OldCollPartner(:)            ! index of old coll partner to prohibit double collisions(maxPartNum)
 END TYPE
 
 TYPE(tCollInf)                  :: CollInf

@@ -118,7 +118,7 @@ IF((BulkValues(iElem)%CellType.EQ.3).OR.(BulkValues(iElem)%CellType.EQ.4)) THEN 
 !--- for viscousity terms...
       MeanRefTemp = MeanRefTemp + SpecDSMC(PartSpecies(iPartIndx))%Tref * WeightFak
       MeanRefDiameter = MeanRefDiameter + SpecDSMC(PartSpecies(iPartIndx))%dref * WeightFak
-      MeanOmega = MeanOmega + SpecDSMC(PartSpecies(iPartIndx))%omega * WeightFak
+      MeanOmega = MeanOmega + SpecDSMC(PartSpecies(iPartIndx))%omegaLaux * WeightFak
 !--- end for viscousity terms
       MPFSum = MPFSum + WeightFak
       iPartIndx = PEM%pNext(iPartIndx)
