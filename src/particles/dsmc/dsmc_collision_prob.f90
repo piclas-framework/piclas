@@ -118,7 +118,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
     ! Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic (non-CEX/MEX) Ion, Molecule-Atomic Ion, Atom-Molecular Ion, Molecule-Molecular Ion
     ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron 
         IF (BGGas%BGGasSpecies.NE.0) THEN                                     
-          ! Collision probability, Laux 1995 (2.44),(2.47),(2.49)        
+          ! Collision probability, Laux1996 (2.44),(2.47),(2.49)        
           Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum / (1 + CollInf%KronDelta(collPairID))                                 & 
                                  * CollInf%crossSectionConstantCab(collPairID) * Species(Spec1ID)%MacroParticleFactor *dt/ Volume &
                                  * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omegaLaux(Spec1ID,Spec2ID)) 
@@ -127,7 +127,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
                                  ! dt timestep (should be scaled in time_disc) 
                                  ! relative velocity to the power of phi_c=(1 -2omegaLaux) Laux(2.47) 
         ELSE                                                                  
-          ! collision probability, Laux 1995 (2.44), phi_c (2.47), beta_c (2.49)                CaseNum = Sab = sum of all cases
+          ! collision probability, Laux1996 (2.44), phi_c (2.47), beta_c (2.49) CaseNum = Sab = sum of all cases (or see Munz2014)
           ! does not calculate the cross-section new in every iteration. Cab is initially determined and works as reference.
           Coll_pData(iPair)%Prob = SpecNum1 * SpecNum2     / (1 + CollInf%KronDelta(collPairID))        &
                                  * CollInf%crossSectionConstantCab(collPairID) / CollCaseNum           &          
