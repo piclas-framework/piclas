@@ -60,11 +60,11 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals                  ,ONLY: Abort,myrank
+USE MOD_Globals                !  ,ONLY: Abort,myrank
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars            ,ONLY: PDM,PartSpecies, UseCircularInflow, UseAdaptive, Species
 USE MOD_Particle_Tracking_Vars   ,ONLY: TriaTracking
-USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC,DoBoundaryParticleOutput
+USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC,DoBoundaryParticleOutput,SurfMesh
 USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType,epsilontol
 USE MOD_SurfaceModel             ,ONLY: ReactiveSurfaceTreatment
@@ -82,6 +82,7 @@ USE MOD_PICDepo_Tools            ,ONLY: DepositParticleOnNodes
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_Part_Tools               ,ONLY: CreateParticle
 USE MOD_Particle_Boundary_Tools  ,ONLY: BoundaryParticleOutput
+USE MOD_Particle_MPI_Vars       ,ONLY: PartHaloElemToProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -151,6 +152,14 @@ CASE(2) !PartBound%ReflectiveBC)
   PorousReflection = .FALSE.
   IF(UseCircularInflow) CALL SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,lengthPartTrajectory,flip,xi,eta)
   IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PorousReflection)
+
+IPWRITE(UNIT_stdOut,*) 'POI,SideID,ElemID = ',LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,SideID,ElemID
+
+    IF(ElemID.GT.nElems)THEN
+      IPWRITE(UNIT_stdOut,*) 'PartHaloElemToProc(NATIVE_PROC_ID,ElemID) = ',PartHaloElemToProc(NATIVE_PROC_ID,ElemID)
+    ELSE
+      IPWRITE(UNIT_stdOut,*) 'SurfMesh%innerBCSideToHaloMap(SideID) = ',SurfMesh%innerBCSideToHaloMap(SideID)
+    END IF
 
   !---- Dielectric particle-surface interaction
   IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC))THEN ! deposit charge on surface

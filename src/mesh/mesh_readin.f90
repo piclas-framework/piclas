@@ -274,6 +274,8 @@ INTEGER                        :: nPeriodicSides,nMPIPeriodics
 INTEGER                        :: ReduceData(11)
 INTEGER                        :: nSideIDs,offsetSideID
 INTEGER                        :: iMortar,jMortar,nMortars
+INTEGER                        :: BlaTemp
+INTEGER                        :: i
 #if USE_MPI
 INTEGER                        :: iNbProc
 INTEGER                        :: iProc
@@ -432,6 +434,11 @@ ASSOCIATE (&
   CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo)
 END ASSOCIATE
 
+
+  BlaTemp = ElemInfo(ELEM_FirstSideInd,FirstElemInd)
+do i=0, nProcessors-1
+if (i.eq.myrank) then
+
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
   iSide=ElemInfo(ELEM_FirstSideInd,iElem) !first index -1 in Sideinfo
@@ -440,6 +447,25 @@ DO iElem=FirstElemInd,LastElemInd
   DO iLocSide=1,6
     aSide=>aElem%Side(iLocSide)%sp
     iSide=iSide+1
+
+
+
+#ifdef PARTICLES
+!!!    IF(iSide.GT.(ABS(SideInfo(SIDE_ID,iSide))+BlaTemp))THEN
+!!!!    IF(iSide.GT.BlaTemp)THEN
+!!!      aSide%InnerBCOutput = .FALSE.
+!!!      BlaTemp = BlaTemp + 1
+!!!    ELSE
+!!!      aSide%InnerBCOutput = .TRUE.
+!!!    END IF
+!!!    WRITE(UNIT_stdout,*) ' '
+!!!    IPWRITE(UNIT_stdout,*) 'iSide,SideInfo(SIDE_ID,iSide),BlaTemp',iSide,SideInfo(SIDE_ID,iSide),BlaTemp,aSide%InnerBCOutput,ABS(SideInfo(SIDE_ID,iSide))+BlaTemp
+!!!!    read*
+#endif /*PARTICLES*/
+
+
+
+
     ! ALLOCATE MORTAR
     ElemID=SideInfo(SIDE_nbElemID,iSide) !IF nbElemID <0, this marks a mortar master side.
                                          ! The number (-1,-2,-3) is the Type of mortar
@@ -462,8 +488,18 @@ DO iElem=FirstElemInd,LastElemInd
 
     IF(aSide%MortarType.LE.0)THEN
       aSide%Elem=>aElem
-      oriented=(Sideinfo(SIDE_ID,iSide).GT.0)
+      oriented=(SideInfo(SIDE_ID,iSide).GT.0)
       aSide%Ind=ABS(SideInfo(SIDE_ID,iSide))
+
+
+      if( myrank.eq.2 ) then
+      IPWRITE(UNIT_stdOut,*)  ' '
+      IPWRITE(UNIT_stdOut,*) 'haha iSide,aSide%Ind = ',iSide,aSide%Ind
+      end if
+
+
+
+
       IF(oriented)THEN !oriented side
         aSide%flip=0
 #ifdef PARTICLES
@@ -490,6 +526,14 @@ DO iElem=FirstElemInd,LastElemInd
     END IF
   END DO !i=1,locnSides
 END DO !iElem
+
+
+else
+!call sleep(1)
+end if
+end do
+
+
 
 ! build up side connection
 DO iElem=FirstElemInd,LastElemInd
