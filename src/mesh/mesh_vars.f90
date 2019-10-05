@@ -37,6 +37,8 @@ INTEGER          :: NGeoRef                     !< polynomial degree of geometri
 INTEGER          :: NGeoElevated                !< polynomial degree of elevated geometric transformation
 REAL,ALLOCATABLE :: Xi_NGeo(:)                  !< 1D equidistant point positions for curved elements (during readin)
 REAL             :: DeltaXi_NGeo
+REAL,ALLOCATABLE :: Vdm_EQ_N(:,:)               !< Vandermonde mapping from equidistant (visu) to NodeType node set
+REAL,ALLOCATABLE :: Vdm_N_EQ(:,:)               !< Vandermonde mapping from NodeType to equidistant (visu) node set
 ! check if these arrays are still used
 REAL,ALLOCATABLE :: Vdm_CLN_GaussN(:,:)
 REAL,ALLOCATABLE :: Vdm_CLNGeo_CLN(:,:)
@@ -148,13 +150,15 @@ TYPE (tSurfaceConnect)               :: SurfConnect
 !INTEGER,ALLOCATABLE :: S2V3(:,:,:,:,:)   !< side to volume 3
 !INTEGER,ALLOCATABLE :: CS2V2(:,:,:,:)    !< CGNS side to volume 2
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER          :: nGlobalElems=0      !< number of elements in mesh
-INTEGER          :: nElems=0            !< number of local elements
-INTEGER          :: offsetElem=0        !< for MPI, until now=0 Elems pointer array range: [offsetElem+1:offsetElem+nElems]
-INTEGER          :: nSides=0            !< =nInnerSides+nBCSides+nMPISides
-INTEGER          :: nUniqueSides=0 !< =uniquesides for hdg output
-INTEGER          :: nGlobalUniqueSides=0 !< =uniquesides for hdg output
-INTEGER          :: offsetSide=0        !< for MPI, until now=0  Sides pointer array range
+INTEGER          :: nGlobalElems=0          !< number of elements in mesh
+INTEGER          :: nElems=0                !< number of local elements
+INTEGER          :: offsetElem=0            !< for MPI, until now=0 Elems pointer array range: [offsetElem+1:offsetElem+nElems]
+INTEGER          :: nSides=0                !< =nInnerSides+nBCSides+nMPISides
+INTEGER          :: nUniqueSides=0          !< =uniquesides for hdg output
+INTEGER          :: nGlobalUniqueSides=0    !< =uniquesides for hdg output
+INTEGER          :: nGlobalUniqueSidesFromMesh=0 !< =uniquesides read from mesh file
+INTEGER          :: nGlobalMortarSides=0    !< global number of big mortar sides
+INTEGER          :: offsetSide=0            !< for MPI, until now=0  Sides pointer array range
 INTEGER          :: nSidesMaster=0          !< =sideIDMaster
 INTEGER          :: nSidesSlave=0           !< =nInnerSides+nBCSides+nMPISides
 INTEGER          :: nInnerSides=0           !< InnerSide index range: sideID [nBCSides+1:nBCSides+nInnerSides]
@@ -166,6 +170,7 @@ INTEGER          :: nMPISides_YOUR=0        !< number of YOUR MPI sides (on neig
 INTEGER          :: nNodes=0                !< SIZE of Nodes pointer array, number of unique nodes
 INTEGER          :: nBCs=0                  !< number of BCs in mesh
 INTEGER          :: nUserBCs=0              !< number of BC in inifile
+LOGICAL          :: ChangedPeriodicBC       !< is set true if BCs are changed from periodic to non-periodic (default is false)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Define index ranges for all sides in consecutive order for easier access
 INTEGER             :: firstBCSide             !< First SideID of BCs (in general 1)
@@ -184,7 +189,12 @@ INTEGER             :: lastMortarMPISide       !< Last  SideID of Mortar MPI sid
 INTEGER             :: nMortarSides=0          !< total number of mortar sides
 INTEGER             :: nMortarInnerSides=0     !< number of inner mortar sides
 INTEGER             :: nMortarMPISides=0       !< number of mortar MPI sides
-INTEGER,ALLOCATABLE :: MortarType(:,:)         !< Type of mortar [1] and position in mortar list [1:nSides]
+INTEGER,ALLOCATABLE :: MortarType(:,:)         !< Side Info about mortars, [1:2,1:nSides], Type of mortar [1] :
+                                               !< =-1: conforming side not belonging to mortar
+                                               !< =0: small mortar side belonging to big side ,
+                                               !< =-10: neighbor of small mortar side (exists only if its an MPI side, too)
+                                               !< =1: bigside type 1-4, 2: bigside type 1-2 eta, 3: bigside type 1-2 xi
+                                               !< [2] position index in mortarInfo list
 INTEGER,ALLOCATABLE :: MortarInfo(:,:,:)       !< 1:2,1:4,1:nMortarSides: [1] nbSideID / flip, [2] max 4 mortar sides, [3] sides
 INTEGER,ALLOCATABLE :: MortarSlave2MasterInfo(:) !< 1:nSides: map of slave mortar sides to belonging master mortar sides
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -241,7 +251,9 @@ TYPE tSide
   INTEGER                      :: BC_Alpha        !< inital value for periodic displacement before mapping in pos. bc-index range
 #endif /*PARTICLES*/
   INTEGER                      :: nMortars        !< number of slave mortar sides associated with master mortar
-  INTEGER                      :: MortarType      !< type of mortar: Type1 : 1-4 , Type 2: 1-2 in eta, Type 2: 1-2 in xi
+  INTEGER                      :: MortarType      !< type of mortar from mesh file: =0: conforming side or small side of bigside
+                                                  !< =1 : big side with 1-4 =2: big side with 1-2 in eta, =3: bigSide with 1-2 in xi
+                                                  !< =-10: connected neighbor side of small mortar side
   TYPE(tSidePtr),POINTER       :: MortarSide(:)   !< array of side pointers to slave mortar sides
   TYPE(tNodePtr),POINTER       :: Node(:)
   TYPE(tElem),POINTER          :: Elem

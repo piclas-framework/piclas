@@ -170,10 +170,10 @@ CHARACTER(LEN=1)            :: lf
 INTEGER                     :: ElemType,iElem
 INTEGER,ALLOCATABLE,TARGET  :: nodeids(:)
 INTEGER                     :: NVisu_k,NVisu_j,PointsPerVTKCell
-#ifdef MPI
+#if USE_MPI
 INTEGER                     :: iProc,nElems_proc,nElemsMax
 REAL,ALLOCATABLE            :: buf(:,:,:,:), buf2(:,:,:,:,:)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 INTEGER                     :: DGFV_loc
 LOGICAL                     :: nValAtLastDimension_loc
 !===================================================================================================================================
@@ -199,7 +199,7 @@ END IF
 SWRITE(UNIT_stdOut,'(A,I1,A)',ADVANCE='NO')"   WRITE ",dim,"D DATA TO VTX XML BINARY (VTU) FILE..."
 
 ! get total number of elements on all processors
-#ifdef MPI
+#if USE_MPI
 CALL MPI_GATHER(nElems,1,MPI_INTEGER,nElems_glob,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 #else
 nElems_glob(0) = nElems
@@ -272,7 +272,7 @@ END IF
 
 
 
-#ifdef MPI
+#if USE_MPI
 IF(MPIroot)THEN
   !ALLOCATE buffer for Root
   nElemsMax=MAXVAL(nElems_glob)
@@ -290,7 +290,7 @@ DO iVal=1,nVal
     ELSE
       WRITE(ivtk) nBytes,REAL(Value(iVal,:,:,:,:),4)
     END IF
-#ifdef MPI
+#if USE_MPI
     DO iProc=1,nProcessors-1
       nElems_proc=nElems_glob(iProc)
       IF (nElems_proc.GT.0) THEN
@@ -306,11 +306,11 @@ DO iVal=1,nVal
         CALL MPI_SEND(Value(iVal,:,:,:,:),nElems*NVisu_elem,MPI_DOUBLE_PRECISION, 0,0,MPI_COMM_WORLD,iError)
       END IF
     END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
   END IF !MPIroot
 END DO       ! iVar
 
-#ifdef MPI
+#if USE_MPI
 IF(MPIroot)THEN
   SDEALLOCATE(buf)
   ALLOCATE(buf2(3,0:NVisu,0:NVisu_j,0:NVisu_k,nElemsMax))
@@ -322,7 +322,7 @@ IF(MPIRoot)THEN
   nBytes = nVTKPoints*SIZEOF_F(FLOATdummy) * 3
   WRITE(ivtk) nBytes
   WRITE(ivtk) REAL(Coord(:,:,:,:,:),4)
-#ifdef MPI
+#if USE_MPI
   DO iProc=1,nProcessors-1
     nElems_proc=nElems_glob(iProc)
     IF (nElems_proc.GT.0) THEN
@@ -334,10 +334,10 @@ ELSE
   IF (nElems.GT.0) THEN
     CALL MPI_SEND(Coord(:,:,:,:,:),nElems*NVisu_elem*3,MPI_DOUBLE_PRECISION, 0,0,MPI_COMM_WORLD,iError)
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END IF !MPIroot
 
-#ifdef MPI
+#if USE_MPI
 IF(MPIroot)THEN
   SDEALLOCATE(buf2)
 END IF

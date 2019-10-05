@@ -100,7 +100,7 @@ USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
 #ifdef PARTICLES
-#ifdef MPI
+#if USE_MPI
 USE MOD_Mesh_Vars,               ONLY:nSides
 #endif
 USE MOD_Mesh_Vars,               ONLY:NGeoElevated
@@ -110,9 +110,9 @@ USE MOD_Mesh_Vars,               ONLY:SideToElem
 USE MOD_Mesh_Vars,               ONLY:MortarSlave2MasterInfo
 USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
-#ifndef MPI
+#if !(USE_MPI)
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMortarInnerSides
-#endif /*not MPI*/
+#endif /*!(USE_MPI)*/
 #endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -149,7 +149,7 @@ REAL    :: DCL_NGeo(0:Ngeo,0:Ngeo)
 REAL    :: DCL_N(   0:PP_N,0:PP_N)
 
 ! Vandermonde matrices (N_OUT,N_IN)
-REAL    :: Vdm_EQNgeo_CLNgeo( 0:Ngeo   ,0:Ngeo)
+REAL    :: Vdm_EQNGeo_CLNgeo( 0:Ngeo   ,0:Ngeo)
 REAL    :: Vdm_CLNGeo_NgeoRef(0:NgeoRef,0:Ngeo)
 REAL    :: Vdm_NgeoRef_N(     0:PP_N   ,0:NgeoRef)
 REAL    :: Vdm_CLNGeo_CLN(    0:PP_N   ,0:Ngeo)
@@ -188,7 +188,7 @@ Metrics_hTilde=0.
 ! Always use interpolation for the rest!
 
 ! 1.a) NodeCoords: EQUI Ngeo to CLNgeo and CLN
-CALL GetVandermonde(    Ngeo   , NodeTypeVISU, Ngeo    , NodeTypeCL, Vdm_EQNgeo_CLNgeo , modal=.FALSE.)
+CALL GetVandermonde(    Ngeo   , NodeTypeVISU, Ngeo    , NodeTypeCL, Vdm_EQNGeo_CLNgeo , modal=.FALSE.)
 
 ! 1.b) dXCL_Ngeo:
 CALL GetDerivativeMatrix(Ngeo  , NodeTypeCL  , DCL_Ngeo)
@@ -457,15 +457,15 @@ END DO !iElem=1,nElems
 SWRITE(UNIT_stdOut,'(A)') ' '
 SWRITE(UNIT_stdOut,'(A)') 'BEZIERCONTROLPOINTS ...'
 StartT2=PICLASTIME()
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
-#ifdef MPI
+#if USE_MPI
 lowerLimit=nSides ! all incl. my mortar sides
 #else
 lowerLimit=nBCSides+nMortarInnerSides+nInnerSides
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! Next, build the BezierControlPoints,SideSlabNormals,SideSlabIntervals and BoundingBoxIsEmpty for
 ! nBCSides, nInnerMortarSides, nInnerSides, nMPISides_MINE and MINE mortar sides
@@ -828,7 +828,7 @@ CALL GetDerivativeMatrix(PP_N  , NodeTypeCL  , DCL_N)
 CALL GetVandermonde(    PP_N   , NodeTypeCL  , PP_N    , NodeType,   Vdm_CLN_N         , modal=.FALSE.)
 CALL GetNodesAndWeights(PP_N   , NodeTypeCL  , xiCL_N  , wIPBary=wBaryCL_N)
 
-! 3.a) Interpolate from Tree for particls
+! 3.a) Interpolate from Tree for particles
 CALL GetNodesAndWeights(NGeo   , NodeTypeCL  , XiCL_NGeo  , wIPBary=wBaryCL_NGeo)
 
 ! Outer loop over all elements

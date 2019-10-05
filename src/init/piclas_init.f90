@@ -41,9 +41,9 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Piclas Initialization")
 
+CALL prms%CreateIntOption(      'TimeStampLength', 'Length of the floating number time stamp', '21')
 #ifdef PARTICLES
-CALL prms%CreateLogicalOption(  'UseDSMC'    , "Flag for using DSMC in Calculation", '.FALSE.')
-CALL prms%CreateLogicalOption(  'UseLD'      , "Flag for using LD in Calculation", '.FALSE.')
+CALL prms%CreateLogicalOption(  'UseDSMC'        , "Flag for using DSMC in Calculation", '.FALSE.')
 #endif
 
 END SUBROUTINE DefineParametersPiclas
@@ -58,26 +58,27 @@ SUBROUTINE InitPiclas(IsLoadBalance)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Globals_Vars         ,ONLY: TimeStampLenStr,TimeStampLenStr2
 USE MOD_Preproc
-USE MOD_ReadInTools,        ONLY:prms
-USE MOD_Interpolation_Vars, ONLY:InterpolationInitIsDone
-USE MOD_Restart_Vars,       ONLY:RestartInitIsDone
-USE MOD_Restart,            ONLY:InitRestart
-USE MOD_Restart_Vars,       ONLY:DoRestart
-USE MOD_Mesh,               ONLY:InitMesh
-USE MOD_Equation,           ONLY:InitEquation
-USE MOD_GetBoundaryFlux,    ONLY:InitBC
-USE MOD_DG,                 ONLY:InitDG
-USE MOD_Mortar,             ONLY:InitMortar
-#ifndef PP_HDG
-USE MOD_PML,                ONLY:InitPML
-#endif /*PP_HDG*/
-USE MOD_Dielectric,         ONLY:InitDielectric
-USE MOD_Filter,             ONLY:InitFilter
-USE MOD_Analyze,            ONLY:InitAnalyze
-USE MOD_RecordPoints,       ONLY:InitRecordPoints
+USE MOD_ReadInTools          ,ONLY: prms
+USE MOD_Interpolation_Vars   ,ONLY: InterpolationInitIsDone
+USE MOD_Restart_Vars         ,ONLY: RestartInitIsDone
+USE MOD_Restart              ,ONLY: InitRestart
+USE MOD_Restart_Vars         ,ONLY: DoRestart
+USE MOD_Mesh                 ,ONLY: InitMesh
+USE MOD_Equation             ,ONLY: InitEquation
+USE MOD_GetBoundaryFlux      ,ONLY: InitBC
+USE MOD_DG                   ,ONLY: InitDG
+USE MOD_Mortar               ,ONLY: InitMortar
+#if ! (USE_HDG)
+USE MOD_PML                  ,ONLY: InitPML
+#endif /*USE_HDG*/
+USE MOD_Dielectric           ,ONLY: InitDielectric
+USE MOD_Filter               ,ONLY: InitFilter
+USE MOD_Analyze              ,ONLY: InitAnalyze
+USE MOD_RecordPoints         ,ONLY: InitRecordPoints
 #if defined(ROS) || defined(IMPA)
-USE MOD_LinearSolver,       ONLY:InitLinearSolver
+USE MOD_LinearSolver         ,ONLY: InitLinearSolver
 #endif /*ROS or IMPA*/
 USE MOD_Restart_Vars,       ONLY:N_Restart,InterpolateSolution,RestartNullifySolution
 #ifdef MPI

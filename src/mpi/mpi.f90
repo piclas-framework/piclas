@@ -31,7 +31,7 @@ END INTERFACE
 
 PUBLIC::InitMPI
 
-#ifdef MPI
+#if USE_MPI
 INTERFACE InitMPIvars
   MODULE PROCEDURE InitMPIvars
 END INTERFACE
@@ -95,7 +95,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-#ifdef MPI
+#if USE_MPI
 CALL MPI_INIT(iError)
 IF(iError .NE. 0) &
   CALL Abort(&
@@ -109,20 +109,20 @@ IF(iError .NE. 0) &
   __STAMP__&
   ,'Could not get rank and number of processors',iError)
 MPIRoot=(myRank .EQ. 0)
-#else  /*MPI*/
+#else  /*USE_MPI*/
 myRank      = 0
 myLocalRank = 0
 nProcessors = 1
 MPIRoot     =.TRUE.
 MPILocalRoot=.TRUE.
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 
 ! At this point the initialization is not completed. We first have to create a new MPI communicator. MPIInitIsDone will be set
 END SUBROUTINE InitMPI
 
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE InitMPIvars()
 !===================================================================================================================================
 ! Initialize derived MPI types used for communication and allocate HALO data.
@@ -201,7 +201,7 @@ DataSizeSide  =(PP_N+1)*(PP_N+1)
 ! split communicator into smaller groups (e.g. for local nodes)
 GroupSize=GETINT('GroupSize','0')
 IF(GroupSize.LT.1)THEN ! group procs by node
-#ifdef MPI3
+#if USE_MPI3
   ! MPI3 directly gives you shared memory groups
   CALL MPI_INFO_CREATE(info,iError)
   CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,MPI_COMM_TYPE_SHARED,myRank,info,MPI_COMM_NODE,iError)
@@ -246,15 +246,10 @@ END IF
 END SUBROUTINE InitMPIvars
 
 
+!===================================================================================================================================
+!> Subroutine does the receive operations for the face data that has to be exchanged between processors.
+!===================================================================================================================================
 SUBROUTINE StartReceiveMPIData(firstDim,FaceData,LowerBound,UpperBound,MPIRequest,SendID)
-!===================================================================================================================================
-! Subroutine does the receive operations for the face data that has to be exchanged between processors.
-! FaceData: the complete face data (for inner, BC and MPI sides).
-! DataSize: size of one entry in array (e.g. one side: nVar*(N+1)*(N+1))
-! LowerBound / UpperBound: lower side index and upper side index for last dimension of FaceData
-! MPIRequest: communication handles
-! SendID: defines the send / receive direction -> 1=send MINE / receive YOUR  2=send YOUR / receive MINE
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -263,12 +258,16 @@ USE MOD_MPI_Vars
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)          :: SendID
-INTEGER,INTENT(IN)          :: firstDim,LowerBound,UpperBound
+INTEGER,INTENT(IN)  :: SendID                                                 !< defines the send / receive direction -> 1=send MINE
+                                                                              !< / receive YOUR, 3=send YOUR / receive MINE
+INTEGER,INTENT(IN)  :: firstDim                                               !< size of one entry in array (e.g. one side: 
+                                                                              !< nVar*(N+1)*(N+1))
+INTEGER,INTENT(IN)  :: LowerBound                                             !< lower side index for last dimension of FaceData
+INTEGER,INTENT(IN)  :: UpperBound                                             !< upper side index for last dimension of FaceData
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER,INTENT(OUT)         :: MPIRequest(nNbProcs)
-REAL,INTENT(OUT)            :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound)
+INTEGER,INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
+REAL,INTENT(OUT)    :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound) !< the complete face data (for inner, BC and MPI sides).
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -402,6 +401,6 @@ SDEALLOCATE(OffsetMPISides_rec)
 
 
 END SUBROUTINE FinalizeMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END MODULE MOD_MPI

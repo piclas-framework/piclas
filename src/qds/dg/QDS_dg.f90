@@ -80,7 +80,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL    :: tempNorm
-INTEGER :: iWeight,i,j,k
+INTEGER :: iWeight
 REAL    :: Velo(3), Temp, Dens, Mass
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -202,10 +202,10 @@ USE MOD_Interpolation,    ONLY:ApplyJacobianQDS
 USE MOD_QDS_SurfInt,      ONLY:SurfIntQDS
 USE MOD_QDS_VolInt,       ONLY:VolIntQDS
 USE MOD_QDS_FillFlux,     ONLY:FillFluxQDS
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,              ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -230,12 +230,12 @@ IF(mpiroot.AND.(PRESENT(doPrintInfo)))THEN
   END IF
 END IF
 ! prolong the solution to the face integration points for flux computation
-#ifdef MPI
+#if USE_MPI
 ! Prolong to face for MPI sides - send direction
 CALL StartReceiveMPIData(QDSnVar,UQDS_Slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 CALL ProlongToFaceQDS(UQDS,UQDS_Master,UQDS_Slave,doMPISides=.TRUE.)
 CALL StartSendMPIData(QDSnVar,UQDS_Slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFaceQDS(UQDS,UQDS_Master,UQDS_Slave,doMPISides=.FALSE.)
@@ -243,19 +243,19 @@ UQDSt=0.
 ! compute volume integral contribution and add to ut, first half of all elements
 CALL VolIntQDS(UQDSt,dofirstElems=.TRUE.)
 
-#ifdef MPI
+#if USE_MPI
 ! Complete send / receive
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! Initialization of the time derivative
-#ifdef MPI
+#if USE_MPI
 CALL StartReceiveMPIData(QDSnVar,FluxQDS_Slave,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
 ! fill the global surface flux list
 CALL FillFluxQDS(t,tDeriv,FluxQDS_Master,FluxQDS_Slave,UQDS_Master,UQDS_Slave,doMPISides=.TRUE.)
 
 CALL StartSendMPIData(QDSnVar,FluxQDS_Slave,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
-#endif /* MPI*/
+#endif /*USE_MPI*/
 
 ! fill the all surface fluxes on this proc
 CALL FillFluxQDS(t,tDeriv,FluxQDS_Master,FluxQDS_Slave,UQDS_Master,UQDS_Slave,doMPISides=.FALSE.)
@@ -265,7 +265,7 @@ CALL SurfIntQDS(FluxQDS_Master,FluxQDS_Slave,UQDSt,doMPISides=.FALSE.)
 ! compute volume integral contribution and add to ut
 CALL VolIntQDS(UQDSt,dofirstElems=.FALSE.)
 
-#ifdef MPI
+#if USE_MPI
 ! Complete send / receive
 CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
 
@@ -321,15 +321,13 @@ SUBROUTINE QDSReCalculateDGValues()
 ! Get the constant advection velocity vector from the ini file
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,       ONLY:PI
-!USE MOD_Globals_Vars,       ONLY:BoltzmannConst
 USE MOD_PreProc
-USE MOD_QDS_DG_Vars,        ONLY:QDSSpeciesMass,UQDS,GaussHermitWeiAbs,QDSMacroValues,nQDSElems,QDSSpecDOF
-USE MOD_Mesh_Vars,          ONLY:sJ
-USE MOD_Interpolation_Vars, ONLY:wGP
-USE MOD_QDS_DG_Vars,        ONLY:QDSnVar_macro
-USE MOD_QDS_Equation_vars,  ONLY:QDSnVar
-USE MOD_QDS_Equation,       ONLY:QDS_Q2U
+USE MOD_QDS_DG_Vars        ,ONLY: QDSSpeciesMass,UQDS,QDSMacroValues,nQDSElems
+USE MOD_Mesh_Vars          ,ONLY: sJ
+USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_QDS_DG_Vars        ,ONLY: QDSnVar_macro
+USE MOD_QDS_Equation_vars  ,ONLY: QDSnVar
+USE MOD_QDS_Equation       ,ONLY: QDS_Q2U
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -338,7 +336,7 @@ USE MOD_QDS_Equation,       ONLY:QDS_Q2U
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem, k, j, i!, L
+INTEGER           :: iElem, k, j, i
 !===================================================================================================================================
 !QDSSpeciesMass=Species(QDS_Species)%MassIC
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
