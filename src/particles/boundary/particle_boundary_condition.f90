@@ -804,6 +804,7 @@ IF (.NOT.IsAuxBC) THEN
   END IF ! .NOT.Symmetry
 END IF !.NOT.IsAuxBC
 
+
 ! set particle position on face
 LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
 
@@ -1178,6 +1179,7 @@ IF (.NOT.IsAuxBC) THEN
                                                   PartTrajectory,n_loc,p,q)
   END IF
 END IF !.NOT.IsAuxBC
+
 
 !   Transformation local distribution -> global coordinates
 ! v = nv*u+t1*v+t2*f3

@@ -93,15 +93,21 @@ Following parameters can be used for both schemes.
 | :-------------------: | :----: | :------------------------------------------: |
 | BezierEpsilonBilinear |  T/F   | Tolerance for linear-bilinear side. Obsolet. |
 
-## Boundary Conditions
+## Boundary Conditions - Field Solver
 
 To-do: Modification of boundaries with the PICLas parameter file (order is of importance)
 
-### Field
+### Maxwell's Equations
+
+To-do
 
 Dielectric -> type 100?
 
-### Particle
+### Poisson's Equation
+
+To-do
+
+## Boundary Conditions - Particle Solver
 
 Within the parameter file it is possible to define different particle boundary conditions. The number of boundaries is defined by
 
@@ -110,16 +116,20 @@ Within the parameter file it is possible to define different particle boundary c
     Part-Boundary1-Condition=open
     Part-Boundary2-SourceName=BC_WALL
     Part-Boundary2-Condition=reflective
+    Part-Boundary2-SurfaceModel=2
 
 The `Part-Boundary1-SourceName=` corresponds to the name given during the preprocessing step with HOPR. The available conditions (`Part-Boundary1-Condition=`) are described in the table below.
 
-|  Condition   | Description                                                                                                                                                                                 |
-| :----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|    `open`    | Every particle crossing the boundary will be deleted.                                                                                                                                       |
+| Condition    | Description                                                                                                                                                                                 |
+| :----------: | :----------------------------------------------------------------------------------------------                                                                      |
+| `open`       | Every particle crossing the boundary will be deleted.                                                                                                                                       |
 | `reflective` | Allows the definition of specular and diffuse reflection. A perfect specular reflection is performed, if no other parameters are given (discussed in more detail in the following section). |
 | `symmetric`  | A perfect specular reflection, without sampling of particle impacts.                                                                                                                        |
 
-#### Diffuse Wall
+For `reflective` boundaries, an additional option `Part-Boundary2-SurfaceModel` is available, that
+is used for heterogeneous reactions (reactions have reactants in two or more phases) or secondary electron emission models. These models are described in \ref{sec:chem_reac}.
+
+### Diffuse Wall
 
 Gas-surface interaction can be modelled with the extended Maxwellian model [@Padilla2009], using accommodation coefficients of the form
 
@@ -141,7 +151,7 @@ Additionally, a wall velocity [m/s] and voltage [V] can be given
     Part-Boundary2-WallVelo=(/0,0,100/)
     Part-Boundary2-Voltage=100
 
-#### Porous Wall / Pump
+### Porous Wall / Pump
 
 The porous boundary condition uses a removal probability to determine whether a particle is deleted or reflected at the boundary. The main application of the implemented condition is to model a pump, according to [@Lei2017]. It is defined by giving the number of porous boundaries and the respective boundary number (`BC=2` corresponds to the `BC_WALL` boundary defined in the previous section) on which the porous condition is. 
 
@@ -183,6 +193,57 @@ The absolute coordinates are defined as follows for the respective normal direct
 |      z (=3)      |    (x,y)    |
 
 Using the regions, multiple pumps can be defined on a single boundary.
+
+### Surface Chemistry \label{sec:chem_reac}
+
+Modelling of reactive surfaces is enabled by setting `Part-BoundaryX-Condition=reflective` and an 
+appropriate particle boundary surface model `Part-BoundaryX-SurfaceModel`.
+The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the table below.
+
+| SurfaceModel | Description                                                                                                                                                                     |
+| :----------: | :-----------------------------------------------------------------                                                                                                              |
+| 0 (default)  | Standard extended Maxwellian scattering                                                                                                                                         |
+| 2            | Simple recombination on surface collision, where an impinging particle as given by Ref. [@Reschke2019].                                                                         |
+| 3            | Kinetic Monte Carlo surface: Replicates surfaces with a specified lattice structure, either fcc(100) or fcc(111) and models complete catalysis as given by Ref. [@Reschke2019]. |
+| 5            | Secondary electron emission as given by Ref. [@Levko2015].                                                                                                                      |
+| 101          | Evaporation from surfaces according to a Maxwellian velocity distribution.                                                                                                      |
+| 102          | Evaporation according to MD-fitted velocity distributions.                                                                                                                      |
+
+For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
+
+    BezierSampleN = 3
+    DSMC-nSurfSample = 3 
+    Part-WriteMacroSurfaceValues = T 
+    Particles-DSMC-CalcSurfaceVal = T 
+    Part-IterationForMacroVal = 200
+
+where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over 200 interations.
+
+### Deposition of Charges on Dielectric Surfaces
+
+Charged particles can be absorbed (or reflected and leave their charge behind) at dielectric surfaces 
+when using the deposition method `cell_volweight_mean`. The boundary can be used by specifying 
+
+    ```
+    Part-Boundary1-Condition         = reflective
+    Part-Boundary1-Dielectric        = T
+    Part-Boundary1-NbrOfSpeciesSwaps = 3
+    Part-Boundary1-SpeciesSwaps1     = (/1,0/) ! e-
+    Part-Boundary1-SpeciesSwaps2     = (/2,2/) ! Ar
+    Part-Boundary1-SpeciesSwaps3     = (/3,2/) ! Ar+
+    ```
+    
+which sets the boundary dielectric and the given species swap parameters effectively remove 
+electrons ($e^{-}$) on impact, reflect $Ar$ atoms and neutralize $Ar^{+}$ ions by swapping these to $Ar$ atoms. 
+Note that currently only singly charged particles can be handled this way. When multiple charged 
+particles would be swapped, their complete charge mus be deposited at the moment.
+
+The boundary must also be specified as an *inner* boundary via
+
+    BoundaryName                     = BC_INNER
+    BoundaryType                     = (/100,0/)
+
+or directly in the *hopr.ini* file that is used for creating the mesh.
 
 ## Particle Initialization & Emission
 
@@ -457,7 +518,13 @@ The second flag allows to enable/disable the adaptation of the time step distrib
 
 The parameters `TargetMCSoverMFP` (ratio of the mean collision separation distance over mean free path) and `TargetMaxCollProb` (maximum collision probability) allow to modify the target values for the adaptation. The `MaxFactor` and `MinFactor` allow to limit the adapted time step within a range of $f_\mathrm{min} \Delta t$ and $f_\mathrm{max} \Delta t$. Finally, the time step adaptation can be used to increase the number of particles by defining a minimum particle number (e.g `MinPartNum` = 10, optional).
 
-The last two flags enable to initialize the particles distribution from the given DSMC state file, using the macroscopic properties such as flow velocity, number density and temperature (see Section \ref{sec:macro_restart}). Strictly speaking, the VTS procedure only requires the `Filename` for the read-in of aforementioned parameters, however, it is recommended to perform a macroscopic restart to initialize the correct particle number per cells. Otherwise, cells with a decreased/increased time step will require some time until the additional particles has reached/left the cell.
+The last two flags enable to initialize the particles distribution from the given DSMC state file, using the macroscopic properties such as flow velocity, number density and temperature (see Section \ref{sec:macro_restart}). Strictly speaking, the VTS procedure only requires the `Filename` for the read-in of the aforementioned parameters, however, it is recommended to perform a macroscopic restart to initialize the correct particle number per cells. Otherwise, cells with a decreased/increased time step will require some time until the additional particles have reached/left the cell.
+
+For the BGK method, the time step can be adapted according to a target maximal relaxation factor, analogous to the maximal collision probability in DSMC
+
+    Part-VariableTimeStep-Distribution-TargetMaxRelaxFactor = 0.8
+
+The time step adaptation can also be utilized in coupled BGK-DSMC simulations, where the time step will be adapted in both regions according to the respective criteria as the BGK factors are zero in the DSMC region and vice versa. Attention should be payed in the transitional region between BGK and DSMC, where the factors are potentially calculated for both methods. Here, the time step required to fulfil the maximal collision probability criteria will be utilized as it is the more stringent one.
 
 #### Linear scaling
 
@@ -473,7 +540,15 @@ Besides DSMC, the linear scaling is available for the BGK method. Finally, speci
 
 ### 2D/Axisymmetric Simulation \label{sec:2DAxi}
 
-For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_\mathrm{min}|=|z_\mathrm{max}|$.
+For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_\mathrm{min}|=|z_\mathrm{max}|$. The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
+
+Part-Boundary4-SourceName=SYMAXIS
+Part-Boundary4-Condition=symmetric_axis
+
+The boundaries (or a single boundary definition for both boundary sides) in the $z$-direction should be defined as symmetry sides with the `symmetric` condition
+
+Part-Boundary5-SourceName=SYM
+Part-Boundary5-Condition=symmetric
 
 To enable two-dimensional simulations, the following flag is required
 
@@ -506,6 +581,10 @@ For the cloning procedure, two methods are implemented, where the information of
     Particles-RadialWeighting-CloneDelay=10
 
 This serves the purpose to avoid the so-called particle avalanche phenomenon [@Galitzine2015], where clones travel on the exactly same path as the original in the direction of a decreasing weight. They have a zero relative velocity (due to the same velocity vector) and thus a collision probability of zero. Combined with the nearest neighbor pairing, this would lead to an ever-increasing number of identical particles travelling on the same path. An indicator how often identical particle pairs are encountered per time step during collisions is given as an output (`2D_IdenticalParticles`, to enable the output see Section \ref{sec:dsmc_quality}). Additionally, it should be noted that a large delay of the clone insertion might be problematic for time-accurate simulations. However, for the most cases, values for the clone delay between 2 and 10 should be sufficient to avoid the avalance phenomenon.
+
+Another issue is the particle emission on large sides in $y$-dimension close to the rotational axis. As particles are inserted linearly along the $y$-direction of the side, a higher number density is inserted closer to the axis. This effect is directly visible in the free-stream in the cells downstream, when using mortar elements, or in the heatflux (unrealistic peak) close to the rotational axis. It can be avoided by splitting the surface flux emission side into multiple subsides with the following flag (default value is 20)
+
+    Particles-RadialWeighting-SurfFluxSubSides = 20
 
 An alternative to the particle position-based weighting is the cell-local radial weighting, which can be enabled by
 
@@ -565,14 +644,14 @@ $$ \alpha = 3 N_\mathrm{atom} - 3 - \xi_\mathrm{rot} $$
 
 As an example the parameters of CH$_3$ are given below. The molecule has four vibrational modes, with two of them having a degeneracy of two. These values are simply given the according amount of times
 
-    Part-Species2-NumOfAtoms = 4
-    Part-Species2-LinearMolec = FALSE
-    Part-Species2-CharaTempVib1 = 4320.6
-    Part-Species2-CharaTempVib2 = 872.1
-    Part-Species2-CharaTempVib3 = 4545.5
-    Part-Species2-CharaTempVib4 = 4545.5
-    Part-Species2-CharaTempVib5 = 2016.2
-    Part-Species2-CharaTempVib6 = 2016.2
+    Part-Species1-NumOfAtoms = 4
+    Part-Species1-LinearMolec = FALSE
+    Part-Species1-CharaTempVib1 = 4320.6
+    Part-Species1-CharaTempVib2 = 872.1
+    Part-Species1-CharaTempVib3 = 4545.5
+    Part-Species1-CharaTempVib4 = 4545.5
+    Part-Species1-CharaTempVib5 = 2016.2
+    Part-Species1-CharaTempVib6 = 2016.2
 
 These parameters allow the simulation of non-reactive gases. Additional parameters required for the consideration of chemical reaction are given in Section \ref{sec:dsmc_chemistry}.
 
@@ -583,6 +662,71 @@ WIP: octree, nearest neighbor, VHS
 Particles-DSMC-ProhibitDoubleCollision [@Shevyrin2005,@Akhlaghi2018]
 
 ### Relaxation \label{sec:dsmc_relaxation}
+
+To determine the different relaxation probabilities of the different internal degrees of freedom, different models are implemented. The first and easiest model are constant relaxation probabilities and second more complex models with variable, mostly temperature dependent, relaxation probabilities. Three different kinds of internal degrees of freedom are implemented in piclas: rotational, vibrational and electronical ones. For each one, different relaxation models are neccesary. Also different selection procedures are implemented: multi-relaxation and prohibiting-double-relaxation. The following flag has to be set true to enable the correction factor of Lumpkin [@Lumpkin1991],:
+
+    Particles-DSMC-useRelaxProbCorrFactor = false
+
+#### Rotational Relaxation \label{sec:dsmc_rotational_relxation}
+
+To adjust the rotational relaxation this variable has to be changed with its default value of $0.2$:
+
+    Particles-DSMC-RotRelaxProb = 0.2
+
+If the Rotational Relaxation Probability is between 0 and 1, this value is set as constant probability, is it 2 the variable rotational relaxation model is activated according to Boyd [@Boyd1990a]. Therefore, for each molecular species two additional parameters has to be defined; the rotational collision number and the rotational reference temperature. As example nitrogen is used [@Boyd1990b].
+
+    Part-Species1-CollNumRotInf = 23.3
+    Part-Species1-TempRefRot = 91.5
+
+If the relaxation probability is equal 3, the relaxation model of Zhang et al. [@Zhang2012] is used. But, it is only implemented for nitrogen and is not tested. It is not recommended to use it! 
+
+#### Vibrational Relaxation \label{sec:dsmc_vibrational_relxation}
+
+Equal to the rotational relaxation probability, the vibrational relaxation probability is implemented. This variable has to be changed, if the vibrational relaxation probability should be adjusted:
+
+    Particles-DSMC-VibRelaxProb = 0.004
+
+$0.004$ is the default. If the value of this variable is between 0 and 1, this value is used as constant vibrational relaxation probability. Is it set to 2, the variable vibrational relaxation model of Boyd [@Boyd1990b] is used. For each molecular species pair the constants A and B according to Millikan and White [@MillikanWhite1963] (which will be used for the calculation of the characteristic velocity and vibrational collision number according to Abe [@Abe1994]) and the vibrational cross section has to be defined. The given example below is a 2 species mixture of nitrogen and oxygen and the values of A and B are used Farbar [@Farbar2010] and the vibrational cross section is used Boyd [@Boyd1990b]:
+
+    Part-Species1-MWConstA-1-1 = 220.00
+    Part-Species1-MWConstA-1-2 = 115.10
+    Part-Species1-MWConstB-1-1 = -12.27
+    Part-Species1-MWConstB-1-2 = -6.92
+    Part-Species1-VibCrossSection = 1e-19
+
+    Part-Species2-MWConstA-2-2 = 129.00
+    Part-Species2-MWConstA-2-1 = 115.10
+    Part-Species2-MWConstB-2-2 = -9.76
+    Part-Species2-MWConstB-2-1 = -6.92
+    Part-Species2-VibCrossSection = 1e-19
+
+It is not possible to calculate an instantanious vibrational relaxation probability with this model [@Boyd1992]. Thus, the probablility is calculated for every colission and is averaged. To avoid large errors in cells containing only a few particles, a relaxation of this average probability is implemented. The relaxation factor alpha can be changed with the following parameter in the ini file:
+
+    Particles-DSMC-alpha = 0.99
+    
+The new probability is calculated with the vibrational relaxation probability of the $n^{th}$ iteration $VibProb_{n}$, the number of Collision Pairs $n_{Pair}$ and the average vibrational relaxation probability of the actual iteration $VibProbIter$. 
+
+$$VibProb_{n+1}= VibProb_{n}  \cdot  \alpha^{2  \cdot  n_{Pair}} + (1-\alpha^{2  \cdot  n_{Pair}}) \cdot VibProbIter $$
+
+This model is extended to more species by calculating for each species a separate probability. An initial vibrational relaxation probability is set by calculating $INT(1/(1-\alpha))$ vibrational relaxation probabilities for each species and cell with using the instantanious cell temperature. The collision partner is choosen by the mole fraction of them inside the cell. 
+
+#### Electronic Relaxation \label{sec:dsmc_electronic_relxation}
+
+WIP
+
+#### Multi-Relaxation \label{sec:dsmc_multi_relxation}
+
+default
+
+    Particles-DSMC-SelectionProcedure = 1
+
+WIP
+
+#### Prohibiting-Double-Relaxation \label{sec:dsmc_prohibiting_double_relxation}
+
+    Particles-DSMC-SelectionProcedure = 2
+
+It is not recommended to use this relaxation procedure with `Particles-DSMC-RotRelaxProb=2`. Low collision energies results in high relaxation probabilities, which results again in a summed relaxation probability greater than 1.
 
 WIP
 
@@ -605,10 +749,6 @@ The mean collision separation distance is determined during every collision and 
 $$w < \frac{1}{\left(\sqrt{2}\pi d_\mathrm{ref}^2 n^{2/3}\right)^3},$$
 
 where $d_\mathrm{ref}$ is the reference diameter and $n$ the number density. Here, the largest number density within the simulation domain should be used as the worst-case. For supersonic/hypersonic flows, the conditions behind a normal shock can be utilized as a first guess. For a thruster/nozzle expansion simulation, the chamber or throat conditions are the limiting factor.
-
-## Surface Chemistry
-
-WIP
 
 ## Modelling of Continuum Gas Flows
 
@@ -675,6 +815,8 @@ The current implementation supports:
 - 4 different methods (i.e. different target distribution functions): Ellipsoidal Statistical, Shakov, standard BGK, and Unified
 - Single species, monoatomic and diatomic gases
 - Thermal non-equilibrium with rotational and vibrational excitation (continuous or quantized treatment)
+- 2D/Axisymmetric simulations
+- Variable time step (adaption of the distribution according to the maximal relaxation factor and linear scaling)
 
 Relevant publications of the developers:
 
@@ -734,7 +876,7 @@ In general, simulation results are either available spatially resolved based on 
 
 WIP
 
-### Flowfield and Surface Variables
+### Particle-flow Field and Surface variables
 
 A sampling over a certain number of iterations is performed to calculate the macroscopic values such as number density, bulk velocity and temperature from the microscopic particle information. Output and sampling on surfaces can be enabled by
 
@@ -761,6 +903,125 @@ The second variant can be used to produce outputs for unsteady simulations, whil
 
 Example: The simulation end time is $T_\mathrm{end}=1$ with a time step of $\Delta t = 0.001$. With the parameters given above, we would sample for 100 iterations up to $T = 0.1$ and get the first output. Afterwards, the sample is deleted and the sampling begins anew for the following output at $T=0.2$. This procedure is repeated until the simulation end, resulting in 10 outputs with independent samples.
 
+#### Sampling of Particle-surface Impacts 
+
+Additional surface values can be sampled by using
+
+    CalcSurfaceImpact = T
+
+which calculates the species-dependent averaged impact energy (trans, rot, vib), impact vector, angle (between particle trajectory and surface tangential vector) and number of impacts due to particle-surface collisions.
+The output of the surface-sampled data is written to `*_DSMCSurfState_*.h5`.
+
 ### Integral Variables
 
 PartAnalyze/FieldAnalyze
+
+### Element-constant properties
+The determined properties are given by a single value within each cell.
+
+
+#### Power Coupled to Particles
+The energy transferred to particles during the push (acceleration due to electromagnetic fields) is
+determined by using
+
+    CalcCoupledPower = T
+
+which calculates the properties `PCoupl` (instantaneous) and a time-averaged (moving average) value
+`PCoupledMoAv` that are stored in the `ParticleAnalysis.csv` output file. Additionally, the power
+coupled to the particles in each cell (average power per cubic metre) is time-averaged (moving average) 
+and stored in `PCouplDensityAvgElem` for each species separately, which is written to `*_State_*.h5`. 
+Furthermore, the accumulated power over all particles of the same species is displayed in STD-out via
+
+     Averaged coupled power per species [W]
+     1     :    0.0000000000000000     
+     2     :    2.6614384806763068E-003
+     3     :    2.6837037798108634E-006
+     4     :    0.0000000000000000     
+     5     :    8.8039637450978475E-006
+     Total :    2.6729261482012156E-003
+
+for the time-averaged (moving average) power.
+
+#### Analysis of Particle Properties via *Particle Analyze*
+
+**Plasma Frequency**
+The (cold) plasma frequency can be calculated via
+
+$$\omega_{p}=\omega_{e}=\frac{e^{2}n_{e}}{\varepsilon_{0}m_{e}}$$
+
+which is the frequency with which the charge density of the electrons oscillates, where
+$\varepsilon_{0}$ is the permittivity of vacuum, $e$ is the elementary charge, $n_{e}$ and $m_{e}$ 
+are the electron density and mass, respectively.
+The calculation is activated by
+
+    CalcPlasmaFreqeuncy = T
+
+**PIC Particle Time Step**
+The maximum allowed time step within the PIC schemes can be estimated by
+
+$$\Delta_{t,\mathrm{PIC}}<\frac{0.2}{\omega_{p}}$$
+
+where $\omega_{p}$ is the (cold) plasma frequency.
+The calculation is activated by
+
+    CalcPICTimeStep = T
+
+**Debye length**
+The Debye length can be calculated via
+
+$$\lambda_{D}=\sqrt{\frac{\varepsilon_{0}k_{B}T_{e}}{e^{2}n_{e}}}$$
+
+where $\varepsilon_{0}$ is the permittivity of vacuum, $k_{B}$ is the Boltzmann constant, $e$ is the
+elementary charge and $T_{e}$ and $n_{e}$ are the electron temperature and density, respectively. 
+The Debye length measures the distance after which the magnitude of the electrostatic
+potential of a single charge drops by $1/\text{e}$.
+The calculation is activated by
+
+    CalcDebyeLength = T
+
+**Points per Debye Length**
+The spatial resolution in terms of grid points per Debye length can be estimated via
+
+$$\mathrm{PPD}=\frac{\lambda_{D}}{\Delta x}=\frac{(p+1)\lambda_{D}}{L}\sim 1$$
+
+where $\Delta x$ is the grid spacing (average spacing between grid points), 
+$p$ is the polynomial degree of the solution, $\lambda_{D}$ is the Debye length and $L=V^{1/3}$ 
+is the characteristic cell length, which is determined from the volume $V$ of the grid cell.
+Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting 
+$L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of 
+each cell. These values are especially useful when dealing with Cartesian grids.
+The calculation is activated by
+
+    CalcPointsPerDebyeLength = T
+
+**PIC CFL Condition**
+The plasma frequency time step restriction and the spatial Debye length restriction can be merged
+into a single parameter
+
+$$\frac{\Delta t}{0.4 \Delta x}\sqrt{\frac{k_{b}T_{e}}{m_{e}}}= \frac{(p+1)\Delta t}{0.4 L}\sqrt{\frac{k_{b}T_{e}}{m_{e}}} \lesssim 1$$
+
+where $\Delta t$ is the time step, $\Delta x$ is the grid spacing (average spacing between grid
+points), $p$ is the polynomial degree of the solution, $k_{B}$ is the Boltzmann constant, $T_{e}$ 
+and $m_{e}$ are the electron temperature and mass, respectively. Furthermore, the calculation in 
+each direction $x$, $y$ and $z$ is performed by setting $L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, 
+which are the average distances of the bounding box of each cell. 
+These values are especially useful when dealing with Cartesian grids.
+The calculation is activated by
+
+    CalcPICCFLCondition = T
+
+**Maximum Particle Displacement**
+The largest displacement of a particle within one time step $\Delta t$ is estimated for each cell
+via
+
+$$\frac{\mathrm{max}(v_{\mathrm{iPart}})\Delta t}{\Delta x}=\frac{(p+1)\mathrm{max}(v_{\mathrm{iPart}})\Delta t}{L} < 1$$
+
+which means that the fastest particle is not allowed to travel over the length of two grid points
+separated by $\Delta x$.
+Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting 
+$L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of 
+each cell. 
+These values are especially useful when dealing with Cartesian grids.
+The calculation is activated by
+
+    CalcMaxPartDisplacement = T

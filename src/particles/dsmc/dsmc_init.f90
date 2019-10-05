@@ -676,11 +676,11 @@ IF (CollisMode.EQ.0) THEN
     DO jSpec = iSpec, nSpecies
       iCase = CollInf%Coll_Case(iSpec,jSpec)
       CollInf%FracMassCent(iSpec, iCase)  = Species(iSpec)%MassIC &
-                                          / (Species(iSpec)%MassIC + Species(jSpec)%MassIC)
+          / (Species(iSpec)%MassIC + Species(jSpec)%MassIC)
       CollInf%FracMassCent(jSpec, iCase)  = Species(jSpec)%MassIC &
-                                          / (Species(iSpec)%MassIC + Species(jSpec)%MassIC)
+          / (Species(iSpec)%MassIC + Species(jSpec)%MassIC)
       CollInf%MassRed(iCase) = (Species(iSpec)%MassIC*Species(jSpec)%MassIC) &
-                             / (Species(iSpec)%MassIC+Species(jSpec)%MassIC)
+          / (Species(iSpec)%MassIC+Species(jSpec)%MassIC)
     END DO
   END DO
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -721,9 +721,9 @@ IF (CollisMode.EQ.0) THEN
 !-----------------------------------------------------------------------------------------------------------------------------------
   !...moved to InitializeVariables!!!
 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! reading/writing molecular stuff
-!-----------------------------------------------------------------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! reading/writing molecular stuff
+  !-----------------------------------------------------------------------------------------------------------------------------------
   ! Check whether calculation of instantaneous translational temperature is required
   IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
             .OR.(DSMC%VibRelaxProb.EQ.2)) THEN
@@ -1082,7 +1082,7 @@ IF (CollisMode.EQ.0) THEN
             open(unit=483,file=DebugElectronicStateFilename,form='formatted',status='unknown')
             DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
               WRITE(483,'(I3.1,3x,F12.7)') ii, REAL( SpecDSMC(iSpec)%levelcounter(ii) ) / &
-                                               REAL( Species(iSpec)%Init(0)%initialParticleNumber )
+                  REAL( Species(iSpec)%Init(0)%initialParticleNumber )
             END DO
             close(unit=483)
           END IF

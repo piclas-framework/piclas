@@ -75,13 +75,13 @@ SUBROUTINE InitInterfaces
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars,       ONLY:nSides
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_PML_vars,        ONLY:DoPML,isPMLFace
 #endif /*NOT HDG*/
 USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem,DielectricFluxNonConserving
 USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann,InterfacesInitIsDone
 USE MOD_Globals,         ONLY:abort,UNIT_stdOut
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals,         ONLY:mpiroot
 #endif
 USE MOD_Mesh_Vars,       ONLY:SideToElem
@@ -101,7 +101,7 @@ ALLOCATE(InterfaceRiemann(1:nSides))
 DO SideID=1,nSides
   InterfaceRiemann(SideID)=-1 ! set default to invalid number: check later
   ! 0.) Sanity: It is forbidden to connect a PML to a dielectric region because it is not implemented!
-#ifndef PP_HDG /*pure Maxwell simulations*/
+#if !(USE_HDG) /*pure Maxwell simulations*/
   IF(DoPML.AND.DoDielectric)THEN
     IF(isPMLFace(SideID).AND.isDielectricFace(SideID))THEN
       CALL abort(&
@@ -123,15 +123,16 @@ DO SideID=1,nSides
 #endif /*NOT HDG*/
 
   ! 2.) Check Dielectric Medium
-  ! c), d) - vaccuum    <-> vacuum       : RIEMANN_VACUUM         = 0
+  ! c), d) - vacuum     <-> vacuum       : RIEMANN_VACUUM         = 0
   ! b)     - dielectric <-> dielectric   : RIEMANN_DIELECTRIC     = 2
   ! a1)    - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC = 3 or 5 (when using non-conservative fluxes)
-  ! a2)    - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC = 4 or 6 (when using non-conservative fluxes)
+  ! a2)    - vacuum      -> dielectric   : RIEMANN_VAC2DIELECTRIC = 4 or 6 (when using non-conservative fluxes)
   IF(DoDielectric) THEN
     IF (isDielectricFace(SideID))THEN ! 1.) RiemannDielectric
       IF(isDielectricInterFace(SideID))THEN
         ! a) physical <-> dielectric region: for Riemann solver, select A+ and A- as functions of f(Eps0,Mu0) or f(EpsR,MuR)
         ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
+        IF(ElemID.EQ.-1) CYCLE ! skip
         IF(isDielectricElem(ElemID))THEN
           ! a1) master is DIELECTRIC and slave PHYSICAL
           IF(DielectricFluxNonConserving)THEN ! use one flux (conserving) or two fluxes (non-conserving) at the interface
@@ -184,9 +185,9 @@ SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,Dis
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals,              ONLY:abort,UNIT_stdOut
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals,              ONLY:MPI_COMM_WORLD,mpiroot
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_Mesh_Vars,            ONLY:Elem_xGP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -320,7 +321,7 @@ END IF
 END SUBROUTINE  FindElementInRegion
 
 
-SUBROUTINE FindInterfacesInRegion(isFace,isInterFace,isElem)
+SUBROUTINE FindInterfacesInRegion(isFace,isInterFace,isElem,info_opt)
 !===================================================================================================================================
 !> Check if a face is in a special region (e.g. Dielectric) and/or connects a special region (e.g. Dielectric) to the physical
 !> region. This is used, e.g., for dielectric or PML regions
@@ -335,33 +336,38 @@ SUBROUTINE FindInterfacesInRegion(isFace,isInterFace,isElem)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides
-#ifdef MPI
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Mesh_Vars              ,ONLY: nSides,nBCSides
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+#if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI,             ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif
+!USE MOD_Mesh_Vars             ,ONLY: nBCSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)               :: isElem(1:PP_nElems) ! True/False element: special region
+LOGICAL,INTENT(IN)                   :: isElem(1:PP_nElems) ! True/False element: special region
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: info_opt            ! Optional information regarding the type of faces/interfaces to be found
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-LOGICAL,ALLOCATABLE,INTENT(INOUT):: isFace(:)           ! True/False face: special region <-> special region
-LOGICAL,ALLOCATABLE,INTENT(INOUT):: isInterFace(:)      ! True/False face: special region <-> physical region (or vice versa)
+LOGICAL,ALLOCATABLE,INTENT(INOUT) :: isFace(:)      ! True/False face: special region <-> special region
+LOGICAL,ALLOCATABLE,INTENT(INOUT) :: isInterFace(:) ! True/False face: special region <-> physical region (or vice versa)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides):: isFace_Slave,isFace_Master,isFace_combined ! the dimension is only used because of
-                                                                                      ! the prolong to face routine and MPI logic
-INTEGER                                 :: iSide
+REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides) :: isFace_Slave,isFace_Master,isFace_combined ! the dimension is only used because of
+                                                                                       ! the prolong to face routine and MPI logic
+INTEGER                                  :: iSide ! Side iterator
+CHARACTER(LEN=255)                       :: info  ! Output info on failure
 !===================================================================================================================================
 ! General workflow:
 ! 1.  initialize Master, Slave and combined side array (it is a dummy array for which only a scalar value is communicated)
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
 ! 3.  MPI: communicate slave sides to master
-! 4.  calculate combinded value 'isFace_combined' which determines the type of the interface on the master side, where the
+! 4.  comminucate the values to the slave sides (currently done but not used anywhere)
+! 5.  calculate combinded value 'isFace_combined' which determines the type of the interface on the master side, where the
 !     information is later used when fluxes are determined
-! 5.  comminucate the calculated value 'isFace_combined' to the slave sides (currently done but not used anywhere)
 ! 6.  loop over all sides and use the calculated value 'isFace_combined' to determine 'isFace' and 'interFace'
 
 ! 1.  initialize Master, Slave and combined side array (it is a dummy array for which only a scalar value is communicated)
@@ -370,13 +376,25 @@ ALLOCATE(isInterFace(1:nSides))
 isFace=.FALSE.
 isInterFace=.FALSE.
 ! For MPI sides send the info to all other procs
-isFace_Slave=-3.
-isFace_Master=-3.
-isFace_combined=-3.
+isFace_Slave    = -3.
+isFace_Master   = -3.
+isFace_combined = -3.
+
 
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
 CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.) ! Includes Mortar sides
-#ifdef MPI
+!      !DEBUGGING
+!      DO iSide = 1, nSides
+!        IF(iSide.LE.nBCSides)THEN
+!          WRITE (*,*) "iSide, Master, Slave =", iSide, isFace_Master(1,0,0,iSide), isFace_Slave(1,0,0,iSide)," (BC)"
+!        ELSE
+!          WRITE (*,*) "iSide, Master, Slave =", iSide, isFace_Master(1,0,0,iSide), isFace_Slave(1,0,0,iSide)
+!        END IF ! iSide.LE.nBCSides
+!        IF(isFace_Master(1,0,0,iSide).LT.0..OR.isFace_Slave(1,0,0,iSide).LT.0.)THEN
+!          EXIT
+!        END IF ! isFace_Master(1,0,0,iSide).LT.0..OR.isFace_Slave(1,0,0,iSide).LT.0.
+!      END DO ! iSide = 1, nSides
+#if USE_MPI
 CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)  ! Includes Mortar sides
 
 ! 3.  MPI: communicate slave sides to master
@@ -384,46 +402,88 @@ CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRU
 CALL StartReceiveMPIData(1,isFace_Slave,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
 CALL StartSendMPIData(   1,isFace_Slave,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
 CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -receive YOUR
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
+! 4.  Communicate the values to the slave sides
+!         communicate information to slave sides
+CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.FALSE.)
 
-! 4.  Calculate combined value 'isFace_combined' which determines the type of the interface on the master side, where the
+#if USE_MPI
+CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.TRUE.)
+! send Master special region info (real with [0=no special region] or [1=special region] as (N+1)*(N+1) array) to Slave procs
+CALL StartReceiveMPIData(1,isFace_Master,1,nSides ,RecRequest_U,SendID=1) ! Receive YOUR
+CALL StartSendMPIData(   1,isFace_Master,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=1) !Send YOUR -receive MINE
+!#else ! is this required for MPI=OFF?
+!isFace_Slave=isFace_Master
+#endif /*USE_MPI*/
+
+
+! 5.  Calculate combined value 'isFace_combined' which determines the type of the interface on the master side, where the
 !     information is later used when fluxes are determined
 !         add isFace_Master to isFace_Slave and send
 ! Build four-states-array for the 4 different combinations phy/phy(0), spec/phy(1), phy/spec(2) and spec/spec(3) a face can be.
+!isFace_combined=2*isFace_Master+isFace_Slave
 isFace_combined=2*isFace_Slave+isFace_Master
+
+!      !DEBUGGING
+!      DO iSide = 1, nSides
+!        IF(iSide.LE.nBCSides)THEN
+!          WRITE (*,*) "iSide, isFace_combined =", iSide, isFace_combined(1,0,0,iSide)," (BC)"
+!        ELSE
+!          WRITE (*,*) "iSide, isFace_combined =", iSide, isFace_combined(1,0,0,iSide)
+!        END IF ! iSide.LE.nBCSides
+!        IF(isFace_combined(1,0,0,iSide).LT.0.)THEN
+!          EXIT
+!        END IF ! isFace_Master(1,0,0,iSide).LT.0..OR.isFace_Slave(1,0,0,iSide).LT.0.
+!      END DO ! iSide = 1, nSides
+
 ! use numbering:  2*isFace_Slave+isFace_Master  = 1: Master side is special (e.g. dielectric)
 !                                                 2: Slave  side is special (e.g. dielectric)
 !                                                 3: both sides are special (e.g. dielectric) sides
 !                                                 0: normal face in physical region (no special region involved)
 
 
-
-! 5.  comminucate the calculated value 'isFace_combined' to the slave sides (currently done but not used anywhere)
-!         communicate information to slave sides
-!         CURRENTLY NOT NEEDED!
-CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.FALSE.)
-
-#ifdef MPI
-CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.TRUE.)
-! send Master special region info (real with [0=no special region] or [1=special region] as (N+1)*(N+1) array) to Slave procs
-CALL StartReceiveMPIData(1,isFace_Master,1,nSides ,RecRequest_U,SendID=1) ! Receive YOUR
-CALL StartSendMPIData(   1,isFace_Master,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=1) !Send YOUR -receive MINE
-#endif /*MPI*/
-
-
 ! 6.  loop over all sides and use the calculated value 'isFace_combined' to determine 'isFace' and 'interFace'
 !         set 'isFace' for sides that have at least one special region on either side
 !         set 'interFace' for sides that are between two different region, e.g., between a PML and the physical domain
+
 DO iSide=1,nSides
-  IF(isFace_combined(1,0,0,iSide).GT.0)THEN
+  IF(isFace_combined(1,0,0,iSide).GT.0.)THEN
     isFace(iSide)=.TRUE. ! mixed or pure special region face: when my side is not special but neighbor is special
-    IF((isFace_combined(1,0,0,iSide).EQ.1).OR.&
-       (isFace_combined(1,0,0,iSide).EQ.2))THEN
+    IF((NINT(isFace_combined(1,0,0,iSide)).EQ.1).OR.&
+       (NINT(isFace_combined(1,0,0,iSide)).EQ.2))THEN
         isInterFace(iSide)=.TRUE. ! set all mixed sides as InterFaces, exclude BCs later on
     END IF
+  ! The following sanity check is currently deactivated (numbers cannot be <-6.)
+  ELSEIF(isFace_combined(1,0,0,iSide).LT.-100.)THEN ! set back to 0. when fixed
+    IF(PRESENT(info_opt))THEN
+      info=": "//TRIM(info_opt)
+    ELSE
+      info=''
+    END IF ! PRESENT(info_opt)
+    IPWRITE (UNIT_stdOut,*) " ERROR in FindInterfacesInRegion()"//TRIM(info)
+    IPWRITE (UNIT_stdOut,*) " iSide =", iSide
+    IPWRITE (UNIT_stdOut,*) " X: BezierControlPoints3D(1,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(1,0:NGeo,0:NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " Y: BezierControlPoints3D(2,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(2,0:NGeo,0:NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " Z: BezierControlPoints3D(3,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(3,0:NGeo,0:NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " Corner nodes are:"
+    IPWRITE (UNIT_stdOut,*) " X: BezierControlPoints3D(1,0/NGeo,0/NGeo,iSide) =", BezierControlPoints3D(1,0,0,iSide),&
+                                                                                  BezierControlPoints3D(1,0,NGeo,iSide),&
+                                                                                  BezierControlPoints3D(1,NGeo,0,iSide),&
+                                                                                  BezierControlPoints3D(1,NGeo,NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " X: BezierControlPoints3D(2,0/NGeo,0/NGeo,iSide) =", BezierControlPoints3D(2,0,0,iSide),&
+                                                                                  BezierControlPoints3D(2,0,NGeo,iSide),&
+                                                                                  BezierControlPoints3D(2,NGeo,0,iSide),&
+                                                                                  BezierControlPoints3D(2,NGeo,NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " X: BezierControlPoints3D(3,0/NGeo,0/NGeo,iSide) =", BezierControlPoints3D(3,0,0,iSide),&
+                                                                                  BezierControlPoints3D(3,0,NGeo,iSide),&
+                                                                                  BezierControlPoints3D(3,NGeo,0,iSide),&
+                                                                                  BezierControlPoints3D(3,NGeo,NGeo,iSide)
+    CALL abort(&
+    __STAMP__&
+    ,'isFace_combined(1,0,0,iSide).LT.0. -> ',RealInfoOpt=isFace_combined(1,0,0,iSide))
   END IF
 END DO
 isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
@@ -552,7 +612,7 @@ INTEGER                 :: iMortar,nMortars
 INTEGER                 :: firstMortarSideID,lastMortarSideID
 INTEGER                 :: MortarSideID,SideID,iSide,flip
 !===================================================================================================================================
-! get 1st and last SideID depeding on doMPISides=T/F
+! get 1st and last SideID depending on doMPISides=T/F
 firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
  lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
 
@@ -597,7 +657,7 @@ SUBROUTINE CountAndCreateMappings(TypeName,&
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars,     ONLY: nSides,nGlobalElems
-#ifdef MPI
+#if USE_MPI
 USE MOD_Mesh_Vars,     ONLY: ElemToSide
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -615,7 +675,7 @@ INTEGER,ALLOCATABLE,INTENT(INOUT) :: ElemToX(:),XToElem(:),FaceToX(:),XToFace(:)
 ! LOCAL VARIABLES
 INTEGER                           :: iElem,iSide,nGlobalSpecialElems,nGlobalFaces,nGlobalInterFaces
 INTEGER                           :: iXElem,iXFace,iXInterFace,sumGlobalFaces,sumGlobalInterFaces
-#ifdef MPI
+#if USE_MPI
 INTEGER                           :: SideID,nMasterfaces,nMasterInterFaces
 #endif
 !===================================================================================================================================
@@ -644,7 +704,7 @@ END DO ! iElem
 !===================================================================================================================================
 IF(PRESENT(DisplayInfo))THEN
   IF(DisplayInfo)THEN
-#ifdef MPI
+#if USE_MPI
     nMasterFaces      = 0
     nMasterInterFaces = 0
     DO iElem=1,nElems ! loop over all local elems
@@ -669,7 +729,7 @@ IF(PRESENT(DisplayInfo))THEN
     nGlobalSpecialElems = nElems
     sumGlobalFaces      = nFaces
     sumGlobalInterFaces = nInterFaces
-#endif /* MPI */
+#endif /*USE_MPI*/
     SWRITE(UNIT_stdOut,'(A,I10,A,I10,A,F6.2,A)')&
     '  Found [',nGlobalSpecialElems,'] nGlobal'//TRIM(TypeName)//'-Elems      inside of '//TRIM(TypeName)//'-region of ['&
     ,nGlobalElems,'] elems in complete domain [',REAL(nGlobalSpecialElems)/REAL(nGlobalElems)*100.,' %]'
@@ -734,7 +794,7 @@ SUBROUTINE DisplayRanges(useMinMax_Name,useMinMax,xyzMinMax_name,xyzMinMax,Physi
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,               ONLY:UNIT_stdOut
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals,               ONLY:MPIRoot
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -767,7 +827,7 @@ SUBROUTINE DisplayMinMax(MinMax)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,               ONLY:UNIT_stdOut
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals,               ONLY:MPIRoot
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -802,7 +862,7 @@ SUBROUTINE SelectMinMaxRegion(TypeName,useMinMax,region1_name,region1,region2_na
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,               ONLY:UNIT_stdOut
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals,               ONLY:MPIRoot
 #endif
 ! IMPLICIT VARIABLE HANDLING

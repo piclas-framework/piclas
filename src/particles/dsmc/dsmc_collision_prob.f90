@@ -75,6 +75,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 
   iPType      = SpecDSMC(iSpec1)%InterID + SpecDSMC(iSpec2)%InterID ! collision case definition
 
+  iPType = SpecDSMC(iSpec_p1)%InterID + SpecDSMC(iSpec_p2)%InterID !definition of collision case
+
   IF (PRESENT(NodeVolume)) THEN
     Volume = NodeVolume
   ELSE

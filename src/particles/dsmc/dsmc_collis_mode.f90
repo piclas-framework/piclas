@@ -457,6 +457,8 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 
   Coll_pData(iPair)%Ec = 0.5 * ReducedMass* Coll_pData(iPair)%CRela2
 
+  Coll_pData(iPair)%Ec = 0.5 * ReducedMass* Coll_pData(iPair)%CRela2
+
   Xi = Xi_rel !Xi are all DOF in the collision
 
 !--------------------------------------------------------------------------------------------------!
@@ -525,6 +527,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   END IF
 
   FakXi = 0.5*Xi  - 1  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
+
 
 !--------------------------------------------------------------------------------------------------!
 ! Electronic Relaxation / Transition
@@ -2869,7 +2872,7 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
     USE MOD_Globals_Vars       ,ONLY : Pi, BoltzmannConst
     USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, CollInf
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+    IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)       :: iPair, iSpec, jSpec

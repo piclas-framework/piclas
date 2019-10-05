@@ -80,35 +80,34 @@ USE MOD_RecordPoints         ,ONLY: InitRecordPoints
 #if defined(ROS) || defined(IMPA)
 USE MOD_LinearSolver         ,ONLY: InitLinearSolver
 #endif /*ROS or IMPA*/
-USE MOD_Restart_Vars,       ONLY:N_Restart,InterpolateSolution,RestartNullifySolution
-#ifdef MPI
-USE MOD_MPI,                ONLY:InitMPIvars
-#endif /*MPI*/
+USE MOD_Restart_Vars         ,ONLY: N_Restart,InterpolateSolution,RestartNullifySolution
+#if USE_MPI
+USE MOD_MPI                  ,ONLY: InitMPIvars
+#endif /*USE_MPI*/
 #ifdef PARTICLES
-USE MOD_DSMC_Vars             ,ONLY:UseDSMC, RadialWeighting
-USE MOD_Particle_Vars         ,ONLY: Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
-USE MOD_Particle_VarTimeStep  ,ONLY: VarTimeStep_Init
-USE MOD_LD_Vars,            ONLY:UseLD
-USE MOD_ParticleInit,       ONLY:InitParticles
-USE MOD_TTMInit,            ONLY:InitTTM,InitIMD_TTM_Coupling
-USE MOD_TTM_Vars,           ONLY:DoImportTTMFile
-USE MOD_Particle_Surfaces,  ONLY:InitParticleSurfaces
-USE MOD_Particle_Mesh,      ONLY:InitParticleMesh, InitElemBoundingBox
-USE MOD_Particle_Analyze,   ONLY:InitParticleAnalyze
-USE MOD_SurfaceModel_Analyze,ONLY:InitSurfModelAnalyze
-USE MOD_Particle_MPI,       ONLY:InitParticleMPI
+USE MOD_DSMC_Vars            ,ONLY: UseDSMC, RadialWeighting
+USE MOD_Particle_Vars        ,ONLY: Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
+USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_Init
+USE MOD_ParticleInit         ,ONLY: InitParticles
+USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
+USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
+USE MOD_Particle_Surfaces    ,ONLY: InitParticleSurfaces
+USE MOD_Particle_Mesh        ,ONLY: InitParticleMesh, InitElemBoundingBox
+USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
+USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
+USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
 #if defined(IMPA) || defined(ROS)
-USE MOD_ParticleSolver,     ONLY:InitPartSolver
+USE MOD_ParticleSolver       ,ONLY: InitPartSolver
 #endif
 #endif
-#ifdef PP_HDG
-USE MOD_HDG,                ONLY:InitHDG
+#if USE_HDG
+USE MOD_HDG                  ,ONLY: InitHDG
 #endif
-USE MOD_Interfaces,         ONLY:InitInterfaces
+USE MOD_Interfaces           ,ONLY: InitInterfaces
 #if USE_QDS_DG
-USE MOD_QDS,                ONLY:InitQDS
+USE MOD_QDS                  ,ONLY: InitQDS
 #endif /*USE_QDS_DG*/
-USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETREALARRAY
+USE MOD_ReadInTools          ,ONLY: GETLOGICAL,GETREALARRAY,GETINT
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -117,7 +116,15 @@ LOGICAL,INTENT(IN)      :: IsLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                 :: TimeStampLength
 !===================================================================================================================================
+! Get length of the floating number time stamp
+TimeStampLength = GETINT('TimeStampLength')
+IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(&
+    __STAMP__&
+    ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
+WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
+WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
 
 #ifdef PARTICLES
 ! DSMC handling:
@@ -135,8 +142,6 @@ ELSE
   RadialWeighting%DoRadialWeighting = .FALSE.
 END IF
 
-useLD=GETLOGICAL('UseLD','.FALSE.')
-IF(useLD) useDSMC=.TRUE.
 #endif /*PARTICLES*/
 
 ! Initialization
@@ -168,14 +173,14 @@ END IF
 #endif
 
 CALL InitMesh()
-#ifdef MPI
+#if USE_MPI
 CALL InitMPIVars()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #ifdef PARTICLES
-!#ifdef MPI
+!#if USE_MPI
 CALL InitParticleMPI
 CALL InitElemBoundingBox()
-!#endif /*MPI*/
+!#endif /*USE_MPI*/
 CALL InitParticleSurfaces()
 !CALL InitParticleMesh()
 #endif /*PARTICLES*/
@@ -184,9 +189,9 @@ CALL InitBC()
 !#ifdef PARTICLES
 !CALL InitParticles()
 !#endif
-#ifndef PP_HDG
+#if !(USE_HDG)
 CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 CALL InitDielectric() ! Dielectric media
 CALL InitDG()
 CALL InitFilter()
@@ -211,7 +216,7 @@ CALL InitParticleAnalyze()
 CALL InitSurfModelAnalyze()
 #endif
 
-#ifdef PP_HDG
+#if USE_HDG
 CALL InitHDG()
 #endif
 
@@ -259,11 +264,11 @@ USE MOD_GetBoundaryFlux,           ONLY:FinalizeBC
 USE MOD_DG,                        ONLY:FinalizeDG
 USE MOD_Mortar,                    ONLY:FinalizeMortar
 USE MOD_Dielectric,                ONLY:FinalizeDielectric
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_PML,                       ONLY:FinalizePML
 #else
 USE MOD_HDG,                       ONLY:FinalizeHDG
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_Filter,                    ONLY:FinalizeFilter
 USE MOD_Analyze,                   ONLY:FinalizeAnalyze
 USE MOD_RecordPoints,              ONLY:FinalizeRecordPoints
@@ -272,9 +277,9 @@ USE MOD_LinearSolver,              ONLY:FinalizeLinearSolver
 !USE MOD_CSR,                       ONLY:FinalizeCSR
 #endif /*IMEX*/
 !USE MOD_TimeDisc,                  ONLY:FinalizeTimeDisc
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI,                       ONLY:FinalizeMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Surfaces,         ONLY:FinalizeParticleSurfaces
 USE MOD_InitializeBackgroundField, ONLY:FinalizeBackGroundField
@@ -294,10 +299,10 @@ USE MOD_SurfaceModel_Init,         ONLY:FinalizeSurfaceModel
 USE MOD_Particle_Boundary_Sampling,ONLY:FinalizeParticleBoundarySampling
 USE MOD_Particle_Vars,             ONLY:ParticlesInitIsDone
 USE MOD_PIC_Vars,                  ONLY:PICInitIsDone
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI,              ONLY:FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars,         ONLY:ParticleMPIInitisdone
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*PARTICLES*/
 USE MOD_IO_HDF5,                ONLY:ClearElemData,ElementOut
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -319,12 +324,12 @@ CALL FinalizeDG()
 !CALL FinalizeCSR()
 CALL FinalizeLinearSolver()
 #endif /*IMEX*/
-#ifndef PP_HDG
+#if !(USE_HDG)
 CALL FinalizePML()
 #else
 CALL FinalizeDielectric()
 CALL FinalizeHDG()
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 CALL FinalizeEquation()
 CALL FinalizeBC()
 IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
@@ -340,9 +345,9 @@ CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
 CALL FinalizeDeposition()
-#ifdef MPI
+#if USE_MPI
 CALL FinalizeParticleMPI()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 CALL FinalizeDSMC()
 #if (PP_TimeDiscMethod==300)
 CALL FinalizeFPFlow()
@@ -353,16 +358,16 @@ CALL FinalizeBGK()
 CALL FinalizeParticles()
 CALL FinalizeBackGroundField()
 #endif /*PARTICLES*/
-#ifdef MPI
+#if USE_MPI
 CALL FinalizeMPI()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 #ifdef PARTICLES
 ParticlesInitIsDone = .FALSE.
 PICInitIsDone = .FALSE.
-#ifdef MPI
+#if USE_MPI
 ParticleMPIInitIsDone=.FALSE.
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 CALL FinalizeTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
 #endif /*PARTICLES*/

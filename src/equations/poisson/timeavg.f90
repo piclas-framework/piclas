@@ -446,6 +446,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !==================================================================================================================================
 SDEALLOCATE(CalcAvg)
+SDEALLOCATE(CalcFluc)
 SDEALLOCATE(iAvg)
 SDEALLOCATE(iFluc)
 SDEALLOCATE(UAvg)
@@ -456,6 +457,7 @@ SDEALLOCATE(VarNamesFlucOut)
 SDEALLOCATE(DoPowerDensity)
 SDEALLOCATE(PowerDensity)
 #endif /*PARTICLES*/
+SDEALLOCATE(FlucAvgMap)
 END SUBROUTINE FinalizeTimeAverage
 
 END MODULE MOD_TimeAverage
