@@ -27,10 +27,43 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_2D_RadialWeighting, DSMC_2D_SetInClones, DSMC_2D_CalcSymmetryArea
-PUBLIC :: CalcRadWeightMPF
+PUBLIC :: CalcRadWeightMPF, DSMC_2D_CalcSymmetryAreaSubSides, DefineParametersParticleSymmetry
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for particles
+!==================================================================================================================================
+SUBROUTINE DefineParametersParticleSymmetry()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
+IMPLICIT NONE
+
+CALL prms%SetSection("Particle Symmetry")
+CALL prms%CreateLogicalOption('Particles-Symmetry2D', 'Activating a 2D simulation on a mesh with one cell in z-direction in the '//&
+                              'xy-plane (y ranging from 0 to the domain boundaries)', '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh '//&
+                              'requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial weighting in y for the axisymmetric '//&
+                              'simulation based on the particle position.', '.FALSE.')
+CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Axisymmetric radial weighting factor, defining '//&
+                              'the linear increase of the weighting factor (e.g. factor 2 means that the weighting factor will '//&
+                              'be twice as large at the outer radial domain boudary than at the rotational axis')
+CALL prms%CreateLogicalOption('Particles-RadialWeighting-CellLocalWeighting', 'Enables a cell-local radial weighting, '//&
+                              'where every particle has the same weighting factor within a cell', '.FALSE.')
+CALL prms%CreateIntOption(    'Particles-RadialWeighting-CloneMode',  &
+                              'Radial weighting: Select between methods for the delayed insertion of cloned particles:/n'//&
+                              '1: Chronological, 2: Random', '2')
+CALL prms%CreateIntOption(    'Particles-RadialWeighting-CloneDelay', &
+                              'Radial weighting:  Delay (number of iterations) before the stored cloned particles are inserted '//&
+                              'at the position they were cloned', '2')
+CALL prms%CreateIntOption(    'Particles-RadialWeighting-SurfFluxSubSides', &
+                              'Radial weighting: Split the surface flux side into the given number of subsides, reduces the '//&
+                              'error in the particle distribution across the cell (visible in the number density)', '20')
+
+END SUBROUTINE DefineParametersParticleSymmetry
+
 
 SUBROUTINE DSMC_2D_InitVolumes()
 !===================================================================================================================================
@@ -63,7 +96,7 @@ LOGICAL                         :: SymmetryBCExists
 
 SymmetryBCExists = .FALSE.
 ALLOCATE(SymmetrySide(1:nElems,1:2))                ! 1: GlobalSide, 2: LocalSide
-SymmetrySide = -1.
+SymmetrySide = -1
 
 IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
   SWRITE(*,*) 'Maximum dimension in z:', GEO%zmaxglob
@@ -87,7 +120,7 @@ DO SideID=1,nBCSides
     IF(MAXVAL(GEO%NodeCoords(2,GEO%ElemSideNodeID(:,iLocSide,ElemID))).GT.0.0) THEN
       ! The z-plane with the positive z component is chosen
       IF(MINVAL(GEO%NodeCoords(3,GEO%ElemSideNodeID(:,iLocSide,ElemID))).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
-        IF(SymmetrySide(ElemID,1).GT.0.0) THEN
+        IF(SymmetrySide(ElemID,1).GT.0) THEN
           CALL abort(__STAMP__&
             ,'ERROR: PICLas could not determine a unique symmetry surface for 2D/axisymmetric calculation!'//&
             ' Please orient your mesh with x as the symmetry axis and positive y as the second/radial direction!')
@@ -127,11 +160,11 @@ END IF
 
 ! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
 GEO%LocalVolume = SUM(GEO%Volume)
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
 #else
 GEO%MeshVolume=GEO%LocalVolume
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE DSMC_2D_InitVolumes
 
@@ -167,6 +200,11 @@ RadialWeighting%CloneMode = GETINT('Particles-RadialWeighting-CloneMode')
 RadialWeighting%CloneInputDelay = GETINT('Particles-RadialWeighting-CloneDelay')
 ! Cell local radial weighting (all particles have the same weighting factor within a cell)
 RadialWeighting%CellLocalWeighting = GETLOGICAL('Particles-RadialWeighting-CellLocalWeighting')
+
+! Number of subsides to split the surface flux sides into, otherwise a wrong distribution of particles across large cells will be
+! inserted, visible in the number density as an increase in the number density closer the axis (e.g. resulting in a heat flux peak)
+! (especially when using mortar meshes)
+RadialWeighting%nSubSides=GETINT('Particles-RadialWeighting-SurfFluxSubSides')
 
 RadialWeighting%NextClone = 0
 
@@ -214,6 +252,7 @@ USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC, PartStateIntEn, us
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC, CollInf
 USE MOD_Particle_Vars           ,ONLY: PartMPF, PDM, PartSpecies, PartState, Species, LastPartPos
 USE MOD_TimeDisc_Vars           ,ONLY: iter
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartOut
 USE Ziggurat
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -292,6 +331,8 @@ ELSE
 ! ######## Particle Delete #######################################################################################################
 ! 2b.) Particle deletion, if the local weighting factor is greater than the previous (particle travelling upwards)
   IF(NewMPF.GT.OldMPF) THEN
+    ! Start deleting particles after the clone delay has passed and particles are also inserted
+    IF((INT(iter,4)+RadialWeighting%CloneDelayDiff).LE.RadialWeighting%CloneInputDelay) RETURN
     DeleteProb = 1. - CloneProb
     IF (DeleteProb.GT.0.5) THEN
       IPWRITE(*,*) 'New weighting factor:', NewMPF, 'Old weighting factor:', OldMPF
@@ -303,6 +344,9 @@ ELSE
     IF(DeleteProb.GT.iRan) THEN
       PDM%ParticleInside(iPart) = .FALSE.
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(iPart) = 0
+      IF(CalcPartBalance) THEN
+        nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
+      END IF ! CalcPartBalance
     END IF
   END IF
 END IF
@@ -319,12 +363,13 @@ SUBROUTINE DSMC_2D_SetInClones()
 !> 3.) Reset the list
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_DSMC_Vars             ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, RadialWeighting
-  USE MOD_DSMC_Vars             ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive
-  USE MOD_Particle_Vars         ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, VarTimeStep
-  USE MOD_Particle_VarTimeStep  ,ONLY: CalcVarTimeStep
-  USE MOD_TimeDisc_Vars         ,ONLY: iter
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive
+USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, VarTimeStep
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_TimeDisc_Vars           ,ONLY: iter
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -404,6 +449,9 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
     IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(PEM%Element(PositionNbr),5) = &
                                             DSMC%QualityFacSamp(PEM%Element(PositionNbr),5) + 1
   END IF
+  IF(CalcPartBalance) THEN
+    nPartIn(PartSpecies(PositionNbr))=nPartIn(PartSpecies(PositionNbr)) + 1
+  END IF ! CalcPartBalance
 END DO
 
 ! 3.) Reset the list
@@ -415,6 +463,7 @@ END SUBROUTINE DSMC_2D_SetInClones
 REAL FUNCTION DSMC_2D_CalcSymmetryArea(iLocSide,iElem, ymin, ymax)
 !===================================================================================================================================
 !> Calculates the actual area of an element for 2D simulations (plane/axisymmetric) regardless of the mesh dimension in z
+!> Utilized in the particle emission (surface flux) and boundary sampling
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -465,6 +514,59 @@ END IF
 RETURN
 
 END FUNCTION DSMC_2D_CalcSymmetryArea
+
+
+FUNCTION DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,iElem)!,ymin,ymax)
+!===================================================================================================================================
+!> Calculates the area of the subsides for the insertion with the surface flux
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: Pi
+USE MOD_Particle_Mesh_Vars        ,ONLY: GEO
+USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: iLocSide,iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+! REAL, INTENT(OUT)                 :: ymax(RadialWeighting%nSubSides),ymin(RadialWeighting%nSubSides)
+REAL                              :: DSMC_2D_CalcSymmetryAreaSubSides(RadialWeighting%nSubSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: iNode
+REAL                              :: P(1:2,1:4), Pmin(2), Pmax(2), MidPoint, PminTemp, PmaxTemp, Length
+!===================================================================================================================================
+
+Pmin = HUGE(Pmin)
+Pmax = -HUGE(Pmax)
+
+DO iNode = 1,4
+  P(1:2,iNode) = GEO%NodeCoords(1:2,GEO%ElemSideNodeID(iNode,iLocSide,iElem))
+END DO
+
+Pmax(1) = MAXVAL(P(1,:))
+Pmax(2) = MAXVAL(P(2,:))
+Pmin(1) = MINVAL(P(1,:))
+Pmin(2) = MINVAL(P(2,:))
+Length = SQRT((Pmax(1)-Pmin(1))**2 + (Pmax(2)-Pmin(2))**2)
+
+DO iNode = 1, RadialWeighting%nSubSides
+  PminTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*(iNode-1.)
+  PmaxTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*iNode
+  ! IF (PRESENT(ymax).AND.PRESENT(ymin)) THEN
+  !   ymin(iNode) = PminTemp
+  !   ymax(iNode) = PmaxTemp
+  ! END IF
+  MidPoint = (PmaxTemp+PminTemp) / 2.
+  DSMC_2D_CalcSymmetryAreaSubSides(iNode) = Length/RadialWeighting%nSubSides * MidPoint * Pi * 2.
+END DO
+
+RETURN
+
+END FUNCTION DSMC_2D_CalcSymmetryAreaSubSides
 
 
 REAL FUNCTION CalcRadWeightMPF(yPos, iSpec, iPart)

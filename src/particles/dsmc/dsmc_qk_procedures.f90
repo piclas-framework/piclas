@@ -104,7 +104,7 @@ END IF
 END SUBROUTINE QK_dissociation
 
 
-SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
+SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,NodeVolume,NodePartNum)
 !===================================================================================================================================
 ! tests for molecular recombination of two colliding atoms by the use of Birds QK theory
 !===================================================================================================================================
@@ -112,17 +112,15 @@ SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,Node
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
-USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PEM, PartState,  usevMPF
+USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PEM, PartState
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_DSMC_ChemReact,         ONLY: DSMC_Chemistry
-USE MOD_vmpf_collision,         ONLY: AtomRecomb_vMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARiABLES
 INTEGER, INTENT(IN)           :: iPair, iReac,iPart_p3
 LOGICAL, INTENT(INOUT)        :: RelaxToDo
-INTEGER, INTENT(IN)           :: iElem
 REAL, INTENT(IN), OPTIONAL    :: NodeVolume
 INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -149,17 +147,17 @@ SELECT CASE (ChemReac%QKMethod(iReac))
   CASE(1) ! Bird and Propability
   ! density of cell
   ! calculate collision temperature
-    omegaLauxAB = 0.5 * ( CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))          &
+    omegaLauxAB  = 0.5 * (CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))                    &
                       + CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,2),ChemReac%DefinedReact(iReac,1,2)))
-    ReactionProb = ChemReac%QKCoeff(iReac,1) * ( (2 -omegaLauxAB)**ChemReac%QKCoeff(iReac,2) )*GAMMA(2-omegaLauxAB) / &
-                   GAMMA(2-omegaLauxAB+ChemReac%QKCoeff(iReac,2) ) * nPartNode / Volume                         * &
-                   Species(PartSpecies(iPart_p3))%MacroParticleFactor                                            * &
-                   ( ( ( CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2                    / &
-                   ( 2 * BoltzmannConst * ( 2 - omegaLauxAB ) )  )                                       / &
-                   SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%CharaTVib)**ChemReac%QKCoeff(iReac,2) )  * &
-                   1.0/6.0 * PI * ( CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p1))+&
-                   CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p2),PartSpecies(Coll_pData(iPair)%iPart_p2))                 +&
-                   CollInf%dref(PartSpecies(iPart_p3),PartSpecies(iPart_p3))       )**3
+    ReactionProb = ChemReac%QKCoeff(iReac,1) * ((2 -omegaLauxAB)**ChemReac%QKCoeff(iReac,2))*GAMMA(2-omegaLauxAB)                 &
+                 / GAMMA(2-omegaLauxAB+ChemReac%QKCoeff(iReac,2)) * nPartNode / Volume                                            &
+                 * Species(PartSpecies(iPart_p3))%MacroParticleFactor                                                             &
+                 * ((( CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2                                       &
+                 / (2 * BoltzmannConst * (2 - omegaLauxAB)))                                                                      &
+                 / SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%CharaTVib)**ChemReac%QKCoeff(iReac,2))                              &
+                 * 1.0/6.0 * PI * (CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p1))  &
+                 + CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p2),PartSpecies(Coll_pData(iPair)%iPart_p2))                  &
+                 + CollInf%dref(PartSpecies(iPart_p3),PartSpecies(iPart_p3)))**3
     IF ( ReactionProb .ge. 1 ) THEN
       IPWRITE(UNIT_stdOut,*) 'ERROR: Recombination probability  >1'
       IPWRITE(UNIT_stdOut,*) 'iReac: ',iReac
@@ -181,11 +179,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
                              + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * &
                                  ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 ) &
                              + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
-        IF (usevMPF) THEN
-          CALL AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
-        ELSE
-          CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
-        END IF
+        CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
 #if (PP_TimeDiscMethod==42)
       END IF
       IF ( DSMC%ReservoirRateStatistic ) THEN
@@ -215,10 +209,10 @@ SELECT CASE (ChemReac%QKMethod(iReac))
       CALL RANDOM_NUMBER(iRan)
     END DO
     IF ( iQua .EQ. 0 ) THEN
-      ReactionProb = nPartNode * Species(PartSpecies(iPart_p3))%MacroParticleFactor / Volume * 1.0/6.0 * PI & 
-                   * ( CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p1)) + &
-                     CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p2),PartSpecies(Coll_pData(iPair)%iPart_p2)) + &
-                     CollInf%dref(PartSpecies(iPart_p3),PartSpecies(iPart_p3))       )**3
+      ReactionProb = nPartNode * Species(PartSpecies(iPart_p3))%MacroParticleFactor / Volume * 1.0/6.0 * PI         & 
+                   * (CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p1)) &
+                   + CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p2),PartSpecies(Coll_pData(iPair)%iPart_p2))  &
+                   + CollInf%dref(PartSpecies(iPart_p3),PartSpecies(iPart_p3)))**3
       CALL RANDOM_NUMBER(iRan)
       IF ( ReactionProb .gt. iRan) THEN
         IF ( MaxColQua .gt. 0 ) THEN
@@ -236,11 +230,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
                               + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * &
                               ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 ) &
                               + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
-        IF (usevMPF) THEN
-          CALL AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
-        ELSE
-          CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
-        END IF
+        CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
         RelaxToDo = .FALSE.
 #if (PP_TimeDiscMethod==42)
       END IF
@@ -348,7 +338,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
     iQuaDiss = INT(ChemReac%EActiv(iReac)/(BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib) )
     ! trial GLB redistribution
     Xi = 2.* ( 2. - CollInf%omegaLaux(PartSpecies(PartToExec),PartSpecies(PartToExec))) + SpecDSMC(PartSpecies(PartToExec))%Xi_Rot
-    FakXi = 0.5*Xi -1. ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
+    FakXi = 0.5*Xi -1. ! exponent factor of DOF, substitute of Xi_c - Xi_vib, Laux1996 diss page 40
     MaxColQua = INT(Coll_pData(iPair)%Ec/(BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib) &
                     - DSMC%GammaQuant)
     iQuaMax = MIN( MaxColQua + 1, SpecDSMC(PartSpecies(PartToExec))%MaxVibQuant )
@@ -619,7 +609,7 @@ Vref = 1.0/6.0 * PI * ( CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p1),Par
                         CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p2),PartSpecies(Coll_pData(iPair)%iPart_p2)) + &
                         CollInf%dref(PartSpecies(iPart_p3),PartSpecies(iPart_p3))       )**3
 
-! omegaLaux VHS
+! a HIER EINBAU COLLINF MITTELWERTomegaLaux  to be solved
 omegaLauxAB = 0.5 * ( CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))          &
                 + CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,2),ChemReac%DefinedReact(iReac,1,2)))
 

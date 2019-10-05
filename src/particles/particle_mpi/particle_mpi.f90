@@ -30,7 +30,7 @@ INTERFACE InitParticleMPI
   MODULE PROCEDURE InitParticleMPI
 END INTERFACE
 
-#ifdef MPI
+#if USE_MPI
 INTERFACE IRecvNbOfParticles
   MODULE PROCEDURE IRecvNbOfParticles
 END INTERFACE
@@ -82,7 +82,7 @@ PUBLIC :: ExchangeBezierControlPoints3D
 PUBLIC :: AddHaloNodeData
 #else
 PUBLIC :: InitParticleMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 !===================================================================================================================================
 
@@ -106,7 +106,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !REAL                             :: myRealTestValue
+#if USE_MPI
 INTEGER                         :: color
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -116,7 +118,7 @@ IF(ParticleMPIInitIsDone) &
     __STAMP__&
   ,' Particle MPI already initialized!')
 
-#ifdef MPI
+#if USE_MPI
 PartMPI%myRank = myRank
 color = 999
 CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,PartMPI%MyRank,PartMPI%COMM,iERROR)
@@ -136,7 +138,7 @@ iMessage=0
 PartMPI%myRank = 0
 PartMPI%nProcs = 1
 PartMPI%MPIRoot=.TRUE.
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 !! determine datatype length for variables to be sent
 !myRealKind = KIND(myRealTestValue)
 !IF (myRealKind.EQ.4) THEN
@@ -154,7 +156,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitParticleMPI
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE InitParticleCommSize()
 !===================================================================================================================================
 ! get size of Particle-MPI-Message. Unfortunately, this subroutine have to be called after particle_init because
@@ -369,6 +371,9 @@ PartMPIExchange%nPartsSend=0
 !    ' Cannot allocate PartMPIDepoSend!')
 PartTargetProc=-1
 DO iPart=1,PDM%ParticleVecLength
+  ! Activate phantom particles
+  IF(PartSpecies(iPart).LT.0) PDM%ParticleInside(iPart) = .TRUE.
+
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
@@ -407,7 +412,7 @@ IF(DoExternalParts)THEN
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral external particles!
-    IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
     ! Don't deposit external shape function particles in cells where local deposition is used (only when DoSFLocalDepoAtBounds=T)
     IF(SkipExternalSFParticles(iPart)) CYCLE
     ! Get indices of background mesh cells
@@ -606,7 +611,6 @@ USE MOD_Particle_Vars,            ONLY:Pt_temp
 #endif
 USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Mesh_Vars,       ONLY:GEO
-USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend,PartShiftVector, ExtPartCommSize, PartMPIDepoSend
 USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,  NbrOfExtParticles
@@ -861,71 +865,32 @@ DO iProc=1, PartMPI%nMPINeighbors
       !PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       PartSendBuf(iProc)%content(    1+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       jPos=jPos+1
-      IF(.NOT.UseLD) THEN
-        IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-          IF (usevMPF .AND. DSMC%ElectronicModel) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn(iPart, 2)
-            PartSendBuf(iProc)%content(3+jPos) = PartMPF(iPart)
-            PartSendBuf(iProc)%content(4+jPos) = PartStateIntEn(iPart, 3)
-            jPos=jPos+4
-          ELSE IF (usevMPF) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn(iPart, 2)
-            PartSendBuf(iProc)%content(3+jPos) = PartMPF(iPart)
-            jPos=jPos+3
-          ELSE IF ( DSMC%ElectronicModel ) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn(iPart, 2)
-            PartSendBuf(iProc)%content(3+jPos) = PartStateIntEn(iPart, 3)
-            jPos=jPos+3
-          ELSE
-            PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn(iPart, 2)
-            jPos=jPos+2
-          END IF
+      IF (useDSMC.AND.(CollisMode.GT.1)) THEN
+        IF (usevMPF .AND. DSMC%ElectronicModel) THEN
+          PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn(iPart, 1)
+          PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn(iPart, 2)
+          PartSendBuf(iProc)%content(3+jPos) = PartMPF(iPart)
+          PartSendBuf(iProc)%content(4+jPos) = PartStateIntEn(iPart, 3)
+          jPos=jPos+4
+        ELSE IF (usevMPF) THEN
+          PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn(iPart, 1)
+          PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn(iPart, 2)
+          PartSendBuf(iProc)%content(3+jPos) = PartMPF(iPart)
+          jPos=jPos+3
+        ELSE IF ( DSMC%ElectronicModel ) THEN
+          PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn(iPart, 1)
+          PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn(iPart, 2)
+          PartSendBuf(iProc)%content(3+jPos) = PartStateIntEn(iPart, 3)
+          jPos=jPos+3
         ELSE
-          IF (usevMPF) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartMPF(iPart)
-            jPos=jPos+1
-          END IF
+          PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn(iPart, 1)
+          PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn(iPart, 2)
+          jPos=jPos+2
         END IF
-      ELSE ! UseLD == true      =>      useDSMC == true
-        IF (CollisMode.GT.1) THEN
-          IF (usevMPF .AND. DSMC%ElectronicModel) THEN
-            PartSendBuf(iProc)%content( 1+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content( 2+jPos) = PartStateIntEn(iPart, 2)
-            PartSendBuf(iProc)%content( 3+jPos) = PartMPF(iPart)
-            PartSendBuf(iProc)%content( 4+jPos) = PartStateIntEn(iPart, 3)
-            PartSendBuf(iProc)%content( 5+jPos:9+jPos) = PartStateBulkValues(iPart,1:5)
-            jPos=jPos+9
-          ELSE IF (usevMPF) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn(iPart, 2)
-            PartSendBuf(iProc)%content(3+jPos) = PartMPF(iPart)
-            PartSendBuf(iProc)%content(4+jPos:8+jPos) = PartStateBulkValues(iPart,1:5)
-            jPos=jPos+8
-          ELSE IF ( DSMC%ElectronicModel ) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn(iPart, 2)
-            PartSendBuf(iProc)%content(3+jPos) = PartStateIntEn(iPart, 3)
-            PartSendBuf(iProc)%content(4+jPos:8+jPos) = PartStateBulkValues(iPart,1:5)
-            jPos=jPos+8
-          ELSE
-            PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn(iPart, 2)
-            PartSendBuf(iProc)%content(3+jPos:7+jPos) = PartStateBulkValues(iPart,1:5)
-            jPos=jPos+7
-          END IF
-        ELSE
-          IF (usevMPF) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartMPF(iPart)
-            PartSendBuf(iProc)%content(2+jPos:6+jPos) = PartStateBulkValues(iPart,1:5)
-            jPos=jPos+6
-          ELSE
-            PartSendBuf(iProc)%content(1+jPos:5+jPos) = PartStateBulkValues(iPart,1:5)
-            jPos=jPos+5
-          END IF
+      ELSE
+        IF (usevMPF) THEN
+          PartSendBuf(iProc)%content(1+jPos) = PartMPF(iPart)
+          jPos=jPos+1
         END IF
       END IF
       !--- put the polyatomic vibquants per particle at the end of the message
@@ -1230,34 +1195,38 @@ SUBROUTINE MPIParticleRecv()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartCommSize, PartRecvBuf,PartSendBuf!,iMessage
-USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIExchange,PartCommSize, PartRecvBuf,PartSendBuf
+USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef
 #if defined(LSERK)
-USE MOD_Particle_Vars,            ONLY:Pt_temp
+USE MOD_Particle_Vars          ,ONLY: Pt_temp
 #endif
-USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
-USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 ! variables for parallel deposition
-USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,ExtPartCommSize
-USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF
+USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts,ExtPartCommSize
+USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF
+USE MOD_Mesh_Vars              ,ONLY: nGlobalMortarSides
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemIsMortar
 #if defined(ROS) || defined(IMPA)
-USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage,PartDtFrac,PartQ
-USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
-USE MOD_Timedisc_Vars,            ONLY:iStage
-USE MOD_LinearSolver_Vars,        ONLY:PartXK,R_PartXK
-USE MOD_PICInterpolation_Vars,    ONLY:FieldAtParticle
-USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems
-USE MOD_Particle_Mesh_Vars,       ONLY:ElemToGlobalElemID
-USE MOD_Mesh_Vars,                ONLY:OffSetElem
+USE MOD_Particle_Vars          ,ONLY: PartStateN,PartStage,PartDtFrac,PartQ
+USE MOD_Particle_MPI_Vars      ,ONLY: PartCommSize0
+USE MOD_Timedisc_Vars          ,ONLY: iStage
+USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK
+USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToGlobalElemID
+USE MOD_Mesh_Vars              ,ONLY: OffSetElem
 #endif /*ROS or IMPA*/
 #if defined(IMPA)
-USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton &
+USE MOD_Particle_Vars          ,ONLY: F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton &
                                      ,PartDeltaX,PartLambdaAccept
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 #endif /*IMPA*/
-USE MOD_DSMC_Vars,               ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D,         ONLY: DSMC_2D_RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_RadialWeighting
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D_MortarMPI
+USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1452,72 +1421,46 @@ DO iProc=1,PartMPI%nMPINeighbors
     jPos=jPos+1
 #endif /*IMPA*/
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(1+jPos),KIND=4)
+    ! Consider special particles that are communicated with negative species ID (ghost partilces that are deposited on surface 
+    ! with their charge and are then removed)
+    IF(PartSpecies(PartID).LT.0)THEN
+      PartSpecies(PartID) = -PartSpecies(PartID) ! make positive species ID again
+      CALL DepositParticleOnNodes(PartID,PartState(PartID,1:3),PEM%Element(PartID))
+      PartSpecies(PartID) = 0 ! For safety: nullify the speciesID
+      PDM%ParticleInside(PartID) = .FALSE.
+#ifdef IMPA
+      PartIsImplicit(PartID) = .FALSE.
+      DoPartInNewton(PartID) = .FALSE.
+#endif /*IMPA*/
+      CYCLE ! Continue the loop with the next particle
+    END IF ! PartSpecies(PartID).LT.0
     jPos=jPos+1
-    IF(.NOT.UseLD) THEN
-      IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-        IF (usevMPF .AND. DSMC%ElectronicModel) THEN
-          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(1+jPos)
-          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(2+jPos)
-          PartMPF(PartID)           = PartRecvBuf(iProc)%content(3+jPos)
-          PartStateIntEn(PartID, 3) = PartRecvBuf(iProc)%content(4+jPos)
-          jPos=jPos+4
-        ELSE IF ( usevMPF ) THEN
-          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(1+jPos)
-          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(2+jPos)
-          PartMPF(PartID)           = PartRecvBuf(iProc)%content(3+jPos)
-          jPos=jPos+3
-        ELSE IF ( DSMC%ElectronicModel) THEN
-          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(1+jPos)
-          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(2+jPos)
-          PartStateIntEn(PartID, 3) = PartRecvBuf(iProc)%content(3+jPos)
-          jPos=jPos+3
-        ELSE
-          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(1+jPos)
-          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(2+jPos)
-          jPos=jPos+2
-        END IF
+    IF (useDSMC.AND.(CollisMode.GT.1)) THEN
+      IF (usevMPF .AND. DSMC%ElectronicModel) THEN
+        PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(1+jPos)
+        PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(2+jPos)
+        PartMPF(PartID)           = PartRecvBuf(iProc)%content(3+jPos)
+        PartStateIntEn(PartID, 3) = PartRecvBuf(iProc)%content(4+jPos)
+        jPos=jPos+4
+      ELSE IF ( usevMPF ) THEN
+        PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(1+jPos)
+        PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(2+jPos)
+        PartMPF(PartID)           = PartRecvBuf(iProc)%content(3+jPos)
+        jPos=jPos+3
+      ELSE IF ( DSMC%ElectronicModel) THEN
+        PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(1+jPos)
+        PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(2+jPos)
+        PartStateIntEn(PartID, 3) = PartRecvBuf(iProc)%content(3+jPos)
+        jPos=jPos+3
       ELSE
-        IF (usevMPF)THEN
-          PartMPF(PartID) = PartRecvBuf(iProc)%content(1+jPos)
-          jPos=jPos+1
-        END IF
+        PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(1+jPos)
+        PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(2+jPos)
+        jPos=jPos+2
       END IF
-    ELSE ! UseLD == true      =>      useDSMC == true
-      IF (CollisMode.GT.1) THEN
-        IF (usevMPF .AND. DSMC%ElectronicModel) THEN
-          PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(1+jPos)
-          PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(2+jPos)
-          PartMPF(PartID)                 = PartRecvBuf(iProc)%content(3+jPos)
-          PartStateIntEn(PartID, 3)       = PartRecvBuf(iProc)%content(4+jPos)
-          PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(5+jPos:9+jPos)
-          jPos=jPos+9
-        ELSE IF ( usevMPF) THEN
-          PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(1+jPos)
-          PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(2+jPos)
-          PartMPF(PartID)                 = PartRecvBuf(iProc)%content(3+jPos)
-          PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(4+jPos:8+jPos)
-          jPos=jPos+8
-        ELSE IF ( DSMC%ElectronicModel ) THEN
-          PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(1+jPos)
-          PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(2+jPos)
-          PartStateIntEn(PartID, 3)       = PartRecvBuf(iProc)%content(3+jPos)
-          PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(4+jPos:8+jPos)
-          jPos=jPos+8
-        ELSE
-          PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(1+jPos)
-          PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(2+jPos)
-          PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(3+jPos:7+jPos)
-          jPos=jPos+7
-        END IF
-      ELSE
-        IF (usevMPF) THEN
-          PartMPF(PartID)                 = PartRecvBuf(iProc)%content(1+jPos)
-          PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(2+jPos:6+jPos)
-          jPos=jPos+6
-        ELSE
-          PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(1+jPos:5+jPos)
-          jPos=jPos+5
-        END IF
+    ELSE
+      IF (usevMPF)THEN
+        PartMPF(PartID) = PartRecvBuf(iProc)%content(1+jPos)
+        jPos=jPos+1
       END IF
     END IF
     IF(MOD(jPos,PartCommSize).NE.0)THEN
@@ -1587,6 +1530,17 @@ IF(RadialWeighting%DoRadialWeighting) THEN
     PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
     CALL DSMC_2D_RadialWeighting(PartID,PEM%Element(PartID))
   END DO
+END IF
+
+IF(TriaTracking) THEN
+  IF(nGlobalMortarSides.GT.0) THEN
+    DO iPart = 1,nrecv
+      PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
+      IF(PartElemIsMortar(PEM%Element(PartID))) THEN
+        CALL ParticleInsideQuad3D_MortarMPI(PartState(PartID,1:3),PEM%Element(PartID),PDM%ParticleInside(PartID))
+      END IF
+    END DO
+  END IF
 END IF
 
 ! validate solution and check
@@ -1728,8 +1682,7 @@ IF(nInitRegions.GT.0) THEN
     END IF
   END DO ! iInitRegions
 END IF
-CALL MPI_COMM_FREE(PartMPI%COMM,iERROR)
-
+IF(PartMPI%COMM.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(PartMPI%COMM,iERROR)
 
 SDEALLOCATE( PartHaloElemToProc)
 SDEALLOCATE( PartHaloNodeToProc)
@@ -1839,7 +1792,7 @@ DO iSide=firstMPISide_YOUR,lastMPISide_YOUR
 END DO
 
 ! build the bounding box for missing MPI-mortar sides, or YOUR mortar sides
-! actually, I do not know, if this is requried
+! actually, I do not know, if this is required
 DO iSide=firstMortarMPISide,lastMortarMPISide
   ElemID=SideToElem(S2E_ELEM_ID,iSide)
   SideID=MortarSlave2MasterInfo(iSide)
@@ -2000,9 +1953,9 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
 USE MOD_Particle_Vars,          ONLY:Species,nSpecies
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_CalcTimeStep,           ONLY:CalcTimeStep
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_Particle_MPI_Vars,      ONLY:halo_eps
 !USE MOD_Particle_Mesh,          ONLY:BoxInProc
 ! IMPLICIT VARIABLE HANDLING
@@ -2104,9 +2057,9 @@ DO iSpec=1,nSpecies
       IF(Species(iSpec)%Init(iInit)%initialParticleNumber.NE.0)THEN
         lineVector(1:3)=(/0.,0.,Species(iSpec)%Init(iInit)%CuboidHeightIC/)
       ELSE
-#ifndef PP_HDG
+#if !(USE_HDG)
         dt = CALCTIMESTEP()
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
         lineVector(1:3)= dt* Species(iSpec)%Init(iInit)%VeloIC/Species(iSpec)%Init(iInit)%alpha
         zlen=0.
       END IF
@@ -2271,10 +2224,6 @@ DO iSpec=1,nSpecies
         xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
       END DO ! iNode
       RegionOnProc=BoxInProc(xCoords,8)
-
-
-    CASE('LD_insert')
-      RegionOnProc=.TRUE.
     CASE('cell_local')
       RegionOnProc=.TRUE.
     CASE('cuboid_equal')
@@ -2759,6 +2708,6 @@ DO iProc=1,PartMPI%nMPINodeNeighbors
 END DO ! iProc
 
 END SUBROUTINE AddHaloNodeData
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END MODULE MOD_Particle_MPI

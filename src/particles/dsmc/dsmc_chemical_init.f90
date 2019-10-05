@@ -967,7 +967,7 @@ SUBROUTINE Calc_Arrhenius_Factors()
                 ELSE
                   Xi_vib2 = 0
                 END IF
-                !also only defined for one omegaLaux VHS for each species
+                !also only defined for one omegaLaux for each species
                 ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,iQua2) = Xi_vib1 + Xi_vib2  &
                         + SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%Xi_Rot &
                         + SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%Xi_Rot &
@@ -1053,7 +1053,7 @@ SUBROUTINE Calc_Arrhenius_Factors()
                 ELSE
                   Xi_vib2 = 0
                 END IF
-                ! also only defined for one omegaLaux VHS for each species
+                ! also only defined for one omegaLaux for each species
                 ChemReac%ReactInfo(iReac)%Xi_Total(0,iQua2) = Xi_vib2  &
                         + SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%Xi_Rot &
                         + 2*(2 - CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1)))
@@ -1115,7 +1115,7 @@ SUBROUTINE Calc_Arrhenius_Factors()
                   ELSE
                     Xi_vib2 = 0
                   END IF
-                  !also only defined for one omegaLaux VHS for each species
+                  !also only defined for one omegaLaux for each species
                   ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,iQua2) = Xi_vib1 + Xi_vib2  &
                           + SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%Xi_Rot &
                           + SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%Xi_Rot &

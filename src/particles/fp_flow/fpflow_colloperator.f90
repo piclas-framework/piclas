@@ -208,9 +208,9 @@ Theta = BoltzmannConst*CellTemp/Species(1)%MassIC
 nu= MAX(nu,-Theta/(W(3)-Theta))
 dens = nPart * WeightingFactor / NodeVolume
 dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*CollInf%Tref(1,1)/Pi) &
-        /(4.*(4.- 2.*CollInf%omegaLaux(1,1)) * (6. - 2.*CollInf%omegaLaux(1,1))* CollInf%dref(1,1)**2.)
-relaxfreq = dens*BoltzmannConst*CollInf%Tref(1,1)**(CollInf%omegaLaux(1,1) + 0.5) &
-      /dynamicvis*CellTemp**(-CollInf%omegaLaux(1,1) +0.5)
+           / (4.*(4.- 2.*CollInf%omegaLaux(1,1)) * (6. - 2.*CollInf%omegaLaux(1,1))* CollInf%dref(1,1)**2.)
+relaxfreq  = dens*BoltzmannConst*CollInf%Tref(1,1)**(CollInf%omegaLaux(1,1) + 0.5) &
+           / dynamicvis*CellTemp**(-CollInf%omegaLaux(1,1) +0.5)
 IF (FPCollModel.EQ.2) THEN
 !  relaxtime = 2.0*(1.-nu)/relaxfreq
   relaxtime = 3.0/(Prandtl*relaxfreq)
@@ -229,8 +229,8 @@ END IF
 
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   collisionfreq = SpecFP(1)%CollFreqPreFactor(1) * dens *CellTemp**(-CollInf%omegaLaux(1,1) +0.5)
-  rotrelaxfreq = collisionfreq * DSMC%RotRelaxProb
-  vibrelaxfreq = collisionfreq * DSMC%VibRelaxProb
+  rotrelaxfreq  = collisionfreq * DSMC%RotRelaxProb
+  vibrelaxfreq  = collisionfreq * DSMC%VibRelaxProb
   IF(SpecDSMC(1)%PolyatomicMol) THEN
     CALL CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_vib_DOF, Xi_Vib_old, RotExp, VibExp, TEqui, rotrelaxfreq, vibrelaxfreq, &
                         dtCell, DoVibRelaxIn=FPDoVibRelaxation)

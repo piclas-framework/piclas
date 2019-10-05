@@ -232,7 +232,7 @@ END IF
 
 ! 2.) Calculate the reference dynamic viscosity, Prandtl number and the resulting relaxation frequency of the distribution function
 dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*CollInf%Tref(1,1)/Pi) &
-        /(4.*(4.- 2.*CollInf%omegaLaux(1,1)) * (6. - 2.*CollInf%omegaLaux(1,1))* CollInf%dref(1,1)**2.)
+           / (4.*(4.- 2.*CollInf%omegaLaux(1,1)) * (6. - 2.*CollInf%omegaLaux(1,1))* CollInf%dref(1,1)**2.)
 Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
 CShak= Prandtl*(1.-BGKUnifiedCes)
 IF (BGKCollModel.EQ.1) THEN
@@ -1050,14 +1050,15 @@ REAL                            :: correctFac, correctFacRot, maxexp
 INTEGER                         :: iDOF, iPolyatMole
 LOGICAL                         :: DoVibRelax
 !===================================================================================================================================
-  IF (PRESENT(DoVibRelaxIn)) THEN
-    DoVibRelax = DoVibRelaxIn
-  ELSE
-    DoVibRelax = BGKDoVibRelaxation
-  END IF
-  maxexp = LOG(HUGE(maxexp))
-  Xi_Rot =   SpecDSMC(1)%Xi_Rot
-  iPolyatMole = SpecDSMC(1)%SpecToPolyArray
+IF (PRESENT(DoVibRelaxIn)) THEN
+  DoVibRelax = DoVibRelaxIn
+ELSE
+  DoVibRelax = BGKDoVibRelaxation
+END IF
+
+maxexp = LOG(HUGE(maxexp))
+Xi_Rot =   SpecDSMC(1)%Xi_Rot
+iPolyatMole = SpecDSMC(1)%SpecToPolyArray
 !  Xi_rel = 2.*(2. - CollInf%omegaLaux(1,1))
 !  correctFac = 0.0
 !  DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF

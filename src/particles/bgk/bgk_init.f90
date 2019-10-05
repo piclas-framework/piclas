@@ -185,12 +185,6 @@ IF(DSMC%CalcQualityFactors) THEN
   BGK_QualityFacSamp(1:5,1:nElems) = 0.0
 END IF
 
-IF(VarTimeStep%UseVariableTimeStep.AND.VarTimeStep%UseDistribution) THEN
-  CALL abort(&
-__STAMP__&
-,' ERROR BGK Init: Adapting the time step distribution is not implemented in BGK yet!')
-END IF
-
 BGKInitDone = .TRUE.
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT BGK DONE!'
