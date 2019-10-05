@@ -128,7 +128,7 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iQuaMax, MaxColQua, iQua
-REAL                          :: Volume, nPartNode, omegaLauxAB, ReactionProb, iRan, Xi, FakXi
+REAL                          :: Volume, nPartNode, ReactionProb, iRan, Xi, FakXi
 LOGICAL                       :: recomb
 !===================================================================================================================================
 
@@ -147,17 +147,19 @@ SELECT CASE (ChemReac%QKMethod(iReac))
   CASE(1) ! Bird and Propability
   ! density of cell
   ! calculate collision temperature
-    omegaLauxAB  = 0.5 * (CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))                    &
-                      + CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,2),ChemReac%DefinedReact(iReac,1,2)))
-    ReactionProb = ChemReac%QKCoeff(iReac,1) * ((2 -omegaLauxAB)**ChemReac%QKCoeff(iReac,2))*GAMMA(2-omegaLauxAB)                 &
-                 / GAMMA(2-omegaLauxAB+ChemReac%QKCoeff(iReac,2)) * nPartNode / Volume                                            &
-                 * Species(PartSpecies(iPart_p3))%MacroParticleFactor                                                             &
-                 * ((( CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2                                       &
-                 / (2 * BoltzmannConst * (2 - omegaLauxAB)))                                                                      &
-                 / SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%CharaTVib)**ChemReac%QKCoeff(iReac,2))                              &
-                 * 1.0/6.0 * PI * (CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p1))  &
-                 + CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p2),PartSpecies(Coll_pData(iPair)%iPart_p2))                  &
-                 + CollInf%dref(PartSpecies(iPart_p3),PartSpecies(iPart_p3)))**3
+    ReactionProb = ChemReac%QKCoeff(iReac,1) * ( (2 -CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1)                         &
+                 , ChemReac%DefinedReact(iReac,1,2)))**ChemReac%QKCoeff(iReac,2) )                                              &
+                 * GAMMA(2-CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1)                                                   & 
+                 , ChemReac%DefinedReact(iReac,1,2))) / GAMMA(2-CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1)              &
+                 , ChemReac%DefinedReact(iReac,1,2))+ChemReac%QKCoeff(iReac,2) ) * nPartNode / Volume                           &
+                 *  Species(PartSpecies(iPart_p3))%MacroParticleFactor                                                           &
+                 *  ( ( ( CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2                                   &
+                 /              ( 2 * BoltzmannConst * ( 2 - CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1)                  &
+                 , ChemReac%DefinedReact(iReac,1,2)) ) )  )                                                                      &
+                 /  SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%CharaTVib)**ChemReac%QKCoeff(iReac,2) )                           &
+                 * 1.0/6.0 * PI * ( CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p1))&
+                 +           CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p2),PartSpecies(Coll_pData(iPair)%iPart_p2))       &
+                 +           CollInf%dref(PartSpecies(iPart_p3),PartSpecies(iPart_p3))       )**3
     IF ( ReactionProb .ge. 1 ) THEN
       IPWRITE(UNIT_stdOut,*) 'ERROR: Recombination probability  >1'
       IPWRITE(UNIT_stdOut,*) 'iReac: ',iReac
@@ -543,7 +545,7 @@ LOGICAL, INTENT(INOUT)              :: RelaxToDo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                             :: iQuaMax1, iQuaMax2,MaxElecQuant, iQua
-REAL                                :: Volume, nPartNode, omegaLauxAB, ReactionProb, iRan, Vref, coeffT,Tcoll, acorrection
+REAL                                :: Volume, nPartNode, ReactionProb, iRan, Vref, coeffT,Tcoll, acorrection
 INTEGER                             :: PartReac1,PartReac2
 !===================================================================================================================================
 
@@ -609,12 +611,9 @@ Vref = 1.0/6.0 * PI * ( CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p1),Par
                         CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p2),PartSpecies(Coll_pData(iPair)%iPart_p2)) + &
                         CollInf%dref(PartSpecies(iPart_p3),PartSpecies(iPart_p3))       )**3
 
-! a HIER EINBAU COLLINF MITTELWERTomegaLaux  to be solved
-omegaLauxAB = 0.5 * ( CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))          &
-                + CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,2),ChemReac%DefinedReact(iReac,1,2)))
-
 ! temperature coeff; therefore,shift iQuaMax, because iQua of first level is zero
-coeffT = 2 - omegaLauxAB + (iQuaMax1+1) * LOG(1.0 + 1.0/REAL(iQuaMax1+1) ) + (iQuaMax2+1) * LOG(1.0 + 1.0/REAL(iQuaMax2+1) )
+coeffT = 2 - CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)) + (iQuaMax1+1) &
+       * LOG(1.0 + 1.0/REAL(iQuaMax1+1) ) + (iQuaMax2+1) * LOG(1.0 + 1.0/REAL(iQuaMax2+1) )
 
 Tcoll = (Coll_pData(iPair)%Ec/(2*BoltzmannConst)) / coeffT
 

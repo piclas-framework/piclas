@@ -1339,8 +1339,8 @@ IF (CollisMode.EQ.0) THEN
         SpecDSMC(iSpec)%CollNumVib(jSpec) = (2.* (SpecDSMC(iSpec)%CharaVelo(jSpec)**2) * EXP(SpecDSMC(iSpec)%MW_ConstB(jSpec)) &
                                   / (SQRT(3.) * CollInf%MassRed(iCase)) ) &
                                   * pi/4.*(CollInf%dref(iSpec,jSpec))**2 &
-                                  * ( 2.* (2.-SpecDSMC(iSpec)%omegaVHS) * BoltzmannConst * SpecDSMC(iSpec)%TrefVHS &
-                                  / CollInf%MassRed(iCase) ) ** SpecDSMC(iSpec)%omegaVHS
+                                  * ( 2.* (2.-CollInf%omegaLaux(iSpec,iSpec)) * BoltzmannConst * CollInf%Tref(iSpec,iSpec) &
+                                  / CollInf%MassRed(iCase) ) ** CollInf%omegaLaux(iSpec,iSpec)
       END DO ! jSpec
       DEALLOCATE(SpecDSMC(iSpec)%MW_ConstA)
       DEALLOCATE(SpecDSMC(iSpec)%MW_ConstB)

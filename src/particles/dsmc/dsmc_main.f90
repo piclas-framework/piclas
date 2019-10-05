@@ -237,7 +237,6 @@ DO iElem = 1, nElems ! element/cell main loop
             DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
             END IF ! SamplingActive
           END IF ! (.NOT.SamplingActive).AND.(iter-QCritLastTest.EQ.QCritTestStep)
-        END IF ! UseQCrit
       ELSE IF(UseSSD) THEN
         ! Use SSD for steady - state detection
         IF((.NOT.SamplingActive)) THEN
@@ -271,11 +270,11 @@ DO iElem = 1, nElems ! element/cell main loop
             IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN
               CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
               IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
-            END IF
-          END IF
-        END IF
-      END IF
-    END IF
+            END IF !RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))
+          END IF ! RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))
+        END IF ! DSMC%NumOutput.NE.0
+      END IF ! SamplingActive
+    END IF ! .NOT.WriteMacroVolumeValues .AND. .NOT.WriteMacroSurfaceValues (TD42 + .NOT.Reservoir)
 END SUBROUTINE DSMC_main
 
 END MODULE MOD_DSMC

@@ -29,8 +29,12 @@ INTERFACE VELOFROMDISTRIBUTION
   MODULE PROCEDURE VELOFROMDISTRIBUTION
 END INTERFACE
 
-INTERFACE DiceDeflectedVector
-  MODULE PROCEDURE DiceDeflectedVector
+INTERFACE DiceDeflectedVelocityVector
+  MODULE PROCEDURE DiceDeflectedVelocityVector
+END INTERFACE
+
+INTERFACE DiceUnitVector
+  MODULE PROCEDURE DiceUnitVector
 END INTERFACE
 
 INTERFACE CreateParticle
@@ -42,7 +46,8 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle, DiceDeflectedVector
+PUBLIC :: UpdateNextFreePosition, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle, DiceDeflectedVelocityVector
+PUBLIC :: DiceUnitVector
 !===================================================================================================================================
 
 CONTAINS
@@ -146,8 +151,8 @@ FUNCTION DiceDeflectedVelocityVector(CRela2,ur,vr,wr,alphaVSS)
 ! Calculation of post collision velocity vector 
 ! 
 ! Calculates deflection angle and resulting deflection relative velocity vector including the coordinate transformation 
-! from the reduced mass system back to the COM frame - see Bird 1994, QUELLE for more details.
-! VHS: isotropic scattering vector
+! from the reduced mass system back to the COM frame - see Bird 1994 p.36
+! VHS: isotropic   scattering vector
 ! VSS: anisotropic scattering vector
 !===================================================================================================================================
 ! MODULES
@@ -162,7 +167,7 @@ FUNCTION DiceDeflectedVelocityVector(CRela2,ur,vr,wr,alphaVSS)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-  REAL                       :: DiceDeflectedVector(3) ! post-collision relative velocity vector                CRela*
+  REAL                       :: DiceDeflectedVelocityVector(3) ! post-collision relative velocity vector                CRela*
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES   
  REAL                        :: CRela               ! absolute value of pre-coll relative velocity abs(CRela), Bird1994 (2.3),(2.8) 
@@ -171,40 +176,41 @@ FUNCTION DiceDeflectedVelocityVector(CRela2,ur,vr,wr,alphaVSS)
 !===================================================================================================================================
   CRela                    = SQRT(CRela2)
   CALL RANDOM_NUMBER(iRan)
-  cos_scatAngle            = 2.*iRan**(1./alphaVSS)-1.          ! anisotropic scattering angle                  chi 
-                                                                ! if alpha=1 VHS isotropic scattering angle     chi e [-1,1]
+  cos_scatAngle            = 2.*iRan**(1./alphaVSS)-1.     ! anisotropic scattering angle                  chi 
+                                                           ! if alpha=1 VHS isotropic scattering angle     chi e [-1,1]
   sin_scatAngle            = SQRT(1. - cos_scatAngle**2.)
-  DiceDeflectedVector(1)   = CRela*cos_scatAngle                ! DiceDeflectedVector(x,y,z) order according to Bird 1994, p.36  
+  DiceDeflectedVelocityVector(1)   = CRela*cos_scatAngle   
   CALL RANDOM_NUMBER(iRan)
-  rotAngle                 = 2.*PI*iRan                         ! rotation angle [0,2*pi]                       epsilon
-  DiceDeflectedVector(2)   = CRela*sin_scatAngle*cos(rotAngle)
-  DiceDeflectedVector(3)   = CRela*sin_scatAngle*sin(rotAngle)
+  rotAngle                 = 2.*PI*iRan                    ! rotation angle [0,2*pi]                       epsilon
+  DiceDeflectedVelocityVector(2)   = CRela*sin_scatAngle*cos(rotAngle)
+  DiceDeflectedVelocityVector(3)   = CRela*sin_scatAngle*sin(rotAngle)
   IF (alphaVSS.GT.1) THEN ! VSS
     IF ((vr.NE.0.) .AND. (wr.NE.0.)) THEN
-          ! axis transformation from one-body collision frame back to the COM frame via Bird1994 p.36
-          ! A*b=(2.22) due to performance reasons
+      ! axis transformation from reduced mass frame back to COM frame via Bird1994 p.36 (2.22)=A*b matmul for performance reasons
       ! initializing rotation matrix
-      trafoMatrix(1,1)=ur/CRela
-      trafoMatrix(1,2)=0
-      trafoMatrix(1,3)=sqrt(vr**2+wr**2)/CRela
-      trafoMatrix(2,1)=vr/CRela
-      trafoMatrix(2,2)=wr/sqrt(vr**2+wr**2)
-      trafoMatrix(2,3)=-ur*vr/(CRela*sqrt(vr**2+wr**2))
-      trafoMatrix(3,1)=wr/CRela
-      trafoMatrix(3,2)=-vr/sqrt(vr**2+wr**2)
-      trafoMatrix(3,3)=-ur*wr/(CRela*sqrt(vr**2+wr**2))
+      trafoMatrix(1,1) = ur / CRela
+      trafoMatrix(1,2) = 0
+      trafoMatrix(1,3) = SQRT( vr ** 2 + wr ** 2) / CRela
+      trafoMatrix(2,1) = vr / CRela
+      trafoMatrix(2,2) = wr / SQRT( vr ** 2 + wr ** 2)
+      trafoMatrix(2,3) = - ur * vr / ( CRela*SQRT( vr ** 2 + wr ** 2))
+      trafoMatrix(3,1) = wr / CRela
+      trafoMatrix(3,2) = -vr / SQRT( vr ** 2 + wr ** 2)
+      trafoMatrix(3,3) = -ur * wr / ( CRela * SQRT( vr ** 2 + wr ** 2))
+
       ! relative velocity transformation from reduced mass to COM frame
-      DiceDeflectedVector(:)=MATMUL(trafoMatrix,DiceDeflectedVector)
+      DiceDeflectedVelocityVector(:)=MATMUL(trafoMatrix,DiceDeflectedVelocityVector)
     END IF ! transformation
   END IF ! VSS
 END FUNCTION DiceDeflectedVelocityVector
 
 FUNCTION DiceUnitVector()
 !===================================================================================================================================
-! Calculates random unit vector TO BE SOLVED - ersetzen
+! Calculates random unit vector
 ! 
-! Calculates random unit vector for the post collision velocity of the VHS collision model with isotropic scattering behavior 
-! which expresses isotropic scattering.
+! Calculates random unit vector for the post collision velocity in chemical reaction,... 
+! The routine is used for isotropic scattering (VHS collision model).
+! Will be replaced shortly in all routines through the new DiceDeflectedVelocityVector routine.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

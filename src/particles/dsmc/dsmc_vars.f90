@@ -295,7 +295,8 @@ END TYPE tPairData
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)                ! Data of collision pairs into a cell (nPair)
 
 TYPE tCollInf     ! Collision information 
-  INTEGER                       :: crossSectionConstantMode     ! Flags how Cab(Laux1996) is calculated. sigma=Cab * cr^(-2 omega).
+  INTEGER                       :: crossSectionConstantMode     ! Flags how cross section constant Cab(Laux1996) is calculated. 
+                                                                ! sigma=Cab * cr^(-2 omega).
                                                                 !   0: single omega for the computational domain + A_j calculation
                                                                 !   1: Cab will be calculated via species-specific factor A_j
                                                                 !   2: Cab will be calculated directly see Bird1981 eq (9)

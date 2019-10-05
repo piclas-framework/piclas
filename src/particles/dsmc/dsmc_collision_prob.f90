@@ -75,7 +75,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 
   iPType      = SpecDSMC(iSpec1)%InterID + SpecDSMC(iSpec2)%InterID ! collision case definition
 
-  iPType = SpecDSMC(iSpec_p1)%InterID + SpecDSMC(iSpec_p2)%InterID !definition of collision case
+  iPType = SpecDSMC(iSpec1)%InterID + SpecDSMC(iSpec2)%InterID !definition of collision case
 
   IF (PRESENT(NodeVolume)) THEN
     Volume = NodeVolume
@@ -124,14 +124,13 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
     ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron 
         IF (BGGas%BGGasSpecies.NE.0) THEN                                     
           ! Collision probability, Laux1996 (2.44),(2.47),(2.49)   (or see Munz2014)
-          Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum / (1 + CollInf%KronDelta(PairType))                                 & 
-                                 * CollInf%crossSectionConstantCab(PairType) * Species(iSpec1)%MacroParticleFactor *dtCell/ Volume  &
+          Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum / (1 + CollInf%KronDelta(PairType))                                   & 
+                                 * CollInf%crossSectionConstantCab(PairType) * Species(iSpec1)%MacroParticleFactor *dtCell/ Volume&
                                  * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omegaLaux(iSpec1,iSpec2)) 
         ELSE                                                                  
           ! collision probability, Laux1996 (2.44),(2.47),(2.49) CaseNum = Sab = sum of all cases (or see Munz2014)
           ! only one omega is used and assumption macroParticleFactor is coherent for all species
-          ! does not calculate the cross-section new in every iteration. Cab is initially determined and works as reference. to be solved füg aus init ein
-          Coll_pData(iPair)%Prob = SpecNum1 * SpecNum2 / (1 + CollInf%KronDelta(PairType))                                 &
+          Coll_pData(iPair)%Prob = SpecNum1 * SpecNum2 / (1 + CollInf%KronDelta(PairType))                                     &
                                  * CollInf%crossSectionConstantCab(PairType) / CollCaseNum                                     &          
                                  * MacroParticleFactor * dtCell / Volume                                                       & 
                                  * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omegaLaux(iSpec1,iSpec2))

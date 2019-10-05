@@ -1100,7 +1100,7 @@ INTEGER             :: dir
       IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
       IF (PartMPI%MPIRoot) THEN
         IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
-                                                              GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
+                                                              GEO%MeshVolume, CollInf%omegaLaux(1,1), TempTotal(nSpecAnalyze))
       END IF
     END IF
     IF(CalcRelaxProb) CALL CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
