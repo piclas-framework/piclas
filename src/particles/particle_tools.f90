@@ -195,7 +195,7 @@ FUNCTION DiceDeflectedVelocityVector(cRela2,ur,vr,wr,alphaVSS)
 
 ! for VSS the direction is no longer negligible 
   IF (alphaVSS.GT.1) THEN ! VSS
-    IF ((vr.NE.0.) .AND. (wr.NE.0.)) THEN ! if radial component is zero the coll plane and LAB fall together, no transformation
+    IF ((vr.NE.0.) .AND. (wr.NE.0.)) THEN ! if radial component is zero the coll plane and laboratory fall together, no transformation
       ! axis transformation from reduced mass frame back to COM frame via Bird1994 p.36 (2.22)=A*b MATMUL for performance reasons
 
       ! initializing rotation matrix

@@ -700,19 +700,20 @@ IF (CollisMode.EQ.0) THEN
         CollInf%KronDelta(iCase) = 0
       END IF !kronecker delta
       ! Laux (2.37) prefactor crossSectionConstantCab calculation depending on omegaLaux coll-averaged or -specific
-      SELECT CASE (CollInf%crossSectionConstantMode) ! sigma=Cab * cr^(-2 omegaLaux)
+      SELECT CASE (CollInf%crossSectionConstantMode) ! sigma=Cab * cr^(-2 omegaLaux) , see Bird1981 for details
       CASE (0,1) 
         ! A1,A2 species constants, see laux1996 (2.38),(2.39) 
-        A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec)*(2*BoltzmannConst* CollInf%Tref(iSpec,iSpec))** &
-           (CollInf%omegaLaux(iSpec,iSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omegaLaux(iSpec,iSpec)))
-        A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(jSpec,jSpec))** &
-           (CollInf%omegaLaux(jSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omegaLaux(jSpec,jSpec)))
-        CollInf%crossSectionConstantCab(iCase) = (A1 + A2)**2 * CollInf%MassRed(iCase)** ( - CollInf%omegaLaux(iSpec,jSpec))
+        A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec) * (2 * BoltzmannConst * CollInf%Tref(iSpec , iSpec)) ** &
+           (CollInf%omegaLaux(iSpec , iSpec) * 0.5) / SQRT (GAMMA(2.0 - CollInf%omegaLaux(iSpec , iSpec)))
+        A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec , jSpec)*(2 * BoltzmannConst * CollInf%Tref(jSpec , jSpec)) ** &
+           (CollInf%omegaLaux(jSpec , jSpec)*0.5) / SQRT (GAMMA(2.0 - CollInf%omegaLaux(jSpec , jSpec)))
+        CollInf%crossSectionConstantCab(iCase) = (A1 + A2) ** 2 * CollInf%MassRed(iCase) ** ( - CollInf%omegaLaux(iSpec , jSpec))
+
       CASE (2) ! cross section constant Cab without Laux simplification (needed if multiple omegas are used) see bird1981 (9)
-        CollInf%crossSectionConstantCab(iCase) = (SQRT(Pi) * CollInf%dref(iSpec,jSpec)*                                           &
-                                               (2*BoltzmannConst*CollInf%Tref(iSpec,jSpec))**(CollInf%omegaLaux(iSpec,jSpec)*0.5) &
-                                               /SQRT(GAMMA(2.0 - CollInf%omegaLaux(iSpec,jSpec))))**2                             &
-                                               * CollInf%MassRed(iCase)** ( - CollInf%omegaLaux(iSpec,jSpec))
+        CollInf%crossSectionConstantCab(iCase) = (SQRT (Pi) * CollInf%dref(iSpec , jSpec) *                                      &
+                                  (2 * BoltzmannConst * CollInf%Tref(iSpec , jSpec)) ** (CollInf%omegaLaux(iSpec , jSpec) * 0.5) &
+                                  / SQRT (GAMMA (2.0 - CollInf%omegaLaux(iSpec , jSpec)))) ** 2                                  &
+                                  * CollInf%MassRed(iCase)** ( - CollInf%omegaLaux(iSpec , jSpec))
       END SELECT !crossSectionConstant
     END DO !jspec=nspecies
   END DO ! ispec=nspecies

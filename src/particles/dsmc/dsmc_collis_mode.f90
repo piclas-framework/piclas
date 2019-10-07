@@ -196,14 +196,14 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
   cRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
   cRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
 
-! Calculation of post collision velocity vector in reference frame and retransformation to COM frame
+! Calculation of post collision velocity vector in reference frame and retransformation to center-of-mass frame
   RanVec(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 , cRelaX , cRelaY , cRelaZ , CollInf%alphaVSS(iSpec1,iSpec2))
   
- ! deltaV particle 1 (post collision particle 1 velocity in LAB frame) 
+ ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame) 
   DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(iPart1, 4)
   DSMC_RHS(iPart1,2) = VeloMy + FracMassCent2*RanVec(2) - PartState(iPart1, 5)
   DSMC_RHS(iPart1,3) = VeloMz + FracMassCent2*RanVec(3) - PartState(iPart1, 6)
- ! deltaV particle 2 (post collision particle 2 velocity in LAB frame)
+ ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame)
   DSMC_RHS(iPart2,1) = VeloMx - FracMassCent1*RanVec(1) - PartState(iPart2, 4)
   DSMC_RHS(iPart2,2) = VeloMy - FracMassCent1*RanVec(2) - PartState(iPart2, 5)
   DSMC_RHS(iPart2,3) = VeloMz - FracMassCent1*RanVec(3) - PartState(iPart2, 6)
@@ -294,14 +294,14 @@ IF ((sigma_el/sigma_tot).GT.uRan2) THEN
     CALL RANDOM_NUMBER(uRanRot)
     RotAngle = uRanRot * 2 * Pi
 
-    ! Calculation of post-collision relative velocities in COM frame
+    ! Calculation of post-collision relative velocities in center-of-mass frame
     cRelaxN = COS(ScatAngle)*cRelax + SIN(ScatAngle)*SIN(RotAngle)*(cRelay**2+cRelaz**2)**0.5
     cRelayN = COS(ScatAngle)*cRelay &
      +SIN(ScatAngle)*(SQRT(Coll_pData(ipair)%cRela2)*cRelaz*COS(RotAngle)-cRelax*cRelay*SIN(RotAngle))/(cRelay**2+cRelaz**2)**0.5
     cRelazN = COS(ScatAngle)*cRelaz &
      -SIN(ScatAngle)*(SQRT(Coll_pData(ipair)%cRela2)*cRelay*COS(RotAngle)+cRelax*cRelaz*SIN(RotAngle))/(cRelay**2+cRelaz**2)**0.5
 
-    ! Transformation to LAB frame
+    ! Transformation to laboratory frame
     ! deltaV particle 1
     DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*cRelaxN - PartState(iPart1, 4)
     DSMC_RHS(iPart1,2) = VeloMy + FracMassCent2*cRelayN - PartState(iPart1, 5)
@@ -662,13 +662,13 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 
   Coll_pData(iPair)%cRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
 
-  ! Calculation of post collision relative velocity vector in reference frame and retransformation to COM frame
+  ! Calculation of post collision relative velocity vector in reference frame and retransformation to center-of-mass frame
   RanVec(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 , cRelaX , cRelaY , cRelaZ , CollInf%alphaVSS(iSpec1,iSpec2))
-  ! deltaV particle 1 (post collision particle 1 velocity in LAB frame) 
+  ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame) 
   DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(iPart1, 4)
   DSMC_RHS(iPart1,2) = VeloMy + FracMassCent2*RanVec(2) - PartState(iPart1, 5)
   DSMC_RHS(iPart1,3) = VeloMz + FracMassCent2*RanVec(3) - PartState(iPart1, 6)
-  ! deltaV particle 2 (post collision particle 2 velocity in LAB frame) 
+  ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame) 
   DSMC_RHS(iPart2,1) = VeloMx - FracMassCent1*RanVec(1) - PartState(iPart2, 4)
   DSMC_RHS(iPart2,2) = VeloMy - FracMassCent1*RanVec(2) - PartState(iPart2, 5)
   DSMC_RHS(iPart2,3) = VeloMz - FracMassCent1*RanVec(3) - PartState(iPart2, 6)
@@ -1006,14 +1006,14 @@ __STAMP__&
   cRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
   Coll_pData(iPair)%cRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
 
-! Calculation of post collision relative velocity vector in reference frame and retransformation to COM frame
+! Calculation of post collision relative velocity vector in reference frame and retransformation to center-of-mass frame
   RanVec(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 , cRelaX , cRelaY , cRelaZ , CollInf%alphaVSS(iSpec1,iSpec2))
 
-  ! deltaV particle 1 (post collision particle 1 velocity in LAB frame) 
+  ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame) 
   DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(iPart1, 4)
   DSMC_RHS(iPart1,2) = VeloMy + FracMassCent2*RanVec(2) - PartState(iPart1, 5)
   DSMC_RHS(iPart1,3) = VeloMz + FracMassCent2*RanVec(3) - PartState(iPart1, 6)
-  ! deltaV particle 2 (post collision particle 2 velocity in LAB frame) 
+  ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame) 
   DSMC_RHS(iPart2,1) = VeloMx - FracMassCent1*RanVec(1) - PartState(iPart2, 4)
   DSMC_RHS(iPart2,2) = VeloMy - FracMassCent1*RanVec(2) - PartState(iPart2, 5)
   DSMC_RHS(iPart2,3) = VeloMz - FracMassCent1*RanVec(3) - PartState(iPart2, 6)
