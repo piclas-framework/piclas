@@ -54,13 +54,18 @@ INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for
 LOGICAL                       :: useDSMC
 REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! (npartmax,1:3) with 2nd index: Evib, Erot, Eel
 
-INTEGER                         :: LD_MultiTemperaturMod   ! Modell choice for MultiTemperature
-                                                              ! 0 = no MultiTemperature Modeling
-                                                              ! 1 = LD1 see Paper
-                                                              ! 2 = LD2
-                                                              ! 3 = LD3
-REAL                          :: CRelaMax                   ! Max relative velocity
-REAL                          :: CRelaAv                    ! Average relative velocity
+LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
+
+TYPE tVarVibRelaxProb
+  REAL, ALLOCATABLE           :: ProbVibAvNew(:)            ! New Average of vibrational relaxation probability (1:nSPecies)
+                                                            ! , VibRelaxProb = 2
+  REAL, ALLOCATABLE           :: ProbVibAv(:,:)             ! Average of vibrational relaxation probability of the Element
+                                                            ! (1:nElems,nSpecies), VibRelaxProb = 2
+  INTEGER, ALLOCATABLE        :: nCollis(:)                 ! Number of Collisions (1:nSPecies), VibRelaxProb = 2
+  REAL                        :: alpha                      ! Relaxation factor of ProbVib, VibRelaxProb = 2
+END TYPE tVarVibRelaxProb
+
+TYPE(tVarVibRelaxProb) VarVibRelaxProb
 
 TYPE tRadialWeighting
   REAL                        :: PartScaleFactor
@@ -68,7 +73,7 @@ TYPE tRadialWeighting
   INTEGER                     :: CloneDelayDiff
   LOGICAL                     :: DoRadialWeighting              ! Enables radial weighting in the axisymmetric simulations
   INTEGER                     :: CloneMode                      ! 1 = Clone Delay
-                                                                 ! 2 = Clone Random Delay
+                                                                ! 2 = Clone Random Delay
   INTEGER, ALLOCATABLE        :: ClonePartNum(:)
   INTEGER                     :: CloneInputDelay
   LOGICAL                     :: CellLocalWeighting
@@ -138,10 +143,11 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                        :: VFD_Phi3_Factor            ! Factor of Phi3 in VFD Method: Phi3 = 0 => VFD -> TCE, ini_2
   REAL                        :: CollNumRotInf              ! Collision number for rotational relaxation according to Parker or
                                                             ! Zhang, ini_2 -> model dependent!
-  REAL                        :: TempRefRot                 ! referece temperature for rotational relaxation according to Parker or
+  REAL                        :: TempRefRot                 ! Referece temperature for rotational relaxation according to Parker or
                                                             ! Zhang, ini_2 -> model dependent!
-  REAL, ALLOCATABLE           :: MW_Const(:)                ! Model Constant 'A' of Milikan-White Model for vibrational relax, ini_2
-  REAL                        :: CollNumVib                 ! vibrational collision number according to Boyd, ini_2
+  REAL, ALLOCATABLE           :: MW_ConstA(:)               ! Model Constant 'A' of Milikan-White Model for vibrational relax, ini_2
+  REAL, ALLOCATABLE           :: MW_ConstB(:)               ! Model Constant 'B' of Milikan-White Model for vibrational relax, ini_2
+  REAL, ALLOCATABLE           :: CollNumVib(:)              ! vibrational collision number
   REAL                        :: VibCrossSec                ! vibrational cross section, ini_2
   REAL, ALLOCATABLE           :: CharaVelo(:)               ! characteristic velocity according to Boyd & Abe, nec for vib
                                                             ! relaxation
@@ -197,6 +203,14 @@ TYPE tDSMC
   REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
   REAL                          :: CollProbMean             ! Summation of collision probability
   REAL                          :: CollProbMax              ! Maximal collision probability per cell
+  REAL, ALLOCATABLE             :: CalcRotProb(:,:)         ! Summation of rotation relaxation probability (nSpecies + 1,3)
+                                                            !     1: Mean Prob
+                                                            !     2: Max Prob
+                                                            !     3: Sample size
+  REAL, ALLOCATABLE             :: CalcVibProb(:,:)         ! Summation of vibration relaxation probability (nSpecies + 1,3)
+                                                            !     1: Mean Prob
+                                                            !     2: Max Prob
+                                                            !     3: Sample size
   REAL                          :: MeanFreePath
   REAL                          :: MCSoverMFP               ! Subcell local mean collision distance over mean free path
   INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
@@ -207,6 +221,16 @@ TYPE tDSMC
                                                             !     1: Maximal collision prob
                                                             !     2: Time-averaged mean collision prob
                                                             !     3: Mean collision separation distance over mean free path
+                                                            !     4: Sample size
+  REAL, ALLOCATABLE             :: QualityFacSampRot(:,:,:) ! Sampling of quality rot relax factors (nElem,nSpec+1,2)
+                                                            !     1: Time-averaged mean rot relax prob
+                                                            !     2: Maximal rot relax prob
+  INTEGER, ALLOCATABLE          :: QualityFacSampRotSamp(:,:)!Sample size for QualityFacSampRot
+  REAL, ALLOCATABLE             :: QualityFacSampVib(:,:,:) ! Sampling of quality vib relax factors (nElem,nSpec+1,2)
+                                                            !     1: Instantanious time-averaged mean vib relax prob
+                                                            !     2: Instantanious maximal vib relax prob
+  INTEGER, ALLOCATABLE          :: QualityFacSampVibSamp(:,:,:)!Sample size for QualityFacSampVib
+  REAL, ALLOCATABLE             :: QualityFacSampRelaxSize(:,:)! Samplie size of quality relax factors (nElem,nSpec+1)
   LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules

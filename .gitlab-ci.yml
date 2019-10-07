@@ -1,3 +1,6 @@
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Settings
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Export the paths on new reggie2@reggie2 (no module env any more)
 before_script:
   - ulimit -s unlimited
@@ -11,6 +14,9 @@ before_script:
   - export CMAKE_PREFIX_PATH=/opt/hdf5/1.10.5/:$CMAKE_PREFIX_PATH
   - export CMAKE_LIBRARY_PATH=/opt/hdf5/1.10.5/lib:$CMAKE_LIBRARY_PAT
 
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stages
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 stages:
   - build
   - reggie_checkin
@@ -20,8 +26,12 @@ stages:
   - reggie_nightly
   - reggie_nightly_build_all
   - reggie_weekly
+  - userguide
   - deploy
 
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Templates
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 .template: &defaults_gnu
   tags:
     - withmodules-concurrent
@@ -247,14 +257,6 @@ gnu_FPFlow_check:
   script:
     - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_FPFlow
 
-gnu_SurfaceModel_check:
-  <<: *defaults_gnu
-  stage: reggie_feature_checkin
-  tags:
-    - withmodules-concurrent
-  script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_SurfaceModel
-
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -328,7 +330,7 @@ gnu_convtest_poisson:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then  cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_poisson ; fi
-       
+
 gnu_poisson_RK3:
   <<: *defaults_gnu
   stage: reggie_nightly
@@ -474,14 +476,15 @@ gnu_DSMC_Reservoir:
     - if [ -n "${DO_WEEKLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_Reservoir ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "github": truncate old history and push to github
+# Stage "userguide": Compile the userguide and developer guide
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 userguide:
-  stage: deploy
+  stage: userguide
   tags:
     - withmodules-concurrent
   script:
-    - cd doc/userguide ; make; cd ..
+    - cd doc/userguide ; make; cd ../..
+    - cd doc/developerguide ; make; cd ../..
     #- if [ -n "${DO_DEPLOY}" ]; then scp -r userguide flexi@euler:~/homepage/. ; fi
   artifacts:
     name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
@@ -489,7 +492,11 @@ userguide:
     when: on_failure
     paths:
       - doc/userguide
+      - doc/developerguide
 
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "github": Push the master branch to github
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 github:
   stage: deploy
   tags:

@@ -158,8 +158,6 @@ CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_re
 CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
                                                                 '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
 
-CALL prms%CreateIntOption(      'Part-LorentzType_old'          , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Used Lorentz boost ', '3')
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
 #if (PP_TimeDiscMethod==509)
 CALL prms%CreateLogicalOption(  'velocityOutputAtTime' , 'Flag if leapfrog uses an velocity-output at real time' , '.TRUE.')
@@ -298,7 +296,6 @@ CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
                                 ' - cylinder \n'//&
                                 ' - cuboid_vpi \n'//&
                                 ' - cylinder_vpi \n'//&
-                                ' - LD_insert \n'//&
                                 ' - cell_local \n'//&
                                 ' - cuboid_equal \n'//&
                                 ' - cuboid_with_equidistant_distribution \n'//&
@@ -395,8 +392,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-ConstPressureRelaxFac' &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartDensity' &
                                 , 'Define particle density for species [$]. PartDensity (real particles per m^3).\n'//&
-                                  'Used for DSMC with (vpi_)cuboid/cylinder and cell_local initial inserting.\n'// &
-                                  'Also for LD_insert or (vpi_)cub./cyl. / cell_local as alternative to Part.Emis. in Type1', '0.'&
+                                  'Used for DSMC with (vpi_)cuboid/cylinder and cell_local initial inserting.', '0.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-ParticleEmissionType'  &
                                 , 'Define Emission Type for particles (volume emission)\n'//&
@@ -604,7 +600,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ConstPressureRelaxFac' 
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-PartDensity' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'PartDensity (real particles per m^3) for LD_insert or (vpi_)cub./cyl. '//&
+                                  'PartDensity (real particles per m^3) or (vpi_)cub./cyl. '//&
                                   'as alternative to Part.Emis. in Type1 ', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-ParticleEmissionType'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -762,36 +758,14 @@ CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition'  &
                                   '- simple_anode\n'//&
                                   '- simple_cathode.\n'//&
                                  'If condition=open, the following parameters are'//&
-                                  ' used: (Part-Boundary[$]-=PB) PB-Ambient ,PB-AmbientTemp,PB-AmbientMeanPartMass,'//&
-                                  'PB-AmbientVelo,PB-AmbientDens,PB-AmbientDynamicVisc,PB-AmbientThermalCond,PB-Voltage\n'//&
+                                  ' used: (Part-Boundary[$]-=PB) PB-Voltage\n'//&
                                  'If condition=reflective: PB-MomentumACC,PB-WallTemp,PB-TransACC,PB-VibACC,PB-RotACC,'//&
                                   'PB-WallVelo,Voltage,SpeciesSwaps.If condition=periodic:Part-nPeriodicVectors,'//&
                                   'Part-PeriodicVector[$]', 'open', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-AmbientCondition'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Use ambient condition (condition "behind" boundary).', '.FALSE.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-AmbientConditionFix'  &
-                                , 'TODO-DEFINE-PARAMETER', '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientTemp'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient temperature ', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientMeanPartMass'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient mean particle mass', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-AmbientVelo'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient velocity', '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientDens'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient density', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientDynamicVisc'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient dynamic viscosity', '1.72326582572253E-5', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AmbientThermalCond'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Ambient thermal conductivity', '2.42948500556027E-2'&
-                                , numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption('Part-Boundary[$]-Dielectric' , 'Define if particle boundary [$] is a '//&
+                              'dielectric interface, i.e. an interface between a dielectric and a non-dielectric or a between two'//&
+                              ' different dielectrics [.TRUE.] or not [.FALSE.] (requires reflective BC and species swap for nSpecies)'&
+                              , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Adaptive'  &
   , 'Define if particle boundary [$] is adaptive [.TRUE.] or not [.FALSE.]', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-AdaptiveType'  &
@@ -966,8 +940,6 @@ USE MOD_part_emission              ,ONLY: InitializeParticleEmission,AdaptiveBCA
 USE MOD_surface_flux               ,ONLY: InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze               ,ONLY: InitHODSMC
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
-USE MOD_LD_Init                    ,ONLY: InitLD
-USE MOD_LD_Vars                    ,ONLY: useLD
 USE MOD_DSMC_Vars                  ,ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
 USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
 USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
@@ -1044,8 +1016,7 @@ END IF
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
 IF (useDSMC) THEN
-  CALL  InitDSMC()
-  IF (useLD) CALL InitLD
+  CALL InitDSMC()
   CALL InitSurfaceModel()
 #if (PP_TimeDiscMethod==300)
   CALL InitFPFlow()
@@ -1111,6 +1082,7 @@ USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_VarTimeStep   ,ONLY: VarTimeStep_CalcElemFacs
 USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
 USE MOD_part_RHS               ,ONLY: InitPartRHS
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1956,10 +1928,9 @@ __STAMP__&
 ,'Error in ParticleInit, ExcludeRegions are currently only implemented for the SpaceIC cuboid(_vpi) or cylinder(_vpi)!')
       END IF
     END IF
-    !--- stuff for calculating ParticleEmission/InitialParticleNumber from PartDensity when this value is not used for LD-stuff
-    !                                                                                  (additional not-LD checks might be necassary)
+    !--- stuff for calculating ParticleEmission/InitialParticleNumber from PartDensity
     PartDens_OnlyInit=.FALSE.
-    IF ((Species(iSpec)%Init(iInit)%PartDensity.GT.0.).AND.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'LD_insert')) THEN
+    IF ((Species(iSpec)%Init(iInit)%PartDensity.GT.0.)) THEN
       IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.1) THEN
         IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2 .OR. Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) &
             .AND. (Species(iSpec)%Init(iInit)%UseForInit) ) THEN
@@ -1967,7 +1938,7 @@ __STAMP__&
         ELSE
           CALL abort(&
 __STAMP__&
-            , 'PartDensity without LD is only supported for EmiType1 or initial ParticleInserting with EmiType1/2!')
+            , 'PartDensity is only supported for EmiType1 or initial ParticleInserting with EmiType1/2!')
         END IF
       END IF
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder') &
@@ -2003,7 +1974,7 @@ __STAMP__&
               ELSE
                 CALL abort(&
 __STAMP__&
-                  ,'PartDensity without LD is only supported for CalcHeightFromDt, vpi, or initial ParticleInserting!')
+                  ,'PartDensity is only supported for CalcHeightFromDt, vpi, or initial ParticleInserting!')
               END IF
             END IF
             IF ( TRIM(Species(iSpec)%Init(iInit)%SpaceIC) .EQ. 'cylinder' ) THEN
@@ -2043,7 +2014,7 @@ __STAMP__&
         ELSE
           CALL abort(&
 __STAMP__&
-          ,'Only const. or maxwell(_lpn) is supported as velocityDistr. for PartDensity without LD!')
+          ,'Only const. or maxwell(_lpn) is supported as velocityDistr. for PartDensity!')
         END IF
       ELSE IF (Species(iSpec)%Init(iInit)%VirtPreInsert) THEN
         IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
@@ -2150,8 +2121,6 @@ END DO
 
 
 ! Which Lorentz boost method should be used?
-PartLorentzType = GETINT('Part-LorentzType_old','3')
-
 CALL InitPartRHS()
 
 ! Read in boundary parameters
@@ -2172,15 +2141,6 @@ ALLOCATE(PartBound%RotACC(1:nPartBound))
 ALLOCATE(PartBound%ElecACC(1:nPartBound))
 ALLOCATE(PartBound%Resample(1:nPartBound))
 ALLOCATE(PartBound%WallVelo(1:3,1:nPartBound))
-ALLOCATE(PartBound%AmbientCondition(1:nPartBound))
-ALLOCATE(PartBound%AmbientConditionFix(1:nPartBound))
-ALLOCATE(PartBound%AmbientTemp(1:nPartBound))
-ALLOCATE(PartBound%AmbientMeanPartMass(1:nPartBound))
-ALLOCATE(PartBound%AmbientBeta(1:nPartBound))
-ALLOCATE(PartBound%AmbientVelo(1:3,1:nPartBound))
-ALLOCATE(PartBound%AmbientDens(1:nPartBound))
-ALLOCATE(PartBound%AmbientDynamicVisc(1:nPartBound))
-ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
 ALLOCATE(PartBound%SurfaceModel(1:nPartBound))
 ALLOCATE(PartBound%Reactive(1:nPartBound))
 ALLOCATE(PartBound%SolidState(1:nPartBound))
@@ -2222,6 +2182,10 @@ IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
   ALLOCATE(PartBound%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nPartBound))
 END IF
 !--
+ALLOCATE(PartBound%Dielectric(1:nPartBound))
+PartBound%Dielectric=.FALSE.
+DoDielectricSurfaceCharge=.FALSE.
+
 PartMeshHasPeriodicBCs=.FALSE.
 #if defined(IMPA) || defined(ROS)
 PartMeshHasReflectiveBCs=.FALSE.
@@ -2231,137 +2195,134 @@ DO iPartBound=1,nPartBound
   tmpString = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-Condition','open'))
   SELECT CASE (TRIM(tmpString))
   CASE('open')
-     PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
-     PartBound%AmbientCondition(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-AmbientCondition','.FALSE.')
-     IF(PartBound%AmbientCondition(iPartBound)) THEN
-       PartBound%AmbientConditionFix(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-AmbientConditionFix','.TRUE.')
-       PartBound%AmbientTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientTemp','0')
-       PartBound%AmbientMeanPartMass(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientMeanPartMass','0')
-       PartBound%AmbientBeta(iPartBound) = &
-       SQRT(PartBound%AmbientMeanPartMass(iPartBound)/(2*BoltzmannConst*PartBound%AmbientTemp(iPartBound)))
-       PartBound%AmbientVelo(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-AmbientVelo',3,'0. , 0. , 0.')
-       PartBound%AmbientDens(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientDens','0')
-       PartBound%AmbientDynamicVisc(iPartBound)=&
-           GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientDynamicVisc','1.72326582572253E-5') ! N2:T=288K
-       PartBound%AmbientThermalCond(iPartBound)=&
-           GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientThermalCond','2.42948500556027E-2') ! N2:T=288K
-     END IF
-     PartBound%Adaptive(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Adaptive','.FALSE.')
-     IF(PartBound%Adaptive(iPartBound)) THEN
-       nAdaptiveBC = nAdaptiveBC + 1
-       PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
-       IF (nMacroRestartFiles.GT.0) THEN
-         PartBound%AdaptiveMacroRestartFileID(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveMacroRestartFileID','0')
-       END IF
-       FileID = PartBound%AdaptiveMacroRestartFileID(iPartBound)
-       IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
-         MacroRestartFileUsed(FileID) = .TRUE.
-         IF (PartBound%AdaptiveType(iPartBound).EQ.1) THEN
-           PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
-           IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
-__STAMP__&
-,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
-         END IF
-       ELSE
-         PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
-         IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
-__STAMP__&
-,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
-       END IF
-       PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
-       IF (PartBound%AdaptivePressure(iPartBound).EQ.0.) CALL abort(&
-__STAMP__&
-,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptivePressure not defined')
-     END IF
-     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
+    PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
+    PartBound%Adaptive(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Adaptive','.FALSE.')
+    IF(PartBound%Adaptive(iPartBound)) THEN
+      nAdaptiveBC = nAdaptiveBC + 1
+      PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
+      IF (nMacroRestartFiles.GT.0) THEN
+        PartBound%AdaptiveMacroRestartFileID(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveMacroRestartFileID','0')
+      END IF
+      FileID = PartBound%AdaptiveMacroRestartFileID(iPartBound)
+      IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
+        MacroRestartFileUsed(FileID) = .TRUE.
+        IF (PartBound%AdaptiveType(iPartBound).EQ.1) THEN
+          PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+          IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
+              __STAMP__&
+              ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
+        END IF
+      ELSE
+        PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+        IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
+            __STAMP__&
+            ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
+      END IF
+      PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
+      IF (PartBound%AdaptivePressure(iPartBound).EQ.0.) CALL abort(&
+          __STAMP__&
+          ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptivePressure not defined')
+    END IF
+    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0.')
   CASE('reflective')
 #if defined(IMPA) || defined(ROS)
-     PartMeshHasReflectiveBCs=.TRUE.
+    PartMeshHasReflectiveBCs=.TRUE.
 #endif
-     PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
-     PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC')
-     PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp')
-     PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC')
-     PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC')
-     PartBound%RotACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotACC')
-     PartBound%ElecACC(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-ElecACC')
-     PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
-     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
-     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
-     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
-     ! check for correct surfacemodel input
-     IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
-       IF (.NOT.useDSMC) CALL abort(&
-__STAMP__&
-,'Cannot use surfacemodel>0 with useDSMC=F for partcle boundary: ',iPartBound)
-       SELECT CASE (PartBound%SurfaceModel(iPartBound))
-       CASE (0)
-         PartBound%Reactive(iPartBound)        = .FALSE.
-       CASE (2,3,5,6,101,102)
-         PartBound%Reactive(iPartBound)        = .TRUE.
-       CASE DEFAULT
-         CALL abort(&
-__STAMP__&
-,'Error in particle init: only allowed SurfaceModels: 0,2,3,5,6,101,102!')
-       END SELECT
-     END IF
-     PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState')
-     IF(PartBound%SolidState(iPartBound))THEN
-       PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens')
-       PartBound%SolidMassIC(iPartBound)       = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidMassIC')
-       PartBound%SolidAreaIncrease(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidAreaIncrease')
-       PartBound%SolidStructure(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidStructure')
-       IF (PartBound%SolidStructure(iPartBound).EQ.1) THEN
-         hilf2 ='4'
-       ELSE IF (PartBound%SolidStructure(iPartBound).EQ.2) THEN
-         hilf2 ='3'
-       END IF
-       PartBound%SolidCrystalIndx(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidCrystalIndx',hilf2)
-     END IF
-     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
-       !read Species to be changed at wall (in, out), out=0: delete
-       PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
-       DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)
-         WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
-         PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
-             GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
-       END DO
-     END IF
+    PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
+    PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC')
+    PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp')
+    PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC')
+    PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC')
+    PartBound%RotACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotACC')
+    PartBound%ElecACC(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-ElecACC')
+    PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
+    PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
+    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
+    PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
+    ! check for correct surfacemodel input
+    IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
+      IF (.NOT.useDSMC) CALL abort(&
+          __STAMP__&
+          ,'Cannot use surfacemodel>0 with useDSMC=F for particle boundary: ',iPartBound)
+      SELECT CASE (PartBound%SurfaceModel(iPartBound))
+      CASE (0)
+        PartBound%Reactive(iPartBound)        = .FALSE.
+      CASE (2,3,5,6,101,102)
+        PartBound%Reactive(iPartBound)        = .TRUE.
+      CASE DEFAULT
+        CALL abort(&
+            __STAMP__&
+            ,'Error in particle init: only allowed SurfaceModels: 0,2,3,5,6,101,102!')
+      END SELECT
+    END IF
+    PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState')
+    IF(PartBound%SolidState(iPartBound))THEN
+      PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens')
+      PartBound%SolidMassIC(iPartBound)       = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidMassIC')
+      PartBound%SolidAreaIncrease(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidAreaIncrease')
+      PartBound%SolidStructure(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidStructure')
+      IF (PartBound%SolidStructure(iPartBound).EQ.1) THEN
+        hilf2 ='4'
+      ELSE IF (PartBound%SolidStructure(iPartBound).EQ.2) THEN
+        hilf2 ='3'
+      END IF
+      PartBound%SolidCrystalIndx(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidCrystalIndx',hilf2)
+    END IF
+    IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
+      !read Species to be changed at wall (in, out), out=0: delete
+      PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
+      DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)
+        WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
+        PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
+            GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
+      END DO
+    END IF
+    PartBound%Dielectric(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
+    ! Sanity check: PartBound%Dielectric=T requires supplying species swap for every species
+    IF(PartBound%Dielectric(iPartBound))THEN
+      IF(PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies)THEN
+        CALL abort(&
+            __STAMP__&
+            ,'PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies: PartBound%Dielectric=T requires supplying species swap for every species!')
+      ELSE
+        DoDielectricSurfaceCharge=.TRUE.
+      END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies
+    END IF ! PartBound%Dielectric(iPartBound)
   CASE('periodic')
-     PartBound%TargetBoundCond(iPartBound) = PartBound%PeriodicBC
-     PartMeshHasPeriodicBCs = .TRUE.
+    PartBound%TargetBoundCond(iPartBound) = PartBound%PeriodicBC
+    PartMeshHasPeriodicBCs = .TRUE.
   CASE('simple_anode')
-     PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleAnodeBC
+    PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleAnodeBC
   CASE('simple_cathode')
-     PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleCathodeBC
+    PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleCathodeBC
   CASE('symmetric')
 #if defined(IMPA) || defined(ROS)
-     PartMeshHasReflectiveBCs=.TRUE.
+    PartMeshHasReflectiveBCs=.TRUE.
 #endif
-     PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
-     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
+    PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
+    PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('symmetric_axis')
-     PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryAxis
-     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
+    PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryAxis
+    PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('analyze')
-     PartBound%TargetBoundCond(iPartBound) = PartBound%AnalyzeBC
-     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
-       !read Species to be changed at wall (in, out), out=0: delete
-       PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
-       DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)
-         WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
-         PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
-             GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
-       END DO
-     END IF
+    PartBound%TargetBoundCond(iPartBound) = PartBound%AnalyzeBC
+    IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
+      !read Species to be changed at wall (in, out), out=0: delete
+      PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
+      DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)
+        WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
+        PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
+            GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
+      END DO
+    END IF
   CASE DEFAULT
-     SWRITE(*,*) ' Boundary does not exists: ', TRIM(tmpString)
-     CALL abort(&
-__STAMP__&
-         ,'Particle Boundary Condition does not exist')
+    SWRITE(*,*) ' Boundary does not exists: ', TRIM(tmpString)
+    CALL abort(&
+        __STAMP__&
+        ,'Particle Boundary Condition does not exist')
   END SELECT
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
-  PartBound%UseForQCrit(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseForQCrit','.TRUE.')
+  PartBound%UseForQCrit(iPartBound)     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseForQCrit','.TRUE.')
   SWRITE(*,*)"PartBound",iPartBound,"is used for the Q-Criterion"
 END DO
 
@@ -2376,8 +2337,6 @@ IF (nMacroRestartFiles.GT.0) THEN
   END DO
 END IF
 
-DEALLOCATE(PartBound%AmbientMeanPartMass)
-DEALLOCATE(PartBound%AmbientTemp)
 ! Set mapping from field boundary to particle boundary index
 ALLOCATE(PartBound%MapToPartBC(1:nBCs))
 PartBound%MapToPartBC(:)=-10
@@ -3321,15 +3280,6 @@ SDEALLOCATE(PartBound%RotACC)
 SDEALLOCATE(PartBound%ElecACC)
 SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
-SDEALLOCATE(PartBound%AmbientCondition)
-SDEALLOCATE(PartBound%AmbientConditionFix)
-SDEALLOCATE(PartBound%AmbientTemp)
-SDEALLOCATE(PartBound%AmbientMeanPartMass)
-SDEALLOCATE(PartBound%AmbientBeta)
-SDEALLOCATE(PartBound%AmbientVelo)
-SDEALLOCATE(PartBound%AmbientDens)
-SDEALLOCATE(PartBound%AmbientDynamicVisc)
-SDEALLOCATE(PartBound%AmbientThermalCond)
 SDEALLOCATE(PartBound%Adaptive)
 SDEALLOCATE(PartBound%AdaptiveType)
 SDEALLOCATE(PartBound%AdaptiveMacroRestartFileID)
@@ -3351,6 +3301,7 @@ SDEALLOCATE(PartBound%SolidMassIC)
 SDEALLOCATE(PartBound%SolidAreaIncrease)
 SDEALLOCATE(PartBound%SolidStructure)
 SDEALLOCATE(PartBound%SolidCrystalIndx)
+SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PEM%Element)
 SDEALLOCATE(PEM%lastElement)
 SDEALLOCATE(PEM%pStart)

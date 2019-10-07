@@ -156,7 +156,8 @@ IF (dist.NE.dist) dist = SQRT(bx*bx+by*by+bz*bz)
 !VectorShift(3) = PnewZ - PoldZ
 
 alpha = PartTrajectory(1) * nx + PartTrajectory(2) * ny + PartTrajectory(3) * nz
-alpha = dist / alpha
+IF(ABS(alpha).GT.0.) alpha = dist / alpha
+
 
 !IntersectionPos(1) = PoldX + alpha * PartTrajectory(1)
 !IntersectionPos(2) = PoldY + alpha * PartTrajectory(2)
@@ -369,7 +370,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: locXi,locEta,locAlpha,SideDistance
 USE MOD_Utils                  ,ONLY: InsertionSort
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars ,ONLY: rBoundingBoxChecks,rPerformBezierClip,rPerformBezierNewton
+USE MOD_Particle_Surfaces_Vars ,ONLY: rBoundingBoxChecks
 #endif /*CODE_ANALYZE*/
 #if USE_MPI
 USE MOD_Globals                ,ONLY: myrank
@@ -393,9 +394,6 @@ LOGICAL,INTENT(OUT),OPTIONAL             :: opt_CriticalParllelInSide
 REAL                                     :: n1(3),n2(3)
 INTEGER                                  :: nInterSections,p,q
 REAL                                     :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
-#ifdef CODE_ANALYZE
-REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo)
-#endif /*CODE_ANALYZE*/
 LOGICAL                                  :: CriticalParallelInSide
 REAL                                     :: XiNewton(2)
 REAL                                     :: coeffA,locSideDistance
@@ -547,11 +545,6 @@ USE MOD_Globals
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
-USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
-USE MOD_Mesh_Vars,               ONLY:NGeo
-#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2192,10 +2185,6 @@ SUBROUTINE CalcSminSmax(minmax,Smin,Smax,iter)
 !================================================================================================================================
 USE MOD_Mesh_Vars,               ONLY:NGeo,Xi_NGeo,DeltaXi_NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance!,BezierClipHit
-#ifdef CODE_ANALYZE
-USE MOD_Globals,                 ONLY:UNIT_stdOut,MyRank
-USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
-#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -4086,10 +4075,6 @@ SUBROUTINE CalcSminSmax2(minmax,Smin,Smax,iter)
 !================================================================================================================================
 USE MOD_Mesh_Vars,               ONLY:NGeo,Xi_NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance!,BezierClipHit
-#ifdef CODE_ANALYZE
-USE MOD_Globals,                 ONLY:UNIT_stdOut,MyRank
-USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
-#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
