@@ -466,7 +466,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 
   IF((SpecDSMC(iSpec1)%InterID.EQ.2).OR.(SpecDSMC(iSpec1)%InterID.EQ.20)) THEN
     CALL RANDOM_NUMBER(iRan)
-    CALL DSMC_calc_P_rot(iSpec1, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
+    CALL DSMC_calc_P_rot(iSpec1, iSpec2, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
     IF(ProbRot1.GT.iRan) THEN
       DoRot1 = .TRUE.
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,2) * GetParticleWeight(iPart1)
@@ -497,7 +497,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 
   IF((SpecDSMC(iSpec2)%InterID.EQ.2).OR.(SpecDSMC(iSpec2)%InterID.EQ.20)) THEN
     CALL RANDOM_NUMBER(iRan)
-    CALL DSMC_calc_P_rot(iSpec2, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
+    CALL DSMC_calc_P_rot(iSpec2, iSpec1, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
     IF(ProbRot2.GT.iRan) THEN
       DoRot2 = .TRUE.
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,2) * GetParticleWeight(iPart2)
@@ -751,14 +751,14 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   ! calculate probability for rotational/vibrational relaxation for both particles
   IF ((SpecDSMC(iSpec1)%InterID.EQ.2).OR.(SpecDSMC(iSpec1)%InterID.EQ.20)) THEN
     CALL DSMC_calc_P_vib(iSpec1, Xi_rel, iElem, ProbVib1)
-    CALL DSMC_calc_P_rot(iSpec1, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
+    CALL DSMC_calc_P_rot(iSpec1, iSpec2, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
   ELSE
     ProbVib1 = 0.
     ProbRot1 = 0.
   END IF
   IF ((SpecDSMC(iSpec2)%InterID.EQ.2).OR.(SpecDSMC(iSpec2)%InterID.EQ.20)) THEN
     CALL DSMC_calc_P_vib(iSpec2, Xi_rel, iElem, ProbVib2)
-    CALL DSMC_calc_P_rot(iSpec2, iPair, iPart2, Xi_rel, ProbRot2, ProbRotMax2)
+    CALL DSMC_calc_P_rot(iSpec2, iSpec1, iPair, iPart2, Xi_rel, ProbRot2, ProbRotMax2)
   ELSE
     ProbVib2 = 0.
     ProbRot2 = 0.
@@ -2720,7 +2720,7 @@ __STAMP__&
 END SUBROUTINE ReactionDecision
 
 
-SUBROUTINE DSMC_calc_P_rot(iSpec1, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
+SUBROUTINE DSMC_calc_P_rot(iSpec1, iSpec2, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 !===================================================================================================================================
 ! Calculation of probability for rotational relaxation. Different Models implemented:
 ! 0 - Constant Probability
@@ -2736,7 +2736,7 @@ SUBROUTINE DSMC_calc_P_rot(iSpec1, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)         :: iSpec1, iPair, iPart
+  INTEGER, INTENT(IN)         :: iSpec1, iSpec2, iPair, iPart
   REAL, INTENT(IN)            :: Xi_rel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -2770,10 +2770,10 @@ SUBROUTINE DSMC_calc_P_rot(iSpec1, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
     RotDOF = RotDOF*0.5 ! Only half of the rotational degree of freedom, because the other half is used in the relaxation
                         ! probability of the collision partner, see Boyd (doi:10.1063/1.858531)
 
-    ProbRot = 1./SpecDSMC(iSpec1)%CollNumRotInf * (1. + GAMMA(RotDOF+2.-CollInf%omegaLaux(iSpec1,iSpec1)) &
-            / GAMMA(RotDOF+1.5-CollInf%omegaLaux(iSpec1,iSpec1)) * (PI**(3./2.)/2.)*(BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
-            / (TransEn + RotEn) )**(1./2.) + GAMMA(RotDOF+2.-CollInf%omegaLaux(iSpec1,iSpec1))  &
-            / GAMMA(RotDOF+1.-CollInf%omegaLaux(iSpec1,iSpec1)) * (BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
+    ProbRot = 1./SpecDSMC(iSpec1)%CollNumRotInf * (1. + GAMMA(RotDOF+2.-CollInf%omegaLaux(iSpec1,iSpec2)) &
+            / GAMMA(RotDOF+1.5-CollInf%omegaLaux(iSpec1,iSpec2)) * (PI**(3./2.)/2.)*(BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
+            / (TransEn + RotEn) )**(1./2.) + GAMMA(RotDOF+2.-CollInf%omegaLaux(iSpec1,iSpec2))  &
+            / GAMMA(RotDOF+1.-CollInf%omegaLaux(iSpec1,iSpec2)) * (BoltzmannConst*SpecDSMC(iSpec1)%TempRefRot &
             / (TransEn + RotEn) ) * (PI**2./4. + PI)) &
             * CorrFact
 
@@ -2884,12 +2884,12 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
   ! determine joint omegaVHS and Dref factor and rel velo
   cRela=SQRT(Coll_pData(iPair)%cRela2)
   ! calculate non-corrected probabilities
-  ProbVib = 1. /SpecDSMC(iSpec)%CollNumVib(jSpec)* cRela**(3.+2.*CollInf%omegaLaux(iSpec,iSpec)) &
+  ProbVib = 1. /SpecDSMC(iSpec)%CollNumVib(jSpec)* cRela**(3.+2.*CollInf%omegaLaux(iSpec,jSpec)) &
           * EXP(-1.*SpecDSMC(iSpec)%CharaVelo(jSpec)/cRela)
   ! calculate high temperature correction
   TempCorr = SpecDSMC(iSpec)%VibCrossSec / (SQRT(2.)*PI*CollInf%dref(iSpec,jSpec)**2.) &
            * (  CollInf%MassRed(Coll_pData(iPair)%PairType)*cRela & !**2
-           / (2.*(2.-CollInf%omegaLaux(iSpec,iSpec))*BoltzmannConst*CollInf%Tref(iSpec,iSpec)))**CollInf%omegaLaux(iSpec,iSpec)
+           / (2.*(2.-CollInf%omegaLaux(iSpec,jSpec))*BoltzmannConst*CollInf%Tref(iSpec,jSpec)))**CollInf%omegaLaux(iSpec,jSpec)
   ! determine corrected probabilities
   ProbVib = ProbVib * TempCorr / (ProbVib + TempCorr)        ! TauVib = TauVibStd + TauTempCorr
   IF(ProbVib.NE.ProbVib) THEN !If is NAN
