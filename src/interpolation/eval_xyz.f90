@@ -494,9 +494,15 @@ DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
   ELSE !shit
    ! Newton has not converged !?!?
    IF(Mode.EQ.1)THEN
+      IPWRITE(UNIT_stdOut,*) ' Particle not inside of element!'
+      IPWRITE(UNIT_stdOut,*) ' sdetJac     ', sdetJac
+      IPWRITE(UNIT_stdOut,*) ' Newton-Iter ', NewtonIter
+      IPWRITE(UNIT_stdOut,*) ' xi          ', xi(1:3)
+      IPWRITE(UNIT_stdOut,*) ' PartPos     ', X_in
+      IPWRITE(UNIT_stdOut,*) ' ElemID      ', ElemID
     CALL abort(&
 __STAMP__&
-, 'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sDetJac)
+, 'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sdetJac)
    ELSE
      Xi(1)=HUGE(1.0)
      Xi(2)=Xi(1)
@@ -547,10 +553,11 @@ __STAMP__&
   IF(ANY(ABS(Xi).GT.1.5)) THEN
     IF(Mode.EQ.1)THEN
       IPWRITE(UNIT_stdOut,*) ' Particle not inside of element, force!!!'
-      IPWRITE(UNIT_stdOut,*) ' Newton-Iter', NewtonIter
-      IPWRITE(UNIT_stdOut,*) ' xi  ', xi(1:3)
-      IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
-      IPWRITE(UNIT_stdOut,*) ' ElemID', ElemID+offSetElem
+      IPWRITE(UNIT_stdOut,*) ' Newton-Iter      ', NewtonIter
+      IPWRITE(UNIT_stdOut,*) ' xi               ', xi(1:3)
+      IPWRITE(UNIT_stdOut,*) ' PartPos          ', X_in
+      IPWRITE(UNIT_stdOut,*) ' ElemID           ', ElemID
+      IPWRITE(UNIT_stdOut,*) ' ElemID+offSetElem', ElemID+offSetElem
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
 #if defined(IMPA)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartisImplicit(PartID)

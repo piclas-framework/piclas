@@ -337,11 +337,25 @@ INTEGER :: newParticleID
 
 !IPWRITE(UNIT_stdOut,*) 'NEW PARTICLE!'
 
-newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+1)
-IF (newParticleID .EQ. 0) CALL abort(&
-__STAMP__&
-,'ERROR in CreateParticle: newParticleID.EQ.0 - maximum nbr of particles reached?')
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+!newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+1) ! add +1 because PDM%CurrentNextFreePosition starts at 0
+!IF (newParticleID .EQ. 0) CALL abort(&
+!__STAMP__&
+!,'ERROR in CreateParticle: newParticleID.EQ.0 - maximum nbr of particles reached?')
+!#if USE_MPI
+
+! Do not increase the ParticleVecLength for Phantom particles!
+PDM%ParticleVecLength = PDM%ParticleVecLength + 1 ! Increase particle vector length
+newParticleID = PDM%ParticleVecLength
+IF(newParticleID.GT.PDM%MaxParticleNumber)THEN
+  CALL abort(&
+      __STAMP__&
+      ,'CreateParticle: newParticleID.GT.PDM%MaxParticleNumber. newParticleID=',IntInfoOpt=newParticleID)
+END IF
+!IF(Species.LT.0) PDM%PhantomParticles = PDM%PhantomParticles + 1
+!#endif /*USE_MPI*/
+
+! Increase the NextFreePosition for further particle creation
+!PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
 
 PartSpecies(newParticleID) = Species
 LastPartPos(newParticleID,1:3)=Pos(1:3)
