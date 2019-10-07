@@ -973,7 +973,7 @@ __STAMP__ &
         END IF ! IntersectCase.EQ.0
 
 ! -- 7. Correct intersection list if double check will be performed and leave loop to do double check
-        ! move first list entry to the end and the total list to the front. exit and check if the last is the correct intersection
+        ! move current list entry to the end and the total list to the front. exit and check if the last is the correct intersection
         IF(.NOT.crossedBC .AND. .NOT.SwitchedElement .AND. .NOT.PartIsDone .AND. PartDoubleCheck) THEN
           moveList=.FALSE.
           SELECT CASE (currentIntersect%intersectCase)
@@ -1194,7 +1194,7 @@ USE MOD_Globals
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-TYPE(tIntersectLink),POINTER :: inLink
+TYPE(tIntersectLink),POINTER,INTENT(INOUT) :: inLink
 REAL,INTENT(IN)              :: alpha_IN
 INTEGER,INTENT(IN)           :: sideID_IN
 INTEGER,INTENT(IN)           :: IntersectCase_IN
@@ -1205,44 +1205,45 @@ REAL,INTENT(IN),OPTIONAL     :: alpha2_IN
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-! intersection info list
+TYPE(tIntersectLink),POINTER :: tmpLink
 !===================================================================================================================================
 ! start from last intersection entry and place current intersection in correct entry position
-DO WHILE(ASSOCIATED(inLink))
-  IF (alpha_IN.LE.inLink%alpha) THEN
+tmpLink => inLink
+DO WHILE(ASSOCIATED(tmpLink))
+  IF (alpha_IN.LE.tmpLink%alpha) THEN
     IF (.NOT. ASSOCIATED(inLink%next)) THEN
       ALLOCATE(inLink%next)
       inLink%next%prev => inLink
     END IF
-    inLink%next%alpha = inLink%alpha
-    inLink%next%alpha2 = inLink%alpha2
-    inLink%next%xi = inLink%xi
-    inLink%next%eta = inLink%eta
-    inLink%next%Side = inLink%Side
-    inLink%next%intersectCase = inLink%intersectCase
-    IF (ASSOCIATED(inLink%prev)) THEN
-      IF (alpha_IN.GT.inLink%prev%alpha) THEN
+    tmpLink%next%alpha = tmpLink%alpha
+    tmpLink%next%alpha2 = tmpLink%alpha2
+    tmpLink%next%xi = tmpLink%xi
+    tmpLink%next%eta = tmpLink%eta
+    tmpLink%next%Side = tmpLink%Side
+    tmpLink%next%intersectCase = tmpLink%intersectCase
+    IF (ASSOCIATED(tmpLink%prev)) THEN
+      IF (alpha_IN.GT.tmpLink%prev%alpha) THEN
         ! assign new values
-        inLink%alpha = alpha_IN
-        inLink%Side = sideID_IN
-        inLink%intersectCase = IntersectCase_IN
-        IF (PRESENT(xi_IN)) inLink%xi = xi_IN
-        IF (PRESENT(eta_IN)) inLink%eta = eta_IN
-        IF (PRESENT(alpha2_IN)) inLink%alpha2 = alpha2_IN
+        tmpLink%alpha = alpha_IN
+        tmpLink%Side = sideID_IN
+        tmpLink%intersectCase = IntersectCase_IN
+        IF (PRESENT(xi_IN)) tmpLink%xi = xi_IN
+        IF (PRESENT(eta_IN)) tmpLink%eta = eta_IN
+        IF (PRESENT(alpha2_IN)) tmpLink%alpha2 = alpha2_IN
         EXIT
       END IF
     ELSE
       ! assign new values
-      inLink%alpha = alpha_IN
-      inLink%Side = sideID_IN
-      inLink%intersectCase = IntersectCase_IN
-      IF (PRESENT(xi_IN)) inLink%xi = xi_IN
-      IF (PRESENT(eta_IN)) inLink%eta = eta_IN
-      IF (PRESENT(alpha2_IN)) inLink%alpha2 = alpha2_IN
+      tmpLink%alpha = alpha_IN
+      tmpLink%Side = sideID_IN
+      tmpLink%intersectCase = IntersectCase_IN
+      IF (PRESENT(xi_IN)) tmpLink%xi = xi_IN
+      IF (PRESENT(eta_IN)) tmpLink%eta = eta_IN
+      IF (PRESENT(alpha2_IN)) tmpLink%alpha2 = alpha2_IN
       EXIT
     END IF
   END IF
-  inLink => inLink%prev
+  tmpLink => tmpLink%prev
 END DO
 
 END SUBROUTINE AssignListPosition
