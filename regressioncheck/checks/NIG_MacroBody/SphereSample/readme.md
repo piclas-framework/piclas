@@ -1,11 +1,14 @@
 # Macro sphere sampling analyze
 *  Macro sphere fixed in channel
-*  2 meshes with Bilinear and planar sides are used
-    *  10x3x3 and 10x1x1 and sampling data is compared to reference files
-*  Additionally DSMC particles are inserted and tracked
+*  Meshes with Bilinear and planar sides is used (10x3x3 Elems)
+*  Additionally, DSMC particles are inserted which do not move
 
+*  sampling data is compared to reference files
 *  Tests:
     *  DSMC macro write out because of MacroSphere volumereduction
     *  Volume portions are calculated corrrectly?
-    *  Particles are tracked without moving out of channel or inside of spheres
+
+The comparison of DSMCHO-states is problematic because components of velocity can be almost 0
+of order +/-1 and therefore the relative comparison is greater then maximum allowed difference.
+Consequently, the comparison needs to be deterministic
 
