@@ -183,12 +183,12 @@ CALL prms%CreateLogicalOption(   'averagedCollisionParameters'  &
                                             ' or species specific and averaged for the collision itself.'             //&
                                             ' T: Part-Species[$]-temperatureExponentOmega,-referenceTemperature,'     //&
                                             '    -referenceDiameter,-alphaVSS to be set.\n '                          //&
-                                            '    species-specific parameters(T) can be found in tables e.g. in\n'     //& 
+                                            '    species-specific parameters(T) can be found in tables e.g. in\n'     //&
                                             '    VHS/VSS bird1994 VHS: table A1 and A2/VSS: table A1 and A3'          //&
                                             '    VSS     weaver2014(https://doi.org/10.1063/1.4921245)'               //&
                                             ' F: Part-Collision[$]-[$]-temperatureExponentOmega,-referenceTemperature,'  //&
                                             '    -referenceDiameter,-alphaVSS to be set.\n'                              //&
-                                            '    collision-specific parameters(F) can be found in tables e.g. in\n'      //& 
+                                            '    collision-specific parameters(F) can be found in tables e.g. in\n'      //&
                                             '    VHS/VSS krishnan2015(https://doi.org/10.2514/6.2015-3373),\n'           //&
                                             '    VHS/VSS krishnan2016(https://doi.org/10.1063/1.4939719)', 'T')
 CALL prms%CreateRealOption(     'Part-Collision[$]-[$]-referenceTemperature'  &
@@ -568,7 +568,7 @@ END IF
   ! Either CollisMode.GT.0 or without chemical reactions due to collisions but with field ionization
   IF(DoFieldIonization.OR.CollisMode.NE.0)THEN
     CollInf%averagedCollisionParameters     = GETLOGICAL('averagedCollisionParameters','.TRUE.')
-    CollInf%crossSectionConstantMode        = GETINT('crossSectionConstantMode','0') 
+    CollInf%crossSectionConstantMode        = GETINT('crossSectionConstantMode','0')
     ALLOCATE(SpecDSMC(nSpecies))
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -577,15 +577,15 @@ END IF
       IF(CollInf%averagedCollisionParameters) THEN
         SpecDSMC(iSpec)%Tref         = GETREAL('Part-Species'//TRIM(hilf)//'-referenceTemperature'      ,'0')
         SpecDSMC(iSpec)%dref         = GETREAL('Part-Species'//TRIM(hilf)//'-referenceDiameter'         ,'0')
-        SpecDSMC(iSpec)%omegaLaux    = GETREAL('Part-Species'//TRIM(hilf)//'-temperatureExponentOmega'  ,'0') 
+        SpecDSMC(iSpec)%omegaLaux    = GETREAL('Part-Species'//TRIM(hilf)//'-temperatureExponentOmega'  ,'0')
         SpecDSMC(iSpec)%alphaVSS     = GETREAL('Part-Species'//TRIM(hilf)//'-scatteringExponentalphaVSS','1')
         IF((SpecDSMC(iSpec)%InterID*SpecDSMC(iSpec)%Tref*SpecDSMC(iSpec)%dref).EQ.0) THEN !check if species parameters are set
           CALL Abort(&
           __STAMP__&
           ,"ERROR in species data: check collision parameters in ini_2"//&
            "Part-Species-?-(InterID*referenceTemperature*referenceDiameter) is zero")
-        END IF 
-      END IF ! averagediCollisionParameters 
+        END IF
+      END IF ! averagediCollisionParameters
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
         DSMC%ElectronSpecies = iSpec
@@ -622,7 +622,8 @@ END IF
           CollInf%alphaVSS(jSpec,iSpec)  = CollInf%alphaVSS(iSpec,jSpec)
         END IF ! fill minor diagonal
         IF(CollInf%dref(iSpec,jSpec)*CollInf%Tref(iSpec,jSpec).EQ.0) THEN
-            CALL Abort(&
+          SWRITE(UNIT_stdOut,*)" No Collision parameter defined for collision of | Species A: ",iSpec, " | Species B: ",jSpec
+          CALL Abort(&
             __STAMP__&
             ,'ERROR: Check collision parameters! (Part-Collision-?-referenceTemperature * referenceDiameter) is zero)')
         END IF ! check if collision parameters are set
@@ -701,8 +702,8 @@ IF (CollisMode.EQ.0) THEN
       END IF !kronecker delta
       ! Laux (2.37) prefactor crossSectionConstantCab calculation depending on omegaLaux coll-averaged or -specific
       SELECT CASE (CollInf%crossSectionConstantMode) ! sigma=Cab * cr^(-2 omegaLaux) , see Bird1981 for details
-      CASE (0,1) 
-        ! A1,A2 species constants, see laux1996 (2.38),(2.39) 
+      CASE (0,1)
+        ! A1,A2 species constants, see laux1996 (2.38),(2.39)
         A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec) * (2 * BoltzmannConst * CollInf%Tref(iSpec , iSpec)) ** &
            (CollInf%omegaLaux(iSpec , iSpec) * 0.5) / SQRT (GAMMA(2.0 - CollInf%omegaLaux(iSpec , iSpec)))
         A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec , jSpec)*(2 * BoltzmannConst * CollInf%Tref(jSpec , jSpec)) ** &
@@ -1913,10 +1914,10 @@ SDEALLOCATE(CollInf%KronDelta)
 SDEALLOCATE(CollInf%FracMassCent)
 SDEALLOCATE(CollInf%MassRed)
 SDEALLOCATE(CollInf%MeanMPF)
-SDEALLOCATE(CollInf%alphaVSS) 
-SDEALLOCATE(CollInf%omegaLaux)    
-SDEALLOCATE(CollInf%dref)    
-SDEALLOCATE(CollInf%Tref)    
+SDEALLOCATE(CollInf%alphaVSS)
+SDEALLOCATE(CollInf%omegaLaux)
+SDEALLOCATE(CollInf%dref)
+SDEALLOCATE(CollInf%Tref)
 SDEALLOCATE(HValue)
 !SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)

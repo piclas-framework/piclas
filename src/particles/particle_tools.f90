@@ -148,9 +148,9 @@ END SUBROUTINE UpdateNextFreePosition
 
 FUNCTION DiceDeflectedVelocityVector(cRela2,ur,vr,wr,alphaVSS)
 !===================================================================================================================================
-! Calculation of post collision velocity vector 
-! 
-! Calculates deflection angle and resulting deflection relative velocity vector including the coordinate transformation 
+! Calculation of post collision velocity vector
+!
+! Calculates deflection angle and resulting deflection relative velocity vector including the coordinate transformation
 ! from the reduced mass system back to the COM frame - see Bird 1994 p.36
 ! VHS: isotropic    scattering vector for alphaVSS = 1
 ! VSS: anisotropic  scattering vector     alphaVSS e [1,2] see collision parameters in dsmc_init for sources
@@ -161,39 +161,39 @@ FUNCTION DiceDeflectedVelocityVector(cRela2,ur,vr,wr,alphaVSS)
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL,INTENT(IN)            :: cRela2                 ! squared relative velocity of particle pair for scaling 
+  REAL,INTENT(IN)            :: cRela2                 ! squared relative velocity of particle pair for scaling
   REAL,INTENT(IN)            :: ur, vr, wr             ! pre-collision relative velocity cRela=(/ur,vr,wr/) for transformation
-  REAL,INTENT(IN), OPTIONAL  :: alphaVSS               ! Variable Soft Sphere scattering exponent               
+  REAL,INTENT(IN), OPTIONAL  :: alphaVSS               ! Variable Soft Sphere scattering exponent
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
   REAL                       :: DiceDeflectedVelocityVector(3) ! post-collision relative velocity vector cRela*
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES   
- REAL                        :: cRela               ! absolute value of pre-coll relative velocity abs(cRela), Bird1994 (2.3),(2.8) 
+! LOCAL VARIABLES
+ REAL                        :: cRela               ! absolute value of pre-coll relative velocity abs(cRela), Bird1994 (2.3),(2.8)
  REAL                        :: iRan, rotAngle, cos_scatAngle, sin_scatAngle
  REAL,DIMENSION(3,3)         :: trafoMatrix
 !===================================================================================================================================
 
   cRela = SQRT ( cRela2 )
 
-  CALL RANDOM_NUMBER(iRan) ! iRan = (b / d) ^ 2  : dice impact parameter b to distance d relation in y-direction  
-                           ! 0                   : frontal collision 
+  CALL RANDOM_NUMBER(iRan) ! iRan = (b / d) ^ 2  : dice impact parameter b to distance d relation in y-direction
+                           ! 0                   : frontal collision
                            ! 1                   : brush without change of direction
 
   cos_scatAngle = 2. * iRan ** ( 1. / alphaVSS ) - 1. ! deflection x-component in collision plane  (chi e [-1,1], away from center)
   sin_scatAngle = SQRT ( 1. - cos_scatAngle ** 2. )   ! deflection y-component in collision plane  (                      -of-mass)
-  
-  ! transfer collision vector to 3D space by relation of coll to ref plane
-  DiceDeflectedVelocityVector(1) = cRela * cos_scatAngle ! deflection y-component in coll plane 
 
-  CALL RANDOM_NUMBER(iRan) ! dice rotation angle between coll and ref plane :  epsilon e [0,2*pi]   
-  rotAngle = 2. * Pi * iRan     
+  ! transfer collision vector to 3D space by relation of coll to ref plane
+  DiceDeflectedVelocityVector(1) = cRela * cos_scatAngle ! deflection y-component in coll plane
+
+  CALL RANDOM_NUMBER(iRan) ! dice rotation angle between coll and ref plane :  epsilon e [0,2*pi]
+  rotAngle = 2. * Pi * iRan
 
   DiceDeflectedVelocityVector(2) = cRela * sin_scatAngle * COS(rotAngle) ! deflection y-component between coll and ref plane
   DiceDeflectedVelocityVector(3) = cRela * sin_scatAngle * SIN(rotAngle) ! deflection z-component between coll and ref plane
 
-! for VSS the direction is no longer negligible 
+! for VSS the direction is no longer negligible
   IF (alphaVSS.GT.1) THEN ! VSS
     IF ((vr.NE.0.) .AND. (wr.NE.0.)) THEN ! if radial component is zero the coll plane and laboratory fall together, no transformation
       ! axis transformation from reduced mass frame back to COM frame via Bird1994 p.36 (2.22)=A*b MATMUL for performance reasons
@@ -235,15 +235,15 @@ IMPLICIT NONE
   REAL                     :: DiceUnitVector(3)
   REAL                     :: iRan, cos_scatAngle, sin_scatAngle, rotAngle
 !===================================================================================================================================
-  CALL RANDOM_NUMBER(iRan) ! iRan = (b / d) ^ 2  : dice impact parameter b to distance d relation in y-direction  
-                           ! 0                   : frontal collision 
+  CALL RANDOM_NUMBER(iRan) ! iRan = (b / d) ^ 2  : dice impact parameter b to distance d relation in y-direction
+                           ! 0                   : frontal collision
                            ! 1                   : brush without change of direction
 
   cos_scatAngle     = 2.*iRan-1.                      ! z random value between [-1,1] for isotropic scattering
   sin_scatAngle     = SQRT(1. - cos_scatAngle ** 2.)  ! deflection x-component in collision plane (chi e [-1,1], away from center)
   DiceUnitVector(1) = cos_scatAngle                   ! deflection y-component in collision plane (                      -of-mass)
 
-  CALL RANDOM_NUMBER(iRan) ! dice rotation angle between coll and ref plane :  epsilon e [0,2*pi]   
+  CALL RANDOM_NUMBER(iRan) ! dice rotation angle between coll and ref plane :  epsilon e [0,2*pi]
   rotAngle          = 2. * Pi * iRan ! phi random value between [0,2*pi]
 
   ! transfer unit vector to 3D space by relation of coll to ref plane
