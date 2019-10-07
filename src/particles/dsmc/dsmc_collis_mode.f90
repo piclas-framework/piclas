@@ -167,7 +167,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
 ! LOCAL VARIABLES
   REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
-  REAL                          :: CRelaX, CRelaY, CRelaZ           ! pre-collision relative velocities 
+  REAL                          :: cRelaX, cRelaY, cRelaZ           ! pre-collision relative velocities 
   REAL                          :: RanVec(3)
   INTEGER                       :: iPart1, iPart2, iSpec1, iSpec2   ! Colliding particles 1 and 2, their species
 !===================================================================================================================================
@@ -192,12 +192,12 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
   VeloMz = FracMassCent1 * PartState(iPart1, 6) + FracMassCent2 * PartState(iPart2, 6)
 
   ! Calculation of relative velocities
-  CRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
-  CRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
-  CRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
+  cRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
+  cRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
+  cRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
 
 ! Calculation of post collision velocity vector in reference frame and retransformation to COM frame
-  RanVec(1:3)=DiceDeflectedVelocityVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(iSpec1,iSpec2))
+  RanVec(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 , cRelaX , cRelaY , cRelaZ , CollInf%alphaVSS(iSpec1,iSpec2))
   
  ! deltaV particle 1 (post collision particle 1 velocity in LAB frame) 
   DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(iPart1, 4)
@@ -231,8 +231,8 @@ SUBROUTINE DSMC_Scat_Col(iPair)
 ! LOCAL VARIABLES
   REAL                          :: FracMassCent1, FracMassCent2                ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz                      ! center of mass velo
-  REAL                          :: CRelax, CRelay, CRelaz                      ! pre-collisional relativ velo
-  REAL                          :: CRelaxN, CRelayN, CRelazN                   ! post-collisional relativ velo
+  REAL                          :: cRelax, cRelay, cRelaz                      ! pre-collisional relativ velo
+  REAL                          :: cRelaxN, cRelayN, cRelazN                   ! post-collisional relativ velo
   REAL                          :: b, bmax                                     ! impact parameters
   REAL                          :: Ekin
   REAL                          :: ScatAngle, RotAngle                         ! scattering and rotational angle
@@ -253,17 +253,17 @@ SUBROUTINE DSMC_Scat_Col(iPair)
   bEL  = ChemReac%ELb(ChemReac%ReactNum(PartSpecies(iPart1),PartSpecies(iPart2),1))
   ! Decision if scattering angle is greater than 1 degree and should be calculated
 
-  sigma_el  = bEL + aEL*0.5 * LOG10(Coll_pData(iPair)%CRela2)
+  sigma_el  = bEL + aEL*0.5 * LOG10(Coll_pData(iPair)%cRela2)
 
-  sigma_tot = ((aCEX+0.5*aEL)*0.5*LOG10(Coll_pData(iPair)%CRela2)+bCEX+0.5*bEL)
+  sigma_tot = ((aCEX+0.5*aEL)*0.5*LOG10(Coll_pData(iPair)%cRela2)+bCEX+0.5*bEL)
 
   CALL RANDOM_NUMBER(uRan2)
 
 IF ((sigma_el/sigma_tot).GT.uRan2) THEN
     ! Calculation of relative velocities
-    CRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
-    CRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
-    CRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
+    cRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
+    cRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
+    cRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
     
     FracMassCent1 = CollInf%FracMassCent(PartSpecies(iPart1), Coll_pData(iPair)%PairType)
     FracMassCent2 = CollInf%FracMassCent(PartSpecies(iPart2), Coll_pData(iPair)%PairType)
@@ -276,7 +276,7 @@ IF ((sigma_el/sigma_tot).GT.uRan2) THEN
     ! Calculation of impact parameter b
     bmax = SQRT(sigma_el/Pi)
     b = bmax * SQRT(uRan2)
-    Ekin = (0.5*CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2/(1.6021766208E-19))
+    Ekin = (0.5*CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%cRela2/(1.6021766208E-19))
 
 
     ! Determination of scattering angle by interpolation from a lookup table
@@ -295,21 +295,21 @@ IF ((sigma_el/sigma_tot).GT.uRan2) THEN
     RotAngle = uRanRot * 2 * Pi
 
     ! Calculation of post-collision relative velocities in COM frame
-    CRelaxN = COS(ScatAngle)*CRelax + SIN(ScatAngle)*SIN(RotAngle)*(CRelay**2+CRelaz**2)**0.5
-    CRelayN = COS(ScatAngle)*CRelay &
-     +SIN(ScatAngle)*(SQRT(Coll_pData(ipair)%CRela2)*CRelaz*COS(RotAngle)-CRelax*CRelay*SIN(RotAngle))/(CRelay**2+CRelaz**2)**0.5
-    CRelazN = COS(ScatAngle)*CRelaz &
-     -SIN(ScatAngle)*(SQRT(Coll_pData(ipair)%CRela2)*CRelay*COS(RotAngle)+CRelax*CRelaz*SIN(RotAngle))/(CRelay**2+CRelaz**2)**0.5
+    cRelaxN = COS(ScatAngle)*cRelax + SIN(ScatAngle)*SIN(RotAngle)*(cRelay**2+cRelaz**2)**0.5
+    cRelayN = COS(ScatAngle)*cRelay &
+     +SIN(ScatAngle)*(SQRT(Coll_pData(ipair)%cRela2)*cRelaz*COS(RotAngle)-cRelax*cRelay*SIN(RotAngle))/(cRelay**2+cRelaz**2)**0.5
+    cRelazN = COS(ScatAngle)*cRelaz &
+     -SIN(ScatAngle)*(SQRT(Coll_pData(ipair)%cRela2)*cRelay*COS(RotAngle)+cRelax*cRelaz*SIN(RotAngle))/(cRelay**2+cRelaz**2)**0.5
 
     ! Transformation to LAB frame
     ! deltaV particle 1
-    DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*CRelaxN - PartState(iPart1, 4)
-    DSMC_RHS(iPart1,2) = VeloMy + FracMassCent2*CRelayN - PartState(iPart1, 5)
-    DSMC_RHS(iPart1,3) = VeloMz + FracMassCent2*CRelazN - PartState(iPart1, 6)
+    DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*cRelaxN - PartState(iPart1, 4)
+    DSMC_RHS(iPart1,2) = VeloMy + FracMassCent2*cRelayN - PartState(iPart1, 5)
+    DSMC_RHS(iPart1,3) = VeloMz + FracMassCent2*cRelazN - PartState(iPart1, 6)
     ! deltaV particle 2
-    DSMC_RHS(iPart2,1) = VeloMx - FracMassCent1*CRelaxN - PartState(iPart2, 4)
-    DSMC_RHS(iPart2,2) = VeloMy - FracMassCent1*CRelayN - PartState(iPart2, 5)
-    DSMC_RHS(iPart2,3) = VeloMz - FracMassCent1*CRelazN - PartState(iPart2, 6)
+    DSMC_RHS(iPart2,1) = VeloMx - FracMassCent1*cRelaxN - PartState(iPart2, 4)
+    DSMC_RHS(iPart2,2) = VeloMy - FracMassCent1*cRelayN - PartState(iPart2, 5)
+    DSMC_RHS(iPart2,3) = VeloMz - FracMassCent1*cRelazN - PartState(iPart2, 6)
 
     ! Decision concerning CEX
     P_CEX = 0.5
@@ -422,7 +422,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL (KIND=8)                 :: iRan                             ! Random number
   LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2   ! Check whether rot or vib relax is performed
-  REAL                          :: CRelaX, CRelaY, CRelaZ           ! pre-collision relative velocities 
+  REAL                          :: cRelaX, cRelaY, cRelaZ           ! pre-collision relative velocities 
   REAL (KIND=8)                 :: Xi_rel, Xi, FakXi                ! Factors of DOF
   REAL                          :: RanVec(3)                        ! Max. Quantum Number
   REAL                          :: ReducedMass
@@ -454,9 +454,9 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   Xi_rel = 2*(2. - CollInf%omegaLaux(iSpec1,iSpec2))
     ! DOF of relative motion in VHS model
 
-  Coll_pData(iPair)%Ec = 0.5 * ReducedMass* Coll_pData(iPair)%CRela2
+  Coll_pData(iPair)%Ec = 0.5 * ReducedMass* Coll_pData(iPair)%cRela2
 
-  Coll_pData(iPair)%Ec = 0.5 * ReducedMass* Coll_pData(iPair)%CRela2
+  Coll_pData(iPair)%Ec = 0.5 * ReducedMass* Coll_pData(iPair)%cRela2
 
   Xi = Xi_rel !Xi are all DOF in the collision
 
@@ -656,14 +656,14 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 
   !Calculate relative velocities and new squared velocity
 
-  CRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
-  CRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
-  CRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
+  cRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
+  cRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
+  cRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
 
-  Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
+  Coll_pData(iPair)%cRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
 
   ! Calculation of post collision relative velocity vector in reference frame and retransformation to COM frame
-  RanVec(1:3)=DiceDeflectedVelocityVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(iSpec1,iSpec2))
+  RanVec(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 , cRelaX , cRelaY , cRelaZ , CollInf%alphaVSS(iSpec1,iSpec2))
   ! deltaV particle 1 (post collision particle 1 velocity in LAB frame) 
   DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(iPart1, 4)
   DSMC_RHS(iPart1,2) = VeloMy + FracMassCent2*RanVec(2) - PartState(iPart1, 5)
@@ -718,7 +718,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   REAL                          :: ProbFrac1, ProbFrac2, ProbFrac3, ProbFrac4   ! probability-fractions according to Zhang
   REAL                          :: ProbRot1, ProbRot2, ProbVib1, ProbVib2       ! probabilities for rot-/vib-relax for part 1/2
   REAL                          :: BLCorrFact, ProbRotMax1, ProbRotMax2         ! Correction factor for BL-redistribution of energy
-  REAL                          :: CRelaX, CRelaY, CRelaZ                       ! pre-collision relative velocities 
+  REAL                          :: cRelaX, cRelaY, cRelaZ                       ! pre-collision relative velocities 
   INTEGER                       :: iPart1, iPart2, iSpec1, iSpec2               ! Colliding particles 1 and 2 and their species
 !===================================================================================================================================
   iPart1 = Coll_pData(iPair)%iPart_p1
@@ -742,7 +742,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   Xi_rel = 2.*(2. - CollInf%omegaLaux(iSpec1,iSpec2)) ! DOF of relative motion in VHS model
   FakXi  = 0.5*Xi_rel - 1.
 
-  Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%CRela2
+  Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%cRela2
 
 !--------------------------------------------------------------------------------------------------!
 ! Decision if Rotation, Vibration and Electronic Relaxation of particles is performed
@@ -1001,13 +1001,13 @@ __STAMP__&
   VeloMz = FracMassCent1 * PartState(iPart1, 6) + FracMassCent2 * PartState(iPart2, 6)
 
   ! Calculate relative velocites and the squared velocities
-  CRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
-  CRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
-  CRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
-  Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
+  cRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
+  cRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
+  cRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
+  Coll_pData(iPair)%cRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
 
 ! Calculation of post collision relative velocity vector in reference frame and retransformation to COM frame
-  RanVec(1:3)=DiceDeflectedVelocityVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(iSpec1,iSpec2))
+  RanVec(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 , cRelaX , cRelaY , cRelaZ , CollInf%alphaVSS(iSpec1,iSpec2))
 
   ! deltaV particle 1 (post collision particle 1 velocity in LAB frame) 
   DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(iPart1, 4)
@@ -1217,7 +1217,7 @@ INTEGER                       :: iPart1, iPart2                         ! Collid
             CALL QK_exchange(iPair,iReac,RelaxToDo)
           ELSE
             ! Arrhenius based Exchange Reaction
-            Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2                  &
+            Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%cRela2                  &
                                  + PartStateIntEn(iPart1,1) + PartStateIntEn(iPart2,1) &
                                  + PartStateIntEn(iPart1,2) + PartStateIntEn(iPart2,2)
             CALL CalcReactionProb(iPair,iReac,ReactionProb)
@@ -1301,7 +1301,7 @@ INTEGER                       :: iPart1, iPart2                         ! Collid
       iReac2 = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
       IF (ChemReac%QKProcedure(iReac).AND.ChemReac%QKProcedure(iReac2)) THEN ! both Reaction QK
         ! collision energy without internal energy
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
+        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%cRela2
         ! first pseudo reaction probability
         IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(iPart1)) THEN
           PartToExec = iPart1
@@ -1345,7 +1345,7 @@ INTEGER                       :: iPart1, iPart2                         ! Collid
         END IF
       ELSE IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) ) THEN ! only one Reaction QK
         ! collision energy without internal energy
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
+        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%cRela2
         ! set QK reaction as first tested reaction
         IF (ChemReac%QKProcedure(iReac2)) THEN
           iReac  = ChemReac%ReactNum(PartSpecies(iPart1), PartSpecies(iPart2), 2)
@@ -1385,7 +1385,7 @@ INTEGER                       :: iPart1, iPart2                         ! Collid
             CALL QK_dissociation(iPair,iReac,RelaxToDo)
           ELSE
           ! perform Arrhenius dissociation
-            Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
+            Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%cRela2 &
                                  + PartStateIntEn(iPart1,1) + PartStateIntEn(iPart2,1) &
                                  + PartStateIntEn(iPart1,2) + PartStateIntEn(iPart2,2)
             EZeroPoint           = DSMC%GammaQuant*BoltzmannConst*SpecDSMC(PartSpecies(PartReac2Sec))%CharaTVib
@@ -2420,8 +2420,8 @@ __STAMP__&
       IF (ChemReac%DoScat(iReac)) THEN! MEX
         CALL DSMC_Scat_Col(iPair)
       ELSE
-        sigmaCEX = (ChemReac%CEXa(iReac)*0.5*LOG10(Coll_pData(iPair)%CRela2) + ChemReac%CEXb(iReac))
-        sigmaMEX = (ChemReac%MEXa(iReac)*0.5*LOG10(Coll_pData(iPair)%CRela2) + ChemReac%MEXb(iReac))
+        sigmaCEX = (ChemReac%CEXa(iReac)*0.5*LOG10(Coll_pData(iPair)%cRela2) + ChemReac%CEXb(iReac))
+        sigmaMEX = (ChemReac%MEXa(iReac)*0.5*LOG10(Coll_pData(iPair)%cRela2) + ChemReac%MEXb(iReac))
         ReactionProb=0.
         IF ((sigmaMEX.EQ.0.).AND.(sigmaCEX.GT.0.)) THEN
           ReactionProb=1.
@@ -2635,7 +2635,7 @@ __STAMP__&
           PartReac2  = iPart1
         END IF
         ! Determine the collision energy (only relative translational)
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
+        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%cRela2
         IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(PartToExec,3)
         ! ionization level is last known energy level of species
         iQuaMax          = SpecDSMC(PartSpecies(PartToExec))%MaxElecQuant - 1
@@ -2656,7 +2656,7 @@ __STAMP__&
           PartReac2  = iPart1
         END IF
         ! Determine the collision energy (relative translational + vibrational energy of dissociating molecule)
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
+        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%cRela2 &
                              + PartStateIntEn(PartToExec,1)
         ! Correction for second collision partner
         IF ((SpecDSMC(PartSpecies(PartReac2))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartReac2))%InterID.EQ.20)) THEN
@@ -2877,27 +2877,27 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
   REAL, INTENT(OUT)         :: ProbVib
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                      :: TempCorr, CRela
+  REAL                      :: TempCorr, cRela
 !===================================================================================================================================
 
   ! P_vib according to Boyd, corrected by Abe, only V-T transfer
   ! determine joint omegaVHS and Dref factor and rel velo
-  CRela=SQRT(Coll_pData(iPair)%CRela2)
+  cRela=SQRT(Coll_pData(iPair)%cRela2)
   ! calculate non-corrected probabilities
-  ProbVib = 1. /SpecDSMC(iSpec)%CollNumVib(jSpec)* CRela**(3.+2.*CollInf%omegaLaux(iSpec,iSpec)) &
-          * EXP(-1.*SpecDSMC(iSpec)%CharaVelo(jSpec)/CRela)
+  ProbVib = 1. /SpecDSMC(iSpec)%CollNumVib(jSpec)* cRela**(3.+2.*CollInf%omegaLaux(iSpec,iSpec)) &
+          * EXP(-1.*SpecDSMC(iSpec)%CharaVelo(jSpec)/cRela)
   ! calculate high temperature correction
   TempCorr = SpecDSMC(iSpec)%VibCrossSec / (SQRT(2.)*PI*CollInf%dref(iSpec,jSpec)**2.) &
-           * (  CollInf%MassRed(Coll_pData(iPair)%PairType)*CRela & !**2
+           * (  CollInf%MassRed(Coll_pData(iPair)%PairType)*cRela & !**2
            / (2.*(2.-CollInf%omegaLaux(iSpec,iSpec))*BoltzmannConst*CollInf%Tref(iSpec,iSpec)))**CollInf%omegaLaux(iSpec,iSpec)
   ! determine corrected probabilities
   ProbVib = ProbVib * TempCorr / (ProbVib + TempCorr)        ! TauVib = TauVibStd + TauTempCorr
   IF(ProbVib.NE.ProbVib) THEN !If is NAN
     ProbVib=0.
-    WRITE(*,*) 'WARNING: Vibrational relaxation probability is NAN and is set to zero. CRela:', CRela
+    WRITE(*,*) 'WARNING: Vibrational relaxation probability is NAN and is set to zero. cRela:', cRela
     ! CALL Abort(&
     ! __STAMP__&
-    ! ,'Error! Vibrational relaxation probability is NAN (CRela);',RealInfoOpt=CRela)!, jSpec, CRela
+    ! ,'Error! Vibrational relaxation probability is NAN (cRela);',RealInfoOpt=cRela)!, jSpec, cRela
   END IF
 
 END SUBROUTINE DSMC_calc_var_P_vib
