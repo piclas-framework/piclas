@@ -80,6 +80,7 @@ PUBLIC :: BETALIQUID
 PUBLIC :: TSURUTACONDENSCOEFF
 PUBLIC :: CountSurfaceImpact
 PUBLIC :: BoundaryParticleOutput
+PUBLIC :: SortArray
 !===================================================================================================================================
 
 CONTAINS
@@ -599,6 +600,44 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
 END ASSOCIATE
 
 END SUBROUTINE BoundaryParticleOutput
+
+SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! sort arryA in ascending order of arrayB
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)    :: EndID
+INTEGER,INTENT(INOUT) :: ArrayA(EndID)
+INTEGER,INTENT(IN)    :: ArrayB(EndID)
+! insert IO variables here
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: i,idx
+LOGICAL :: unsorted(EndID)
+LOGICAL :: unsorted_tmp(EndID)
+INTEGER :: ArrayA_temp(EndID)
+!===================================================================================================================================
+ArrayA_temp=ArrayA
+unsorted = .TRUE.
+DO i=1, EndID
+  IF(ArrayA(i).EQ.-1) THEN
+    unsorted(i)=.FALSE.
+  END IF
+END DO
+unsorted_tmp=unsorted
+DO i = 1, EndID
+  IF(.NOT.unsorted_tmp(i)) CYCLE
+   idx=MINLOC(ArrayB,1,unsorted)
+   ArrayA(i) = ArrayA_temp(idx)
+   unsorted(idx) = .FALSE.
+END DO
+
+END SUBROUTINE SortArray
 
 
 END MODULE MOD_Particle_Boundary_Tools
