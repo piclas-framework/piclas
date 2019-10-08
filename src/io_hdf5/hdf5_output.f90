@@ -1187,7 +1187,9 @@ INTEGER                        :: PartDataSize       !number of entries in each 
 INTEGER(KIND=IK)               :: locnPart_max
 !===================================================================================================================================
 locnPart =   0_IK
+#if USE_MPI
 IF (PartMPI%MPIRoot) THEN
+#endif /*USE_MPI*/
   IF (UseMacroBody .AND. nMacroBody.GT.0) THEN
     DO pcount = 1,nMacroBody
       !IF(MacroParticle(pcount)%particleLocal) THEN
@@ -1195,7 +1197,9 @@ IF (PartMPI%MPIRoot) THEN
       !END IF
     END DO
   END IF
+#if USE_MPI
 END IF
+#endif /*USE_MPI*/
 !#if USE_MPI
 !sendbuf(1)=locnPart
 !recvbuf=0_IK
@@ -1254,14 +1258,20 @@ ASSOCIATE (PartDataSize => INT(PartDataSize,IK))
   StrVarNames(12)='Density'
   StrVarNames(13)='Mass'
 
+#if USE_MPI
   IF(PartMPI%MPIRoot)THEN
+#endif /*USE_MPI*/
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteAttributeToHDF5(File_ID,'VarNamesMacroParticles',INT(PartDataSize,4),StrArray=StrVarNames)
     CALL CloseDataFile()
+#if USE_MPI
   END IF
+#endif /*USE_MPI*/
 
   IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
+#if USE_MPI
     IF(PartMPI%MPIRoot)THEN ! only root writes the container
+#endif /*USE_MPI*/
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
       CALL WriteArrayToHDF5(DataSetName='MacroPartData'   , rank=2           , &
                             nValGlobal=(/nPart_glob  , INT(PartDataSize,IK)/)   , &
@@ -1269,7 +1279,9 @@ ASSOCIATE (PartDataSize => INT(PartDataSize,IK))
                             offset=    (/offsetnPart , 0_IK  /)         , &
                             collective=.FALSE.       , RealArray=PartData)
       CALL CloseDataFile()
+#if USE_MPI
     END IF !MPIRoot
+#endif /*USE_MPI*/
   END IF !locnPart_max.EQ.0
 #if USE_MPI
   CALL DistributedWriteArray(FileName                     , &

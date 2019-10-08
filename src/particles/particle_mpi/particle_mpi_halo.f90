@@ -776,7 +776,6 @@ SUBROUTINE ExchangeHaloGeometry(iProc,ElemList)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartHaloElemToProc, PartHaloNodeToProc
 USE MOD_Mesh_Vars              ,ONLY: nElems, nBCSides, BC,nGeo,ElemBaryNGeo,CurvedElem, nNodes
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalNodes,nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nPartSides,ElemHasAuxBCs
@@ -840,7 +839,6 @@ INTEGER                     :: iElem, ilocSide,SideID,iSide,iIndex,iHaloSide,fli
 INTEGER                     :: nDoubleSides,tmpnSides,tmpnElems,tmpnNodes
 INTEGER                     :: datasize,datasize2,datasize3
 INTEGER                     :: tmpbcsides
-INTEGER,ALLOCATABLE         :: messageTag(:)
 !===================================================================================================================================
 
 ALLOCATE(isElem(1:nElems))
@@ -1520,8 +1518,6 @@ IF (PartMPI%MyRank.LT.iProc) THEN
       CALL MPI_RECV(RecvMsg%SideSlabIntervals,RecvMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%BoundingBoxIsEmpty,RecvMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,MPISTATUS,IERROR)
-  IF(DoRefMapping.OR.UseMacroBody)THEN
-  END IF
   !IF(DoRefMapping)THEN
   !  IF (RecvMsg%nElems.GT.0) &
   !      CALL MPI_RECV(RecvMsg%ElemSlabNormals,RecvMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
@@ -1956,7 +1952,6 @@ SUBROUTINE ResizeParticleMeshData(nOldSides,nOldElems,nTotalSides,nTotalElems,nO
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
 USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc, PartHaloNodeToProc
 USE MOD_Mesh_Vars              ,ONLY: BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType,ElemBaryNGeo,CurvedElem,nNodes
 USE MOD_Particle_Mesh_Vars     ,ONLY: SidePeriodicType,PartBCSideList,GEO,ElemType,ElemHasAuxBCs
