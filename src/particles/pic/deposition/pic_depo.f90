@@ -3292,6 +3292,8 @@ SDEALLOCATE(tempcharge)
 SDEALLOCATE(CellVolWeightFac)
 SDEALLOCATE(CellVolWeight_Volumes)
 SDEALLOCATE(CellLocNodes_Volumes)
+SDEALLOCATE(NodeSourceExt)
+SDEALLOCATE(NodeSourceExtTmp)
 END SUBROUTINE FinalizeDeposition
 
 END MODULE MOD_PICDepo
