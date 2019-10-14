@@ -657,7 +657,7 @@ USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #if ( PP_TimeDiscMethod ==42)
 #endif
-USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
+! USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC, PorousBC
 USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber, FPInitDone
@@ -681,7 +681,7 @@ REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: EkinMax(nSpecies)
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
-REAL                :: ETotal, totalChemEnergySum
+REAL                :: ETotal!, totalChemEnergySum
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
@@ -1056,19 +1056,19 @@ INTEGER             :: dir
     CALL CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
     IF(CalcEint.AND.(CollisMode.GT.1)) THEN
       ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
-      IF(CollisMode.EQ.3) THEN
-        totalChemEnergySum = 0.
-#if USE_MPI
-        IF(PartMPI%MPIRoot) THEN
-          CALL MPI_REDUCE(ChemEnergySum,totalChemEnergySum,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        ELSE
-          CALL MPI_REDUCE(ChemEnergySum,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        END IF
-#else
-        totalChemEnergySum = ChemEnergySum
-#endif
-        ETotal = ETotal - totalChemEnergySum
-      END IF
+!       IF(CollisMode.EQ.3) THEN
+!         totalChemEnergySum = 0.
+! #if USE_MPI
+!         IF(PartMPI%MPIRoot) THEN
+!           CALL MPI_REDUCE(ChemEnergySum,totalChemEnergySum,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+!         ELSE
+!           CALL MPI_REDUCE(ChemEnergySum,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+!         END IF
+! #else
+!         totalChemEnergySum = ChemEnergySum
+! #endif
+!         ETotal = ETotal + totalChemEnergySum
+!       END IF
     END IF
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
