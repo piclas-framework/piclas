@@ -1179,7 +1179,6 @@ USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 !USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
 USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_Restart_Vars           ,ONLY: RestartFile
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,PartStateBoundarySpec
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
@@ -1222,7 +1221,7 @@ REAL                           :: WeightingFactor
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PartStateBoundary',OutputTime_loc))//'.h5'
-RestartFile=Filename
+
 #if USE_HDG
 #if PP_nVar==1
 IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',4,StrVarNames,MeshFileName,OutputTime_loc)
