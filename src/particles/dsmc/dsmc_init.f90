@@ -173,7 +173,7 @@ CALL prms%SetSection("DSMC Collision")
 CALL prms%CreateIntOption(      'crossSectionConstantMode'  &
                                             ,' Flags which cross section Cab Mode is used. sigma=Cab * cr^(-2 omega).\n ' //&
                                             ' 0 : single omega for the computational domain(Bird 1981) -'                 //&
-                                            '     Part-Species1=temperatureExponentOmega will be set for all and \n'      //&
+                                            '     Part-Species1=viscosityExponentOmega will be set for all and \n'      //&
                                             '     Cab will be calculated via species-specific factor A_j \n '             //&
                                             '     Cab=(A_1+A_2)^2*m_red^-omegaLaux'                                       //&
                                             ' 1 : Cab will be calculated via species-specific factor A_j \n '             //&
@@ -181,14 +181,14 @@ CALL prms%CreateIntOption(      'crossSectionConstantMode'  &
 CALL prms%CreateLogicalOption(   'averagedCollisionParameters'  &
                                            ,' Flags if collision parameters are specific to colliding species'        //&
                                             ' or species specific and averaged for the collision itself.'             //&
-                                            ' T: Part-Species[$]-temperatureExponentOmega,-referenceTemperature,'     //&
+                                            ' T: Part-Species[$]-viscosityExponentOmega,-referenceTemperature,'     //&
                                             '    -referenceDiameter,-alphaVSS to be set.\n '                          //&
-                                            '    species-specific parameters(T) can be found in tables e.g. in\n'     //&
+                                            '    species-specific parameters(T) can be found in tables e.g. in\n'     //& 
                                             '    VHS/VSS bird1994 VHS: table A1 and A2/VSS: table A1 and A3'          //&
                                             '    VSS     weaver2014(https://doi.org/10.1063/1.4921245)'               //&
-                                            ' F: Part-Collision[$]-[$]-temperatureExponentOmega,-referenceTemperature,'  //&
+                                            ' F: Part-Collision[$]-[$]-viscosityExponentOmega,-referenceTemperature,'  //&
                                             '    -referenceDiameter,-alphaVSS to be set.\n'                              //&
-                                            '    collision-specific parameters(F) can be found in tables e.g. in\n'      //&
+                                            '    collision-specific parameters(F) can be found in tables e.g. in\n'      //& 
                                             '    VHS/VSS krishnan2015(https://doi.org/10.2514/6.2015-3373),\n'           //&
                                             '    VHS/VSS krishnan2016(https://doi.org/10.1063/1.4939719)', 'T')
 CALL prms%CreateRealOption(     'Part-Collision[$]-[$]-referenceTemperature'  &
@@ -197,10 +197,10 @@ CALL prms%CreateRealOption(     'Part-Collision[$]-[$]-referenceTemperature'  &
 CALL prms%CreateRealOption(     'Part-Collision[$]-[$]-referenceDiameter'  &
                                            ,' collision parameter: collision-specific reference diameter for VHS/VSS model. '&
                                            , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Collision[$]-[$]-temperatureExponentOmega'  &
+CALL prms%CreateRealOption(     'Part-Collision[$]-[$]-viscosityExponentOmega'  &
                                            ,' collision parameter: collision-specific temperature exponent omega=2/(eta-1) '//&
                                             ' for VHS/VSS model. default omega=0 plus default alpha=1 reproduces HS model ' //&
-                                            ' CAUTION: temperatureExponentOmega=omega_bird1994-0.5','0', numberedmulti=.TRUE.)
+                                            ' CAUTION: viscosityExponentOmega=omega_bird1994-0.5','0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-[$]-scatteringExponentAlphaVSS'  &
                                            ,' collision parameter: collision-specific scattering exponent alpha for VSS model' //&
                                             ' default alphaVSS=1 reproduces VHS model'                                         //&
@@ -227,9 +227,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-referenceTemperature'  &
 CALL prms%CreateRealOption(     'Part-Species[$]-referenceDiameter' &
                                            ,'collision parameter: species-specific reference diameter for VHS/VSS model.'&
                                            , '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-temperatureExponentOmega'  &
+CALL prms%CreateRealOption(     'Part-Species[$]-viscosityExponentOmega'  &
                                            ,' collision parameter: species-specific temperature exponent omega=2/(eta-1) '//&
-                                            ' for VHS/VSS model. CAUTION: temperatureExponentOmega=omega_bird1994-0.5'      &
+                                            ' for VHS/VSS model. CAUTION: viscosityExponentOmega=omega_bird1994-0.5'      &
                                            , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-scatteringExponentalphaVSS'&
                                            ,' collision parameter: species-specific scattering exponent alpha for VSS model'  //&
@@ -568,7 +568,7 @@ END IF
   ! Either CollisMode.GT.0 or without chemical reactions due to collisions but with field ionization
   IF(DoFieldIonization.OR.CollisMode.NE.0)THEN
     CollInf%averagedCollisionParameters     = GETLOGICAL('averagedCollisionParameters','.TRUE.')
-    CollInf%crossSectionConstantMode        = GETINT('crossSectionConstantMode','0')
+    CollInf%crossSectionConstantMode        = GETINT('crossSectionConstantMode','0') 
     ALLOCATE(SpecDSMC(nSpecies))
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -577,15 +577,15 @@ END IF
       IF(CollInf%averagedCollisionParameters) THEN
         SpecDSMC(iSpec)%Tref         = GETREAL('Part-Species'//TRIM(hilf)//'-referenceTemperature'      ,'0')
         SpecDSMC(iSpec)%dref         = GETREAL('Part-Species'//TRIM(hilf)//'-referenceDiameter'         ,'0')
-        SpecDSMC(iSpec)%omegaLaux    = GETREAL('Part-Species'//TRIM(hilf)//'-temperatureExponentOmega'  ,'0')
+        SpecDSMC(iSpec)%omegaLaux    = GETREAL('Part-Species'//TRIM(hilf)//'-viscosityExponentOmega'  ,'0') 
         SpecDSMC(iSpec)%alphaVSS     = GETREAL('Part-Species'//TRIM(hilf)//'-scatteringExponentalphaVSS','1')
         IF((SpecDSMC(iSpec)%InterID*SpecDSMC(iSpec)%Tref*SpecDSMC(iSpec)%dref).EQ.0) THEN !check if species parameters are set
           CALL Abort(&
           __STAMP__&
           ,"ERROR in species data: check collision parameters in ini_2"//&
            "Part-Species-?-(InterID*referenceTemperature*referenceDiameter) is zero")
-        END IF
-      END IF ! averagediCollisionParameters
+        END IF 
+      END IF ! averagediCollisionParameters 
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
         DSMC%ElectronSpecies = iSpec
@@ -605,20 +605,20 @@ END IF
         WRITE(UNIT=hilf,FMT='(I0)')  iSpec
         WRITE(UNIT=hilf2,FMT='(I0)') jSpec
         IF(CollInf%averagedCollisionParameters) THEN ! collision-averaged parameters
-          CollInf%Tref(iSpec,jSpec)         = 0.5 * (SpecDSMC(iSpec)%Tref + SpecDSMC(jSpec)%Tref)
-          CollInf%dref(iSpec,jSpec)         = 0.5 * (SpecDSMC(iSpec)%dref + SpecDSMC(jSpec)%dref)
-          CollInf%omegaLaux(iSpec,jSpec)    = 0.5 * (SpecDSMC(iSpec)%omegaLaux + SpecDSMC(jSpec)%omegaLaux)
-          CollInf%alphaVSS(iSpec,jSpec)     = 0.5 * (SpecDSMC(iSpec)%alphaVSS + SpecDSMC(jSpec)%alphaVSS)
-        ELSE !  collision-specific parameters
-          CollInf%Tref(iSpec,jSpec)     =GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-referenceTemperature'      ,'0')
-          CollInf%dref(iSpec,jSpec)     =GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-referenceDiameter'         ,'0')
-          CollInf%omegaLaux(iSpec,jSpec)=GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-temperatureExponentOmega'  ,'0')
-          CollInf%alphaVSS(iSpec,jSpec) =GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-scatteringExponentalphaVSS','1')
-        END IF ! averagedCollisionParameters
-        IF (iSpec.NE.jSpec) THEN ! fill minor diagonal of collision-info matrices
-          CollInf%Tref(jSpec,iSpec)      = CollInf%Tref(iSpec,jSpec)
-          CollInf%dref(jSpec,iSpec)      = CollInf%dref(iSpec,jSpec)
-          CollInf%omegaLaux(jSpec,iSpec) = CollInf%omegaLaux(iSpec,jSpec)
+        CollInf%Tref(iSpec,jSpec)         = 0.5 * (SpecDSMC(iSpec)%Tref + SpecDSMC(jSpec)%Tref)
+        CollInf%dref(iSpec,jSpec)         = 0.5 * (SpecDSMC(iSpec)%dref + SpecDSMC(jSpec)%dref)
+        CollInf%omegaLaux(iSpec,jSpec)    = 0.5 * (SpecDSMC(iSpec)%omegaLaux + SpecDSMC(jSpec)%omegaLaux)
+        CollInf%alphaVSS(iSpec,jSpec)     = 0.5 * (SpecDSMC(iSpec)%alphaVSS + SpecDSMC(jSpec)%alphaVSS)
+      ELSE !  collision-specific parameters
+        CollInf%Tref(iSpec,jSpec)     =GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-referenceTemperature'      ,'0')
+        CollInf%dref(iSpec,jSpec)     =GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-referenceDiameter'         ,'0')
+        CollInf%omegaLaux(iSpec,jSpec)=GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-viscosityExponentOmega'  ,'0')
+        CollInf%alphaVSS(iSpec,jSpec) =GETREAL('Part-Collision'//TRIM(hilf)//'-'//TRIM(hilf2)//'-scatteringExponentalphaVSS','1')
+      END IF ! averagedCollisionParameters
+      IF (iSpec.NE.jSpec) THEN ! fill minor diagonal of collision-info matrices
+        CollInf%Tref(jSpec,iSpec)      = CollInf%Tref(iSpec,jSpec)
+        CollInf%dref(jSpec,iSpec)      = CollInf%dref(iSpec,jSpec)
+        CollInf%omegaLaux(jSpec,iSpec) = CollInf%omegaLaux(iSpec,jSpec)
           CollInf%alphaVSS(jSpec,iSpec)  = CollInf%alphaVSS(iSpec,jSpec)
         END IF ! fill minor diagonal
         IF(CollInf%dref(iSpec,jSpec)*CollInf%Tref(iSpec,jSpec).EQ.0) THEN
@@ -702,8 +702,8 @@ IF (CollisMode.EQ.0) THEN
       END IF !kronecker delta
       ! Laux (2.37) prefactor crossSectionConstantCab calculation depending on omegaLaux coll-averaged or -specific
       SELECT CASE (CollInf%crossSectionConstantMode) ! sigma=Cab * cr^(-2 omegaLaux) , see Bird1981 for details
-      CASE (0,1)
-        ! A1,A2 species constants, see laux1996 (2.38),(2.39)
+      CASE (0,1) 
+        ! A1,A2 species constants, see laux1996 (2.38),(2.39) 
         A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec) * (2 * BoltzmannConst * CollInf%Tref(iSpec , iSpec)) ** &
            (CollInf%omegaLaux(iSpec , iSpec) * 0.5) / SQRT (GAMMA(2.0 - CollInf%omegaLaux(iSpec , iSpec)))
         A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec , jSpec)*(2 * BoltzmannConst * CollInf%Tref(jSpec , jSpec)) ** &
@@ -1914,10 +1914,10 @@ SDEALLOCATE(CollInf%KronDelta)
 SDEALLOCATE(CollInf%FracMassCent)
 SDEALLOCATE(CollInf%MassRed)
 SDEALLOCATE(CollInf%MeanMPF)
-SDEALLOCATE(CollInf%alphaVSS)
-SDEALLOCATE(CollInf%omegaLaux)
-SDEALLOCATE(CollInf%dref)
-SDEALLOCATE(CollInf%Tref)
+SDEALLOCATE(CollInf%alphaVSS) 
+SDEALLOCATE(CollInf%omegaLaux)    
+SDEALLOCATE(CollInf%dref)    
+SDEALLOCATE(CollInf%Tref)    
 SDEALLOCATE(HValue)
 !SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)
