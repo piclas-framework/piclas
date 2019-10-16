@@ -333,7 +333,7 @@ TYPE(tPartAuxBC)        :: PartAuxBC             ! auxBC Data for Particles
 LOGICAL              :: DoBoundaryParticleOutput   ! Flag set automatically if particles crossing specific 
 !                                                  ! boundaries are to be saved to .h5 (position of intersection, 
 !                                                  ! velocity, species, internal energies)
-REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:6,1:NParts) 1st index: x,y,z,vx,vy,vz,specID
+REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:9,1:NParts) 1st index: x,y,z,vx,vy,vz,MPF,time,impact angle
 !                                                  !                2nd index: 1 to number of boundary-crossed particles
 INTEGER, ALLOCATABLE :: PartStateBoundarySpec(:)   ! Species ID of boundary-crossed particles
 INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed particles

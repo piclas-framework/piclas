@@ -1382,7 +1382,6 @@ SUBROUTINE MapInnerSurfData()
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall,PartBound,CalcSurfaceImpact
 USE MOD_Mesh_Vars,                  ONLY:nBCSides,nSides,BC
-USE MOD_Particle_Mesh_Vars,         ONLY:PartSideToElem
 USE MOD_SurfaceModel_Vars,          ONLY:Adsorption
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING

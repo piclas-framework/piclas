@@ -572,6 +572,7 @@ SUBROUTINE BoundaryParticleOutput(iPart,PartPos)
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState,PDM
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,PartStateBoundarySpec
+USE MOD_TimeDisc_Vars          ,ONLY: time
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
@@ -596,6 +597,8 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
   END IF
   PartStateBoundary(1:3,iMax) = PartPos
   PartStateBoundary(4:6,iMax) = PartState(iPart,4:6)
+  PartStateBoundary(7,iMax)   = MPF
+  PartStateBoundary(8,iMax)   = time
   PartStateBoundarySpec(iMax) = PartSpecies(iPart)
 END ASSOCIATE
 
