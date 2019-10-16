@@ -60,7 +60,7 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals                  ,ONLY: Abort,myrank
+USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars            ,ONLY: PDM,PartSpecies, UseCircularInflow, UseAdaptive, Species
 USE MOD_Particle_Tracking_Vars   ,ONLY: TriaTracking
@@ -69,7 +69,7 @@ USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType,epsilontol
 USE MOD_SurfaceModel             ,ONLY: ReactiveSurfaceTreatment
 USE MOD_Particle_Analyze         ,ONLY: RemoveParticle
-USE MOD_Mesh_Vars                ,ONLY: BC,nElems
+USE MOD_Mesh_Vars                ,ONLY: BC
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars            ,ONLY: RK_a
 #endif
@@ -78,10 +78,11 @@ USE MOD_Particle_Vars            ,ONLY: PartIsImplicit
 USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 #endif /*IMPA*/
 USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
-USE MOD_PICDepo_Tools            ,ONLY: DepositParticleOnNodes
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
-USE MOD_Part_Tools               ,ONLY: CreateParticle
-USE MOD_Particle_Boundary_Tools  ,ONLY: BoundaryParticleOutput
+USE MOD_Particle_Boundary_Tools  ,ONLY: BoundaryParticleOutput,DielectricSurfaceCharge
+#if CODE_ANALYZE
+USE MOD_Globals                  ,ONLY: myrank
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -97,7 +98,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
-INTEGER                              :: ReflectionIndex, iSpec, iSF,NewPartID
+INTEGER                              :: ReflectionIndex, iSpec, iSF
 LOGICAL                              :: isSpeciesSwap, PorousReflection
 !===================================================================================================================================
 
@@ -153,37 +154,7 @@ CASE(2) !PartBound%ReflectiveBC)
   IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PorousReflection)
 
   !---- Dielectric particle-surface interaction
-  IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC))THEN ! deposit charge on surface
-    ! Sanity checks
-    IF(.NOT.PDM%ParticleInside(iPart))THEN
-      IPWRITE (*,*) "iPart  :", iPart
-      IPWRITE (*,*) "ElemID :", ElemID
-      CALL abort(&
-          __STAMP__&
-          ,'Dielectric particle-surface interaction: Particle not inside element.')
-    ELSEIF(PartSpecies(iPart).LT.0)THEN
-      IF(myrank.eq.1)THEN
-        IPWRITE (*,*) "iPart =", iPart
-        IPWRITE (*,*) "PDM%ParticleVecLength =", PDM%ParticleVecLength
-      END IF ! myrank.eq.1
-      CALL abort(&
-          __STAMP__&
-          ,'Negative speciesID')
-    END IF ! PartSpecies(iPart)
-
-    IF(CHARGEDPARTICLE(iPart))THEN
-      IF(ElemID.GT.nElems)THEN
-        ! Particle is now located in halo element: Create phantom particle, which is sent to new host Processor and removed there (set
-        ! negative SpeciesID in order to remove particle in host Processor)
-        CALL CreateParticle(-PartSpecies(iPart),LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
-        ! Set inside to F (it is set to T in SendNbOfParticles if species ID is negative)
-        PDM%ParticleInside(NewPartID)=.FALSE.
-      ELSE ! Deposit single particle charge on surface here and 
-        CALL DepositParticleOnNodes(iPart,LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID)
-      END IF ! ElemID.GT.nElems
-    END IF ! CHARGEDPARTICLE(iPart)
-
-  END IF
+  IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) CALL DielectricSurfaceCharge(iPart,ElemID,PartTrajectory,alpha)
 
   !---- swap species?
   IF (PartBound%NbrOfSpeciesSwaps(iBC).gt.0) THEN

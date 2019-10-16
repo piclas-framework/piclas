@@ -41,26 +41,6 @@ INTERFACE SurfaceToPartEnergyInternal
   MODULE PROCEDURE SurfaceToPartEnergyInternal
 END INTERFACE
 
-INTERFACE LIQUIDEVAP
-  MODULE PROCEDURE LIQUIDEVAP
-END INTERFACE
-
-INTERFACE LIQUIDREFL
-  MODULE PROCEDURE LIQUIDREFL
-END INTERFACE
-
-INTERFACE ALPHALIQUID
-  MODULE PROCEDURE ALPHALIQUID
-END INTERFACE
-
-INTERFACE BETALIQUID
-  MODULE PROCEDURE BETALIQUID
-END INTERFACE
-
-INTERFACE TSURUTACONDENSCOEFF
-  MODULE PROCEDURE TSURUTACONDENSCOEFF
-END INTERFACE
-
 INTERFACE CountSurfaceImpact
   MODULE PROCEDURE CountSurfaceImpact
 END INTERFACE
@@ -69,18 +49,18 @@ INTERFACE BoundaryParticleOutput
   MODULE PROCEDURE BoundaryParticleOutput
 END INTERFACE
 
+INTERFACE DielectricSurfaceCharge
+  MODULE PROCEDURE DielectricSurfaceCharge
+END INTERFACE
+
 PUBLIC :: AddPartInfoToSample
 PUBLIC :: CalcWallSample
 PUBLIC :: AnalyzeSurfaceCollisions
 PUBLIC :: SurfaceToPartEnergyInternal
-PUBLIC :: LIQUIDEVAP
-PUBLIC :: LIQUIDREFL
-PUBLIC :: ALPHALIQUID
-PUBLIC :: BETALIQUID
-PUBLIC :: TSURUTACONDENSCOEFF
 PUBLIC :: CountSurfaceImpact
 PUBLIC :: BoundaryParticleOutput
 PUBLIC :: SortArray
+PUBLIC :: DielectricSurfaceCharge
 !===================================================================================================================================
 
 CONTAINS
@@ -377,144 +357,6 @@ END IF
 END SUBROUTINE SurfaceToPartEnergyInternal
 
 
-PURE REAL FUNCTION LIQUIDEVAP(beta,x,sigma)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN) :: beta,x,sigma
-REAL            :: betaLoc
-!===================================================================================================================================
-betaLoc = beta
-IF (betaLoc.GE.2.) betaLoc = 2. - 1e-10
-IF (betaLoc.LT.0.) betaLoc = 0.
-
-liquidEvap=(1-betaLoc*exp(-0.5*(x/sigma)**2))/(1-betaLoc/2)  *   x/sigma**2  *  exp(-0.5*(x/sigma)**2)
-IF (liquidEvap.LT.0.) liquidEvap = 0.
-END FUNCTION
-
-REAL FUNCTION LIQUIDREFL(alpha,beta,x,sigma)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN) :: alpha,beta,x,sigma
-REAL            :: betaLoc, alphaLoc
-!===================================================================================================================================
-betaLoc = beta
-IF (betaLoc.GE.2.) betaLoc = 2. - 1e-10
-IF (betaLoc.LT.0.) betaLoc = 0.
-alphaLoc = alpha
-IF (alphaLoc.GT.1.) alphaLoc = 1.
-IF (alphaLoc.LT.0.) alphaLoc = 0.
-
-if (alphaLoc.GE.1.) then
-  if (betaLoc.LE.0) then
-    liquidRefl = x/sigma**2  *  exp(-0.5*(x/sigma)**2)
-  else
-    liquidRefl = (betaLoc*exp(-0.5*(x/sigma)**2))/(1.-(1.-betaLoc/2.))  *   x/sigma**2  *  exp(-0.5*(x/sigma)**2)
-  end if
-else
-  liquidRefl = (1.-alphaLoc+alphaLoc*betaLoc*exp(-0.5*(x/sigma)**2))/(1.-alphaLoc*(1.-betaLoc/2.)) &
-             * x/sigma**2 * exp(-0.5*(x/sigma)**2)
-end if
-
-IF (liquidRefl.LT.0.) liquidRefl = 0.
-END FUNCTION
-
-PURE FUNCTION ALPHALIQUID(specID,temp) RESULT(alpha)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-USE MOD_SurfaceModel_Vars ,ONLY: SpecSurf
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: specID
-REAL,INTENT(IN)    :: temp
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL :: alpha
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-SELECT CASE (SpecSurf(specID)%condensCase)
-CASE (1)
-  alpha = SpecSurf(specID)%liquidAlpha
-CASE (2)
-  alpha = exp(-((4-BETALIQUID(specID,temp))/(2*(2-BETALIQUID(specID,temp)))-1))
-END SELECT
-IF (alpha.GT.1.) alpha = 1.
-IF (alpha.LT.0.) alpha = 0.
-END FUNCTION
-
-PURE FUNCTION BETALIQUID(specID,temp) RESULT(beta)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-USE MOD_SurfaceModel_Vars ,ONLY: SpecSurf
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: specID
-REAL,INTENT(IN)    :: temp
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL :: beta
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-SELECT CASE (SpecSurf(specID)%condensCase)
-CASE (1)
-  beta = SpecSurf(specID)%liquidBeta
-CASE (2)
-  beta = SpecSurf(specID)%liquidBetaCoeff(1)*temp**5 &
-       + SpecSurf(specID)%liquidBetaCoeff(2)*temp**4 &
-       + SpecSurf(specID)%liquidBetaCoeff(3)*temp**3 &
-       + SpecSurf(specID)%liquidBetaCoeff(4)*temp**2 &
-       + SpecSurf(specID)%liquidBetaCoeff(5)*temp    &
-       + SpecSurf(specID)%liquidBetaCoeff(6)
-END SELECT
-IF (beta.GE.2.) beta = 2. - 1e-10
-IF (beta.LT.0.) beta=0.
-END FUNCTION
-
-FUNCTION TSURUTACONDENSCOEFF(SpecID,normalVelo,temp) RESULT(sigma)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars ,ONLY: Species
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: specID
-REAL,INTENT(IN)    :: normalVelo,temp
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL :: sigma
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-sigma = ALPHALIQUID(specID,temp)*(1-BETALIQUID(specID,temp)*exp(-normalVelo**2*Species(specID)%MassIC/(2*Boltzmannconst*temp)))
-IF (sigma.LT.0.) sigma = 0.
-IF (sigma.GT.1.) sigma = 1.
-END FUNCTION
-
 
 SUBROUTINE CountSurfaceImpact(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,PartTrajectory,SurfaceNormal,p,q)
 !===================================================================================================================================
@@ -604,6 +446,7 @@ END ASSOCIATE
 
 END SUBROUTINE BoundaryParticleOutput
 
+
 SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! sort arryA in ascending order of arrayB
@@ -641,6 +484,58 @@ DO i = 1, EndID
 END DO
 
 END SUBROUTINE SortArray
+
+
+SUBROUTINE DielectricSurfaceCharge(iPart,ElemID,PartTrajectory,alpha)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! description
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals       ,ONLY: abort,myrank
+USE MOD_Mesh_Vars     ,ONLY: nElems
+USE MOD_Part_Tools    ,ONLY: CreateParticle
+USE MOD_Particle_Vars ,ONLY: PDM,PartSpecies,LastPartPos,Species
+USE MOD_PICDepo_Tools ,ONLY: DepositParticleOnNodes
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)    :: iPart
+INTEGER,INTENT(IN)    :: ElemID
+REAL,INTENT(IN)       :: PartTrajectory(1:3), alpha
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: NewPartID
+!===================================================================================================================================
+! Sanity checks
+IF(.NOT.PDM%ParticleInside(iPart))THEN
+  IPWRITE (*,*) "iPart  :", iPart
+  IPWRITE (*,*) "ElemID :", ElemID
+  CALL abort(&
+      __STAMP__&
+      ,'Dielectric particle-surface interaction: Particle not inside element.')
+ELSEIF(PartSpecies(iPart).LT.0)THEN
+  IF(myrank.eq.1)THEN
+    IPWRITE (*,*) "iPart =", iPart
+    IPWRITE (*,*) "PDM%ParticleVecLength =", PDM%ParticleVecLength
+  END IF ! myrank.eq.1
+  CALL abort(&
+      __STAMP__&
+      ,'Negative speciesID')
+END IF ! PartSpecies(iPart)
+
+IF(CHARGEDPARTICLE(iPart))THEN
+  IF(ElemID.GT.nElems)THEN
+    ! Particle is now located in halo element: Create phantom particle, which is sent to new host Processor and removed there (set
+    ! negative SpeciesID in order to remove particle in host Processor)
+    CALL CreateParticle(-PartSpecies(iPart),LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
+    ! Set inside to F (it is set to T in SendNbOfParticles if species ID is negative)
+    PDM%ParticleInside(NewPartID)=.FALSE.
+  ELSE ! Deposit single particle charge on surface here and 
+    CALL DepositParticleOnNodes(iPart,LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID)
+  END IF ! ElemID.GT.nElems
+END IF ! CHARGEDPARTICLE(iPart)
+
+END SUBROUTINE DielectricSurfaceCharge
 
 
 END MODULE MOD_Particle_Boundary_Tools

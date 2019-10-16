@@ -2341,8 +2341,6 @@ USE MOD_Part_Tools,             ONLY : VELOFROMDISTRIBUTION
 USE MOD_Particle_Surfaces_Vars, ONLY : SurfMeshSubSideData, TriaSurfaceFlux
 USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBezier
 USE MOD_Particle_Boundary_Vars, ONLY : PartBound
-USE MOD_Particle_Boundary_Tools,ONLY : BETALIQUID,LIQUIDEVAP
-!USE Ziggurat,                   ONLY : rnor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

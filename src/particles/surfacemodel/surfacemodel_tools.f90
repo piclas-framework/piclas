@@ -101,7 +101,7 @@ SUBROUTINE CalcEvapPartNum()
 USE MOD_Globals_Vars           ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, surfmodel, SpecSurf
-USE MOD_Particle_Boundary_Tools,ONLY: TSURUTACONDENSCOEFF
+USE MOD_Part_Tools             ,ONLY: TSURUTACONDENSCOEFF
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_TimeDisc_Vars          ,ONLY: dt
