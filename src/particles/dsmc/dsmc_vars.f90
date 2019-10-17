@@ -302,11 +302,13 @@ TYPE tCollInf     ! Collision information
                                                                 !   2: Cab will be calculated directly see Bird1981 eq (9)
   LOGICAL                       :: averagedCollisionParameters  ! Flags if coll-specific(F) or -averaged(T) collision parameters:
                                                                 ! Tref, dref, omegaLaux, alphaVSS
+  INTEGER       , ALLOCATABLE   :: collidingSpecies(:,:)        ! Contains colliding species ini file IDs. e.g. collision #iColl
+                                                                ! are Species1 and Species2: collidingSpecies(iColl,:)=(/1,2/)
   INTEGER       , ALLOCATABLE   :: Coll_Case(:,:)               ! Case of species combination (Spec1, Spec2)
   INTEGER                       :: NumCase                      ! number of possible collision combinations
-  INTEGER       , ALLOCATABLE   :: Coll_CaseNum(:)              ! number of simulated species combinations per cell Sab (number of cases)
+  INTEGER       , ALLOCATABLE   :: Coll_CaseNum(:)              ! number of simulated species combinations per cell Sab (#of cases)
   REAL          , ALLOCATABLE   :: Coll_SpecPartNum(:)          ! number of simulated particles of species n per cell (nSpec)
-  REAL          , ALLOCATABLE   :: crossSectionConstantCab(:)   ! species factor for cross section (number of case)
+  REAL          , ALLOCATABLE   :: crossSectionConstantCab(:)   ! species factor for cross section (#of case)
   INTEGER       , ALLOCATABLE   :: KronDelta(:)                 ! (number of case)
   REAL          , ALLOCATABLE   :: FracMassCent(:,:)            ! mx/(my+mx) (nSpec, number of cases)
   REAL          , ALLOCATABLE   :: MeanMPF(:)
