@@ -352,7 +352,9 @@ IF(VarTimeStep%AdaptDistribution) THEN
     ! If time step was not adapted due to particle number, collision probability or mean collision separation
     ! Choose appropriate time step to satisfy target MCSoverMFP, MaxCollProb and MinPartNum
     IF(.NOT.TimeStepModified) THEN
-      TimeFracTemp = VarTimeStep%TargetMaxCollProb*VarTimeStep%ElemFac(iElem) / DSMCQualityFactors(iElem,1)
+      IF(DSMCQualityFactors(iElem,1).GT.0.0) THEN
+        TimeFracTemp = VarTimeStep%TargetMaxCollProb*VarTimeStep%ElemFac(iElem) / DSMCQualityFactors(iElem,1)
+      END IF
       IF(DSMCQualityFactors(iElem,2).GT.0.0) THEN
         IF(Symmetry2D) THEN
           TimeFracTemp = MIN(TimeFracTemp,VarTimeStep%ElemFac(iElem)*(VarTimeStep%TargetMCSoverMFP/DSMCQualityFactors(iElem,2))**2)
