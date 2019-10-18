@@ -793,6 +793,7 @@ __STAMP__&
   END IF
 
   IF (ConsiderVolumePortions) THEN
+    ! calculate volume portion only when enabled
     CALL CalcSubNodeMPVolumePortions(iElem, TreeNode%NodeDepth, ElemNodeVol(iElem)%Root)
 
     NodeVolumeTemp(1) = NodeVol%SubNode1%Volume *(1.-NodeVol%SubNode1%MPVolumePortion)
@@ -1452,13 +1453,24 @@ END IF
 END SUBROUTINE AddNodeVolumes
 
 
+!===================================================================================================================================
+!> Main routine for calculating the volume portions that are occupied by macroscopic bodies
+!===================================================================================================================================
 SUBROUTINE CalcSubNodeMPVolumePortions(iElem, NodeDepth, Node)
 !===================================================================================================================================
-! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
+!> 1. reset occupied volume portion for all nodelevels if necessary (macrobody as well as motion or size change enabled)
+!> 2. check the state of volume portion calculation
+!>    if it was reset voldone are all false else only the highest level (maxlevel+1) is false
+!> 3.1 If only a part of the total element is occupied by the macroscopic body then check all subnodes of octree
+!>     a. allocate and initialize container for treenode of current node level
+!>     b. insert (nPointsMCVolumeEstimate*(8**(NodeDepth))) number of points into element and match which are inside of macrobody
+!>     c. find volume portions of each node by matching the inserted points to each subnode
+!> 3.2 If macroscopic body occupies the total element or element has no macroscopic body then set all subnodes to 1 or 0 
+!>     (MPVolumePortion of total element)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars          ,ONLY: tNodeVolume, tTreeNode
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO, epsOneCell
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Particle_Vars      ,ONLY: nPointsMCVolumeEstimate
 USE MOD_MacroBody_Vars     ,ONLY: UseMacroBody, MacroSphere
 USE MOD_MacroBody_tools    ,ONLY: INSIDEMACROBODY
@@ -1478,14 +1490,18 @@ INTEGER                  :: iPart, LocalNodeDepth
 REAL                     :: refPos(1:3),physPos(1:3)
 TYPE(tTreeNode), POINTER :: TreeNode
 !===================================================================================================================================
+!-- 1.
 IF (UseMacroBody .AND. NodeDepth.EQ.1) THEN
   IF (MAXVAL(ABS(MacroSphere(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroSphere(:)%velocity(2))).GT.0. &
       .OR. MAXVAL(ABS(MacroSphere(:)%velocity(3))).GT.0.) THEN
       CALL ResetMPVolDone(Node)
   END IF
 END IF
+!-- 2.
 IF (GETMPVOLDONE(NodeDepth,1,Node)) RETURN
+!-- 3.1
 IF (UseMacroBody .AND. GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePortion(iElem).GT.0.) THEN
+  !-- a.
   NULLIFY(TreeNode)
   ALLOCATE(TreeNode)
   TreeNode%PNum_Node = nPointsMCVolumeEstimate*(8**(NodeDepth))
@@ -1497,12 +1513,13 @@ IF (UseMacroBody .AND. GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePorti
   TreeNode%NodeDepth = 1
   TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
 
+  !-- b.
   DO iPart=1,TreeNode%PNum_Node
     DO
       CALL RANDOM_NUMBER(physPos)
       physPos = GEO%BoundsOfElem(1,:,iElem) + physPos*(GEO%BoundsOfElem(2,:,iElem)-GEO%BoundsOfElem(1,:,iElem))
       CALL GetPositionInRefElem(physPos,refPos,iElem)
-      IF(ALL(ABS(refPos).LE.epsOneCell(iElem))) EXIT ! particle inside of element
+      IF (MAXVAL(ABS(refPos)).LE.1.0) EXIT ! particle inside of element
     END DO
     TreeNode%iPartIndx_Node(iPart) = iPart
     TreeNode%MappedPartStates(iPart,1:3)= refPos(1:3)
@@ -1510,12 +1527,14 @@ IF (UseMacroBody .AND. GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePorti
       TreeNode%MatchedPart(iPart) = .TRUE.
     END IF
   END DO
+  !-- c.
   CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node, TreeNode=TreeNode)
   DEALLOCATE(TreeNode%MatchedPart)
   DEALLOCATE(TreeNode%MappedPartStates)
   DEALLOCATE(TreeNode%iPartIndx_Node)
   DEALLOCATE(TreeNode)
 ELSE
+!-- 3.2
   LocalNodeDepth=1
   CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node, LocalNodeDepth=LocalNodeDepth)
 END IF
@@ -1523,9 +1542,24 @@ END IF
 END SUBROUTINE CalcSubNodeMPVolumePortions
 
 
-RECURSIVE SUBROUTINE AddNodeMPVolumePortions(iElem, NodeDepth, Node, TreeNode, LocalNodeDepth)
 !===================================================================================================================================
 !> suboutine, which adds the volume portion that is occupied by macro particles to node-leaves of the octree
+!===================================================================================================================================
+RECURSIVE SUBROUTINE AddNodeMPVolumePortions(iElem, NodeDepth, Node, TreeNode, LocalNodeDepth)
+!===================================================================================================================================
+!> 1. TreeNode Mode:
+!>   Select whether deepest octree level is reached 
+!>     1-A. not deepest level: 
+!>       1-A.1. find the correct childnode ID for each point in the current treenode and assign to childnode arrays
+!>       1-A.2. move to deeper level
+!>     1-B. deepest level: 
+!>       assign correct volumeportion to octree subnode
+!> 2. LocalNodeDepth: 
+!>   Select whether deepest octree level is reached 
+!>     2-A. not deepest level: 
+!>       move to deeper level
+!>     2-B. deepest level: 
+!>       assign correct volumeportion to octree subnode
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1551,8 +1585,13 @@ INTEGER, ALLOCATABLE :: iPartIndx_ChildNode(:,:)
 REAL, ALLOCATABLE    :: MappedPart_ChildNode(:,:,:)
 LOGICAL, ALLOCATABLE :: MatchedPart_ChildNode(:,:)
 !===================================================================================================================================
+IF (PRESENT(TreeNode).AND.PRESENT(LocalNodeDepth)) CALL abort(&
+    __STAMP__&
+    ,'ERROR in AddNodeMPVolumePortions: only TreeNode pointer or localNodeDepth parameter allowed. NOT BOTH')
 IF (PRESENT(TreeNode)) THEN
+!-- 1.
   IF (TreeNode%NodeDepth.LE.NodeDepth) THEN
+    !-- 1-A.1.
     PartNumChildNode(:) = 0
     ALLOCATE(iPartIndx_ChildNode(8,TreeNode%PNum_Node))
     ALLOCATE(MappedPart_ChildNode(8,TreeNode%PNum_Node,3))
@@ -1569,6 +1608,7 @@ IF (PRESENT(TreeNode)) THEN
       END IF
     END DO
 
+    !-- 1-A.2.
     DO iOctant=1,8
       NULLIFY(TreeNode%ChildNode)
       ALLOCATE(TreeNode%ChildNode)
@@ -1618,6 +1658,7 @@ IF (PRESENT(TreeNode)) THEN
     DEALLOCATE(MappedPart_ChildNode)
     DEALLOCATE(MatchedPart_ChildNode)
   ELSE
+    !-- 1-B.
     IF (GEO%MPVolumePortion(iElem).EQ.0. .OR. TreeNode%PNum_Node.EQ.0) THEN
       Node%MPVolumePortion = 0.
     ELSE IF (GEO%MPVolumePortion(iElem).EQ.1.) THEN
@@ -1634,7 +1675,9 @@ IF (PRESENT(TreeNode)) THEN
     Node%MPVolumeDone = .TRUE.
   END IF
 ELSE IF (PRESENT(LocalNodeDepth)) THEN
+!-- 2.
   IF (LocalNodeDepth.LE.NodeDepth) THEN
+    !-- 2-A.
     DO iOctant=1,8
       CurrentDepth = LocalNodeDepth + 1
       ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
@@ -1666,6 +1709,7 @@ ELSE IF (PRESENT(LocalNodeDepth)) THEN
       END SELECT
     END DO
   ELSE
+    !-- 2-B.
     IF (GEO%MPVolumePortion(iElem).EQ.1.) THEN
       Node%MPVolumePortion = 1.
     ELSE
