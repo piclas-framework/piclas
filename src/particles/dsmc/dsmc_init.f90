@@ -183,19 +183,18 @@ CALL prms%CreateLogicalOption(   'averagedCollisionParameters'  &
                                             ' or species specific and averaged for the collision itself.'             //&
                                             ' T: Part-Species[$]-viscosityExponentOmega,-referenceTemperature,'     //&
                                             '    -referenceDiameter,-alphaVSS to be set.\n '                          //&
-                                            '    species-specific parameters(T) can be found in tables e.g. in\n'     //& 
+                                            '    species-specific parameters(T) can be found in tables e.g. in\n'     //&
                                             '    VHS/VSS bird1994 VHS: table A1 and A2/VSS: table A1 and A3'          //&
                                             '    VSS     weaver2014(https://doi.org/10.1063/1.4921245)'               //&
                                             ' F: Part-Collision[$]-viscosityExponentOmega,-referenceTemperature,'  //&
                                             '    -referenceDiameter,-scatteringExponentAlphaVSS to be set.\n'         //&
-                                            '    collision-specific parameters(F) can be found in tables e.g. in\n'      //& 
+                                            '    collision-specific parameters(F) can be found in tables e.g. in\n'      //&
                                             '    VHS/VSS krishnan2015(https://doi.org/10.2514/6.2015-3373),\n'           //&
                                             '    VHS/VSS krishnan2016(https://doi.org/10.1063/1.4939719)', 'T')
-CALL prms%CreateIntOption(   'Part-Collision[$]-partnerSpecies[$]'  &
-                                           ,' Binary collisions: colliding partnerSpecies(1,2)=Species# from INI.'//&
-                                            ' Collision #1: Part-Species2(Ar) + Part-Species3(NO)'//&
-                                            '   write Part-Collision1-partnerSpecies1=2 \n '//&
-                                            '   and   Part-Collision1-partnerSpecies2=3 \n ', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntArrayOption( 'Part-Collision[$]-partnerSpecies'  &
+                                           ,' Binary collisions: colliding partnerSpecies=SpeciesID from INI.'//&
+                                            ' Collision ID 1: Part-Species2(Ar) + Part-Species3(NO) write \n'//&
+                                            ' Part-Collision1-partnerSpecies=(/2,3/) or (/3,2/) \n ', '0,0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-referenceTemperature'  &
                                            ,' collision parameter: collision-specific reference temperature for VHS/VSS model.'//&
                                             ' (index=speciesi-speciesj)' , '0', numberedmulti=.TRUE.)
@@ -436,7 +435,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(32)         :: hilf , hilf2
 INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
-INTEGER               :: iColl, jColl, pColl, nCollision ! for collision parameter read in 
+INTEGER               :: iColl, jColl, pColl, nCollision ! for collision parameter read in
 REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
 REAL                  :: BGGasEVib
 INTEGER               :: currentBC, ElemID, iSide, BCSideID, VarNum
@@ -572,29 +571,28 @@ END IF
 ! reading in collision model variables
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Either CollisMode.GT.0 or without chemical reactions due to collisions but with field ionization
-  IF(DoFieldIonization.OR.CollisMode.NE.0) THEN 
+  IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
     ! Flags for collision parameters
     CollInf%averagedCollisionParameters     = GETLOGICAL('averagedCollisionParameters','.TRUE.')
-    CollInf%crossSectionConstantMode        = GETINT('crossSectionConstantMode','0') 
+    CollInf%crossSectionConstantMode        = GETINT('crossSectionConstantMode','0')
     ALLOCATE(SpecDSMC(nSpecies))
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       SpecDSMC(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
       SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
-      ! averagedCollisionParameters set true: species-specific collision parameters get read in 
+      ! averagedCollisionParameters set true: species-specific collision parameters get read in
       IF(CollInf%averagedCollisionParameters) THEN
         SpecDSMC(iSpec)%Tref         = GETREAL('Part-Species'//TRIM(hilf)//'-referenceTemperature'      ,'0')
         SpecDSMC(iSpec)%dref         = GETREAL('Part-Species'//TRIM(hilf)//'-referenceDiameter'         ,'0')
-        SpecDSMC(iSpec)%omegaLaux    = GETREAL('Part-Species'//TRIM(hilf)//'-viscosityExponentOmega'    ,'0') 
+        SpecDSMC(iSpec)%omegaLaux    = GETREAL('Part-Species'//TRIM(hilf)//'-viscosityExponentOmega'    ,'0')
         SpecDSMC(iSpec)%alphaVSS     = GETREAL('Part-Species'//TRIM(hilf)//'-scatteringExponentAlphaVSS','1')
         ! check for faulty parameters
-        IF((SpecDSMC(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN 
-          WRITE(*,*) 'ERROR: Part-Species'//TRIM(hilf)//' is corrupt. See below for more details.'
+        IF((SpecDSMC(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
           CALL Abort(&
           __STAMP__&
-          ,'ERROR in species data: check collision parameters in ini_2 \n'//&
-           'Part-Species#-(InterID * referenceTemperature *referenceDiameter * scatteringExponentAlphaVSS) .EQ. 0 '//&
-           '- but must not be 0')
+          ,'ERROR in species data: check collision parameters in ini \n'//&
+           'Part-Species'//TRIM(hilf)//'-(InterID * referenceTemperature *referenceDiameter * scatteringExponentAlphaVSS) .EQ. 0'//&
+           ' - but must not be 0')
         END IF ! (Tref * dref * alphaVSS) .EQ. 0
       END IF ! averagedCollisionParameters
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
@@ -605,11 +603,11 @@ END IF
       IF((DSMC%ElectronicModelDatabase.NE.'none').AND.(SpecDSMC(iSpec)%InterID.NE.4)) CALL SetElectronicModel(iSpec)
     END DO ! iSpec = nSpecies
 
-    ! determine number of different species combinations and allocate collidingSpecies array 
-    nCollision=0 
+    ! determine number of different species combinations and allocate collidingSpecies array
+    nCollision=0
     DO iColl=1,nSpecies
       DO jColl=iColl,nSpecies
-        nCollision=nCollision+1  
+        nCollision=nCollision+1
       END DO !jColl = nSpecies
     END DO !iColl = nSpecies
     ALLOCATE(CollInf%collidingSpecies(nCollision,2))
@@ -625,36 +623,37 @@ END IF
         END DO ! jSpec = nSpecies
       END DO ! iSpec = nSpecies
     ELSE ! .NOT. averagedCollisionParameters     : partnerSpecies for collidingSpecies per collision are read in
-      DO iColl = 1, nCollision 
+      DO iColl = 1, nCollision
         WRITE(UNIT=hilf,FMT='(I0)')  iColl
-        DO pColl = 1,2 ! collision partner
-          WRITE (UNIT = hilf2,FMT = '(I0)') pColl
-          CollInf%collidingSpecies(iColl,pColl) = GETINT ('Part-Collision'//TRIM(hilf)//'-partnerSpecies'//TRIM(hilf2) , '0')
-        END DO ! pColl = 2
+        CollInf%collidingSpecies(iColl,:) = GETINTARRAY('Part-Collision'//TRIM(hilf)//'-partnerSpecies',2,'0,0')
       END DO ! iColl = nCollision
-    END IF ! averagedCollisionParameters 
+    END IF ! averagedCollisionParameters
     DO iColl = 1, nCollision ! check if any collidingSpecies pair is set multiple times
       WRITE(UNIT=hilf,FMT='(I0)') iColl
-      DO pColl = 1,2 ! collision partner 
+      DO pColl = 1,2 ! collision partner
         WRITE (UNIT = hilf2,FMT = '(I0)') pColl
         IF (CollInf%collidingSpecies(iColl,pColl) .EQ. 0) THEN
-          WRITE(*,*) 'ERROR: Part-Collision'//TRIM(hilf)//'-partnerSpecies'//TRIM(hilf2)//' is not set'
             CALL Abort(&
             __STAMP__&
-            ,'Collision information expected')
-        END IF ! collidingSpecies .EQ. 0 
+            ,'ERROR: Partner species '//TRIM(hilf2)//' for Collision'//TRIM(hilf)//' not defined. '// &
+            'Part-Collision'//TRIM(hilf)//'-partnerSpecies required ')
+        END IF ! collidingSpecies .EQ. 0
+        IF (CollInf%collidingSpecies(iColl,pColl).GT.nSpecies) THEN
+          CALL Abort(&
+              __STAMP__&
+              ,'ERROR: Partner species '//TRIM(hilf2)//' for Collision'//TRIM(hilf)//' .GT. nSpecies')
+        END IF
       END DO ! pColl = 2
-      DO jColl=1, nCollision          
-        WRITE(UNIT=hilf2,FMT='(I0)') jColl 
+      DO jColl=1, nCollision
+        WRITE(UNIT=hilf2,FMT='(I0)') jColl
         IF ((CollInf%collidingSpecies(iColl,1) .EQ. CollInf%collidingSpecies(jColl,2))  .AND. &
             (CollInf%collidingSpecies(iColl,2) .EQ. CollInf%collidingSpecies(jColl,1))) THEN
           IF (iColl.NE.jColl) THEN
-            WRITE(*,*) 'ERROR: Part-Collision'//TRIM(hilf)//' .EQ. Part-Collision'//TRIM(hilf2)
               CALL Abort(&
               __STAMP__&
-              ,'Collision information must not be set redundantly!')
+              ,'ERROR: Partner species for Collision'//TRIM(hilf)//' .EQ. Collision'//TRIM(hilf2))
           END IF ! iColl .EQ. jColl
-        END IF ! check for redundant collision partner combination 
+        END IF ! check for redundant collision partner combination
       END DO !jColl = nColl
     END DO ! iColl = nColl
 
@@ -663,12 +662,12 @@ END IF
     ALLOCATE(CollInf%dref(nSpecies,nSpecies))
     ALLOCATE(CollInf%omegaLaux(nSpecies,nSpecies))
     ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies))
-     
+
     ! read collision parameters in and check if all are set
-    DO iColl = 1, nCollision 
-      iSpec = MIN (CollInf%collidingSpecies(iColl,1) , CollInf%collidingSpecies(iColl,2)) ! sorting for filling upper
-      jSpec = MAX (CollInf%collidingSpecies(iColl,1) , CollInf%collidingSpecies(iColl,2)) ! triangular matrix
-      WRITE(UNIT=hilf,FMT='(I0)')  iColl 
+    DO iColl = 1, nCollision
+      iSpec = MINVAL (CollInf%collidingSpecies(iColl,:)) ! sorting for filling upper
+      jSpec = MAXVAL (CollInf%collidingSpecies(iColl,:)) ! triangular matrix
+      WRITE(UNIT=hilf,FMT='(I0)')  iColl
       IF(CollInf%averagedCollisionParameters) THEN ! collision-averaged parameters
         CollInf%Tref      (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%Tref      + SpecDSMC(jSpec)%Tref)
         CollInf%dref      (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%dref      + SpecDSMC(jSpec)%dref)
@@ -687,10 +686,9 @@ END IF
         CollInf%alphaVSS  (jSpec,iSpec) = CollInf%alphaVSS  (iSpec,jSpec)
       END IF ! filled lower triangular matrix
       IF(CollInf%dref(iSpec,jSpec) * CollInf%Tref(iSpec,jSpec) * CollInf%alphaVSS(iSpec,jSpec) .EQ. 0) THEN
-          WRITE(*,*) 'ERROR: Part-Collision'//TRIM(hilf)//' is corrupt. See below for more details.'
           CALL Abort(&
           __STAMP__&
-          ,'ERROR: Check collision parameters! (Part-Collision-?-referenceTemperature * referenceDiameter *' //&
+          ,'ERROR: Check collision parameters! (Part-Collision'//TRIM(hilf)//'-referenceTemperature * referenceDiameter *' //&
            'scatteringExponentAlphaVSS) .EQ. 0 - but must not be 0)')
       END IF ! check if collision parameters are set
     END DO ! iColl=nColl
@@ -767,8 +765,8 @@ IF (CollisMode.EQ.0) THEN
       END IF !kronecker delta
       ! Laux (2.37) prefactor crossSectionConstantCab calculation depending on omegaLaux coll-averaged or -specific
       SELECT CASE (CollInf%crossSectionConstantMode) ! sigma=Cab * cr^(-2 omegaLaux) , see Bird1981 for details
-      CASE (0,1) 
-        ! A1,A2 species constants, see laux1996 (2.38),(2.39) 
+      CASE (0,1)
+        ! A1,A2 species constants, see laux1996 (2.38),(2.39)
         A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec) * (2 * BoltzmannConst * CollInf%Tref(iSpec , iSpec)) ** &
            (CollInf%omegaLaux(iSpec , iSpec) * 0.5) / SQRT (GAMMA(2.0 - CollInf%omegaLaux(iSpec , iSpec)))
         A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec , jSpec)*(2 * BoltzmannConst * CollInf%Tref(jSpec , jSpec)) ** &
@@ -1979,10 +1977,10 @@ SDEALLOCATE(CollInf%KronDelta)
 SDEALLOCATE(CollInf%FracMassCent)
 SDEALLOCATE(CollInf%MassRed)
 SDEALLOCATE(CollInf%MeanMPF)
-SDEALLOCATE(CollInf%alphaVSS) 
-SDEALLOCATE(CollInf%omegaLaux)    
-SDEALLOCATE(CollInf%dref)    
-SDEALLOCATE(CollInf%Tref)    
+SDEALLOCATE(CollInf%alphaVSS)
+SDEALLOCATE(CollInf%omegaLaux)
+SDEALLOCATE(CollInf%dref)
+SDEALLOCATE(CollInf%Tref)
 SDEALLOCATE(HValue)
 !SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)
