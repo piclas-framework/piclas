@@ -14,7 +14,7 @@
 
 MODULE MOD_Particle_Surfaces
 !===================================================================================================================================
-! Contains subroutines to build the required data to track particles on (curvilinear) meshes, etc.
+! Contains subroutines to build the requiered data to track particles on (curviilinear) meshes, etc.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -843,6 +843,7 @@ USE MOD_Mesh_Vars,                ONLY: NGeo,NGeoElevated
 !USE MOD_Particle_Surfaces_Vars,   ONLY: SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 !USE MOD_Particle_Surfaces_Vars,   ONLY: BezierControlPoints3D,BezierControlPoints3DElevated,BezierElevation
 USE MOD_Particle_Surfaces_Vars,   ONLY: BezierElevation
+USE MOD_Particle_Surfaces_Vars,   ONLY: BezierEpsilonBilinear
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars,   ONLY: SideBoundingBoxVolume
 #endif /*CODE_ANALYZE*/
@@ -1001,10 +1002,28 @@ END IF
 !     this results also in the decision whether a side is also considered flat or bilinear!
 !-----------------------------------------------------------------------------------------------------------------------------------
 
+dMax=MAX(dx,dy,dz)
+dMin=MIN(dx,dy,dz)
+IF(dx/dMax.LT.BezierEpsilonBilinear)THEN
+  CALL Abort(&
+__STAMP__&
+,'Bezier side length is degenerated. dx/dMax.LT.BezierEpsilonBilinear ->',0,dx/dMax)
+END IF
+IF(dy/dMax.LT.BezierEpsilonBilinear)THEN
+  SideSlabIntervals(3:4)=0.
+  dy=0.
+END IF
+IF(dz/dMax.LT.BezierEpsilonBilinear)THEN
+  CALL Abort(&
+__STAMP__&
+,'Bezier side length is degenerated. dz/dMax.LT.BezierEpsilonBilinear ->',0,dz/dMax)
+END IF
+
 IF(dx*dy*dz.LT.0) THEN
+  IPWRITE(UNIT_stdOut,*) ' Warning, no bounding box'
   IF(dx*dy*dz.LT.0) CALL Abort(&
-    __STAMP__&
-    ,'A bounding box (for sides) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
+__STAMP__&
+,'A bounding box (for sides) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
 END IF
 
 IF(ALMOSTZERO(dy/SQRT(dx*dx+dy*dy+dz*dz)))THEN ! bounding box volume is approx zeros
