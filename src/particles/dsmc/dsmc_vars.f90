@@ -660,9 +660,12 @@ TYPE tSpecMCC
                                                                                    ! 2: Cross-section at energy level [m^2]
   REAL                                      :: ProbNull                            ! 
   LOGICAL                                   :: UseCollXSec
+  REAL                                      :: MaxCollFreq
 END TYPE tSpecMCC
 
 TYPE(tSpecMCC),ALLOCATABLE                  :: SpecMCC(:)
+
+INTEGER                                     :: DSMC_IterSkip
 
 !===================================================================================================================================
 END MODULE MOD_DSMC_Vars

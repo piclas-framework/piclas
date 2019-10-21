@@ -4424,7 +4424,7 @@ USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS, DSMC_IterSkip
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge,PartAnalyzeStep
@@ -4695,19 +4695,23 @@ END IF
 
 IF (useDSMC) THEN
   IF (time.GE.DelayTime) THEN
-    CALL DSMC_main()
+    IF(MOD(iter,DSMC_IterSkip).EQ.0) THEN
+      dt = dt * REAL(DSMC_IterSkip)
+      CALL DSMC_main()
 #if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
+      CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
-                                           + DSMC_RHS(1:PDM%ParticleVecLength,1)
-    PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
-                                           + DSMC_RHS(1:PDM%ParticleVecLength,2)
-    PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
-                                           + DSMC_RHS(1:PDM%ParticleVecLength,3)
+      PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                            + DSMC_RHS(1:PDM%ParticleVecLength,1)
+      PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                            + DSMC_RHS(1:PDM%ParticleVecLength,2)
+      PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                            + DSMC_RHS(1:PDM%ParticleVecLength,3)
 #if USE_LOADBALANCE
-    CALL LBPauseTime(LB_DSMC,tLBStart)
+      CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
+      dt = dt / REAL(DSMC_IterSkip)
+    END IF
   END IF
 END IF
 #endif /*PARTICLES*/

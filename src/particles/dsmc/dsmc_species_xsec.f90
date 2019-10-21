@@ -163,7 +163,7 @@ SUBROUTINE DetermineNullCollProb(iSpec)
 USE MOD_ReadInTools
 USE MOD_Globals_Vars          ,ONLY: Pi
 USE MOD_Particle_Vars         ,ONLY: Species, ManualTimeStep
-USE MOD_DSMC_Vars             ,ONLY: BGGas, SpecMCC
+USE MOD_DSMC_Vars             ,ONLY: BGGas, SpecMCC, DSMC_IterSkip
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -171,7 +171,6 @@ INTEGER,INTENT(IN)            :: iSpec                            !< Species ind
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: MaxDOF
-REAL                          :: MaxCollFreq
 REAL,ALLOCATABLE              :: Velocity(:)
 !===================================================================================================================================
 
@@ -182,10 +181,10 @@ ALLOCATE(Velocity(MaxDOF))
 Velocity(1:MaxDOF) = SQRT(2.) * SQRT(8.*SpecMCC(iSpec)%CollXSec(1,1:MaxDOF)/(Pi*Species(iSpec)%MassIC))
 
 ! Calculate the maximal collision frequency
-MaxCollFreq = MAXVAL(Velocity(1:MaxDOF) * SpecMCC(iSpec)%CollXSec(2,1:MaxDOF) * BGGas%BGGasDensity)
+SpecMCC(iSpec)%MaxCollFreq = MAXVAL(Velocity(1:MaxDOF) * SpecMCC(iSpec)%CollXSec(2,1:MaxDOF) * BGGas%BGGasDensity)
 
 ! Determine the collision probability
-SpecMCC(iSpec)%ProbNull = 1. - EXP(-MaxCollFreq*ManualTimeStep)
+SpecMCC(iSpec)%ProbNull = 1. - EXP(-SpecMCC(iSpec)%MaxCollFreq*ManualTimeStep*DSMC_IterSkip)
 
 DEALLOCATE(Velocity)
 

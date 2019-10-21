@@ -362,6 +362,9 @@ CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for th
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
                                            ,'Utilize collision cross sections for the determination of collision probabilities' &
                                            ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Particles-DSMC-IterationSkip'  &
+                                           ,'Number of iterations to skip between calls of the DSMC routine','1')
+
 END SUBROUTINE DefineParametersDSMC
 
 SUBROUTINE InitDSMC()
@@ -410,6 +413,9 @@ SWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
 
 ! Initialize counter (Count the number of ReactionProb>1)
 ReactionProbGTUnityCounter = 0
+
+! DSMC skip for coupled PIC-DSMC simulations
+DSMC_IterSkip = GETINT('Particles-DSMC-IterationSkip','1')
 
 ! reading/writing OutputMesh stuff
 DSMC%OutputMeshInit = GETLOGICAL('Particles-DSMC-OutputMeshInit','.FALSE.')

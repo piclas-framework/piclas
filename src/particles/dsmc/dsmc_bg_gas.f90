@@ -240,6 +240,7 @@ INTEGER, INTENT(IN)           :: iElem
 INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, iNewPart, PositionNbr
 INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNum(nSpecies), SpecPairNumCounter(nSpecies)
 INTEGER,ALLOCATABLE           :: iPartIndex(:), PairingPartner(:)
+REAL                          :: iRan, ProbRest
 !===================================================================================================================================
 nPart = PEM%pNumber(iElem)
 MCC%TotalPairNum = 0.
@@ -272,7 +273,10 @@ END DO
 ! Determining the number of pairs for MCC
 DO iSpec = 1,nSpecies
   IF(SpecMCC(iSpec)%UseCollXSec) THEN
-    SpecPairNum(iSpec) = NINT(CollInf%Coll_SpecPartNum(iSpec)*SpecMCC(iSpec)%ProbNull)
+    SpecPairNum(iSpec) = INT(CollInf%Coll_SpecPartNum(iSpec)*SpecMCC(iSpec)%ProbNull)
+    ProbRest = CollInf%Coll_SpecPartNum(iSpec)*SpecMCC(iSpec)%ProbNull - REAL(SpecPairNum(iSpec))
+    CALL RANDOM_NUMBER(iRan)
+    IF (ProbRest.GT.iRan) SpecPairNum(iSpec) = SpecPairNum(iSpec) + 1
     MCC%TotalPairNum = MCC%TotalPairNum + SpecPairNum(iSpec)
   END IF
 END DO
