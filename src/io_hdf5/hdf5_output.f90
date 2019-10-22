@@ -2981,7 +2981,7 @@ END DO!iElem
 iMax=2 ! write to state and to a separate file (for debugging)
 #else
 iMax=1 ! write to state file
-#endif /*USE_DEBUGS*/
+#endif /*USE_DEBUG*/
 DO i = 1, iMax
   IF(i.EQ.1)THEN
     ! Write field to _State_.h5 file (or restart)
