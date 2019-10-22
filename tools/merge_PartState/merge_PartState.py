@@ -70,7 +70,6 @@ print("newfile   : %s" % newFile)
 n = 0
 for statefile in files :
     n+=1
-    print(statefile)
     # Open h5 file and read container info
     # --------------------------------------------
     #     r       : Readonly, file must exist
@@ -91,18 +90,20 @@ for statefile in files :
     
     # 1.1.1   Read the dataset from the hdf5 file
     b1 = f1[data_set][:]
+    print(statefile,b1.shape)
 
     # Save old file
-    b2 = b1
     if n > 1 :
         # Compare shape of the dataset of both files, throw error if they do not conincide
-        if b1.shape != b2.shape : # e.g.: b1.shape = (48, 1, 1, 32)
-            s="h5diff failed because datasets are not comparable due to different shapes: Files [%s] and [%s] have shapes [%s] and [%s]" % (f1,f2,b1.shape,b2.shape)
+        if b1.shape[0] != b2.shape[0] : # e.g.: b1.shape = (48, 1, 1, 32)
+            s="\nDatasets are not compatible due to different shapes: Files [%s] and [%s] have shapes %s and %s\nThe dimensions dim1 = %s and dim2 = %s must be equal!\n\nAborted!" % (statefile,statefile_old,b1.shape,b2.shape,b1.shape[0],b2.shape[0])
             print(s)
             exit(1)
         b1_merged = np.concatenate((b1_merged, b1), axis=1)
     else :
         b1_merged = b1
+    b2 = b1
+    statefile_old = statefile
     f1.close()
 
 

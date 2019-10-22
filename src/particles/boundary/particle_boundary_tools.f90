@@ -397,7 +397,7 @@ SampWall(SurfSideID)%ImpactVector(SpecID,3,p,q)   = SampWall(SurfSideID)%ImpactV
 
 !----- Sampling of impact angle for each species
 SampWall(SurfSideID)%ImpactAngle(SpecID,p,q) = SampWall(SurfSideID)%ImpactAngle(SpecID,p,q) + &
-    ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))) * (180. / PI) * MPF
+    (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal)))) * MPF
 
 !----- Sampling of impact number for each species
 SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) = SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) + MPF
@@ -405,7 +405,7 @@ SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) = SampWall(SurfSideID)%ImpactNumbe
 END SUBROUTINE CountSurfaceImpact
 
 
-SUBROUTINE BoundaryParticleOutput(iPart,PartPos) 
+SUBROUTINE BoundaryParticleOutput(iPart,PartPos,PartTrajectory,SurfaceNormal)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Save particle position, velocity and species to PartDataBoundary container for writing to .h5 later
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -415,11 +415,14 @@ USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState,PDM
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,PartStateBoundarySpec
 USE MOD_TimeDisc_Vars          ,ONLY: time
+USE MOD_Globals_Vars           ,ONLY: PI
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
 INTEGER,INTENT(IN)  :: iPart
 REAL,INTENT(IN)     :: PartPos(1:3)
+REAL,INTENT(IN)     :: PartTrajectory(1:3)
+REAL,INTENT(IN)     :: SurfaceNormal(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL              :: MPF
@@ -441,6 +444,7 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
   PartStateBoundary(4:6,iMax) = PartState(iPart,4:6)
   PartStateBoundary(7,iMax)   = MPF
   PartStateBoundary(8,iMax)   = time
+  PartStateBoundary(9,iMax)   = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))))
   PartStateBoundarySpec(iMax) = PartSpecies(iPart)
 END ASSOCIATE
 

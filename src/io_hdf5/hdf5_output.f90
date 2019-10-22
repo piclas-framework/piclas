@@ -1169,6 +1169,7 @@ USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,PartStateBoundarySpec
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
+USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
@@ -1208,6 +1209,8 @@ INTEGER(KIND=IK)               :: locnPart_max
 !INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
 CHARACTER(LEN=255)             :: FileName
 !===================================================================================================================================
+! Do not write to file on restart or fresh computation
+IF(iter.EQ.0) RETURN
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PartStateBoundary',OutputTime_loc))//'.h5'
 
@@ -1285,10 +1288,10 @@ DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
   ! MPF: Macro particle factor
   PartData(iPart,9)=PartStateBoundary(7,pcount)
 
-  ! Simulation time
+  ! Simulation time [s]
   PartData(iPart,10)=PartStateBoundary(8,pcount)
 
-  ! Impact angle
+  ! Impact obliqueness angle [degree]
   PartData(iPart,11)=PartStateBoundary(9,pcount)
 
 
@@ -1325,7 +1328,7 @@ ASSOCIATE (&
   StrVarNames2(8)  = 'KineticEnergy_eV'
   StrVarNames2(9)  = 'MacroParticleFactor'
   StrVarNames2(10) = 'Time'
-  StrVarNames2(10) = 'ImpactAngle'
+  StrVarNames2(11) = 'ImpactObliquenessAngle'
 
 
   IF(MPIRoot)THEN

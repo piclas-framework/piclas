@@ -61,7 +61,7 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals                  ,ONLY: abort
-USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars            ,ONLY: PDM,PartSpecies, UseCircularInflow, UseAdaptive, Species
 USE MOD_Particle_Tracking_Vars   ,ONLY: TriaTracking
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC,DoBoundaryParticleOutput
@@ -113,13 +113,28 @@ crossedBC    =.FALSE.
 ASSOCIATE( iBC => PartBound%MapToPartBC(BC(SideID)) )
   ! Surface particle output to .h5
   IF(DoBoundaryParticleOutput.AND.PartBound%BoundaryParticleOutput(iBC))THEN
-    CALL BoundaryParticleOutput(iPart,LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha)
+    ! Calculate normal vector
+    IF (TriaTracking) THEN
+      CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
+    ELSE
+      SELECT CASE(SideType(SideID))
+      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+        n_loc=SideNormVec(1:3,SideID)
+      CASE(BILINEAR)
+        CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+      CASE(CURVED)
+        CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+      END SELECT
+      IF(flip.NE.0) n_loc=-n_loc
+    END IF
+
+    CALL BoundaryParticleOutput(iPart,LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc)
   END IF
 
   ! Select the corresponding boundary condition and calculate particle treatment
   SELECT CASE(PartBound%TargetBoundCond(iBC))
   !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(1) !PartBound%OpenBC)
+  CASE(1) !PartBound%OpenBC)
   !----------------------------------------------------------------------------------------------------------------------------------
   IF (.NOT.TriaTracking) THEN
     IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
@@ -134,7 +149,7 @@ CASE(1) !PartBound%OpenBC)
       IF(flip.NE.0) n_loc=-n_loc
       IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
     END IF
-  END IF
+  END IF !.NOT.TriaTracking
   IF(UseAdaptive) THEN
     iSpec = PartSpecies(iPart)
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
@@ -146,7 +161,7 @@ CASE(1) !PartBound%OpenBC)
   END IF
   CALL RemoveParticle(iPart,alpha=alpha,crossedBC=crossedBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(2) !PartBound%ReflectiveBC)
+  CASE(2) !PartBound%ReflectiveBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
   !---- Treatment of adaptive and porous boundary conditions (deletion of particles in case of circular inflow or porous BC)
   PorousReflection = .FALSE.
@@ -158,11 +173,7 @@ CASE(2) !PartBound%ReflectiveBC)
 
   !---- swap species?
   IF (PartBound%NbrOfSpeciesSwaps(iBC).gt.0) THEN
-#ifndef IMPA
     CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,flip=flip,TriNum=TriNum)
-#else
-    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
-#endif /*NOT IMPA*/
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! Particle did not Swap to species 0 (deleted particle -> particle is swapped to species 0)
     IF (PartBound%Reactive(iBC)) THEN
@@ -193,40 +204,40 @@ CASE(2) !PartBound%ReflectiveBC)
     END SELECT
   END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(3) !PartBound%PeriodicBC)
+  CASE(3) !PartBound%PeriodicBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CALL PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID &
       ,ElemID,opt_perimoved=crossedBC,TriNum=TriNum) ! opt_reflected is peri-moved
 
   !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(4) !PartBound%SimpleAnodeBC)
+  CASE(4) !PartBound%SimpleAnodeBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CALL abort(&
       __STAMP__&
       ,' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)',999,999.)
   !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(5) !PartBound%SimpleCathodeBC)
+  CASE(5) !PartBound%SimpleCathodeBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CALL abort(&
       __STAMP__&
       ,' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)',999,999.)
   !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(6) !PartBound%MPINeighborhoodBC)
+  CASE(6) !PartBound%MPINeighborhoodBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CALL abort(&
       __STAMP__&
       ,' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
   !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(10,11) !PartBound%SymmetryBC
+  CASE(10,11) !PartBound%SymmetryBC
   !-----------------------------------------------------------------------------------------------------------------------------------
   CALL  PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
       ,opt_Symmetry=.TRUE.,opt_Reflected=crossedBC,TriNum=TriNum)
-CASE(100) !PartBound%AnalyzeBC
+  CASE(100) !PartBound%AnalyzeBC
   !-----------------------------------------------------------------------------------------------------------------------------------
   CALL  SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,locSideID,ElemID &
       ,IsSpeciesSwap,opt_crossed=crossedBC)
 
-CASE DEFAULT
+  CASE DEFAULT
   CALL abort(&
       __STAMP__&
       ,' ERROR: PartBound not associated!. (unknown case)',999,999.)
@@ -1386,11 +1397,8 @@ PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 
 END SUBROUTINE DiffuseReflection
 
-#ifndef IMPA
+
 SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,flip,BCSideID,TriNum,AuxBCIdx,targetSpecies_IN)
-#else
-SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,AuxBCIdx,targetSpecies_IN)
-#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the Species Swap on ReflectiveBC
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1408,15 +1416,13 @@ USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC, RadialWeighting
 USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd,Time
-#if defined(IMPA)
-USE MOD_Particle_Vars           ,ONLY: PartIsImplicit,DoPartInNewton
-#endif /*IMPA*/
-#ifndef IMPA
 USE MOD_Particle_Surfaces_vars  ,ONLY: SideNormVec,SideType
-#endif /*NOT IMPA*/
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact
 USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn
+#if defined(IMPA)
+USE MOD_Particle_Vars           ,ONLY: PartIsImplicit,DoPartInNewton
+#endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1424,10 +1430,8 @@ IMPLICIT NONE
 REAL,INTENT(INOUT)                :: PartTrajectory(1:3), alpha
 REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, SideID
-#ifndef IMPA
 INTEGER,INTENT(IN),OPTIONAL       :: flip,BCSideID
 INTEGER,INTENT(IN),OPTIONAL       :: TriNum
-#endif /*NOT IMPA*/
 INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 INTEGER,INTENT(IN),OPTIONAL       :: targetSpecies_IN
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1440,9 +1444,7 @@ REAL                              :: RanNum
 REAL                              :: Xitild,EtaTild
 INTEGER                           :: p,q,SurfSideID,locBCID
 INTEGER                           :: iCC
-#ifndef IMPA
 REAL                              :: n_loc(1:3)
-#endif /*NOT IMPA*/
 LOGICAL                           :: IsAuxBC
 REAL                              :: MacroParticleFactor, POI_Y
 LOGICAL                           :: DoSample
@@ -1480,165 +1482,163 @@ IF (IsAuxBC) THEN
     END IF
   END IF !RanNum.LE.PartAuxBC%ProbOfSpeciesSwaps
 ELSE
-#ifndef IMPA
-  IF(PRESENT(BCSideID))THEN
-    SELECT CASE(SideType(BCSideID))
-    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      n_loc=SideNormVec(1:3,BCSideID)
-    CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
-    CASE(CURVED)
-      CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
-    END SELECT
-  ELSE
-    IF (TriaTracking) THEN
-      CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
-    ELSE
-      SELECT CASE(SideType(SideID))
-      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-        n_loc=SideNormVec(1:3,SideID)
-      CASE(BILINEAR)
-        CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-      CASE(CURVED)
-        CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-      END SELECT
-      IF(flip.NE.0) n_loc=-n_loc
-    END IF
-  END IF
-
-IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
-  RETURN
-!  CALL Abort(&
-!    __STAMP__&
-!    ,'SpeciesSwap was called for an particle coming from outside of the mesh!')
-END IF
-#endif /*NOT IMPA*/
-
-DoSample = (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
-
-locBCID = PartBound%MapToPartBC(BC(SideID))
-CALL RANDOM_NUMBER(RanNum)
-IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) THEN
-  targetSpecies=-1 ! Dummy initialization value
-  IF(PRESENT(targetSpecies_IN))THEN
-    targetSpecies = targetSpecies_IN
-  ELSE ! Normal swap routine
-    DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))
-      IF (PartSpecies(PartID).eq.PartBound%SpeciesSwaps(1,iSwaps,PartBound%MapToPartBC(BC(SideID)))) &
-          targetSpecies = PartBound%SpeciesSwaps(2,iSwaps,PartBound%MapToPartBC(BC(SideID)))
-    END DO
-  END IF ! PRESENT(targetSpecies_IN)
-  !swap species
-  IF (targetSpecies.ge.0) IsSpeciesSwap=.TRUE.
-  IF ( (targetSpecies.eq.0) .OR. (.NOT.CalcSurfCollis%Only0Swaps) ) THEN
-    IF (DoSample) THEN
-      !---- Counter for swap species collisions
-      SurfSideID=SurfMesh%SideIDToSurfID(SideID)
-      ! compute p and q
-      ! correction of xi and eta, can only be applied if xi & eta are not used later!
-      IF (TriaTracking) THEN
-        p=1 ; q=1
-      ELSE
-        Xitild =MIN(MAX(-1.,xi ),0.99)
-        Etatild=MIN(MAX(-1.,eta),0.99)
-        p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-        q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
-      END IF
-
-      SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) = SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
-      IF (CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
-        AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
-        AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
-        IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
-          CALL Abort(&
-              __STAMP__&
-              ,'maxSurfCollisNumber reached!')
-        END IF
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4:6) = PartState(PartID,4:6)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7:9) = LastPartPos(PartID,1:3)
-        AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) = PartSpecies(PartID)
-        AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) = locBCID
-      END IF
-    END IF ! DoSample
-  END IF
-  IF (targetSpecies.eq.0) THEN !delete particle -> same as PartBound%OpenBC
-    IF(RadialWeighting%DoRadialWeighting) THEN
-      POI_Y = LastPartPos(PartID,2) + PartTrajectory(2)*alpha
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))*VarTimeStep%ParticleTimeStep(PartID)
-      ELSE
-        MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))
-      END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor*VarTimeStep%ParticleTimeStep(PartID)
-    ELSE
-      MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor
-    END IF
-    DO iCC=1,nCollectChargesBCs !-chargeCollect
-      IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
-        CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
-            + Species(PartSpecies(PartID))%ChargeIC * MacroParticleFactor
-        EXIT
-      END IF
-    END DO
-    IF(CalcPartBalance) THEN
-      nPartOut(PartSpecies(PartID))=nPartOut(PartSpecies(PartID)) + 1
-      PartEkinOut(PartSpecies(PartID))=PartEkinOut(PartSpecies(PartID))+CalcEkinPart(PartID)
-    END IF ! CalcPartBalance
-    ! sample values of deleted species
-    IF (DoSample) THEN
-      SurfSideID=SurfMesh%SideIDToSurfID(SideID)
-      IF (TriaTracking) THEN
-        p=1 ; q=1
-      ELSE
-        Xitild =MIN(MAX(-1.,xi ),0.99)
-        Etatild=MIN(MAX(-1.,eta),0.99)
-        p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
-        q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
-      END IF
-      !----  Sampling Forces at walls
-      SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
-          * PartState(PartID,4:6) * MacroParticleFactor
-    END IF
-
-    ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
-    IF(CalcSurfaceImpact) THEN
-      EtraOld = 0.5*Species(PartSpecies(PartID))%MassIC*VECNORM(PartState(PartID,4:6))**2
-#ifndef IMPA
-    IF(ALLOCATED(PartStateIntEn))THEN
-      EvibOld=PartStateIntEn(PartID,1)
-      ErotOld=PartStateIntEn(PartID,2)
-    ELSE
-      EvibOld=0.
-      ErotOld=0.
-    END IF ! ALLOCATED(PartStateIntEn)
-      CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,EtraOld,EvibOld,ErotOld,PartTrajectory,n_loc,p,q)
-#else
-      CALL abort(&
-          __STAMP__&
-          ,'CountSurfaceImpact not correctly implemented for IMPA due to missing normal vector!')
-#endif /*NOT IMPA*/
-    END IF ! CalcSurfaceImpact
-
-    !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
-    PDM%ParticleInside(PartID) = .FALSE.
-    alpha=-1.
 #ifdef IMPA
-    DoPartInNewton(PartID) = .FALSE.
-    PartIsImplicit(PartID) = .FALSE.
+  ! For IMPA, this is only required when sampling the properties of impacting particles
+  ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
+  IF(CalcSurfaceImpact) THEN
 #endif /*IMPA*/
-  ELSEIF (targetSpecies.gt.0) THEN !swap species
-    DO iCC=1,nCollectChargesBCs !-chargeCollect
-      IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
-        CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
-            + (Species(PartSpecies(PartID))%ChargeIC-Species(targetSpecies)%ChargeIC) * MacroParticleFactor
-        EXIT
+    IF(PRESENT(BCSideID))THEN
+      SELECT CASE(SideType(BCSideID))
+      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+        n_loc=SideNormVec(1:3,BCSideID)
+      CASE(BILINEAR)
+        CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+      CASE(CURVED)
+        CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+      END SELECT
+    ELSE
+      IF (TriaTracking) THEN
+        CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
+      ELSE
+        SELECT CASE(SideType(SideID))
+        CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+          n_loc=SideNormVec(1:3,SideID)
+        CASE(BILINEAR)
+          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+        CASE(CURVED)
+          CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+        END SELECT
+        IF(flip.NE.0) n_loc=-n_loc
       END IF
-    END DO
-    PartSpecies(PartID)=targetSpecies
+    END IF
+
+#ifdef IMPA
   END IF
-END IF !RanNum.LE.PartBound%ProbOfSpeciesSwaps
+#else
+  IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
+    RETURN
+  END IF
+#endif /*IMPA*/
+
+  DoSample = (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
+
+  locBCID = PartBound%MapToPartBC(BC(SideID))
+  CALL RANDOM_NUMBER(RanNum)
+  IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) THEN
+    targetSpecies=-1 ! Dummy initialization value
+    IF(PRESENT(targetSpecies_IN))THEN
+      targetSpecies = targetSpecies_IN
+    ELSE ! Normal swap routine
+      DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))
+        IF (PartSpecies(PartID).eq.PartBound%SpeciesSwaps(1,iSwaps,PartBound%MapToPartBC(BC(SideID)))) &
+            targetSpecies = PartBound%SpeciesSwaps(2,iSwaps,PartBound%MapToPartBC(BC(SideID)))
+      END DO
+    END IF ! PRESENT(targetSpecies_IN)
+    !swap species
+    IF (targetSpecies.ge.0) IsSpeciesSwap=.TRUE.
+    IF ( (targetSpecies.eq.0) .OR. (.NOT.CalcSurfCollis%Only0Swaps) ) THEN
+      IF (DoSample) THEN
+        !---- Counter for swap species collisions
+        SurfSideID=SurfMesh%SideIDToSurfID(SideID)
+        ! compute p and q
+        ! correction of xi and eta, can only be applied if xi & eta are not used later!
+        IF (TriaTracking) THEN
+          p=1 ; q=1
+        ELSE
+          Xitild =MIN(MAX(-1.,xi ),0.99)
+          Etatild=MIN(MAX(-1.,eta),0.99)
+          p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+          q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+        END IF
+
+        SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) = SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
+        IF (CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
+          AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
+          AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
+          IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
+            CALL Abort(&
+                __STAMP__&
+                ,'maxSurfCollisNumber reached!')
+          END IF
+          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
+          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4:6) = PartState(PartID,4:6)
+          AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7:9) = LastPartPos(PartID,1:3)
+          AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) = PartSpecies(PartID)
+          AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) = locBCID
+        END IF
+      END IF ! DoSample
+    END IF
+    IF (targetSpecies.eq.0) THEN !delete particle -> same as PartBound%OpenBC
+      IF(RadialWeighting%DoRadialWeighting) THEN
+        POI_Y = LastPartPos(PartID,2) + PartTrajectory(2)*alpha
+        IF (VarTimeStep%UseVariableTimeStep) THEN
+          MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))*VarTimeStep%ParticleTimeStep(PartID)
+        ELSE
+          MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))
+        END IF
+      ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
+        MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor*VarTimeStep%ParticleTimeStep(PartID)
+      ELSE
+        MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor
+      END IF
+      DO iCC=1,nCollectChargesBCs !-chargeCollect
+        IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
+          CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
+              + Species(PartSpecies(PartID))%ChargeIC * MacroParticleFactor
+          EXIT
+        END IF
+      END DO
+      IF(CalcPartBalance) THEN
+        nPartOut(PartSpecies(PartID))=nPartOut(PartSpecies(PartID)) + 1
+        PartEkinOut(PartSpecies(PartID))=PartEkinOut(PartSpecies(PartID))+CalcEkinPart(PartID)
+      END IF ! CalcPartBalance
+      ! sample values of deleted species
+      IF (DoSample) THEN
+        SurfSideID=SurfMesh%SideIDToSurfID(SideID)
+        IF (TriaTracking) THEN
+          p=1 ; q=1
+        ELSE
+          Xitild =MIN(MAX(-1.,xi ),0.99)
+          Etatild=MIN(MAX(-1.,eta),0.99)
+          p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+          q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
+        END IF
+        !----  Sampling Forces at walls
+        SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
+            * PartState(PartID,4:6) * MacroParticleFactor
+      END IF
+
+      ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
+      IF(CalcSurfaceImpact) THEN
+        EtraOld = 0.5*Species(PartSpecies(PartID))%MassIC*VECNORM(PartState(PartID,4:6))**2
+        IF(ALLOCATED(PartStateIntEn))THEN
+          EvibOld=PartStateIntEn(PartID,1)
+          ErotOld=PartStateIntEn(PartID,2)
+        ELSE
+          EvibOld=0.
+          ErotOld=0.
+        END IF ! ALLOCATED(PartStateIntEn)
+        CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,EtraOld,EvibOld,ErotOld,PartTrajectory,n_loc,p,q)
+      END IF ! CalcSurfaceImpact
+
+      !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
+      PDM%ParticleInside(PartID) = .FALSE.
+      alpha=-1.
+#ifdef IMPA
+      DoPartInNewton(PartID) = .FALSE.
+      PartIsImplicit(PartID) = .FALSE.
+#endif /*IMPA*/
+    ELSEIF (targetSpecies.gt.0) THEN !swap species
+      DO iCC=1,nCollectChargesBCs !-chargeCollect
+        IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
+          CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
+              + (Species(PartSpecies(PartID))%ChargeIC-Species(targetSpecies)%ChargeIC) * MacroParticleFactor
+          EXIT
+        END IF
+      END DO
+      PartSpecies(PartID)=targetSpecies
+    END IF
+  END IF !RanNum.LE.PartBound%ProbOfSpeciesSwaps
 END IF !IsAuxBC
 END SUBROUTINE SpeciesSwap
 
