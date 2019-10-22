@@ -1196,17 +1196,11 @@ INTEGER(KIND=IK)               :: nParticles(0:nProcessors-1)
 #endif
 LOGICAL                        :: reSwitch
 INTEGER                        :: pcount
-!LOGICAL                        :: withDSMC=.FALSE.
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart,nPart_glob
-!INTEGER                        :: iElem_glob, iElem_loc
-!INTEGER(KIND=IK),ALLOCATABLE   :: PartInt(:,:)
 REAL,ALLOCATABLE               :: PartData(:,:)
-!INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
-!INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
 INTEGER(KIND=IK)               :: locnPart_max
-!INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
 CHARACTER(LEN=255)             :: FileName
 !===================================================================================================================================
 ! Do not write to file on restart or fresh computation
@@ -1225,10 +1219,6 @@ IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',7,StrVarNames,MeshFile
 #else
 IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
 #endif /*USE_HDG*/
-! generate nextfile info in previous output file
-IF(usePreviousTime_loc)THEN
-  IF(MPIRoot .AND. PreviousTime_loc.LT.OutputTime_loc) CALL GenerateNextFileInfo('PartStateBoundary',OutputTime_loc,PreviousTime_loc)
-END IF
 
 ! Reopen file and write DG solution
 #if USE_MPI
