@@ -219,7 +219,7 @@ SUBROUTINE MCC_pairing_bggas(iElem)
 USE MOD_Globals
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, SpecMCC, MCC
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, SpecMCC, MCC, DSMCSumOfFormedParticles
 USE MOD_Particle_Vars           ,ONLY: PEM,PDM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species,PartPosRef
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
@@ -228,6 +228,7 @@ USE MOD_part_emission_tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF
 USE MOD_part_pos_and_velo       ,ONLY: SetParticleVelocity
 USE MOD_part_tools              ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
+USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -237,7 +238,7 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, iNewPart, PositionNbr
+INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, PositionNbr
 INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNum(nSpecies), SpecPairNumCounter(nSpecies)
 INTEGER,ALLOCATABLE           :: iPartIndex(:), PairingPartner(:)
 REAL                          :: iRan, ProbRest
@@ -285,15 +286,14 @@ ALLOCATE(Coll_pData(MCC%TotalPairNum))
 Coll_pData%Ec = 0.
 ALLOCATE(PairingPartner(MCC%TotalPairNum))
 PairingPartner = 0
-! 
-iNewPart=0
 PositionNbr = 0
+
 DO iLoop = 1, MCC%TotalPairNum
   ! Taking a random particle from the cell to get the position of the new particle
   iPart = iPartIndex(iLoop)
   ! Creating a new background gas particle
-  iNewPart = iNewPart + 1
-  PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
+  DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
+  PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
   IF (PositionNbr.EQ.0) THEN
     CALL Abort(&
 __STAMP__&
@@ -311,16 +311,11 @@ __STAMP__&
   END IF
   PEM%Element(PositionNbr) = iElem
   PDM%ParticleInside(PositionNbr) = .TRUE.
-  PEM%pNext(PEM%pEnd(iElem)) = PositionNbr     ! Next Particle of same Elem (Linked List)
-  PEM%pEnd(iElem) = PositionNbr
-  PEM%pNumber(iElem) = PEM%pNumber(iElem) + 1
-  ! Saving the particle index to later
+  ! Saving the particle index for later
   PairingPartner(iLoop) = PositionNbr
+  ! Determine the particle velocity
+  CALL CalcVelocity_maxwell_lpn(FractNbr=BGGas%BGGasSpecies, Vec3D=PartState(PositionNbr,4:6), iInit=0)
 END DO
-
-CALL SetParticleVelocity(BGGas%BGGasSpecies,0,iNewPart,1) ! Properties of BG gas are stored in iInit=0
-PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart
 
 iPair = 0
 DO iLoop = 1, nPart
