@@ -138,19 +138,13 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
     CASE(5)     ! MCC Test
       IF(UseMCC) THEN
         IF(SpecMCC(iSpec_p1)%UseCollXSec) THEN
-          ! IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-          !   ReducedMass = (Species(iSpec_p1)%MassIC*Weight1 * Species(iSpec_p2)%MassIC*Weight2) &
-          !               / (Species(iSpec_p1)%MassIC*Weight1 + Species(iSpec_p2)%MassIC*Weight2)
-          ! ELSE
-          !   ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
-          ! END IF
-          ! CollEnergy = 0.5 * ReducedMass * Coll_pData(iPair)%CRela2
-          ! Coll_pData(iPair)%Prob = SQRT(Coll_pData(iPair)%CRela2)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity &
-          !                           / SpecMCC(iSpec_p1)%MaxCollFreq
-          !================================================================
           VeloSquare = DOT_PRODUCT(PartState(iPart_p1,4:6),PartState(iPart_p1,4:6))
           CollEnergy = 0.5 * Species(iSpec_p1)%MassIC * VeloSquare
-          Coll_pData(iPair)%Prob = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
+          !================================================================
+          Coll_pData(iPair)%Prob = SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity &
+                                    / SpecMCC(iSpec_p1)%MaxCollFreq
+          !================================================================
+          ! Coll_pData(iPair)%Prob = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
         ELSE
           IF (BGGas%BGGasSpecies.NE.0) THEN
             Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
@@ -262,11 +256,11 @@ __STAMP__&
 ,'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
   END IF
   CollProb = Coll_pData(iPair)%Prob
-  ! IF(UseMCC) THEN
-  !   IF(SpecMCC(iSpec_p1)%UseCollXSec) THEN
-  !     CollProb = CollProb * SpecMCC(iSpec_p1)%ProbNull
-  !   END IF
-  ! END IF
+  IF(UseMCC) THEN
+    IF(SpecMCC(iSpec_p1)%UseCollXSec) THEN
+      CollProb = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
+    END IF
+  END IF
   IF(DSMC%CalcQualityFactors) THEN
     DSMC%CollProbMax = MAX(CollProb, DSMC%CollProbMax)
     DSMC%CollProbMean = DSMC%CollProbMean + CollProb

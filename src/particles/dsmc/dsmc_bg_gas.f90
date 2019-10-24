@@ -238,20 +238,24 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, PositionNbr
-INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNum(nSpecies), SpecPairNumCounter(nSpecies)
-INTEGER,ALLOCATABLE           :: iPartIndex(:), PairingPartner(:)
+INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, PositionNbr, PairCount, RandomPart
+INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNum(nSpecies), SpecPairNumCounter(nSpecies), SpecPartNum(nSpecies)
+INTEGER,ALLOCATABLE           :: iPartIndex(:), PairingPartner(:), iPartIndexSpec(:,:)
 REAL                          :: iRan, ProbRest
 !===================================================================================================================================
 nPart = PEM%pNumber(iElem)
 MCC%TotalPairNum = 0.
 
 ALLOCATE(iPartIndex(nPart))
-CollInf%Coll_SpecPartNum = 0
+CollInf%Coll_SpecPartNum = 0.
 CollInf%Coll_CaseNum = 0
+
+ALLOCATE(iPartIndexSpec(nPart,nSpecies))
+iPartIndexSpec = 0
 
 SpecPairNum = 0
 SpecPairNumCounter = 0
+SpecPartNum = 0
 
 IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
 
@@ -259,11 +263,13 @@ iPart = PEM%pStart(iElem)
 DO iLoop = 1, nPart
   iSpec = PartSpecies(iPart)
   ! Counting the number of particles per species
-  CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) + 1
+  CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) + 1.
+  SpecPartNum(iSpec) = SpecPartNum(iSpec) + 1
   ! Calculation of mean vibrational energy per cell and iter, necessary for dissociation probability
   IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(iPart,1)
   ! Create particle index list for pairing
   iPartIndex(iLoop) = iPart
+  iPartIndexSpec(SpecPartNum(iSpec) ,iSpec) = iPart
   ! Counting the number of pairs for regular DSMC background gas
   IF(.NOT.SpecMCC(iSpec)%UseCollXSec) THEN
     MCC%TotalPairNum = MCC%TotalPairNum + 1
@@ -279,6 +285,8 @@ DO iSpec = 1,nSpecies
     CALL RANDOM_NUMBER(iRan)
     IF (ProbRest.GT.iRan) SpecPairNum(iSpec) = SpecPairNum(iSpec) + 1
     MCC%TotalPairNum = MCC%TotalPairNum + SpecPairNum(iSpec)
+  ELSE
+    SpecPairNum(iSpec) = NINT(CollInf%Coll_SpecPartNum(iSpec))
   END IF
 END DO
 
@@ -317,18 +325,25 @@ __STAMP__&
   CALL CalcVelocity_maxwell_lpn(FractNbr=BGGas%BGGasSpecies, Vec3D=PartState(PositionNbr,4:6), iInit=0)
 END DO
 
-iPair = 0
-DO iLoop = 1, nPart
-  iPart = iPartIndex(iLoop)
-  iSpec = PartSpecies(iPart)
-  IF(SpecMCC(iSpec)%UseCollXSec) THEN
-    IF(SpecPairNumCounter(iSpec).GE.SpecPairNum(iSpec)) CYCLE
-    SpecPairNumCounter(iSpec) = SpecPairNumCounter(iSpec) + 1
-  END IF
-  iPair = iPair + 1
-  Coll_pData(iPair)%iPart_p1 = iPart
-  Coll_pData(iPair)%iPart_p2 = PairingPartner(iPair)
-END DO  
+PairCount = 0
+DO iSpec = 1, nSpecies
+  DO iPair = 1, SpecPairNum(iSpec)
+    IF(SpecMCC(iSpec)%UseCollXSec) THEN
+      IF(SpecPartNum(iSpec).GT.0) THEN
+        CALL RANDOM_NUMBER(iRan)
+        RandomPart = INT(SpecPartNum(iSpec)*iRan) + 1
+        iPart = iPartIndexSpec(RandomPart,iSpec)
+        iPartIndexSpec(RandomPart, iSpec) = iPartIndexSpec(SpecPartNum(iSpec),iSpec)
+        SpecPartNum(iSpec) = SpecPartNum(iSpec) - 1
+      END IF
+    ELSE
+      iPart = iPartIndexSpec(iPair, iSpec)
+    END IF
+    PairCount = PairCount + 1
+    Coll_pData(PairCount)%iPart_p1 = iPart
+    Coll_pData(PairCount)%iPart_p2 = PairingPartner(PairCount)
+  END DO
+END DO
 
 ! Setting Number of BGGas Particles per Cell
 IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0) THEN

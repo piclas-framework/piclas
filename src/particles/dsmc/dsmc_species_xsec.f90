@@ -184,7 +184,7 @@ Velocity(1:MaxDOF) = SQRT(2.) * SQRT(8.*SpecMCC(iSpec)%CollXSec(1,1:MaxDOF)/(Pi*
 SpecMCC(iSpec)%MaxCollFreq = MAXVAL(Velocity(1:MaxDOF) * SpecMCC(iSpec)%CollXSec(2,1:MaxDOF) * BGGas%BGGasDensity)
 
 ! Determine the collision probability
-SpecMCC(iSpec)%ProbNull = 1. !- EXP(-SpecMCC(iSpec)%MaxCollFreq*ManualTimeStep*DSMC_IterSkip)
+SpecMCC(iSpec)%ProbNull = 1. - EXP(-SpecMCC(iSpec)%MaxCollFreq*ManualTimeStep*DSMC_IterSkip)
 
 DEALLOCATE(Velocity)
 
