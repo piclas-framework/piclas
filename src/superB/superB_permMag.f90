@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_PermanentMagnet
+MODULE MOD_SuperB_PermMag
 !===================================================================================================================================
 ! Contains the calculation of the magnetic field of a permanent magnet
 !===================================================================================================================================
@@ -62,7 +62,7 @@ USE MOD_Preproc,              ONLY: PP_N
 USE MOD_Mesh_Vars,            ONLY: nElems, Elem_xGP
 USE MOD_Basis,                ONLY: LegendreGaussNodesAndWeights
 USE MOD_PICInterpolation_Vars,ONLY: BGFieldVTKOutput
-USE MOD_PermanentMagnet_Vars, ONLY: CuboidMagnetInfo, PsiMag, MagnetFlag
+USE MOD_SuperB_Vars,          ONLY: CuboidMagnetInfo, PsiMag, MagnetFlag
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -278,7 +278,7 @@ USE MOD_Preproc,              ONLY: PP_N
 USE MOD_Mesh_Vars,            ONLY: nElems, Elem_xGP
 USE MOD_Basis,                ONLY: LegendreGaussNodesAndWeights
 USE MOD_PICInterpolation_Vars,ONLY: BGFieldVTKOutput
-USE MOD_PermanentMagnet_Vars, ONLY: SphericMagnetInfo, PsiMag, NumOfCuboidMagnets, MagnetFlag
+USE MOD_SuperB_Vars, ONLY: SphericMagnetInfo, PsiMag, NumOfCuboidMagnets, MagnetFlag
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -421,7 +421,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars, ONLY: nElems, Elem_xGP
 USE MOD_Basis, ONLY: LegendreGaussNodesAndWeights
 USE MOD_SuperB_Coil, ONLY: FindLinIndependendVectors, GramSchmidtAlgo
-USE MOD_PermanentMagnet_Vars, ONLY: CylindricMagnetInfo, psiMag, NumOfCuboidMagnets, NumOfSphericMagnets, MagnetFlag
+USE MOD_SuperB_Vars, ONLY: CylindricMagnetInfo, psiMag, NumOfCuboidMagnets, NumOfSphericMagnets, MagnetFlag
 USE MOD_PICInterpolation_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -631,7 +631,7 @@ USE MOD_Globals_Vars, ONLY: PI
 USE MOD_Preproc
 USE MOD_Mesh_Vars, ONLY: nElems, Elem_xGP
 USE MOD_Basis, ONLY: LegendreGaussNodesAndWeights
-USE MOD_PermanentMagnet_Vars, ONLY: ConicMagnetInfo, psiMag, MagnetFlag, &
+USE MOD_SuperB_Vars, ONLY: ConicMagnetInfo, psiMag, MagnetFlag, &
                               NumOfCuboidMagnets, NumOfSphericMagnets, NumOfCylindricMagnets
 USE MOD_SuperB_Coil, ONLY: FindLinIndependendVectors, GramSchmidtAlgo
 USE MOD_PICInterpolation_Vars, ONLY: BGFieldVTKOutput
@@ -879,7 +879,7 @@ SUBROUTINE CalculateGradient()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Mesh_Vars,            ONLY: Metrics_fTilde, Metrics_gTilde, Metrics_hTilde, sJ
-USE MOD_PermanentMagnet_Vars
+USE MOD_SuperB_Vars
 USE MOD_PICInterpolation_Vars
 USE MOD_Basis
 USE MOD_Interpolation_Vars,   ONLY: xGP
@@ -964,5 +964,5 @@ ENDDO
 
 END SUBROUTINE CalculateGradient
 
-END MODULE MOD_PermanentMagnet
+END MODULE MOD_SuperB_PermMag
 

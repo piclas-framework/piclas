@@ -672,6 +672,7 @@ FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
                                 ./src/readintools/*.f90
                                 ./src/recordpoints/*.f90
                                 ./src/restart/*.f90
+                                ./src/superB/*.f90
                                 ./src/timedisc/*.f90
                                 ./src/utils/*.f90 )
 

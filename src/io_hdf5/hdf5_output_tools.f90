@@ -41,7 +41,7 @@ PUBLIC :: WritePMLzetaGlobalToHDF5
 PUBLIC :: WriteIMDStateToHDF5
 #endif /*PARTICLES*/
 
-PUBLIC :: WriteDielectricGlobalToHDF5
+PUBLIC :: WriteDielectricGlobalToHDF5, WriteBFieldToHDF5
 !===================================================================================================================================
 
 CONTAINS
@@ -409,5 +409,92 @@ END IF
 END SUBROUTINE WriteIMDStateToHDF5
 #endif /*PARTICLES*/
 
+
+SUBROUTINE WriteBFieldToHDF5(OutputTime)
+!===================================================================================================================================
+! Subroutine to write the solution U to HDF5 format
+! Is used for postprocessing and for restart
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Globals_Vars          ,ONLY:ProjectName
+USE MOD_Mesh_Vars             ,ONLY:offsetElem,nGlobalElems, nElems,MeshFile
+USE MOD_io_HDF5
+USE MOD_HDF5_output           ,ONLY: WriteArrayToHDF5
+USE MOD_PICInterpolation_Vars ,ONLY: BGField
+USE MOD_SuperB_Vars           ,ONLY: PsiMag
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                :: OutputTime
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)             :: FileName
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+INTEGER                        :: nVal
+REAL,ALLOCATABLE               :: outputArray(:,:,:,:,:)
+#if USE_MPI
+REAL                           :: StartT,EndT
+#endif /*USE_MPI*/
+!===================================================================================================================================
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE B-FIELD TO HDF5 FILE...'
+#if USE_MPI
+  StartT=MPI_WTIME()
+#endif /*USE_MPI*/
+
+ALLOCATE(outputArray(1:4,0:PP_N,0:PP_N,0:PP_N,1:nElems))
+outputArray(1,:,:,:,:) = BGField(1,:,:,:,:)
+outputArray(2,:,:,:,:) = BGField(2,:,:,:,:)
+outputArray(3,:,:,:,:) = BGField(3,:,:,:,:)
+outputArray(4,:,:,:,:) = PsiMag(:,:,:,:)
+
+! Create dataset attribute "VarNames"
+ALLOCATE(StrVarNames(1:4))
+StrVarNames(1)='BFieldX'
+StrVarNames(2)='BFieldY'
+StrVarNames(3)='BFieldZ'
+StrVarNames(4)='PsiMag'
+
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_BFieldState',OutputTime))//'.h5'
+IF(MPIRoot) CALL GenerateFileSkeleton('BFieldState',4,StrVarNames,TRIM(MeshFile),OutputTime)
+#if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif /*USE_MPI*/
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+
+nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+  PP_N         => INT(PP_N,IK)    ,&
+  PP_nElems    => INT(PP_nElems,IK)            ,&
+  offsetElem   => INT(offsetElem,IK)           ,&
+  nGlobalElems => INT(nGlobalElems,IK)         )
+CALL WriteArrayToHDF5(DataSetName='BField', rank=5,&
+                      nValGlobal=(/4_IK,PP_N+1_IK,PP_N+1_IK,PP_N+1_IK,nGlobalElems/),&
+                      nVal      =(/4_IK,PP_N+1_IK,PP_N+1_IK,PP_N+1_IK,PP_nElems/),&
+                      offset    =(/0_IK,     0_IK,     0_IK,     0_IK,offsetElem/),&
+                      collective=.false., RealArray=outputArray)
+END ASSOCIATE
+
+CALL CloseDataFile()
+
+DEALLOCATE(StrVarNames)
+DEALLOCATE(outputArray)
+
+#if USE_MPI
+IF(MPIROOT)THEN
+  EndT=MPI_WTIME()
+  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+END IF
+#else
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+#endif /*USE_MPI*/
+END SUBROUTINE WriteBFieldToHDF5
 
 END MODULE MOD_HDF5_Output_Tools

@@ -32,21 +32,16 @@ SUBROUTINE SuperB()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_IO_HDF5
-USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
-USE MOD_TimeDisc_Vars,          ONLY:tEnd
-USE MOD_Basis,                  ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
-USE MOD_Basis,                  ONLY:BarycentricWeights,InitializeVandermonde
-USE MOD_Mesh_Vars,              ONLY:OffsetElem,nGlobalElems,MeshFile,nElems
-USE MOD_Preproc
-USE MOD_ReadInTools,            ONLY:GETSTR,GETINT,GETREAL
-USE MOD_HDF5_Input,             ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID,ReadArray
-USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType,NBG,BGType,BGField,calcBField, BGFieldVTKOutput
-USE MOD_PICInterpolation_Vars,  ONLY:BGField_xGP,BGField_wGP,BGField_wBary,BGDataSize, BGFieldTDep, nTimePoints
-USE MOD_Interpolation_Vars,     ONLY:StrNodeType, xGP, wBary
 USE MOD_SuperB_PermMag
 USE MOD_SuperB_Coil
 USE MOD_SuperB_Vars
+USE MOD_Preproc               ,ONLY: PP_N
+USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType, NBG, BGType, BGField, BGFieldVTKOutput
+USE MOD_PICInterpolation_Vars ,ONLY: BGField_xGP, BGField_wBary, BGDataSize
+USE MOD_Interpolation_Vars    ,ONLY: xGP, wBary
+USE MOD_HDF5_Output_Tools     ,ONLY: WriteBFieldToHDF5
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -55,17 +50,9 @@ USE MOD_SuperB_Vars
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(255)                          :: BGFileName,NodeType_BGField,MeshFile_BGField
-CHARACTER(LEN=255),ALLOCATABLE          :: VarNames(:)
-REAL,ALLOCATABLE                        :: BGField_tmp(:,:,:,:,:), Vdm_BGFieldIn_BGField(:,:), BFieldPermMag(:,:,:,:,:)
-REAL,ALLOCATABLE                        :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:)
-INTEGER                                 :: Rank,N_in 
-INTEGER                                 :: iElem,i,j,k
-REAL                                    :: BGFieldScaling
-INTEGER(HID_T)                          :: Dset_ID,FileSpace
-INTEGER(HSIZE_T), DIMENSION(7)          :: Dims,DimsMax
-INTEGER                                 :: iMagnet, iCoil, iTimePoint
-REAL                                    :: timestep
+REAL,ALLOCATABLE              :: BFieldPermMag(:,:,:,:,:)
+INTEGER                       :: iMagnet, iCoil, iTimePoint
+REAL                          :: timestep
 !===================================================================================================================================
 
 ! Allocate and nullify the B-Field and the magnetic potential
@@ -352,7 +339,7 @@ ELSE
 
   BGField = BGField + BFieldPermMag
 
-  CALL WriteBFieldToHDF5(Meshfile,0.)
+  CALL WriteBFieldToHDF5(0.)
 ENDIF
 
 END SUBROUTINE SuperB

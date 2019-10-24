@@ -38,6 +38,8 @@ REAL,ALLOCATABLE        :: BGField_xGP(:)                !< Gauss point coordina
 REAL,ALLOCATABLE        :: BGField_wGP(:)                !< GP integration weights
 REAL,ALLOCATABLE        :: BGField_wBary(:)              !< barycentric weights
 
+LOGICAL                 :: CalcBField
+LOGICAL                 :: BGFieldVTKOutput
 
 CHARACTER(LEN=256)      :: FileNameVariableExternalField !< filename containing the externanl field csv table
 LOGICAL                 :: useVariableExternalField      !< use given external field. only for Bz variation in z

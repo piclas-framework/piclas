@@ -75,7 +75,7 @@ SUBROUTINE SetUpCoil(iCoil)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars
-USE MOD_Coil_Vars
+USE MOD_SuperB_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -157,7 +157,7 @@ SUBROUTINE SetUpCircleCoil(iCoil)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars
-USE MOD_Coil_Vars
+USE MOD_SuperB_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -197,7 +197,7 @@ SUBROUTINE SetUpRectangleCoil(iCoil)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars
-USE MOD_Coil_Vars
+USE MOD_SuperB_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -208,7 +208,7 @@ INTEGER, INTENT(IN) :: iCoil
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                :: AxisVec2(3)
-REAL                :: LengthAxisVec1, LengthAxisVec2, RectVecLength1, RectVecLength2
+REAL                :: LengthAxisVec1, LengthAxisVec2
 INTEGER             :: PointsPerSide, PointNumber, iLoop, iPoint
 REAL                :: TrafoMatrix(3,3)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -292,7 +292,7 @@ SUBROUTINE SetUpLinearConductor(iCoil)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars
-USE MOD_Coil_Vars
+USE MOD_SuperB_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -389,53 +389,6 @@ Vector3(:) = Vector3(:) / SQRT(Vector3(1)**2 + Vector3(2)**2 + Vector3(3)**2)
 
 END SUBROUTINE GramSchmidtAlgo
 
-SUBROUTINE RotateCoordinateSystem(Vector1, Vector2, Vector3, AxisVector)
-!===================================================================================================================================
-! Rotates the coordinate system around vector 1 till vector 2 is parallel to the base vector
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)    :: AxisVector(3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(INOUT) :: Vector1(3),Vector2(3),Vector3(3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                :: Phi
-REAL                :: LengthVector2, LengthAxisVector
-REAL                :: UnitVector1(3)
-REAL                :: RotationMatrix(3,3)
-!===================================================================================================================================
-
-write(*,*) Vector1
-write(*,*) Vector2
-write(*,*) Vector3
-read *
-LengthVector2    = SQRT(Vector2(1)**2 + Vector2(2)**2 + Vector2(3)**2)
-LengthAxisVector = SQRT(AxisVector(1)**2 + AxisVector(2)**2 + AxisVector(3)**2)
-Phi = ACOS(DOT_PRODUCT(Vector2,AxisVector)/LengthVector2/LengthAxisVector)
-write(*,*) Phi
-read *
-UnitVector1(:) = Vector1(:)/SQRT(Vector1(1)**2 + Vector1(2)**2 + Vector1(3)**2)
-
-RotationMatrix(1,1) = UnitVector1(1)*UnitVector1(1) * (1 - COS(Phi)) + COS(Phi)
-RotationMatrix(1,2) = UnitVector1(1)*UnitVector1(2) * (1 - COS(Phi)) - UnitVector1(3) * SIN(Phi)
-RotationMatrix(1,3) = UnitVector1(1)*UnitVector1(3) * (1 - COS(Phi)) + UnitVector1(2) * SIN(Phi)
-RotationMatrix(2,1) = UnitVector1(2)*UnitVector1(1) * (1 - COS(Phi)) + UnitVector1(3) * SIN(Phi)
-RotationMatrix(2,2) = UnitVector1(2)*UnitVector1(2) * (1 - COS(Phi)) + COS(Phi)
-RotationMatrix(2,3) = UnitVector1(2)*UnitVector1(3) * (1 - COS(Phi)) - UnitVector1(1) * SIN(Phi)
-RotationMatrix(3,1) = UnitVector1(3)*UnitVector1(1) * (1 - COS(Phi)) - UnitVector1(2) * SIN(Phi)
-RotationMatrix(3,2) = UnitVector1(3)*UnitVector1(2) * (1 - COS(Phi)) + UnitVector1(1) * SIN(Phi)
-RotationMatrix(3,3) = UnitVector1(3)*UnitVector1(3) * (1 - COS(Phi)) + COS(Phi)
-
-Vector2 = MATMUL(RotationMatrix,Vector2)
-Vector3 = MATMUL(RotationMatrix,Vector3)
-
-END SUBROUTINE RotateCoordinateSystem
 
 SUBROUTINE BiotSavart(iCoil, coilType)
 !===================================================================================================================================
@@ -446,7 +399,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_Preproc
 USE MOD_Mesh_Vars,             ONLY: nElems, Elem_xGP
-USE MOD_Coil_Vars
+USE MOD_SuperB_Vars
 USE MOD_PICInterpolation_Vars, ONLY: BGField
 USE MOD_Equation_Vars,  ONLY: mu0
 ! IMPLICIT VARIABLE HANDLING
@@ -517,7 +470,7 @@ USE MOD_Globals_Vars, ONLY: PI
 USE MOD_Preproc
 USE MOD_Mesh_Vars, ONLY: nElems, Elem_xGP
 USE MOD_Equation_Vars, ONLY: mu0, c
-USE MOD_Coil_Vars, ONLY: CoilInfo, CircleCoilInfo, RectangleCoilInfo, LinearConductorInfo, &
+USE MOD_SuperB_Vars, ONLY: CoilInfo, CircleCoilInfo, RectangleCoilInfo, LinearConductorInfo, &
                         CurrentInfo, NumOfCoils, NumOfCircleCoils, NumOfRectangleCoils, CoilNodes
 USE MOD_PICInterpolation_Vars, ONLY: BGField
 ! IMPLICIT VARIABLE HANDLING
@@ -599,7 +552,7 @@ SUBROUTINE WriteCoilVTK(iCoil, OutFlag)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Coil_Vars, ONLY: CoilNodes, CoilInfo, CircleCoilInfo, RectangleCoilInfo, LinearConductorInfo,&
+USE MOD_SuperB_Vars, ONLY: CoilNodes, CoilInfo, CircleCoilInfo, RectangleCoilInfo, LinearConductorInfo,&
                          NumOfCoils, NumOfCircleCoils, NumOfRectangleCoils
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -663,7 +616,7 @@ SUBROUTINE FinalizeCoil()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Coil_Vars, ONLY: CoilNodes
+USE MOD_SuperB_Vars, ONLY: CoilNodes
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

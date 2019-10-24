@@ -83,6 +83,12 @@ externalField=externalField*ScaleExternalField
 DoInterpolation   = GETLOGICAL('PIC-DoInterpolation','.TRUE.')
 useBGField        = GETLOGICAL('PIC-BG-Field','.FALSE.')
 
+IF (useBGField) THEN
+  calcBField = GETLOGICAL('PIC-CalcBField','.FALSE.')
+ELSE
+  calcBField = .FALSE.
+END IF
+
 ! Variable external field
 useVariableExternalField = .FALSE.
 FileNameVariableExternalField=GETSTR('PIC-curvedexternalField','none')     ! old variable name (for backward compatibility)
@@ -176,6 +182,10 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
 #endif /* CODE_ANALYZE */
+USE MOD_PICInterpolation_Vars     ,ONLY: calcBField,BGField
+USE MOD_SuperB_Vars               ,ONLY: TimeDepCoil, nTimePoints, BGFieldTDep
+USE MOD_TimeDisc_Vars             ,ONLY: Time, TEnd
+USE MOD_HDF5_Output_Tools         ,ONLY: WriteBFieldToHDF5
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -187,9 +197,9 @@ LOGICAL                          :: doInnerParts
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: firstPart,lastPart
-REAL                             :: Pos(3)
+REAL                             :: Pos(3), timestep
 REAL                             :: field(6)
-INTEGER                          :: iPart,iElem
+INTEGER                          :: iPart,iElem,iTime
 ! for Nearest GaussPoint
 INTEGER                          :: a,b,k,ii,l,m
 #if defined PP_POIS || (USE_HDG && PP_nVar==4)
@@ -197,6 +207,20 @@ REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
 #endif /*(PP_POIS||USE_HDG)*/
 LOGICAL                          :: NotMappedSurfFluxParts
 !===================================================================================================================================
+
+! Calculate the timestep of the discretisation of the Current
+IF (CalcBField) THEN
+  IF (ANY(TimeDepCoil)) THEN
+    timestep = tEnd / (nTimePoints - 1)
+    iTime = FLOOR(Time / timestep)
+
+    ! Interpolate the Background field linear between two timesteps
+    BGField(:,:,:,:,:) = BGFieldTDep(:,:,:,:,:,iTime) + (BGFieldTDep(:,:,:,:,:,iTime) - BGFieldTDep(:,:,:,:,:,iTime+1)) &
+                         / timestep * (Time - iTime * timestep)
+    CALL WriteBFieldToHDF5(Time)
+  ENDIF
+END IF
+
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 NotMappedSurfFluxParts=DoSurfaceFlux !Surfaceflux particles inserted before interpolation and tracking. Field at wall is needed!
 #else

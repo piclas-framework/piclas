@@ -69,7 +69,7 @@ TYPE tRectangleCoil
   INTEGER                        :: PointsPerLoop
   REAL                           :: RectVec1(2)
   REAL                           :: RectVec2(2)
-  REAL                           :: BasePoint(3)                           
+  REAL                           :: BasePoint(3)
   REAL                           :: LengthVector(3)
   REAL                           :: Length
   REAL                           :: AxisVec1(3)
@@ -98,6 +98,8 @@ END TYPE tCurrentInfo
 TYPE(tCurrentInfo),ALLOCATABLE   :: CurrentInfo(:)
 
 LOGICAL, ALLOCATABLE             :: TimeDepCoil(:)
+INTEGER                           :: nTimePoints
+REAL, ALLOCATABLE                 :: BGFieldTDep(:,:,:,:,:,:)      !< Time dep. BGField data (1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems,1:nTime)
 
 ! === Permanent Magnets
 

@@ -19,7 +19,7 @@ MODULE MOD_SuperB_Init
 IMPLICIT NONE
 PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InitializeSuperB, DefineParametersSuperB
+PUBLIC :: InitializeSuperB, DefineParametersSuperB, FinalizeSuperB
 !===================================================================================================================================
 
 CONTAINS
@@ -50,9 +50,9 @@ SUBROUTINE InitializeSuperB()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY: PI
 USE MOD_ReadInTools
-USE MOD_PICInterpolation_Vars
+USE MOD_Globals_Vars            ,ONLY: PI
+USE MOD_PICInterpolation_Vars   ,ONLY: BGFieldVTKOutput
 USE MOD_SuperB_Vars
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -63,8 +63,7 @@ USE MOD_SuperB_Vars
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                   :: ALLOCSTAT
-REAL                      :: P(3,8), T(3,3), T_inv(3,3), alpha1, alpha2, alpha3
-INTEGER                   :: iNode, iElem, kk ,ll, mm, iMagnet, iCoil, iSegment, iCoilTemp, jj
+INTEGER                   :: iMagnet, iCoil, iSegment, iCoilTemp
 CHARACTER(LEN=32)         :: hilf,hilf2
 !===================================================================================================================================
 
@@ -296,5 +295,26 @@ IF (ANY(TimeDepCoil)) THEN
 ENDIF
 
 END SUBROUTINE InitializeSuperB
+
+
+SUBROUTINE FinalizeSuperB
+!===================================================================================================================================
+!> 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+
+
+END SUBROUTINE FinalizeSuperB
 
 END MODULE MOD_SuperB_Init
