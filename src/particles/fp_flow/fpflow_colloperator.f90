@@ -143,7 +143,7 @@ DO iLoop2 = 1, nPart
   END IF
   OldEn = OldEn + 0.5*Species(1)%MassIC * vmag2 * partWeight
   IF(VarTimeStep%UseVariableTimeStep) THEN
-    dtCell = dtCell + VarTimeStep%ParticleTimeStep(iPartIndx_Node(iLoop))
+    dtCell = dtCell + VarTimeStep%ParticleTimeStep(iPartIndx_Node(iLoop2))
   END IF
 END DO
 

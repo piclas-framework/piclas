@@ -491,38 +491,34 @@ The particle velocity distribution within the domain is then generated assuming 
 
 ### Variable Time Step \label{sec:vartimestep}
 
-A spatially variable time step (VTS) can be activated for steady-state DSMC simulations
-
-    Part-VariableTimeStep = T
-
-Two options are currently available and described in the following:
+A spatially variable time step (VTS) can be activated for steady-state DSMC, BGK and FP simulations, where two options are currently available and described in the following:
 
 * Distribution: use a simulation result to adapt the time step in order to resolve physical parameters (e.g. collision frequency)
 * Linear scaling: use a linearly increasing/decreasing time step along a given direction
 
 #### Distribution
 
-The first option which is currently only available for DSMC is to adapt the time step during a simulation restart based on certain parameters of the DSMC simulation such as maximal collision probability, mean collision separation distance over mean free path and particle number. This requires the read-in of a DSMC state file that includes DSMC quality factors (see Section \ref{sec:dsmc_quality}).
+The first option is to adapt the time step during a simulation restart based on certain parameters of the DSMC/BGK/FP simulation such as maximal collision probability (DSMC), mean collision separation distance over mean free path (DSMC), maximal relaxation factor (BGK/FP) and particle number. This requires the read-in of a DSMC state file that includes DSMC quality factors (see Section \ref{sec:dsmc_quality}).
 
     Part-VariableTimeStep-Distribution = T
     Part-VariableTimeStep-Distribution-Adapt = T
-    Part-VariableTimeStep-Distribution-TargetMCSoverMFP = 0.3   ! Default = 0.25
-    Part-VariableTimeStep-Distribution-TargetMaxCollProb = 0.8  ! Default = 0.8
     Part-VariableTimeStep-Distribution-MaxFactor = 1.0
     Part-VariableTimeStep-Distribution-MinFactor = 0.1
     Part-VariableTimeStep-Distribution-MinPartNum = 10          ! Optional
-    Particles-MacroscopicRestart = T    ! Disable if no adaptation is performed!
+    ! DSMC only
+    Part-VariableTimeStep-Distribution-TargetMCSoverMFP = 0.3   ! Default = 0.25
+    Part-VariableTimeStep-Distribution-TargetMaxCollProb = 0.8  ! Default = 0.8
+    ! BGK/FP only
+    Part-VariableTimeStep-Distribution-TargetMaxRelaxFactor = 0.8
+    ! Restart from a given DSMC state file (Disable if no adaptation is performed!)
+    Particles-MacroscopicRestart = T
     Particles-MacroscopicRestart-Filename = Test_DSMCState.h5
 
 The second flag allows to enable/disable the adaptation of the time step distribution. Typically, a simulation would be performed until a steady-state (or close to it, e.g. the particle number is not increasing significantly anymore) is reached with a uniform time step. Then a restart with the above options would be performed, where the time step distribution is adapted using the DSMC output of the last simulation. Now, the user can decide to continue adapting the time step with the subsequent DSMC outputs (Note: Do not forget to update the DSMCState file name!) or to disable the adaptation and to continue the simulation with the distribution from the last simulation (the adapted particle time step is saved within the regular state file). It should be noted that if after a successful restart at e.g. $t=2$, and the simulation fails during the runtime at $t=2.5$ before the next state file could be written out at $t=3$, an adaptation for the next simulation attempt shoud NOT be performed as the adapted time step is stored in the output of new restart file at the restart time $t=2$. Restart files from which the restart is performed are overwritten after a successful restart.
 
-The parameters `TargetMCSoverMFP` (ratio of the mean collision separation distance over mean free path) and `TargetMaxCollProb` (maximum collision probability) allow to modify the target values for the adaptation. The `MaxFactor` and `MinFactor` allow to limit the adapted time step within a range of $f_\mathrm{min} \Delta t$ and $f_\mathrm{max} \Delta t$. Finally, the time step adaptation can be used to increase the number of particles by defining a minimum particle number (e.g `MinPartNum` = 10, optional).
+The `MaxFactor` and `MinFactor` allow to limit the adapted time step within a range of $f_\mathrm{min} \Delta t$ and $f_\mathrm{max} \Delta t$. The time step adaptation can be used to increase the number of particles by defining a minimum particle number (e.g `MinPartNum` = 10, optional). For DSMC, the parameters `TargetMCSoverMFP` (ratio of the mean collision separation distance over mean free path) and `TargetMaxCollProb` (maximum collision probability) allow to modify the target values for the adaptation. For the BGK and FP methods, the time step can be adapted according to a target maximal relaxation frequency.
 
 The last two flags enable to initialize the particles distribution from the given DSMC state file, using the macroscopic properties such as flow velocity, number density and temperature (see Section \ref{sec:macro_restart}). Strictly speaking, the VTS procedure only requires the `Filename` for the read-in of the aforementioned parameters, however, it is recommended to perform a macroscopic restart to initialize the correct particle number per cells. Otherwise, cells with a decreased/increased time step will require some time until the additional particles have reached/left the cell.
-
-For the BGK method, the time step can be adapted according to a target maximal relaxation factor, analogous to the maximal collision probability in DSMC
-
-    Part-VariableTimeStep-Distribution-TargetMaxRelaxFactor = 0.8
 
 The time step adaptation can also be utilized in coupled BGK-DSMC simulations, where the time step will be adapted in both regions according to the respective criteria as the BGK factors are zero in the DSMC region and vice versa. Attention should be payed in the transitional region between BGK and DSMC, where the factors are potentially calculated for both methods. Here, the time step required to fulfil the maximal collision probability criteria will be utilized as it is the more stringent one.
 
@@ -536,7 +532,7 @@ The second option is to use a linearly increasing time step along a given direct
     Part-VariableTimeStep-StartPoint    =     (/-0.4,0.0,0.0/)
     Part-VariableTimeStep-EndPoint      =  (/-99999.,0.0,0.0/)
 
-Besides DSMC, the linear scaling is available for the BGK method. Finally, specific options for 2D/axisymmetric simulations are discussed in Section \ref{sec:2DAxi_vts}.
+Besides DSMC, the linear scaling is available for the BGK and FP method. Finally, specific options for 2D/axisymmetric simulations are discussed in Section \ref{sec:2DAxi_vts}.
 
 ### 2D/Axisymmetric Simulation \label{sec:2DAxi}
 
@@ -592,7 +588,7 @@ An alternative to the particle position-based weighting is the cell-local radial
 
 However, this method is not preferable if the cell dimensions in $y$-direction are large, resulting in numerical artifacts due to the clustered cloning processes at cell boundaries.
 
-Besides DSMC, 2D/axisymmetric simulations are also possible the BGK particle method with the same parameters as discussed above (for more informatino about the BGK method see Section \ref{sec:bgk}).
+Besides DSMC, 2D/axisymmetric simulations are also possible the BGK/FP particle method with the same parameters as discussed above (for more informatino about the BGK and FP methods, see Section \ref{sec:continuum}).
 
 #### Variable Time Step: Linear scaling \label{sec:2DAxi_vts}
 
@@ -750,13 +746,13 @@ $$w < \frac{1}{\left(\sqrt{2}\pi d_\mathrm{ref}^2 n^{2/3}\right)^3},$$
 
 where $d_\mathrm{ref}$ is the reference diameter and $n$ the number density. Here, the largest number density within the simulation domain should be used as the worst-case. For supersonic/hypersonic flows, the conditions behind a normal shock can be utilized as a first guess. For a thruster/nozzle expansion simulation, the chamber or throat conditions are the limiting factor.
 
-## Modelling of Continuum Gas Flows
+## Modelling of Continuum Gas Flows \label{sec:continuum}
 
 Two methods are currently implemented to allow the simulation of gas flows in the continuum and transitional regime, where the DSMC method is computationally too expensive. The Fokker–Planck- and Bhatnagar-Gross-Krook-based approximation of the collision integral are compared in detail in paper to be published in Physics of Fluids. It is recommended to utilize a previous DSMC parameter file to ensure a complete simulation setup.
 
-### Fokker–Planck Collision Operator
+### Fokker–Planck Collision Operator \label{sec:fpflow}
 
-The implementation of the FP-based collision operator is based on the publications by @Gorji2014 and @Pfeiffer2017. The collision integral is hereby approximated by a drift and diffusion process
+The implementation of the FP-based collision operator is based on the publications by [@Gorji2014] and [@Pfeiffer2017]. The collision integral is hereby approximated by a drift and diffusion process
 
 $$  \left.\frac{\partial f}{\partial t}\right|_\mathrm{coll}\approx-\sum_{i=1}^3 {\frac{\partial }{\partial v_i}(A_i f)+\frac{1}{2}\sum_{i=1}^3 \sum_{j=1}^3\frac{\partial ^2 }{\partial v_i\partial v_j}(D_{ij}f)}, $$
 
@@ -765,13 +761,16 @@ where $\mathbf{A}$ is the drift vector and $\mathcal{D}$ the diffusion matrix.
 The current implementation supports:
 
 - 2 different methods: Cubic (only atomic species) and Ellipsoidal Statistical (ES)
-- Single species, monoatomic and diatomic gases
+- Single species, monoatomic and polyatomic gases
 - Thermal non-equilibrium with rotational and vibrational excitation (continuous or quantized treatment)
+- 2D/Axisymmetric simulations
+- Variable time step (adaption of the distribution according to the maximal relaxation factor and linear scaling)
 
 Relevant publications of the developers:
 
-- Implementation of the cubic Fokker-Planck in PICLas (@Pfeiffer2017)
-- Comparison of the cubic and ellipsoidal statistical Fokker-Planck (@Jun2019)
+- Implementation of the cubic Fokker-Planck in PICLas [@Pfeiffer2017]
+- Comparison of the cubic and ellipsoidal statistical Fokker-Planck [@Jun2019]
+- Simulation of a nozzle expansion (including the pressure chamber) with ESBGK, ESFP and coupled ESBGK-DSMC, comparison to experimental measurements [@Pfeiffer2019a]
 
 To enable the simulation with the FP module, the respective compiler setting has to be activated:
 
@@ -804,7 +803,7 @@ where $\Delta t$ is the chosen time step and $1/\tau$ the relaxation frequency. 
 
 ### Bhatnagar-Gross-Krook Collision Operator \label{sec:bgk}
 
-The implementation of the BGK-based collision operator is based on the publications by @Pfeiffer2018a and @Pfeiffer2018b. It allows the simulation of gas flows in the continuum and transitional regime, where the DSMC method is computationally too expensive. The collision integral is hereby approximated by a relaxation process:
+The implementation of the BGK-based collision operator is based on the publications by [@Pfeiffer2018a] and [@Pfeiffer2018b]. It allows the simulation of gas flows in the continuum and transitional regime, where the DSMC method is computationally too expensive. The collision integral is hereby approximated by a relaxation process:
 
 $$ \left.\frac{\partial f}{\partial t}\right|_\mathrm{coll} \approx \nu(f^t-f), $$
 
@@ -813,21 +812,21 @@ where $f^t$ is the target distribution function and $\nu$ the relaxation frequen
 The current implementation supports:
 
 - 4 different methods (i.e. different target distribution functions): Ellipsoidal Statistical, Shakov, standard BGK, and Unified
-- Single species, monoatomic and diatomic gases
+- Single species, monoatomic and polyatomic gases
 - Thermal non-equilibrium with rotational and vibrational excitation (continuous or quantized treatment)
 - 2D/Axisymmetric simulations
 - Variable time step (adaption of the distribution according to the maximal relaxation factor and linear scaling)
 
 Relevant publications of the developers:
 
-- Implementation and comparison of the ESBGK, SBGK, and Unified models in PICLas for atomic species @Pfeiffer2018a
-- Extension of the modelling to diatomic species including quantized vibrational energy treatment, validation of ESBGK with the Mach 20 hypersonic flow measurements of the heat flux on a $70^\circ$ cone @Pfeiffer2018b
-- Simulation of a nozzle expansion (including the pressure chamber) with ESBGK, SBGK and coupled ESBGK-DSMC, comparison to experimental measurements (*to be published*)
-- Simulation of the carbon dioxide hypersonic flow around a flat-faced cylinder, comparison of ESBGK, SBGK and DSMC regarding the shock structure and heat flux  (*to be published*)
+- Implementation and comparison of the ESBGK, SBGK, and Unified models in PICLas for atomic species [@Pfeiffer2018a]
+- Extension of the modelling to diatomic species including quantized vibrational energy treatment, validation of ESBGK with the Mach 20 hypersonic flow measurements of the heat flux on a $70^\circ$ cone [@Pfeiffer2018b]
+- Simulation of a nozzle expansion (including the pressure chamber) with ESBGK, SBGK and coupled ESBGK-DSMC, comparison to experimental measurements [@Pfeiffer2019a],[@Pfeiffer2019b]
+- Extension to polyatomic molecules, simulation of the carbon dioxide hypersonic flow around a flat-faced cylinder, comparison of ESBGK, SBGK and DSMC regarding the shock structure and heat flux [@Pfeiffer2019c]
 
 To enable the simulation with the BGK module, the respective compiler setting has to be activated:
 
-    PICLAS_TIMEDISCMETHOD = BGK
+    PICLAS_TIMEDISCMETHOD = BGK-Flow
 
 A parameter file and species initialization file is required, analogous to the DSMC setup. To enable the simulation with the BGK methods, select the BGK method, ES (`=1`), Shakov (`=2`), Standard BGK (`=3`), and Unified (`=4`):
 

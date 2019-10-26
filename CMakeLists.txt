@@ -106,6 +106,8 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                               ParticleEuler-FieldRK4
                                                               DSMC
                                                               RESERVOIR
+                                                              FP-Flow
+                                                              BGK-Flow
                                                               CN
                                                               ImplicitO3
                                                               ImplicitO4
@@ -115,12 +117,8 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                               ROS4
                                                               ROS46
                                                               ROS6
-                                                              FP-Flow
-                                                              BGK
                                                               FieldRelaxation
-                                                              FieldRelaxation-AdaptiveTimeStep
-                                                              LD
-                                                              LD-DSMC)
+                                                              FieldRelaxation-AdaptiveTimeStep)
 
 OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
 OPTION(PICLAS_BUILDPOSTI "Build POSTI toolset" OFF)
@@ -200,14 +198,10 @@ ELSE()
     MESSAGE(ERROR " Not allowed to used DSMC without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
     MESSAGE(ERROR " Not allowed to used RESERVOIR without particles.")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK")
-    MESSAGE(ERROR " Not allowed to used BGK without particles.")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
+    MESSAGE(ERROR " Not allowed to used BGK-Flow without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
     MESSAGE(ERROR " Not allowed to used FP-Flow without particles.")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "LD")
-    MESSAGE(ERROR " Not allowed to used LD without particles.")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "LD-DSMC")
-    MESSAGE(ERROR " Not allowed to used LD-DSMC without particles.")
   ENDIF()
 ENDIF(PICLAS_PARTICLES)
 
@@ -288,7 +282,7 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS3")
   SET(PICLAS_IMPLICIT ON)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=300)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK")
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=200)
