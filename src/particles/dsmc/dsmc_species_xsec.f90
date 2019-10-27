@@ -75,7 +75,7 @@ END IF
 IF (BGGas%BGGasSpecies.EQ.0) THEN
   CALL abort(&
   __STAMP__&
-  ,'ERROR: Usage of collision cross-section only possible with a backgroung gas!')
+  ,'ERROR: Usage of read-in collision cross-sections only possible with a background gas!')
 END IF
 
 DO iSpec = 1,nSpecies

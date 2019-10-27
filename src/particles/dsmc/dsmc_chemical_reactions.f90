@@ -416,14 +416,14 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac, iPart_p3)
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas
+USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange, CalcXiElec
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
 USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiTotalEqui
 USE MOD_part_tools             ,ONLY: DiceUnitVector
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
-USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum,CalcPartBalance,nPartIn,nPartOut
+USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
 USE MOD_Globals                ,ONLY: unit_stdout,myrank

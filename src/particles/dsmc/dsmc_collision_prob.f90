@@ -116,52 +116,23 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 
   SELECT CASE(iPType)
 
-    CASE(2,3,4,11,12,21,22,20,30,40,6,14,24)
+    CASE(2,3,4,5,11,12,21,22,20,30,40,6,14,24)
     ! Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic (non-CEX/MEX) Ion, Molecule-Atomic Ion, Atom-Molecular Ion, Molecule-Molecular Ion
     ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron
-      IF (BGGas%BGGasSpecies.NE.0) THEN
-        Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
-                * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
-                * Species(iSpec_p1)%MacroParticleFactor                  &
-                        ! weighting Fact, here only one MPF is used!!!
-                * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(iSpec_p1)%omegaVHS) &
-                        ! relative velo to the power of (1 -2omega) !! only one omega is used!!
-                * dtCell / Volume
-      ELSE
-        Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
-                * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
-                * MacroParticleFactor / CollCaseNum                                                     &
-                * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(iSpec_p1)%omegaVHS) &
-                        ! relative velo to the power of (1 -2omega) !! only one omega is used!!
-                * dtCell / Volume
-      END IF
-    CASE(5)     ! MCC Test
       IF(UseMCC) THEN
         IF(SpecMCC(iSpec_p1)%UseCollXSec) THEN
           VeloSquare = DOT_PRODUCT(PartState(iPart_p1,4:6),PartState(iPart_p1,4:6))
           CollEnergy = 0.5 * Species(iSpec_p1)%MassIC * VeloSquare
-          !================================================================
           Coll_pData(iPair)%Prob = SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity &
                                     / SpecMCC(iSpec_p1)%MaxCollFreq
-          !================================================================
-          ! Coll_pData(iPair)%Prob = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
         ELSE
-          IF (BGGas%BGGasSpecies.NE.0) THEN
-            Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
-                    * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
-                    * Species(iSpec_p1)%MacroParticleFactor                  &
-                            ! weighting Fact, here only one MPF is used!!!
-                    * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(iSpec_p1)%omegaVHS) &
-                            ! relative velo to the power of (1 -2omega) !! only one omega is used!!
-                    * dtCell / Volume
-          ELSE
-            Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
-                    * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
-                    * MacroParticleFactor / CollCaseNum                                                     &
-                    * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(iSpec_p1)%omegaVHS) &
-                            ! relative velo to the power of (1 -2omega) !! only one omega is used!!
-                    * dtCell / Volume
-          END IF
+          Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
+                  * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
+                  * Species(iSpec_p1)%MacroParticleFactor                  &
+                          ! weighting Fact, here only one MPF is used!!!
+                  * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(iSpec_p1)%omegaVHS) &
+                          ! relative velo to the power of (1 -2omega) !! only one omega is used!!
+                  * dtCell / Volume
         END IF
       ELSE
         IF (BGGas%BGGasSpecies.NE.0) THEN
@@ -255,13 +226,17 @@ __STAMP__&
 __STAMP__&
 ,'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
   END IF
-  CollProb = Coll_pData(iPair)%Prob
-  IF(UseMCC) THEN
-    IF(SpecMCC(iSpec_p1)%UseCollXSec) THEN
-      CollProb = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
-    END IF
-  END IF
   IF(DSMC%CalcQualityFactors) THEN
+    IF(UseMCC) THEN
+      IF(SpecMCC(iSpec_p1)%UseCollXSec) THEN
+        ! Calculate the collision probability for cross section case
+        CollProb = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
+      ELSE
+        CollProb = Coll_pData(iPair)%Prob
+      END IF
+    ELSE
+      CollProb = Coll_pData(iPair)%Prob
+    END IF
     DSMC%CollProbMax = MAX(CollProb, DSMC%CollProbMax)
     DSMC%CollProbMean = DSMC%CollProbMean + CollProb
     DSMC%CollProbMeanCount = DSMC%CollProbMeanCount + 1
@@ -272,6 +247,16 @@ __STAMP__&
     DO iSpec=1, nSpecies
       iReac=ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2),iSpec)
       IF (iReac.NE.0) THEN
+        IF(UseMCC) THEN
+          IF(SpecMCC(iSpec_p1)%UseCollXSec) THEN
+            ! Calculate the collision probability for cross section case
+            CollProb = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
+          ELSE
+            CollProb = Coll_pData(iPair)%Prob
+          END IF
+        ELSE
+          CollProb = Coll_pData(iPair)%Prob
+        END IF
         ChemReac%ReacCollMean(iReac) = ChemReac%ReacCollMean(iReac) + CollProb
         ChemReac%ReacCollMeanCount(iReac) = ChemReac%ReacCollMeanCount(iReac) + 1
       END IF
