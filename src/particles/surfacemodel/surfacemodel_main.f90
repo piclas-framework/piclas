@@ -278,12 +278,12 @@ CALL ExchangeSurfDistInfo()
 END SUBROUTINE UpdateSurfModelVars
 
 
-SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi,eta,PartID,sideID_IN,flip,IsSpeciesSwap,&
-                              ReflectionIndex,BCSideID,Opt_Reflected,TriNum)
+SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi,eta,PartID,sideID_IN,n_Loc,IsSpeciesSwap,&
+                              ReflectionIndex)
 !===================================================================================================================================
 !> Routine for Selection of Surface interaction
 !===================================================================================================================================
-USE MOD_Globals                 ,ONLY: CROSSNORM,UNITVECTOR
+USE MOD_Globals                 ,ONLY: CROSSNORM,UNITVECTOR,OrthoNormVec
 USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
 USE MOD_Part_Tools              ,ONLY: VELOFROMDISTRIBUTION, CreateParticle
@@ -311,15 +311,12 @@ IMPLICIT NONE
 INTEGER,INTENT(INOUT)       :: ReflectionIndex !< has to be set to 1: diffuse , 2: perfect reflection, or 3: reaction
 REAL,INTENT(INOUT)          :: PartTrajectory(1:3), LengthPartTrajectory, alpha
 REAL,INTENT(IN)             :: xi, eta
+REAL,INTENT(IN)             :: n_loc(1:3)
 INTEGER,INTENT(IN)          :: PartID
 INTEGER,INTENT(IN)          :: sideID_IN
-INTEGER,INTENT(IN)          :: flip
 LOGICAL,INTENT(IN)          :: IsSpeciesSwap
-INTEGER,INTENT(IN),OPTIONAL :: BCSideID
-INTEGER,INTENT(IN),OPTIONAL :: TriNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-LOGICAL,INTENT(OUT),OPTIONAL :: Opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: ProductSpec(2)   !< 1: product species of incident particle (also used for simple reflection)
@@ -337,7 +334,7 @@ INTEGER                          :: NewPartID
 REAL                             :: RanNum
 REAL                             :: Xitild,EtaTild
 INTEGER                          :: p,q
-REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
+REAL                             :: tang1(1:3),tang2(1:3)
 REAL                             :: Adsorption_prob, Recombination_prob
 INTEGER                          :: SurfSideID, SpecID
 REAL                             :: Norm_velo
@@ -369,43 +366,7 @@ INTEGER                          :: iNewPart ! particle counter for newly create
 ! 1.) Initial surface checks
 ! find normal vector two perpendicular tangential vectors (normal_vector points outwards !!!)
 !===================================================================================================================================
-IF(PRESENT(BCSideID))THEN
-  SELECT CASE(SideType(BCSideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-    n_loc=SideNormVec(1:3,BCSideID)
-    tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,BCSideID)-BezierControlPoints3D(:,0,0,BCSideID))
-    tang2=CROSSNORM(n_loc,tang1)
-  CASE(BILINEAR)
-    CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
-  CASE(CURVED)
-    CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
-  END SELECT
-ELSE
-  IF (TriaTracking) THEN
-    CALL CalcNormAndTangTriangle(nVec=n_loc,tang1=tang1,tang2=tang2,TriNum=TriNum,SideID=sideID_IN)
-  ELSE
-    SELECT CASE(SideType(sideID_IN))
-    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      n_loc=SideNormVec(1:3,sideID_IN)
-        tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,sideID_IN)-BezierControlPoints3D(:,0,0,sideID_IN))
-        tang2=CROSSNORM(n_loc,tang1)
-    CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,sideID_IN)
-    CASE(CURVED)
-      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,sideID_IN)
-    END SELECT
-    IF(flip.NE.0) n_loc=-n_loc
-  END IF
-END IF
-
-! check if BC was already crossed
-IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
-  IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
-  ReflectionIndex = -2 ! default for performing double check. particle moves away from surface not onto surface
-  RETURN
-ELSE
-  IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
-END IF
+CALL OrthoNormVec(n_loc,tang1,tang2)
 
 ! additional states
 locBCID=PartBound%MapToPartBC(BC(sideID_IN))
@@ -614,7 +575,7 @@ CASE(3) ! reactive interaction case
   CALL AnalyzeSurfaceCollisions(PartID,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
 
   IF (ProductSpec(1).LE.0) THEN
-    CALL RemoveParticle(PartID,alpha=alpha,crossedBC=Opt_Reflected)
+    CALL RemoveParticle(PartID,alpha=alpha)
   ELSE
     oldVelo(1:3) = PartState(PartID,4:6)
     IF(TRIM(velocityDistribution(1)).NE.'') THEN
