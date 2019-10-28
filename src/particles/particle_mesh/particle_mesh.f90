@@ -114,19 +114,33 @@ CONTAINS
 SUBROUTINE DefineParametersParticleMesh()
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools ,ONLY: prms
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection('Tracking')
 
-CALL prms%CreateLogicalOption( 'DoRefMapping'&
-  , 'Refmapping [T] or Tracing [F] algorithms are used for tracking of particles.'&
-  , '.TRUE.')
+!CALL prms%CreateLogicalOption( 'DoRefMapping'&
+  !, 'Refmapping [T] or Tracing [F] algorithms are used for tracking of particles.'&
+  !, '.TRUE.')
 
-CALL prms%CreateLogicalOption( 'TriaTracking'&
-  , 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for tracing algorithms.'//&
-  ' Currently flag is only used in DSMC timediscs. Requires DoRefMapping=F.'&
-  ,'.FALSE.')
+!CALL prms%CreateLogicalOption( 'TriaTracking'&
+  !, 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for tracing algorithms.'//&
+  !' Currently flag is only used in DSMC timediscs. Requires DoRefMapping=F.'&
+  !,'.FALSE.')
+
+CALL prms%CreateIntFromStringOption('TrackingMethod', "Define Method that is used for tracking of particles:\n"//&
+                                                      " refmapping (1)  : reference mapping of particle position "//&
+                                                      " with (bi-)linear and bezier (curved) description of sides.\n"//&
+                                                      " tracing (2)     : tracing of particle path "//&
+                                                      "with (bi-)linear and bezier (curved) description of sides\.n"//&
+                                                      " triatracking (3): tracing of particle path "//&
+                                                      "with triangle-aproximation of (bi-)linear sides.\n", &
+                                                      "triatracking")
+CALL addStrListEntry('TrackingMethod' , 'refmapping'      , REFMAPPING)
+CALL addStrListEntry('TrackingMethod' , 'tracing'         , TRACING)
+CALL addStrListEntry('TrackingMethod' , 'triatracking'    , TRIATRACKING)
+CALL addStrListEntry('TrackingMethod' , 'default'         , TRIATRACKING)
+
 CALL prms%CreateLogicalOption( 'Write-Tria-DebugMesh'&
   , 'Writes per proc triangulated Surfacemesh used for Triatracking. Requires TriaTracking=T.'&
   ,'.FALSE.')
@@ -215,12 +229,12 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation,BezierControlPoints3DElevated
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts,CartesianPeriodic
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, WriteTriaDebugMesh
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, WriteTriaDebugMesh, TrackingMethod
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 USE MOD_Mesh_Vars              ,ONLY: nElems,nSides,nNodes,SideToElem,ElemToSide,NGeo,NGeoElevated,OffSetElem,ElemToElemGlob
-USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray
+USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux,WriteTriaSurfaceFluxDebugMesh
 USE MOD_Mesh_Vars              ,ONLY: useCurveds,NGeo,MortarType
 ! IMPLICIT VARIABLE HANDLING
@@ -259,8 +273,18 @@ PartElemToSide=-1
 PartSideToElem=-1
 PartElemToElemGlob=-1
 
-DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
-TriaTracking       = GETLOGICAL('TriaTracking','.FALSE.')
+TrackingMethod = GETINTFROMSTR('TrackingMethod')
+SELECT CASE(TrackingMethod)
+CASE(REFMAPPING)
+  DoRefMapping=.TRUE.
+  TriaTracking=.FALSE.
+CASE(TRACING)
+  DoRefMapping=.FALSE.
+  TriaTracking=.FALSE.
+CASE(TRIATRACKING)
+  DoRefMapping=.FALSE.
+  TriaTracking=.TRUE.
+END SELECT
 
 IF ((DoRefMapping.OR.UseCurveds.OR.(NGeo.GT.1)).AND.(TriaTracking)) THEN
   CALL abort(&
