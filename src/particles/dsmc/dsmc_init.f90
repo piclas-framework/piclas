@@ -593,7 +593,7 @@ END IF
           CALL Abort(&
           __STAMP__&
           ,'ERROR in species data: check collision parameters in ini \n'//&
-           'Part-Species'//TRIM(hilf)//'-(InterID * referenceTemperature *referenceDiameter * scatteringExponentAlphaVSS) .EQ. 0'//&
+           'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS .EQ. 0'//&
            ' - but must not be 0')
         END IF ! (Tref * dref * alphaVSS) .EQ. 0
       END IF ! averagedCollisionParameters
@@ -690,8 +690,7 @@ END IF
       IF(CollInf%dref(iSpec,jSpec) * CollInf%Tref(iSpec,jSpec) * CollInf%alphaVSS(iSpec,jSpec) .EQ. 0) THEN
           CALL Abort(&
           __STAMP__&
-          ,'ERROR: Check collision parameters! (Part-Collision'//TRIM(hilf)//'-referenceTemperature * referenceDiameter *' //&
-           'scatteringExponentAlphaVSS) .EQ. 0 - but must not be 0)')
+          ,'ERROR: Check collision parameters! (Part-Collision'//TRIM(hilf)//'-Tref * dref * alphaVSS .EQ. 0 - but must not be 0)')
       END IF ! check if collision parameters are set
     END DO ! iColl=nColl
     IF(CollInf%crossSectionConstantMode.EQ.0) THEN ! one omega for all - DEFAULT
