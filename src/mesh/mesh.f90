@@ -830,12 +830,14 @@ REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
-ALLOCATE(GEO%Volume(nElems),STAT=ALLOCSTAT)
+ALLOCATE(GEO%Volume(nElems),&
+         GEO%MPVolumePortion(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
       __STAMP__&
       ,'ERROR in InitElemGeometry: Cannot allocate GEO%Volume!')
 END IF
+GEO%MPVolumePortion(:)=0.
 ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&

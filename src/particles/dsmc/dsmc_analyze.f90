@@ -691,13 +691,13 @@ REAL                            :: DrefMixture, omega, Temp, MFP_Tmp, MacroParti
 DrefMixture = 0.0
 CalcMeanFreePath = 0.0
 
+IF (nPart.LE.1 .OR. ALL(SpecPartNum.EQ.0.) .OR.Volume.EQ.0) RETURN
+! Calculation of mixture reference diameter
 IF(RadialWeighting%DoRadialWeighting) THEN
   MacroParticleFactor = 1.
 ELSE
   MacroParticleFactor = Species(1)%MacroParticleFactor
 END IF
-
-IF(nPart.LE.0) RETURN
 
 ! Calculation of mixture reference diameter
 DO iSpec = 1, nSpecies
@@ -1158,7 +1158,7 @@ SUBROUTINE DSMCHO_data_sampling()
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMCSampVolWe, DSMC, CollisMode, SpecDSMC, HODSMC, DSMC_HOSolution
-USE MOD_DSMC_Vars              ,ONLY: DSMCSampNearInt, DSMCSampCellVolW, useDSMC
+USE MOD_DSMC_Vars              ,ONLY: DSMCSampNearInt, DSMCSampCellVolW, useDSMC, DSMC_VolumeSample
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM,PartPosRef
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
@@ -1409,6 +1409,9 @@ CASE('cell_mean')
       DSMC_HOSolution(11,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(11,kk,ll,mm,iElem, iSpec) + 1.0 !simpartnum
     END IF
   END DO
+  DO iElem=1,nElems
+    DSMC_VolumeSample(iElem) = DSMC_VolumeSample(iElem) + GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem))
+  END DO
 CASE('cell_volweight')
   ALLOCATE(BGMSourceCellVol(0:1,0:1,0:1,1:nElems,1:11, 1:nSpecies), &
           alphaSumCellVol(0:1,0:1,0:1,1:nElems, 1:nSpecies))
@@ -1542,7 +1545,7 @@ SUBROUTINE DSMCHO_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
 !> Subroutine to calculate the solution U for writing into HDF5 format DSMC_output
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: HODSMC, DSMC_HOSolution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
+USE MOD_DSMC_Vars          ,ONLY: HODSMC, DSMC_HOSolution, DSMC_VolumeSample, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars             ,ONLY: nElems
@@ -1595,8 +1598,11 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                 Total_TempVib  => DSMC_MacroVal(nVarLoc*nSpecTemp+8,kk,ll,mm, iElem)             ,&
                 Total_TempRot  => DSMC_MacroVal(nVarLoc*nSpecTemp+9,kk,ll,mm, iElem)             ,&
                 Total_Tempelec => DSMC_MacroVal(nVarLoc*nSpecTemp+10,kk,ll,mm, iElem)            ,&
-                Total_PartNum  => DSMC_MacroVal(nVarLoc*nSpecTemp+11,kk,ll,mm, iElem)            &
+                Total_PartNum  => DSMC_MacroVal(nVarLoc*nSpecTemp+11,kk,ll,mm, iElem)            ,&
+                SimVolume      => DSMC_VolumeSample(iElem) &
                 )
+      ! compute simulation cell volume
+      SimVolume = SimVolume / REAL(DSMC%SampNum)
       DO iSpec = 1, nSpecies
         ASSOCIATE ( PartVelo   => DSMC_HOSolution(1:3,kk,ll,mm, iElem, iSpec) ,&
                     PartVelo2  => DSMC_HOSolution(4:6,kk,ll,mm, iElem, iSpec) ,&
@@ -1624,11 +1630,15 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
             ! mean flow Temperature
             Macro_TempMean = (Macro_Temp(1) + Macro_Temp(2) + Macro_Temp(3)) / 3.
             ! compute number density
-            IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-              ! PartNum contains the weighted particle number
-              Macro_Density = Macro_PartNum / GEO%Volume(iElem)
+            IF (SimVolume.GT.0) THEN
+              IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+                ! PartNum contains the weighted particle number
+                Macro_Density = Macro_PartNum / SimVolume
+              ELSE
+                Macro_Density = Macro_PartNum*Species(iSpec)%MacroParticleFactor /SimVolume
+              END IF
             ELSE
-              Macro_Density = Macro_PartNum*Species(iSpec)%MacroParticleFactor /GEO%Volume(iElem)
+              Macro_Density = 0.
             END IF
             ! Compute total values for a gas mixture (nSpecies > 1)
             IF(nSpecies.GT.1) THEN

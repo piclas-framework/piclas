@@ -796,6 +796,8 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, epsOneCell
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry2D        ,ONLY: CalcRadWeightMPF
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
+USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROBODY
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -887,6 +889,11 @@ __STAMP__,&
               END IF
             END IF
           END DO
+          IF (UseMacroBody) THEN
+            IF (INSIDEMACROBODY(RandomPos)) THEN
+              CYCLE !particle is inside MacroParticle
+            END IF
+          END IF
           PartState(ParticleIndexNbr,1:3) = RandomPos(1:3)
           PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
           PDM%IsNewPart(ParticleIndexNbr)=.TRUE.

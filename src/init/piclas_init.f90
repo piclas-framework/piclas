@@ -287,6 +287,7 @@ USE MOD_Particle_Mesh,             ONLY:FinalizeParticleMesh
 USE MOD_Particle_Analyze,          ONLY:FinalizeParticleAnalyze
 USE MOD_PICDepo,                   ONLY:FinalizeDeposition
 USE MOD_ParticleInit,              ONLY:FinalizeParticles
+USE MOD_MacroBody_Init,            ONLY:FinalizeMacroBody
 USE MOD_TTMInit,                   ONLY:FinalizeTTM
 USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
 #if (PP_TimeDiscMethod==300)
@@ -356,6 +357,7 @@ CALL FinalizeFPFlow()
 CALL FinalizeBGK()
 #endif
 CALL FinalizeParticles()
+CALL FinalizeMacroBody()
 CALL FinalizeBackGroundField()
 #endif /*PARTICLES*/
 #if USE_MPI

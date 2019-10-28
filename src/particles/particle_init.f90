@@ -90,6 +90,8 @@ CALL prms%SetSection("Particle")
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  ,         'Manual timestep [sec]', '0.0')
 CALL prms%CreateRealOption(     'Part-AdaptiveWeightingFactor', 'Weighting factor theta for weighting of average'//&
                                                                 ' instantaneous values with those of previous iterations.', '0.001')
+CALL prms%CreateIntOption(      'Particles-nPointsMCVolumeEstimate', 'Number of points used to calculate volume portion '//&
+                                'occupied by Macroparticle with Monte Carlo algorithm (per octree sub-cell)',  '1000')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
 CALL prms%CreateIntOption(      'Part-nMacroRestartFiles' ,       'Number of Restart files used for calculation', '0')
 CALL prms%CreateStringOption(   'Part-MacroRestartFile[$]' ,      'relative path to Restart file [$] used for calculation','none' &
@@ -944,7 +946,7 @@ USE MOD_part_emission              ,ONLY: InitializeParticleEmission,AdaptiveBCA
 USE MOD_surface_flux               ,ONLY: InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze               ,ONLY: InitHODSMC
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
-USE MOD_DSMC_Vars                  ,ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
+USE MOD_DSMC_Vars                  ,ONLY: useDSMC, DSMC, DSMC_HOSolution, HODSMC, DSMC_VolumeSample
 USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
 USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
@@ -1003,11 +1005,13 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
     HODSMC%nOutputDSMC = 1
     SWRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
     ALLOCATE(DSMC_HOSolution(1:11,1,1,1,1:nElems,1:nSpecies))
+    ALLOCATE(DSMC_VolumeSample(1:nElems))
   ELSE
     HODSMC%nOutputDSMC = GETINT('Particles-DSMC-OutputOrder','1')
     ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))
   END IF
   DSMC_HOSolution = 0.0
+  DSMC_VolumeSample = 0.0
   CALL InitHODSMC()
 END IF
 
@@ -1070,6 +1074,8 @@ USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
 USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_Particle_Mesh          ,ONLY: GetMeshMinMax,InitFIBGM,MapRegionToElem,MarkAuxBCElems
+USE MOD_MacroBody_Init         ,ONLY: InitMacroBody
+USE MOD_MacroBody_tools        ,ONLY: MarkMacroBodyElems
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo
 USE MOD_part_pressure          ,ONLY: ParticlePressureIni,ParticlePressureCellIni
@@ -2753,7 +2759,10 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 CALL InitFIBGM()
-!CALL InitSFIBGM()
+
+!-- Macroscopic bodies inside domain
+CALL InitMacroBody()
+CALL MarkMacroBodyElems()
 
 ! === 2D/Axisymmetric initialization
 ! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
