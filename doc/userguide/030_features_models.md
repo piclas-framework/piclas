@@ -20,12 +20,12 @@ The option DoRefMapping should be disabled. The two alternative tracking routine
     TriaTracking = F
     DoRefMapping = T
 
-This method is the slowest implemented method for linear grids and large particle movements. A particle is mapped into 
+This method is the slowest implemented method for linear grids and large particle movements. A particle is mapped into
 a element to compute the particle position
 in the reference space. This test determines in which element a particle is located. Each element has a slightly larger
-reference space due to tolerance. Starting from reference values >=1. the best element is found and used for the 
+reference space due to tolerance. Starting from reference values >=1. the best element is found and used for the
 hosting element. In order to take boundary interactions into account, all BC faces in the halo vicinity of the element
-are checked for boundary interactions and a boundary condition is performed accordingly. This algorithm has a 
+are checked for boundary interactions and a boundary condition is performed accordingly. This algorithm has a
 inherent self check. If a boundary condition is not detected, the particle position is located outside of all elements.
 A fall-back algorithm is used to recompute the position and boundary interaction. Periodic domains are only possible
 for Cartesian meshes. The particle position is used for periodic displacements.
@@ -45,13 +45,13 @@ for Cartesian meshes. The particle position is used for periodic displacements.
     DoRefMapping = F
 
 This method traces the particles throughout the domain. The initial element is determined by computing the intersection
-between the particle-element-origin vector and each element face. If non of the six element faces are hit, the particle is 
+between the particle-element-origin vector and each element face. If non of the six element faces are hit, the particle is
 located inside of this element. Next, the particle trajectory is traced throughout the domain. Hence, each face is checked
-for an intersection and a particle mapped accordingly into the neighbor element or perform a boundary condition. This 
-algorithm has no inherent self-consistency check. For critical intersections (beginning,end of particle path or close to 
-edges of faces) an additional safety check is performed by recomputing the element check and if it fails a re-localization of 
+for an intersection and a particle mapped accordingly into the neighbor element or perform a boundary condition. This
+algorithm has no inherent self-consistency check. For critical intersections (beginning,end of particle path or close to
+edges of faces) an additional safety check is performed by recomputing the element check and if it fails a re-localization of
 the particle. Particles traveling parallel to faces are in a undefined state and a currently removed. This prints a warning
-message. Note, the tracing on periodic meshes works only for non-mpi computations. Periodic displacement requires 
+message. Note, the tracing on periodic meshes works only for non-mpi computations. Periodic displacement requires
 additional coding.
 
 
@@ -153,7 +153,7 @@ Additionally, a wall velocity [m/s] and voltage [V] can be given
 
 ### Porous Wall / Pump
 
-The porous boundary condition uses a removal probability to determine whether a particle is deleted or reflected at the boundary. The main application of the implemented condition is to model a pump, according to [@Lei2017]. It is defined by giving the number of porous boundaries and the respective boundary number (`BC=2` corresponds to the `BC_WALL` boundary defined in the previous section) on which the porous condition is. 
+The porous boundary condition uses a removal probability to determine whether a particle is deleted or reflected at the boundary. The main application of the implemented condition is to model a pump, according to [@Lei2017]. It is defined by giving the number of porous boundaries and the respective boundary number (`BC=2` corresponds to the `BC_WALL` boundary defined in the previous section) on which the porous condition is.
 
     Part-nPorousBC=1
     Part-PorousBC1-BC=2
@@ -196,7 +196,7 @@ Using the regions, multiple pumps can be defined on a single boundary.
 
 ### Surface Chemistry \label{sec:chem_reac}
 
-Modelling of reactive surfaces is enabled by setting `Part-BoundaryX-Condition=reflective` and an 
+Modelling of reactive surfaces is enabled by setting `Part-BoundaryX-Condition=reflective` and an
 appropriate particle boundary surface model `Part-BoundaryX-SurfaceModel`.
 The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the table below.
 
@@ -212,17 +212,17 @@ The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the t
 For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
 
     BezierSampleN = 3
-    DSMC-nSurfSample = 3 
-    Part-WriteMacroSurfaceValues = T 
-    Particles-DSMC-CalcSurfaceVal = T 
+    DSMC-nSurfSample = 3
+    Part-WriteMacroSurfaceValues = T
+    Particles-DSMC-CalcSurfaceVal = T
     Part-IterationForMacroVal = 200
 
 where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over 200 interations.
 
 ### Deposition of Charges on Dielectric Surfaces
 
-Charged particles can be absorbed (or reflected and leave their charge behind) at dielectric surfaces 
-when using the deposition method `cell_volweight_mean`. The boundary can be used by specifying 
+Charged particles can be absorbed (or reflected and leave their charge behind) at dielectric surfaces
+when using the deposition method `cell_volweight_mean`. The boundary can be used by specifying
 
     ```
     Part-Boundary1-Condition         = reflective
@@ -232,10 +232,10 @@ when using the deposition method `cell_volweight_mean`. The boundary can be used
     Part-Boundary1-SpeciesSwaps2     = (/2,2/) ! Ar
     Part-Boundary1-SpeciesSwaps3     = (/3,2/) ! Ar+
     ```
-    
-which sets the boundary dielectric and the given species swap parameters effectively remove 
-electrons ($e^{-}$) on impact, reflect $Ar$ atoms and neutralize $Ar^{+}$ ions by swapping these to $Ar$ atoms. 
-Note that currently only singly charged particles can be handled this way. When multiple charged 
+
+which sets the boundary dielectric and the given species swap parameters effectively remove
+electrons ($e^{-}$) on impact, reflect $Ar$ atoms and neutralize $Ar^{+}$ ions by swapping these to $Ar$ atoms.
+Note that currently only singly charged particles can be handled this way. When multiple charged
 particles would be swapped, their complete charge mus be deposited at the moment.
 
 The boundary must also be specified as an *inner* boundary via
@@ -406,8 +406,8 @@ S_{1D}(r,R,\alpha)=\frac{\Gamma(\alpha+3/2)}{\sqrt{\pi}R\Gamma(\alpha+1)\Delta y
 $$
 
 which is normalized to give $\int_{z_{1}}^{z_{2}}\int_{y_{1}}^{y_{2}}\int_{-R}^{R}S_{1D}(r,R,\alpha)dxdydz=1$,
-where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|=|x-x_{n}|}$ is the distance between the position of the 
-grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$, 
+where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|=|x-x_{n}|}$ is the distance between the position of the
+grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$,
 $R$ is the cut-off radius, $\Delta y=y_{2}-y_{1}$ and $\Delta z=z_{2}-z_{1}$ are the domain lengths in $y$- and $z$-direction,
 respectively, and $\Gamma(z)$ is the gamma function given by
 
@@ -430,8 +430,8 @@ S_{2D}(r,R,\alpha)=\frac{\alpha+1}{\pi R^{2} \Delta z}\left( 1-\left( \frac{r}{R
 $$
 
 which is normalized to give $\int_{z_{1}}^{z_{2}}\int_{0}^{2\pi}\int_{0}^{R}S_{2D}(r,R,\alpha)rdr d\phi d\theta=1$,
-where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|}$ is the distance between the position of the 
-grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$, 
+where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|}$ is the distance between the position of the
+grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$,
 $R$ is the cut-off radius and $\Delta z=z_{2}-z_{1}$ is the domain length in $z$-direction.
 The perpendicular direction to the two axes, in which deposition is performed is chosen via
 
@@ -439,7 +439,7 @@ The perpendicular direction to the two axes, in which deposition is performed is
                                     2 ! for const. depo in y-direction
                                     3 ! for const. depo in z-direction
 
-when the charge is to be deposited const. along the $x$- or $y$- or $z$-direction. 
+when the charge is to be deposited const. along the $x$- or $y$- or $z$-direction.
 If the charge is to be deposited over the area instead of the volume, the flag
 
     PIC-shapefunction-3D-deposition=F
@@ -454,8 +454,8 @@ S_{3D}(r,R,\alpha)=\frac{\Gamma(\alpha+5/2)}{\pi^{3/2}R^{3}\Gamma(\alpha+1)}\lef
 $$
 
 which is normalized to give $\int_{0}^{\pi}\int_{0}^{2\pi}\int_{0}^{R}S_{2D}(r,R,\alpha)r^{2}\sin(\phi)dr d\phi d\theta=1$,
-where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|}$ is the distance between the position of the 
-grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$ and 
+where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|}$ is the distance between the position of the
+grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$ and
 $R$ is the cut-off radius.
 
 ## Direct Simulation Monte Carlo
@@ -678,7 +678,7 @@ If the Rotational Relaxation Probability is between 0 and 1, this value is set a
     Part-Species1-CollNumRotInf = 23.3
     Part-Species1-TempRefRot = 91.5
 
-If the relaxation probability is equal 3, the relaxation model of Zhang et al. [@Zhang2012] is used. But, it is only implemented for nitrogen and is not tested. It is not recommended to use it! 
+If the relaxation probability is equal 3, the relaxation model of Zhang et al. [@Zhang2012] is used. But, it is only implemented for nitrogen and is not tested. It is not recommended to use it!
 
 #### Vibrational Relaxation \label{sec:dsmc_vibrational_relxation}
 
@@ -703,12 +703,12 @@ $0.004$ is the default. If the value of this variable is between 0 and 1, this v
 It is not possible to calculate an instantanious vibrational relaxation probability with this model [@Boyd1992]. Thus, the probablility is calculated for every colission and is averaged. To avoid large errors in cells containing only a few particles, a relaxation of this average probability is implemented. The relaxation factor alpha can be changed with the following parameter in the ini file:
 
     Particles-DSMC-alpha = 0.99
-    
-The new probability is calculated with the vibrational relaxation probability of the $n^{th}$ iteration $VibProb_{n}$, the number of Collision Pairs $n_{Pair}$ and the average vibrational relaxation probability of the actual iteration $VibProbIter$. 
+
+The new probability is calculated with the vibrational relaxation probability of the $n^{th}$ iteration $VibProb_{n}$, the number of Collision Pairs $n_{Pair}$ and the average vibrational relaxation probability of the actual iteration $VibProbIter$.
 
 $$VibProb_{n+1}= VibProb_{n}  \cdot  \alpha^{2  \cdot  n_{Pair}} + (1-\alpha^{2  \cdot  n_{Pair}}) \cdot VibProbIter $$
 
-This model is extended to more species by calculating for each species a separate probability. An initial vibrational relaxation probability is set by calculating $INT(1/(1-\alpha))$ vibrational relaxation probabilities for each species and cell with using the instantanious cell temperature. The collision partner is choosen by the mole fraction of them inside the cell. 
+This model is extended to more species by calculating for each species a separate probability. An initial vibrational relaxation probability is set by calculating $INT(1/(1-\alpha))$ vibrational relaxation probabilities for each species and cell with using the instantanious cell temperature. The collision partner is choosen by the mole fraction of them inside the cell.
 
 #### Electronic Relaxation \label{sec:dsmc_electronic_relxation}
 
@@ -785,7 +785,7 @@ The **recommended method is ESFP**. The vibrational excitation can be controlled
 
     Particles-FP-DoVibRelaxation = T
     Particles-FP-UseQuantVibEn   = T
-    
+
 An octree cell refinement until the given number of particles is reached can be utilized, which corresponds to an equal refinement in all three directions (x,y,z):
 
     Particles-FP-DoCellAdaptation = T
@@ -837,7 +837,7 @@ The **recommended method is ESBGK**. The vibrational excitation can be controlle
 
     Particles-BGK-DoVibRelaxation = T
     Particles-BGK-UseQuantVibEn   = T
-    
+
 An octree cell refinement until the given number of particles is reached can be utilized, which corresponds to an equal refinement in all three directions (x,y,z):
 
     Particles-BGK-DoCellAdaptation = T
@@ -867,6 +867,73 @@ The purpose is to increase the sample size for steady gas flows. An extension of
     Particles-BGK-MovingAverageLength = 100
 
 Although this feature was tested with a hypersonic flow around a $70^\circ$ blunted cone and a nozzle expansion, a clear advantage could not be observed, however, it might reduce the statistical noise for other application cases.
+
+## Macroscopic Bodies
+
+In order to enable macroscopic bodies inside of computational domain, an appropriate time step
+method has to be compiled first. A standalone executable is created by enabling the following parameter with cmake
+
+    PICLAS_TIMEDISCMETHOD = MACROBODY
+
+This time step method combines the DSMC method timestep with additionally simulating Macroscopic
+Bodies. Here, the octree used for DSMC and sampling of macroscopic values considers macroscopic bodies that
+may occupy some elements and the appropriate volume portions are calculated.
+
+### Starting simulations with macroscopic bodies
+
+In order to start a smulation, the number of macroscopic bodies is enabled by defining
+
+    MacroBody-nMacroBody=1
+
+and setting it greater than 0. For each defined macroscopic body properties are assigned with (Spheres)
+
+    MacroBody1-center=(/ 10.0 , 0.1 , 0.5 /)
+    MacroBody1-radius=0.5e-5
+
+For surface interactions of DSMC particles with the bodies the appropriate accomodation coefficients and temperature can be defined
+
+    MacroBody1-momentumAcc=1.
+    MacroBody1-transAcc=1.
+    MacroBody1-temp=300
+
+If the the mesh cell sizes are by more than one order of magnitude bigger than the smallest
+macroscopic body then the volume estimation must be controlled and adapted.
+The volume portions are calculated with a Monte Carlo approach with nPointsMCVolumeEstimate number
+of point per octree-subcell.
+with:
+
+    Particles-nPointsMCVolumeEstimate=1000.
+
+
+|   octree level | Total MC points per Element     |
+| -------------: | :------------------------------ |
+|     lvl=0      |                  1000           |
+|     lvl=1      |                  8000           |
+|     lvl=2      |                  56000          |
+
+### Macroscopic bodies, which move trough domain
+Note: Currently, restart and nProcs>1 only works for non-moving and non-size-changing Macro bodies.
+To let the macroscopic bodies move (MacroBody1-velocity $> 0$) inside the computational domain, enable
+
+    MacroBody1-velocity=(/-1165.,0.,0./)
+
+In order to enable influences of particle collisions on macroscopic bodies velocity (acceleration, brownian motion), the following parameter needs to be enabled
+
+    MacroBody-AccelerationEnabled=T
+
+For influences of fluxes onto the macroscopic bodies' temperature, size or mass activate:
+
+    MacroBody-FluxesEnabled=T
+
+### Output of MacroBodies
+
+Information of macroscopic bodies is written into the state file (VarNamesmacroParticles,MacroPartData) at every analyzedt.
+In order to add additional elemdata output (for debug/analyze purposes) of ElemHasMacroBody of the first defined macroscopic body, activate
+
+    MacroBody-WriteElemData=T
+
+
+
 
 ## Output of Macroscopic Variables
 
@@ -903,7 +970,7 @@ The second variant can be used to produce outputs for unsteady simulations, whil
 
 Example: The simulation end time is $T_\mathrm{end}=1$ with a time step of $\Delta t = 0.001$. With the parameters given above, we would sample for 100 iterations up to $T = 0.1$ and get the first output. Afterwards, the sample is deleted and the sampling begins anew for the following output at $T=0.2$. This procedure is repeated until the simulation end, resulting in 10 outputs with independent samples.
 
-#### Sampling of Particle-surface Impacts 
+#### Sampling of Particle-surface Impacts
 
 Additional surface values can be sampled by using
 
@@ -928,15 +995,15 @@ determined by using
 
 which calculates the properties `PCoupl` (instantaneous) and a time-averaged (moving average) value
 `PCoupledMoAv` that are stored in the `ParticleAnalysis.csv` output file. Additionally, the power
-coupled to the particles in each cell (average power per cubic metre) is time-averaged (moving average) 
-and stored in `PCouplDensityAvgElem` for each species separately, which is written to `*_State_*.h5`. 
+coupled to the particles in each cell (average power per cubic metre) is time-averaged (moving average)
+and stored in `PCouplDensityAvgElem` for each species separately, which is written to `*_State_*.h5`.
 Furthermore, the accumulated power over all particles of the same species is displayed in STD-out via
 
      Averaged coupled power per species [W]
-     1     :    0.0000000000000000     
+     1     :    0.0000000000000000
      2     :    2.6614384806763068E-003
      3     :    2.6837037798108634E-006
-     4     :    0.0000000000000000     
+     4     :    0.0000000000000000
      5     :    8.8039637450978475E-006
      Total :    2.6729261482012156E-003
 
@@ -950,7 +1017,7 @@ The (cold) plasma frequency can be calculated via
 $$\omega_{p}=\omega_{e}=\frac{e^{2}n_{e}}{\varepsilon_{0}m_{e}}$$
 
 which is the frequency with which the charge density of the electrons oscillates, where
-$\varepsilon_{0}$ is the permittivity of vacuum, $e$ is the elementary charge, $n_{e}$ and $m_{e}$ 
+$\varepsilon_{0}$ is the permittivity of vacuum, $e$ is the elementary charge, $n_{e}$ and $m_{e}$
 are the electron density and mass, respectively.
 The calculation is activated by
 
@@ -972,7 +1039,7 @@ The Debye length can be calculated via
 $$\lambda_{D}=\sqrt{\frac{\varepsilon_{0}k_{B}T_{e}}{e^{2}n_{e}}}$$
 
 where $\varepsilon_{0}$ is the permittivity of vacuum, $k_{B}$ is the Boltzmann constant, $e$ is the
-elementary charge and $T_{e}$ and $n_{e}$ are the electron temperature and density, respectively. 
+elementary charge and $T_{e}$ and $n_{e}$ are the electron temperature and density, respectively.
 The Debye length measures the distance after which the magnitude of the electrostatic
 potential of a single charge drops by $1/\text{e}$.
 The calculation is activated by
@@ -984,11 +1051,11 @@ The spatial resolution in terms of grid points per Debye length can be estimated
 
 $$\mathrm{PPD}=\frac{\lambda_{D}}{\Delta x}=\frac{(p+1)\lambda_{D}}{L}\sim 1$$
 
-where $\Delta x$ is the grid spacing (average spacing between grid points), 
-$p$ is the polynomial degree of the solution, $\lambda_{D}$ is the Debye length and $L=V^{1/3}$ 
+where $\Delta x$ is the grid spacing (average spacing between grid points),
+$p$ is the polynomial degree of the solution, $\lambda_{D}$ is the Debye length and $L=V^{1/3}$
 is the characteristic cell length, which is determined from the volume $V$ of the grid cell.
-Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting 
-$L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of 
+Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting
+$L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of
 each cell. These values are especially useful when dealing with Cartesian grids.
 The calculation is activated by
 
@@ -1001,10 +1068,10 @@ into a single parameter
 $$\frac{\Delta t}{0.4 \Delta x}\sqrt{\frac{k_{b}T_{e}}{m_{e}}}= \frac{(p+1)\Delta t}{0.4 L}\sqrt{\frac{k_{b}T_{e}}{m_{e}}} \lesssim 1$$
 
 where $\Delta t$ is the time step, $\Delta x$ is the grid spacing (average spacing between grid
-points), $p$ is the polynomial degree of the solution, $k_{B}$ is the Boltzmann constant, $T_{e}$ 
-and $m_{e}$ are the electron temperature and mass, respectively. Furthermore, the calculation in 
-each direction $x$, $y$ and $z$ is performed by setting $L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, 
-which are the average distances of the bounding box of each cell. 
+points), $p$ is the polynomial degree of the solution, $k_{B}$ is the Boltzmann constant, $T_{e}$
+and $m_{e}$ are the electron temperature and mass, respectively. Furthermore, the calculation in
+each direction $x$, $y$ and $z$ is performed by setting $L=\left\{ L_{x}, L_{y}, L_{z} \right\}$,
+which are the average distances of the bounding box of each cell.
 These values are especially useful when dealing with Cartesian grids.
 The calculation is activated by
 
@@ -1018,9 +1085,9 @@ $$\frac{\mathrm{max}(v_{\mathrm{iPart}})\Delta t}{\Delta x}=\frac{(p+1)\mathrm{m
 
 which means that the fastest particle is not allowed to travel over the length of two grid points
 separated by $\Delta x$.
-Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting 
-$L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of 
-each cell. 
+Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting
+$L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of
+each cell.
 These values are especially useful when dealing with Cartesian grids.
 The calculation is activated by
 

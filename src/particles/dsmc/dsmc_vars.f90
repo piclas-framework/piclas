@@ -412,17 +412,6 @@ TYPE tChemReactions
    TYPE(tReactInfo), ALLOCATABLE  :: ReactInfo(:)           ! Informations of Reactions (nReactions)
 END TYPE
 
-TYPE tTreeNode
-!  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
-  TYPE (tTreeNode), POINTER       :: ChildNode       => null()       !8 Childnodes of Octree Treenode
-  REAL                            :: MidPoint(1:3)          ! approx Middle Point of Treenode
-  INTEGER                         :: PNum_Node              ! Particle Number of Treenode
-  INTEGER, ALLOCATABLE            :: iPartIndx_Node(:)      ! Particle Index List of Treenode
-  REAL, ALLOCATABLE               :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
-  REAL                            :: NodeVolume(8)
-  INTEGER                         :: NodeDepth
-END TYPE
-
 TYPE(tChemReactions)              :: ChemReac
 
 
@@ -616,9 +605,21 @@ END TYPE tHODSMC
 
 TYPE(tHODSMC)             :: HODSMC
 REAL,ALLOCATABLE          :: DSMC_HOSolution(:,:,:,:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
+REAL,ALLOCATABLE          :: DSMC_VolumeSample(:)         !sampnum samples of volume in element
 
-TYPE tElemNodeVolumes
-    TYPE (tNodeVolume), POINTER             :: Root => null()
+LOGICAL                   :: ConsiderVolumePortions       ! Flag set in case volume portions are required, enables MC volume calc
+
+TYPE tTreeNode
+!  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
+  TYPE (tTreeNode), POINTER       :: ChildNode       => null()       !8 Childnodes of Octree Treenode
+  REAL                            :: MidPoint(1:3)          ! approx Middle Point of Treenode
+  INTEGER                         :: PNum_Node              ! Particle Number of Treenode
+  INTEGER, ALLOCATABLE            :: iPartIndx_Node(:)      ! Particle Index List of Treenode
+  REAL, ALLOCATABLE               :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
+  LOGICAL, ALLOCATABLE            :: MatchedPart(:)         ! Flag signaling that mapped particle is inside of macroparticle
+  REAL                            :: NodeVolume(8)
+  INTEGER                         :: NodeDepth
+  REAL                            :: MPNodeVolumePortion(8)
 END TYPE
 
 TYPE tNodeVolume
@@ -631,8 +632,14 @@ TYPE tNodeVolume
     TYPE (tNodeVolume), POINTER             :: SubNode7 => null()
     TYPE (tNodeVolume), POINTER             :: SubNode8 => null()
     REAL                                    :: Volume
+    REAL                                    :: MPVolumePortion
+    LOGICAL                                 :: MPVolumeDone=.FALSE.
     REAL                                    :: Area
     REAL,ALLOCATABLE                        :: PartNum(:,:)
+END TYPE
+
+TYPE tElemNodeVolumes
+    TYPE (tNodeVolume), POINTER             :: Root => null()
 END TYPE
 
 TYPE (tElemNodeVolumes), ALLOCATABLE        :: ElemNodeVol(:)

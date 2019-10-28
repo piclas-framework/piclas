@@ -42,6 +42,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting, SpecMCC, UseMCC
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
+  USE MOD_DSMC_Vars,              ONLY : ConsiderVolumePortions
   USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, PartState, VarTimeStep
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_TimeDisc_Vars,          ONLY : dt
@@ -77,7 +79,11 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   IF (PRESENT(NodeVolume)) THEN
     Volume = NodeVolume
   ELSE
-    Volume = GEO%Volume(iElem)
+    IF (ConsiderVolumePortions) THEN
+      Volume = GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem))
+    ELSE
+      Volume = GEO%Volume(iElem)
+    END IF
   END IF
 
   SpecNum1 = CollInf%Coll_SpecPartNum(iSpec_p1)
@@ -114,6 +120,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
     dtCell = dt
   END IF
 
+  IF (Volume.EQ.0.) iPType=-1
   SELECT CASE(iPType)
 
     CASE(2,3,4,5,11,12,21,22,20,30,40,6,14,24)
@@ -211,6 +218,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       END IF !avoid log(0)
     CASE(19) !Electron - Atomic CEX/MEX Ion
       Coll_pData(iPair)%Prob = 0
+    CASE (-1)
+      Coll_pData(iPair)%Prob = 0.
     CASE DEFAULT
       CALL Abort(&
 __STAMP__&
