@@ -483,6 +483,14 @@ gnu_FPFlow:
   script:
     - if [ -n "${DO_WEEKLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_FPFlow ; fi
 
+gnu_BGKFlow:
+  <<: *defaults_gnu
+  stage: reggie_weekly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_WEEKLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_BGKFlow ; fi
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "userguide": Compile the userguide and developer guide
 # ----------------------------------------------------------------------------------------------------------------------------------------------------

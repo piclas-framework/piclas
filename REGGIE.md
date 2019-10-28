@@ -16,9 +16,8 @@ Overview of the test cases performed after a commit.
 |   04    | [CHE_PIC_maxwell_RK4](#CHE_PIC_maxwell_RK4) |                 PIC (maxwell, RK4)                  |                                                                             |                |                     |                                                              |
 |   05    |            [CHE_DSMC](#CHE_DSMC)            |                        DSMC                         |                                                                             |                |                     |                                                              |
 |   06    |         CHE_PIC_maxwell_implicitBC          |               maxwell,PIC,ImplicitO4                |                       Implicit reflective particle BC                       |    nProcs=1    |  Particle Position  |                                                              |
-|   07    |              CHE_BGK/RELAX_N2               |  [BGK](regressioncheck/checks/CHE_BGK/builds.ini)   | N2: Relax to thermal equi. with ESBGK/SBGK, continuous/quantized vibration  |    nProcs=1    | T_rot,T_vib,T_trans |  [Link](regressioncheck/checks/CHE_BGK/RELAX_N2/readme.md)   |
-|   07    |              CHE_BGK/RELAX_CH4              |  [BGK](regressioncheck/checks/CHE_BGK/builds.ini)   | CH4: Relax to thermal equi. with ESBGK/SBGK, continuous/quantized vibration |    nProcs=1    | T_rot,T_vib,T_trans |  [Link](regressioncheck/checks/CHE_BGK/RELAX_CH4/readme.md)  |
-|   08    |             CHE_FPFlow/RELAX_N2             | [BGK](regressioncheck/checks/CHE_FPFlow/builds.ini) |    N2: Relax to thermal equi. with ESFP, continuous/quantized vibration     |    nProcs=1    | T_rot,T_vib,T_trans | [Link](regressioncheck/checks/CHE_FPFlow/RELAX_N2/readme.md) |
+|   07    |              [CHE_BGK](#CHE_BGK/FPFlow)               |  BGK-Flow   |   |       |  |     |
+|   08    |             [CHE_FPFlow](#CHE_BGK/FPFlow)             | FP-Flow |         |       |  |  |
 
 #### CHE_PIC_maxwell_RK4
 
@@ -48,6 +47,16 @@ Small test cases to check features with DSMC timedisc: [Link to build](regressio
 |    10   |   SurfFlux_Tria_Adaptive_ConstMassflow   |                  |                                       TriaSurfaceFlux with AdaptiveType=3,4                                       |   nProcs=1    |        Integrated mass flux        |                                                                                            |
 |    11   |  SurfaModel_Sampling                     |                  | Surface model sampling check                                                                                      | nProcs=1,2,4  |                                    | [Link](regressioncheck/checks/CHE_DSMC/SurfaceModel_Sampling/readme.md)                    |
 |    12   |  SurfaceModel_SMCR                       |                  | Surfacemodel 3 init/run check                                                                                     | nProcs=1,4    |                                    | [Link](regressioncheck/checks/CHE_DSMC/SurfaceModel_SMCR/readme.md)                        |
+
+#### CHE_BGK/FPFlow
+
+Both methods share the same regression tests in the different folders (CHE_BGK: [BGK build](regressioncheck/checks/CHE_BGK/builds.ini), CHE_FPFlow: [FPFlow build](regressioncheck/checks/CHE_FPFlow/builds.ini)
+
+|        |         2D_VTS_Insert_CellLocal          |                  |                2D/Axisymmetric, linear time step scaling: Initial particle insertion by cell_local                |   nProcs=2    |     PartAnalyze: NumDens, Temp     |         [Link](regressioncheck/checks/CHE_BGK/2D_VTS_Insert_CellLocal/readme.md)          |
+|        |           2D_VTS_SurfFlux_Tria           |                  |                 2D/Axisymmetric, linear time step scaling: Particle emission through surface flux                 |   nProcs=2    |     PartAnalyze: NumDens, Temp     |           [Link](regressioncheck/checks/CHE_BGK/2D_VTS_SurfFlux_Tria/readme.md)           |
+|       |              CHE_BGK/RELAX_N2               |     | N2: Relax to thermal equi. continuous/quantized vibration  |    nProcs=1    | T_rot,T_vib,T_trans |  [Link](regressioncheck/checks/CHE_BGK/RELAX_N2/readme.md)   |
+|       |              CHE_BGK/RELAX_CH4              |     | CH4: Relax to thermal equi. continuous/quantized vibration |    nProcs=1    | T_rot,T_vib,T_trans |  [Link](regressioncheck/checks/CHE_BGK/RELAX_CH4/readme.md)  |
+
 
 ## Nightly
 
