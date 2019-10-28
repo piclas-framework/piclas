@@ -342,7 +342,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
       END IF
     ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
       TiQK = (ReducedMass*Coll_pData(iPair)%CRela2*2./(Weight1+Weight2)  &
-                + 2.*PartStateIntEn(React1Inx,3))/((2.*(2.& 
+                + 2.*PartStateIntEn(React1Inx,3))/((2.*(2.&
                 - CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))) &
                 + Xi_elec1)*BoltzmannConst)
       Tcoll = ReducedMass*Coll_pData(iPair)%CRela2 * 2./(Weight1+Weight2)  &
@@ -880,7 +880,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     ! this is the non-reacting collision partner
     CALL CalcPseudoScatterVars(ProductReac(1),ProductReac(3),ProductReac(2),FracMassCent1,FracMassCent2,MassRed &
           , (/Weight1,WeightProd,Weight2/))
-        
+
     !Calculate relative velocities and new squared velocity
     cRelaX = PartState(React1Inx, 4) - PartState(React2Inx, 4)
     cRelaY = PartState(React1Inx, 5) - PartState(React2Inx, 5)
@@ -1026,7 +1026,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / ReducedMass
 
     !Calculation of post collision relative velocity vector in reference frame and retransformation to COM frame
-    RanVelo(1:3) = DiceDeflectedVelocityVector( Coll_pData(iPair)%cRela2 , cRelaX , cRelaY , cRelaZ & 
+    RanVelo(1:3) = DiceDeflectedVelocityVector( Coll_pData(iPair)%cRela2 , cRelaX , cRelaY , cRelaZ &
                  , CollInf%alphaVSS(ProductReac(1) , ProductReac(2)))
 
     !deltaV particle 1

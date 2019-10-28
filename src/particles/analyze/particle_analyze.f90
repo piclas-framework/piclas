@@ -811,7 +811,7 @@ INTEGER             :: dir
           WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-PCoupledMoAv',' '
           OutputCounter = OutputCounter + 1
         END IF
-        IF (CalcLaserInteraction) THEN ! computer laser-plasma interaction 
+        IF (CalcLaserInteraction) THEN ! computer laser-plasma interaction
           DO iSpec=1, nSpecies
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EkinMax-eV-',iSpec,' '
@@ -959,7 +959,7 @@ INTEGER             :: dir
             OutputCounter = OutputCounter + 1
           END DO
         END IF
-        IF(DSMC%CalcQualityFactors) THEN ! calculates flow-field variable maximum collision probability, time-averaged mean 
+        IF(DSMC%CalcQualityFactors) THEN ! calculates flow-field variable maximum collision probability, time-averaged mean
                                          ! collision probability, mean collision separation distance over mean free path
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-Pmean',' '

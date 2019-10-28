@@ -149,7 +149,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
   ! calculate collision temperature
     ReactionProb = ChemReac%QKCoeff(iReac,1) * ( (2 -CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1)                         &
                  , ChemReac%DefinedReact(iReac,1,2)))**ChemReac%QKCoeff(iReac,2) )                                              &
-                 * GAMMA(2-CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1)                                                   & 
+                 * GAMMA(2-CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1)                                                   &
                  , ChemReac%DefinedReact(iReac,1,2))) / GAMMA(2-CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1)              &
                  , ChemReac%DefinedReact(iReac,1,2))+ChemReac%QKCoeff(iReac,2) ) * nPartNode / Volume                           &
                  *  Species(PartSpecies(iPart_p3))%MacroParticleFactor                                                           &
@@ -211,7 +211,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
       CALL RANDOM_NUMBER(iRan)
     END DO
     IF ( iQua .EQ. 0 ) THEN
-      ReactionProb = nPartNode * Species(PartSpecies(iPart_p3))%MacroParticleFactor / Volume * 1.0/6.0 * PI         & 
+      ReactionProb = nPartNode * Species(PartSpecies(iPart_p3))%MacroParticleFactor / Volume * 1.0/6.0 * PI         &
                    * (CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p1)) &
                    + CollInf%dref(PartSpecies(Coll_pData(iPair)%iPart_p2),PartSpecies(Coll_pData(iPair)%iPart_p2))  &
                    + CollInf%dref(PartSpecies(iPart_p3),PartSpecies(iPart_p3)))**3
@@ -379,7 +379,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
         Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
                              + PartStateIntEn(PartToExec,1) + PartStateIntEn(PartToExec,2) &
                              + PartStateIntEn(PartReac2,2)  + PartStateIntEn(PartReac2,2)
-        iQua1 = INT(PartStateIntEn(PartToExec,1) / ( BoltzmannConst & 
+        iQua1 = INT(PartStateIntEn(PartToExec,1) / ( BoltzmannConst &
               * CollInf%omegaLaux(PartSpecies(PartToExec),PartSpecies(PartToExec))) - DSMC%GammaQuant)
         iQua2 = INT(PartStateIntEn(PartReac2,1)  / ( BoltzmannConst &
               * CollInf%omegaLaux(PartSpecies(PartReac2),PartSpecies(PartReac2))) - DSMC%GammaQuant)
@@ -391,7 +391,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
                              + PartStateIntEn(PartToExec,1) + PartStateIntEn(PartToExec,2)
         iQua1 = INT(PartStateIntEn(PartToExec,1) / ( BoltzmannConst &
               * CollInf%omegaLaux(PartSpecies(PartToExec),PartSpecies(PartToExec))) - DSMC%GammaQuant)
-        coeffT = (2. - CollInf%omegaLaux(PartSpecies(PartToExec),PartSpecies(PartToExec)) & 
+        coeffT = (2. - CollInf%omegaLaux(PartSpecies(PartToExec),PartSpecies(PartToExec)) &
                + 0.5*SpecDSMC(PartSpecies(PartToExec))%Xi_Rot + iQua1 * log(real(1 + 1/iQua1) ) )
     END SELECT
     Tcoll = Coll_pData(iPair)%Ec / ( BoltzmannConst * coeffT )

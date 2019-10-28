@@ -2749,14 +2749,14 @@ DO iElem=1,PP_nElems
     NodeSourceExtEqui(1,0,0,1) = NodeSourceExt(NodeID(5))/CellLocNodes_Volumes(NodeID(5))
     NodeSourceExtEqui(1,1,0,1) = NodeSourceExt(NodeID(6))/CellLocNodes_Volumes(NodeID(6))
     NodeSourceExtEqui(1,1,1,1) = NodeSourceExt(NodeID(7))/CellLocNodes_Volumes(NodeID(7))
-    NodeSourceExtEqui(1,0,1,1) = NodeSourceExt(NodeID(8))/CellLocNodes_Volumes(NodeID(8)) 
+    NodeSourceExtEqui(1,0,1,1) = NodeSourceExt(NodeID(8))/CellLocNodes_Volumes(NodeID(8))
     ! Map equidistant distribution to G/GL (current node type)
     CALL ChangeBasis3D(1, 1, PP_N, Vdm_EQ_N, NodeSourceExtEqui(:,:,:,:),NodeSourceExtGlobal(:,:,:,:,iElem))
   END ASSOCIATE
 END DO!iElem
 
 ! Write data twice to .h5 file
-! 1. to separate file (for visu) 
+! 1. to separate file (for visu)
 ! 2. to _State_.h5 file (or restart)
 DO i = 1, 2
   IF(i.EQ.1)THEN

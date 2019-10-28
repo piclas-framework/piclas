@@ -170,7 +170,7 @@ CASE(2) !PartBound%ReflectiveBC)
         CALL CreateParticle(-PartSpecies(iPart),LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
         ! Set inside to F (it is set to T in SendNbOfParticles if species ID is negative)
         PDM%ParticleInside(NewPartID)=.FALSE.
-      ELSE ! Deposit single particle charge on surface here and 
+      ELSE ! Deposit single particle charge on surface here and
         CALL DepositParticleOnNodes(iPart,LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID)
       END IF ! ElemID.GT.nElems
     END IF ! CHARGEDPARTICLE(iPart)

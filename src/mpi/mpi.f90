@@ -260,7 +260,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)  :: SendID                                                 !< defines the send / receive direction -> 1=send MINE
                                                                               !< / receive YOUR, 3=send YOUR / receive MINE
-INTEGER,INTENT(IN)  :: firstDim                                               !< size of one entry in array (e.g. one side: 
+INTEGER,INTENT(IN)  :: firstDim                                               !< size of one entry in array (e.g. one side:
                                                                               !< nVar*(N+1)*(N+1))
 INTEGER,INTENT(IN)  :: LowerBound                                             !< lower side index for last dimension of FaceData
 INTEGER,INTENT(IN)  :: UpperBound                                             !< upper side index for last dimension of FaceData

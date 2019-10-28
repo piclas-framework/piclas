@@ -1003,7 +1003,7 @@ REAL FUNCTION Calc_Beta_Poly(iReac,Xi_Total)
   IF((ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 &
   + CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1)) + Xi_Total/2.).GT.0.0) THEN
     Calc_Beta_Poly = ChemReac%Arrhenius_Prefactor(iReac)                                                                        &
-      * (BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) & 
+      * (BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) &
       - CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1))))   &
       * GAMMA(Xi_Total/2.) / (ChemReac%Hab(iReac) * GAMMA(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5           &
       + CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1)) + Xi_Total/2.))

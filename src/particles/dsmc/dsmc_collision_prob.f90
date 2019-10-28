@@ -68,7 +68,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 #endif
 !===================================================================================================================================
   iPart1     = Coll_pData(iPair)%iPart_p1
-  iPart2     = Coll_pData(iPair)%iPart_p2   
+  iPart2     = Coll_pData(iPair)%iPart_p2
   PairType   = Coll_pData(iPair)%PairType
   iSpec1     = PartSpecies(iPart1)
   iSpec2     = PartSpecies(iPart2)
@@ -121,18 +121,18 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 
     CASE(2,3,4,11,12,21,22,20,30,40,5,6,14,24)
     ! Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic (non-CEX/MEX) Ion, Molecule-Atomic Ion, Atom-Molecular Ion, Molecule-Molecular Ion
-    ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron 
-        IF (BGGas%BGGasSpecies.NE.0) THEN                                     
+    ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron
+        IF (BGGas%BGGasSpecies.NE.0) THEN
           ! Collision probability, Laux1996 (2.44),(2.47),(2.49)   (or see Munz2014)
-          Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum / (1 + CollInf%KronDelta(PairType))                                   & 
+          Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum / (1 + CollInf%KronDelta(PairType))                                   &
                                  * CollInf%crossSectionConstantCab(PairType) * Species(iSpec1)%MacroParticleFactor *dtCell/ Volume&
-                                 * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omegaLaux(iSpec1,iSpec2)) 
-        ELSE                                                                  
+                                 * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omegaLaux(iSpec1,iSpec2))
+        ELSE
           ! collision probability, Laux1996 (2.44),(2.47),(2.49) CaseNum = Sab = sum of all cases (or see Munz2014)
           ! only one omega is used and assumption macroParticleFactor is coherent for all species
           Coll_pData(iPair)%Prob = SpecNum1 * SpecNum2 / (1 + CollInf%KronDelta(PairType))                                     &
-                                 * CollInf%crossSectionConstantCab(PairType) / CollCaseNum                                     &          
-                                 * MacroParticleFactor * dtCell / Volume                                                       & 
+                                 * CollInf%crossSectionConstantCab(PairType) / CollCaseNum                                     &
+                                 * MacroParticleFactor * dtCell / Volume                                                       &
                                  * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omegaLaux(iSpec1,iSpec2))
         END IF
 
@@ -167,7 +167,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !           ! polarization method
 !           ! Define what species is the atom and is execuded
 !           IF (SpecDSMC(iSpec1)%InterID.eq.1) THEN
-!             SpecToExec = iSpec1 
+!             SpecToExec = iSpec1
 !           ELSE
 !             SpecToExec = iSpec2
 !           END IF
@@ -189,21 +189,21 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !           IF (DoSimpleElectronColl) THEN
 !             ! copy & past from above (atom, molecular,etc.)
 !             IF (BGGas%BGGasSpecies.NE.0) THEN
-!                 Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(PairType))  & 
+!                 Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(PairType))  &
 !                         * CollInf%crossSectionConstantCab(PairType)                                    &! Cab species comb fac
-!                         * Species(iSpec1)%MacroParticleFactor                  & 
+!                         * Species(iSpec1)%MacroParticleFactor                  &
 !                                 ! weighting Fact, here only one MPF is used!!!
 !                         * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omegaLaux(iSpec1,iSpec2)) &
-!                                 ! relative velo to the power of (1 -2omegaLaux) 
+!                                 ! relative velo to the power of (1 -2omegaLaux)
 !                         * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
 !             ELSE
-!               Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))                & 
-!                       * CollInf%crossSectionConstantCab(PairType)           &    ! Cab species comb fac         
-!                       * Species(iSpec1)%MacroParticleFactor                                & 
-!                               ! weighting Fact, here only one MPF is used!!!      
-!                         / CollInf%Coll_CaseNum(PairType)                                                  & 
+!               Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))                &
+!                       * CollInf%crossSectionConstantCab(PairType)           &    ! Cab species comb fac
+!                       * Species(iSpec1)%MacroParticleFactor                                &
+!                               ! weighting Fact, here only one MPF is used!!!
+!                         / CollInf%Coll_CaseNum(PairType)                                                  &
 !                       * Coll_pData(iPair)%CRela2 ** (0.5-CollInf%omegaLaux(iSpec1,iSpec2))        &
-!                               ! relative velo to the power of (1 -2omegaLaux) 
+!                               ! relative velo to the power of (1 -2omegaLaux)
 !                       * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
 !             END IF
 !           ELSE ! collision probability with polarization
@@ -215,26 +215,26 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !                   BGGasDensity_new=BGGas%BGGasDensity
 !                 END IF
 !                 Coll_pData(iPair)%Prob = BGGasDensity_new * GEO%Volume(iElem)      &
-!                        /(1 + CollInf%KronDelta(PairType))  & 
-!                               ! weighting Fact, here only one MPF is used!!!      
+!                        /(1 + CollInf%KronDelta(PairType))  &
+!                               ! weighting Fact, here only one MPF is used!!!
 !                       * SQRT(Coll_pData(iPair)%CRela2)*Coll_pData(iPair)%Sigma(0) &
-!                               ! relative velo to the power of (1 -2omegaLaux) 
+!                               ! relative velo to the power of (1 -2omegaLaux)
 !                       * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
 !               ELSE
-!                 Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(PairType))  & 
-!                       * Species(iSpec1)%MacroParticleFactor                  & 
-!                               ! weighting Fact, here only one MPF is used!!!      
+!                 Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(PairType))  &
+!                       * Species(iSpec1)%MacroParticleFactor                  &
+!                               ! weighting Fact, here only one MPF is used!!!
 !                       * SQRT(Coll_pData(iPair)%CRela2)*Coll_pData(iPair)%Sigma(0) &
-!                               ! relative velo to the power of (1 -2omegaLaux) 
+!                               ! relative velo to the power of (1 -2omegaLaux)
 !                       * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell vol
 !               END IF
 !             ELSE
-!               Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))  & 
-!                       * Species(iSpec1)%MacroParticleFactor                  & 
-!                               ! weighting Fact, here only one MPF is used!!!      
+!               Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))  &
+!                       * Species(iSpec1)%MacroParticleFactor                  &
+!                               ! weighting Fact, here only one MPF is used!!!
 !                       / CollInf%Coll_CaseNum(PairType)                                      & ! sum of coll cases Sab
 !                       * SQRT(Coll_pData(iPair)%CRela2)*Coll_pData(iPair)%Sigma(0) &
-!                               ! relative velo to the power of (1 -2omegaLaux) 
+!                               ! relative velo to the power of (1 -2omegaLaux)
 !                       * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
 !             END IF
 !           END IF
@@ -245,7 +245,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !           DoSimpleElectronColl=.TRUE.
 !           Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(PairType)*Coll_pData(iPair)%CRela2
 !           IF (SpecDSMC(iSpec1)%InterID.eq.1) THEN
-!             SpecToExec = iSpec1 
+!             SpecToExec = iSpec1
 !           ELSE
 !             SpecToExec = iSpec2
 !           END IF
@@ -254,21 +254,21 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !           IF(DoSimpleElectronColl)THEN
 !             ! copy & past from above (atom, molecular,etc.)
 !             IF (BGGas%BGGasSpecies.NE.0) THEN
-!                 Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(PairType))  & 
+!                 Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(PairType))  &
 !                         * CollInf%crossSectionConstantCab(PairType)                              & ! Cab species comb fac
-!                         * Species(iSpec1)%MacroParticleFactor                  & 
+!                         * Species(iSpec1)%MacroParticleFactor                  &
 !                                 ! weighting Fact, here only one MPF is used!!!
 !                         * Coll_pData(iPair)%CRela2 ** (0.5-CollInf%omegaLaux(iSpec1,iSpec2)) &
-!                                 ! relative velo to the power of (1 -2omegaLaux) 
+!                                 ! relative velo to the power of (1 -2omegaLaux)
 !                         * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
 !             ELSE
-!               Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))                & 
+!               Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))                &
 !                       * CollInf%crossSectionConstantCab(PairType)           &    ! Cab species comb fac
-!                       * Species(iSpec1)%MacroParticleFactor                                & 
-!                               ! weighting Fact, here only one MPF is used!!!      
-!                         / CollInf%Coll_CaseNum(PairType)                                                  & 
+!                       * Species(iSpec1)%MacroParticleFactor                                &
+!                               ! weighting Fact, here only one MPF is used!!!
+!                         / CollInf%Coll_CaseNum(PairType)                                                  &
 !                       * Coll_pData(iPair)%CRela2 ** (0.5-CollInf%omegaLaux(iSpec1,iSpec2))        &
-!                               ! relative velo to the power of (1 -2omegaLaux) 
+!                               ! relative velo to the power of (1 -2omegaLaux)
 !                       * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
 !             END IF
 !           ELSE
@@ -343,21 +343,21 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !           IF(DoSimpleElectronColl)THEN
 !             ! copy & past from above (atom, molecular,etc.)
 !             IF (BGGas%BGGasSpecies.NE.0) THEN
-!                 Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(PairType))  & 
+!                 Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(PairType))  &
 !                         * CollInf%crossSectionConstantCab(PairType)                            & ! Cab species comb fac
-!                         * Species(iSpec1)%MacroParticleFactor                  & 
+!                         * Species(iSpec1)%MacroParticleFactor                  &
 !                                 ! weighting Fact, here only one MPF is used!!!
 !                         * Coll_pData(iPair)%CRela2 ** (0.5-CollInf%omegaLaux(iSpec1,iSpec2)) &
-!                                 ! relative velo to the power of (1 -2omegaLaux) 
+!                                 ! relative velo to the power of (1 -2omegaLaux)
 !                         * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
 !             ELSE
-!               Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))                & 
+!               Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))                &
 !                       * CollInf%crossSectionConstantCab(PairType)           &    ! Cab species comb fac
-!                       * Species(iSpec1)%MacroParticleFactor                                & 
-!                               ! weighting Fact, here only one MPF is used!!!      
-!                         / CollInf%Coll_CaseNum(PairType)                                                  & 
+!                       * Species(iSpec1)%MacroParticleFactor                                &
+!                               ! weighting Fact, here only one MPF is used!!!
+!                         / CollInf%Coll_CaseNum(PairType)                                                  &
 !                       * Coll_pData(iPair)%CRela2 ** (0.5-CollInf%omegaLaux(iSpec1,iSpec2))        &
-!                               ! relative velo to the power of (1 -2omegaLaux) 
+!                               ! relative velo to the power of (1 -2omegaLaux)
 !                       * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
 !             END IF
 !           ELSE

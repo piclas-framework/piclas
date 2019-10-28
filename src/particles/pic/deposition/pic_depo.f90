@@ -1537,7 +1537,7 @@ CASE('nearest_blurrycenter')
 #endif /*USE_LOADBALANCE*/
   END IF ! .NOT. doInnerParts
 CASE('cell_volweight')
-  ! Return here for 2nd Deposition() call as it is not required for this deposition method, 
+  ! Return here for 2nd Deposition() call as it is not required for this deposition method,
   ! because the MPI communication is done here directly
   IF(.NOT.doInnerParts) RETURN
 
@@ -1624,7 +1624,7 @@ CASE('cell_volweight')
 #endif /*USE_LOADBALANCE*/
  DEALLOCATE(BGMSourceCellVol)
 CASE('cell_volweight_mean','cell_volweight_mean2')
-  ! Return here for 2nd Deposition() call as it is not required for this deposition method, 
+  ! Return here for 2nd Deposition() call as it is not required for this deposition method,
   ! because the MPI communication is done here directly
   IF(.NOT.doInnerParts) RETURN
 

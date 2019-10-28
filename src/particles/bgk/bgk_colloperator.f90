@@ -50,7 +50,7 @@ SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, vBulkAll, Av
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, VarTimeStep, usevMPF
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
-USE MOD_DSMC_Vars             ,ONLY: CollInf 
+USE MOD_DSMC_Vars             ,ONLY: CollInf
 USE MOD_DSMC_Analyze          ,ONLY: CalcTVibPoly
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
