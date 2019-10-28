@@ -339,6 +339,7 @@ END ASSOCIATE
 
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
+CALL WriteMacroParticleToHDF5(FileName)
 IF(UseAdaptive.OR.(nAdaptiveBC.GT.0).OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
@@ -1150,6 +1151,163 @@ END IF
 
 
 END SUBROUTINE WriteParticleToHDF5
+
+
+SUBROUTINE WriteMacroParticleToHDF5(FileName)
+!===================================================================================================================================
+!> Subroutine that generates the output file on a single processor and writes all the necessary attributes of macroparticles
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_MacroBody_Vars    ,ONLY: UseMacroBody, nMacroBody, MacroSphere
+#if USE_MPI
+USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!===================================================================================================================================
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
+!===================================================================================================================================
+! OUTPUT VARIABLES
+!===================================================================================================================================
+! LOCAL VARIABLES
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+#if USE_MPI
+!INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
+!INTEGER(KIND=IK)               :: nParticles(0:nProcessors-1)
+#endif /*USE_MPI*/
+LOGICAL                        :: reSwitch
+INTEGER                        :: pcount
+INTEGER(KIND=IK)               :: locnPart,offsetnPart
+INTEGER(KIND=IK)               :: iPart,nPart_glob
+REAL,ALLOCATABLE               :: PartData(:,:)
+INTEGER                        :: PartDataSize       !number of entries in each line of PartData
+INTEGER(KIND=IK)               :: locnPart_max
+!===================================================================================================================================
+locnPart =   0_IK
+#if USE_MPI
+IF (PartMPI%MPIRoot) THEN
+#endif /*USE_MPI*/
+  IF (UseMacroBody .AND. nMacroBody.GT.0) THEN
+    DO pcount = 1,nMacroBody
+      !IF(MacroParticle(pcount)%particleLocal) THEN
+        locnPart = locnPart + 1_IK
+      !END IF
+    END DO
+  END IF
+#if USE_MPI
+END IF
+#endif /*USE_MPI*/
+!#if USE_MPI
+!sendbuf(1)=locnPart
+!recvbuf=0_IK
+!CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER_INT_KIND,MPI_SUM,MPI_COMM_WORLD,iError)
+!offsetnPart=recvbuf(1)
+!sendbuf(1)=recvbuf(1)+locnPart
+!CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER_INT_KIND,nProcessors-1,MPI_COMM_WORLD,iError) !last proc knows global number
+!!global numbers
+!nPart_glob=sendbuf(1)
+!CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_WORLD,iError)
+!LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
+!CALL MPI_REDUCE(locnPart, locnPart_max, 1, MPI_INTEGER_INT_KIND, MPI_MAX, 0, MPI_COMM_WORLD, IERROR)
+!#else
+!offsetnPart=0_IK
+!nPart_glob=locnPart
+!locnPart_max=locnPart
+!#endif /*USE_MPI*/
+offsetnPart=0_IK
+nPart_glob=locnPart
+locnPart_max=locnPart
+PartDataSize=13
+ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,INT(PartDataSize,IK)))
+
+DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
+  PartData(iPart,1:3)=MacroSphere(iPart)%center(1:3)
+  PartData(iPart,4:9)=MacroSphere(iPart)%velocity(1:6)
+  PartData(iPart,10)=MacroSphere(iPart)%radius
+  PartData(iPart,11)=MacroSphere(iPart)%temp
+  PartData(iPart,12)=MacroSphere(iPart)%density
+  PartData(iPart,13)=MacroSphere(iPart)%mass
+END DO
+
+reSwitch=.FALSE.
+IF(gatheredWrite)THEN
+  ! gatheredwrite not working with distributed particles
+  ! particles require own routine for which the communicator has to be build each time
+  reSwitch=.TRUE.
+  gatheredWrite=.FALSE.
+END IF
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (PartDataSize => INT(PartDataSize,IK))
+
+  ALLOCATE(StrVarNames(PartDataSize))
+  StrVarNames(1)='ParticlePositionX'
+  StrVarNames(2)='ParticlePositionY'
+  StrVarNames(3)='ParticlePositionZ'
+  StrVarNames(4)='VelocityX'
+  StrVarNames(5)='VelocityY'
+  StrVarNames(6)='VelocityZ'
+  StrVarNames(7)='RotVelocityX'
+  StrVarNames(8)='RotVelocityY'
+  StrVarNames(9)='RotVelocityZ'
+  StrVarNames(10)='Radius'
+  StrVarNames(11)='Temperature'
+  StrVarNames(12)='Density'
+  StrVarNames(13)='Mass'
+
+#if USE_MPI
+  IF(PartMPI%MPIRoot)THEN
+#endif /*USE_MPI*/
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL WriteAttributeToHDF5(File_ID,'VarNamesMacroParticles',INT(PartDataSize,4),StrArray=StrVarNames)
+    CALL CloseDataFile()
+#if USE_MPI
+  END IF
+#endif /*USE_MPI*/
+
+  IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
+#if USE_MPI
+    IF(PartMPI%MPIRoot)THEN ! only root writes the container
+#endif /*USE_MPI*/
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+      CALL WriteArrayToHDF5(DataSetName='MacroPartData'   , rank=2           , &
+                            nValGlobal=(/nPart_glob  , INT(PartDataSize,IK)/)   , &
+                            nVal=      (/locnPart    , INT(PartDataSize,IK)/) , &
+                            offset=    (/offsetnPart , 0_IK  /)         , &
+                            collective=.FALSE.       , RealArray=PartData)
+      CALL CloseDataFile()
+#if USE_MPI
+    END IF !MPIRoot
+#endif /*USE_MPI*/
+  END IF !locnPart_max.EQ.0
+#if USE_MPI
+  CALL DistributedWriteArray(FileName                     , &
+                             DataSetName  = 'MacroPartData'    , rank = 2          , &
+                             nValGlobal   = (/nPart_glob  , INT(PartDataSize,IK)/)    , &
+                             nVal         = (/locnPart    , INT(PartDataSize,IK)/)    , &
+                             offset       = (/offsetnPart , 0_IK/)            , &
+                             collective   = .FALSE.       , offSetDim = 1     , &
+                             communicator = PartMPI%COMM  , RealArray = PartData)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL WriteArrayToHDF5(DataSetName = 'MacroPartData'    , rank = 2                , &
+                        nValGlobal  = (/nPart_glob  , INT(PartDataSize,IK)/)          , &
+                        nVal        = (/locnPart    , INT(PartDataSize,IK)/)          , &
+                        offset      = (/offsetnPart , 0_IK  /)                , &
+                        collective  = .TRUE.        , RealArray = PartData)
+  CALL CloseDataFile()
+#endif /*USE_MPI*/                          
+END ASSOCIATE
+! reswitch
+IF(reSwitch) gatheredWrite=.TRUE.
+
+DEALLOCATE(StrVarNames)
+DEALLOCATE(PartData)
+
+END SUBROUTINE WriteMacroParticleToHDF5
 
 
 SUBROUTINE WriteSurfStateToHDF5(FileName)

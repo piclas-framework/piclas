@@ -158,8 +158,6 @@ CALL prms%CreateIntOption(     'RefMappingGuess'&
     '4 -trival guess (0,0,0)^t')
 CALL prms%CreateRealOption(    'RefMappingEps'&
   , ' Tolerance for mapping particle into reference element measured as L2-norm of deltaXi' , '1e-4')
-CALL prms%CreateRealOption(    'BezierEpsilonBilinear'&
-    , ' Bi-linear tolerance for the bi-linear - planar decision.' , '1e-6')
 CALL prms%CreateIntOption(     'BezierElevation'&
   , ' Use BezierElevation>0 to tighten the bounding box. Typical values>10','0')
 CALL prms%CreateIntOption(     'BezierSampleN'&
@@ -215,7 +213,7 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierEpsilonBilinear,BezierElevation,BezierControlPoints3DElevated
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation,BezierControlPoints3DElevated
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts,CartesianPeriodic
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, WriteTriaDebugMesh
 #ifdef CODE_ANALYZE
@@ -325,8 +323,6 @@ END IF
 !__STAMP__ &
 !,' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',RefMappingGuess)
 !END IF
-
-BezierEpsilonBilinear = GETREAL('BezierEpsilonBilinear','1e-6')
 
 BezierElevation = GETINT('BezierElevation','0')
 NGeoElevated    = NGeo + BezierElevation
@@ -713,6 +709,7 @@ SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%PeriodicVectorsLength)
 SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%Volume)
+SDEALLOCATE(GEO%MPVolumePortion)
 SDEALLOCATE(GEO%CharLength)
 SDEALLOCATE(GEO%ElemToFIBGM)
 SDEALLOCATE(GEO%TFIBGM)
@@ -1707,7 +1704,7 @@ ELSE
   deltaT=ManualTimeStep
 END IF
 IF (halo_eps_velo.EQ.0) halo_eps_velo = c
-#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43)
 IF (halo_eps_velo.EQ.c) THEN
    CALL abort(&
 __STAMP__&

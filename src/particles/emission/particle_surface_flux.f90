@@ -1153,7 +1153,9 @@ USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools              ,ONLY: UpdateNextFreePosition
-USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, radialWeighting
+USE MOD_MacroBody_vars          ,ONLY: UseMacroBody
+USE MOD_MacroBody_tools         ,ONLY: INSIDEMACROBODY
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, RadialWeighting
 USE MOD_SurfaceModel_Vars       ,ONLY: SurfModel
 USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
 USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
@@ -1786,6 +1788,11 @@ __STAMP__&
             ELSE !no check for rmax-rejection
               AcceptPos=.TRUE.
             END IF ! CircularInflow
+            IF (UseMacroBody) THEN
+              IF (INSIDEMACROBODY(Particle_pos)) THEN
+                AcceptPos=.FALSE.
+              END IF
+            END IF
 
             !-- save position if accepted:
             IF (AcceptPos) THEN
@@ -1799,7 +1806,7 @@ __STAMP__&
               iPart=iPart+1
             ELSE
               nReject=nReject+1
-              IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
+              IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow .OR. UseMacroBody) THEN !check rmax-rejection
                 allowedRejections=allowedRejections+1
               END IF
             END IF

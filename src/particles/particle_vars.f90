@@ -343,6 +343,9 @@ REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! M
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
 
 INTEGER                                  :: nSpecies                         ! number of species
+INTEGER                                  :: nPointsMCVolumeEstimate          ! numer of points seeded into one element for volume
+                                                                             ! portion (that is occupied) estimtaion 
+                                                                             ! with a Monte Carlo method
 INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
@@ -483,7 +486,6 @@ TYPE tVariableTimeStep
   REAL                                 :: TargetMaxRelaxFactor
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
-
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

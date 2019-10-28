@@ -46,7 +46,7 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-USE MOD_DSMC_Vars             ,ONLY: ChemReac, SpecDSMC, VarVibRelaxProb
+USE MOD_DSMC_Vars             ,ONLY: ChemReac, SpecDSMC, VarVibRelaxProb, ConsiderVolumePortions
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D, PartSpecies
@@ -177,8 +177,13 @@ DO iElem = 1, nElems ! element/cell main loop
         IF(DSMC%CalcQualityFactors) THEN
           IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
             ! Calculation of the mean free path
-            DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),GEO%Volume(iElem), &
-                                                  SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+            IF (ConsiderVolumePortions) THEN
+              DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum)&
+                          ,GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem)),SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+            ELSE
+              DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),GEO%Volume(iElem), &
+                                                    SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+            END IF
             ! Determination of the MCS/MFP for the case without octree
             IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
                                                                                             / DSMC%MeanFreePath
