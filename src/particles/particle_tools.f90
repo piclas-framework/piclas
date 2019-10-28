@@ -235,16 +235,15 @@ IMPLICIT NONE
 !===================================================================================================================================
   CALL RANDOM_NUMBER(iRan)
 
-  cos_scatAngle     = 2.*iRan-1.                      ! z random value between [-1,1] for isotropic scattering
-  sin_scatAngle     = SQRT(1. - cos_scatAngle ** 2.)  ! x-component in basic plane
-  DiceUnitVector(1) = cos_scatAngle                   ! y-component in basic plane
+  cos_scatAngle     = 2.*iRan-1.
+  sin_scatAngle     = SQRT(1. - cos_scatAngle ** 2.)
+  DiceUnitVector(1) = cos_scatAngle
 
-  CALL RANDOM_NUMBER(iRan) ! dice rotation angle between basic and reference plane :  epsilon e [0,2*pi]
-  rotAngle          = 2. * Pi * iRan ! rotation angle phi random value between [0,2*pi]
+  CALL RANDOM_NUMBER(iRan)
+  rotAngle          = 2. * Pi * iRan
 
-  ! transfer unit vector to 3D space by relation of basic to reference plane: split y-component in basic plane up
-  DiceUnitVector(2) = sin_scatAngle * COS(rotAngle)   ! y-component between basic and reference plane
-  DiceUnitVector(3) = sin_scatAngle * SIN(rotAngle)   ! z-component between basic and reference plane
+  DiceUnitVector(2) = sin_scatAngle * COS(rotAngle)
+  DiceUnitVector(3) = sin_scatAngle * SIN(rotAngle)
 
 END FUNCTION DiceUnitVector
 

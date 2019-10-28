@@ -1299,7 +1299,7 @@ ASSOCIATE (PartDataSize => INT(PartDataSize,IK))
                         offset      = (/offsetnPart , 0_IK  /)                , &
                         collective  = .TRUE.        , RealArray = PartData)
   CALL CloseDataFile()
-#endif /*USE_MPI*/                          
+#endif /*USE_MPI*/
 END ASSOCIATE
 ! reswitch
 IF(reSwitch) gatheredWrite=.TRUE.

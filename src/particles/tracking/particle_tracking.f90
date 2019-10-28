@@ -431,7 +431,7 @@ SUBROUTINE ParticleTracing(doParticle_In)
 SUBROUTINE ParticleTracing()
 #endif /*NOT IMPA*/
 !===================================================================================================================================
-!> Routine for tracking of moving particles using polynomial description of sides. 
+!> Routine for tracking of moving particles using polynomial description of sides.
 !> Routine calculates intersection and boundary interaction for (dorefmapping = false) and (TriaTracking = false)
 !> Time is analyzed for LoadBalancing purposes for each element independently because elements with e.g. surface are more costly
 !> ---------------------------------------------------------------------------------------------------------------------------------
@@ -440,7 +440,7 @@ SUBROUTINE ParticleTracing()
 !> -- 2. Track particle vector up to final particle position
 !> -- 3. special check if some double check has to be performed (only necessary for bilinear sides and macrospheres)
 !> -- 4. Check if particle intersected a side and also which side (also MacroSpheres and AuxBCs)
-!>         For each side only one intersection is chosen, but particle might insersect more than one side. Assign pointer list 
+!>         For each side only one intersection is chosen, but particle might insersect more than one side. Assign pointer list
 !> -- 5. Loop over all intersections in pointer list and check intersection type: inner side, BC, auxBC or MacroSphere
 !>       and calculate interaction
 !> -- 6. Update particle position and decide if double check might be necessary
@@ -449,9 +449,9 @@ SUBROUTINE ParticleTracing()
 !> -- 9. If tolerance was marked, check if particle is inside of proc volume and try to find it in case it was lost
 !> ---------------------------------------------------------------------------------------------------------------------------------
 !> - DoubleCheck:
-!> -- If a tracked particle hits a bilinear side but the PartTrajectory points inside of the element, 
+!> -- If a tracked particle hits a bilinear side but the PartTrajectory points inside of the element,
 !>    then the second alpha for this side might have been the actual intersection, which has been dropped in intersection routine.
-!> -- Consequently, alpha for doublecheck side is saved (moved to the last position in intersectionlist) 
+!> -- Consequently, alpha for doublecheck side is saved (moved to the last position in intersectionlist)
 !>    and neglected during the second check of for the appropriate sideID.
 !> -- This occurs after surfaceflux, reflection, or for periodic particles moving almost in tangential direction to bilinear side.
 !> -- The DoubleCheck replaces the need of tolerances
@@ -657,9 +657,9 @@ DO iPart=1,PDM%ParticleVecLength
     markTol =.FALSE.
 ! -- 2. Track particle vector up to the final particle position
     DO WHILE (.NOT.PartisDone)
-      ! do not reset markTol after first intersection of for doublecheck. 
+      ! do not reset markTol after first intersection of for doublecheck.
       ! This prevents particles to get lost unnoticed in case any intersection has marked tolerance.
-      ! markTol =.FALSE. 
+      ! markTol =.FALSE.
       IF (PartDoubleCheck) THEN
 ! -- 3. special check if some double check has to be performed (only necessary for bilinear sides and macrospheres)
 #ifdef CODE_ANALYZE
@@ -721,7 +721,7 @@ DO iPart=1,PDM%ParticleVecLength
 
       ELSE ! NOT PartDoubleCheck
 ! -- 4. Check if particle intersected a side and also which side (also MacroSpheres and AuxBCs)
-!       For each side only one intersection is chosen, but particle might insersect more than one side. Assign pointer list 
+!       For each side only one intersection is chosen, but particle might insersect more than one side. Assign pointer list
 #ifdef CODE_ANALYZE
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN ; IF(iPart.EQ.PARTOUT)THEN

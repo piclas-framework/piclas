@@ -457,7 +457,7 @@ END SUBROUTINE RootsOfBesselFunctions
 
 
 !================================================================================================================================
-!> Stable algorithm to compute the number of (nRoot) non-complex solutions R1 and R2 for the quadratic equation A*x^2 + B*x + C 
+!> Stable algorithm to compute the number of (nRoot) non-complex solutions R1 and R2 for the quadratic equation A*x^2 + B*x + C
 !================================================================================================================================
 SUBROUTINE QuadraticSolver(A,B,C,nRoot,r1,r2)
 #ifdef CODE_ANALYZE

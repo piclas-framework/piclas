@@ -373,7 +373,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !     !    CASE(30) !Atomic Ion - Molecular Ion
 !     !      Coll_pData(iPair)%Prob = 0
 !     !    CASE(40) !Molecular Ion - Molecular Ion
-!     !      Coll_pData(iPair)%Prob = 0    
+!     !      Coll_pData(iPair)%Prob = 0
     CASE (-1)
       Coll_pData(iPair)%Prob = 0.
     CASE DEFAULT
