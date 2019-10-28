@@ -590,12 +590,11 @@ END IF
         SpecDSMC(iSpec)%alphaVSS     = GETREAL('Part-Species'//TRIM(hilf)//'-alphaVSS'  ,'1')
         ! check for faulty parameters
         IF((SpecDSMC(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
-          WRITE(*,*) 'ERROR: Part-Species'//TRIM(hilf)//' is corrupt. See below for more details.'
           CALL Abort(&
           __STAMP__&
-          ,'ERROR in species data: check collision parameters in ini_2 \n'//&
-           'Part-Species#-(InterID * Tref *dref * alphaVSS) .EQ. 0 '//&
-           '- but must not be 0')
+          ,'ERROR in species data: check collision parameters in ini \n'//&
+           'Part-Species'//TRIM(hilf)//'-(InterID * referenceTemperature *referenceDiameter * scatteringExponentAlphaVSS) .EQ. 0'//&
+           ' - but must not be 0')
         END IF ! (Tref * dref * alphaVSS) .EQ. 0
       END IF ! averagedCollisionParameters
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
@@ -628,10 +627,7 @@ END IF
     ELSE ! .NOT. averagedCollisionParameters     : partnerSpecies for collidingSpecies per collision are read in
       DO iColl = 1, nCollision
         WRITE(UNIT=hilf,FMT='(I0)')  iColl
-        DO pColl = 1,2 ! collision partner
-          WRITE (UNIT = hilf2,FMT = '(I0)') pColl
-          CollInf%collidingSpecies(iColl,pColl) = GETINT ('Part-Collision'//TRIM(hilf)//'-partnerSpecies'//TRIM(hilf2) , '0')
-        END DO ! pColl = 2
+        CollInf%collidingSpecies(iColl,:) = GETINTARRAY('Part-Collision'//TRIM(hilf)//'-partnerSpecies',2,'0,0')
       END DO ! iColl = nCollision
     END IF ! averagedCollisionParameters
     DO iColl = 1, nCollision ! check if any collidingSpecies pair is set multiple times
@@ -639,21 +635,25 @@ END IF
       DO pColl = 1,2 ! collision partner
         WRITE (UNIT = hilf2,FMT = '(I0)') pColl
         IF (CollInf%collidingSpecies(iColl,pColl) .EQ. 0) THEN
-          WRITE(*,*) 'ERROR: Part-Collision'//TRIM(hilf)//'-partnerSpecies'//TRIM(hilf2)//' is not set'
             CALL Abort(&
             __STAMP__&
-            ,'Collision information expected')
+            ,'ERROR: Partner species '//TRIM(hilf2)//' for Collision'//TRIM(hilf)//' not defined. '// &
+            'Part-Collision'//TRIM(hilf)//'-partnerSpecies required ')
         END IF ! collidingSpecies .EQ. 0
+        IF (CollInf%collidingSpecies(iColl,pColl).GT.nSpecies) THEN
+          CALL Abort(&
+              __STAMP__&
+              ,'ERROR: Partner species '//TRIM(hilf2)//' for Collision'//TRIM(hilf)//' .GT. nSpecies')
+        END IF
       END DO ! pColl = 2
       DO jColl=1, nCollision
         WRITE(UNIT=hilf2,FMT='(I0)') jColl
         IF ((CollInf%collidingSpecies(iColl,1) .EQ. CollInf%collidingSpecies(jColl,2))  .AND. &
             (CollInf%collidingSpecies(iColl,2) .EQ. CollInf%collidingSpecies(jColl,1))) THEN
           IF (iColl.NE.jColl) THEN
-            WRITE(*,*) 'ERROR: Part-Collision'//TRIM(hilf)//' .EQ. Part-Collision'//TRIM(hilf2)
               CALL Abort(&
               __STAMP__&
-              ,'Collision information must not be set redundantly!')
+              ,'ERROR: Partner species for Collision'//TRIM(hilf)//' .EQ. Collision'//TRIM(hilf2))
           END IF ! iColl .EQ. jColl
         END IF ! check for redundant collision partner combination
       END DO !jColl = nColl
@@ -667,8 +667,8 @@ END IF
 
     ! read collision parameters in and check if all are set
     DO iColl = 1, nCollision
-      iSpec = MIN (CollInf%collidingSpecies(iColl,1) , CollInf%collidingSpecies(iColl,2)) ! sorting for filling upper
-      jSpec = MAX (CollInf%collidingSpecies(iColl,1) , CollInf%collidingSpecies(iColl,2)) ! triangular matrix
+      iSpec = MINVAL (CollInf%collidingSpecies(iColl,:)) ! sorting for filling upper
+      jSpec = MAXVAL (CollInf%collidingSpecies(iColl,:)) ! triangular matrix
       WRITE(UNIT=hilf,FMT='(I0)')  iColl
       IF(CollInf%averagedCollisionParameters) THEN ! collision-averaged parameters
         CollInf%Tref      (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%Tref      + SpecDSMC(jSpec)%Tref)
@@ -688,11 +688,10 @@ END IF
         CollInf%alphaVSS  (jSpec,iSpec) = CollInf%alphaVSS  (iSpec,jSpec)
       END IF ! filled lower triangular matrix
       IF(CollInf%dref(iSpec,jSpec) * CollInf%Tref(iSpec,jSpec) * CollInf%alphaVSS(iSpec,jSpec) .EQ. 0) THEN
-          WRITE(*,*) 'ERROR: Part-Collision'//TRIM(hilf)//' is corrupt. See below for more details.'
           CALL Abort(&
           __STAMP__&
-          ,'ERROR: Check collision parameters! (Part-Collision-?-Tref * dref *' //&
-           'alphaVSS) .EQ. 0 - but must not be 0)')
+          ,'ERROR: Check collision parameters! (Part-Collision'//TRIM(hilf)//'-referenceTemperature * referenceDiameter *' //&
+           'scatteringExponentAlphaVSS) .EQ. 0 - but must not be 0)')
       END IF ! check if collision parameters are set
     END DO ! iColl=nColl
     IF(CollInf%crossSectionConstantMode.EQ.0) THEN ! one omega for all - DEFAULT

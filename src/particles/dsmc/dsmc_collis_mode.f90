@@ -64,7 +64,8 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   LOGICAL                       :: RelaxToDo
-  INTEGER                       :: Distance, iPart1, iPart2                         ! Colliding particles 1 and 2
+  INTEGER                       :: iPart1, iPart2                         ! Colliding particles 1 and 2
+  REAL                          :: Distance
 !===================================================================================================================================
   iPart1 = Coll_pData(iPair)%iPart_p1
   iPart2 = Coll_pData(iPair)%iPart_p2
