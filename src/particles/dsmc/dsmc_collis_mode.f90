@@ -2881,7 +2881,7 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
 !===================================================================================================================================
 
   ! P_vib according to Boyd, corrected by Abe, only V-T transfer
-  ! determine joint omegaVHS and Dref factor and rel velo
+  ! determine joint omega and Dref factor and rel velo
   cRela=SQRT(Coll_pData(iPair)%cRela2)
   ! calculate non-corrected probabilities
   ProbVib = 1. /SpecDSMC(iSpec)%CollNumVib(jSpec)* cRela**(3.+2.*CollInf%omegaLaux(iSpec,iSpec)) &
