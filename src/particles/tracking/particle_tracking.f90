@@ -598,17 +598,17 @@ DO iPart=1,PDM%ParticleVecLength
      IPWRITE(UNIT_stdOut,'(I0,A,I0)')  ' PartID         ', iPart
      IPWRITE(UNIT_stdOut,'(I0,A,I0)')  ' global ElemID  ', ElemToGlobalElemID(ElemID)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' ElemBaryNGeo:      ', ElemBaryNGeo(1:3,ElemID)
-     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' LastPartPos:       ', LastPartPos(iPart,1:3)
-     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartPos:           ', PartState(iPart,1:3)
+     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' LastPartPos:       ', LastPartPos(1:3,iPart)
+     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartPos:           ', PartState(1:3,iPart)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartRefPos:        ', RefPos(1:3)
-     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' Velocity:          ', PartState(iPart,4:6)
-     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartTrajectory:    ', PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' Velocity:          ', PartState(4:6,iPart)
+     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartTrajectory:    ', PartState(1:3,iPart) - LastPartPos(1:3,iPart)
      IPWRITE(UNIT_stdOut,'(I0,A,ES25.14E3)')      ' lengthPT:          ', SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
      CALL abort(&
          __STAMP__ &
          ,'ERROR: Lastpartpos in wrong element. PartID:',iPart)
     END IF
-    IF (INSIDEMACROBODY(LastPartPos(iPart,1:3))) CALL abort(&
+    IF (INSIDEMACROBODY(LastPartPos(1:3,iPart))) CALL abort(&
         __STAMP__&
         ,'ERROR: particle found inside macroscopic sphere. PartID: ',iPart)
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
@@ -618,7 +618,7 @@ DO iPart=1,PDM%ParticleVecLength
     IF (MeasureTrackTime) nTracks=nTracks+1
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
-    PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+    PartTrajectory=PartState(1:3,iPart) - LastPartPos(1:3,iPart)
     lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
     alphaDoneRel=0.
     oldLengthPartTrajectory=LengthPartTrajectory
@@ -642,7 +642,7 @@ DO iPart=1,PDM%ParticleVecLength
     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN ; IF(iPart.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(A32)')  ' ---------------------------------------------------------------'
       WRITE(UNIT_stdout,'(A)')    '     | Output of Particle information '
-      CALL OutputTrajectory(iPart,PartState(iPart,1:3),PartTrajectory,lengthPartTrajectory)
+      CALL OutputTrajectory(iPart,PartState(1:3,iPart),PartTrajectory,lengthPartTrajectory)
       WRITE(UNIT_stdOut,'(A,I0)') '     | global ElemID       ', ElemToGlobalElemID(PEM%LastElement(iPart))
     END IF ; END IF
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
@@ -1028,8 +1028,8 @@ __STAMP__ &
           WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID       ', ElemToGlobalElemID(ElemID)
         END IF
         IF( crossedBC) THEN
-          WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Last    PartPos:       ',lastPartPos(iPart,1:3)
-          WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Current PartPos:       ',PartState(iPart,1:3)
+          WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Last    PartPos:       ',lastPartPos(1:3,iPart)
+          WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Current PartPos:       ',PartState(1:3,iPart)
           WRITE(UNIT_stdout,'(A,3(X,G0))') '     | PartTrajectory:        ',PartTrajectory(1:3)
           WRITE(UNIT_stdout,'(A,(G0))')    '     | Length PartTrajectory: ',lengthPartTrajectory
         END IF
@@ -1062,7 +1062,7 @@ __STAMP__ &
 #endif /*IMPA*/
         CYCLE !particle is outside cell
       END IF
-      CALL GetPositionInRefElem(PartState(iPart,1:3),RefPos,ElemID)
+      CALL GetPositionInRefElem(PartState(1:3,iPart),RefPos,ElemID)
       IF (MAXVAL(ABS(RefPos)).LE.1.0) foundHit=.TRUE.
       PEM%Element(iPart)=ElemID
       IF(.NOT.foundHit) THEN
@@ -1070,8 +1070,8 @@ __STAMP__ &
         CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.FALSE.)
         IF(PDM%ParticleInside(iPart))THEN
           IPWRITE(UNIT_stdOut,'(I0,A)') '     | Particle found again:'
-          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartPos: ',LastPartPos(ipart,1:3)
-          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartPos: ',PartState(ipart,1:3)
+          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartPos: ',LastPartPos(1:3,ipart)
+          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartPos: ',PartState(1:3,ipart)
           IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | found in global element       ', ElemToGlobalElemID(PEM%Element(iPart))
         END IF
       END IF
@@ -1082,17 +1082,17 @@ __STAMP__ &
         IPWRITE(UNIT_stdOut,'(I0,A)') '     | Maybe particle intersected two or three sides exactly at connection (corner, edge)'
         IPWRITE(UNIT_stdOut,'(I0,A)') '     | of which at least one was a boundary.'
         IPWRITE(UNIT_stdOut,'(I0,2(A,I0))') '     | Proc: ',MyRank,' lost particle with ID: ', iPart
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartPos: ',LastPartPos(ipart,1:3)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartPos: ',PartState(ipart,1:3)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartPos: ',LastPartPos(1:3,ipart)
+        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartPos: ',PartState(1:3,ipart)
         IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in latest Element ... '
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | ElemID       ', ElemToGlobalElemID(PEM%Element(iPart))
-        CALL GetPositionInRefElem(LastPartPos(iPart,1:3),refpos(1:3),PEM%Element(ipart))
+        CALL GetPositionInRefElem(LastPartPos(1:3,iPart),refpos(1:3),PEM%Element(ipart))
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartRefPos: ',refpos
         CALL GetPositionInRefElem(PartState(iPart,1:3),refpos(1:3),PEM%Element(ipart))
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartRefPos: ',refpos
         IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in last Element ... '
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | Last-ElemID  ', ElemToGlobalElemID(PEM%LastElement(iPart))
-        CALL GetPositionInRefElem(LastPartPos(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
+        CALL GetPositionInRefElem(LastPartPos(1:3,iPart),refpos(1:3),PEM%lastElement(ipart))
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartRefPos: ',refpos
         CALL GetPositionInRefElem(PartState(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartRefPos: ',refpos
@@ -1155,15 +1155,15 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
     ! caution: reuse of variable, foundHit=TRUE == inside
     ElemID=PEM%Element(iPart)
-    CALL GetPositionInRefElem(PartState(iPart,1:3),RefPos,ElemID)
+    CALL GetPositionInRefElem(PartState(1:3,iPart),RefPos,ElemID)
     IF (MAXVAL(ABS(RefPos)).LE.1.0+1e-4) foundHit=.TRUE.
     IF(.NOT.foundHit)THEN  ! particle not inside
      IPWRITE(UNIT_stdOut,'(I0,A)') ' PartPos not inside of element! '
      IPWRITE(UNIT_stdOut,'(I0,A,I0)')  ' PartID         ', iPart
      IPWRITE(UNIT_stdOut,'(I0,A,I0)')  ' gloabal ElemID ', ElemToGlobalElemID(ElemID)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' ElemBaryNGeo:      ', ElemBaryNGeo(1:3,ElemID)
-     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' LastPartPos:       ', LastPartPos(iPart,1:3)
-     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartPos:           ', PartState(iPart,1:3)
+     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' LastPartPos:       ', LastPartPos(1:3,iPart)
+     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartPos:           ', PartState(1:3,iPart)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartRefPos:        ', RefPos(1:3)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartTrajectory:    ', PartTrajectory
      IPWRITE(UNIT_stdOut,'(I0,A,ES25.14E3)')      ' lengthPT:          ', lengthPartTrajectory

@@ -1903,30 +1903,30 @@ REAL                       :: tLBStart
       dtVar = dtVar * RandVal
       PDM%dtFracPush(iPart) = .FALSE.
     ELSE
-      LastPartPos(iPart,1)=PartState(iPart,1)
-      LastPartPos(iPart,2)=PartState(iPart,2)
-      LastPartPos(iPart,3)=PartState(iPart,3)
+      LastPartPos(1,iPart)=PartState(1,iPart)
+      LastPartPos(2,iPart)=PartState(2,iPart)
+      LastPartPos(3,iPart)=PartState(3,iPart)
       PEM%lastElement(iPart)=PEM%Element(iPart)
     END IF
-    PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtVar
-    PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtVar
-    PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtVar
+    PartState(1,iPart) = PartState(1,iPart) + PartState(4,iPart) * dtVar
+    PartState(2,iPart) = PartState(2,iPart) + PartState(5,iPart) * dtVar
+    PartState(3,iPart) = PartState(3,iPart) + PartState(6,iPart) * dtVar
     ! Axisymmetric treatment of particles: rotation of the position and velocity vector
     IF(Symmetry2DAxisymmetric) THEN
-      IF (PartState(iPart,2).LT.0.0) THEN
-        NewYPart = -SQRT(PartState(iPart,2)**2 + (PartState(iPart,3))**2)
+      IF (PartState(2,iPart).LT.0.0) THEN
+        NewYPart = -SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
       ELSE
-        NewYPart = SQRT(PartState(iPart,2)**2 + (PartState(iPart,3))**2)
+        NewYPart = SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
       END IF
       ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
       !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
       ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
       ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
-      NewYVelo = (PartState(iPart,5)*(PartState(iPart,2))+PartState(iPart,6)*PartState(iPart,3))/NewYPart
-      PartState(iPart,6) = (-PartState(iPart,5)*PartState(iPart,3)+PartState(iPart,6)*(PartState(iPart,2)))/NewYPart
-      PartState(iPart,2) = NewYPart
-      PartState(iPart,3) = 0.0
-      PartState(iPart,5) = NewYVelo
+      NewYVelo = (PartState(5,iPart)*(PartState(2,iPart))+PartState(6,iPart)*PartState(3,iPart))/NewYPart
+      PartState(6,iPart) = (-PartState(5,iPart)*PartState(3,iPart)+PartState(6,iPart)*(PartState(2,iPart)))/NewYPart
+      PartState(2,iPart) = NewYPart
+      PartState(3,iPart) = 0.0
+      PartState(5,iPart) = NewYVelo
       END IF
     END IF
   END DO
@@ -1936,8 +1936,8 @@ REAL                       :: tLBStart
 
   ! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
   IF(Symmetry2D) THEN
-    LastPartPos(1:PDM%ParticleVecLength,3) = 0.0
-    PartState(1:PDM%ParticleVecLength,3) = 0.0
+    LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
+    PartState(3,1:PDM%ParticleVecLength) = 0.0
   END IF
 
 #if USE_MPI
@@ -2012,12 +2012,7 @@ REAL                       :: tLBStart
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,1)
-  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,2)
-  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
