@@ -101,14 +101,11 @@ IsSpeciesSwap=.FALSE.
 crossedBC    =.FALSE.
 
 ! Calculate normal vector
+BCSideID=SideID
 SELECT CASE(TrackingMethod)
 CASE(REFMAPPING,TRACING)
   ! set BCSideID for normal vector calculation call with (curvi-)linear side description
-  IF (TrackingMethod.EQ.REFMAPPING) THEN
-    BCSideID=PartBCSideList(SideID)
-  ELSE
-    BCSideID=SideID
-  END IF
+  IF (TrackingMethod.EQ.REFMAPPING) BCSideID=PartBCSideList(SideID)
 
   SELECT CASE(SideType(BCSideID))
   CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -1084,7 +1081,6 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SampWall,dXiEQ_SurfSample,SurfMesh,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,PDM,VarTimeStep
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
-USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars               ,ONLY: BC
@@ -1287,7 +1283,6 @@ SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,Si
 USE MOD_Globals
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,SidePeriodicType
-USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,PEM
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
 #if defined(IMPA)
@@ -1379,7 +1374,6 @@ SUBROUTINE SideAnalysis(PartTrajectory,alpha,xi,eta,PartID,SideID,locSideID,Elem
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,CalcSurfCollis,AnalyzeSurfCollis
-USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,nSpecies,PartSpecies,WriteMacroSurfaceValues
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: DSMC
