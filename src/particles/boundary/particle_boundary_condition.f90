@@ -77,9 +77,6 @@ USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_Particle_Boundary_Tools  ,ONLY: BoundaryParticleOutput,DielectricSurfaceCharge
-#if CODE_ANALYZE
-USE MOD_Globals                  ,ONLY: myrank
-#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -170,7 +167,7 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(BC(SideID)) )
   !-----------------------------------------------------------------------------------------------------------------------------------
   !---- Treatment of adaptive and porous boundary conditions (deletion of particles in case of circular inflow or porous BC)
   PorousReflection = .FALSE.
-  IF(UseCircularInflow) CALL SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,lengthPartTrajectory)
+  IF(UseCircularInflow) CALL SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
   IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PorousReflection)
 
   !---- Dielectric particle-surface interaction
@@ -234,7 +231,7 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(BC(SideID)) )
     CALL  PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,n_loc,IsSpeciesSwap,opt_Symmetry=.TRUE.)
   CASE(100) !PartBound%AnalyzeBC
   !-----------------------------------------------------------------------------------------------------------------------------------
-    CALL  SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,n_loc,locSideID,ElemID,IsSpeciesSwap)
+    CALL  SideAnalysis(PartTrajectory,alpha,xi,eta,iPart,SideID,locSideID,ElemID,IsSpeciesSwap)
   CASE DEFAULT
     CALL abort(&
       __STAMP__&
@@ -262,7 +259,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars          ,ONLY: RK_a
 #endif
-USE MOD_Particle_Vars,          ONLY:LastPartPos
+USE MOD_Particle_Vars          ,ONLY: LastPartPos
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -327,20 +324,6 @@ SELECT CASE(PartAuxBC%TargetBoundCond(AuxBCIdx))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartAuxBC%OpenBC
 !-----------------------------------------------------------------------------------------------------------------------------------
-!  IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
-!    IF (.NOT.TriaTracking) THEN
-!      SELECT CASE(SideType(SideID))
-!      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-!        n_loc=SideNormVec(1:3,SideID)
-!      CASE(BILINEAR)
-!        CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-!      CASE(CURVED)
-!        CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-!      END SELECT
-!      IF(flip.NE.0) n_loc=-n_loc
-!      IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
-!    END IF
-!  END IF
   IF(CalcPartBalance) THEN
       nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
       PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
@@ -405,14 +388,12 @@ SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample
-USE MOD_Particle_Mesh_Vars      ,ONLY: epsInCell
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues,PartLorentzType
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
-USE MOD_Particle_Surfaces_vars  ,ONLY: SideNormVec,SideType,epsilontol
 USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC,RadialWeighting,PartStateIntEn
 USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
@@ -452,7 +433,6 @@ REAL                                 :: v_old(1:3),WallVelo(3)
 !REAL,PARAMETER                       :: oneMinus=0.99999999
 !REAL                                 :: oneMinus!=0.99999999
 REAL                                 :: LorentzFac, LorentzFacInv
-REAL                                 :: epsLength
 REAL                                 :: Xitild,EtaTild
 INTEGER                              :: p,q, SurfSideID, locBCID
 LOGICAL                              :: Symmetry, IsAuxBC
@@ -469,8 +449,6 @@ END IF
 IF (IsAuxBC) THEN
   WallVelo=PartAuxBC%WallVelo(1:3,AuxBCIdx)
 ELSE
-  !OneMinus=1.0-MAX(epsInCell,epsilontol)
-  epsLength=MAX(epsInCell,epsilontol)*lengthPartTrajectory
   WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
   locBCID=PartBound%MapToPartBC(BC(SideID))
 
@@ -534,7 +512,7 @@ IF (.NOT.IsAuxBC) THEN
       SurfSideID=SurfMesh%SideIDToSurfID(SideID)
       ! compute p and q
       ! correction of xi and eta, can only be applied if xi & eta are not used later!
-      IF (TriaTracking) THEN
+      IF (TrackingMethod.EQ.TRIATRACKING) THEN
         p=1 ; q=1
       ELSE
         Xitild =MIN(MAX(-1.,xi ),0.99)
@@ -663,14 +641,14 @@ END SUBROUTINE PerfectReflection
 SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,n_loc,IsSpeciesSwap,AuxBCIdx)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the diffuse reflection in 3D
-! only implemented for DoRefMapping tracking
+! only implemented for RefMapping tracking
 ! PartBCs are reduced!
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                 ,ONLY: abort, OrthoNormVec
 USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
-USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking, TrackInfo
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact
@@ -680,8 +658,7 @@ USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric, VarTimeStep
 #if defined(LSERK) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
-USE MOD_Particle_Surfaces_vars  ,ONLY: SideNormVec,SideType,BezierControlPoints3D
-USE MOD_Mesh_Vars               ,ONLY: BC,NGEO
+USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC,CollisMode
 USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn,DSMC, useDSMC, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar
@@ -842,7 +819,7 @@ IF (.NOT.IsAuxBC) THEN
     SurfSideID=SurfMesh%SideIDToSurfID(SideID)
     ! compute p and q
     ! correction of xi and eta, can only be applied if xi & eta are not used later!
-    IF (TriaTracking) THEN
+    IF (TrackingMethod.EQ.TRIATRACKING) THEN
       p=1 ; q=1
     ELSE
       Xitild =MIN(MAX(-1.,xi ),0.99)
@@ -1103,7 +1080,7 @@ SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,n_Loc,PartID,SideID,IsSpecies
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                 ,ONLY: abort,VECNORM
-USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SampWall,dXiEQ_SurfSample,SurfMesh,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,PDM,VarTimeStep
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
@@ -1114,7 +1091,6 @@ USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC, RadialWeighting
 USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd,Time
-USE MOD_Particle_Surfaces_vars  ,ONLY: SideNormVec,SideType
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact
 USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn
@@ -1201,7 +1177,7 @@ ELSE
         SurfSideID=SurfMesh%SideIDToSurfID(SideID)
         ! compute p and q
         ! correction of xi and eta, can only be applied if xi & eta are not used later!
-        IF (TriaTracking) THEN
+        IF (TrackingMethod.EQ.TRIATRACKING) THEN
           p=1 ; q=1
         ELSE
           Xitild =MIN(MAX(-1.,xi ),0.99)
@@ -1254,7 +1230,7 @@ ELSE
       ! sample values of deleted species
       IF (DoSample) THEN
         SurfSideID=SurfMesh%SideIDToSurfID(SideID)
-        IF (TriaTracking) THEN
+        IF (TrackingMethod.EQ.TRIATRACKING) THEN
           p=1 ; q=1
         ELSE
           Xitild =MIN(MAX(-1.,xi ),0.99)
@@ -1309,20 +1285,19 @@ SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,Si
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking,DoRefMapping
-USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,GEO,SidePeriodicType
-USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PEM
-USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
-USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,SidePeriodicType
+USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,PEM
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
 #if defined(IMPA)
-USE MOD_TimeDisc_Vars,          ONLY:ESDIRK_a,ERK_a
+USE MOD_TimeDisc_Vars          ,ONLY: ESDIRK_a,ERK_a
 #endif /*IMPA */
 #if defined(ROS)
-USE MOD_TimeDisc_Vars,          ONLY:RK_A
+USE MOD_TimeDisc_Vars          ,ONLY: RK_A
 #endif /*ROS */
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
+USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1336,12 +1311,8 @@ INTEGER,INTENT(IN)                :: PartID, SideID!,ElemID
 INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: epsLength
 INTEGER                              :: PVID,moved(2),locSideID
 !===================================================================================================================================
-
-!OneMinus=1.0-MAX(epsInCell,epsilontol)
-epsLength=MAX(epsInCell,epsilontol)*lengthPartTrajectory
 
 PVID = SidePeriodicType(SideID)
 
@@ -1391,10 +1362,7 @@ __STAMP__&
 ,' Halo region to small. Neighbor element is missing!')
 END IF
 #endif /*USE_MPI*/
-!ElemID   =PEM%Element(PartID)
-IF (DoRefMapping) PEM%LastElement(PartID) = 0
-
-IF (DoRefMapping) PEM%LastElement(PartID) = 0
+IF (TrackingMethod.EQ.REFMAPPING) PEM%LastElement(PartID) = 0
 
 IF(1.EQ.2)THEN
   alpha=0.2
@@ -1403,29 +1371,25 @@ END IF
 END SUBROUTINE PeriodicBC
 
 
-SUBROUTINE SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,n_loc,locSideID,ElemID,IsSpeciesSwap)
+SUBROUTINE SideAnalysis(PartTrajectory,alpha,xi,eta,PartID,SideID,locSideID,ElemID,IsSpeciesSwap)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Analyze particle crossing (inner) side
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound,CalcSurfCollis,AnalyzeSurfCollis
-USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
-USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,WriteMacroSurfaceValues
-USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
-USE MOD_Mesh_Vars,              ONLY:BC
-USE MOD_DSMC_Vars,              ONLY:DSMC
-USE MOD_TImeDisc_Vars,          ONLY:tend,time
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,CalcSurfCollis,AnalyzeSurfCollis
+USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,nSpecies,PartSpecies,WriteMacroSurfaceValues
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_DSMC_Vars              ,ONLY: DSMC
+USE MOD_TImeDisc_Vars          ,ONLY: tend,time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
+REAL,INTENT(INOUT)                :: PartTrajectory(1:3), alpha
 REAL,INTENT(IN)                   :: xi, eta
-REAL,INTENT(IN)                   :: n_loc(1:3)
 INTEGER,INTENT(IN)                :: PartID, SideID,locSideID
 LOGICAL,INTENT(IN)                :: IsSpeciesSwap
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1434,12 +1398,10 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: WallVelo(3)
-REAL                                 :: epsLength
 INTEGER                              :: locBCID
 INTEGER                              :: moved(2)
 !===================================================================================================================================
 
-epsLength=MAX(epsInCell,epsilontol)*lengthPartTrajectory
 WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
 locBCID=PartBound%MapToPartBC(BC(SideID))
 
@@ -1499,8 +1461,8 @@ FUNCTION PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
 ! particle moves through face and switches element
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElemAndSide
-USE MOD_Mesh_Vars,              ONLY:MortarType
+USE MOD_Particle_Mesh_Vars ,ONLY: PartElemToElemAndSide
+USE MOD_Mesh_Vars          ,ONLY: MortarType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1568,27 +1530,25 @@ END SELECT
 END FUNCTION PARTSWITCHELEMENT
 
 
-SUBROUTINE SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,lengthPartTrajectory)
+SUBROUTINE SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
 !===================================================================================================================================
 ! Treatment of particles at the boundary if adaptive surface BCs or circular inflows based on the surface flux are present
 ! Circular Inflow: Particles are deleted if within (allows multiple surface flux inflows defined by circles on a single boundary)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars          ,ONLY: PDM, Species, LastPartPos, PartSpecies
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
-USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType,epsilontol
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                  :: iPart, SideID
-REAL,INTENT(IN)                     :: PartTrajectory(1:3),lengthPartTrajectory
+REAL,INTENT(IN)                     :: PartTrajectory(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)                  :: alpha

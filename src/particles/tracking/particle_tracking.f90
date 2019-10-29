@@ -1715,20 +1715,20 @@ RECURSIVE SUBROUTINE ParticleBCTracking(lengthPartTrajectory0 &
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars,               ONLY:PEM,PDM
-USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
-USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
-USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,GEO,ElemRadiusNGeo
-USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
-USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
-USE MOD_Particle_Tracking_Vars,      ONLY:CartesianPeriodic
+USE MOD_Particle_Vars               ,ONLY: PEM,PDM
+USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
+USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
+USE MOD_Particle_Mesh_Vars          ,ONLY: PartBCSideList
+USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
+USE MOD_Particle_Mesh_Vars          ,ONLY: BCElem,GEO,ElemRadiusNGeo
+USE MOD_Utils                       ,ONLY: BubbleSortID,InsertionSort
+USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
+USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
+USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
+USE MOD_Particle_Intersection       ,ONLY: ComputeBiLinearIntersection
+USE MOD_Particle_Tracking_Vars      ,ONLY: CartesianPeriodic
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Tracking_Vars,      ONLY:PartOut,MPIRankOut
+USE MOD_Particle_Tracking_Vars      ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1900,7 +1900,6 @@ DO WHILE(DoTracing)
         hitlocSide=locSideList(ilocSide)
         SideID=BCElem(ElemID)%BCSideID(hitlocSide)
         flip  =0 !PartElemToSide(E2S_FLIP,hitlocSide,ElemID) !wrong for inner sides!!!
-        BCSideID=PartBCSideList(SideID)
         OldElemID=ElemID
         CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                           ,xi(hitlocSide)     &
@@ -1954,13 +1953,13 @@ SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Tracking_Vars,      ONLY:TriaTracking,TrackInfo
-USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec
-USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction,PARTSWITCHELEMENT
-USE MOD_Particle_Intersection,       ONLY:IntersectionWithWall
-USE MOD_Particle_Vars,               ONLY:PDM
-USE MOD_Particle_Surfaces,           ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Mesh_Vars,                   ONLY:BC
+USE MOD_Particle_Tracking_Vars      ,ONLY: TrackInfo
+USE MOD_Particle_Surfaces_Vars      ,ONLY: SideNormVec
+USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction,PARTSWITCHELEMENT
+USE MOD_Particle_Intersection       ,ONLY: IntersectionWithWall
+USE MOD_Particle_Vars               ,ONLY: PDM
+USE MOD_Particle_Surfaces           ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Mesh_Vars                   ,ONLY: BC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES

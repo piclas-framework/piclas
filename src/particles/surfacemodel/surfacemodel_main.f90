@@ -292,14 +292,13 @@ USE MOD_Particle_Vars           ,ONLY: PartState,Species,PartSpecies
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars           ,ONLY: LastPartPos, PEM
 USE MOD_Particle_Analyze        ,ONLY: RemoveParticle
-USE MOD_Mesh_Vars               ,ONLY: BC,NGeo
+USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC
 USE MOD_Particle_Boundary_Tools ,ONLY: SurfaceToPartEnergyInternal, CalcWallSample, AnalyzeSurfaceCollisions
 USE MOD_Particle_Boundary_Tools ,ONLY: AddPartInfoToSample
 USE MOD_Part_Tools              ,ONLY: TSURUTACONDENSCOEFF
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall, CalcSurfaceImpact
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time, dt, RKdtFrac
-USE MOD_Particle_Surfaces_vars  ,ONLY: SideNormVec,SideType,BezierControlPoints3D
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_SurfaceModel_Vars       ,ONLY: Adsorption, ModelERSpecular, SurfModel
 USE MOD_SMCR                    ,ONLY: SMCR_PartAdsorb
