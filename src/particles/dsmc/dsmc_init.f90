@@ -232,7 +232,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Tref'  &
                                            , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-dref' &
                                            ,'collision parameter: species-specific reference diameter for VHS/VSS model.'&
-                                           , '0', numberedmulti=.TRUE.)
+                                           , '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-omega'  &
                                            ,'collision parameter: species-specific temperature exponent omega = 2 / (eta - 1)'//&
                                             ' for VHS/VSS model.\nCAUTION: omega = omega_bird1994 - 0.5'&

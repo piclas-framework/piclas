@@ -179,10 +179,11 @@ DO iElem = 1, nElems ! element/cell main loop
             ! Calculation of the mean free path
             IF (ConsiderVolumePortions) THEN
               DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum)&
-                          ,GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem)),SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+                          ,GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem)),CollInf%omegaLaux(1,1),&
+                          DSMC%InstantTransTemp(nSpecies+1))
             ELSE
               DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),GEO%Volume(iElem), &
-                                                    SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+                                                    CollInf%omegaLaux(1,1),DSMC%InstantTransTemp(nSpecies+1))
             END IF
             ! Determination of the MCS/MFP for the case without octree
             IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
