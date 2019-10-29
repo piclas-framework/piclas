@@ -53,6 +53,7 @@ USE MOD_PICInterpolation_Vars ,ONLY: BGField_xGP,BGField_wGP,BGField_wBary,BGDat
 USE MOD_Interpolation_Vars    ,ONLY: NodeType
 USE MOD_ReadInTools           ,ONLY: PrintOption
 USE MOD_SuperB                ,ONLY: SuperB
+USE MOD_SuperB_Init           ,ONLY: InitializeSuperB
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -75,9 +76,13 @@ INTEGER(HSIZE_T), DIMENSION(7)          :: Dims,DimsMax
 SWRITE(UNIT_stdOut,'(132("~"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT BackGround-Field'
 
+! Check whether the background field is to be calculated or directly supplied in a .h5 file
 IF (CalcBField) THEN
+  ! Calculate the background B-field via SuperB
+  CALL InitializeSuperB()
   CALL SuperB()
 ELSE
+  ! Load background field from file
   BGFileName = GETSTR('PIC-BGFileName','none')
   IF(TRIM(BGFileName).EQ.'none')THEN
     CALL abort(&
@@ -226,6 +231,7 @@ SWRITE(UNIT_stdOut,'(A)')' INIT BackGround-Field done.'
 
 END SUBROUTINE InitializeBackgroundField
 
+
 SUBROUTINE FinalizeBackgroundField
 !===================================================================================================================================
 ! deallocate used memory
@@ -242,12 +248,10 @@ USE MOD_PICInterpolation_Vars,  ONLY:BGField_xGP,BGField_wGP,BGField_wBary,BGFie
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-
 SDEALLOCATE( BGField)
 SDEALLOCATE( BGField_xGP)
 SDEALLOCATE( BGField_wGP)
 SDEALLOCATE( BGField_wBary)
-
 END SUBROUTINE FinalizeBackGroundField
 
 END MODULE

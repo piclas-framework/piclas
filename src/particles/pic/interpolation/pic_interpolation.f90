@@ -70,30 +70,30 @@ CHARACTER(LEN=20)         :: tempStr
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
 
 InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
-InterpolationElemLoop = GETLOGICAL('PIC-InterpolationElemLoop','.TRUE.')
+InterpolationElemLoop = GETLOGICAL('PIC-InterpolationElemLoop')
 IF (InterpolationElemLoop) THEN !If user-defined F: F for all procs
   IF (PP_nElems.GT.10) THEN !so far arbitrary threshold...
     InterpolationElemLoop=.FALSE. !switch off for procs with high number of Elems
   END IF
 END IF
-externalField(1:6)= GETREALARRAY('PIC-externalField',6,'0.,0.,0.,0.,0.,0.')
-scaleexternalField= GETREAL('PIC-scaleexternalField','1.0')
-externalField=externalField*ScaleExternalField
-!SWRITE(*,*) " External fied", externalfield
-DoInterpolation   = GETLOGICAL('PIC-DoInterpolation','.TRUE.')
-useBGField        = GETLOGICAL('PIC-BG-Field','.FALSE.')
+externalField(1:6) = GETREALARRAY('PIC-externalField',6)
+scaleexternalField = GETREAL('PIC-scaleexternalField')
+externalField      = externalField*ScaleExternalField
+
+DoInterpolation    = GETLOGICAL('PIC-DoInterpolation')
+useBGField         = GETLOGICAL('PIC-BG-Field')
 
 IF (useBGField) THEN
-  calcBField = GETLOGICAL('PIC-CalcBField','.FALSE.')
+  CalcBField = GETLOGICAL('PIC-CalcBField')
 ELSE
-  calcBField = .FALSE.
+  CalcBField = .FALSE.
 END IF
 
 ! Variable external field
 useVariableExternalField = .FALSE.
-FileNameVariableExternalField=GETSTR('PIC-curvedexternalField','none')     ! old variable name (for backward compatibility)
+FileNameVariableExternalField=GETSTR('PIC-curvedexternalField')     ! old variable name (for backward compatibility)
 IF (FileNameVariableExternalField.EQ.'none') THEN                          ! if not supplied, check the new variable name
-  FileNameVariableExternalField=GETSTR('PIC-variableexternalField','none') ! new variable name (overwrites the old)
+  FileNameVariableExternalField=GETSTR('PIC-variableexternalField') ! new variable name (overwrites the old)
 END IF
 IF (FileNameVariableExternalField.NE.'none') THEN ! if supplied, read the data file
   useVariableExternalField = .TRUE.
@@ -101,13 +101,13 @@ IF (FileNameVariableExternalField.NE.'none') THEN ! if supplied, read the data f
 END IF
 
 #ifdef CODE_ANALYZE
-DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic','.FALSE.')
+DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
 IF(DoInterpolationAnalytic)THEN
-  AnalyticInterpolationType = GETINT('PIC-AnalyticInterpolation-Type','0')
+  AnalyticInterpolationType = GETINT('PIC-AnalyticInterpolation-Type')
   SELECT CASE(AnalyticInterpolationType)
   CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
-    AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType','0')
-    AnalyticInterpolationP       = GETREAL('PIC-AnalyticInterpolationP','1.0')
+    AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
+    AnalyticInterpolationP       = GETREAL('PIC-AnalyticInterpolationP')
   CASE DEFAULT
     WRITE(TempStr,'(I5)') AnalyticInterpolationType
     CALL abort(&
@@ -182,7 +182,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
 #endif /* CODE_ANALYZE */
-USE MOD_PICInterpolation_Vars     ,ONLY: calcBField,BGField
+USE MOD_PICInterpolation_Vars     ,ONLY: CalcBField,BGField
 USE MOD_SuperB_Vars               ,ONLY: TimeDepCoil, nTimePoints, BGFieldTDep
 USE MOD_TimeDisc_Vars             ,ONLY: Time, TEnd
 USE MOD_HDF5_Output_Tools         ,ONLY: WriteBFieldToHDF5
@@ -208,7 +208,7 @@ REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
 LOGICAL                          :: NotMappedSurfFluxParts
 !===================================================================================================================================
 
-! Calculate the timestep of the discretisation of the Current
+! Calculate the time step of the discretization of the Current
 IF (CalcBField) THEN
   IF (ANY(TimeDepCoil)) THEN
     timestep = tEnd / (nTimePoints - 1)

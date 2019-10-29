@@ -56,10 +56,10 @@ REAL                          :: timestep
 !===================================================================================================================================
 
 ! Allocate and nullify the B-Field and the magnetic potential
-ALLOCATE(BGField(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems))
-ALLOCATE(BFieldPermMag(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems))
-ALLOCATE(PsiMag(0:PP_N,0:PP_N,0:PP_N,1:nElems))
-ALLOCATE(MagnetFlag(0:PP_N,0:PP_N,0:PP_N,1:nElems))
+ALLOCATE(BGField(1:3       , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
+ALLOCATE(BFieldPermMag(1:3 , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
+ALLOCATE(PsiMag(0:PP_N     , 0:PP_N , 0:PP_N , 1:nElems))
+ALLOCATE(MagnetFlag(0:PP_N , 0:PP_N , 0:PP_N , 1:nElems))
 PsiMag = 0
 BGField = 0
 MagnetFlag = 0
