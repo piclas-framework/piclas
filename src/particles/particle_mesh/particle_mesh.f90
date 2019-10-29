@@ -129,11 +129,11 @@ CALL prms%SetSection('Tracking')
   !,'.FALSE.')
 
 CALL prms%CreateIntFromStringOption('TrackingMethod', "Define Method that is used for tracking of particles:\n"//&
-                                                      " refmapping (1)  : reference mapping of particle position "//&
+                                                      "refmapping (1): reference mapping of particle position"//&
                                                       " with (bi-)linear and bezier (curved) description of sides.\n"//&
-                                                      " tracing (2)     : tracing of particle path "//&
-                                                      "with (bi-)linear and bezier (curved) description of sides\.n"//&
-                                                      " triatracking (3): tracing of particle path "//&
+                                                      "tracing (2): tracing of particle path "//&
+                                                      "with (bi-)linear and bezier (curved) description of sides.\n"//&
+                                                      "triatracking (3): tracing of particle path "//&
                                                       "with triangle-aproximation of (bi-)linear sides.\n", &
                                                       "triatracking")
 CALL addStrListEntry('TrackingMethod' , 'refmapping'      , REFMAPPING)
