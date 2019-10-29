@@ -215,5 +215,5 @@
 
 ! Tracking method
 #define REFMAPPING    1
-#define TRIATRACKING  2
-#define TRACING       3
+#define TRACING       2
+#define TRIATRACKING  3
