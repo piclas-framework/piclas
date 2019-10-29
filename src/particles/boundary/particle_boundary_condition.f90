@@ -113,7 +113,7 @@ CASE(REFMAPPING,TRACING)
     BCSideID=SideID
   END IF
 
-  SELECT CASE(SideType(SideID))
+  SELECT CASE(SideType(BCSideID))
   CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
     n_loc=SideNormVec(1:3,BCSideID)
   CASE(BILINEAR)
@@ -1302,7 +1302,7 @@ END IF !IsAuxBC
 END SUBROUTINE SpeciesSwap
 
 
-SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,ElemID,opt_perimoved)
+SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,ElemID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the perfect reflection in 3D
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1333,7 +1333,6 @@ REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, SideID!,ElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-LOGICAL,INTENT(OUT),OPTIONAL      :: opt_perimoved
 INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
