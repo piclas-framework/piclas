@@ -121,11 +121,8 @@ CASE(REFMAPPING,TRACING)
   ! Inserted particles are "pushed" inside the domain and registered as passing through the BC side. If they are very close to the
   ! boundary (first if) than the normal vector is compared with the trajectory. If the particle is entering the domain from outside
   ! it was inserted during surface flux and this routine shall not performed.
-  IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN
-  ! Comparing the normal vector with the particle trajectory, if the dot product is less/equal zero, the particle trajectory is
-  ! pointing inside the domain
-    IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
-  END IF
+  ! Comparing the normal vector with the particle trajectory, if the particle trajectory is pointing inside the domain
+  IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
 CASE(TRIATRACKING)
   CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=BCSideID)
 END SELECT
