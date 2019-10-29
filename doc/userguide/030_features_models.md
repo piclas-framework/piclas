@@ -750,6 +750,41 @@ $$w < \frac{1}{\left(\sqrt{2}\pi d_\mathrm{ref}^2 n^{2/3}\right)^3},$$
 
 where $d_\mathrm{ref}$ is the reference diameter and $n$ the number density. Here, the largest number density within the simulation domain should be used as the worst-case. For supersonic/hypersonic flows, the conditions behind a normal shock can be utilized as a first guess. For a thruster/nozzle expansion simulation, the chamber or throat conditions are the limiting factor.
 
+## Background Gas
+
+A constant background gas can be utilized to enable efficient particle collisions between the background gas and other particle species (represented by actual simulation particles). The assumption is that the density of the background gas $n_\mathrm{gas}$ is much greater than the density of the particle species, e.g. the charged species in a plasma, $n_\mathrm{charged}$
+
+$$ n_\mathrm{gas} >> n_\mathrm{charged}.$$
+
+Under this assumption, collisions within the particle species can be neglected and collisions between the background gas and particle species do not change the conditions of the background gas. It can be activated by defining the species (as defined in Section \ref{sec:dsmc_species}) that should act as the background gas and the number density in m$^{-3}$.
+
+    Particles-DSMCBackgroundGas        = 1
+    Particles-DSMCBackgroundGasDensity = 9.64E+21
+
+Other species parameters such as mass, charge, temperature and velocity distribution for the background are defined by the regular read-in parameters
+
+    Part-Species1-SpaceIC              = cuboid
+    Part-Species1-velocityDistribution = maxwell_lpn
+    Part-Species1-MWTemperatureIC      = 300.0
+    Part-Species1-ChargeIC             = 0
+    Part-Species1-MassIC               = 6.6464764E-27
+    Part-Species1-TempElec             = 300.0
+
+Every time step, particles are generated from the background species and paired with the particle species. Consequently, the collision probabilities are calculated using the conventional DSMC routines and the VHS cross-section model. Aftwards, the collilsion process is performed (if the probability is greater than a random number) and it is tested whether additional energy exchange and chemical reactions occur. While the VHS model is sufficient to model collisions between neutral species, it cannot reproduce the phenomena of a neutral-electron interaction. For this purpose, the cross-section based collision probabilities should be utilized, which are discussed in the following.
+
+### Cross-section based collision probability
+
+For modelling of particle collisions with the Particle-in-Cell method, often the Monte Carlo Collision (MCC) algorithm is utilized. Here, experimentally measured or ab-initio calculated cross-sections are typically utilized to determine the collision probability. In PICLas, the null collision method after [@Birdsall1991],[@Vahedi1995] is implemented, where the number of collision pairs is determined based a maximum collision frequency. Thus, the computational effort is reduced as not every particle has to be checked for a collision, such as in the previously described DSMC-based background gas. To activate the MCC procedure, the collision cross-sections have to be supplied via read-in from a database
+
+    Particles-CollXSec-Database = MCC_Database.h5
+
+An example database, containing the effective collision cross-sections of Argon-electron and Helium-electron, is provided in the tools folder: `piclas/tools/crosssection_database`. Details on how to create an own database with custom cross-section data is given in Section \ref{sec:tools_mcc}. Finally, the input which species should be treated with the MCC model is required
+
+    Part-Species2-SpeciesName = electron
+    Part-Species2-UseCollXSec = T
+
+The read-in of the cross-section data is based on the provided species name and the species name of the background gas (e.g. if the background species name is Ar, the code will look for a container named `Ar-electron` in the MCC database). Finally, the cross-section based collision modelling (e.g. for neutral-charged collisions) and the VHS model (e.g. for neutral-neutral collisions) can be utilized within a simulation for different species.
+
 ## Modelling of Continuum Gas Flows
 
 Two methods are currently implemented to allow the simulation of gas flows in the continuum and transitional regime, where the DSMC method is computationally too expensive. The Fokker–Planck- and Bhatnagar-Gross-Krook-based approximation of the collision integral are compared in detail in paper to be published in Physics of Fluids. It is recommended to utilize a previous DSMC parameter file to ensure a complete simulation setup.

@@ -41,7 +41,6 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting, SpecMCC, UseMCC
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
   USE MOD_DSMC_Vars,              ONLY : ConsiderVolumePortions
   USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, PartState, VarTimeStep
@@ -126,21 +125,14 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
     CASE(2,3,4,5,11,12,21,22,20,30,40,6,14,24)
     ! Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic (non-CEX/MEX) Ion, Molecule-Atomic Ion, Atom-Molecular Ion, Molecule-Molecular Ion
     ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron
-      IF(UseMCC) THEN
-        IF(SpecMCC(iSpec_p1)%UseCollXSec) THEN
-          VeloSquare = DOT_PRODUCT(PartState(iPart_p1,4:6),PartState(iPart_p1,4:6))
-          CollEnergy = 0.5 * Species(iSpec_p1)%MassIC * VeloSquare
-          Coll_pData(iPair)%Prob = SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity &
-                                    / SpecMCC(iSpec_p1)%MaxCollFreq
-        ELSE
-          Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
-                  * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
-                  * Species(iSpec_p1)%MacroParticleFactor                  &
-                          ! weighting Fact, here only one MPF is used!!!
-                  * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(iSpec_p1)%omegaVHS) &
-                          ! relative velo to the power of (1 -2omega) !! only one omega is used!!
-                  * dtCell / Volume
-        END IF
+      IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
+        ! Using the kinetic energy of the particle (as is described in Vahedi1995 and Birdsall1991)
+        VeloSquare = DOT_PRODUCT(PartState(iPart_p1,4:6),PartState(iPart_p1,4:6))
+        CollEnergy = 0.5 * Species(iSpec_p1)%MassIC * VeloSquare
+        ! Determining whether a real collision or a "null" collisions happens by comparing the current cross-section with the
+        ! maximal collision cross section
+        Coll_pData(iPair)%Prob = SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity &
+                                  / SpecDSMC(iSpec_p1)%MaxCollFreq
       ELSE
         IF (BGGas%BGGasSpecies.NE.0) THEN
           Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
@@ -236,13 +228,9 @@ __STAMP__&
 ,'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
   END IF
   IF(DSMC%CalcQualityFactors) THEN
-    IF(UseMCC) THEN
-      IF(SpecMCC(iSpec_p1)%UseCollXSec) THEN
-        ! Calculate the collision probability for cross section case
-        CollProb = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
-      ELSE
-        CollProb = Coll_pData(iPair)%Prob
-      END IF
+    IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
+      ! Calculate the collision probability for cross section case
+      CollProb = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
     ELSE
       CollProb = Coll_pData(iPair)%Prob
     END IF
@@ -256,13 +244,9 @@ __STAMP__&
     DO iSpec=1, nSpecies
       iReac=ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2),iSpec)
       IF (iReac.NE.0) THEN
-        IF(UseMCC) THEN
-          IF(SpecMCC(iSpec_p1)%UseCollXSec) THEN
-            ! Calculate the collision probability for cross section case
-            CollProb = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
-          ELSE
-            CollProb = Coll_pData(iPair)%Prob
-          END IF
+        IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
+          ! Calculate the collision probability for cross section case
+          CollProb = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
         ELSE
           CollProb = Coll_pData(iPair)%Prob
         END IF

@@ -414,9 +414,6 @@ SWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
 ! Initialize counter (Count the number of ReactionProb>1)
 ReactionProbGTUnityCounter = 0
 
-! DSMC skip for coupled PIC-DSMC simulations
-DSMC_IterSkip = GETINT('Particles-DSMC-IterationSkip','1')
-
 ! reading/writing OutputMesh stuff
 DSMC%OutputMeshInit = GETLOGICAL('Particles-DSMC-OutputMeshInit','.FALSE.')
 DSMC%OutputMeshSamp = GETLOGICAL('Particles-DSMC-OutputMeshSamp','.FALSE.')
@@ -649,13 +646,19 @@ ELSE !CollisMode.GT.0
       !the omega should be the same for both in vhs!!!
     END DO
   END DO
-
-!-----------------------------------------------------------------------------------------------------------------------------------
-! reading BG Gas stuff (required for the temperature definition in iInit=0)
-!-----------------------------------------------------------------------------------------------------------------------------------
-
-  CALL MCC_Init()
-
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! Collision cross-sections (required for MCC treatment of particles)
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  DO iSpec = 1, nSpecies
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
+  END DO
+  IF(ANY(SpecDSMC(:)%UseCollXSec)) THEN
+    UseMCC = .TRUE.
+    CALL MCC_Init()
+  ELSE
+    UseMCC = .FALSE.
+  END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! reading/writing molecular stuff
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1859,7 +1862,6 @@ SDEALLOCATE(BGGas%PairingPartner)
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
-SDEALLOCATE(SpecMCC)
 END SUBROUTINE FinalizeDSMC
 
 

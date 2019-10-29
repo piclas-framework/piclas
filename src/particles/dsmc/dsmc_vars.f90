@@ -170,6 +170,15 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
   INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
 !                                                           ! ionization)
+  ! Collision cross-sections for MCC
+  LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
+                                                            ! treated with read-in collision cross-section (currently only with BGG)
+  REAL,ALLOCATABLE                  :: CollXSec(:,:)        ! Collision cross-section as read-in from the database
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: Cross-section at the respective energy level [m^2]
+  REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
+                                                            ! null collision method of MCC
+  REAL                              :: MaxCollFreq          ! Maximal collision frequency at certain energy level and cross-section
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
@@ -274,6 +283,10 @@ TYPE tBGGas
 END TYPE tBGGas
 
 TYPE(tBGGas)                        :: BGGas
+
+LOGICAL                             :: UseMCC
+CHARACTER(LEN=256)                  :: MCC_Database
+INTEGER                             :: MCC_TotalPairNum
 
 TYPE tPairData
   REAL              :: CRela2                               ! squared relative velo of the particles in a pair
@@ -652,27 +665,6 @@ TYPE tOctreeVdm
 END TYPE
 
 TYPE (tOctreeVdm), POINTER                  :: OctreeVdm => null()
-
-LOGICAL                                     :: UseMCC
-
-TYPE tMCC
-  CHARACTER(LEN=256)                        :: Database
-  INTEGER                                   :: TotalPairNum
-END TYPE tMCC
-
-TYPE(tMCC)                                  :: MCC
-
-TYPE tSpecMCC
-  REAL,ALLOCATABLE                          :: CollXSec(:,:)                       ! 1: Energy [eV]
-                                                                                   ! 2: Cross-section at energy level [m^2]
-  REAL                                      :: ProbNull                            ! 
-  LOGICAL                                   :: UseCollXSec
-  REAL                                      :: MaxCollFreq
-END TYPE tSpecMCC
-
-TYPE(tSpecMCC),ALLOCATABLE                  :: SpecMCC(:)
-
-INTEGER                                     :: DSMC_IterSkip
 
 !===================================================================================================================================
 END MODULE MOD_DSMC_Vars

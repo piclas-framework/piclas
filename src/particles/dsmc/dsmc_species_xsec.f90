@@ -28,7 +28,7 @@ INTERFACE XSec_Argon_DravinLotz
   MODULE PROCEDURE XSec_Argon_DravinLotz
 END INTERFACE
 
-PUBLIC :: MCC_Init, InterpolateCrossSection
+PUBLIC :: InterpolateCrossSection
 PUBLIC :: XSec_Argon_DravinLotz
 !===================================================================================================================================
 
@@ -36,14 +36,15 @@ CONTAINS
 
 SUBROUTINE MCC_Init()
 !===================================================================================================================================
-!>
+!> Initialization of the MCC algorithm: Read-in of the collision cross-section database and calculation of the maximal collision
+!> frequency for the null collision method.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_PARTICLE_Vars         ,ONLY: nSpecies
-USE MOD_DSMC_Vars             ,ONLY: MCC, BGGas, SpecDSMC, SpecMCC, UseMCC
+USE MOD_DSMC_Vars             ,ONLY: BGGas, SpecDSMC, MCC_Database
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -52,24 +53,12 @@ CHARACTER(64) :: hilf
 INTEGER       :: iSpec
 !===================================================================================================================================
 
-MCC%Database = TRIM(GETSTR('Particles-CollXSec-Database'))
+MCC_Database = TRIM(GETSTR('Particles-CollXSec-Database'))
 
-IF(TRIM(MCC%Database).EQ.'none') THEN
-  UseMCC = .FALSE.
-  RETURN
-ELSE
-  UseMCC = .TRUE.
-END IF
-
-ALLOCATE(SpecMCC(nSpecies))
-DO iSpec = 1, nSpecies
-  WRITE(UNIT=hilf,FMT='(I0)') iSpec
-  SpecMCC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
-END DO
-
-IF(.NOT.ANY(SpecMCC(:)%UseCollXSec)) THEN
-  UseMCC = .FALSE.
-  RETURN
+IF(TRIM(MCC_Database).EQ.'none') THEN
+  CALL abort(&
+  __STAMP__&
+  ,'ERROR: No database for the collision cross-section given!')
 END IF
 
 IF (BGGas%BGGasSpecies.EQ.0) THEN
@@ -80,12 +69,12 @@ END IF
 
 DO iSpec = 1,nSpecies
   IF(iSpec.NE.BGGas%BGGasSpecies) THEN
-    IF(SpecMCC(iSpec)%UseCollXSec) THEN
+    IF(SpecDSMC(iSpec)%UseCollXSec) THEN
       ! Read-in cross-section data for collisions of particles from the background gas and the current species
       hilf = TRIM(SpecDSMC(BGGas%BGGasSpecies)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
       CALL ReadCollXSec(iSpec, hilf)
       ! Store the energy value in J (read-in was in eV)
-      SpecMCC(iSpec)%CollXSec(1,:) = SpecMCC(iSpec)%CollXSec(1,:) * ElementaryCharge
+      SpecDSMC(iSpec)%CollXSec(1,:) = SpecDSMC(iSpec)%CollXSec(1,:) * ElementaryCharge
       ! Determine the maximum collision frequency for the null collision method
       CALL DetermineNullCollProb(iSpec)
     END IF
@@ -97,13 +86,13 @@ END SUBROUTINE MCC_Init
 
 SUBROUTINE ReadCollXSec(iSpec,dsetname)
 !===================================================================================================================================
-!>
+!> Read-in of collision cross-sections from a given database. Dataset name is composed of SpeciesName-SpeciesName (e.g. Ar-electron)
 !===================================================================================================================================
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
 USE MOD_Globals_Vars,         ONLY: BoltzmannConst
-USE MOD_DSMC_Vars,            ONLY: MCC, SpecMCC
+USE MOD_DSMC_Vars,            ONLY: MCC_Database, SpecDSMC
 USE MOD_HDF5_Input,           ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -122,18 +111,18 @@ INTEGER(HID_T)                                        :: dset_id_dsmc           
 INTEGER(HID_T)                                        :: filespace                          ! filespace identifier
 LOGICAL                                               :: DataSetFound
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(A)') 'Read collision cross section for '//TRIM(dsetname)//' from '//TRIM(MCC%Database)
+SWRITE(UNIT_StdOut,'(A)') 'Read collision cross section for '//TRIM(dsetname)//' from '//TRIM(MCC_Database)
 
 ! Initialize FORTRAN interface.
 CALL H5OPEN_F(err)
 ! Open the file.
-CALL H5FOPEN_F (TRIM(MCC%Database), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+CALL H5FOPEN_F (TRIM(MCC_Database), H5F_ACC_RDONLY_F, file_id_dsmc, err)
 CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
 
 IF(.NOT.DataSetFound) THEN
   CALL abort(&
   __STAMP__&
-  ,'DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(MCC%Database)//']')
+  ,'DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(MCC_Database)//']')
 END IF
 
 ! Open the  dataset.
@@ -143,9 +132,9 @@ CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
 ! get size
 CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
 
-ALLOCATE(SpecMCC(iSpec)%CollXSec(dims(1),dims(2)))
+ALLOCATE(SpecDSMC(iSpec)%CollXSec(dims(1),dims(2)))
 ! read data
-CALL H5dread_f(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecMCC(iSpec)%CollXSec, dims, err)
+CALL H5dread_f(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecDSMC(iSpec)%CollXSec, dims, err)
 
 ! Close the file.
 CALL H5FCLOSE_F(file_id_dsmc, err)
@@ -157,13 +146,13 @@ END SUBROUTINE ReadCollXSec
 
 SUBROUTINE DetermineNullCollProb(iSpec)
 !===================================================================================================================================
-!> 
+!> Routine for the MCC method: calculates the maximal collision frequency for a given species and the collision probability
 !===================================================================================================================================
 ! MODULES
 USE MOD_ReadInTools
 USE MOD_Globals_Vars          ,ONLY: Pi
 USE MOD_Particle_Vars         ,ONLY: Species, ManualTimeStep
-USE MOD_DSMC_Vars             ,ONLY: BGGas, SpecMCC, DSMC_IterSkip
+USE MOD_DSMC_Vars             ,ONLY: BGGas, SpecDSMC
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -174,17 +163,17 @@ INTEGER                       :: MaxDOF
 REAL,ALLOCATABLE              :: Velocity(:)
 !===================================================================================================================================
 
-MaxDOF = SIZE(SpecMCC(iSpec)%CollXSec,2)
+MaxDOF = SIZE(SpecDSMC(iSpec)%CollXSec,2)
 ALLOCATE(Velocity(MaxDOF))
 
 ! Determine the mean relative velocity at the given energy level
-Velocity(1:MaxDOF) = SQRT(2.) * SQRT(8.*SpecMCC(iSpec)%CollXSec(1,1:MaxDOF)/(Pi*Species(iSpec)%MassIC))
+Velocity(1:MaxDOF) = SQRT(2.) * SQRT(8.*SpecDSMC(iSpec)%CollXSec(1,1:MaxDOF)/(Pi*Species(iSpec)%MassIC))
 
 ! Calculate the maximal collision frequency
-SpecMCC(iSpec)%MaxCollFreq = MAXVAL(Velocity(1:MaxDOF) * SpecMCC(iSpec)%CollXSec(2,1:MaxDOF) * BGGas%BGGasDensity)
+SpecDSMC(iSpec)%MaxCollFreq = MAXVAL(Velocity(1:MaxDOF) * SpecDSMC(iSpec)%CollXSec(2,1:MaxDOF) * BGGas%BGGasDensity)
 
 ! Determine the collision probability
-SpecMCC(iSpec)%ProbNull = 1. - EXP(-SpecMCC(iSpec)%MaxCollFreq*ManualTimeStep*DSMC_IterSkip)
+SpecDSMC(iSpec)%ProbNull = 1. - EXP(-SpecDSMC(iSpec)%MaxCollFreq*ManualTimeStep)
 
 DEALLOCATE(Velocity)
 
@@ -198,7 +187,7 @@ PURE REAL FUNCTION InterpolateCrossSection(iSpec,CollisionEnergy)
 !> Note: Requires the data to be sorted by ascending energy values
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecMCC
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -210,25 +199,28 @@ INTEGER                       :: iDOF, MaxDOF
 !===================================================================================================================================
 
 InterpolateCrossSection = 0.
-MaxDOF = SIZE(SpecMCC(iSpec)%CollXSec,2)
+MaxDOF = SIZE(SpecDSMC(iSpec)%CollXSec,2)
 
-! If the collision energy is greater than the maximal value, get the cross-section of the last level and leave routine
-IF(CollisionEnergy.GT.SpecMCC(iSpec)%CollXSec(1,MaxDOF)) THEN 
-  InterpolateCrossSection = SpecMCC(iSpec)%CollXSec(2,MaxDOF)
+IF(CollisionEnergy.GT.SpecDSMC(iSpec)%CollXSec(1,MaxDOF)) THEN 
+  ! If the collision energy is greater than the maximal value, get the cross-section of the last level and leave routine
+  InterpolateCrossSection = SpecDSMC(iSpec)%CollXSec(2,MaxDOF)
+  ! Leave routine
+  RETURN
+ELSE IF(CollisionEnergy.LE.SpecDSMC(iSpec)%CollXSec(1,1)) THEN
+  ! If collision energy is below the minimal value, get the cross-section of the first level and leave routine
+  InterpolateCrossSection = SpecDSMC(iSpec)%CollXSec(2,1)
   ! Leave routine
   RETURN
 END IF
 
 DO iDOF = 1, MaxDOF
   ! Check if the stored energy value is above the collision energy
-  IF(SpecMCC(iSpec)%CollXSec(1,iDOF).GT.CollisionEnergy) THEN
-    ! If collision energy is below the available data, get the first cross-section value in the array
-    IF(iDOF.EQ.1) InterpolateCrossSection = SpecMCC(iSpec)%CollXSec(2,iDOF)
+  IF(SpecDSMC(iSpec)%CollXSec(1,iDOF).GT.CollisionEnergy) THEN
     ! Interpolate the cross-section from the data set using the current and the energy level below
-    InterpolateCrossSection = SpecMCC(iSpec)%CollXSec(2,iDOF-1) + (CollisionEnergy - SpecMCC(iSpec)%CollXSec(1,iDOF-1)) &
-                                                     / (SpecMCC(iSpec)%CollXSec(1,iDOF) - SpecMCC(iSpec)%CollXSec(1,iDOF-1)) &
-                                                     * (SpecMCC(iSpec)%CollXSec(2,iDOF) - SpecMCC(iSpec)%CollXSec(2,iDOF-1))
-    ! Leave routine and do not finish do loop
+    InterpolateCrossSection = SpecDSMC(iSpec)%CollXSec(2,iDOF-1) + (CollisionEnergy - SpecDSMC(iSpec)%CollXSec(1,iDOF-1)) &
+                                                     / (SpecDSMC(iSpec)%CollXSec(1,iDOF) - SpecDSMC(iSpec)%CollXSec(1,iDOF-1)) &
+                                                     * (SpecDSMC(iSpec)%CollXSec(2,iDOF) - SpecDSMC(iSpec)%CollXSec(2,iDOF-1))
+    ! Leave routine and do not finish DO loop
     RETURN
   END IF
 END DO
