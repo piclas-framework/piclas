@@ -103,52 +103,22 @@ REAL, ALLOCATABLE                 :: BGFieldTDep(:,:,:,:,:,:)      !< Time dep. 
 
 ! === Permanent Magnets
 
-! INPUT
-INTEGER :: NumOfCuboidMagnets
-INTEGER :: NumOfSphericMagnets
-INTEGER :: NumOfCylindricMagnets
-INTEGER :: NumOfConicMagnets
+INTEGER                 :: NumOfPermanentMagnets
 
-TYPE tCuboidMagnetInfo
-  REAL    :: BasePoint(3)
-  REAL    :: BaseVector1(3)
-  REAL    :: BaseVector2(3)
-  REAL    :: BaseVector3(3)
-  INTEGER :: NumNodes
-  REAL    :: Magnetisation(3)
-END TYPE tCuboidMagnetInfo
+TYPE tPermanentMagnetInfo
+  CHARACTER(LEN=30)     :: Type                       ! Cuboid, sphere, cylinder, conic
+  REAL                  :: BasePoint(3)
+  REAL                  :: BaseVector1(3)
+  REAL                  :: BaseVector2(3)
+  REAL                  :: BaseVector3(3)
+  INTEGER               :: NumNodes
+  REAL                  :: Magnetisation(3)
+  REAL                  :: Radius                     ! Sphere, cylinder, conic
+  REAL                  :: HeightVector(3)            ! Cylinder, conic
+  REAL                  :: Radius2                    ! Conic
+END TYPE tPermanentMagnetInfo
 
-TYPE(tCuboidMagnetInfo),ALLOCATABLE :: CuboidMagnetInfo(:)
-
-TYPE tSphericMagnetInfo
-  REAL    :: BasePoint(3)
-  REAL    :: Radius
-  INTEGER :: NumNodes
-  REAL    :: Magnetisation(3)
-END TYPE tSphericMagnetInfo
-
-TYPE(tSphericMagnetInfo),ALLOCATABLE :: SphericMagnetInfo(:)
-
-TYPE tCylindricMagnetInfo
-  REAL    :: BasePoint(3)
-  REAL    :: HeightVector(3)
-  REAL    :: Radius
-  INTEGER :: NumNodes
-  REAL    :: Magnetisation(3)
-END TYPE tCylindricMagnetInfo
-
-TYPE(tCylindricMagnetInfo),ALLOCATABLE :: CylindricMagnetInfo(:)
-
-TYPE tConicMagnetInfo
-  REAL    :: BasePoint(3)
-  REAL    :: HeightVector(3)
-  REAL    :: Radius1
-  REAL    :: Radius2
-  INTEGER :: NumNodes
-  REAL    :: Magnetisation(3)
-END TYPE tConicMagnetInfo
-
-TYPE(tConicMagnetInfo),ALLOCATABLE :: ConicMagnetInfo(:)
+TYPE(tPermanentMagnetInfo),ALLOCATABLE :: PermanentMagnetInfo(:)
 
 REAL, ALLOCATABLE                   :: PsiMag(:,:,:,:)
 INTEGER, ALLOCATABLE                :: MagnetFlag(:,:,:,:)

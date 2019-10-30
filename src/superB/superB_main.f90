@@ -82,48 +82,26 @@ IF(TRIM(InterpolationType).EQ.'particle_position') THEN
   BGField_wBary = wBary
 END IF
 
-IF(NumOfCuboidMagnets.GT.0) THEN
+IF(NumOfPermanentMagnets.GT.0) THEN
   SWRITE(UNIT_stdOut,'(132("-"))')
-  SWRITE(UNIT_stdOUT,'(A)') ' Calculation of the Magnetic Potential of Cuboid Magnets'
-  DO iMagnet=1,NumOfCuboidMagnets
+  SWRITE(UNIT_stdOUT,'(A)') ' Calculation of the Magnetic Potential of Permanent Magnets'
+  DO iMagnet=1,NumOfPermanentMagnets
     SWRITE(UNIT_stdOUT,'(A,I2)') ' Magnet: ', iMagnet
-    CALL CalculateCuboidMagneticPotential(iMagnet)
+    SELECT CASE(TRIM(PermanentMagnetInfo(iMagnet)%Type))
+    CASE('cuboid')
+      CALL CalculateCuboidMagneticPotential(iMagnet)
+    CASE('sphere')
+      CALL CalculateSphericMagneticPotential(iMagnet)
+    CASE('cylinder')
+      CALL CalculateCylindricMagneticPotential(iMagnet)
+    CASE('conic')
+      CALL CalculateConicMagneticPotential(iMagnet)
+    END SELECT
     SWRITE(UNIT_stdOUT,'(A,I2)') ' ... Done Magnet #', iMagnet
   ENDDO
 ENDIF
 
-IF(NumOfSphericMagnets.GT.0) THEN
-  SWRITE(UNIT_stdOut,'(132("-"))')
-  SWRITE(UNIT_stdOUT,'(A)') ' Calculation of the Magnetic Potential of Spheric Magnets'
-  DO iMagnet=1,NumOfSphericMagnets
-    SWRITE(UNIT_stdOUT,'(A,I2)') ' Magnet: ', iMagnet
-    CALL CalculateSphericMagneticPotential(iMagnet)
-    SWRITE(UNIT_stdOUT,'(A,I2)') ' ... Done Magnet #', iMagnet
-  ENDDO
-ENDIF
-
-IF(NumOfCylindricMagnets.GT.0) THEN
-  SWRITE(UNIT_stdOut,'(132("-"))')
-  SWRITE(UNIT_stdOUT,'(A)') ' Calculation of the Magnetic Potential of Cylindric Magnets'
-  DO iMagnet=1,NumOfCylindricMagnets
-    SWRITE(UNIT_stdOUT,'(A,I2)') ' Magnet: ', iMagnet
-    CALL CalculateCylindricMagneticPotential(iMagnet)
-    SWRITE(UNIT_stdOUT,'(A,I2)') ' ... Done Magnet #', iMagnet
-  ENDDO
-ENDIF
-
-IF(NumOfConicMagnets.GT.0) THEN
-  SWRITE(UNIT_stdOut,'(132("-"))')
-  SWRITE(UNIT_stdOUT,'(A)') ' Calculation of the Magnetic Potential of Conic Magnets'
-  DO iMagnet=1,NumOfConicMagnets
-    SWRITE(UNIT_stdOUT,'(A,I2)') ' Magnet: ', iMagnet
-    CALL CalculateConicMagneticPotential(iMagnet)
-    SWRITE(UNIT_stdOUT,'(A,I2)') ' ... Done Magnet #', iMagnet
-  ENDDO
-ENDIF
-
-IF ((NumOfCuboidMagnets.GT.0).OR.(NumOfSphericMagnets.GT.0).OR.(NumOfCylindricMagnets.GT.0)&
-                              .OR.(NumOfConicMagnets.GT.0)) THEN
+IF (NumOfPermanentMagnets.GT.0) THEN
   SWRITE(UNIT_stdOut,'(132("-"))')
   SWRITE(UNIT_stdOUT,'(A)') ' Calculate the Gradient of the Magnetic Potentail'
   CALL CalculateGradient()

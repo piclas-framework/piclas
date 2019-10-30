@@ -43,6 +43,7 @@ USE MOD_RecordPoints                    ,ONLY: DefineParametersRecordPoints
 USE MOD_TimeDisc                        ,ONLY: DefineParametersTimedisc
 USE MOD_Mesh                            ,ONLY: DefineparametersMesh
 USE MOD_Equation                        ,ONLY: DefineParametersEquation
+USE MOD_SuperB_Init                     ,ONLY: DefineParametersSuperB
 #if !(USE_HDG)
 USE MOD_PML                             ,ONLY: DefineParametersPML
 #endif /*USE_HDG*/
@@ -112,6 +113,7 @@ CALL DefineParametersDielectric()
 CALL DefineParametersFilter()
 CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()
+CALL DefineParametersSuperB()
 #ifdef PARTICLES
 CALL DefineParametersParticles()
 CALL DefineParametersMacroBody()

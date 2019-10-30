@@ -33,13 +33,21 @@ USE MOD_Globals
 USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
-CALL prms%SetSection("SuperB")
+CALL prms%SetSection('SuperB')
 
-CALL prms%CreateLogicalOption('xxxxxxxx'      , "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",'.FALSE.')
+CALL prms%CreateLogicalOption('PIC-CalcBField-OutputVTK', 'TO-DO','.FALSE.')
 
-CALL prms%CreateIntOption(    'xxxxxxxx'   , "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",'0')
+! Input of permanent magnets
+CALL prms%CreateIntOption(      'NumOfPermanentMagnets'             , 'TO-DO','0')
+CALL prms%CreateStringOption(   'PermanentMagnet[$]-Type'           , 'TO-DO', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BasePoint'      , 'TO-DO', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'PermanentMagnet[$]-NumNodes'       , 'TO-DO', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('PermanentMagnet[$]-Magnetisation'  , 'TO-DO', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'PermanentMagnet[$]-Radius'         , 'TO-DO', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'PermanentMagnet[$]-Radius2'        , 'TO-DO', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('PermanentMagnet[$]-HeightVector'   , 'TO-DO', numberedmulti=.TRUE.)
 
-CALL prms%CreateRealOption(   'xxxxxxxx'       , "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",'1.')
+! Input of coils
 
 END SUBROUTINE DefineParametersSuperB
 
@@ -69,80 +77,48 @@ CHARACTER(LEN=32)         :: hilf,hilf2
 
 ! Output of the magnets/coils as separate VTK files
 BGFieldVTKOutput         = GETLOGICAL('PIC-CalcBField-OutputVTK','.FALSE.')
+
 ! Get the number of magnets
-NumOfCuboidMagnets       = GETINT('NumOfCuboidMagnets','0')
-NumOfSphericMagnets      = GETINT('NumOfSphericMagnets','0')
-NumOfCylindricMagnets    = GETINT('NumOfCylindricMagnets','0')
-NumOfConicMagnets        = GETINT('NumOfConicMagnets','0')
+NumOfPermanentMagnets       = GETINT('NumOfPermanentMagnets','0')
+! Allocate the magnets
+ALLOCATE(PermanentMagnetInfo(NumOfPermanentMagnets))
+! Read-in of magnet parameters
+IF (NumOfPermanentMagnets.GT.0) THEN
+  DO iMagnet = 1,NumOfPermanentMagnets
+    SWRITE(*,*) "|       Read in infos of permanent magnet |", iMagnet
+    WRITE(UNIT=hilf,FMT='(I3)') iMagnet
+    PermanentMagnetInfo(iMagnet)%Type               = GETSTR('PermanentMagnet'//TRIM(hilf)//'-Type')
+    PermanentMagnetInfo(iMagnet)%BasePoint(1:3)     = GETREALARRAY('PermanentMagnet'//TRIM(hilf)//'-BasePoint',3)
+    PermanentMagnetInfo(iMagnet)%NumNodes           = GETINT('PermanentMagnet'//TRIM(hilf)//'-NumNodes')
+    PermanentMagnetInfo(iMagnet)%Magnetisation(1:3) = GETREALARRAY('PermanentMagnet'//TRIM(hilf)//'-Magnetisation',3)
+    SELECT CASE(TRIM(PermanentMagnetInfo(iMagnet)%Type))
+    CASE('cuboid')
+      PermanentMagnetInfo(iMagnet)%BaseVector1(1:3)   = GETREALARRAY('PermanentMagnet'//TRIM(hilf)//'-BaseVector1',3)
+      PermanentMagnetInfo(iMagnet)%BaseVector2(1:3)   = GETREALARRAY('PermanentMagnet'//TRIM(hilf)//'-BaseVector2',3)
+      PermanentMagnetInfo(iMagnet)%BaseVector3(1:3)   = GETREALARRAY('PermanentMagnet'//TRIM(hilf)//'-BaseVector3',3)
+    CASE('sphere')
+      PermanentMagnetInfo(iMagnet)%Radius             = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius')
+    CASE('cylinder')
+      PermanentMagnetInfo(iMagnet)%Radius             = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius')
+      PermanentMagnetInfo(iMagnet)%HeightVector(1:3)  = GETREALARRAY('PermanentMagnet'//TRIM(hilf)//'-HeightVector',3)
+    CASE('conic')
+      PermanentMagnetInfo(iMagnet)%Radius             = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius')
+      PermanentMagnetInfo(iMagnet)%Radius2            = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius2')
+      PermanentMagnetInfo(iMagnet)%HeightVector(1:3)  = GETREALARRAY('PermanentMagnet'//TRIM(hilf)//'-HeightVector',3)
+    END SELECT
+  END DO
+END IF
+
 NumOfCoils               = GETINT('NumOfCoils','0')
 NumOfCircleCoils         = GETINT('NumOfCircleCoils','0')
 NumOfRectangleCoils      = GETINT('NumOfRectangleCoils','0')
 NumOfLinearConductors    = GETINT('NumOfLinearConductors','0')
-! Allocate the magnets
-ALLOCATE(CuboidMagnetInfo(NumOfCuboidMagnets))
-ALLOCATE(SphericMagnetInfo(NumOfSphericMagnets))
-ALLOCATE(CylindricMagnetInfo(NumOfCylindricMagnets))
-ALLOCATE(ConicMagnetInfo(NumOfConicMagnets))
-ALLOCATE(CoilInfo(NumOfCoils))
 ALLOCATE(CircleCoilInfo(NumOfCircleCoils))
 ALLOCATE(RectangleCoilInfo(NumOfRectangleCoils))
 ALLOCATE(LinearConductorInfo(NumOfLinearConductors))
 ALLOCATE(TimeDepCoil(NumOfCoils+NumOfCircleCoils+NumOfRectangleCoils+NumOfLinearConductors))
 ALLOCATE(CurrentInfo(NumOfCoils+NumOfCircleCoils+NumOfRectangleCoils+NumOfLinearConductors))
-! Iterate over all cuboid magnets
-IF (NumOfCuboidMagnets.GT.0) THEN
-  DO iMagnet = 1,NumOfCuboidMagnets
-    SWRITE(*,*) "|       Read in Infos of cuboid Magnet |", iMagnet
 
-    WRITE(UNIT=hilf,FMT='(I3)') iMagnet
-    CuboidMagnetInfo(iMagnet)%BasePoint(1:3)     = GETREALARRAY('CuboidMagnet'//TRIM(hilf)//'-BasePoint',3,'0.,0.,0.')
-    CuboidMagnetInfo(iMagnet)%BaseVector1(1:3)   = GETREALARRAY('CuboidMagnet'//TRIM(hilf)//'-BaseVector1',3,'0.,0.,0.')
-    CuboidMagnetInfo(iMagnet)%BaseVector2(1:3)   = GETREALARRAY('CuboidMagnet'//TRIM(hilf)//'-BaseVector2',3,'0.,0.,0.')
-    CuboidMagnetInfo(iMagnet)%BaseVector3(1:3)   = GETREALARRAY('CuboidMagnet'//TRIM(hilf)//'-BaseVector3',3,'0.,0.,0.')
-    CuboidMagnetInfo(iMagnet)%NumNodes           = GETINT('CuboidMagnet'//TRIM(hilf)//'-NumNodes','1')
-    CuboidMagnetInfo(iMagnet)%Magnetisation(1:3) = GETREALARRAY('CuboidMagnet'//TRIM(hilf)//'-Magnetisation',3,'0.,0.,0.')
-  ENDDO
-ENDIF
-! Iterate over all spheric magnets
-IF (NumOfSphericMagnets.GT.0) THEN
-  DO iMagnet = 1,NumOfSphericMagnets
-    SWRITE(*,*) "|       Read in Infos of spheric Magnet |", iMagnet
-
-    WRITE(UNIT=hilf,FMT='(I3)') iMagnet
-    SphericMagnetInfo(iMagnet)%BasePoint(1:3)     = GETREALARRAY('SphericMagnet'//TRIM(hilf)//'-BasePoint',3,'0.,0.,0.')
-    SphericMagnetInfo(iMagnet)%Radius             = GETREAL('SphericMagnet'//TRIM(hilf)//'-Radius','1')
-    SphericMagnetInfo(iMagnet)%NumNodes           = GETINT('SphericMagnet'//TRIM(hilf)//'-NumNodes','1')
-    SphericMagnetInfo(iMagnet)%Magnetisation(1:3) = GETREALARRAY('SphericMagnet'//TRIM(hilf)//'-Magnetisation',3,'0.,0.,0.')
-  ENDDO
-ENDIF
-! Iterate over all cylindric magnets
-IF (NumOfCylindricMagnets.GT.0) THEN
-  DO iMagnet = 1,NumOfCylindricMagnets
-    SWRITE(*,*) "|       Read in Infos of cylindric Magnet |", iMagnet
-
-    WRITE(UNIT=hilf,FMT='(I3)') iMagnet
-    CylindricMagnetInfo(iMagnet)%BasePoint(1:3)     = GETREALARRAY('CylindricMagnet'//TRIM(hilf)//'-BasePoint',3,'0.,0.,0.')
-    CylindricMagnetInfo(iMagnet)%HeightVector(1:3)  = GETREALARRAY('CylindricMagnet'//TRIM(hilf)//'-HeightVector',3,'0.,0.,0.')
-    CylindricMagnetInfo(iMagnet)%Radius             = GETREAL('CylindricMagnet'//TRIM(hilf)//'-Radius','1.')
-    CylindricMagnetInfo(iMagnet)%NumNodes           = GETINT('CylindricMagnet'//TRIM(hilf)//'-NumNodes','1')
-    CylindricMagnetInfo(iMagnet)%Magnetisation(1:3) = GETREALARRAY('CylindricMagnet'//&
-                                                      TRIM(hilf)//'-Magnetisation',3,'0.,0.,0.')
-  ENDDO
-ENDIF
-! Iterate over all conic magnets
-IF (NumOfConicMagnets.GT.0) THEN
-  DO iMagnet = 1,NumOfConicMagnets
-    SWRITE(*,*) "|      Read in Infos of conic Magnets |", iMagnet
-
-    WRITE(UNIT=hilf,FMT='(I3)') iMagnet
-    ConicMagnetInfo(iMagnet)%BasePoint(1:3)     = GETREALARRAY('ConicMagnet'//TRIM(hilf)//'-BasePoint',3,'0.,0.,0.')
-    ConicMagnetInfo(iMagnet)%HeightVector(1:3)  = GETREALARRAY('ConicMagnet'//TRIM(hilf)//'-HeightVector',3,'0.,0.,0.')
-    ConicMagnetInfo(iMagnet)%Radius1            = GETREAL('ConicMagnet'//TRIM(hilf)//'-Radius1','1.')
-    ConicMagnetInfo(iMagnet)%Radius2            = GETREAL('ConicMagnet'//TRIM(hilf)//'-Radius2','1.')
-    ConicMagnetInfo(iMagnet)%NumNodes           = GETINT('ConicMagnet'//TRIM(hilf)//'-NumNodes','1')
-    ConicMagnetInfo(iMagnet)%Magnetisation(1:3) = GETREALARRAY('ConicMagnet'//TRIM(hilf)//'-Magnetisation',3,'0.,0.,0.')
-  ENDDO
-ENDIF
 ! Iterate over all coils
 IF (NumOfCoils.GT.0) THEN
   DO iCoil = 1,NumOfCoils
