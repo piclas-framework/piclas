@@ -665,6 +665,5 @@ TYPE tOctreeVdm
 END TYPE
 
 TYPE (tOctreeVdm), POINTER                  :: OctreeVdm => null()
-
 !===================================================================================================================================
 END MODULE MOD_DSMC_Vars

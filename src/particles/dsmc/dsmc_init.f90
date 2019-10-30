@@ -355,15 +355,13 @@ CALL prms%CreateStringOption(     'DSMC-Reaction[$]-TLU_FileName'  &
                                 , 'with DoScat=F: No TLU-File needed '//&
                                 '(def.: )', '0' , numberedmulti=.TRUE.)
 
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
+                                           ,'Utilize collision cross sections for the determination of collision probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
                                                                'should be named with species pair (e.g. "Ar-electron"). The '//&
                                                                'first column shall contain the energy in eV and the second '//&
                                                                'column the cross-section in m^2', 'none')
-CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
-                                           ,'Utilize collision cross sections for the determination of collision probabilities' &
-                                           ,'.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Particles-DSMC-IterationSkip'  &
-                                           ,'Number of iterations to skip between calls of the DSMC routine','1')
 
 END SUBROUTINE DefineParametersDSMC
 
