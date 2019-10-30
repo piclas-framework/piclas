@@ -33,6 +33,7 @@ USE MOD_RecordPoints_Vars      ,ONLY: RP_Data
 USE MOD_Mesh_Vars              ,ONLY: DoSwapMesh
 USE MOD_Mesh                   ,ONLY: SwapMesh
 #if USE_MPI
+USE MOD_MPI_Shared             ,ONLY: InitMPIShared
 USE MOD_LoadBalance            ,ONLY: InitLoadBalance,FinalizeLoadBalance
 USE MOD_MPI                    ,ONLY: FinalizeMPI
 #endif /*USE_MPI*/
@@ -50,7 +51,6 @@ IMPLICIT NONE
 REAL                    :: SystemTime
 LOGICAL                 :: userblockFound
 !===================================================================================================================================
-
 CALL InitMPI()
 
 SWRITE(UNIT_stdOut,'(132("="))')
@@ -142,6 +142,7 @@ CALL InitIO()
 CALL InitGlobals()
 #if USE_MPI
 CALL InitLoadBalance()
+CALL InitMPIShared()
 #endif /*USE_MPI*/
 ! call init routines
 ! Measure init duration

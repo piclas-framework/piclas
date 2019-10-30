@@ -410,6 +410,13 @@ DO iElem=FirstElemInd,LastElemInd
   aElem%Zone   = ElemInfo(ELEM_Zone,iElem)
 END DO
 
+#if USE_MPI
+MPISharedSize = INT(ElemInfoSize*nTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/ElemInfoSize,nTotalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemInfo_Shared_Win,IERROR)
+ElemInfo_Shared(:,offsetElem:offsetElem+nElems) = ElemInfo(:,:)
+CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
+#endif  /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------
 !                              SIDES
 !----------------------------------------------------------------------------------------------------------------------------
@@ -431,6 +438,15 @@ ASSOCIATE (&
       offsetSideID   => INT(offsetSideID,IK)  )
   CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo)
 END ASSOCIATE
+
+#if USE_MPI
+CALL MPI_ALLREDUCE(nSideIDs,nTotalSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
+MPISharedSize = INT(SideInfoSize*nTotalSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/SideInfoSize,nTotalSides/),SideInfo_Shared_Win,SideInfo_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideInfo_Shared_Win,IERROR)
+SideInfo_Shared(:,offsetSide:offsetSide+nSides) = SideInfo(:,:)
+CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
+#endif  /*USE_MPI*/
 
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
@@ -585,6 +601,21 @@ ASSOCIATE (&
   ALLOCATE(NodeCoords_indx(3,nNodeIDs))
   CALL ReadArray('NodeCoords',2,(/3_IK,nNodeIDs/),offsetNodeID,2,RealArray=NodeCoords_indx)
 END ASSOCIATE
+
+#if USE_MPI
+CALL MPI_ALLREDUCE(nNodeIDs,nTotalNodes,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
+MPISharedSize = INT(nTotalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nTotalNodes/),NodeInfo_Shared_Win,NodeInfo_Shared)
+CALL MPI_WIN_LOCK_ALL(0,NodeInfo_Shared_Win,IERROR)
+NodeInfo_Shared(offsetNodeID:offsetNodeID+nNodeIDs) = NodeInfo(:)
+CALL MPI_WIN_SYNC(NodeInfo_Shared_Win,IERROR)
+
+MPISharedSize = INT(3_IK*nTotalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3_IK,nTotalNodes/),NodeCoords_Shared_Win,NodeCoords_Shared)
+CALL MPI_WIN_LOCK_ALL(0,NodeCoords_Shared_Win,IERROR)
+NodeCoords_Shared(:,offsetNodeID:offsetNodeID+nNodeIDs) = NodeCoords_indx(:,:)
+CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
+#endif  /*USE_MPI*/
 
 CALL GetNodeMap() !get nNodes and local NodeMap from NodeInfo array
 LOGWRITE(*,*)'MIN,MAX,SIZE of NodeMap',MINVAL(NodeMap),MAXVAL(NodeMap),SIZE(NodeMap,1)
