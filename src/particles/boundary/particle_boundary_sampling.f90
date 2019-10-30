@@ -108,11 +108,12 @@ USE MOD_Particle_Vars           ,ONLY:nSpecies, VarTimeStep, Symmetry2D
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
 USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
-USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList,PartElemToElemAndSide
+USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList
 USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping,TriaTracking
 USE MOD_DSMC_Symmetry2D         ,ONLY:DSMC_2D_CalcSymmetryArea
 USE MOD_Mesh_Vars               ,ONLY:MortarType
 #if USE_MPI
+USE MOD_Particle_Mesh_Vars      ,ONLY:PartElemToElemAndSide
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartHaloElemToProc
 #else
@@ -129,7 +130,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                :: p,q,iSide,SurfSideID,SideID,ElemID,LocSideID,iHaloSide,iLocSide,iElem,HaloElemID
+INTEGER                                :: p,q,iSide,SurfSideID,SideID,ElemID,LocSideID
 INTEGER                                :: iSample,jSample, iBC, iSpec
 INTEGER                                :: TriNum, Node1, Node2
 REAL,DIMENSION(2,3)                    :: gradXiEta3D
@@ -142,6 +143,9 @@ CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
 INTEGER,ALLOCATABLE                    :: CalcSurfCollis_SpeciesRead(:) !help array for reading surface stuff
 INTEGER,ALLOCATABLE                    :: ElemOfInnerBC(:),NBElemOfHalo(:)
 LOGICAL,ALLOCATABLE                    :: IsSlaveSide(:)
+#if USE_MPI
+INTEGER                                :: iElem,HaloElemID,iHaloSide,iLocSide
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
@@ -234,6 +238,7 @@ DO iSide=nBCSides+1,nSides
 __STAMP__&
 ,' Error in assignment of innerBCSide: Mortar and InnerBC can not be used in combination', iSide)
     END IF
+#if USE_MPI
     IF((PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1) &
    .OR.(PartSideToElem(S2E_NB_ELEM_ID,iSide).EQ.-1)) THEN ! innerBCSide is between two procs
       iLocSide   = MERGE(S2E_NB_LOC_SIDE_ID,S2E_LOC_SIDE_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
@@ -251,11 +256,14 @@ __STAMP__&
         SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
       END IF
     ELSE ! innerBCSide is NOT between two procs
+#endif /*USE_MPI*/
       SurfMesh%nSides                = SurfMesh%nSides + 1
       SurfMesh%nMasterSides          = SurfMesh%nMasterSides + 1
       SurfMesh%nInnerSides           = SurfMesh%nInnerSides + 1  ! increment only for MasterSides
       SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
+#if USE_MPI
     END IF
+#endif /*USE_MPI*/
   END IF
 END DO
 

@@ -63,7 +63,7 @@ USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars       ,ONLY: PartBCSideList
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC,DoBoundaryParticleOutput
 USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryTreatment
-USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType,epsilontol
+USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
 USE MOD_SurfaceModel             ,ONLY: ReactiveSurfaceTreatment
 USE MOD_Particle_Analyze         ,ONLY: RemoveParticle
 USE MOD_Mesh_Vars                ,ONLY: BC
