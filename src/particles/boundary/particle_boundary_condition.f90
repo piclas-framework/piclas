@@ -545,8 +545,7 @@ USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_Particle_Surfaces_vars  ,ONLY: SideNormVec,SideType,epsilontol
 USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC,RadialWeighting,PartStateIntEn
-USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
-USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
+USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues, usevMPF
 USE MOD_TImeDisc_Vars           ,ONLY: tend,time
 USE MOD_Particle_Boundary_Vars  ,ONLY: AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 USE MOD_Equation_Vars           ,ONLY: c2_inv
@@ -590,7 +589,7 @@ REAL                                 :: epsLength
 REAL                                 :: Xitild,EtaTild
 INTEGER                              :: p,q, SurfSideID, locBCID
 LOGICAL                              :: Symmetry, IsAuxBC
-REAL                                 :: MacroParticleFactor, POI_Y
+REAL                                 :: MacroParticleFactor
 LOGICAL                              :: DoSample
 REAL                                 :: EtraOld,EvibOld,ErotOld
 !===================================================================================================================================
@@ -752,8 +751,11 @@ IF (.NOT.IsAuxBC) THEN
         SampWall(SurfSideID)%State(12+nSpecies+1,p,q) = SampWall(SurfSideID)%State(12+nSpecies+1,p,q) &
             + VarTimeStep%ParticleTimeStep(PartID)
       END IF
-
-      MacroParticleFactor = GetParticleWeight(PartID)
+      IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        MacroParticleFactor = GetParticleWeight(PartID)
+      ELSE
+        MacroParticleFactor = GetParticleWeight(PartID)*Species(PartSpecies(PartID))%MacroParticleFactor
+      END IF
       !----  Sampling Forces at walls
       SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
           * (v_old(1:3) - PartState(PartID,4:6)) * MacroParticleFactor
@@ -870,7 +872,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry2D
-USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric, VarTimeStep, usevMPF
 #if defined(LSERK) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
@@ -881,7 +883,6 @@ USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn,DSMC, useDSMC, RadialWeigh
 USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar
 USE MOD_TimeDisc_Vars           ,ONLY: dt,tend,time,RKdtFrac
 USE MOD_Particle_Boundary_Vars  ,ONLY: AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
-USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, PartSideToElem
 #if (PP_TimeDiscMethod==400)
 USE MOD_BGK_Vars                ,ONLY: BGKDoVibRelaxation
@@ -931,7 +932,6 @@ REAL                                 :: intersec(3), r_vec(3), axis(3), cos2inv
 REAL                                :: rotVelY, rotVelZ, rotPosY, MacroParticleFactor, adaptTimeStep
 REAL                                :: VelX, VelY, VelZ,VecX, VecY, VecZ
 REAL                                :: Vector1(1:3), Vector2(1:3)
-REAL                                :: POI_Y
 REAL                                :: nx, ny, nz, nVal
 INTEGER                             :: LocSideID, ElemID
 LOGICAL                             :: DoSample
@@ -1123,7 +1123,11 @@ VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
 VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
 VeloCz  = Cmr * VeloCz
 
-MacroParticleFactor = GetParticleWeight(PartID)
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  MacroParticleFactor = GetParticleWeight(PartID)
+ELSE
+  MacroParticleFactor = GetParticleWeight(PartID)*Species(PartSpecies(PartID))%MacroParticleFactor
+END IF
 
 DoSample=DSMC%CalcSurfaceVal.AND.((Time.GE.(1.-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroSurfaceValues)
 
@@ -1400,14 +1404,13 @@ SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,A
 USE MOD_Globals                 ,ONLY: abort,VECNORM
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SampWall,dXiEQ_SurfSample,SurfMesh,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,PDM,VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,PDM,usevMPF
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Particle_Analyze        ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC, RadialWeighting
-USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd,Time
 #if defined(IMPA)
 USE MOD_Particle_Vars           ,ONLY: PartIsImplicit,DoPartInNewton
@@ -1446,7 +1449,7 @@ INTEGER                           :: iCC
 REAL                              :: n_loc(1:3)
 #endif /*NOT IMPA*/
 LOGICAL                           :: IsAuxBC
-REAL                              :: MacroParticleFactor, POI_Y
+REAL                              :: MacroParticleFactor
 LOGICAL                           :: DoSample
 REAL                              :: EtraOld,EvibOld,ErotOld
 !===================================================================================================================================
@@ -1565,7 +1568,11 @@ IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) TH
     END IF ! DoSample
   END IF
   IF (targetSpecies.eq.0) THEN !delete particle -> same as PartBound%OpenBC
-    MacroParticleFactor = GetParticleWeight(PartID)
+    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+      MacroParticleFactor = GetParticleWeight(PartID)
+    ELSE
+      MacroParticleFactor = GetParticleWeight(PartID)*Species(PartSpecies(PartID))%MacroParticleFactor
+    END IF
     DO iCC=1,nCollectChargesBCs !-chargeCollect
       IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
         CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
