@@ -4017,7 +4017,7 @@ REAL,INTENT(INOUT)            :: PartStateAnalytic(1:6)   !< analytic position a
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: i,j
+INTEGER                       :: iPart,j
 !===================================================================================================================================
 ! Get analytic particle position
 CALL CalcAnalyticalParticleState(t,PartStateAnalytic)
@@ -4027,18 +4027,18 @@ IF(iter.LT.1)THEN ! first iteration
   L_2_Error_Part(1:6) = 0.
   L_2_Error_Part_time = 0.
 ELSE
-  DO i=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(i)) THEN
+  DO iPart=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(iPart)) THEN
       DO j = 1, 6
         ! OLD METHOD: original
-        ! L_2_Error_Part(j) = SQRT( ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(j,i))**2 )/ REAL(iter))
+        ! L_2_Error_Part(j) = SQRT( ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(j,iPart))**2 )/ REAL(iter))
 
         ! OLD METHOD: considering TEnd
-        ! L_2_Error_Part(j) = SQRT( Tend * ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(j,i))**2 ) &
+        ! L_2_Error_Part(j) = SQRT( Tend * ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(j,iPart))**2 ) &
         !                      / REAL(iter))
 
         ! NEW METHOD: considering variable time step
-        L_2_Error_Part(j) = SQRT(  (L_2_Error_Part(j))**2 + (t-L_2_Error_Part_time)*(PartStateAnalytic(j)-PartState(j,i))**2 )
+        L_2_Error_Part(j) = SQRT(  (L_2_Error_Part(j))**2 + (t-L_2_Error_Part_time)*(PartStateAnalytic(j)-PartState(j,iPart))**2 )
       END DO ! j = 1, 6
       L_2_Error_Part_time = t
     ELSE

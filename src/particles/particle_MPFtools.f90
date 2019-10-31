@@ -1717,7 +1717,7 @@ IF (vMPF_oldEngSum.LT.0.0) THEN
                      * (Gamma-1.)*c2
       vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3)  - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
                          * PartState(4:6,PartStatevMPFSpec(iPart2))*Gamma
-      PartState(PartStatevMPFSpec(iPart),4:6) = RelVeloFromMom(vMPF_oldMomSum(1:3), SpecID, PartMPF(PartStatevMPFSpec(iPart)))
+      PartState(4:6,PartStatevMPFSpec(iPart)) = RelVeloFromMom(vMPF_oldMomSum(1:3), SpecID, PartMPF(PartStatevMPFSpec(iPart)))
       VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
       Gamma = VeloSq/c2
       Gamma = 1./SQRT(1.-Gamma)
