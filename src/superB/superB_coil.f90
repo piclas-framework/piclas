@@ -21,8 +21,7 @@ MODULE MOD_SuperB_Coil
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC :: SetUpCoil, SetUpCircleCoil, SetUpRectangleCoil, SetUpLinearConductor, FindLinIndependentVectors, GramSchmidtAlgo, &
-          BiotSavart, Jefimenko, WriteCoilVTK, FinalizeCoil
+PUBLIC :: SetUpCoil, SetUpCircleCoil, SetUpRectangleCoil, SetUpLinearConductor, BiotSavart, Jefimenko, WriteCoilVTK, FinalizeCoil
 !===================================================================================================================================
 
 INTERFACE SetUpCoil
@@ -40,14 +39,6 @@ END INTERFACE SetUpRectangleCoil
 INTERFACE SetUpLinearConductor
   MODULE PROCEDURE SetUpLinearConductor
 END INTERFACE SetUpLinearConductor
-
-INTERFACE FindLinIndependentVectors
-  MODULE PROCEDURE FindLinIndependentVectors
-END INTERFACE FindLinIndependentVectors
-
-INTERFACE GramSchmidtAlgo
-  MODULE PROCEDURE GramSchmidtAlgo
-END INTERFACE GramSchmidtAlgo
 
 INTERFACE BiotSavart
   MODULE PROCEDURE BiotSavart
@@ -159,6 +150,7 @@ SUBROUTINE SetUpCircleCoil(iCoil)
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_SuperB_Vars
+USE MOD_SuperB_Tools, ONLY: FindLinIndependentVectors, GramSchmidtAlgo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -312,82 +304,6 @@ DO iPoint=0,CoilInfo(iCoil)%NumNodes - 1
 END DO
 
 END SUBROUTINE SetUpLinearConductor
-
-SUBROUTINE FindLinIndependentVectors(NormalVector, Vector1, Vector2)
-!===================================================================================================================================
-! Finds two linear vectors of a normal vector around a base point
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN) :: NormalVector(3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT) :: Vector1(3), Vector2(3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-! Find the second vector which is in the normal plane
-IF (NormalVector(1).NE.0) THEN
-  Vector1(1) = (0 - NormalVector(2) - NormalVector(3)) / NormalVector(1)
-  Vector1(2) = 1
-  Vector1(3) = 1
-ELSE IF (NormalVector(2).NE.0) THEN
-  Vector1(1) = 1
-  Vector1(2) = (0 - NormalVector(1) - NormalVector(3)) / NormalVector(2)
-  Vector1(3) = 1
-ELSE IF (NormalVector(3).NE.0) THEN
-  Vector1(1) = 1
-  Vector1(2) = 1
-  Vector1(3) = (0 - NormalVector(1) - NormalVector(2)) / NormalVector(3)
-ELSE
-  CALL abort(__STAMP__&
-      ,'The coil direction vector can not be (0,0,)')
-END IF
-
-! Find the third vecord vector with the cross product
-Vector2(1) = NormalVector(2)*Vector1(3) - NormalVector(3)*Vector1(2)
-Vector2(2) = NormalVector(3)*Vector1(1) - NormalVector(1)*Vector1(3)
-Vector2(3) = NormalVector(1)*Vector1(2) - NormalVector(2)*Vector1(1)
-
-END SUBROUTINE FindLinIndependentVectors
-
-SUBROUTINE GramSchmidtAlgo(Vector1, Vector2, Vector3)
-!===================================================================================================================================
-! Contains the Gram Schmidt algorithm for an orthonormal basis
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(INOUT) :: Vector1(3), Vector2(3), Vector3(3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-
-! v1 = w1/||w1||
-Vector1(:) = Vector1(:) / SQRT(Vector1(1)**2 + Vector1(2)**2 + Vector1(3)**2)
-
-! v2 = w2 - <v1,w2>*v1
-Vector2(:) = Vector2(:) - DOT_PRODUCT(Vector1, Vector2) * Vector1(:)
-! v2 = v2/||v2||
-Vector2(:) = Vector2(:) / SQRT(Vector2(1)**2 + Vector2(2)**2 + Vector2(3)**2)
-
-! v3 = w3 - <v1,w3>*v1 - <v2,w3>*v2
-Vector3(:) = Vector3(:) - DOT_PRODUCT(Vector1, Vector3) * Vector1(:) -&
-                          DOT_PRODUCT(Vector2,Vector3) *  Vector3(:)
-! v3 = v3/||v3||
-Vector3(:) = Vector3(:) / SQRT(Vector3(1)**2 + Vector3(2)**2 + Vector3(3)**2)
-
-END SUBROUTINE GramSchmidtAlgo
 
 
 SUBROUTINE BiotSavart(iCoil)

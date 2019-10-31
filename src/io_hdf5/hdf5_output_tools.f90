@@ -410,7 +410,7 @@ END SUBROUTINE WriteIMDStateToHDF5
 #endif /*PARTICLES*/
 
 
-SUBROUTINE WriteBFieldToHDF5(OutputTime)
+SUBROUTINE WriteBFieldToHDF5()
 !===================================================================================================================================
 ! Subroutine to write the solution U to HDF5 format
 ! Is used for postprocessing and for restart
@@ -421,14 +421,15 @@ USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY:ProjectName
 USE MOD_Mesh_Vars             ,ONLY:offsetElem,nGlobalElems, nElems,MeshFile
 USE MOD_io_HDF5
-USE MOD_HDF5_output           ,ONLY: WriteArrayToHDF5
+USE MOD_HDF5_output           ,ONLY: WriteArrayToHDF5, copy_userblock
+USE MOD_Output_Vars           ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_PICInterpolation_Vars ,ONLY: BGField
+USE MOD_Interpolation_Vars    ,ONLY: NodeType
 USE MOD_SuperB_Vars           ,ONLY: PsiMag
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -441,7 +442,7 @@ REAL,ALLOCATABLE               :: outputArray(:,:,:,:,:)
 REAL                           :: StartT,EndT
 #endif /*USE_MPI*/
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE B-FIELD TO HDF5 FILE...'
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE BG-FIELD TO HDF5 FILE...'
 #if USE_MPI
   StartT=MPI_WTIME()
 #endif /*USE_MPI*/
@@ -454,14 +455,26 @@ outputArray(4,:,:,:,:) = PsiMag(:,:,:,:)
 
 ! Create dataset attribute "VarNames"
 ALLOCATE(StrVarNames(1:4))
-StrVarNames(1)='BFieldX'
-StrVarNames(2)='BFieldY'
-StrVarNames(3)='BFieldZ'
+StrVarNames(1)='BG-MagneticFieldX'
+StrVarNames(2)='BG-MagneticFieldY'
+StrVarNames(3)='BG-MagneticFieldZ'
 StrVarNames(4)='PsiMag'
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_BFieldState',OutputTime))//'.h5'
-IF(MPIRoot) CALL GenerateFileSkeleton('BFieldState',4,StrVarNames,TRIM(MeshFile),OutputTime)
+FileName=TRIM(ProjectName)//'_BField.h5'
+IF(MPIRoot) THEN
+  CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
+  ! Write file header
+  CALL WriteHDF5Header('BField',File_ID)
+  ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
+  CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=N)
+  CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFile)/))
+  CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
+  CALL WriteAttributeToHDF5(File_ID,'VarNames',4,StrArray=StrVarNames)
+  CALL CloseDataFile()
+  ! Add userblock to hdf5-file
+  CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
+END IF
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/

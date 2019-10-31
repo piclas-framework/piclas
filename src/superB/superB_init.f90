@@ -58,6 +58,7 @@ CALL prms%CreateRealArrayOption('Coil[$]-LengthVector'  , 'TO-DO', numberedmulti
 CALL prms%CreateIntOption(      'Coil[$]-NumNodes'      , 'TO-DO', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Coil[$]-LoopNum'       , 'TO-DO', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Coil[$]-PointsPerLoop' , 'TO-DO', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Coil[$]-Current'       , 'TO-DO', numberedmulti=.TRUE.)
 ! Custom coils
 CALL prms%CreateRealArrayOption('Coil[$]-AxisVec1'      , 'TO-DO', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Coil[$]-NumOfSegments' , 'TO-DO', numberedmulti=.TRUE.)
@@ -115,7 +116,7 @@ ALLOCATE(PermanentMagnetInfo(NumOfPermanentMagnets))
 IF (NumOfPermanentMagnets.GT.0) THEN
   DO iMagnet = 1,NumOfPermanentMagnets
     SWRITE(*,*) "|       Read-in infos of permanent magnet |", iMagnet
-    WRITE(UNIT=hilf,FMT='(I3)') iMagnet
+    WRITE(UNIT=hilf,FMT='(I0)') iMagnet
     PermanentMagnetInfo(iMagnet)%Type               = GETSTR('PermanentMagnet'//TRIM(hilf)//'-Type')
     PermanentMagnetInfo(iMagnet)%BasePoint(1:3)     = GETREALARRAY('PermanentMagnet'//TRIM(hilf)//'-BasePoint',3)
     PermanentMagnetInfo(iMagnet)%NumNodes           = GETINT('PermanentMagnet'//TRIM(hilf)//'-NumNodes')
@@ -147,8 +148,9 @@ ALLOCATE(CurrentInfo(NumOfCoils))
 IF (NumOfCoils.GT.0) THEN
   DO iCoil = 1,NumOfCoils
     SWRITE(*,*) "|       Read-in infos of coil |", iCoil
-    WRITE(UNIT=hilf,FMT='(I3)') iCoil
-    CoilInfo(iCoil)%BasePoint(1:3) = GETREALARRAY('Coil'//TRIM(hilf)//'-BasePoint',3)
+    WRITE(UNIT=hilf,FMT='(I0)') iCoil
+    CoilInfo(iCoil)%Type              = GETSTR('Coil'//TRIM(hilf)//'-Type')
+    CoilInfo(iCoil)%BasePoint(1:3)    = GETREALARRAY('Coil'//TRIM(hilf)//'-BasePoint',3)
     CoilInfo(iCoil)%LengthVector(1:3) = GETREALARRAY('Coil'//TRIM(hilf)//'-LengthVector',3)
     CoilInfo(iCoil)%Length = SQRT(CoilInfo(iCoil)%LengthVector(1)**2 + CoilInfo(iCoil)%LengthVector(2)**2 + &
                                   CoilInfo(iCoil)%LengthVector(3)**2)
@@ -166,7 +168,7 @@ IF (NumOfCoils.GT.0) THEN
       ! Start with 1 Loop Point as zero
       CoilInfo(iCoil)%PointsPerLoop = 1
       DO iSegment = 1,CoilInfo(iCoil)%NumOfSegments
-        WRITE(UNIT=hilf2,FMT='(I3)') iSegment
+        WRITE(UNIT=hilf2,FMT='(I0)') iSegment
         CoilInfo(iCoil)%SegmentInfo(iSegment)%SegmentType = GETSTR('Coil'//TRIM(hilf)//'-Segment'//TRIM(hilf2)//'-SegmentType')
         CoilInfo(iCoil)%SegmentInfo(iSegment)%NumOfPoints = GETINT('Coil'//TRIM(hilf)//'-Segment'//TRIM(hilf2)//'-NumOfPoints')
         ! Add the number of segment points to the total loop points

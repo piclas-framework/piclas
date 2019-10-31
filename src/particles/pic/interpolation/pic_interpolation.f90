@@ -217,7 +217,7 @@ IF (CalcBField) THEN
     ! Interpolate the Background field linear between two timesteps
     BGField(:,:,:,:,:) = BGFieldTDep(:,:,:,:,:,iTime) + (BGFieldTDep(:,:,:,:,:,iTime) - BGFieldTDep(:,:,:,:,:,iTime+1)) &
                          / timestep * (Time - iTime * timestep)
-    CALL WriteBFieldToHDF5(Time)
+    ! CALL WriteBFieldToHDF5(Time)
   ENDIF
 END IF
 

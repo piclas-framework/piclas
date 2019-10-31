@@ -420,7 +420,7 @@ USE MOD_Globals_Vars, ONLY: PI
 USE MOD_Preproc
 USE MOD_Mesh_Vars, ONLY: nElems, Elem_xGP
 USE MOD_Basis, ONLY: LegendreGaussNodesAndWeights
-USE MOD_SuperB_Coil, ONLY: FindLinIndependentVectors, GramSchmidtAlgo
+USE MOD_SuperB_Tools, ONLY: FindLinIndependentVectors, GramSchmidtAlgo
 USE MOD_SuperB_Vars, ONLY: PermanentMagnetInfo, psiMag, MagnetFlag
 USE MOD_PICInterpolation_Vars
 ! IMPLICIT VARIABLE HANDLING
@@ -632,7 +632,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars, ONLY: nElems, Elem_xGP
 USE MOD_Basis, ONLY: LegendreGaussNodesAndWeights
 USE MOD_SuperB_Vars, ONLY: PermanentMagnetInfo, psiMag, MagnetFlag
-USE MOD_SuperB_Coil, ONLY: FindLinIndependentVectors, GramSchmidtAlgo
+USE MOD_SuperB_Tools, ONLY: FindLinIndependentVectors, GramSchmidtAlgo
 USE MOD_PICInterpolation_Vars, ONLY: BGFieldVTKOutput
 ! IMPLICIT NONE
 IMPLICIT NONE

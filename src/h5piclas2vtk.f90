@@ -44,7 +44,7 @@ USE MOD_Mesh,                ONLY: FinalizeMesh
 USE MOD_Particle_Mesh       ,ONLY: FinalizeParticleMesh
 #endif
 USE MOD_Mesh_Vars,           ONLY: useCurveds,NGeo,nElems,NodeCoords,offsetElem
-USE MOD_Interpolation_Vars,  ONLY: NodeTypeCL,NodeTypeVisu
+USE MOD_Interpolation_Vars,  ONLY: NodeTypeVisu
 USE MOD_Interpolation,       ONLY: GetVandermonde
 USE MOD_ChangeBasis,         ONLY: ChangeBasis3D
 USE MOD_VTK,                 ONLY: WriteDataToVTK,WriteVTKMultiBlockDataSet
@@ -102,8 +102,7 @@ LOGICAL                        :: VisuSource, DGSourceExists, skip, DGSolutionEx
 CHARACTER(LEN=40)              :: DefStr
 INTEGER                        :: iArgsStart
 LOGICAL                        :: MeshInitFinished, ReadMeshFinished
-! PartData
-LOGICAL                        :: VisuParticles, PartDataExists
+LOGICAL                        :: VisuParticles, PartDataExists, BFieldExists
 INTEGER                        :: TimeStampLength
 !===================================================================================================================================
 CALL InitMPI()
@@ -290,12 +289,13 @@ DO iArgs = iArgsStart,nArgs
   SWRITE(UNIT_stdOut,'(A,I3,A,I3,A)') 'Processing state ',iArgs-iArgsStart+1,' of ',nArgs-iArgsStart+1,'...'
 
   ! Open .h5 file
-  DGSolutionExists = .FALSE.; ElemDataExists = .FALSE.; SurfaceDataExists = .FALSE.
+  DGSolutionExists = .FALSE.; ElemDataExists = .FALSE.; SurfaceDataExists = .FALSE.; BFieldExists = .FALSE.
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL DatasetExists(File_ID,'DG_Solution',DGSolutionExists)
   CALL DatasetExists(File_ID,'ElemData',ElemDataExists)
   CALL DatasetExists(File_ID,'SurfaceData',SurfaceDataExists)
   CALL DatasetExists(File_ID,'PartData',PartDataExists)
+  CALL DatasetExists(File_ID,'BField',BFieldExists)
 
   ! === DG_Solution ================================================================================================================
   ! Read in parameters from the State file
@@ -516,7 +516,10 @@ DO iArgs = iArgsStart,nArgs
       CALL ConvertPartData(InputStateFile)
     END IF
   END IF
-  CALL CloseDataFile()
+  ! === BField =====================================================================================================================
+  IF(BFieldExists) THEN
+    CALL ConvertBField(InputStateFile,ReadMeshFinished,NVisu,NodeTypeVisuOut)
+  END IF
 END DO ! iArgs = 2, nArgs
 
 ! Finalize
@@ -820,7 +823,7 @@ SUBROUTINE ConvertPartData(InputStateFile)
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY: ProjectName
 USE MOD_IO_HDF5,                ONLY: HSize
-USE MOD_HDF5_Input,             ONLY: OpenDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize
+USE MOD_HDF5_Input,             ONLY: OpenDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize,CloseDataFile
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -879,6 +882,8 @@ SDEALLOCATE(tmpArray)
 SDEALLOCATE(PartData)
 SDEALLOCATE(ConnectInfo)
 SDEALLOCATE(tmpPartData)
+
+CALL CloseDataFile()
 
 END SUBROUTINE ConvertPartData
 
@@ -961,6 +966,8 @@ END IF
 
 SDEALLOCATE(VarNamesAdd)
 SDEALLOCATE(ElemData)
+
+CALL CloseDataFile()
 
 END SUBROUTINE ConvertElemData
 
@@ -1056,6 +1063,8 @@ SDEALLOCATE(VarNamesSurf_HDF5)
 SDEALLOCATE(SurfData)
 SDEALLOCATE(tempSurfData)
 SDEALLOCATE(Coords)
+
+CALL CloseDataFile()
 
 END SUBROUTINE ConvertSurfaceData
 
@@ -1159,3 +1168,118 @@ SDEALLOCATE(SurfBCName_HDF5)
 SDEALLOCATE(SideToSurfSide)
 
 END SUBROUTINE BuildSurfMeshConnectivity
+
+
+SUBROUTINE ConvertBField(InputStateFile,ReadMeshFinished,NVisu,NodeTypeVisuOut)
+!===================================================================================================================================
+! Subroutine to write 3D point data to VTK format
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: ProjectName
+USE MOD_HDF5_Input              ,ONLY: OpenDataFile,GetDataProps,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize
+USE MOD_Mesh_ReadIn             ,ONLY: readMesh
+USE MOD_Mesh_Vars               ,ONLY: NGeo, nElems, offsetElem, NodeCoords
+USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVisu
+USE MOD_Interpolation           ,ONLY: GetVandermonde
+USE MOD_ChangeBasis             ,ONLY: ChangeBasis3D
+USE MOD_VTK                     ,ONLY: WriteDataToVTK
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)              :: NVisu                             ! Polynomial degree of visualization
+CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile, NodeTypeVisuOut
+LOGICAL,INTENT(INOUT)           :: ReadMeshFinished
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iDG, iElem
+INTEGER                         :: nVar_State,N_State,nElems_State   ! Properties read from state file
+CHARACTER(LEN=255)              :: NodeType_State
+CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
+REAL,ALLOCATABLE                :: U(:,:,:,:,:)                      ! Solution from state file
+REAL,ALLOCATABLE,TARGET         :: U_Visu(:,:,:,:,:)                 ! Solution on visualiation nodes
+REAL,POINTER                    :: U_Visu_p(:,:,:,:,:)               ! Solution on visualiation nodes
+REAL,ALLOCATABLE                :: Coords_NVisu(:,:,:,:,:)           ! Coordinates of visualisation nodes
+REAL,ALLOCATABLE,TARGET         :: Coords_BField(:,:,:,:,:)
+REAL,POINTER                    :: Coords_BField_p(:,:,:,:,:)
+REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             ! Vandermonde from equidistand mesh to visualisation nodes
+REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  ! Vandermonde from state to visualisation nodes
+CHARACTER(LEN=255)              :: FileString_BField, MeshFile
+!===================================================================================================================================
+! 1.) Open given file to get the number of elements, the order and the name of the mesh file
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL GetDataProps('BField',nVar_State,N_State,nElems_State,NodeType_State)
+CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
+CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
+
+SDEALLOCATE(StrVarNames)
+ALLOCATE(StrVarNames(nVar_State))
+CALL ReadAttribute(File_ID,'VarNames',nVar_State,StrArray=StrVarNames)
+
+CALL CloseDataFile()
+
+IF(.NOT.ReadMeshFinished) THEN
+! Read in parameters from mesh file
+  CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
+  CALL CloseDataFile()
+  CALL readMesh(MeshFile)
+  ReadMeshFinished = .TRUE.
+END IF
+
+SDEALLOCATE(Vdm_EQNgeo_NVisu)
+ALLOCATE(Vdm_EQNgeo_NVisu(0:Ngeo,0:NVisu))
+CALL GetVandermonde(Ngeo,NodeTypeVisu,NVisu,NodeTypeVisuOut,Vdm_EQNgeo_NVisu,modal=.FALSE.)
+
+SDEALLOCATE(Coords_NVisu)
+ALLOCATE(Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,nElems))
+SDEALLOCATE(Coords_BField)
+ALLOCATE(Coords_BField(3,0:NVisu,0:NVisu,0:NVisu,nElems))
+
+! Convert coordinates to visu grid
+DO iElem = 1,nElems
+  CALL ChangeBasis3D(3,NGeo,NVisu,Vdm_EQNgeo_NVisu,NodeCoords(:,:,:,:,iElem),Coords_NVisu(:,:,:,:,iElem))
+END DO
+
+SDEALLOCATE(U)
+ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
+
+! Read in solution
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nVar_State => INT(nVar_State,IK) ,&
+      offsetElem => INT(offsetElem,IK),&
+      N_State    => INT(N_State,IK),&
+      nElems     => INT(nElems,IK)    )
+  CALL ReadArray('BField',5,(/nVar_State,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5,RealArray=U)
+END ASSOCIATE
+
+CALL CloseDataFile()
+
+SDEALLOCATE(Vdm_N_NVisu)
+ALLOCATE(Vdm_N_NVisu(0:N_State,0:NVisu))
+CALL GetVandermonde(N_State,NodeType_State,NVisu,NodeTypeVisuOut,Vdm_N_NVisu,modal=.FALSE.)
+
+SDEALLOCATE(U_Visu)
+ALLOCATE(U_Visu(nVar_State,0:NVisu,0:NVisu,0:NVisu,nElems))
+
+! Interpolate solution to visu grid
+iDG = 0
+DO iElem = 1,nElems
+  iDG = iDG + 1
+  CALL ChangeBasis3D(nVar_State,N_State,NVisu,Vdm_N_NVisu,U(:,:,:,:,iElem),U_Visu(:,:,:,:,iDG))
+  Coords_BField(:,:,:,:,iDG) = Coords_NVisu(:,:,:,:,iElem)
+END DO
+
+! Write solution to vtk
+FileString_BField=TRIM(ProjectName)//'_BField.vtu'
+Coords_BField_p => Coords_BField(:,:,:,:,1:iDG)
+U_Visu_p => U_Visu(:,:,:,:,1:iDG)
+CALL WriteDataToVTK(nVar_State,NVisu,iDG,StrVarNames,Coords_BField_p,U_Visu_p,TRIM(FileString_BField),dim=3,DGFV=0)
+
+END SUBROUTINE ConvertBField

@@ -63,7 +63,7 @@ END INTERFACE
 
 PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header,GatheredWriteArray
 PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
-PUBLIC :: WriteTimeAverage,GenerateNextFileInfo
+PUBLIC :: WriteTimeAverage,GenerateNextFileInfo, copy_userblock
 !===================================================================================================================================
 
 CONTAINS
