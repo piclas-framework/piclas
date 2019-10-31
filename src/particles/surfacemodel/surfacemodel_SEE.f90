@@ -92,7 +92,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
             s              => 1.35 ,& !    -> empir. fit. const. copper electrode Ref, [19] R. Cimino et al.,Phys.Rev.Lett. 2004
             eps_max        => 262  ,& ! eV -> empir. fit. const. copper electrode Ref, [19] R. Cimino et al.,Phys.Rev.Lett. 2004
             eps_0          => 150  ,& ! eV -> empir. fit. const. copper electrode Ref, [19] R. Cimino et al.,Phys.Rev.Lett. 2004
-            velo2          => PartState(PartID_IN,4)**2 + PartState(PartID_IN,5)**2 + PartState(PartID_IN,6)**2 ,&
+            velo2          => PartState(4,PartID_IN)**2 + PartState(5,PartID_IN)**2 + PartState(6,PartID_IN)**2 ,&
             mass           => Species(PartSpecies(PartID_IN))%MassIC &! mass of bombarding particle
             )
         ! Electron energy in [eV]
@@ -116,8 +116,8 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
             v_new           = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
             eps_e           = 0.5*mass*(v_new**2)/ElementaryCharge               ! Energy of the injected electron
 !WRITE (*,*) CHAR(27) // "[0;34mPartID_IN                  =", PartID_IN,CHAR(27),"[m"
-!WRITE (*,*) CHAR(27) // "[0;34mPartState(PartID_IN,1:3)   =", PartState(PartID_IN,1:3),CHAR(27),"[m"
-!WRITE (*,*) CHAR(27) // "[0;34mPartState(PartID_IN,4:6)   =", PartState(PartID_IN,4:6),CHAR(27),"[m"
+!WRITE (*,*) CHAR(27) // "[0;34mPartState(1:3,PartID_IN)   =", PartState(1:3,PartID_IN),CHAR(27),"[m"
+!WRITE (*,*) CHAR(27) // "[0;34mPartState(4:6,PartID_IN)   =", PartState(4:6,PartID_IN),CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;34mBombarding electron: v_new =", v_new,CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;34m                     eps_e =", eps_e,CHAR(27),"[m"
           ELSE ! Only perfect elastic scattering of the bombarding electron
@@ -155,8 +155,8 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
         eps_e           = I-2.*phi ! Energy of the injected electron
         v_new           = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
 !WRITE (*,*) CHAR(27) // "[0;34mPartID_IN                  =", PartID_IN,CHAR(27),"[m"
-!WRITE (*,*) CHAR(27) // "[0;31mPartState(PartID_IN,1:3) =", PartState(PartID_IN,1:3),CHAR(27),"[m"
-!WRITE (*,*) CHAR(27) // "[0;31mPartState(PartID_IN,4:6) =", PartState(PartID_IN,4:6),CHAR(27),"[m"
+!WRITE (*,*) CHAR(27) // "[0;31mPartState(1:3,PartID_IN) =", PartState(1:3,PartID_IN),CHAR(27),"[m"
+!WRITE (*,*) CHAR(27) // "[0;31mPartState(4:6,PartID_IN) =", PartState(4:6,PartID_IN),CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;31mPositive bombarding ion: v_new =", v_new,CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;31m                         eps_e =", eps_e,CHAR(27),"[m"
       ELSE ! Removal of the bombarding ion

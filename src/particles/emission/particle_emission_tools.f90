@@ -894,7 +894,7 @@ __STAMP__,&
               CYCLE !particle is inside MacroParticle
             END IF
           END IF
-          PartState(ParticleIndexNbr,1:3) = RandomPos(1:3)
+          PartState(1:3,ParticleIndexNbr) = RandomPos(1:3)
           PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
           PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
           PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
@@ -902,10 +902,10 @@ __STAMP__,&
           ichunkSize = ichunkSize + 1
           IF (VarTimeStep%UseVariableTimeStep) THEN
             VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &
-              CalcVarTimeStep(PartState(ParticleIndexNbr,1), PartState(ParticleIndexNbr,2),iElem)
+              CalcVarTimeStep(PartState(1,ParticleIndexNbr), PartState(2,ParticleIndexNbr),iElem)
           END IF
           IF(RadialWeighting%DoRadialWeighting) THEN
-            PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(ParticleIndexNbr,2),1,ParticleIndexNbr)
+            PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),1,ParticleIndexNbr)
           END IF
         ELSE
           CALL abort(&

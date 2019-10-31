@@ -71,7 +71,7 @@ DO WHILE (iRan.GT.(1 - REAL(iQua)/REAL(MaxColQua))**FakXi)
   iQua = INT(iRan * iQuaMax)
   CALL RANDOM_NUMBER(iRan)
 END DO
-PartStateIntEn(iPart,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
+PartStateIntEn(1,iPart) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
               * SpecDSMC(PartSpecies(iPart))%CharaTVib
 
 END SUBROUTINE DSMC_VibRelaxDiatomic

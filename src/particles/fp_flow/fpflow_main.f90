@@ -108,8 +108,8 @@ DO iElem = 1, nElems
     iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
       iPartIndx_Node(iLoop) = iPart
-      partWeight = GetParticleWeight(iPart)
-      vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6) * partWeight
+      partWeight  = GetParticleWeight(iPart)
+      vBulk(1:3)  = vBulk(1:3) + PartState(4:6,iPart) * partWeight
       totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
@@ -193,7 +193,7 @@ ELSE
     DO iLoop = 1, nPart
       partWeight = GetParticleWeight(iPart)
       iPartIndx_Node(iLoop) = iPart
-      vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6) * partWeight
+      vBulk(1:3)  = vBulk(1:3) + PartState(4:6,iPart) * partWeight
       totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
