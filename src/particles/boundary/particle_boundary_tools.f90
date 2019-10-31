@@ -71,7 +71,7 @@ SUBROUTINE AddPartInfoToSample(PartID,Transarray,IntArray,SampleType)
 !> Adds the velocities and particle energy of a particle to the correct position of transarray and intarray
 !>   only performed if sampling is enabled
 !===================================================================================================================================
-USE MOD_Globals       ,ONLY: abort
+USE MOD_Globals       ,ONLY: abort,VECNORM
 USE MOD_Particle_Vars ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
 USE MOD_DSMC_Vars     ,ONLY: CollisMode, useDSMC, SpecDSMC
@@ -94,18 +94,18 @@ INTEGER :: ETransID, ERotID, EVibID
 IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
   TransArray(:)=0.
   IntArray(:)=0.
-  VeloReal = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))
+  VeloReal = VECNORM(PartState(4:6,PartID))
   ETrans = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
   SELECT CASE (TRIM(SampleType))
   CASE ('old')
     ! must be old_velocity-new_velocity
-    TransArray(4:6) = PartState(PartID,4:6)
+    TransArray(4:6) = PartState(4:6,PartID)
     ETransID = 1
     ERotID = 1
     EVibID = 4
   CASE ('new')
     ! must be old_velocity-new_velocity
-    TransArray(4:6) = -PartState(PartID,4:6)
+    TransArray(4:6) = -PartState(4:6,PartID)
     ETransID = 3
     ERotID = 3
     EVibID = 6
@@ -117,8 +117,8 @@ __STAMP__&
   TransArray(ETransID) = ETrans
   IF (useDSMC .AND. CollisMode.GT.1) THEN
     IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.SpecDSMC(PartSpecies(PartID))%InterID.EQ.20) THEN
-      IntArray(ERotID) = PartStateIntEn(PartID,2)
-      IntArray(EVibID) = PartStateIntEn(PartID,1)
+      IntArray(ERotID) = PartStateIntEn(2,PartID)
+      IntArray(EVibID) = PartStateIntEn(1,PartID)
     END IF
   END IF
 END IF
@@ -262,13 +262,13 @@ IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
 __STAMP__&
 ,'maxSurfCollisNumber reached!')
     END IF
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) = PartState(PartID,4)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) = PartState(PartID,5)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) = PartState(PartID,6)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) = LastPartPos(PartID,1)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) = LastPartPos(PartID,2)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) = LastPartPos(PartID,3)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(1:3,PartID) + alpha * PartTrajectory(1:3)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) = PartState(4,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) = PartState(5,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) = PartState(6,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) = LastPartPos(1,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) = LastPartPos(2,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) = LastPartPos(3,PartID)
     AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1))   = PartSpecies(PartID)
     AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1))   = locBCID
   END IF
@@ -306,7 +306,7 @@ IF (useDSMC .AND. CollisMode.GT.1) THEN
       iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
       IF(ALLOCATED(VibQuantsPar(PartID)%Quants)) DEALLOCATE(VibQuantsPar(PartID)%Quants)
       ALLOCATE(VibQuantsPar(PartID)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-      PartStateIntEn(PartID, 1) = 0.0
+      PartStateIntEn( 1,PartID) = 0.0
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
         CALL RANDOM_NUMBER(RanNum)
         VibQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
@@ -314,25 +314,25 @@ IF (useDSMC .AND. CollisMode.GT.1) THEN
           CALL RANDOM_NUMBER(RanNum)
           VibQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
         END DO
-        PartStateIntEn(PartID, 1) = PartStateIntEn(PartID, 1) &
+        PartStateIntEn( 1,PartID) = PartStateIntEn( 1,PartID) &
                                    + (VibQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
         VibQuantsPar(PartID)%Quants(iDOF)=VibQuant
       END DO
       IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.2) THEN
         CALL RANDOM_NUMBER(RanNum)
-        PartStateIntEn(PartID, 2) = -BoltzmannConst*WallTemp*LOG(RanNum)
+        PartStateIntEn( 2,PartID) = -BoltzmannConst*WallTemp*LOG(RanNum)
       ELSE IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.3) THEN
         CALL RANDOM_NUMBER(RanNum)
-        PartStateIntEn(PartID, 2) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-        NormProb = SQRT(PartStateIntEn(PartID, 2))*EXP(-PartStateIntEn(PartID, 2))/(SQRT(0.5)*EXP(-0.5))
+        PartStateIntEn( 2,PartID) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+        NormProb = SQRT(PartStateIntEn( 2,PartID))*EXP(-PartStateIntEn( 2,PartID))/(SQRT(0.5)*EXP(-0.5))
         CALL RANDOM_NUMBER(RanNum)
         DO WHILE (RanNum.GE.NormProb)
           CALL RANDOM_NUMBER(RanNum)
-          PartStateIntEn(PartID, 2) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-          NormProb = SQRT(PartStateIntEn(PartID, 2))*EXP(-PartStateIntEn(PartID, 2))/(SQRT(0.5)*EXP(-0.5))
+          PartStateIntEn( 2,PartID) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+          NormProb = SQRT(PartStateIntEn( 2,PartID))*EXP(-PartStateIntEn( 2,PartID))/(SQRT(0.5)*EXP(-0.5))
           CALL RANDOM_NUMBER(RanNum)
         END DO
-        PartStateIntEn(PartID, 2) = PartStateIntEn(PartID, 2)*BoltzmannConst*WallTemp
+        PartStateIntEn( 2,PartID) = PartStateIntEn( 2,PartID)*BoltzmannConst*WallTemp
       END IF
     ELSE
       ! Set vibrational energy
@@ -342,15 +342,15 @@ IF (useDSMC .AND. CollisMode.GT.1) THEN
         CALL RANDOM_NUMBER(RanNum)
         VibQuant = INT(-LOG(RanNum)*WallTemp/SpecDSMC(PartSpecies(PartID))%CharaTVib)
       END DO
-      PartStateIntEn(PartID, 1) = (VibQuant + DSMC%GammaQuant)*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst
+      PartStateIntEn( 1,PartID) = (VibQuant + DSMC%GammaQuant)*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst
       ! Set rotational energy
       CALL RANDOM_NUMBER(RanNum)
-      PartStateIntEn(PartID, 2) = -BoltzmannConst*WallTemp*LOG(RanNum)
+      PartStateIntEn( 2,PartID) = -BoltzmannConst*WallTemp*LOG(RanNum)
     END IF
   ELSE
     ! Nullify energy for atomic species
-    PartStateIntEn(PartID, 1) = 0.0
-    PartStateIntEn(PartID, 2) = 0.0
+    PartStateIntEn( 1,PartID) = 0.0
+    PartStateIntEn( 2,PartID) = 0.0
   END IF
 END IF
 !End internal energy accomodation
@@ -441,7 +441,7 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
         ,'BoundaryParticleOutput: PartStateBoundaryVecLength.GT.PDM%MaxParticleNumber. iMax=', IntInfoOpt=iMax)
   END IF
   PartStateBoundary(1:3,iMax) = PartPos
-  PartStateBoundary(4:6,iMax) = PartState(iPart,4:6)
+  PartStateBoundary(4:6,iMax) = PartState(4:6,iPart)
   PartStateBoundary(7,iMax)   = MPF
   PartStateBoundary(8,iMax)   = time
   PartStateBoundary(9,iMax)   = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))))
@@ -531,11 +531,11 @@ IF(CHARGEDPARTICLE(iPart))THEN
   IF(ElemID.GT.nElems)THEN
     ! Particle is now located in halo element: Create phantom particle, which is sent to new host Processor and removed there (set
     ! negative SpeciesID in order to remove particle in host Processor)
-    CALL CreateParticle(-PartSpecies(iPart),LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
+    CALL CreateParticle(-PartSpecies(iPart),LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
     ! Set inside to F (it is set to T in SendNbOfParticles if species ID is negative)
     PDM%ParticleInside(NewPartID)=.FALSE.
   ELSE ! Deposit single particle charge on surface here and 
-    CALL DepositParticleOnNodes(iPart,LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID)
+    CALL DepositParticleOnNodes(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID)
   END IF ! ElemID.GT.nElems
 END IF ! CHARGEDPARTICLE(iPart)
 

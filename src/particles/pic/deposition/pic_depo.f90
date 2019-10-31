@@ -1501,13 +1501,13 @@ CASE('nearest_blurrycenter')
       IF(PEM%Element(iPart).EQ.iElem)THEN
         IF(usevMPF)THEN
           IF(doCalculateCurrentDensity)THEN
-            ElemSource(1:3,iElem) = ElemSource(1:3,iElem)+ PartState(iPart,4:6)*Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
+            ElemSource(1:3,iElem) = ElemSource(1:3,iElem)+ PartState(4:6,iPart)*Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
           END IF
           ElemSource(4,iElem) = ElemSource(4,iElem)  + Species(PartSpecies(iPart))%ChargeIC* PartMPF(iPart)
         ELSE
           IF(doCalculateCurrentDensity)THEN
             ElemSource(1:3,iElem) = ElemSource(1:3,iElem)+ &
-                PartState(iPart,4:6)* Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
+                PartState(4:6,iPart)* Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
           END IF
           ElemSource(4,iElem) = ElemSource(4,iElem) + &
               Species(PartSpecies(iPart))%ChargeIC* Species(PartSpecies(iPart))%MacroParticleFactor
@@ -1564,10 +1564,10 @@ CASE('cell_volweight')
     IF(DoRefMapping)THEN
       TempPartPos(1:3)=PartPosRef(1:3,iPart)
     ELSE
-      CALL GetPositionInRefElem(PartState(iPart,1:3),TempPartPos,iElem,ForceMode=.TRUE.)
+      CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos,iElem,ForceMode=.TRUE.)
     END IF
     IF(doCalculateCurrentDensity)THEN
-      TSource(1:3) = PartState(iPart,4:6)*Charge
+      TSource(1:3) = PartState(4:6,iPart)*Charge
     ELSE
       TSource(1:3) = 0.0
     END IF
@@ -1643,10 +1643,10 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
         Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
       END IF
       iElem = PEM%Element(iPart)
-      CALL GetPositionInRefElem(PartState(iPart,1:3),TempPartPos(1:3),iElem,ForceMode=.TRUE.)
+      CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos(1:3),iElem,ForceMode=.TRUE.)
       TSource(:) = 0.0
       IF(doCalculateCurrentDensity)THEN
-        TSource(1:3) = PartState(iPart,4:6)*Charge
+        TSource(1:3) = PartState(4:6,iPart)*Charge
       END IF
       TSource(4) = Charge
 
@@ -1769,9 +1769,9 @@ CASE('epanechnikov')
     DO kk = 0, PP_N
       DO ll = 0, PP_N
         DO mm = 0, PP_N
-          radius2 = (PartState(iPart,1) - Elem_xGP(1,kk,ll,mm,iElem)) * (PartState(iPart,1) - Elem_xGP(1,kk,ll,mm,iElem)) &
-                  + (PartState(iPart,2) - Elem_xGP(2,kk,ll,mm,iElem)) * (PartState(iPart,2) - Elem_xGP(2,kk,ll,mm,iElem)) &
-                  + (PartState(iPart,3) - Elem_xGP(3,kk,ll,mm,iElem)) * (PartState(iPart,3) - Elem_xGP(3,kk,ll,mm,iElem))
+          radius2 = (PartState(1,iPart) - Elem_xGP(1,kk,ll,mm,iElem)) * (PartState(1,iPart) - Elem_xGP(1,kk,ll,mm,iElem)) &
+                  + (PartState(2,iPart) - Elem_xGP(2,kk,ll,mm,iElem)) * (PartState(2,iPart) - Elem_xGP(2,kk,ll,mm,iElem)) &
+                  + (PartState(3,iPart) - Elem_xGP(3,kk,ll,mm,iElem)) * (PartState(3,iPart) - Elem_xGP(3,kk,ll,mm,iElem))
          IF (radius2 .LT. r2_sf) THEN
            tempsource(kk,ll,mm) = r2_sf - radius2
            alpha = alpha + tempsource(kk,ll,mm)
@@ -1785,7 +1785,7 @@ CASE('epanechnikov')
       DO ll = 0, PP_N
         DO mm = 0, PP_N
           IF(doCalculateCurrentDensity)THEN
-            PartSource(1:3,kk,ll,mm,iElem) = PartSource(1:3,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm)*PartState(iPart,4:6) &
+            PartSource(1:3,kk,ll,mm,iElem) = PartSource(1:3,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm)*PartState(4:6,iPart) &
                 * Species(PartSpecies(iPart))%ChargeIC &
                 * Species(PartSpecies(iPart))%MacroParticleFactor
           END IF
@@ -1861,7 +1861,7 @@ CASE('shape_function','shape_function_simple')
       ! Don't deposit neutral particles!
       IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
       CALL calcSfSource(4,Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)*w_sf &
-        ,Vec1,Vec2,Vec3,PartState(iPart,1:3),iPart,PartVelo=PartState(iPart,4:6))
+        ,Vec1,Vec2,Vec3,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
     END DO ! iPart
   ELSE
     DO iPart=firstPart,LastPart
@@ -1874,7 +1874,7 @@ CASE('shape_function','shape_function_simple')
       ! Don't deposit neutral particles!
       IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
       CALL calcSfSource(4,Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor*w_sf &
-        ,Vec1,Vec2,Vec3,PartState(iPart,1:3),iPart,PartVelo=PartState(iPart,4:6))
+        ,Vec1,Vec2,Vec3,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
     END DO ! iPart
   END IF ! usevMPF
   IF(.NOT.DoInnerParts)THEN
@@ -1987,13 +1987,13 @@ CASE('shape_function','shape_function_simple')
     IF (usevMPF) THEN
       DO iPart=1,NbrOfextParticles  !external Particles
         CALL calcSfSource(4,Species(ExtPartSpecies(iPart))%ChargeIC*ExtPartMPF(iPart)*w_sf &
-          ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),-iPart,PartVelo=ExtPartState(iPart,4:6))
+          ,Vec1,Vec2,Vec3,ExtPartState(1:3,iPart),-iPart,PartVelo=ExtPartState(4:6,iPart))
       END DO
     ELSE
       DO iPart=1,NbrOfextParticles  !external Particles
         CALL calcSfSource(4 &
           ,Species(ExtPartSpecies(iPart))%ChargeIC*Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf &
-          ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),-iPart,PartVelo=ExtPartState(iPart,4:6))
+          ,Vec1,Vec2,Vec3,ExtPartState(1:3,iPart),-iPart,PartVelo=ExtPartState(4:6,iPart))
       END DO
     END IF ! usevMPF
     ! deallocate external state
@@ -2088,12 +2088,12 @@ CASE('shape_function_1d')
       Fac(4)= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor*w_sf
     END IF ! usevMPF
     !IF(fac(4).GT.0.) print*,'charge pos'
-    Fac(1:3) = PartState(iPart,4:6)*Fac(4)
+    Fac(1:3) = PartState(4:6,iPart)*Fac(4)
     !-- determine which background mesh cells (and interpolation points within) need to be considered
     chargedone(:) = .FALSE.
     DO iCase = 1, NbrOfCases
       DO ind = 1,3
-        ShiftedPart(ind) = PartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+        ShiftedPart(ind) = PartState(ind,iPart) + casematrix(iCase,1)*Vec1(ind) + &
              casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
       END DO
       IF(sf1d_dir.EQ.1)THEN
@@ -2192,12 +2192,12 @@ CASE('shape_function_1d')
       ELSE
         Fac(4)= Species(ExtPartSpecies(iPart))%ChargeIC * Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf
       END IF ! usevMPF
-      Fac(1:3) = ExtPartState(iPart,4:6)*Fac(4)
+      Fac(1:3) = ExtPartState(4:6,iPart)*Fac(4)
       chargedone(:) = .FALSE.
       !-- determine which background mesh cells (and interpolation points within) need to be considered
       DO iCase = 1, NbrOfCases
         DO ind = 1,3
-          ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+          ShiftedPart(ind) = ExtPartState(ind,iPart) + casematrix(iCase,1)*Vec1(ind) + &
                casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
         END DO
         IF(sf1d_dir.EQ.1)THEN
@@ -2320,12 +2320,12 @@ CASE('shape_function_2d')
       Fac(4)= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor*w_sf
     END IF ! usevMPF
     !IF(fac(4).GT.0.) print*,'charge pos'
-    Fac(1:3) = PartState(iPart,4:6)*Fac(4)
+    Fac(1:3) = PartState(4:6,iPart)*Fac(4)
     !-- determine which background mesh cells (and interpolation points within) need to be considered
     chargedone(:) = .FALSE.
     DO iCase = 1, NbrOfCases
       DO ind = 1,3
-        ShiftedPart(ind) = PartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+        ShiftedPart(ind) = PartState(ind,iPart) + casematrix(iCase,1)*Vec1(ind) + &
              casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
       END DO
       IF(sf1d_dir.EQ.1)THEN
@@ -2459,12 +2459,12 @@ CASE('shape_function_2d')
       ELSE
         Fac(4)= Species(ExtPartSpecies(iPart))%ChargeIC * Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf
       END IF ! usevMPF
-      Fac(1:3) = ExtPartState(iPart,4:6)*Fac(4)
+      Fac(1:3) = ExtPartState(4:6,iPart)*Fac(4)
       chargedone(:) = .FALSE.
       !-- determine which background mesh cells (and interpolation points within) need to be considered
       DO iCase = 1, NbrOfCases
         DO ind = 1,3
-          ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+          ShiftedPart(ind) = ExtPartState(ind,iPart) + casematrix(iCase,1)*Vec1(ind) + &
                casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
         END DO
         IF(sf1d_dir.EQ.1)THEN
@@ -2608,7 +2608,7 @@ CASE('shape_function_cylindrical','shape_function_spherical')
     ! Don't deposit neutral particles!
     IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
     ! compute local radius
-    local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(iPart,1:SfRadiusInt),PartState(iPart,1:SfRadiusInt)))
+    local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(1:SfRadiusInt,iPart),PartState(1:SfRadiusInt,iPart)))
     local_r2_sf=local_r_sf*local_r_sf
     local_r2_sf_inv=1./local_r2_sf
     IF (usevMPF) THEN
@@ -2617,12 +2617,12 @@ CASE('shape_function_cylindrical','shape_function_spherical')
       Fac(4)= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor*w_sf/(PI*(local_r_sf**3))
     END IF ! usevMPF
     !IF(fac(4).GT.0.) print*,'charge pos'
-    Fac(1:3) = PartState(iPart,4:6)*Fac(4)
+    Fac(1:3) = PartState(4:6,iPart)*Fac(4)
     !-- determine which background mesh cells (and interpolation points within) need to be considered
     DO iCase = 1, NbrOfCases
       chargedone(:) = .FALSE.
       DO ind = 1,3
-        ShiftedPart(ind) = PartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+        ShiftedPart(ind) = PartState(ind,iPart) + casematrix(iCase,1)*Vec1(ind) + &
              casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
       END DO
       kmax = CEILING((ShiftedPart(1)+local_r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
@@ -2704,7 +2704,7 @@ CASE('shape_function_cylindrical','shape_function_spherical')
     END IF
 
     DO iPart=1,NbrOfextParticles  !external Particles
-      local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(iPart,1:SfRadiusInt),PartState(iPart,1:SfRadiusInt)))
+      local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(1:SfRadiusInt,iPart),PartState(1:SfRadiusInt,iPart)))
       local_r2_sf=local_r_sf*local_r_sf
       local_r2_sf_inv=1./local_r2_sf
       IF (usevMPF) THEN
@@ -2713,12 +2713,12 @@ CASE('shape_function_cylindrical','shape_function_spherical')
         Fac(4)= Species(ExtPartSpecies(iPart))%ChargeIC &
               * Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf/(PI*(local_r_sf**3))
       END IF ! usevMPF
-      Fac(1:3) = ExtPartState(iPart,4:6)*Fac(4)
+      Fac(1:3) = ExtPartState(4:6,iPart)*Fac(4)
       !-- determine which background mesh cells (and interpolation points within) need to be considered
       DO iCase = 1, NbrOfCases
         chargedone(:) = .FALSE.
         DO ind = 1,3
-          ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+          ShiftedPart(ind) = ExtPartState(ind,iPart) + casematrix(iCase,1)*Vec1(ind) + &
                casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
         END DO
         kmax = CEILING((ShiftedPart(1)+local_r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
@@ -2820,7 +2820,7 @@ CASE('delta_distri')
         END IF ! usevMPF
         ! Map Particle to -1|1 space (re-used in interpolation)
         IF(.NOT.DoRefMapping)THEN
-          CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
+          CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem)
         END IF
         ! get value of test function at particle position
         SELECT CASE(DeltaType)
@@ -2853,7 +2853,7 @@ CASE('delta_distri')
             DO i=0,NDepo
          !     print*,'i,j,k,L',i,j,k,L_xi(1,i)* L_xi(2,j)* L_xi(3,k)
               DeltaIntCoeff = L_xi(1,i)* L_xi(2,j)* L_xi(3,k)*prefac
-              PartSource(1:3,i,j,k,iElem) = PartSource(1:3,i,j,k,iElem) + DeltaIntCoeff*PartState(iPart,4:6)
+              PartSource(1:3,i,j,k,iElem) = PartSource(1:3,i,j,k,iElem) + DeltaIntCoeff*PartState(4:6,iPart)
               PartSource( 4 ,i,j,k,iElem) = PartSource( 4 ,i,j,k,iElem) + DeltaIntCoeff
             END DO ! i
           END DO ! j
@@ -2918,7 +2918,7 @@ CASE('nearest_gausspoint')
         END IF ! usevMPF
         ! Map Particle to -1|1 space (re-used in interpolation)
         !IF(.NOT.DoRefMapping)THEN
-        !  CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
+        !  CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem,iPart)
         !END IF
         ! Find out which gausspoint is closest and add up charges and currents
         !! x-direction
@@ -2951,7 +2951,7 @@ CASE('nearest_gausspoint')
           m = NINT((PP_N+SIGN(2.0*m-PP_N,PartPosRef(3,iPart)))/2)
         END IF
 !#if (PP_nVar==8)
-        PartSource(1:3,k,l,m,iElem) = PartSource(1:3,k,l,m,iElem) + PartState(iPart,4:6) * prefac
+        PartSource(1:3,k,l,m,iElem) = PartSource(1:3,k,l,m,iElem) + PartState(4:6,iPart) * prefac
 !#endif
         PartSource( 4 ,k,l,m,iElem) = PartSource( 4 ,k,l,m,iElem) + prefac
         !IF (SAVE_GAUSS) THEN
@@ -3005,17 +3005,17 @@ CASE('cartmesh_volumeweighting')
       Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
     END IF ! usevMPF
     !Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
-    k = FLOOR(PartState(iPart,1)/BGMdeltas(1))
-    l = FLOOR(PartState(iPart,2)/BGMdeltas(2))
-    m = FLOOR(PartState(iPart,3)/BGMdeltas(3))
-    alpha1 = (PartState(iPart,1) / BGMdeltas(1)) - k
-    alpha2 = (PartState(iPart,2) / BGMdeltas(2)) - l
-    alpha3 = (PartState(iPart,3) / BGMdeltas(3)) - m
+    k = FLOOR(PartState(1,iPart)/BGMdeltas(1))
+    l = FLOOR(PartState(2,iPart)/BGMdeltas(2))
+    m = FLOOR(PartState(3,iPart)/BGMdeltas(3))
+    alpha1 = (PartState(1,iPart) / BGMdeltas(1)) - k
+    alpha2 = (PartState(2,iPart) / BGMdeltas(2)) - l
+    alpha3 = (PartState(3,iPart) / BGMdeltas(3)) - m
     TSource(:) = 0.0
 !#if (PP_nVar==8)
-    TSource(1) = PartState(iPart,4)*Charge
-    TSource(2) = PartState(iPart,5)*Charge
-    TSource(3) = PartState(iPart,6)*Charge
+    TSource(1) = PartState(4,iPart)*Charge
+    TSource(2) = PartState(5,iPart)*Charge
+    TSource(3) = PartState(6,iPart)*Charge
 !#endif
     TSource(4) = Charge
 
@@ -3108,9 +3108,9 @@ CASE('cartmesh_splines')
     ELSE
       Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
     END IF ! usevMPF
-    PosInd(1) = FLOOR(PartState(iPart,1)/BGMdeltas(1))
-    PosInd(2) = FLOOR(PartState(iPart,2)/BGMdeltas(2))
-    PosInd(3) = FLOOR(PartState(iPart,3)/BGMdeltas(3))
+    PosInd(1) = FLOOR(PartState(1,iPart)/BGMdeltas(1))
+    PosInd(2) = FLOOR(PartState(2,iPart)/BGMdeltas(2))
+    PosInd(3) = FLOOR(PartState(3,iPart)/BGMdeltas(3))
     !print*,'posind(1:3),charge',posInd,charge
     DO dir = 1,3               ! x,y,z direction
       DO weightrun = 0,3
@@ -3121,7 +3121,7 @@ CASE('cartmesh_splines')
             auxiliary(mm) = 0.0
           END IF
         END DO
-        CALL DeBoor(PosInd(dir),auxiliary,PartState(iPart,dir),weight(dir,weightrun),dir)
+        CALL DeBoor(PosInd(dir),auxiliary,PartState(dir,iPart),weight(dir,weightrun),dir)
       END DO
     END DO
     DO k = PosInd(1)-1, PosInd(1)+2
@@ -3132,9 +3132,9 @@ CASE('cartmesh_splines')
           mm = abs(m - PosInd(3) - 2)
           locweight = weight(1,kk)*weight(2,ll)*weight(3,mm)*charge
 !#if (PP_nVar==8)
-          BGMSource(k,l,m,1) = BGMSource(k,l,m,1) + PartState(iPart,4)* locweight
-          BGMSource(k,l,m,2) = BGMSource(k,l,m,2) + PartState(iPart,5)* locweight
-          BGMSource(k,l,m,3) = BGMSource(k,l,m,3) + PartState(iPart,6)* locweight
+          BGMSource(k,l,m,1) = BGMSource(k,l,m,1) + PartState(4,iPart)* locweight
+          BGMSource(k,l,m,2) = BGMSource(k,l,m,2) + PartState(5,iPart)* locweight
+          BGMSource(k,l,m,3) = BGMSource(k,l,m,3) + PartState(6,iPart)* locweight
 !#endif
           BGMSource(k,l,m,4) = BGMSource(k,l,m,4) + locweight
        !   print*,'BMGSOURCE4',BGMSOURCE(k,l,m,4)

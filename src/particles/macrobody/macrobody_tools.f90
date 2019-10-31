@@ -317,12 +317,12 @@ MacroBodyTrajectory(1:3)=MacroSphere(macroBodyID)%velocity(1:3)*dt*RKdtFrac*(1.-
 relPartTrajectory(1:3)=PartTrajectory(1:3)*LengthPartTrajectory-MacroBodyTrajectory(1:3)
 ! Transform particle position to sphere system
 PosSphere(1:3) = MacroSphere(macroBodyID)%center(1:3)+MacroSphere(macroBodyID)%velocity(1:3)*dt*RKdtFrac*alphaDoneRel
-P2_rel(1:3)=LastPartPos(PartID,1:3)-PosSphere(1:3)
+P2_rel(1:3)=LastPartPos(1:3,PartID)-PosSphere(1:3)
 
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
-      CALL OutputTrajectory(PartID,PartState(PartID,1:3),PartTrajectory,lengthPartTrajectory)
+      CALL OutputTrajectory(PartID,PartState(1:3,PartID),PartTrajectory,lengthPartTrajectory)
       WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | Macrosphere center Pos:       ', PosSphere(1:3)
       WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | Macrosphere Trajectory:       ', MacroBodyTrajectory(1:3)
       WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | relative Position:       ', P2_rel(1:3)
@@ -515,7 +515,7 @@ MacroBodyTrajectory(1:3)=MacroSphere(macroBodyID)%velocity(1:3)*dt*RKdtFrac*(1.-
 relPartTrajectory(1:3)=PartTrajectory(1:3)*lengthPartTrajectory-MacroBodyTrajectory(1:3)
 ! Transform particle posiiton to sphere system
 PosSphere(1:3) = MacroSphere(macroBodyID)%center(1:3)+MacroSphere(macroBodyID)%velocity(1:3)*dt*RKdtFrac*alphaDoneRel
-!P2_rel(1:3)=LastPartPos(PartID,1:3)-PosSphere(1:3)
+!P2_rel(1:3)=LastPartPos(1:3,PartID)-PosSphere(1:3)
 
 ! already checked during intersection
 !IF (DOT_PRODUCT(P2_rel,relPartTrajectory).GT.0) THEN
@@ -532,7 +532,7 @@ PosSphere(1:3) = MacroSphere(macroBodyID)%center(1:3)+MacroSphere(macroBodyID)%v
 !END IF
 !relPartTrajectory=relPartTrajectory/relLengthPartTrajectory
 
-intersectPoint(1:3) = LastPartPos(PartID,1:3) + alpha*PartTrajectory(1:3)
+intersectPoint(1:3) = LastPartPos(1:3,PartID) + alpha*PartTrajectory(1:3)
 sphereIntersectionPos(1:3) = PosSphere(1:3) + alphaSphere*MacroBodyTrajectory(1:3)
 nLoc = UNITVECTOR(intersectPoint - sphereIntersectionPos)
 ! nLoc points outwards of sphere
@@ -546,7 +546,7 @@ END IF
 nLoc=-nLoc
 
 ! transform velocity in reference to sphere
-relVeloPart(1:3)=PartState(PartID,4:6)-MacroSphere(macroBodyID)%velocity(1:3)
+relVeloPart(1:3)=PartState(4:6,PartID)-MacroSphere(macroBodyID)%velocity(1:3)
 ! perfect reflection on sphere
 CALL RANDOM_NUMBER(RanNum)
 IF (RanNum.GE.MacroSphere(macroBodyID)%momentumACC) THEN
@@ -580,14 +580,14 @@ ELSE
   CALL SurfaceToPartEnergyInternal(PartID,WallTemp)
 END IF
 ! transform velocity back to mesh reference
-PartState(PartID,4:6) = NewVelo(1:3) + MacroSphere(macroBodyID)%velocity(1:3)
+PartState(4:6,PartID) = NewVelo(1:3) + MacroSphere(macroBodyID)%velocity(1:3)
 
 ! intersection point with surface
-LastPartPos(PartID,1:3) = intersectPoint(1:3)
+LastPartPos(1:3,PartID) = intersectPoint(1:3)
 POI_fak = alphaDoneRel+(1.-alphaDoneRel)*alphaSphere
-PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * (PartState(PartID,4:6))
+PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * (PartState(4:6,PartID))
 
-PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
 IF (lengthPartTrajectory.GT.0.) PartTrajectory=PartTrajectory/lengthPartTrajectory
 
