@@ -482,13 +482,13 @@ END IF ! usevMPF
 IF(DoRefMapping)THEN
   TempPartPos(1:3)=PartPosRef(1:3,PartID)
 ELSE
-  CALL GetPositionInRefElem(PartState(PartID,1:3),TempPartPos,ElemID,ForceMode=.TRUE.)
+  CALL GetPositionInRefElem(PartState(1:3,PartID),TempPartPos,ElemID,ForceMode=.TRUE.)
 END IF
 TSource(:) = 0.0
 !#if (PP_nVar==8)
-TSource(1) = PartState(PartID,4)*Charge
-TSource(2) = PartState(PartID,5)*Charge
-TSource(3) = PartState(PartID,6)*Charge
+TSource(1) = PartState(4,PartID)*Charge
+TSource(2) = PartState(5,PartID)*Charge
+TSource(3) = PartState(6,PartID)*Charge
 !#endif
 TSource(4) = Charge
 alpha1=(TempPartPos(1)+1.0)/2.0

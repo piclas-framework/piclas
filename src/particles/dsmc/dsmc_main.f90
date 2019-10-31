@@ -85,9 +85,9 @@ REAL              :: tLBStart
 !===================================================================================================================================
 
 IF(.NOT.PRESENT(DoElement)) THEN
-  DSMC_RHS(1:PDM%ParticleVecLength,1) = 0
-  DSMC_RHS(1:PDM%ParticleVecLength,2) = 0
-  DSMC_RHS(1:PDM%ParticleVecLength,3) = 0
+  DSMC_RHS(1,1:PDM%ParticleVecLength) = 0
+  DSMC_RHS(2,1:PDM%ParticleVecLength) = 0
+  DSMC_RHS(3,1:PDM%ParticleVecLength) = 0
 END IF
 DSMCSumOfFormedParticles = 0
 
