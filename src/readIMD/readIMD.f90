@@ -199,32 +199,32 @@ subroutine read_IMD_results()
 
 !  atomsBufferPos = 1
 !  do iPart=1,PDM%ParticleVecLength
-!    PartState(iPart,1:6) = AtomsBuffer(atomsBufferPos:atomsBufferPos+5)
+!    PartState(1:6,iPart) = AtomsBuffer(atomsBufferPos:atomsBufferPos+5)
 !    atomsBufferPos = atomsBufferPos + 6
-!    PartStateIntEn(iPart,1:2) = AtomsBuffer(atomsBufferPos:atomsBufferPos+1)
+!    PartStateIntEn(1:2,iPart) = AtomsBuffer(atomsBufferPos:atomsBufferPos+1)
 !    atomsBufferPos = atomsBufferPos + 2
 !  end do
 !  if(myRank==1)then
 !    write(*,*)'Copy atmos to ParticleInside and PartStateIntEn done'
 !
 !    do iPart=1,10
-!      write(*,*)iPart, PartState(iPart,:)
-!      write(*,*)ipart, PartStateIntEn(iPart,:)
+!      write(*,*)iPart, PartState(:,iPart)
+!      write(*,*)ipart, PartStateIntEn(:,iPart)
 !      write(*,*)'-------------------------------'
 !    end do
 !
 !  end if
 
   do iPart=1,PDM%ParticleVecLength
-    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartState(iPart,1:6),&
+    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartState(1:6,iPart),&
                     6_4, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
     if ( iError .NE. 0 ) &
-        IPWRITE(UNIT_stdOut,'(I0,A,I0)')'Error unpacking particle position to PartState(iPart,1:6) with iPart=',iPart
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)')'Error unpacking particle position to PartState(1:6,iPart) with iPart=',iPart
 
-    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartStateIntEn(iPart,1:2),&
+    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartStateIntEn(1:2,iPart),&
                     int( observables-6_8, 4 ), MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
     if ( iError .NE. 0 ) &
-        IPWRITE(UNIT_stdOut,'(I0,A,I0)')'Error unpacking particle charge and electron temperature to PartState(iPart,1:2) with iPart=',iPart
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)')'Error unpacking particle charge and electron temperature to PartState(1:2,iPart) with iPart=',iPart
   end do
 
   if( mpiroot )then
@@ -236,19 +236,19 @@ subroutine read_IMD_results()
   deallocate(AtomsBuffer)
 
   PartState = PartState * 1e-10_8
-  PartState(:,4:6) = PartState(:,4:6) * 10.18e15_8
+  PartState(4:6,:) = PartState(4:6,:) * 10.18e15_8
 
   ! Free an info object 
   call MPI_Info_free(mpiInfo, iError)
 
   ! Get minimum and maximum extend of the complete particle distribution in the domain
-  MinX = MINVAL(PartState(:,1))
-  MinY = MINVAL(PartState(:,2))
-  MinZ = MINVAL(PartState(:,3))
+  MinX = MINVAL(PartState(1,:))
+  MinY = MINVAL(PartState(2,:))
+  MinZ = MINVAL(PartState(3,:))
 
-  MaxX = MAXVAL(PartState(:,1))
-  MaxY = MAXVAL(PartState(:,2))
-  MaxZ = MAXVAL(PartState(:,3))
+  MaxX = MAXVAL(PartState(1,:))
+  MaxY = MAXVAL(PartState(2,:))
+  MaxZ = MAXVAL(PartState(3,:))
 
   CALL MPI_REDUCE(MaxX , MaxX_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
   CALL MPI_REDUCE(MinX , MinX_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
@@ -277,7 +277,7 @@ subroutine read_IMD_results()
     PDM%ParticleInside(iPart) = .True.
     CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
     if( .not. PDM%ParticleInside(iPart) )then
-!      WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(iPart,1),PartState(iPart,2),PartState(iPart,3)
+!      WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(1,iPart),PartState(2,iPart),PartState(3,iPart)
       NbrOfLostParticles=NbrOfLostParticles+1
     end if
   end do
