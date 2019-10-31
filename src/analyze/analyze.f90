@@ -795,7 +795,7 @@ USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfaceAnalyzeStep
 USE MOD_SurfaceModel_Analyze      ,ONLY: AnalyzeSurface
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
-USE MOD_DSMC_Vars                 ,ONLY: DSMC_HOSolution
+USE MOD_DSMC_Vars                 ,ONLY: DSMC_HOSolution, DSMC_VolumeSample
 USE MOD_Particle_Tracking_vars    ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep
 USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
@@ -1073,6 +1073,7 @@ IF ((WriteMacroVolumeValues).AND.(.NOT.OutputHDF5))THEN
     iter_macvalout = 0
     DSMC%SampNum = 0
     DSMC_HOSolution = 0.0
+    DSMC_VolumeSample = 0.0
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%QualityFacSamp(:,:) = 0.
       IF(BGKInitDone) BGK_QualityFacSamp(:,:) = 0.
@@ -1135,6 +1136,7 @@ IF(OutPutHDF5)THEN
         iter_macvalout = 0
         DSMC%SampNum = 0
         DSMC_HOSolution = 0.0
+        DSMC_VolumeSample = 0.0
       END IF
     END IF
     ! surface data

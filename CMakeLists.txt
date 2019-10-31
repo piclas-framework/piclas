@@ -106,6 +106,7 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                               ParticleEuler-FieldRK4
                                                               DSMC
                                                               RESERVOIR
+                                                              MACROBODY
                                                               CN
                                                               ImplicitO3
                                                               ImplicitO4
@@ -200,6 +201,8 @@ ELSE()
     MESSAGE(ERROR " Not allowed to used DSMC without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
     MESSAGE(ERROR " Not allowed to used RESERVOIR without particles.")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "MACROBODY")
+    MESSAGE(ERROR " Not allowed to used MACROBODY without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK")
     MESSAGE(ERROR " Not allowed to used BGK without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
@@ -259,6 +262,8 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=4)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=42)
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "MACROBODY")
+   ADD_DEFINITIONS(-DPP_TimeDiscMethod=43)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "CN")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=120 -DIMPA)
    SET(PICLAS_IMPLICIT ON)
@@ -423,7 +428,7 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS}     -O3 ${PICLAS_INSTRUCTION} -finline-functions -fstack-arrays -finit-character=0")
   SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -pg -O0 ${PICLAS_INSTRUCTION} -finline-functions -fstack-arrays -finit-character=0")
   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -fcheck=bounds,do,mem,pointer -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace  -Wall")
-  SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -fcheck=bounds,do,mem,pointer -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace  -Wall -fsanitize=address,undefined,leak -fno-omit-frame-pointer -Wc-binding-type -Wuninitialized")
+  SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -fcheck=all -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace  -Wall -fsanitize=address,undefined,leak -fno-omit-frame-pointer -Wc-binding-type -Wuninitialized")
   # add flags only for compiling not linking!
   SET (PICLAS_COMPILE_FLAGS "-xf95-cpp-input -fPIC")
 

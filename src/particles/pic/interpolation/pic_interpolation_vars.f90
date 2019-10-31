@@ -23,7 +23,8 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL,ALLOCATABLE        :: FieldAtParticle(:,:)          !< (PIC%maxParticleNumber,6) 2nd index: Ex,Ey,Ez,Bx,By,Bz
+REAL,ALLOCATABLE        :: FieldAtParticle(:,:)          !< 1st index: Ex,Ey,Ez,Bx,By,Bz
+!                                                        !< 2nd index: PIC%maxParticleNumber
 CHARACTER(LEN=256)      :: InterpolationType             !< Type of Interpolation-Method
 LOGICAL                 :: InterpolationElemLoop         !< Interpolate with outer iElem-loop (not for many Elems per proc!)
 REAL                    :: externalField(6)              !< ext field is added to the maxwell-solver-field

@@ -90,6 +90,8 @@ CALL prms%SetSection("Particle")
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  ,         'Manual timestep [sec]', '0.0')
 CALL prms%CreateRealOption(     'Part-AdaptiveWeightingFactor', 'Weighting factor theta for weighting of average'//&
                                                                 ' instantaneous values with those of previous iterations.', '0.001')
+CALL prms%CreateIntOption(      'Particles-nPointsMCVolumeEstimate', 'Number of points used to calculate volume portion '//&
+                                'occupied by Macroparticle with Monte Carlo algorithm (per octree sub-cell)',  '1000')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
 CALL prms%CreateIntOption(      'Part-nMacroRestartFiles' ,       'Number of Restart files used for calculation', '0')
 CALL prms%CreateStringOption(   'Part-MacroRestartFile[$]' ,      'relative path to Restart file [$] used for calculation','none' &
@@ -940,7 +942,7 @@ USE MOD_part_emission              ,ONLY: InitializeParticleEmission,AdaptiveBCA
 USE MOD_surface_flux               ,ONLY: InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze               ,ONLY: InitHODSMC
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
-USE MOD_DSMC_Vars                  ,ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
+USE MOD_DSMC_Vars                  ,ONLY: useDSMC, DSMC, DSMC_HOSolution, HODSMC, DSMC_VolumeSample
 USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
 USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
@@ -999,11 +1001,13 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
     HODSMC%nOutputDSMC = 1
     SWRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
     ALLOCATE(DSMC_HOSolution(1:11,1,1,1,1:nElems,1:nSpecies))
+    ALLOCATE(DSMC_VolumeSample(1:nElems))
   ELSE
     HODSMC%nOutputDSMC = GETINT('Particles-DSMC-OutputOrder','1')
     ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))
   END IF
   DSMC_HOSolution = 0.0
+  DSMC_VolumeSample = 0.0
   CALL InitHODSMC()
 END IF
 
@@ -1065,6 +1069,8 @@ USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
 USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_Particle_Mesh          ,ONLY: GetMeshMinMax,InitFIBGM,MapRegionToElem,MarkAuxBCElems
+USE MOD_MacroBody_Init         ,ONLY: InitMacroBody
+USE MOD_MacroBody_tools        ,ONLY: MarkMacroBodyElems
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo
 USE MOD_part_pressure          ,ONLY: ParticlePressureIni,ParticlePressureCellIni
@@ -1121,7 +1127,7 @@ velocityOutputAtTime = GETLOGICAL('velocityOutputAtTime','.FALSE.')
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
 !print*, "SFSDRWE#"
-ALLOCATE(Pt_temp(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)
+ALLOCATE(Pt_temp(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
@@ -1142,13 +1148,13 @@ END IF
 #endif /*(PP_TimeDiscMethod==509)*/
 
 #ifdef IMPA
-ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
+ALLOCATE(PartStage(1:6,1:nRKStages-1,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
   ,' Cannot allocate PartStage arrays!')
 END IF
-ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)
+ALLOCATE(PartStateN(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
@@ -1213,13 +1219,13 @@ __STAMP__&
 END IF
 #endif /* IMPA */
 #ifdef ROS
-ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
+ALLOCATE(PartStage(1:6,1:nRKStages-1,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
   ,' Cannot allocate PartStage arrays!')
 END IF
-ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)
+ALLOCATE(PartStateN(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
@@ -1245,7 +1251,7 @@ IF (ALLOCSTAT.NE.0) THEN
    ,' Cannot allocate the stage position and element arrays!')
 END IF
 PEM%ElementN=0
-ALLOCATE(PEM%NormVec(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
+ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
  __STAMP__&
@@ -1283,7 +1289,7 @@ IF (ALLOCSTAT.NE.0) THEN
    ,' Cannot allocate the stage position and element arrays!')
 END IF
 PEM%ElementN=0
-ALLOCATE(PEM%NormVec(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
+ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
  __STAMP__&
@@ -1307,9 +1313,9 @@ IF(DoRefMapping)THEN
   PartPosRef=-888.
 END IF
 
-ALLOCATE(PartState(1:PDM%maxParticleNumber,1:6)       , &
-         LastPartPos(1:PDM%maxParticleNumber,1:3)     , &
-         Pt(1:PDM%maxParticleNumber,1:3)              , &
+ALLOCATE(PartState(1:6,1:PDM%maxParticleNumber)       , &
+         LastPartPos(1:3,1:PDM%maxParticleNumber)     , &
+         Pt(1:3,1:PDM%maxParticleNumber)              , &
          PartSpecies(1:PDM%maxParticleNumber)         , &
          PDM%ParticleInside(1:PDM%maxParticleNumber)  , &
          PDM%nextFreePosition(1:PDM%maxParticleNumber), &
@@ -1323,7 +1329,7 @@ END IF
 PDM%ParticleInside(1:PDM%maxParticleNumber) = .FALSE.
 PDM%dtFracPush(1:PDM%maxParticleNumber)     = .FALSE.
 PDM%IsNewPart(1:PDM%maxParticleNumber)      = .FALSE.
-LastPartPos(1:PDM%maxParticleNumber,1:3)    = 0.
+LastPartPos(1:3,1:PDM%maxParticleNumber)    = 0.
 PartState=0.
 Pt=0.
 PartSpecies        = 0
@@ -2717,7 +2723,10 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 CALL InitFIBGM()
-!CALL InitSFIBGM()
+
+!-- Macroscopic bodies inside domain
+CALL InitMacroBody()
+CALL MarkMacroBodyElems()
 
 ! === 2D/Axisymmetric initialization
 ! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
@@ -3178,20 +3187,20 @@ DO iElem=1,PP_nElems
 
     ! Get the physical coordinates that correspond to the reference coordinates
     CALL TensorProductInterpolation(PartPosRef(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) &
-                      ,PartState(ParticleIndexNbr,1:3)) !Map into phys. space
+                      ,PartState(1:3,ParticleIndexNbr)) !Map into phys. space
 
     ! Set the internal energies (vb, rot and electronic) to zero if needed
     IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
-      PartStateIntEn(ParticleIndexNbr, 1) = 0.
-      PartStateIntEn(ParticleIndexNbr, 2) = 0.
-      IF ( DSMC%ElectronicModel )  PartStateIntEn(ParticleIndexNbr, 3) = 0.
+      PartStateIntEn(1,ParticleIndexNbr) = 0.
+      PartStateIntEn(2,ParticleIndexNbr) = 0.
+      IF ( DSMC%ElectronicModel )  PartStateIntEn(3,ParticleIndexNbr) = 0.
     END IF
 
     ! Set the element ID of the electron to the current element ID
     PEM%Element(ParticleIndexNbr) = iElem
 
     ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
-    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(ParticleIndexNbr,4:6),&
+    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(4:6,ParticleIndexNbr),&
                                   Temperature=CellElectronTemperature)
   END DO
 END DO
