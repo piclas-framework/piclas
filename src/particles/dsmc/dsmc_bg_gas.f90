@@ -273,7 +273,7 @@ DO iLoop = 1, nPart
   CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) + 1.
   SpecPartNum(iSpec) = SpecPartNum(iSpec) + 1
   ! Calculation of mean vibrational energy per cell and iter, necessary for dissociation probability
-  IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(iPart,1)
+  IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(1,iPart)
   ! Create particle index list for pairing
   iPartIndex(iLoop) = iPart
   iPartIndexSpec(SpecPartNum(iSpec) ,iSpec) = iPart
@@ -314,7 +314,7 @@ DO iLoop = 1, MCC_TotalPairNum
 __STAMP__&
 ,'ERROR in MCC: MaxParticleNumber should be twice the expected number of particles, to account for the BGG/MCC particles!')
   END IF
-  PartState(PositionNbr,1:3) = PartState(iPart,1:3)
+  PartState(1:3,PositionNbr) = PartState(1:3,iPart)
   IF(DoRefMapping)THEN ! here Nearst-GP is missing
     PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,iPart)
   END IF
@@ -329,7 +329,7 @@ __STAMP__&
   ! Saving the particle index for later
   PairingPartner(iLoop) = PositionNbr
   ! Determine the particle velocity
-  CALL CalcVelocity_maxwell_lpn(FractNbr=BGGas%BGGasSpecies, Vec3D=PartState(PositionNbr,4:6), iInit=0)
+  CALL CalcVelocity_maxwell_lpn(FractNbr=BGGas%BGGasSpecies, Vec3D=PartState(4:6,PositionNbr), iInit=0)
 END DO
 
 ! 4.) Pairing the newly created background particles with the actual simulation particles
@@ -378,9 +378,9 @@ DO iPair = 1, MCC_TotalPairNum
   IF (usevMPF) PartMPF(Coll_pData(iPair)%iPart_p2) = PartMPF(Coll_pData(iPair)%iPart_p1)
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
   CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
-  Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) - PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                           + (PartState(Coll_pData(iPair)%iPart_p1,5) - PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                           + (PartState(Coll_pData(iPair)%iPart_p1,6) - PartState(Coll_pData(iPair)%iPart_p2,6))**2
+  Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) - PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                           + (PartState(5,Coll_pData(iPair)%iPart_p1) - PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                           + (PartState(6,Coll_pData(iPair)%iPart_p1) - PartState(6,Coll_pData(iPair)%iPart_p2))**2
   Coll_pData(iPair)%PairType = iCase
   Coll_pData(iPair)%NeedForRec = .FALSE.
 END DO

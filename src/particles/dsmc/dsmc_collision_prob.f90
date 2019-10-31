@@ -127,7 +127,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
     ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron
       IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
         ! Using the kinetic energy of the particle (as is described in Vahedi1995 and Birdsall1991)
-        VeloSquare = DOT_PRODUCT(PartState(iPart_p1,4:6),PartState(iPart_p1,4:6))
+        VeloSquare = DOT_PRODUCT(PartState(4:6,iPart_p1),PartState(4:6,iPart_p1))
         CollEnergy = 0.5 * Species(iSpec_p1)%MassIC * VeloSquare
         ! Determining whether a real collision or a "null" collisions happens by comparing the current cross-section with the
         ! maximal collision cross section
