@@ -104,7 +104,7 @@ USE MOD_TimeDisc_Vars, ONLY: TEnd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                             :: c_test
-#ifdef MPI
+#if USE_MPI
 #endif
 !===================================================================================================================================
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file

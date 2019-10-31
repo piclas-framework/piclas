@@ -29,12 +29,12 @@ INTERFACE U_Mortar
   MODULE PROCEDURE U_Mortar
 END INTERFACE
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTERFACE Flux_Mortar
   MODULE PROCEDURE Flux_Mortar
 END INTERFACE
 PUBLIC:: Flux_Mortar
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 PUBLIC::U_Mortar
 
@@ -186,7 +186,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
 END DO !MortarSideID
 END SUBROUTINE U_Mortar
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 SUBROUTINE Flux_Mortar(Flux_Master,Flux_Slave,doMPISides)
 !===================================================================================================================================
 ! fills master side from small non-conforming sides, Using 1D projection operators M_1_0,M_2_0
@@ -309,6 +309,6 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
   END SELECT ! mortarType(MortarSideID)
 END DO !MortarSideID
 END SUBROUTINE Flux_Mortar
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 END MODULE MOD_FillMortar

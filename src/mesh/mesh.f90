@@ -112,7 +112,7 @@ USE MOD_HDF5_Input
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------                                                                                             ! -----------------------------------------------------------------------------------------------------------------------------------
-USE MOD_Mesh_ReadIn            ,ONLY: readMesh
+USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
@@ -125,7 +125,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideSlabNormals,SideSlabIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty,ElemSlabNormals,ElemSlabIntervals
 #endif
-#ifdef MPI
+#if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
 #ifdef CODE_ANALYZE
@@ -150,10 +150,6 @@ INTEGER             :: iElem,i,j,k,nElemsLoc
 !CHARACTER(32)       :: hilf2
 CHARACTER(LEN=255)  :: FileName
 LOGICAL             :: validMesh,ExistFile
-INTEGER             :: firstMasterSide     ! lower side ID of array U_master/gradUx_master...
-INTEGER             :: lastMasterSide      ! upper side ID of array U_master/gradUx_master...
-INTEGER             :: firstSlaveSide      ! lower side ID of array U_slave/gradUx_slave...
-INTEGER             :: lastSlaveSide       ! upper side ID of array U_slave/gradUx_slave...
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(&
@@ -162,6 +158,9 @@ IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MESH...'
+
+! Output of myrank, ElemID and tracking info
+CalcMeshInfo = GETLOGICAL('CalcMeshInfo')
 
 ! SwapMesh: either supply the path to the swapmesh binary or place the binary into the current working directory
 DoSwapMesh=GETLOGICAL('DoSwapMesh','.FALSE.')
@@ -227,71 +226,21 @@ PP_nElems=nElems
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
 CALL setLocalSideIDs()
 
-#ifdef MPI
+#if USE_MPI
 ! for MPI, we need to exchange flips, so that MINE MPISides have flip>0, YOUR MpiSides flip=0
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
 CALL exchangeFlip()
 #endif
 
-!RANGES
-!-----------------|-----------------|-------------------|
-!    U_master     | U_slave         |    FLUX           |
-!-----------------|-----------------|-------------------|
-!  BCsides        |                 |    BCSides        |
-!  InnerMortars   |                 |    InnerMortars   |
-!  InnerSides     | InnerSides      |    InnerSides     |
-!  MPI_MINE sides | MPI_MINE sides  |    MPI_MINE sides |
-!                 | MPI_YOUR sides  |    MPI_YOUR sides |
-!  MPIMortars     |                 |    MPIMortars     |
-!-----------------|-----------------|-------------------|
-
-firstBCSide          = 1
-firstMortarInnerSide = firstBCSide         +nBCSides
-firstInnerSide       = firstMortarInnerSide+nMortarInnerSides
-firstMPISide_MINE    = firstInnerSide      +nInnerSides
-firstMPISide_YOUR    = firstMPISide_MINE   +nMPISides_MINE
-firstMortarMPISide   = firstMPISide_YOUR   +nMPISides_YOUR
-
-lastBCSide           = firstMortarInnerSide-1
-lastMortarInnerSide  = firstInnerSide    -1
-lastInnerSide        = firstMPISide_MINE -1
-lastMPISide_MINE     = firstMPISide_YOUR -1
-lastMPISide_YOUR     = firstMortarMPISide-1
-lastMortarMPISide    = nSides
-
-
-firstMasterSide = 1
-lastMasterSide  = nSides
-firstSlaveSide  = firstInnerSide
-lastSlaveSide   = lastMPISide_YOUR
-nSidesMaster    = lastMasterSide-firstMasterSide+1
-nSidesSlave     = lastSlaveSide -firstSlaveSide+1
-
-LOGWRITE(*,*)'-------------------------------------------------------'
-LOGWRITE(*,'(A25,I8)')   'first/lastMasterSide     ', firstMasterSide,lastMasterSide
-LOGWRITE(*,'(A25,I8)')   'first/lastSlaveSide      ', firstSlaveSide, lastSlaveSide
-LOGWRITE(*,*)'-------------------------------------------------------'
-LOGWRITE(*,'(A25,I8,I8)')'first/lastBCSide         ', firstBCSide         ,lastBCSide
-LOGWRITE(*,'(A25,I8,I8)')'first/lastMortarInnerSide', firstMortarInnerSide,lastMortarInnerSide
-LOGWRITE(*,'(A25,I8,I8)')'first/lastInnerSide      ', firstInnerSide      ,lastInnerSide
-LOGWRITE(*,'(A25,I8,I8)')'first/lastMPISide_MINE   ', firstMPISide_MINE   ,lastMPISide_MINE
-LOGWRITE(*,'(A25,I8,I8)')'first/lastMPISide_YOUR   ', firstMPISide_YOUR   ,lastMPISide_YOUR
-LOGWRITE(*,'(A30,I8,I8)')'first/lastMortarMPISide  ', firstMortarMPISide  ,lastMortarMPISide
-LOGWRITE(*,*)'-------------------------------------------------------'
-
-
-! check with mortars
-nUniqueSides       = lastMPISide_MINE ! MY_MORTAR_MPI_SIDES are missing
-#ifdef PP_HDG
-IF(nMortarInnerSides.GT.0) CALL abort(&
-      __STAMP__&
-      ,' Mortars not implemented for HDG. Fix nUniqueSides, as well!')
-#ifdef MPI
-CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
-#else
-nGlobalUniqueSides=nSides
-#endif
-#endif
+! Set the side ranges here (because by now nMortarInnerSides, nMPISides_MINE and nMPISides_YOUR have been determined)
+! and calculate nGlobalUniqueSides (also required are nBCSides and nInnerSides, which have been determined in ReadMesh())
+! Requires:
+!   nBCSides          is set in ReadMesh()
+!   nMortarInnerSides is set in setLocalSideIDs()
+!   nInnerSides       is set in ReadMesh()
+!   nMPISides_MINE    is set in setLocalSideIDs()
+!   nMPISides_YOUR    is set in setLocalSideIDs()
+CALL setSideRanges()
 
 ! fill ElemToSide, SideToElem,BC
 ALLOCATE(ElemToSide(2,6,nElems))
@@ -438,9 +387,6 @@ DEALLOCATE(NodeCoords)
 DEALLOCATE(dXCL_N)
 DEALLOCATE(Ja_Face)
 
-
-! Output of myrank, ElemID and tracking info
-CalcMeshInfo = GETLOGICAL('CalcMeshInfo')
 
 IF(CalcMeshInfo)THEN
   CALL AddToElemData(ElementOut,'myRank',IntScalar=myRank)
@@ -786,7 +732,7 @@ xyzMinMaxloc(:) = (/MINVAL(Face_xGP(1,:,:,1:nBCSides)),MAXVAL(Face_xGP(1,:,:,1:n
                     MINVAL(Face_xGP(2,:,:,1:nBCSides)),MAXVAL(Face_xGP(2,:,:,1:nBCSides)),&
                     MINVAL(Face_xGP(3,:,:,1:nBCSides)),MAXVAL(Face_xGP(3,:,:,1:nBCSides))/)
 ! get global bounding box of faces for damping value ramp
-#ifdef MPI
+#if USE_MPI
    CALL MPI_ALLREDUCE(xyzMinMaxloc(1),xyzMinMax(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
    CALL MPI_ALLREDUCE(xyzMinMaxloc(2),xyzMinMax(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
    CALL MPI_ALLREDUCE(xyzMinMaxloc(3),xyzMinMax(3), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
@@ -795,7 +741,7 @@ xyzMinMaxloc(:) = (/MINVAL(Face_xGP(1,:,:,1:nBCSides)),MAXVAL(Face_xGP(1,:,:,1:n
    CALL MPI_ALLREDUCE(xyzMinMaxloc(6),xyzMinMax(6), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
 #else
    xyzMinMax=xyzMinMaxloc
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! don't call twice
 GetMeshMinMaxBoundariesIsDone=.TRUE.
@@ -851,10 +797,10 @@ SUBROUTINE InitElemVolumes()
 ! Calculate Element volumes for later use in particle routines
 !===================================================================================================================================
 ! MODULES                                               ! MODULES
-#ifdef MPI
+#if USE_MPI
 USE mpi
 USE MOD_Globals            ,ONLY: IERROR,MPIRoot
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_PreProc
 USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,abort
 USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
@@ -862,7 +808,8 @@ USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Interpolation_Vars ,ONLY: wGP
 #ifdef PARTICLES
 USE MOD_Particle_Vars      ,ONLY: usevMPF
-#endif /* PARTICLES */
+USE MOD_DSMC_Vars          ,ONLY: RadialWeighting
+#endif
 USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -879,12 +826,14 @@ REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
-ALLOCATE(GEO%Volume(nElems),STAT=ALLOCSTAT)
+ALLOCATE(GEO%Volume(nElems),&
+         GEO%MPVolumePortion(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
       __STAMP__&
       ,'ERROR in InitElemGeometry: Cannot allocate GEO%Volume!')
 END IF
+GEO%MPVolumePortion(:)=0.
 ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
@@ -893,16 +842,12 @@ IF (ALLOCSTAT.NE.0) THEN
 END IF
 
 #ifdef PARTICLES
-usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
-IF(usevMPF) THEN
-  ALLOCATE(GEO%DeltaEvMPF(nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-,'ERROR in InitParticleGeometry: Cannot allocate GEO%DeltaEvMPF!')
-  END IF
-  GEO%DeltaEvMPF(:) = 0.0
+IF(RadialWeighting%DoRadialWeighting) THEN
+  usevMPF = .TRUE.
+ELSE
+  usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
 END IF
+
 #endif /* PARTICLES */
 
 ! Calculate element volumes and characteristic lengths
@@ -917,17 +862,106 @@ DO iElem=1,nElems
 END DO
 
 GEO%LocalVolume=SUM(GEO%Volume)
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
 #else
 GEO%MeshVolume=GEO%LocalVolume
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_StdOut,'(A,E18.8)') ' |              Total MESH Volume |                ', GEO%MeshVolume
 
 SWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT GEOMETRY INFORMATION DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes
+
+
+SUBROUTINE setSideRanges()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Set the ranges in the different side lists
+!
+!-----------------|-----------------|-------------------|
+!    U_master     | U_slave         |    FLUX           |
+!-----------------|-----------------|-------------------|
+!  BCsides        |                 |    BCSides        |
+!  InnerMortars   |                 |    InnerMortars   |
+!  InnerSides     | InnerSides      |    InnerSides     |
+!  MPI_MINE sides | MPI_MINE sides  |    MPI_MINE sides |
+!                 | MPI_YOUR sides  |    MPI_YOUR sides |
+!  MPIMortars     |                 |    MPIMortars     |
+!-----------------|-----------------|-------------------|
+!
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals   ,ONLY: UNIT_logOut,UNIT_StdOut,abort
+USE MOD_Mesh_Vars ,ONLY: firstBCSide,firstMortarInnerSide,firstInnerSide,firstMPISide_MINE,firstMPISide_YOUR
+USE MOD_Mesh_Vars ,ONLY: nMPISides_MINE,nMPISides_YOUR,nInnerSides,nMortarInnerSides,nBCSides
+USE MOD_Mesh_Vars ,ONLY: lastBCSide,lastMortarInnerSide,lastInnerSide,lastMPISide_MINE,lastMPISide_YOUR,lastMortarMPISide
+USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,nSides,nSidesMaster,nSidesSlave
+#if USE_HDG
+USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
+#if USE_MPI
+USE MOD_Globals   ,ONLY: myrank
+USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD
+USE mpi
+#endif /*USE_MPI*/
+#endif /*USE_HDG*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: firstMasterSide     ! lower side ID of array U_master/gradUx_master...
+INTEGER             :: lastMasterSide      ! upper side ID of array U_master/gradUx_master...
+INTEGER             :: firstSlaveSide      ! lower side ID of array U_slave/gradUx_slave...
+INTEGER             :: lastSlaveSide       ! upper side ID of array U_slave/gradUx_slave...
+!===================================================================================================================================
+
+firstBCSide          = 1
+firstMortarInnerSide = firstBCSide         +nBCSides          ! nBCSides is set in ReadMesh()
+firstInnerSide       = firstMortarInnerSide+nMortarInnerSides ! nMortarInnerSides is set in setLocalSideIDs()
+firstMPISide_MINE    = firstInnerSide      +nInnerSides       ! nInnerSides is set in ReadMesh()
+firstMPISide_YOUR    = firstMPISide_MINE   +nMPISides_MINE    ! nMPISides_MINE is set in setLocalSideIDs()
+firstMortarMPISide   = firstMPISide_YOUR   +nMPISides_YOUR    ! nMPISides_YOUR is set in setLocalSideIDs()
+
+lastBCSide           = firstMortarInnerSide-1
+lastMortarInnerSide  = firstInnerSide    -1
+lastInnerSide        = firstMPISide_MINE -1
+lastMPISide_MINE     = firstMPISide_YOUR -1
+lastMPISide_YOUR     = firstMortarMPISide-1
+lastMortarMPISide    = nSides
+
+firstMasterSide = 1
+lastMasterSide  = nSides
+firstSlaveSide  = firstInnerSide
+lastSlaveSide   = lastMPISide_YOUR
+nSidesMaster    = lastMasterSide-firstMasterSide+1
+nSidesSlave     = lastSlaveSide -firstSlaveSide+1
+
+! Set nGlobalUniqueSides: Note that big mortar sides are appended to the end of the list
+#if USE_HDG
+nUniqueSides = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list!
+#if USE_MPI
+CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+#else
+nGlobalUniqueSides=nSides
+#endif /*USE_MPI*/
+! Sanity check: Compare the number of global unique sides with the value that is read from the mesh file
+IF(nGlobalUniqueSidesFromMesh.NE.nGlobalUniqueSides)THEN!.AND.ChangedPeriodicBC) THEN ! FUTURE: use this variable when
+                                                          ! nGlobalUniqueSides is calculated from mesh info
+  IPWRITE(UNIT_StdOut,*) "nUniqueSides              =",nUniqueSides
+  IPWRITE(UNIT_StdOut,*) "nGlobalUniqueSidesFromMesh=",nGlobalUniqueSidesFromMesh
+  IPWRITE(UNIT_StdOut,*) "nGlobalUniqueSides        =",nGlobalUniqueSides
+  CALL abort( &
+      __STAMP__, &
+      "nGlobalUniqueSides for HDG not equal the one from meshfile.")
+      !"nGlobalUniqueSides for HDG not equal the one from meshfile even though no periodic sides have been changed to non-periodic.")
+END IF
+#endif /*HDG*/
+
+END SUBROUTINE setSideRanges
 
 
 SUBROUTINE FinalizeMesh()
@@ -937,9 +971,6 @@ SUBROUTINE FinalizeMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
-#ifdef PARTICLES
-!USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
-#endif
 #ifdef CODE_ANALYZE
 #ifndef PARTICLES
 USE MOD_Particle_Surfaces_Vars, ONLY: SideBoundingBoxVolume
@@ -963,6 +994,8 @@ SDEALLOCATE(VdM_CLN_GaussN)
 SDEALLOCATE(VdM_CLNGeo_GaussN)
 SDEALLOCATE(Vdm_CLNGeo_CLN)
 SDEALLOCATE(Vdm_NGeo_CLNgeo)
+SDEALLOCATE(Vdm_N_EQ)
+SDEALLOCATE(Vdm_EQ_N)
 ! BCS
 SDEALLOCATE(BoundaryName)
 SDEALLOCATE(BoundaryType)
@@ -996,7 +1029,6 @@ SDEALLOCATE(Face_xGP)
 SDEALLOCATE(ElemToElemGlob)
 SDEALLOCATE(XCL_NGeo)
 SDEALLOCATE(dXCL_NGeo)
-SDEALLOCATE(Face_xGP)
 SDEALLOCATE(wbaryCL_NGeo)
 SDEALLOCATE(XiCL_NGeo)
 ! mortars

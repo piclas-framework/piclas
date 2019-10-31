@@ -36,7 +36,7 @@ END INTERFACE
 
 PUBLIC::setLocalSideIDs,fillMeshInfo
 
-#ifdef MPI
+#if USE_MPI
 INTERFACE exchangeFlip
   MODULE PROCEDURE exchangeFlip
 END INTERFACE
@@ -64,26 +64,27 @@ SUBROUTINE setLocalSideIDs()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,          ONLY:tElem,tSide
-USE MOD_Mesh_Vars,          ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
-USE MOD_Mesh_ReadIn,        ONLY: INVMAP
-#ifdef PP_HDG
-#ifdef MPI
-USE MOD_Mesh_Vars,          ONLY: offsetSide
-#endif /*MPI*/
-#endif /*PP_HDG*/
-USE MOD_LoadBalance_Vars,   ONLY:
-USE MOD_Mesh_Vars,          ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
-USE MOD_Mesh_Vars,          ONLY: nMortarSides,nMortarInnerSides,nMortarMPISides
-#ifdef MPI
-USE MOD_ReadInTools,        ONLY: GETLOGICAL
-USE MOD_MPI_Vars,           ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc
-USE MOD_MPI_Vars,           ONLY: offsetMPISides_MINE,offsetMPISides_YOUR,nMPISides_send,offSetMPISides_send
-USE MOD_MPI_Vars,           ONLY: nMPISides_rec, OffsetMPISides_rec
-USE MOD_LoadBalance_Vars,   ONLY: writePartitionInfo,DoLoadBalance,nLoadBalanceSteps, LoadDistri, PartDistri
+USE MOD_Mesh_Vars          ,ONLY: tElem,tSide
+USE MOD_Mesh_Vars          ,ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
+USE MOD_Mesh_ReadIn        ,ONLY: INVMAP
+#if USE_HDG
+USE MOD_Mesh_Vars          ,ONLY: nGlobalUniqueSidesFromMesh
+#if USE_MPI
+USE MOD_Mesh_Vars          ,ONLY: offsetSide
+#endif /*USE_MPI*/
+#endif /*USE_HDG*/
+USE MOD_LoadBalance_Vars   ,ONLY:
+USE MOD_Mesh_Vars          ,ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
+USE MOD_Mesh_Vars          ,ONLY: nMortarSides,nMortarInnerSides,nMortarMPISides
+#if USE_MPI
+USE MOD_ReadInTools        ,ONLY: GETLOGICAL
+USE MOD_MPI_Vars           ,ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc
+USE MOD_MPI_Vars           ,ONLY: offsetMPISides_MINE,offsetMPISides_YOUR,nMPISides_send,offSetMPISides_send
+USE MOD_MPI_Vars           ,ONLY: nMPISides_rec, OffsetMPISides_rec
+USE MOD_LoadBalance_Vars   ,ONLY: writePartitionInfo,DoLoadBalance,nLoadBalanceSteps, LoadDistri, PartDistri
 #endif
 #ifdef PARTICLES
-USE MOD_Particle_Mesh_Vars, ONLY: SidePeriodicType
+USE MOD_Particle_Mesh_Vars ,ONLY: SidePeriodicType
 #endif /*PARTICLES*/
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -100,13 +101,15 @@ INTEGER               :: iLocSide,iSide,iInnerSide,iBCSide
 INTEGER               :: iMortar,iMortarInnerSide,iMortarMPISide,nMortars
 INTEGER               :: i,j
 INTEGER               :: PeriodicBCMap(nBCs)       !connected periodic BCs
-#ifdef MPI
+#if USE_MPI
 INTEGER               :: lastMortarInnerSide
 INTEGER               :: nSmallMortarSides
 INTEGER               :: nSmallMortarInnerSides
+INTEGER               :: nSlaveMortarMPISides_Proc(1:nNBProcs)
+INTEGER               :: nMasterMortarMPISides_Proc(1:nNBProcs)
 INTEGER               :: nSmallMortarMPISides_MINE
 INTEGER               :: nSmallMortarMPISides_YOUR
-INTEGER               :: iNbProc,ioUnit, addToInnerMortars
+INTEGER               :: iNbProc,ioUnit, addToInnerMortars,nbProc_loc
 INTEGER               :: ProcInfo(9),nNBmax      !for output only
 INTEGER,ALLOCATABLE   :: SideIDMap(:)
 INTEGER,ALLOCATABLE   :: NBinfo(:,:),NBinfo_glob(:,:,:),nNBProcs_glob(:),Procinfo_glob(:,:),tmparray(:,:)  !for output only
@@ -114,12 +117,12 @@ REAL,ALLOCATABLE      :: tmpreal(:,:),tmpreal2(:,:)
 CHARACTER(LEN=10)     :: formatstr
 CHARACTER(LEN=64)     :: filename
 CHARACTER(LEN=4)      :: hilf
-#ifdef PP_HDG
-#ifdef MPI
+#if USE_HDG
+#if USE_MPI
 INTEGER, ALLOCATABLE         :: offsetSideMPI(:)
 INTEGER                      :: iProc
-#endif /*MPI*/
-#endif /*PP_HDG*/
+#endif /*USE_MPI*/
+#endif /*USE_HDG*/
 #endif
 !===================================================================================================================================
 FirstElemInd= offsetElem+1
@@ -206,12 +209,27 @@ END DO
 ! with a neighbor on another processor (set 'tmp' to -1).
 nMortarInnerSides=0
 nMortarMPISides=0
+#if USE_MPI
+nMasterMortarMPISides_Proc=0
+nSlaveMortarMPISides_Proc=0
+#endif /*USE_MPI*/
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
   DO iLocSide=1,6
     aSide=>aElem%Side(iLocSide)%sp
     aSide%tmp=0
     IF(aSide%nMortars.GT.0)THEN   ! only if side has small virtual sides
+#if USE_HDG
+#if USE_MPI
+      DO iMortar=1,aSide%nMortars ! iterate over small virtual sides and check
+        nbProc_loc=aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp%nbProc
+        IF(nbProc_loc.NE.-1) THEN
+          iNbProc=MINLOC(ABS(NBproc(:)-nbProc_loc),1)
+          nMasterMortarMPISides_Proc(iNbProc)= nMasterMortarMPISides_Proc(iNbProc)+1
+        END IF
+      END DO ! iMortar
+#endif /*USE_MPI*/
+#endif /*USE_HDG*/
       DO iMortar=1,aSide%nMortars ! iterate over small virtual sides and check
                                   ! if any of the them has a neighbor on another processor
         IF(aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp%nbProc.NE.-1)THEN
@@ -222,9 +240,19 @@ DO iElem=FirstElemInd,LastElemInd
       IF(aSide%tmp.EQ.-1) THEN                ! if at least one small virtual side has neighbor on another processor
         nMortarMPISides=nMortarMPISides+1     ! then count big side as a Mortar-MPI-side
       ELSE
-        nMortarInnerSides=nMortarInnerSides+1 ! else count big side as a Mortar-Inner-side
+        nMortarInnerSides=nMortarInnerSides+1 ! else count big side as a Mortar-Inner-side (old nMortarInnerSides, they are
+                                              ! further increased later on)
       END IF
     END IF ! nMortars>0
+#if USE_MPI
+    IF(aSide%MortarType.EQ.-10)THEN
+      nbProc_loc=aSide%nbProc
+      IF(nbProc_loc.NE.-1) THEN
+        iNbProc=MINLOC(ABS(NBproc(:)-nbProc_loc),1)
+        nSlaveMortarMPISides_Proc(iNbProc)=nSlaveMortarMPISides_Proc(iNbProc)+1
+      ENDIF
+    END IF
+#endif /*USE_MPI*/
   END DO
 END DO
 IF((nMortarInnerSides+nMortarMPISides).NE.nMortarSides) &
@@ -298,7 +326,7 @@ LOGWRITE(*,*)'-------------------------------------------------------'
 nMPISides_MINE=0
 nMPISides_YOUR=0
 
-#ifdef MPI
+#if USE_MPI
 ! SPLITTING number of MPISides in MINE and YOURS
 ! General strategy:
 !  For each neighboring processor split the number of common sides with this proc in two halves.
@@ -314,6 +342,16 @@ DO iNbProc=1,nNbProcs
     nMPISides_MINE_Proc(iNbProc)=nMPISides_Proc(iNbProc)-nMPISides_Proc(iNbProc)/2
   END IF
   nMPISides_YOUR_Proc(iNbProc)=nMPISides_Proc(iNbProc)-nMPISides_MINE_Proc(iNbProc)
+#if USE_HDG
+  ! KEEP all small mortars from big side as master!!!
+  IF(nMasterMortarMPISides_Proc(iNBProc).GT.nMPISides_MINE_Proc(iNBProc)) THEN
+    nMPISides_MINE_Proc(iNbProc)=nMasterMortarMPISides_Proc(iNBProc)
+    nMPISides_YOUR_Proc(iNbProc)=nMPISides_Proc(iNbProc)-nMPISides_MINE_Proc(iNbProc)
+  ELSEIF(nSlaveMortarMPISides_Proc(iNBProc).GT.nMPISides_YOUR_Proc(iNBProc)) THEN
+    nMPISides_YOUR_Proc(iNbProc)=nSlaveMortarMPISides_Proc(iNBProc)
+    nMPISides_MINE_Proc(iNbProc)=nMPISides_Proc(iNbProc)-nMPISides_YOUR_Proc(iNbProc)
+  END IF
+#endif /*USE_HDG*/
 END DO
 nMPISides_MINE=SUM(nMPISides_MINE_Proc)
 nMPISides_YOUR=SUM(nMPISides_YOUR_Proc)
@@ -358,7 +396,19 @@ DO iNbProc=1,nNbProcs
         IF(aSide%NbProc.NE.NbProc(iNbProc))CYCLE
         iSide=iSide+1
         ! optimization: put non-mortars first to optimize addtoInnerMortars (also small virtual sides are marked with MortarType<0)
+#if USE_HDG
+        ! KEEP all small mortars from big side as master!!!
+        IF(myRank.LT.aSide%NBproc)THEN
+          IF(iMortar.GT.0)  aSide%ind=-aSide%ind   ! small mortars from big sides
+          IF((iMortar.EQ.0).AND.(aSide%MortarType.EQ.-10)) aSide%ind=2*nGlobalUniqueSidesFromMesh+ aSide%ind   ! small mortar neighbors (MortarType=-1)
+        ELSE
+          IF(iMortar.GT. 0)  aSide%ind=2*nGlobalUniqueSidesFromMesh+aSide%ind   ! small mortars from big sides
+          IF((iMortar.EQ.0).AND.(aSide%MortarType.EQ.-10)) aSide%ind=-aSide%ind   ! small mortar neighbors (MortarType=-1)
+        END IF
+#else
         IF((iMortar.EQ.0).AND.(aSide%MortarType.EQ.0)) aSide%ind=-aSide%ind
+#endif /*USE_HDG*/
+
         SideIDMap(iSide)=aSide%ind ! fill map with global Side indices
       END DO ! iMortar
     END DO ! iLocSide
@@ -380,28 +430,20 @@ DO iNbProc=1,nNbProcs
         IF(myRank.LT.aSide%NbProc)THEN
           IF(aSide%SideID.LE.nMPISides_MINE_Proc(iNbProc))THEN ! MINE
             aSide%SideID=aSide%SideID +offsetMPISides_MINE(iNbProc-1)
-#ifdef PARTICLES
-            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
-#endif /*PARTICLES*/
           ELSE ! YOUR
             aSide%SideID=(aSide%SideID-nMPISides_MINE_Proc(iNbProc))+offsetMPISides_YOUR(iNbProc-1)
-#ifdef PARTICLES
-            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha ! -1
-#endif /*PARTICLES*/
           END IF
         ELSE
           IF(aSide%SideID.LE.nMPISides_YOUR_Proc(iNbProc))THEN ! MINE
             aSide%SideID=aSide%SideID +offsetMPISides_YOUR(iNbProc-1)
-#ifdef PARTICLES
-            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
-#endif /*PARTICLES*/
           ELSE ! YOUR
             aSide%SideID=(aSide%SideID-nMPISides_YOUR_Proc(iNbProc))+offsetMPISides_MINE(iNbProc-1)
-#ifdef PARTICLES
-            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha ! -1
-#endif /*PARTICLES*/
           END IF
         END IF ! myrank<NbProc
+#ifdef PARTICLES
+        ! Set BC alpha for changed SideID
+        SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
+#endif /*PARTICLES*/
       END DO ! iMortar
     END DO ! iLocSide
   END DO ! iElem
@@ -418,6 +460,9 @@ DO iElem=FirstElemInd,LastElemInd
     DO iMortar=0,nMortars
       IF(iMortar.GT.0) aSide=>aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp ! point to small virtual side
       aSide%ind=ABS(aSide%ind) ! revert negative sideIDs (used to put non-mortars at the top of the list)
+#if USE_HDG
+      IF(aSide%ind.GT.2*nGlobalUniqueSidesFromMesh) aSide%ind=aSide%ind-2*nGlobalUniqueSidesFromMesh !revert small slave mortar at end of list
+#endif /*USE_HDG*/
     END DO ! iMortar
   END DO ! iLocSide
 END DO ! iElem
@@ -445,7 +490,7 @@ IF(nMortarSides.GT.0)THEN
   END DO ! iElem
 
   ! set 'tmp'-marker of the big Mortar sides to:
-  !  -2 : if a small virtual side is MPI_YOUR (can not be moved)
+  !  -2 : if a small virtual side is MPI_YOUR (cannot be moved)
   !  -1 : otherwise (can be moved to inner Mortars)
   ! Therewith only the big Mortar sides have a 'tmp'-marker different from 0.
   ! Additionally count all big Mortar sides that can be moved to inner Mortars (with tmp == -1).
@@ -485,6 +530,10 @@ IF(nMortarSides.GT.0)THEN
         ! then shift SidID by number of big Mortars that will be moved and mark side as shifted (tmp=1)
         IF((aSide%tmp.EQ.0).AND.(aSide%SideID.GT.lastMortarInnerSide))THEN
           aSide%SideID=aSide%SideID+addToInnerMortars
+#ifdef PARTICLES
+          ! Set BC alpha for new SideID: Fix wrong BC assignment of inner sides
+          SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
+#endif /*PARTICLES*/
           aSide%tmp=1
         END IF
         ! repeat the same for the small virtual sides
@@ -493,6 +542,10 @@ IF(nMortarSides.GT.0)THEN
           aSide=>aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp ! point to small virtual side
           IF((aSide%tmp.EQ.0).AND.(aSide%SideID.GT.lastMortarInnerSide))THEN
             aSide%SideID=aSide%SideID+addToInnerMortars
+#ifdef PARTICLES
+            ! Set BC alpha for new SideID: Fix wrong BC assignment of inner sides
+            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
+#endif /*PARTICLES*/
             aSide%tmp=1
           END IF
         END DO ! iMortar
@@ -504,6 +557,10 @@ IF(nMortarSides.GT.0)THEN
 
     nMortarInnerSides=nMortarInnerSides+addToInnerMortars  ! increase number of inner Mortars
     nMortarMPISides  =nMortarMPISides  -addToInnerMortars  ! decrease number of MPI Mortars
+#if USE_HDG
+    IF(nMortarMPISides.NE.0) CALL abort(__STAMP__,&
+        "with HDG there should not be any Big MPIMortarSides")
+#endif /*USE_HDG*/
     iMortarMPISide=nSides-nMortarMPISides                  ! first index of the remaining MPI Mortars
     iMortarInnerSide=nBCSides                              ! first index of the new inner Mortars
 
@@ -531,10 +588,10 @@ IF(nMortarSides.GT.0)THEN
     END DO ! iElem
   END IF ! addToInnerMortars>0
   LOGWRITE(*,*)'-------------------------------------------------------'
-  LOGWRITE(*,'(A22,I8)')'addToInnerMortars:',addToInnerMortars
-  LOGWRITE(*,'(A22,I8)')'new nMortarSides:',nMortarSides
+  LOGWRITE(*,'(A22,I8)')'addToInnerMortars    :',addToInnerMortars
+  LOGWRITE(*,'(A22,I8)')'new nMortarSides     :',nMortarSides
   LOGWRITE(*,'(A22,I8)')'new nMortarInnerSides:',nMortarInnerSides
-  LOGWRITE(*,'(A22,I8)')'new nMortarMPISides:',nMortarMPISides
+  LOGWRITE(*,'(A22,I8)')'new nMortarMPISides  :',nMortarMPISides
   LOGWRITE(*,*)'-------------------------------------------------------'
 END IF ! nMortarSides>0
 
@@ -600,7 +657,7 @@ LOGWRITE(*,formatstr)'offsetMPISides_MINE:',offsetMPISides_MINE
 LOGWRITE(*,formatstr)'offsetMPISides_YOUR:',offsetMPISides_YOUR
 LOGWRITE(*,*)'-------------------------------------------------------'
 
-#ifdef PP_HDG
+#if USE_HDG
 ! CAUTION: MY-MORTAR-MPI-Sides are missing
 IF(ALLOCATED(offsetSideMPI))DEALLOCATE(offsetSideMPI)
 ALLOCATE(offsetSideMPI(nProcessors))
@@ -609,7 +666,7 @@ offsetSide=0 ! set default for restart!!!
 DO iProc=1, myrank
   offsetSide = offsetSide + offsetSideMPI(iProc)
 END DO
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 writePartitionInfo = GETLOGICAL('writePartitionInfo','.FALSE.')
 IF(DoLoadBalance)THEN
@@ -769,7 +826,7 @@ IF(MPIroot)THEN
   CLOSE(ioUnit)
 END IF ! MPIroot
 DEALLOCATE(NBinfo_glob,nNBProcs_glob,ProcInfo_glob)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END SUBROUTINE setLocalSideIDs
 
 !===================================================================================================================================
@@ -784,14 +841,17 @@ END SUBROUTINE setLocalSideIDs
 SUBROUTINE fillMeshInfo()
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,ONLY:tElem,tSide,Elems
-USE MOD_Mesh_Vars,ONLY: nElems,offsetElem,nBCSides,nSides
-USE MOD_Mesh_Vars,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
-USE MOD_Mesh_Vars,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
-USE MOD_Mesh_Vars,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
-#ifdef MPI
+USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
+USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nBCSides,nSides
+USE MOD_Mesh_Vars        ,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
+USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
+USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
+#if USE_MPI
 USE MOD_MPI_vars
 #endif
+#if USE_HDG && USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: ElemHDGSides,TotalHDGSides
+#endif /*USE_HDG && USE_LOADBALANCE*/
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -805,7 +865,7 @@ TYPE(tSide),POINTER :: aSide,mSide
 INTEGER             :: iElem,LocSideID,nSides_flip(0:4),SideID
 INTEGER             :: nSides_MortarType(1:3),iMortar
 INTEGER             :: FirstElemID,LastElemID,ilocSide,locMortarSide,NBElemID,SideID2,NBlocSideID
-#ifdef MPI
+#if USE_MPI
 INTEGER             :: dummy(0:4)
 #endif
 !===================================================================================================================================
@@ -858,17 +918,19 @@ DO iElem=1,nElems
       MortarType(2,aSide%SideID)=SideID
       DO iMortar=1,aSide%nMortars
         mSide=>aSide%MortarSide(iMortar)%sp
+        MortarType(1,mSide%SideID)=mSide%MortarType
         MortarInfo(MI_SIDEID,iMortar,SideID)=mSide%SideID
         MortarInfo(MI_FLIP,iMortar,SideID)=mSide%Flip
       END DO ! iMortar
       nSides_MortarType(aSide%MortarType)=nSides_MortarType(aSide%MortarType)+1
     END IF ! mortarSide
+    IF((aSide%nbProc.GT.-1).AND.(aSide%MortarType.EQ.-10))MortarType(1,aSide%SideID)=-10
   END DO ! LocSideID
 END DO ! iElem
 
 MortarSlave2MasterInfo(:) = -1
 DO SideID=1,nSides
-  IF (MortarType(MI_SIDEID,SideID).NE.-1) THEN
+  IF (MortarType(1,SideID).GT.0) THEN
     DO iMortar=1,4
       IF (MortarInfo(MI_SIDEID,iMortar,MortarType(2,SideID)).NE.-1) THEN
       MortarSlave2MasterInfo(MortarInfo(MI_SIDEID,iMortar,MortarType(2,SideID))) = SideID
@@ -877,7 +939,7 @@ DO SideID=1,nSides
   END IF
 END DO
 
-#ifdef MPI
+#if USE_MPI
 IF(MPIroot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,nSides_flip,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
   CALL MPI_REDUCE(MPI_IN_PLACE     ,nSides_MortarType,3,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
@@ -885,7 +947,7 @@ ELSE
   CALL MPI_REDUCE(nSides_flip,dummy,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
   CALL MPI_REDUCE(nSides_MortarType,nSides_MortarType,3,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 SWRITE(UNIT_StdOut,'(132("."))')
 SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=0     | ',nSides_flip(0)
 SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=1     | ',nSides_flip(1)
@@ -904,23 +966,26 @@ DO iElem=1,nElems
   LOGWRITE(*,*)'=============== iElem= ',iElem, '==================='
   DO LocSideID=1,6
     aSide=>aElem%Side(LocSideID)%sp
-    LOGWRITE(*,'(5(A,I4))')'globSideID= ',aSide%ind, &
-                 ', flip= ',aSide%flip ,&
-                 ', SideID= ', aSide%SideID,', nMortars= ',aSide%nMortars,', nbProc= ',aSide%nbProc
+    LOGWRITE(*,'(7(A,I4))')'globSideID= ',aSide%ind, ', flip= ',aSide%flip ,    ', SideID= ', aSide%SideID, &
+             ', nbProc= ',aSide%nbProc, ', %MortarType= ',aSide%MortarType, &
+             ', MortarTypeArray= ',MortarType(1,aSide%SideID),    ', nMortars= ',aSide%nMortars
+
     IF(aSide%nMortars.GT.0)THEN ! mortar side
       LOGWRITE(*,*)'   --- Mortars ---'
       DO iMortar=1,aSide%nMortars
-        LOGWRITE(*,'(I4,4(A,I4))') iMortar,', globSideID= ',aSide%MortarSide(iMortar)%sp%ind, &
+        LOGWRITE(*,'(I4,6(A,I4))') iMortar,', globSideID= ',aSide%MortarSide(iMortar)%sp%ind, &
                      ', flip= ',aSide%MortarSide(iMortar)%sp%Flip, &
                      ', SideID= ',aSide%MortarSide(iMortar)%sp%SideID, &
-                     ', nbProc= ',aSide%MortarSide(iMortar)%sp%nbProc
-
+                     ', nbProc= ',aSide%MortarSide(iMortar)%sp%nbProc, &
+                     ', %MortarType= ',aSide%MortarSide(iMortar)%sp%MortarType, &
+                     ', MortarTypeArray= ',MortarType(1,aSide%MortarSide(iMortar)%sp%SideID)
       END DO ! iMortar
     END IF ! mortarSide
   END DO ! LocSideID
 END DO ! iElem
 LOGWRITE(*,*)'============================= END SIDE CHECKER ==================='
 
+LOGWRITE_BARRIER
 
 ! build global connection of elements to elements
 FirstElemID=offsetElem+1
@@ -960,14 +1025,43 @@ DO iElem=1,nElems
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
 
-#ifdef MPI
+
+#if USE_HDG && USE_LOADBALANCE
+! Weight elements with mortar sides
+DO iElem=1,nElems
+  DO ilocSide=1,6
+    SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    ! TODO: don't count Dirichlet sides, but Neumann sides
+    !IF(SideID.LE.nBCSides) ElemToElemGlob(1,ilocSide,offSetElem+iElem)=0
+
+    locMortarSide=MortarType(2,SideID)
+    IF(locMortarSide.EQ.-1)THEN ! normal side or small mortar side
+      IF(MortarSlave2MasterInfo(SideID).EQ.-1)THEN
+        ElemHDGSides(iElem)=ElemHDGSides(iElem)+1
+        TotalHDGSides=TotalHDGSides+1
+      END IF
+    ELSE ! mortar side
+      DO iMortar=1,4
+        SideID2=MortarInfo(MI_SIDEID,iMortar,locMortarSide)
+        IF(SideID2.GT.0)THEN
+          ElemHDGSides(iElem)=ElemHDGSides(iElem)+1
+          TotalHDGSides=TotalHDGSides+1
+        END IF
+      END DO ! iMortar=1,4
+    END IF ! locMortarSide
+  END DO ! ilocSide=1,6
+END DO ! iElem=1,PP_nElems
+#endif /*USE_HDG && USE_LOADBALANCE*/
+
+
+#if USE_MPI
 CALL exchangeElemID()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE fillMeshInfo
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE exchangeFlip()
 !===================================================================================================================================
 !> This routine communicates the flip between MPI sides, as the flip determines wheter
@@ -1053,7 +1147,7 @@ DO iElem=1,nElems
       IF(aSide%SideID.GT.offsetMPISides_YOUR(0))THEN
         IF(aSide%flip.EQ.0)THEN
           IF(Flip_YOUR(aSide%SideID).EQ.0) CALL abort(__STAMP__&
-              ,'problem in exchangeflip')
+              ,'problem in exchangeflip',aSide%SideID,REAL(Flip_Your(aSide%SideID)))
 #ifdef PARTICLES
           ! switch side-alpha if flip is changed. The other side now constructs the side, thus it has to be changed
           IF(aSide%flip.NE.Flip_YOUR(aSide%SideID))  SidePeriodicType(aSide%SideID) =-SidePeriodicType(aSide%SideID)
@@ -1076,7 +1170,7 @@ END SUBROUTINE exchangeFlip
 #endif
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE exchangeElemID()
 !===================================================================================================================================
 !> This routine communicates the global-elemid between MPI interfaces

@@ -25,6 +25,8 @@ SAVE
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
+LOGICAL               :: Symmetry2D                                          ! Enables 2D simulation: symmetry in xy-Plane
+LOGICAL               :: Symmetry2DAxisymmetric                              ! Enables axisymmetric simulation around z-axis
 LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization by quantum tunneling
 INTEGER               :: FieldIonizationModel                                !'Field Ionization models. Implemented models are:
 !                                                                            ! * Ammosov-Delone-Krainov (ADK) model
@@ -32,18 +34,6 @@ INTEGER               :: FieldIonizationModel                                !'F
 LOGICAL,ALLOCATABLE   :: SpecReset(:)                                        ! Flag for resetting species distribution with init
                                                                              ! during restart
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles
-LOGICAL               :: SolidSimFlag                                        ! Flag telling if Solid boundary is existing
-LOGICAL               :: LiquidSimFlag                                       ! Flag telling if Liquid boundary is existing
-INTEGER               :: PartSurfaceModel                                    ! Model used for wall interaction
-                                                                             ! 0 perfect/diffusive reflection
-                                                                             ! 1 adsorption (Kisluik) / desorption (Polanyi Wigner)
-                                                                             ! 2 Recombination coefficient (Laux model)
-                                                                             ! 3 adsorption/desorption + chemical interaction
-                                                                             !   (SMCR with UBI-QEP, TST and TCE)
-                                                                             ! 4 TODO
-                                                                             ! 5 SEE (secondary e- emission) by Levko2015
-                                                                             ! 6 SEE (secondary e- emission) by Pagonakis2016
-                                                                             !   (orignally from Harrower1956)
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 ! IMD: Molecular Dynamics Model - ion distribution info
 LOGICAL               :: DoInitialIonization                                 ! When restarting from a state, ionize the species to a
@@ -76,13 +66,14 @@ INTEGER               :: NextTimeStepAdjustmentIter                          ! i
 INTEGER               :: MaxwellIterNum                                      ! number of iterations for the maxwell solver
 INTEGER               :: WeirdElems                                          ! Number of Weird Elements (=Elements which are folded
                                                                              ! into themselves)
-REAL    , ALLOCATABLE :: PartState(:,:)                                      ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
+REAL    , ALLOCATABLE :: PartState(:,:)                                      ! 1st index: x,y,z,vx,vy,vz
+!                                                                            ! 2nd index: 1:NParts
 REAL    , ALLOCATABLE :: PartPosRef(:,:)                                     ! (1:3,1:NParts) particles pos mapped to -1|1 space
 INTEGER , ALLOCATABLE :: PartPosGauss(:,:)                                   ! (1:NParts,1:3) Gauss point localization of particles
 REAL    , ALLOCATABLE :: Pt(:,:)                                             ! Derivative of PartState (vx,xy,vz) only
                                                                              ! since temporal derivative of position
                                                                              ! is the velocity. Thus we can take
-                                                                             ! PartState(:,4:6) as Pt(1:3)
+                                                                             ! PartState(4:6,:) as Pt(1:3)
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
 LOGICAL               :: DoForceFreeSurfaceFlux                              ! switch if the stage reconstruction uses a force
 #if (PP_TimeDiscMethod==509)
@@ -113,7 +104,8 @@ LOGICAL , ALLOCATABLE :: DoPartInNewton(:)                                   ! p
 REAL    , ALLOCATABLE :: Pt_temp(:,:)                                        ! LSERK4 additional derivative of PartState
 
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
-REAL    , ALLOCATABLE :: LastPartPos(:,:)                                    ! (1:NParts,1:3) with 2nd index: x,y,z
+REAL    , ALLOCATABLE :: LastPartPos(:,:)                                    ! 1st index: x,y,z
+!                                                                            ! 2nd index: 1:NParts with 2nd index
 INTEGER , ALLOCATABLE :: PartSpecies(:)                                      ! (1:NParts)
 REAL    , ALLOCATABLE :: PartMPF(:)                                          ! (1:NParts) MacroParticleFactor by variable MPF
 INTEGER               :: PartLorentzType
@@ -206,7 +198,7 @@ TYPE tInit                                                                   ! P
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
   REAL                                   :: ConstantPressure                 ! Pressure for an Area with a Constant Pressure
   REAL                                   :: ConstPressureRelaxFac            ! RelaxFac. for ConstPressureSamp
-  REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) for LD_insert or
+  REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) or
                                                                              ! (vpi_)cub./cyl. as alternative to Part.Emis. in Type1
   INTEGER                                :: ElemTemperatureFileID
   REAL , ALLOCATABLE                     :: ElemTemperatureIC(:,:)           ! Temperature from macrorestart [1:3,1:nElems)
@@ -241,9 +233,9 @@ TYPE tInit                                                                   ! P
   TYPE(tConstPressure)                   :: ConstPress!(:)           =>NULL() !
   INTEGER                                :: NumberOfExcludeRegions           ! Number of different regions to be excluded
   TYPE(tExcludeRegion), ALLOCATABLE      :: ExcludeRegion(:)
-#ifdef MPI
+#if USE_MPI
   INTEGER                                :: InitComm                          ! number of init-communicator
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData
@@ -310,6 +302,7 @@ TYPE typeSurfaceflux
                                                                              ! through Monte Carlo integration (initially)
   INTEGER                                :: AdaptivePartNumOut               ! Adaptive, Type 4: Number of particles exiting through
                                                                              ! the adaptive boundary condition
+  REAL, ALLOCATABLE                      :: nVFRSub(:,:)                     ! normal volume flow rate through subsubside
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -350,6 +343,9 @@ REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! M
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
 
 INTEGER                                  :: nSpecies                         ! number of species
+INTEGER                                  :: nPointsMCVolumeEstimate          ! numer of points seeded into one element for volume
+                                                                             ! portion (that is occupied) estimtaion 
+                                                                             ! with a Monte Carlo method
 INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
@@ -465,6 +461,31 @@ TYPE tCollectCharges
   REAL                                 :: ChargeDist
 END TYPE
 TYPE(tCollectCharges), ALLOCATABLE     :: CollectCharges(:)
+
+TYPE tVariableTimeStep
+  LOGICAL                              :: UseVariableTimeStep
+  LOGICAL                              :: UseLinearScaling
+  LOGICAL                              :: UseDistribution
+  REAL, ALLOCATABLE                    :: ParticleTimeStep(:)
+  REAL, ALLOCATABLE                    :: ElemFac(:)
+  REAL, ALLOCATABLE                    :: ElemWeight(:)
+  REAL                                 :: StartPoint(3)
+  REAL                                 :: EndPoint(3)
+  REAL                                 :: Direction(3)
+  REAL                                 :: ScaleFac
+  LOGICAL                              :: Use2DTimeFunc
+  REAL                                 :: StagnationPoint
+  REAL                                 :: TimeScaleFac2DFront
+  REAL                                 :: TimeScaleFac2DBack
+  REAL                                 :: DistributionMaxTimeFactor
+  REAL                                 :: DistributionMinTimeFactor
+  INTEGER                              :: DistributionMinPartNum
+  LOGICAL                              :: AdaptDistribution
+  REAL                                 :: TargetMCSoverMFP
+  REAL                                 :: TargetMaxCollProb
+  REAL                                 :: TargetMaxRelaxFactor
+END TYPE
+TYPE(tVariableTimeStep)                :: VarTimeStep
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

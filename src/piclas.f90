@@ -22,20 +22,20 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ParameterFile,ParameterDSMCFile
 USE MOD_Commandline_Arguments
 USE MOD_ReadInTools            ,ONLY: prms,PrintDefaultparameterFile,ExtractparameterFile
-USE MOD_Piclas_Init        ,ONLY: InitPiclas,FinalizePiclas
+USE MOD_Piclas_Init            ,ONLY: InitPiclas,FinalizePiclas
 USE MOD_Restart_Vars           ,ONLY: RestartFile
 USE MOD_Restart                ,ONLY: Restart
 USE MOD_Interpolation          ,ONLY: InitInterpolation
 USE MOD_IO_HDF5                ,ONLY: InitIO
-USE MOD_TimeDisc               ,ONLY: InitTimeDisc,FinalizeTimeDisc,TimeDisc
+USE MOD_TimeDisc               ,ONLY: InitTime,InitTimeDisc,FinalizeTimeDisc,TimeDisc
 USE MOD_MPI                    ,ONLY: InitMPI
 USE MOD_RecordPoints_Vars      ,ONLY: RP_Data
 USE MOD_Mesh_Vars              ,ONLY: DoSwapMesh
 USE MOD_Mesh                   ,ONLY: SwapMesh
-#ifdef MPI
+#if USE_MPI
 USE MOD_LoadBalance            ,ONLY: InitLoadBalance,FinalizeLoadBalance
 USE MOD_MPI                    ,ONLY: FinalizeMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_Output                 ,ONLY: InitOutput
 USE MOD_Define_Parameters_Init ,ONLY: InitDefineParameters
 USE MOD_StringTools            ,ONLY: STRICMP, GetFileExtension
@@ -47,7 +47,7 @@ USE MOD_ParticleInit           ,ONLY: InitialIonization
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: Time
+REAL                    :: SystemTime
 LOGICAL                 :: userblockFound
 !===================================================================================================================================
 
@@ -63,7 +63,7 @@ SWRITE(UNIT_stdOut,'(A)')"                                       | (         | |
 SWRITE(UNIT_stdOut,'(A)')"                                       | )      ___) (___| (____/\| (____/\| )   ( |/\____) |"
 SWRITE(UNIT_stdOut,'(A)')"                                       |/       \_______/(_______/(_______/|/     \|\_______)"
 SWRITE(UNIT_stdOut,'(132(" "))')
-SWRITE(UNIT_stdOut,'(A)')"piclas version 1.3.0"
+SWRITE(UNIT_stdOut,'(A)')"piclas version 1.4.0"
 SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL ParseCommandlineArguments()
@@ -118,9 +118,9 @@ END IF
 StartTime=PICLASTIME()
 CALL prms%read_options(ParameterFile)
 ! Measure init duration
-Time=PICLASTIME()
+SystemTime=PICLASTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING INI DONE! [',Time-StartTime,' sec ] NOW '&
+SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING INI DONE! [',SystemTime-StartTime,' sec ] NOW '&
 ,prms%count_setentries(),' PARAMETERS ARE SET'
 SWRITE(UNIT_stdOut,'(132("="))')
 ! Check if we want to read in DSMC.ini
@@ -128,9 +128,9 @@ IF(nArgs.GE.2)THEN
   IF(STRICMP(GetFileExtension(ParameterDSMCFile), "ini")) THEN
     CALL prms%read_options(ParameterDSMCFile,furtherini=.TRUE.)
     ! Measure init duration
-    Time=PICLASTIME()
+    SystemTime=PICLASTIME()
     SWRITE(UNIT_stdOut,'(132("="))')
-    SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING FURTHER INI DONE! [',Time-StartTime,' sec ] NOW '&
+    SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING FURTHER INI DONE! [',SystemTime-StartTime,' sec ] NOW '&
     ,prms%count_setentries(),' PARAMETERS ARE SET'
     SWRITE(UNIT_stdOut,'(132("="))')
   END IF
@@ -140,9 +140,9 @@ CALL InitOutput()
 CALL InitIO()
 
 CALL InitGlobals()
-#ifdef MPI
+#if USE_MPI
 CALL InitLoadBalance()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! call init routines
 ! Measure init duration
 !StartTime=PICLASTIME()
@@ -156,11 +156,11 @@ CALL InitPiclas(IsLoadBalance=.FALSE.)
 ! Do SwapMesh
 IF(DoSwapMesh)THEN
   ! Measure init duration
-  Time=PICLASTIME()
+  SystemTime=PICLASTIME()
   IF(MPIroot)THEN
     Call SwapMesh()
     SWRITE(UNIT_stdOut,'(132("="))')
-    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' SWAPMESH DONE! PICLAS DONE! [',Time-StartTime,' sec ]'
+    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' SWAPMESH DONE! PICLAS DONE! [',SystemTime-StartTime,' sec ]'
     SWRITE(UNIT_stdOut,'(132("="))')
     STOP
   ELSE
@@ -169,6 +169,10 @@ IF(DoSwapMesh)THEN
   ,'DO NOT CALL SWAPMESH WITH MORE THAN 1 Procs!',iError,999.)
   END IF
 END IF
+LOGWRITE_BARRIER
+
+! The beginning of time
+CALL InitTime()
 
 ! RESTART
 CALL Restart()
@@ -179,8 +183,8 @@ IF(DoInitialIonization) CALL InitialIonization()
 #endif /*PARTICLES*/
 
 ! Measure init duration
-Time=PICLASTIME()
-InitializationWallTime=Time-StartTime
+SystemTime=PICLASTIME()
+InitializationWallTime=SystemTime-StartTime
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
@@ -197,9 +201,9 @@ CALL FinalizeTimeDisc()
 SDEALLOCATE(RP_Data)
 
 !Measure simulation duration
-Time=PICLASTIME()
+SystemTime=PICLASTIME()
 
-#ifdef MPI
+#if USE_MPI
 !! and additional required for restart with load balance
 !ReadInDone=.FALSE.
 !ParticleMPIInitIsDone=.FALSE.
@@ -210,9 +214,9 @@ IF(iError .NE. 0) &
   CALL abort(&
   __STAMP__&
   ,'MPI finalize error',iError,999.)
-#endif
+#endif /*USE_MPI*/
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',SystemTime-StartTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
 END PROGRAM Piclas

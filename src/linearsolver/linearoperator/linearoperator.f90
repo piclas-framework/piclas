@@ -26,7 +26,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTERFACE MatrixVector
   MODULE PROCEDURE MatrixVector
 END INTERFACE
@@ -58,7 +58,7 @@ END INTERFACE
 #endif /*ROS OR IMPA*/
 #endif /*PARTICLES*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 PUBLIC :: MatrixVector, MatrixVectorSource, VectorDotProduct, ElementVectorDotProduct, DENSE_MATMUL
 #ifdef IMPA
 PUBLIC :: EvalResidual
@@ -73,7 +73,7 @@ PUBLIC:: PartVectorDotProduct,PartMatrixVector
 
 CONTAINS
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 SUBROUTINE MatrixVector(t,Coeff,X,Y)
 !===================================================================================================================================
 ! Computes Matrix Vector Product y=A*x for linear Equations only
@@ -168,7 +168,7 @@ USE MOD_Equation,          ONLY:DivCleaningDamping
 USE MOD_LinearSolver_Vars, ONLY:LinSolverRHS,mass
 USE MOD_Equation_Vars,     ONLY:DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars,     ONLY:sdtCFLOne
-#if !defined(PP_HDG) && !defined(ROS)
+#if !(USE_HDG) && !defined(ROS)
 USE MOD_LinearSolver_Vars, ONLY:ImplicitSource
 #endif /*NO ROSENBROCK and no HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -191,7 +191,7 @@ INTEGER          :: i,j,k,iElem,iVar
 
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 !Y = LinSolverRHS - X0 +coeff*ut
-#if !defined(PP_HDG) && !defined(ROS)
+#if !(USE_HDG) && !defined(ROS)
 CALL CalcSource(t,1.0,ImplicitSource)
 #endif /*NO ROSENBROCK and no HDG*/
 
@@ -291,7 +291,7 @@ REAL,INTENT(OUT)  :: resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iVar,i,j,k,iElem
-#ifdef MPI
+#if USE_MPI
 REAL              :: ResuSend
 #endif
 !===================================================================================================================================
@@ -309,7 +309,7 @@ DO iElem=1,PP_nElems
   END DO
 END DO
 
-#ifdef MPI
+#if USE_MPI
   ResuSend=Resu
   CALL MPI_ALLREDUCE(ResuSend,resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
@@ -424,18 +424,16 @@ SUBROUTINE PartMatrixVector(t,Coeff,PartID,X,Y)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,                 ONLY:Abort
-USE MOD_LinearSolver_Vars,       ONLY:reps0,PartXK,R_PartXK
-USE MOD_Equation_Vars,           ONLY:c2_inv
-USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType
-USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
-                                     ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-!USE MOD_Eval_xyz,                ONLY:GetPositionInRefElem
-USE MOD_Particle_Vars,           ONLY:PartState!,PEM,PartPosRef
+USE MOD_Globals               ,ONLY: Abort
+USE MOD_LinearSolver_Vars     ,ONLY: reps0,PartXK,R_PartXK
+USE MOD_Equation_Vars         ,ONLY: c2_inv
+USE MOD_Particle_Vars         ,ONLY: PartState, PartLorentzType
+USE MOD_Part_RHS              ,ONLY: PartRHS
+USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
+USE MOD_PICInterpolation      ,ONLY: InterpolateFieldToSingleParticle
+USE MOD_Particle_Vars         ,ONLY: PartState
 #ifndef ROS
-USE MOD_Particle_Vars,           ONLY:PartDtFrac
+USE MOD_Particle_Vars         ,ONLY: PartDtFrac
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -452,8 +450,6 @@ REAL,INTENT(OUT)   :: Y(1:6)
 REAL               :: X_abs,epsFD
 REAL               :: PartT(1:6)
 REAL               :: LorentzFacInv
-!REAL               :: FieldAtParticle(1:6)
-!REAL               :: typ_v_abs,XK_V,sign_XK_V
 !===================================================================================================================================
 
 CALL PartVectorDotProduct(X,X,X_abs)
@@ -465,7 +461,7 @@ END IF
 
 ! CALL PartVectorDotProduct(X,X,X_abs)
 ! IF(X_abs.NE.0.)THEN
-!   CALL PartVectorDotProduct(PartState(PartID,1:6),ABS(X),typ_v_abs)
+!   CALL PartVectorDotProduct(PartState(1:6,PartID),ABS(X),typ_v_abs)
 !   CALL PartVectorDotProduct(PartXK(1:6,PartID),X,Xk_V)
 !   sign_XK_V=SIGN(1.,Xk_V)
 !   EpsFD= rEps0/X_abs*MAX(ABS(Xk_V),typ_v_abs)*SIGN_Xk_V
@@ -478,33 +474,19 @@ END IF
 ! CALL PartVectorDotProduct(X,X,X_abs)
 ! EpsFD=rEps0  * SQRT(1.+XK_V)/X_abs
 
-PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
+PartState(1:6,PartID) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
-! CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),PEM%Element(PartID))
-! CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle(PartID,1:6))
-!PartT(4:6)=Pt(PartID,1:3)
-SELECT CASE(PartLorentzType)
-CASE(0)
-  PartT(4:6) = NON_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
+! CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),PEM%Element(PartID))
+! CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle(1:6,PartID))
+!PartT(4:6)=Pt(1:3,PartID)
+IF(PartLorentzType.EQ.5)THEN
+  LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(4:6,PartID),PartState(4:6,PartID))*c2_inv)
+  CALL PartRHS(PartID,FieldAtParticle(1:6,PartID),PartT(4:6),LorentzFacInv)
+ELSE
   LorentzFacInv = 1.0
-CASE(1)
-  PartT(4:6) = SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
-  LorentzFacInv = 1.0
-CASE(3)
-  PartT(4:6) = FAST_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
-  LorentzFacInv = 1.0
-CASE(5)
-  LorentzFacInv=1.0+DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6))*c2_inv
-  LorentzFacInv=1.0/SQRT(LorentzFacInv)
-  PartT(4:6) = RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6),LorentzFacInvIn=LorentzFacInv)
-CASE DEFAULT
-CALL abort(&
-__STAMP__ &
-,' Given PartLorentzType does not exist!',PartLorentzType)
-END SELECT
-PartT(1)=LorentzFacInv*PartState(PartID,4) ! funny, or PartXK
-PartT(2)=LorentzFacInv*PartState(PartID,5) ! funny, or PartXK
-PartT(3)=LorentzFacInv*PartState(PartID,6) ! funny, or PartXK
+  CALL PartRHS(PartID,FieldAtParticle(1:6,PartID),PartT(4:6))
+END IF ! PartLorentzType.EQ.5
+PartT(1:3)=LorentzFacInv*PartState(4:6,PartID) ! funny, or PartXK
 ! or frozen version
 #if ROS
 !Y(1:6) = (Coeff*X(1:6) - (1./EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))

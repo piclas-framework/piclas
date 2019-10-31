@@ -23,7 +23,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTERFACE EvalFlux3D
   MODULE PROCEDURE EvalFlux3D
 END INTERFACE
@@ -34,7 +34,7 @@ PUBLIC::EvalFlux3D
 
 CONTAINS
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 SUBROUTINE EvalFlux3D(iElem,f,g,h)
 !===================================================================================================================================
 ! Compute linear scalar advection fluxes with velocity AdvVel(3) using the conservative variables for every volume Gauss point.

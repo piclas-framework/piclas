@@ -28,6 +28,8 @@ REAL             :: TAnalyze                          !> time for next analyze
 REAL             :: Time                              !> Simulation Time
 REAL             :: dt                                !> simulation time step
 REAL             :: dtWeight                          !> part of original dt that is currently used as dt (output, rk, ...)
+REAL             :: tEndDiff                          !> difference between simulation time and simulation end time
+REAL             :: tAnalyzeDiff                      !> difference between simulation time and next analyze time
 REAL             :: CFLScale                          !> cfl scale
 REAL             :: CFLtoOne                          !> scaling factor to scale CFL to one
 REAL             :: sdtCFLOne                         !> inverse of dt of CFLOne
@@ -81,7 +83,7 @@ REAL,PARAMETER  :: CFLScaleAlpha(1:15) = &
 #endif /*PP_NodeType*/
 #endif
 
-#if ((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42))
+#if ((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==43))
 INTEGER,PARAMETER  :: nRKStages=1
 #endif
 

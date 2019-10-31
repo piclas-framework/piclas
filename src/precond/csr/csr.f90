@@ -586,7 +586,7 @@ END SUBROUTINE GlobalBCSR
 !USE MOD_CSR_Vars,      ONLY:SparseMatrix,nNonZeros
 !USE MOD_Mesh_Vars,     ONLY:nBCSides,ElemToSide,SideToElem
 !USE MOD_Precond_Vars,  ONLY:neighborElemID
-!#ifdef MPI
+!#if USE_MPI
 !USE MOD_MPI_Vars
 !USE MOD_MPI,           ONLY:StartExchangeMPIData,FinishExchangeMPIData
 !USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower

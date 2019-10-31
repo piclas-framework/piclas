@@ -45,7 +45,7 @@ USE MOD_Globals                 ,ONLY: abort,unit_stdout,myrank
 USE MOD_Globals_Vars            ,ONLY: Pi, BoltzmannConst
 USE MOD_FPFlow_Vars             ,ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuantVibEn, FPDoVibRelaxation, FP_PrandtlNumber
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_Particle_Vars           ,ONLY: Species, PartState
+USE MOD_Particle_Vars           ,ONLY: Species, PartState, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, DSMC_RHS, VibQuantsPar
 USE Ziggurat
@@ -76,7 +76,7 @@ INTEGER, ALLOCATABLE  :: iPartIndx_NodeRelaxRot(:),iPartIndx_NodeRelaxVib(:)
 REAL, ALLOCATABLE     :: Xi_vib_DOF(:), VibEnergyDOF(:,:)
 REAL                  :: betaV
 REAL                  :: A(3,3), Work(1000), W(3), trace, nu, Theta, iRan, NewEnRot, NewEnVib, OldEnRot
-REAL                  :: ProbAddPart,  RotExp, VibExp, TEqui, TRot, TVib, xi_rot, xi_vib_old
+REAL                  :: ProbAddPart,  RotExp, VibExp, TEqui, TRot, TVib, xi_rot, xi_vib_old, dtCell, WeightingFactor
 INTEGER               :: INFO, iQuant, iQuaMax, nRotRelax, nVibRelax, info_dgesv
 #ifdef CODE_ANALYZE
 REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
@@ -87,11 +87,11 @@ INTEGER               :: iMom
 ! Momentum and energy conservation check: summing up old values
 Momentum_new = 0.0; Momentum_old = 0.0; Energy_new = 0.0; Energy_old = 0.0
 DO iLoop = 1, nPart
-  Momentum_old(1:3) = Momentum_old(1:3) + PartState(iPartIndx_Node(iLoop),4:6)
-  Energy_old = Energy_old + (PartState(iPartIndx_Node(iLoop),4)**2. + PartState(iPartIndx_Node(iLoop),5)**2. &
-           + PartState(iPartIndx_Node(iLoop),6)**2.)*0.5*Species(1)%MassIC
+  Momentum_old(1:3) = Momentum_old(1:3) + PartState(4:6,iPartIndx_Node(iLoop))
+  Energy_old = Energy_old + (PartState(4,iPartIndx_Node(iLoop))**2. + PartState(5,iPartIndx_Node(iLoop))**2. &
+           + PartState(6,iPartIndx_Node(iLoop))**2.)*0.5*Species(1)%MassIC
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
-    Energy_old = Energy_old + PartStateIntEn(iPartIndx_Node(iLoop),1) + PartStateIntEn(iPartIndx_Node(iLoop),2)
+    Energy_old = Energy_old + PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop))
   END IF
 END DO
 #endif
@@ -102,7 +102,7 @@ Ni=0.0
 ERot=0.0; EVib=0.0; OldEn = 0.0; NewEn = 0.0; OldEnRot = 0.0; NewEnRot = 0.0; NewEnVib=0.0; nRotRelax = 0; nVibRelax = 0
 
 DO iLoop2 = 1, nPart
-  V_rel(1:3)=PartState(iPartIndx_Node(iLoop2),4:6)-vBulkAll(1:3)
+  V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop2))-vBulkAll(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   u2= u2 + vmag2
   IF (FPCollModel.EQ.1) THEN
@@ -133,8 +133,8 @@ DO iLoop2 = 1, nPart
     u0i(1:3) = u0i(1:3) + V_rel(1:3)
   END IF
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
-    IF(FPDoVibRelaxation) Evib = Evib + PartStateIntEn(iPartIndx_Node(iLoop2),1) - SpecDSMC(1)%EZeroPoint
-    ERot = ERot + PartStateIntEn(iPartIndx_Node(iLoop2),2)
+    IF(FPDoVibRelaxation) Evib = Evib + PartStateIntEn(1,iPartIndx_Node(iLoop2)) - SpecDSMC(1)%EZeroPoint
+    ERot = ERot + PartStateIntEn(2,iPartIndx_Node(iLoop2))
   END IF
   OldEn = OldEn + 0.5*Species(1)%MassIC * vmag2
 END DO
@@ -192,13 +192,21 @@ ELSE
   InnerDOF = 0.
 END IF
 
+IF(VarTimeStep%UseLinearScaling) THEN
+  WeightingFactor = Species(1)%MacroParticleFactor * VarTimeStep%ParticleTimeStep(iPartIndx_Node(1))
+  dtCell = dt * VarTimeStep%ParticleTimeStep(iPartIndx_Node(1))
+ELSE
+  WeightingFactor = Species(1)%MacroParticleFactor
+  dtCell = dt
+END IF
+
 Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
 CellTemp = Species(1)%MassIC * u2/(3.0*BoltzmannConst) *nPart/(nPart-1.)
 TEqui = CellTemp
 nu= 1.-3./(2.*Prandtl)
 Theta = BoltzmannConst*CellTemp/Species(1)%MassIC
 nu= MAX(nu,-Theta/(W(3)-Theta))
-dens = nPart * Species(1)%MacroParticleFactor / NodeVolume
+dens = nPart * WeightingFactor / NodeVolume
 dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*SpecDSMC(1)%TrefVHS/Pi) &
         /(4.*(4.- 2.*SpecDSMC(1)%omegaVHS) * (6. - 2.*SpecDSMC(1)%omegaVHS)* SpecDSMC(1)%DrefVHS**2.)
 relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
@@ -211,9 +219,9 @@ ELSE
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN
-  FP_MeanRelaxFactor         = FP_MeanRelaxFactor + dt / relaxtime
+  FP_MeanRelaxFactor         = FP_MeanRelaxFactor + dtCell / relaxtime
   FP_MeanRelaxFactorCounter  = FP_MeanRelaxFactorCounter + 1
-  FP_MaxRelaxFactor          = MAX(FP_MaxRelaxFactor,dt / relaxtime)
+  FP_MaxRelaxFactor          = MAX(FP_MaxRelaxFactor,dtCell / relaxtime)
   IF(FPCollModel.EQ.2) THEN
     FP_PrandtlNumber = FP_PrandtlNumber + (3./2.) / (1.-nu)
   END IF
@@ -225,14 +233,14 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   vibrelaxfreq = collisionfreq * DSMC%VibRelaxProb
   IF(SpecDSMC(1)%PolyatomicMol) THEN
     CALL CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_vib_DOF, Xi_Vib_old, RotExp, VibExp, TEqui, rotrelaxfreq, vibrelaxfreq, &
-                        DoVibRelaxIn=FPDoVibRelaxation)
+                        dtCell, DoVibRelaxIn=FPDoVibRelaxation)
       Xi_vib = SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
   ELSE
     CALL CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, VibExp, TEqui, rotrelaxfreq, vibrelaxfreq, &
-                    DoVibRelaxIn=FPDoVibRelaxation)
+                    dtCell, DoVibRelaxIn=FPDoVibRelaxation)
   END IF
   IF(DSMC%CalcQualityFactors) THEN
-    FP_MaxRotRelaxFactor          = MAX(FP_MaxRotRelaxFactor,rotrelaxfreq*dt)
+    FP_MaxRotRelaxFactor          = MAX(FP_MaxRotRelaxFactor,rotrelaxfreq*dtCell)
   END IF
   ALLOCATE(iPartIndx_NodeRelaxRot(nPart),iPartIndx_NodeRelaxVib(nPart))
   DO iLoop = 1, nPart
@@ -242,7 +250,7 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     IF (ProbAddPart.GT.iRan) THEN
       nRotRelax = nRotRelax + 1
       iPartIndx_NodeRelaxRot(nRotRelax) = iPartIndx_Node(iLoop)
-      OldEnRot = OldEnRot + PartStateIntEn(iPartIndx_Node(iLoop),2)
+      OldEnRot = OldEnRot + PartStateIntEn(2,iPartIndx_Node(iLoop))
     END IF
     ! Vibration
     IF(FPDoVibRelaxation) THEN
@@ -251,7 +259,7 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
       IF (ProbAddPart.GT.iRan) THEN
         nVibRelax = nVibRelax + 1
         iPartIndx_NodeRelaxVib(nVibRelax) = iPartIndx_Node(iLoop)
-        OldEn = OldEn + PartStateIntEn(iPartIndx_NodeRelaxVib(nVibRelax),1) - SpecDSMC(1)%EZeroPoint
+        OldEn = OldEn + PartStateIntEn(1,iPartIndx_NodeRelaxVib(nVibRelax)) - SpecDSMC(1)%EZeroPoint
       END IF
     END IF
   END DO
@@ -261,20 +269,20 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
       IF(SpecDSMC(1)%PolyatomicMol) THEN
         ALLOCATE(VibEnergyDOF(nVibRelax,PolyatomMolDSMC(iPolyatMole)%VibDOF))
         DO iLoop = 1, nVibRelax
-          PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop),1) = 0.0
+          PartStateIntEn(1,iPartIndx_NodeRelaxVib(iLoop)) = 0.0
           DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
             CALL RANDOM_NUMBER(iRan)
             VibEnergyDOF(iLoop,iDOF) = - LOG(iRan)*Xi_vib_DOF(iDOF)/2.*TEqui*BoltzmannConst
-            PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) = PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) &
+            PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) &
                                                                 + VibEnergyDOF(iLoop,iDOF)
           END DO
-          NewEnVib = NewEnVib + PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop),1)
+          NewEnVib = NewEnVib + PartStateIntEn(1,iPartIndx_NodeRelaxVib(iLoop))
         END DO
       ELSE
         DO iLoop = 1, nVibRelax
           CALL RANDOM_NUMBER(iRan)
-          PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) = -LOG(iRan)*Xi_vib/2.*TEqui*BoltzmannConst
-          NewEnVib = NewEnVib + PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop),1)
+          PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = -LOG(iRan)*Xi_vib/2.*TEqui*BoltzmannConst
+          NewEnVib = NewEnVib + PartStateIntEn(1,iPartIndx_NodeRelaxVib(iLoop))
         END DO
       END IF
     END IF
@@ -282,8 +290,8 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   !! ROT Relaxation
   DO iLoop = 1, nRotRelax
     CALL RANDOM_NUMBER(iRan)
-    PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop), 2) = -Xi_Rot / 2. * BoltzmannConst*TEqui*LOG(iRan)
-    NewEnRot = NewEnRot + PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop), 2)
+    PartStateIntEn( 2,iPartIndx_NodeRelaxRot(iLoop)) = -Xi_Rot / 2. * BoltzmannConst*TEqui*LOG(iRan)
+    NewEnRot = NewEnRot + PartStateIntEn( 2,iPartIndx_NodeRelaxRot(iLoop))
   END DO
 END IF
 
@@ -470,15 +478,15 @@ ELSE IF (FPCollModel.EQ.2) THEN
 END IF
 
 IF (FPCollModel.EQ.1) THEN
-  FP_FakA = EXP(-dt/relaxtime)
-  FP_FakB = (1.-EXP(-dt/relaxtime))
-  FP_FakC = SQRT(BoltzmannConst*CellTemp/Species(1)%MassIC*(1.-EXP(-2.0*dt/relaxtime)))
+  FP_FakA = EXP(-dtCell/relaxtime)
+  FP_FakB = (1.-EXP(-dtCell/relaxtime))
+  FP_FakC = SQRT(BoltzmannConst*CellTemp/Species(1)%MassIC*(1.-EXP(-2.0*dtCell/relaxtime)))
 ELSE
-  FP_FakA = EXP(-dt/relaxtime)
+  FP_FakA = EXP(-dtCell/relaxtime)
   IF ((FPCollModel.EQ.2).AND.(ESFPModel.EQ.1)) THEN
-    FP_FakC = SQRT(TEqui/CellTemp*(1.-EXP(-2.0*dt/relaxtime)))
+    FP_FakC = SQRT(TEqui/CellTemp*(1.-EXP(-2.0*dtCell/relaxtime)))
   ELSE
-    FP_FakC = SQRT(BoltzmannConst*TEqui/Species(1)%MassIC*(1.-EXP(-2.0*dt/relaxtime)))
+    FP_FakC = SQRT(BoltzmannConst*TEqui/Species(1)%MassIC*(1.-EXP(-2.0*dtCell/relaxtime)))
   END IF
 END IF
 
@@ -488,7 +496,7 @@ IF(FPDoVibRelaxation) THEN
       alpha = OldEn/NewEnVib*(Xi_Vib*nVibRelax/(3.*(nPart-1.)+Xi_Vib*nVibRelax))
       IF(SpecDSMC(1)%PolyatomicMol) THEN
         DO iLoop = 1, nVibRelax
-          PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) = 0.0
+          PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = 0.0
           DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
             betaV = alpha*VibEnergyDOF(iLoop,iDOF)/(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst)
             CALL RANDOM_NUMBER(iRan)
@@ -508,22 +516,22 @@ IF(FPDoVibRelaxation) THEN
                 END DO
               END IF
             END IF
-            PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1)  = PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) &
+            PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))  = PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) &
                + iQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
             VibQuantsPar(iPartIndx_NodeRelaxVib(iLoop))%Quants(iDOF) = iQuant
             OldEn = OldEn - iQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
           END DO
-          PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1)  = PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) &
+          PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))  = PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) &
                + SpecDSMC(1)%EZeroPoint
         END DO
       ELSE
         DO iLoop = 1, nVibRelax
-          betaV = alpha*PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1)/(SpecDSMC(1)%CharaTVib*BoltzmannConst)
+          betaV = alpha*PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))/(SpecDSMC(1)%CharaTVib*BoltzmannConst)
           CALL RANDOM_NUMBER(iRan)
           iQuant = INT(betaV+iRan)
           IF (iQuant.GT.SpecDSMC(1)%MaxVibQuant) iQuant = SpecDSMC(1)%MaxVibQuant
-          PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1)  = (iQuant + DSMC%GammaQuant)*SpecDSMC(1)%CharaTVib*BoltzmannConst
-          IF ((OldEn - PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) +  SpecDSMC(1)%EZeroPoint).LT.0.0) THEN
+          PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))  = (iQuant + DSMC%GammaQuant)*SpecDSMC(1)%CharaTVib*BoltzmannConst
+          IF ((OldEn - PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) +  SpecDSMC(1)%EZeroPoint).LT.0.0) THEN
             MaxColQua = OldEn/(BoltzmannConst*SpecDSMC(1)%CharaTVib)
             IF (INT(MaxColQua).EQ.0) THEN
               iQuant = 0
@@ -536,22 +544,22 @@ IF(FPDoVibRelaxation) THEN
                 iQuant = INT(-LOG(iRan)*TEqui/SpecDSMC(1)%CharaTVib)
               END DO
             END IF
-            PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1)  = (iQuant + DSMC%GammaQuant)*SpecDSMC(1)%CharaTVib*BoltzmannConst
+            PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop))  = (iQuant + DSMC%GammaQuant)*SpecDSMC(1)%CharaTVib*BoltzmannConst
           END IF
-          OldEn = OldEn - PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) +  SpecDSMC(1)%EZeroPoint
+          OldEn = OldEn - PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) +  SpecDSMC(1)%EZeroPoint
         END DO
       END IF
     ELSE
       alpha = OldEn/NewEnVib*(Xi_Vib*nVibRelax/(3.*(nPart-1.)+Xi_Vib*nVibRelax))
       DO iLoop = 1, nVibRelax
-        PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) = alpha*PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) &
+        PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = alpha*PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) &
           + SpecDSMC(1)%EZeroPoint
-        OldEn = OldEn - PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) +  SpecDSMC(1)%EZeroPoint
+        OldEn = OldEn - PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) +  SpecDSMC(1)%EZeroPoint
       END DO
     END IF
   ELSE IF (nVibRelax.GT.0) THEN
     DO iLoop = 1, nVibRelax
-      PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) = SpecDSMC(1)%EZeroPoint
+      PartStateIntEn( 1,iPartIndx_NodeRelaxVib(iLoop)) = SpecDSMC(1)%EZeroPoint
     END DO
   END IF
 END IF
@@ -560,9 +568,9 @@ OldEn = OldEn + OldEnRot
 vBulk(1:3) = 0.0
 
 DO iLoop = 1, nPart
-  V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulkAll(1:3)
+  V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop))-vBulkAll(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
-  DSMC_RHS(iPartIndx_Node(iLoop),1:3) = 0.0
+  DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = 0.0
 !  IF ((FPCollModel.EQ.1).AND.(nPart.GE.5)) THEN
   IF (FPCollModel.EQ.1) THEN
     Ni(1,iLoop)  = FPSolVec(1,1)*V_rel(1)+FPSolVec(2,1)*V_rel(2) +FPSolVec(3,1)*V_rel(3) &
@@ -574,47 +582,47 @@ DO iLoop = 1, nPart
     Ni(3,iLoop)  = FPSolVec(3,1)*V_rel(1)+FPSolVec(5,1)*V_rel(2) +FPSolVec(6,1)*V_rel(3) &
             + FPSolVec(9,1) * (vmag2 - u2) &
             + Lambda*(V_rel(3)*vmag2 -  u2i(3))
-    DSMC_RHS(iPartIndx_Node(iLoop),1:3) = relaxtime*FP_FakB*Ni(1:3,iLoop)
+    DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = relaxtime*FP_FakB*Ni(1:3,iLoop)
   END IF
 
   IF (FPCollModel.EQ.2) THEN
     tempVelo(1:3) = FP_FakC*iRanPart(1:3,iLoop)
-    DSMC_RHS(iPartIndx_Node(iLoop),1:3) = DSMC_RHS(iPartIndx_Node(iLoop),1:3) &
+    DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = DSMC_RHS(1:3,iPartIndx_Node(iLoop)) &
               + V_rel(1:3)*FP_FakA + MATMUL(SMat,tempVelo)
   ELSE
-    DSMC_RHS(iPartIndx_Node(iLoop),1:3) = DSMC_RHS(iPartIndx_Node(iLoop),1:3) &
+    DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = DSMC_RHS(1:3,iPartIndx_Node(iLoop)) &
               + V_rel(1:3)*FP_FakA + FP_FakC*iRanPart(1:3,iLoop)
   END IF
-  vBulk(1:3) = vBulk(1:3) + DSMC_RHS(iPartIndx_Node(iLoop),1:3)
+  vBulk(1:3) = vBulk(1:3) + DSMC_RHS(1:3,iPartIndx_Node(iLoop))
 END DO
 
 vBulk(1:3) = vBulk(1:3)/nPart
 DO iLoop = 1, nPart
-  V_rel(1:3) = DSMC_RHS(iPartIndx_Node(iLoop),1:3) - vBulk(1:3)
+  V_rel(1:3) = DSMC_RHS(1:3,iPartIndx_Node(iLoop)) - vBulk(1:3)
   NewEn = NewEn + (V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2 )*0.5*Species(1)%MassIC
 END DO
 
 alpha = SQRT(OldEn/NewEn*(3.*(nPart-1.))/(Xi_rot*nRotRelax+3.*(nPart-1.)))
 DO iLoop = 1, nPart
-  DSMC_RHS(iPartIndx_Node(iLoop),1:3) = alpha*(DSMC_RHS(iPartIndx_Node(iLoop),1:3)-vBulk(1:3)) + vBulkAll(1:3) &
-    - PartState(iPartIndx_Node(iLoop),4:6)
+  DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = alpha*(DSMC_RHS(1:3,iPartIndx_Node(iLoop))-vBulk(1:3)) + vBulkAll(1:3) &
+    - PartState(4:6,iPartIndx_Node(iLoop))
 END DO
 IF ( (nRotRelax.GT.0)) alpha = OldEn/NewEnRot*(Xi_rot*nRotRelax/(Xi_rot*nRotRelax+3.*(nPart-1.)))
 DO iLoop = 1, nRotRelax
-  PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop), 2) = alpha*PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop), 2)
+  PartStateIntEn( 2,iPartIndx_NodeRelaxRot(iLoop)) = alpha*PartStateIntEn( 2,iPartIndx_NodeRelaxRot(iLoop))
 END DO
 
 DEALLOCATE(Ni)
 
 #ifdef CODE_ANALYZE
 DO iLoop = 1, nPart
-  Momentum_new(1:3) = Momentum_new(1:3) + DSMC_RHS(iPartIndx_Node(iLoop),1:3) + PartState(iPartIndx_Node(iLoop),4:6)
+  Momentum_new(1:3) = Momentum_new(1:3) + DSMC_RHS(1:3,iPartIndx_Node(iLoop)) + PartState(4:6,iPartIndx_Node(iLoop))
   Energy_new = Energy_new &
-          + ((DSMC_RHS(iPartIndx_Node(iLoop),1) + PartState(iPartIndx_Node(iLoop),4))**2. &
-          +  (DSMC_RHS(iPartIndx_Node(iLoop),2) + PartState(iPartIndx_Node(iLoop),5))**2. &
-          +  (DSMC_RHS(iPartIndx_Node(iLoop),3) + PartState(iPartIndx_Node(iLoop),6))**2.)*0.5*Species(1)%MassIC
+          + ((DSMC_RHS(1,iPartIndx_Node(iLoop)) + PartState(4,iPartIndx_Node(iLoop)))**2. &
+          +  (DSMC_RHS(2,iPartIndx_Node(iLoop)) + PartState(5,iPartIndx_Node(iLoop)))**2. &
+          +  (DSMC_RHS(3,iPartIndx_Node(iLoop)) + PartState(6,iPartIndx_Node(iLoop)))**2.)*0.5*Species(1)%MassIC
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
-    Energy_new = Energy_new + PartStateIntEn(iPartIndx_Node(iLoop),1) + PartStateIntEn(iPartIndx_Node(iLoop),2)
+    Energy_new = Energy_new + PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop))
   END IF
 END DO
 ! Check for energy difference

@@ -54,7 +54,7 @@ INTERFACE SurfInt_Pois
   MODULE PROCEDURE SurfInt2
 END INTERFACE
 
-#ifdef MPI
+#if USE_MPI
 PUBLIC::StartExchangeMPIData_Pois
 #endif
 PUBLIC::VolInt_Pois,FillFlux_Pois, ProlongToFace_Pois, SurfInt_Pois
@@ -133,7 +133,7 @@ USE MOD_TimeDisc_Vars, ONLY: TEnd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                             :: c_test
-#ifdef MPI
+#if USE_MPI
 #endif
 !===================================================================================================================================
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
@@ -1106,7 +1106,7 @@ DO SideID=firstSideID,lastSideID
 END DO !SideID
 END SUBROUTINE ProlongToFace_SideBased
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE StartExchangeMPIData_Pois(FaceData,LowerBound,UpperBound,SendRequest,RecRequest,SendID)
 !===================================================================================================================================
 ! Subroutine does the send and receive operations for the face data that has to be exchanged between processors.

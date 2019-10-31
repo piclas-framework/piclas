@@ -52,7 +52,7 @@ SUBROUTINE ImplicitNorm(t,coeff,R,Norm_R,Delta_Norm_R,Delta_Norm_Rel,First)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DG_Vars,                 ONLY:U
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS,mass
 USE MOD_DG_Vars,                 ONLY:Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
@@ -83,15 +83,15 @@ INTEGER                    :: iElem, i,j,k,iVar
 REAL                       :: rTmp(1:8), locMass
 REAL                       :: rRel
 LOGICAL                    :: warning_linear
-#ifdef MPI
+#if USE_MPI
 REAL                       :: NormArray(3), GlobalNormArray(3)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 Norm_R         =0.
 Delta_Norm_R   =0.
 Delta_Norm_Rel =0.
-#ifndef PP_HDG
+#if !(USE_HDG)
 ! compute error-norm-version1, non-optimized
 CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
 ImplicitSource=0.
@@ -165,7 +165,7 @@ DO iElem=1,PP_nElems
 END DO ! iElem=1,PP_nElems
 #endif /*DG*/
 
-#ifdef MPI
+#if USE_MPI
 NormArray(1)=Norm_R
 NormArray(2)=Delta_Norm_R
 NormArray(3)=Delta_Norm_Rel
@@ -197,45 +197,45 @@ SUBROUTINE FullNewton(t,tStage,coeff)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Globals_Vars,            ONLY:EpsMach
-USE MOD_TimeDisc_Vars,           ONLY:iStage,ESDIRK_a,dt
-#ifndef PP_HDG
-USE MOD_LinearSolver,            ONLY:LinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:FieldStage
-USE MOD_LinearOperator,          ONLY:EvalResidual
-USE MOD_Predictor,               ONLY:Predictor,PredictorType
+USE MOD_Globals_Vars           ,ONLY: EpsMach
+USE MOD_TimeDisc_Vars          ,ONLY: iStage,ESDIRK_a,dt
+#if ! (USE_HDG)
+USE MOD_LinearSolver           ,ONLY: LinearSolver
+USE MOD_LinearSolver_Vars      ,ONLY: FieldStage
+USE MOD_LinearOperator         ,ONLY: EvalResidual
+USE MOD_Predictor              ,ONLY: Predictor,PredictorType
 #else
-USE MOD_HDG,                     ONLY:HDG
-USE MOD_HDG_Vars,                ONLY:EpsCG,useRelativeAbortCrit
-#endif /*PP_HDG*/
-USE MOD_DG_Vars,                 ONLY:U
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver,nDOFGlobalMPI_inv
-USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:FullEisenstatWalker,FullgammaEW,DoPrintConvInfo,Eps_FullNewton,fulletamax
+USE MOD_HDG                    ,ONLY: HDG
+USE MOD_HDG_Vars               ,ONLY: EpsCG,useRelativeAbortCrit
+#endif /*USE_HDG*/
+USE MOD_DG_Vars                ,ONLY: U
+USE MOD_LinearSolver_Vars      ,ONLY: ImplicitSource, eps_LinearSolver,nDOFGlobalMPI_inv
+USE MOD_LinearSolver_Vars      ,ONLY: maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
+USE MOD_LinearSolver_Vars      ,ONLY: FullEisenstatWalker,FullgammaEW,DoPrintConvInfo,Eps_FullNewton,fulletamax
 #ifdef PARTICLES
-USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,DoFieldUpdate,PartNewtonLinTolerance
-USE MOD_LinearSolver_Vars,       ONLY:PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation,AdaptIterRelaxation0
-USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping,TriaTracking
-USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton,UpdateInIter
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit
-USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage
-USE MOD_Particle_Vars,           ONLY:PartState, LastPartPos, DelayTime, PEM, PDM
-USE MOD_Part_RHS,                ONLY:PartVeloToImp
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-USE MOD_Part_MPFtools,           ONLY:StartParticleMerge
-USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
-USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
-USE MOD_PICDepo,                 ONLY:Deposition
-USE MOD_ParticleSolver,          ONLY:ParticleNewton
-USE MOD_part_tools,              ONLY:UpdateNextFreePosition
-#ifdef MPI
-USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
+USE MOD_LinearSolver_Vars      ,ONLY: DoFullNewton,DoFieldUpdate,PartNewtonLinTolerance
+USE MOD_LinearSolver_Vars      ,ONLY: PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation,AdaptIterRelaxation0
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_LinearSolver_Vars      ,ONLY: Eps2PartNewton,UpdateInIter
+USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
+USE MOD_Particle_Vars          ,ONLY: PartStateN,PartStage
+USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, DelayTime, PEM, PDM
+USE MOD_Part_RHS               ,ONLY: PartVeloToImp
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
+USE MOD_Part_MPFtools          ,ONLY: StartParticleMerge
+USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
+USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_ParticleSolver         ,ONLY: ParticleNewton
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+#if USE_MPI
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY:LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*PARTICLES*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -263,11 +263,11 @@ REAL                       :: tLBStart
 #endif /*PARTICLES*/
 REAL                       :: relTolerance,Criterion
 LOGICAL                    :: IsConverged
-#ifdef PP_HDG
+#if USE_HDG
 INTEGER(KIND=8)            :: iter=0
 #else
 REAL                       :: Norm_R0_linSolver
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 REAL                       :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                       :: Rold(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                       :: Uold(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -286,7 +286,7 @@ IF (t.GE.DelayTime) THEN
   END IF
 END IF
 
-#ifdef MPI
+#if USE_MPI
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -327,7 +327,7 @@ END IF
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
   ! map particle from gamma v to v
   CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 #if USE_LOADBALANCE
@@ -348,7 +348,7 @@ END IF
 #endif /*PARTICLES*/
 
 R=0.
-#ifndef PP_HDG
+#if !(USE_HDG)
 ! compute norm for Newton, which can be different than the first norm for the
 ! linear solver
 CALL ImplicitNorm(tStage,coeff,R,Norm_R0,Delta_Norm_R0,Delta_Norm_Rel0,First=.TRUE.)
@@ -477,36 +477,24 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       DO iPart=1,PDM%ParticleVecLength
         IF(PartIsImplicit(iPart))THEN
           ! update the last part pos and element for particle movement
-          !LastPartPos(iPart,1)=StagePartPos(iPart,1)
-          !LastPartPos(iPart,2)=StagePartPos(iPart,2)
-          !LastPartPos(iPart,3)=StagePartPos(iPart,3)
+          !LastPartPos(1,iPart)=StagePartPos(iPart,1)
+          !LastPartPos(2,iPart)=StagePartPos(iPart,2)
+          !LastPartPos(3,iPart)=StagePartPos(iPart,3)
           !PEM%lastElement(iPart)=PEM%StageElement(iPart)
-          LastPartPos(iPart,1)=PartState(iPart,1)
-          LastPartPos(iPart,2)=PartState(iPart,2)
-          LastPartPos(iPart,3)=PartState(iPart,3)
+          LastPartPos(1:3,iPart)=PartState(1:3,iPart)
           PEM%lastElement(iPart)=PEM%Element(iPart)
           tmpFac=(1.0-PartRelaxationFac)
-          PartState(iPart,1)=PartRelaxationFac*PartState(iPart,1)+tmpFac*PartStateN(iPart,1)
-          PartState(iPart,2)=PartRelaxationFac*PartState(iPart,2)+tmpFac*PartStateN(iPart,2)
-          PartState(iPart,3)=PartRelaxationFac*PartState(iPart,3)+tmpFac*PartStateN(iPart,3)
-          PartState(iPart,4)=PartRelaxationFac*PartState(iPart,4)+tmpFac*PartStateN(iPart,4)
-          PartState(iPart,5)=PartRelaxationFac*PartState(iPart,5)+tmpFac*PartStateN(iPart,5)
-          PartState(iPart,6)=PartRelaxationFac*PartState(iPart,6)+tmpFac*PartStateN(iPart,6)
+          PartState(1:6,iPart) = PartRelaxationFac*PartState(1:6,iPart)+tmpFac*PartStateN(1:6,iPart)
           DO iCounter=1,iStage-1
             tmpFac=tmpFac*dt*ESDIRK_a(iStage-1,iCounter)
-            PartState(iPart,1) = PartState(iPart,1) + tmpFac*PartStage(iPart,1,iCounter)
-            PartState(iPart,2) = PartState(iPart,2) + tmpFac*PartStage(iPart,2,iCounter)
-            PartState(iPart,3) = PartState(iPart,3) + tmpFac*PartStage(iPart,3,iCounter)
-            PartState(iPart,4) = PartState(iPart,4) + tmpFac*PartStage(iPart,4,iCounter)
-            PartState(iPart,5) = PartState(iPart,5) + tmpFac*PartStage(iPart,5,iCounter)
-            PartState(iPart,6) = PartState(iPart,6) + tmpFac*PartStage(iPart,6,iCounter)
+            PartState(1:6,iPart) = PartState(1:6,iPart) + tmpFac*PartStage(1:6,iCounter,iPart)
           END DO
         END IF ! ParticleInside
       END DO ! iPart
     END IF ! PartRelaxationFac>0
     IF(.NOT.DoFullNewton)THEN
       ! move particle, if not already done, here, a reduced list could be again used, but a different list...
-#ifdef MPI
+#if USE_MPI
 #if USE_LOADBALANCE
       CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -547,7 +535,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
       ! map particle from gamma v to v
       CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! compute particle source terms on field solver of implicit particles :)
@@ -576,7 +564,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 #ifdef PARTICLES
   IF(DoFieldUpdate)THEN ! update of field
 #endif /*PARTICLES*/
-#ifndef PP_HDG
+#if !(USE_HDG)
   ! compute R0
   IF(DoPrintConvInfo)THEN
     SWRITE(UNIT_stdOut,'(A20,E24.12)')           ' DGSolver-Tol   :', relTolerance
@@ -673,7 +661,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     ! and update norm with this information. maybe, we should use the correct norm
     IF (t.GE.DelayTime) THEN
       ! move particle, if not already done, here, a reduced list could be again used, but a different list...
-#ifdef MPI
+#if USE_MPI
 #if USE_LOADBALANCE
       CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -714,7 +702,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
       ! map particle from gamma v to v
       CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 #if USE_LOADBALANCE

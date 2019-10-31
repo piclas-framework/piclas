@@ -43,16 +43,17 @@ SUBROUTINE BGK_DSMC_main()
 USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC
-USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt
+USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
+USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, PartSpecies, Species, WriteMacroVolumeValues
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, PartSpecies, Species, WriteMacroVolumeValues, Symmetry2D, usevMPF
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength,BGKDSMCSwitchDens
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling
 USE MOD_DSMC                ,ONLY: DSMC_main
+USE MOD_part_tools          ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -64,7 +65,7 @@ IMPLICIT NONE
 INTEGER               :: iElem, nPart, iLoop, iPart, iSpec
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 LOGICAL               :: DoElement(nElems)
-REAL                  :: vBulk(3), TotalMass, dens
+REAL                  :: vBulk(3), TotalMass, dens, partWeight
 !===================================================================================================================================
 DSMC_RHS = 0.0
 DoElement = .FALSE.
@@ -72,14 +73,32 @@ DoElement = .FALSE.
 DO iElem = 1, nElems
   nPart = PEM%pNumber(iElem)
   IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
-  dens = nPart * Species(1)%MacroParticleFactor / GEO%Volume(iElem)
+
+  TotalMass = 0.0
+  iPart = PEM%pStart(iElem)
+  DO iLoop = 1, nPart
+    partWeight = GetParticleWeight(iPart)
+    TotalMass = TotalMass + partWeight
+    iPart = PEM%pNext(iPart)
+  END DO
+
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    dens = TotalMass / GEO%Volume(iElem)
+  ELSE
+    dens = TotalMass * Species(1)%MacroParticleFactor / GEO%Volume(iElem)
+  END IF
+
   IF (dens.LT.BGKDSMCSwitchDens) THEN
     DoElement(iElem) = .TRUE.
     CYCLE
   END IF
 
   IF (DoBGKCellAdaptation) THEN
-    CALL BGK_octree_adapt(iElem)
+    IF(Symmetry2D) THEN
+      CALL BGK_quadtree_adapt(iElem)
+    ELSE
+      CALL BGK_octree_adapt(iElem)
+    END IF
   ELSE
     ALLOCATE(iPartIndx_Node(nPart))
     TotalMass = 0.0
@@ -88,8 +107,9 @@ DO iElem = 1, nElems
     DO iLoop = 1, nPart
       iPartIndx_Node(iLoop) = iPart
       iSpec = PartSpecies(iPart)
-      vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)*Species(iSpec)%MassIC
-      TotalMass = TotalMass + Species(iSpec)%MassIC
+      partWeight = GetParticleWeight(iPart)
+      vBulk(1:3)  =  vBulk(1:3) + PartState(4:6,iPart) * partWeight
+      TotalMass = TotalMass + partWeight
       iPart = PEM%pNext(iPart)
     END DO
     vBulk = vBulk / TotalMass
@@ -133,15 +153,16 @@ USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile
 USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
-USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt
+USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry2D
 USE MOD_Restart_Vars        ,ONLY: RestartTime
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues,WriteDSMCHOToHDF5
+USE MOD_part_tools          ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -152,13 +173,17 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER               :: iElem, nPart, iLoop, iPart, nOutput
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
-REAL                  :: vBulk(3)
+REAL                  :: vBulk(3), partWeight, totalWeight
 !===================================================================================================================================
 DSMC_RHS = 0.0
 
 IF (DoBGKCellAdaptation) THEN
   DO iElem = 1, nElems
-    CALL BGK_octree_adapt(iElem)
+    IF(Symmetry2D) THEN
+      CALL BGK_quadtree_adapt(iElem)
+    ELSE
+      CALL BGK_octree_adapt(iElem)
+    END IF
   END DO
 ELSE ! No octree cell refinement
   DO iElem = 1, nElems
@@ -166,13 +191,16 @@ ELSE ! No octree cell refinement
     IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
     ALLOCATE(iPartIndx_Node(nPart))
     vBulk(1:3) = 0.0
+    totalWeight = 0.0
     iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
+      partWeight = GetParticleWeight(iPart)
       iPartIndx_Node(iLoop) = iPart
-      vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)
+      vBulk(1:3)  =  vBulk(1:3) + PartState(4:6,iPart) * partWeight
+      totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
-    vBulk = vBulk / nPart
+    vBulk = vBulk / totalWeight
 
     IF(DSMC%CalcQualityFactors) THEN
       BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.

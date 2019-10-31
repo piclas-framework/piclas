@@ -80,9 +80,9 @@ LOGICAL,ALLOCATABLE :: IsLocalDepositionBCElem(:)             ! is an element wh
                                                               ! would result in the truncation of the shape function at the boundary.
 TYPE tElemHaloInfo
   INTEGER,ALLOCATABLE            :: ElemHaloInfo(:)           !< Contains information regarding the halo region of each rank
-                                                              !< ElemHaloInfo = -1            : element not in list
-                                                              !<              = 0             : halo elements
-                                                              !<              = 1 to PP_nElems: local elements
+                                                              !< ElemHaloInfo = 0                           : element not in list
+                                                              !<              = -nTotalElems to -PP_nElems  : halo elements (negative numbers)
+                                                              !<              = 1 to PP_nElems              : local elements
                                                               !< the default value of this variable is FALSE
 END TYPE
 TYPE(tElemHaloInfo),ALLOCATABLE      :: ElemHaloInfoProc(:)   ! ElemHaloInfo array for each rank
@@ -110,6 +110,10 @@ REAL,ALLOCATABLE                        :: epsOneCell(:)      ! tolerance for pa
                                                               ! inside ref element 1+epsinCell
 
 !LOGICAL                                 :: DoRefMapping      ! tracking by mapping particle into reference element
+
+LOGICAL,ALLOCATABLE                     :: PartElemIsMortar(:)! Flag is true if element has at least one side with mortar elements,
+                                                              ! required in TriaTracking for an additional check in which element
+                                                              ! the particle ended up after the MPI comm of particles (1:nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -118,7 +122,7 @@ REAL,ALLOCATABLE                        :: epsOneCell(:)      ! tolerance for pa
 TYPE tFastInitBGM
   INTEGER                                :: nElem             ! Number of elements in background mesh cell
   INTEGER, ALLOCATABLE                   :: Element(:)        ! List of elements/physical cells in BGM cell
-#ifdef MPI
+#if USE_MPI
   INTEGER, ALLOCATABLE                   :: ShapeProcs(:)     ! first Entry: Number of Shapeprocs,
                                                               ! following: ShapeProcs
   INTEGER, ALLOCATABLE                   :: PaddingProcs(:)   ! first Entry: Number of Paddingprocs,
@@ -180,10 +184,13 @@ TYPE tGeometry
   INTEGER,ALLOCATABLE                    :: ElemToFIBGM(:,:)                  ! range of FIGMB cells per element
                                                                               ! 1:6,1:nTotalElems, xmin,max,yminmax,...
   REAL, ALLOCATABLE                      :: Volume(:)                         ! Volume(nElems) for nearest_blurrycenter
+  REAL, ALLOCATABLE                      :: MPVolumePortion(:)                ! portion of Volume(nElems) filled by macroPart
   REAL, ALLOCATABLE                      :: CharLength(:)                     ! Characteristic length for each cell: L=V^(1/3)
+  REAL, ALLOCATABLE                      :: CharLengthX(:)                    ! Characteristic length in X for each cell
+  REAL, ALLOCATABLE                      :: CharLengthY(:)                    ! Characteristic length in Y for each cell
+  REAL, ALLOCATABLE                      :: CharLengthZ(:)                    ! Characteristic length in Z for each cell
   REAL                                   :: MeshVolume                        ! Total Volume of mesh
   REAL                                   :: LocalVolume                       ! Volume of proc
-  REAL, ALLOCATABLE                      :: DeltaEvMPF(:)                     ! Energy difference due to particle merge
   INTEGER, ALLOCATABLE                   :: ElemToRegion(:)                   ! ElemToRegion(1:nElems)
 
   LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?
@@ -201,6 +208,9 @@ TYPE tGeometry
   INTEGER, ALLOCATABLE                   :: PeriodicElemSide(:,:)             ! 0=not periodic side, others=PeriodicVectorsNum
   LOGICAL, ALLOCATABLE                   :: ConcaveElemSide(:,:)              ! Whether LocalSide of Element is concave side
   REAL, ALLOCATABLE                      :: NodeCoords(:,:)                   ! Node Coordinates (1:nDim,1:nNodes)
+  REAL, ALLOCATABLE                      :: ElemMidPoint(:,:)
+  REAL, ALLOCATABLE                      :: BoundsOfElem(:,:,:)               ! Bounding box of each element (computed from Bezier
+                                                                              ! control points
 END TYPE
 
 TYPE (tGeometry)                         :: GEO
@@ -208,7 +218,7 @@ TYPE (tGeometry)                         :: GEO
 INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded
                                                                               ! into themselves)
 LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! Flag defining if mapping for neighbour elements
-                                                                              ! is build via nodes
+                                                                              ! is built via nodes
 
 TYPE tBCElem
   INTEGER                                :: nInnerSides                       ! Number of BC-Sides of Element

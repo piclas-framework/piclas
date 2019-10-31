@@ -16,13 +16,14 @@ apt-get install \
   make \
   libphonon-dev \
   qt4-qmake \
-  qt4-dev-tools
+  qt4-dev-tools \
   libqt4-opengl-dev \
   libqt4-dev \
   libxt-dev \
   mesa-common-dev \
   libz-dev \
   libncurses-dev \
+  tcl \
   tcl8.6-dev \
   ctags \
   libboost-dev \

@@ -15,7 +15,7 @@ MODULE MOD_DSMC_Vars
 ! Contains the DSMC variables
 !===================================================================================================================================
 ! MODULES
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars, ONLY: tPartMPIConnect
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -52,15 +52,49 @@ INTEGER                       :: SelectionProc              ! Mode of Selection 
 INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for energy redistribution
                                                             ! 2: partical with minimal MPF of this Pair
 LOGICAL                       :: useDSMC
-REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! (npartmax,1:3) with 2nd index: Evib, Erot, Eel
+REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! 1st index: 1:npartmax 
+!                                                           ! 2nd index: Evib, Erot, Eel
 
-INTEGER                         :: LD_MultiTemperaturMod   ! Modell choice for MultiTemperature
-                                                              ! 0 = no MultiTemperature Modeling
-                                                              ! 1 = LD1 see Paper
-                                                              ! 2 = LD2
-                                                              ! 3 = LD3
-REAL                          :: CRelaMax                   ! Max relative velocity
-REAL                          :: CRelaAv                    ! Average relative velocity
+LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
+
+TYPE tVarVibRelaxProb
+  REAL, ALLOCATABLE           :: ProbVibAvNew(:)            ! New Average of vibrational relaxation probability (1:nSPecies)
+                                                            ! , VibRelaxProb = 2
+  REAL, ALLOCATABLE           :: ProbVibAv(:,:)             ! Average of vibrational relaxation probability of the Element
+                                                            ! (1:nElems,nSpecies), VibRelaxProb = 2
+  INTEGER, ALLOCATABLE        :: nCollis(:)                 ! Number of Collisions (1:nSPecies), VibRelaxProb = 2
+  REAL                        :: alpha                      ! Relaxation factor of ProbVib, VibRelaxProb = 2
+END TYPE tVarVibRelaxProb
+
+TYPE(tVarVibRelaxProb) VarVibRelaxProb
+
+TYPE tRadialWeighting
+  REAL                        :: PartScaleFactor
+  INTEGER                     :: NextClone
+  INTEGER                     :: CloneDelayDiff
+  LOGICAL                     :: DoRadialWeighting              ! Enables radial weighting in the axisymmetric simulations
+  INTEGER                     :: CloneMode                      ! 1 = Clone Delay
+                                                                ! 2 = Clone Random Delay
+  INTEGER, ALLOCATABLE        :: ClonePartNum(:)
+  INTEGER                     :: CloneInputDelay
+  LOGICAL                     :: CellLocalWeighting
+  INTEGER                     :: nSubSides
+END TYPE tRadialWeighting
+
+TYPE(tRadialWeighting)        :: RadialWeighting
+
+TYPE tClonedParticles
+  ! Clone Delay: Clones are inserted at the next time step
+  INTEGER                     :: Species
+  REAL                        :: PartState(1:6)
+  REAL                        :: PartStateIntEn(1:3)
+  INTEGER                     :: Element
+  REAL                        :: LastPartPos(1:3)
+  REAL                        :: WeightingFactor
+  INTEGER, ALLOCATABLE        :: VibQuants(:)
+END TYPE
+
+TYPE(tClonedParticles),ALLOCATABLE :: ClonedParticles(:,:)
 
 TYPE tSpecInit
   REAL                        :: TVib                       ! vibrational temperature, ini_1
@@ -110,10 +144,11 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                        :: VFD_Phi3_Factor            ! Factor of Phi3 in VFD Method: Phi3 = 0 => VFD -> TCE, ini_2
   REAL                        :: CollNumRotInf              ! Collision number for rotational relaxation according to Parker or
                                                             ! Zhang, ini_2 -> model dependent!
-  REAL                        :: TempRefRot                 ! referece temperature for rotational relaxation according to Parker or
+  REAL                        :: TempRefRot                 ! Referece temperature for rotational relaxation according to Parker or
                                                             ! Zhang, ini_2 -> model dependent!
-  REAL, ALLOCATABLE           :: MW_Const(:)                ! Model Constant 'A' of Milikan-White Model for vibrational relax, ini_2
-  REAL                        :: CollNumVib                 ! vibrational collision number according to Boyd, ini_2
+  REAL, ALLOCATABLE           :: MW_ConstA(:)               ! Model Constant 'A' of Milikan-White Model for vibrational relax, ini_2
+  REAL, ALLOCATABLE           :: MW_ConstB(:)               ! Model Constant 'B' of Milikan-White Model for vibrational relax, ini_2
+  REAL, ALLOCATABLE           :: CollNumVib(:)              ! vibrational collision number
   REAL                        :: VibCrossSec                ! vibrational cross section, ini_2
   REAL, ALLOCATABLE           :: CharaVelo(:)               ! characteristic velocity according to Boyd & Abe, nec for vib
                                                             ! relaxation
@@ -163,24 +198,40 @@ TYPE tDSMC
   INTEGER                       :: PartNumOctreeNode        ! Max Number of Particles per Octree Node
   INTEGER                       :: PartNumOctreeNodeMin     ! Min Number of Particles per Octree Node
   LOGICAL                       :: UseOctree                ! Flag for Octree
+  LOGICAL                       :: UseNearestNeighbour      ! Flag for Nearest Neighbour or classic statistical pairing
   LOGICAL                       :: CalcSurfaceVal           ! Flag for calculation of surfacevalues like heatflux or force at walls
   LOGICAL                       :: CalcSurfaceTime          ! Flag for sampling in time-domain or iterations
   REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
   REAL                          :: CollProbMean             ! Summation of collision probability
   REAL                          :: CollProbMax              ! Maximal collision probability per cell
+  REAL, ALLOCATABLE             :: CalcRotProb(:,:)         ! Summation of rotation relaxation probability (nSpecies + 1,3)
+                                                            !     1: Mean Prob
+                                                            !     2: Max Prob
+                                                            !     3: Sample size
+  REAL, ALLOCATABLE             :: CalcVibProb(:,:)         ! Summation of vibration relaxation probability (nSpecies + 1,3)
+                                                            !     1: Mean Prob
+                                                            !     2: Max Prob
+                                                            !     3: Sample size
   REAL                          :: MeanFreePath
   REAL                          :: MCSoverMFP               ! Subcell local mean collision distance over mean free path
   INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
   INTEGER                       :: CollSepCount             ! counter of actual collision pairs
   REAL                          :: CollSepDist              ! Summation of mean collision separation distance
   LOGICAL                       :: CalcQualityFactors       ! Enables/disables the calculation and output of flow-field variables
-  REAL, ALLOCATABLE             :: QualityFactors(:,:)      ! Quality factors for DSMC
+  REAL, ALLOCATABLE             :: QualityFacSamp(:,:)      ! Sampling of quality factors
                                                             !     1: Maximal collision prob
                                                             !     2: Time-averaged mean collision prob
                                                             !     3: Mean collision separation distance over mean free path
-  REAL, ALLOCATABLE             :: QualityFacSamp(:,:)      ! Sampling of quality factors
-                                                            !     1: Time-averaged mean collision prob
-                                                            !     2: Mean collision separation distance over mean free path
+                                                            !     4: Sample size
+  REAL, ALLOCATABLE             :: QualityFacSampRot(:,:,:) ! Sampling of quality rot relax factors (nElem,nSpec+1,2)
+                                                            !     1: Time-averaged mean rot relax prob
+                                                            !     2: Maximal rot relax prob
+  INTEGER, ALLOCATABLE          :: QualityFacSampRotSamp(:,:)!Sample size for QualityFacSampRot
+  REAL, ALLOCATABLE             :: QualityFacSampVib(:,:,:) ! Sampling of quality vib relax factors (nElem,nSpec+1,2)
+                                                            !     1: Instantanious time-averaged mean vib relax prob
+                                                            !     2: Instantanious maximal vib relax prob
+  INTEGER, ALLOCATABLE          :: QualityFacSampVibSamp(:,:,:)!Sample size for QualityFacSampVib
+  REAL, ALLOCATABLE             :: QualityFacSampRelaxSize(:,:)! Samplie size of quality relax factors (nElem,nSpec+1)
   LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
@@ -208,6 +259,8 @@ TYPE tDSMC
 #if (PP_TimeDiscMethod==42)
   LOGICAL                       :: CompareLandauTeller      ! Keeps the translational temperature at the fixed value of the init
 #endif
+  LOGICAL                       :: MergeSubcells            ! Merge subcells after quadtree division if number of particles within
+                                                            ! subcell is less than 7
 END TYPE tDSMC
 
 TYPE(tDSMC)                     :: DSMC
@@ -249,6 +302,9 @@ TYPE tCollInf             ! informations of collision
   INTEGER       , ALLOCATABLE    :: KronDelta(:)            ! (number of case)
   REAL          , ALLOCATABLE    :: FracMassCent(:,:)       ! mx/(my+mx) (nSpec, number of cases)
   REAL          , ALLOCATABLE    :: MassRed(:)              ! reduced mass (number of cases)
+  REAL          , ALLOCATABLE    :: MeanMPF(:)
+  LOGICAL                        :: ProhibitDoubleColl = .FALSE.
+  INTEGER       , ALLOCATABLE    :: OldCollPartner(:)        ! index of old coll partner to prohibit double collisions(maxPartNum)
 END TYPE
 
 TYPE(tCollInf)               :: CollInf
@@ -357,17 +413,6 @@ TYPE tChemReactions
    TYPE(tReactInfo), ALLOCATABLE  :: ReactInfo(:)           ! Informations of Reactions (nReactions)
 END TYPE
 
-TYPE tTreeNode
-!  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
-  TYPE (tTreeNode), POINTER       :: ChildNode       => null()       !8 Childnodes of Octree Treenode
-  REAL                            :: MidPoint(1:3)          ! approx Middle Point of Treenode
-  INTEGER                         :: PNum_Node              ! Particle Number of Treenode
-  INTEGER, ALLOCATABLE            :: iPartIndx_Node(:)      ! Particle Index List of Treenode
-  REAL, ALLOCATABLE               :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
-  REAL                            :: NodeVolume(8)
-  INTEGER                         :: NodeDepth
-END TYPE
-
 TYPE(tChemReactions)              :: ChemReac
 
 
@@ -407,7 +452,9 @@ REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues
                                                                    ! 1: Surface Collision Counter
                                                                    ! 2: Accomodation
                                                                    ! 3: Coverage
-                                                                   ! 4: Recombination Coefficient
+                                                                   ! 4 (or 2): Impact energy trans
+                                                                   ! 5 (or 3): Impact energy rot
+                                                                   ! 6 (or 4): Impact energy vib
 
 ! some variables redefined
 !TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall
@@ -497,7 +544,7 @@ TYPE tSampleCartmesh_VolWe
   INTEGER                               :: OrderVolInt
   REAL, ALLOCATABLE                    :: x_VolInt(:)
   REAL, ALLOCATABLE                    :: w_VolInt(:)
-#ifdef MPI
+#if USE_MPI
   TYPE(tPartMPIConnect)        , ALLOCATABLE :: MPIConnect(:)             ! MPI connect for each process
 #endif
 END TYPE
@@ -533,7 +580,7 @@ END TYPE
 
 TYPE (tDSMCSampAdaptCellVolW) DSMCSampAdaptCellVolW
 
-#ifdef MPI
+#if USE_MPI
 TYPE tAdaptCellVolWRecvPart
   REAL,ALLOCATABLE                      :: PartState(:,:)
   REAL,ALLOCATABLE                      :: PartStateInt(:,:)
@@ -543,6 +590,8 @@ END TYPE
 
 TYPE (tAdaptCellVolWRecvPart), ALLOCATABLE :: AdaptCellVolWRecvPart(:)
 #endif
+
+INTEGER, ALLOCATABLE      :: SymmetrySide(:,:)
 
 TYPE tHODSMC
   LOGICAL                 :: HODSMCOutput         !High Order DSMC Output
@@ -557,9 +606,21 @@ END TYPE tHODSMC
 
 TYPE(tHODSMC)             :: HODSMC
 REAL,ALLOCATABLE          :: DSMC_HOSolution(:,:,:,:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
+REAL,ALLOCATABLE          :: DSMC_VolumeSample(:)         !sampnum samples of volume in element
 
-TYPE tElemNodeVolumes
-    TYPE (tNodeVolume), POINTER             :: Root => null()
+LOGICAL                   :: ConsiderVolumePortions       ! Flag set in case volume portions are required, enables MC volume calc
+
+TYPE tTreeNode
+!  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
+  TYPE (tTreeNode), POINTER       :: ChildNode       => null()       !8 Childnodes of Octree Treenode
+  REAL                            :: MidPoint(1:3)          ! approx Middle Point of Treenode
+  INTEGER                         :: PNum_Node              ! Particle Number of Treenode
+  INTEGER, ALLOCATABLE            :: iPartIndx_Node(:)      ! Particle Index List of Treenode
+  REAL, ALLOCATABLE               :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
+  LOGICAL, ALLOCATABLE            :: MatchedPart(:)         ! Flag signaling that mapped particle is inside of macroparticle
+  REAL                            :: NodeVolume(8)
+  INTEGER                         :: NodeDepth
+  REAL                            :: MPNodeVolumePortion(8)
 END TYPE
 
 TYPE tNodeVolume
@@ -572,6 +633,14 @@ TYPE tNodeVolume
     TYPE (tNodeVolume), POINTER             :: SubNode7 => null()
     TYPE (tNodeVolume), POINTER             :: SubNode8 => null()
     REAL                                    :: Volume
+    REAL                                    :: MPVolumePortion
+    LOGICAL                                 :: MPVolumeDone=.FALSE.
+    REAL                                    :: Area
+    REAL,ALLOCATABLE                        :: PartNum(:,:)
+END TYPE
+
+TYPE tElemNodeVolumes
+    TYPE (tNodeVolume), POINTER             :: Root => null()
 END TYPE
 
 TYPE (tElemNodeVolumes), ALLOCATABLE        :: ElemNodeVol(:)

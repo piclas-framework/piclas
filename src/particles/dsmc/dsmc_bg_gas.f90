@@ -57,14 +57,15 @@ SUBROUTINE DSMC_InitBGGas()
 !> 3. Adjust ParticleVecLength and currentNextFreePosition
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                ONLY: Abort
-USE MOD_DSMC_Init,              ONLY: DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_Vars,              ONLY: BGGas, SpecDSMC
-USE MOD_DSMC_PolyAtomicModel,   ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_PARTICLE_Vars,          ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef
-USE MOD_part_emission,          ONLY: SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF
-USE MOD_part_tools,             ONLY: UpdateNextFreePosition
-USE MOD_Particle_Tracking_Vars, ONLY: DoRefmapping
+USE MOD_Globals                ,ONLY: Abort
+USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef
+USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF
+USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -86,7 +87,7 @@ DO iPart = 1, PDM%ParticleVecLength
 __STAMP__&
 ,'ERROR in BGGas: MaxParticleNumber should be twice the expected number of particles, to account for the BGG particles!')
     END IF
-    PartState(PositionNbr,1:3) = PartState(iPart,1:3)
+    PartState(1:3,PositionNbr) = PartState(1:3,iPart)
     IF(DoRefMapping)THEN ! here Nearst-GP is missing
       PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,iPart)
     END IF
@@ -119,6 +120,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 ! MODULES
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
+  USE MOD_DSMC_Vars,              ONLY : DSMC, VarVibRelaxProb
   USE MOD_Particle_Vars,          ONLY : PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
@@ -130,11 +132,17 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: nPair, iPair, iPart, iLoop, nPart
+  INTEGER                       :: nPair, iPair, iPart, iLoop, nPart, iSpec
   INTEGER                       :: cSpec1, cSpec2, iCase
 !===================================================================================================================================
   nPart = PEM%pNumber(iElem)
   nPair = INT(nPart/2)
+  IF(DSMC%VibRelaxProb.EQ.2.0) THEN ! Set summs for variable vibrational relaxation to zero
+    DO iSpec=1,nSpecies
+      VarVibRelaxProb%ProbVibAvNew(iSpec) = 0
+      VarVibRelaxProb%nCollis(iSpec) = 0
+    END DO
+  END IF
 
   CollInf%Coll_SpecPartNum = 0
   CollInf%Coll_CaseNum = 0
@@ -151,7 +159,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
           ! counter for part num of spec per cell
     IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = &
                         ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
-                        + PartStateIntEn(iPart,1) !Calulation of mean evib per cell and iter, necessary for disso prob
+                        + PartStateIntEn(1,iPart) !Calulation of mean evib per cell and iter, necessary for disso prob
     IF(PartSpecies(iPart).NE.BGGas%BGGasSpecies) THEN
       Coll_pData(iPair)%iPart_p1 = iPart
       Coll_pData(iPair)%iPart_p2 = BGGas%PairingPartner(iPart)
@@ -188,12 +196,12 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
     IF (usevMPF) PartMPF(Coll_pData(iPair)%iPart_p2) = PartMPF(Coll_pData(iPair)%iPart_p1)
     iCase = CollInf%Coll_Case(cSpec1, cSpec2)
     CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
-    Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                             + (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                             + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
+    Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
+                             -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                             + (PartState(5,Coll_pData(iPair)%iPart_p1) &
+                             -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                             + (PartState(6,Coll_pData(iPair)%iPart_p1) &
+                             -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
     Coll_pData(iPair)%PairType = iCase
     Coll_pData(iPair)%NeedForRec = .FALSE.
   END DO

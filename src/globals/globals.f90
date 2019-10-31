@@ -17,9 +17,9 @@ MODULE MOD_Globals
 !> Provides parameters, used globally (please use EXTREMELY carefully!)
 !===================================================================================================================================
 ! MODULES
-#ifdef MPI
+#if USE_MPI
 USE mpi
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -29,6 +29,7 @@ INTEGER,PARAMETER  :: UNIT_stdOut=6
 INTEGER,PARAMETER  :: UNIT_logOut=133
 INTEGER            :: UNIT_errOut=999
 LOGICAL            :: Logging
+CHARACTER(LEN=255) :: LogFile
 CHARACTER(LEN=255) :: ErrorFileName='NOT_SET'
 INTEGER            :: iError
 REAL               :: StartTime
@@ -38,7 +39,7 @@ INTEGER            :: MPI_COMM_NODE    ! local node subgroup
 INTEGER            :: MPI_COMM_LEADERS ! all node masters
 INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
 LOGICAL            :: MPIRoot,MPILocalRoot
-#ifdef MPI
+#if USE_MPI
 !#include "mpif.h"
 INTEGER            :: MPIStatus(MPI_STATUS_SIZE)
 #else
@@ -55,6 +56,10 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 
 INTERFACE InitGlobals
   MODULE PROCEDURE InitGlobals
+END INTERFACE
+
+INTERFACE ReOpenLogFile
+  MODULE PROCEDURE ReOpenLogFile
 END INTERFACE
 
 INTERFACE Abort
@@ -138,7 +143,7 @@ IMPLICIT NONE
 INTEGER                        :: OpenStat
 CHARACTER(LEN=8)               :: StrDate
 CHARACTER(LEN=10)              :: StrTime
-CHARACTER(LEN=255)             :: LogFile
+LOGICAL                        :: LogIsOpen
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS ...'
@@ -152,24 +157,49 @@ TwoEpsMach=2.0d0*epsMach
 
 ! Open file for logging
 IF(Logging)THEN
-  WRITE(LogFile,'(A,A1,I6.6,A4)')TRIM(ProjectName),'_',myRank,'.log'
-  OPEN(UNIT=UNIT_logOut,  &
-       FILE=LogFile,      &
-       STATUS='UNKNOWN',  &
-       ACTION='WRITE',    &
-       POSITION='APPEND', &
-       IOSTAT=OpenStat)
-  CALL DATE_AND_TIME(StrDate,StrTime)
-  WRITE(UNIT_logOut,*)
-  WRITE(UNIT_logOut,'(132("#"))')
-  WRITE(UNIT_logOut,*)
-  WRITE(UNIT_logOut,*)'STARTED LOGGING FOR PROC',myRank,' ON ',StrDate(7:8),'.',StrDate(5:6),'.',StrDate(1:4),' | ',&
-                      StrTime(1:2),':',StrTime(3:4),':',StrTime(5:10)
+  INQUIRE(UNIT=UNIT_LogOut,OPENED=LogIsOpen)
+  IF(.NOT.LogIsOpen)THEN
+    WRITE(LogFile,'(A,A1,I6.6,A4)')TRIM(ProjectName),'_',myRank,'.log'
+    OPEN(UNIT=UNIT_logOut,  &
+         FILE=LogFile,      &
+         STATUS='UNKNOWN',  &
+         ACTION='WRITE',    &
+         POSITION='APPEND', &
+         IOSTAT=OpenStat)
+    CALL DATE_AND_TIME(StrDate,StrTime)
+    WRITE(UNIT_logOut,*)
+    WRITE(UNIT_logOut,'(132("#"))')
+    WRITE(UNIT_logOut,*)
+    WRITE(UNIT_logOut,*)'STARTED LOGGING FOR PROC',myRank,' ON ',StrDate(7:8),'.',StrDate(5:6),'.',StrDate(1:4),' | ',&
+                        StrTime(1:2),':',StrTime(3:4),':',StrTime(5:10)
+  END IF !logIsOpen
 END IF  ! Logging
 
 SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitGlobals
+
+
+SUBROUTINE ReOpenLogFile()
+!===================================================================================================================================
+! re-open log file (used by preprocessor LOGWRITE_BARRIER) to be sure that all logwrites are written to file
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: OpenStat
+LOGICAL                        :: LogIsOpen
+!===================================================================================================================================
+  INQUIRE(UNIT=UNIT_LogOut,OPENED=LogIsOpen)
+  IF(logIsOpen)CLOSE(UNIT_logOut)
+  OPEN(UNIT=UNIT_logOut, FILE=LogFile, STATUS='UNKNOWN', ACTION='WRITE', POSITION='APPEND', IOSTAT=OpenStat)
+END SUBROUTINE ReOpenLogFile
 
 
 ! FUNCTION AlmostEqual(Num1,Num2) ! see piclas.h
@@ -273,7 +303,7 @@ END SUBROUTINE InitGlobals
 !
 ! END FUNCTION AlmostZero
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt,SingleOpt)
 #else
 SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt)
@@ -293,7 +323,7 @@ CHARACTER(LEN=*)                  :: CompTime        ! Compilation time
 CHARACTER(LEN=*)                  :: ErrorMessage    ! Error message
 INTEGER,OPTIONAL                  :: IntInfoOpt      ! Error info (integer)
 REAL,OPTIONAL                     :: RealInfoOpt     ! Error info (real)
-#ifdef MPI
+#if USE_MPI
 LOGICAL,OPTIONAL                  :: SingleOpt       ! Only MPI-Root performs check
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -303,12 +333,13 @@ LOGICAL,OPTIONAL                  :: SingleOpt       ! Only MPI-Root performs ch
 ! LOCAL VARIABLES
 INTEGER                           :: IntInfo         ! Error info (integer)
 REAL                              :: RealInfo        ! Error info (real)
-#ifdef MPI
+#if USE_MPI
 INTEGER                           :: errOut          ! Output of MPI_ABORT
 INTEGER                           :: signalout       ! Output errorcode
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
-#ifdef MPI
+IF(logging) CLOSE(UNIT_logOut)
+#if USE_MPI
 IF(PRESENT(SingleOpt))THEN
   IF(SingleOpt.AND.(.NOT.MPIRoot)) RETURN
 END IF
@@ -334,7 +365,7 @@ WRITE(UNIT_stdOut,*)
 WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
 WRITE(UNIT_stdOut,*)
 !CALL delete()
-#ifdef MPI
+#if USE_MPI
 signalout=2 ! MPI_ABORT requires an output error-code /=0
 errOut = 1
 CALL MPI_ABORT(MPI_COMM_WORLD,signalout,errOut)
@@ -409,7 +440,7 @@ SWRITE(UNIT_stdOut,*) '_________________________________________________________
                      TRIM(IntString), TRIM(RealString)
 
 CALL FLUSH(UNIT_stdOut)
-#ifdef MPI
+#if USE_MPI
 CALL MPI_FINALIZE(iError)
 #endif
 ERROR STOP 1
@@ -656,6 +687,7 @@ FUNCTION TIMESTAMP(Filename,Time)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
+USE MOD_Globals_Vars ,ONLY: TimeStampLenStr,TimeStampLenStr2
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -668,11 +700,9 @@ CHARACTER(LEN=255) :: TimeStamp ! the complete timestamp
 ! LOCAL VARIABLES
 INTEGER            :: i         ! loop variable
 !===================================================================================================================================
-!IF (Analyze_dt.LT.1E-10) THEN
-!  WRITE(TimeStamp,'(F15.14)')Time
-!ELSE
-WRITE(TimeStamp,'(F21.17)')Time
-!END IF
+!WRITE(TimeStamp,'(F21.17)')Time
+WRITE(TimeStamp,'(F'//TRIM(TimeStampLenStr)//'.'//TRIM(TimeStampLenStr2)//')')Time
+
 ! Replace spaces with 0's
 DO i=1,LEN(TRIM(TimeStamp))
   IF(TimeStamp(i:i).EQ.' ') TimeStamp(i:i)='0'
@@ -681,7 +711,7 @@ TimeStamp=TRIM(Filename)//'_'//TRIM(TimeStamp)
 END FUNCTION TIMESTAMP
 
 
-#ifdef MPI
+#if USE_MPI
 FUNCTION PICLASTIME(Comm)
 #else
 FUNCTION PICLASTIME()
@@ -694,7 +724,7 @@ FUNCTION PICLASTIME()
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#ifdef MPI
+#if USE_MPI
 INTEGER, INTENT(IN),OPTIONAL    :: Comm
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -703,7 +733,7 @@ REAL                            :: PiclasTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-#ifdef MPI
+#if USE_MPI
 IF(PRESENT(Comm))THEN
   CALL MPI_BARRIER(Comm,iError)
 ELSE
@@ -731,7 +761,7 @@ REAL                            :: LocalTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-#ifdef MPI
+#if USE_MPI
 LocalTime=MPI_WTIME()
 #else
 CALL CPU_TIME(LocalTime)
@@ -786,7 +816,7 @@ REAL            :: CROSS(3) !
 CROSS=(/v1(2)*v2(3)-v1(3)*v2(2),v1(3)*v2(1)-v1(1)*v2(3),v1(1)*v2(2)-v1(2)*v2(1)/)
 END FUNCTION CROSS
 
-FUNCTION CROSSNORM(v1,v2)
+PURE FUNCTION CROSSNORM(v1,v2)
 !===================================================================================================================================
 ! computes the cross product of to 3 dimensional vectpors: cross=v1 x v2
 ! and normalizes the vector
@@ -810,7 +840,7 @@ length=SQRT(CROSSNORM(1)*CROSSNORM(1)+CROSSNORM(2)*CROSSNORM(2)+CROSSNORM(3)*CRO
 CROSSNORM=CROSSNORM/length
 END FUNCTION CROSSNORM
 
-FUNCTION UNITVECTOR(v1)
+PURE FUNCTION UNITVECTOR(v1)
 !===================================================================================================================================
 ! compute  a unit vector from a given vector
 !===================================================================================================================================
@@ -833,7 +863,7 @@ UNITVECTOR=v1*invL
 END FUNCTION UNITVECTOR
 
 
-FUNCTION VECNORM(v1)
+PURE FUNCTION VECNORM(v1)
 !===================================================================================================================================
 ! computes the length of an vector
 !===================================================================================================================================
@@ -851,6 +881,26 @@ REAL            :: VECNORM  !
 !===================================================================================================================================
 VECNORM=SQRT(v1(1)*v1(1)+v1(2)*v1(2)+v1(3)*v1(3))
 END FUNCTION VECNORM
+
+
+PURE FUNCTION DOTPRODUCT(v1)
+!===================================================================================================================================
+! computes the dot product of an single vector with itself
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: v1(3)    !
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL            :: DOTPRODUCT  !
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+DOTPRODUCT=v1(1)*v1(1)+v1(2)*v1(2)+v1(3)*v1(3)
+END FUNCTION DOTPRODUCT
 
 
 END MODULE MOD_Globals
