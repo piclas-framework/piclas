@@ -477,7 +477,7 @@ SUBROUTINE GetInteractionWithMacroBody(PartTrajectory,lengthPartTrajectory &
                                       ,alpha,alphaSphere,alphaDoneRel,macroBodyID,partID,opt_Reflected)
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals                 ,ONLY: CROSSNORM,abort,UNITVECTOR,CROSS
+USE MOD_Globals                 ,ONLY: CROSSNORM,abort,UNITVECTOR,CROSS,OrthoNormVec
 USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars           ,ONLY: PartSpecies
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species
@@ -554,29 +554,7 @@ IF (RanNum.GE.MacroSphere(macroBodyID)%momentumACC) THEN
 ELSE
   WallVelo = CROSS(MacroSphere(macroBodyID)%velocity(4:6),-nLoc*MacroSphere(macroBodyID)%radius)
   relVeloPart(1:3)=relVelopart(1:3) - WallVelo
-  IF (nLoc(3).NE.0.) THEN
-    tang1(1) = 1.0
-    tang1(2) = 1.0
-    tang1(3) = -(nLoc(1)+nLoc(2))/nLoc(3)
-  ELSE
-    IF (nLoc(2).NE.0.) THEN
-      tang1(1) = 1.0
-      tang1(3) = 1.0
-      tang1(2) = -(nLoc(1)+nLoc(3))/nLoc(2)
-    ELSE
-      IF (nLoc(1).NE.0.) THEN
-        tang1(2) = 1.0
-        tang1(3) = 1.0
-        tang1(1) = -(nLoc(2)+nLoc(3))/nLoc(1)
-      ELSE
-        CALL abort(&
-            __STAMP__&
-            ,'Error in GetInteractionWithMacroPart, n_vec is zero for macro particle',macroBodyID)
-      END IF
-    END IF
-  END IF
-  tang1=UNITVECTOR(tang1)
-  tang2=CROSSNORM(nLoc,tang1)
+  CALL OrthoNormVec(nLoc,tang1,tang2)
 
   ! diffuse reflection
   WallTemp   = MacroSphere(macroBodyID)%temp

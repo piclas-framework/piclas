@@ -366,8 +366,8 @@ DO i = 1,PDM%ParticleVecLength
           IF(BCType.NE.1) CALL IntersectionWithWall(PartTrajectory,alpha,i,LocalSide,ElemID,TriNum)
           CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
                                                                        ,xi    &
-                                                                       ,eta   ,i,SideID,flip,LocalSide,ElemID,crossedBC&
-                                                                       ,TriNum)
+                                                                       ,eta   ,i,SideID,flip,ElemID,crossedBC&
+                                                                       ,TriNum=TriNum,LocSideID=LocalSide)
           IF(.NOT.PDM%ParticleInside(i)) PartisDone = .TRUE.
 #if USE_LOADBALANCE
           IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
@@ -1715,20 +1715,20 @@ RECURSIVE SUBROUTINE ParticleBCTracking(lengthPartTrajectory0 &
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars,               ONLY:PEM,PDM
-USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
-USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
-USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,GEO,ElemRadiusNGeo
-USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
-USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
-USE MOD_Particle_Tracking_Vars,      ONLY:CartesianPeriodic
+USE MOD_Particle_Vars               ,ONLY: PEM,PDM
+USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
+USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
+USE MOD_Particle_Mesh_Vars          ,ONLY: PartBCSideList
+USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
+USE MOD_Particle_Mesh_Vars          ,ONLY: BCElem,GEO,ElemRadiusNGeo
+USE MOD_Utils                       ,ONLY: BubbleSortID,InsertionSort
+USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
+USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
+USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
+USE MOD_Particle_Intersection       ,ONLY: ComputeBiLinearIntersection
+USE MOD_Particle_Tracking_Vars      ,ONLY: CartesianPeriodic
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Tracking_Vars,      ONLY:PartOut,MPIRankOut
+USE MOD_Particle_Tracking_Vars      ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1900,9 +1900,8 @@ DO WHILE(DoTracing)
         hitlocSide=locSideList(ilocSide)
         SideID=BCElem(ElemID)%BCSideID(hitlocSide)
         flip  =0 !PartElemToSide(E2S_FLIP,hitlocSide,ElemID) !wrong for inner sides!!!
-        BCSideID=PartBCSideList(SideID)
         OldElemID=ElemID
-        CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+        CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                           ,xi(hitlocSide)     &
                                                                           ,eta(hitlocSide)    &
                                                                           ,PartId,SideID,flip,ElemID,reflected)
@@ -1941,8 +1940,9 @@ END SUBROUTINE ParticleBCTracking
 
 
 SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
-                                 ,xi,eta,alpha,PartID,SideID,SideType,ElemID,TriNum)
+                                 ,xi,eta,alpha,PartID,SideID,SideType,ElemID)
 !===================================================================================================================================
+!> Use only for TrackingMethod=TRACING
 !> Checks which type of interaction (BC,Periodic,innerSide) has to be applied for the face on the traced particle path
 !> - If face is BC-side BoundaryInteraction routine is called
 !>   - for triatracking the intersection location of partice trajectory with face is calculated first
@@ -1953,13 +1953,13 @@ SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Tracking_Vars,      ONLY:TriaTracking,TrackInfo
-USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec
-USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction,PARTSWITCHELEMENT
-USE MOD_Particle_Intersection,       ONLY:IntersectionWithWall
-USE MOD_Particle_Vars,               ONLY:PDM
-USE MOD_Particle_Surfaces,           ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Mesh_Vars,                   ONLY:BC
+USE MOD_Particle_Tracking_Vars      ,ONLY: TrackInfo
+USE MOD_Particle_Surfaces_Vars      ,ONLY: SideNormVec
+USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction,PARTSWITCHELEMENT
+USE MOD_Particle_Intersection       ,ONLY: IntersectionWithWall
+USE MOD_Particle_Vars               ,ONLY: PDM
+USE MOD_Particle_Surfaces           ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Mesh_Vars                   ,ONLY: BC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1973,7 +1973,6 @@ INTEGER,INTENT(IN)                :: flip                     !< flip of SideID
 REAL,INTENT(INOUT)                :: Xi                       !<
 REAL,INTENT(INOUT)                :: Eta                      !<
 REAL,INTENT(INOUT)                :: Alpha                    !< portion of PartTrajectory until hit with face
-INTEGER,INTENT(IN),OPTIONAL       :: TriNum                   !< number of triangle for current face
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(INOUT)             :: PartIsDone               !< Flag indicating if tracking of PartID is finished
@@ -1986,25 +1985,11 @@ REAL,INTENT(INOUT)                :: lengthPartTrajectory     !< length of parti
 ! LOCAL VARIABLES
 INTEGER                           :: Moved(2)
 REAL                              :: n_loc(3)
-INTEGER                           :: TriNumTemp
 !===================================================================================================================================
 
 IF(BC(SideID).GT.0)THEN
-  IF (PRESENT(TriNum)) THEN
-    TriNumTemp = TriNum
-  ELSE
-    TriNumTemp = 0
-  END IF
-  IF (TriaTracking) THEN
-    IF (TriNumTemp.NE.1 .AND. TriNumTemp.NE.2) CALL abort(&
-__STAMP__ &
-,'ERROR in SelectInterSectionType for TriaTracking. TriNum is:',TriNumTemp)
-    CALL IntersectionWithWall(PartTrajectory,alpha,PartID,hitlocSide,ElemID,TriNumtemp)
-  END IF
-  CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
-                                                                 ,xi    &
-                                                                 ,eta   ,PartID,SideID,flip,hitlocSide,ElemID,crossedBC&
-                                                                 ,TriNumTemp)
+  CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,ElemID,crossedBC&
+                                                                 ,locSideID=hitLocSide)
   TrackInfo%CurrElem=ElemID
   IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
   dolocSide=.TRUE.
@@ -2017,24 +2002,22 @@ ELSE
   !! recompute remaining particle trajectory
   !lengthPartTrajectory=lengthPartTrajectory-alpha
   ! check if particle leaves element
-  IF (.NOT.TriaTracking) THEN
-    SELECT CASE(SideType)
-    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      n_loc=SideNormVec(1:3,SideID)
-    CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-    CASE(CURVED)
-      CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-    END SELECT
-    IF(flip.NE.0) n_loc=-n_loc
-    IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0) RETURN
-  END IF
+  SELECT CASE(SideType)
+  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+    n_loc=SideNormVec(1:3,SideID)
+  CASE(BILINEAR)
+    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+  CASE(CURVED)
+    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+  END SELECT
+  IF(flip.NE.0) n_loc=-n_loc
+  IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0) RETURN
   ! update particle element
   dolocSide=.TRUE.
   Moved = PARTSWITCHELEMENT(xi,eta,hitlocSide,SideID,ElemID)
   IF (Moved(1).LT.1 .OR. Moved(2).LT.1) CALL abort(&
-__STAMP__ &
-,'ERROR in SelectInterSectionType. No Neighbour Elem or Neighbour Side found --> increase haloregion')
+    __STAMP__ &
+    ,'ERROR in SelectInterSectionType. No Neighbour Elem or Neighbour Side found --> increase haloregion')
   ElemID=Moved(1)
   TrackInfo%CurrElem=ElemID
   dolocSide(Moved(2))=.FALSE.
@@ -2355,7 +2338,7 @@ USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 USE MOD_Mesh_Vars,                   ONLY:ElemBaryNGeo
-USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
+USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
@@ -2470,7 +2453,7 @@ ELSE
       !                         +PartTrajectory(3)*PartTrajectory(3) )
       !PartTrajectory=PartTrajectory/lengthPartTrajectory
       !locAlpha(ilocSide)=0.
-      !CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+      !CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
       !                                                                  ,xi(hitlocSide)     &
       !                                                                  ,eta(hitlocSide)    &
       !                                                                  ,PartId,SideID)
