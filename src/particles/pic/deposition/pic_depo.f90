@@ -2464,7 +2464,7 @@ CASE('shape_function_2d')
       !-- determine which background mesh cells (and interpolation points within) need to be considered
       DO iCase = 1, NbrOfCases
         DO ind = 1,3
-          ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+          ShiftedPart(ind) = ExtPartState(ind,iPart) + casematrix(iCase,1)*Vec1(ind) + &
                casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
         END DO
         IF(sf1d_dir.EQ.1)THEN
@@ -2713,12 +2713,12 @@ CASE('shape_function_cylindrical','shape_function_spherical')
         Fac(4)= Species(ExtPartSpecies(iPart))%ChargeIC &
               * Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf/(PI*(local_r_sf**3))
       END IF ! usevMPF
-      Fac(1:3) = ExtPartState(iPart,4:6)*Fac(4)
+      Fac(1:3) = ExtPartState(4:6,iPart)*Fac(4)
       !-- determine which background mesh cells (and interpolation points within) need to be considered
       DO iCase = 1, NbrOfCases
         chargedone(:) = .FALSE.
         DO ind = 1,3
-          ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+          ShiftedPart(ind) = ExtPartState(ind,iPart) + casematrix(iCase,1)*Vec1(ind) + &
                casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
         END DO
         kmax = CEILING((ShiftedPart(1)+local_r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))

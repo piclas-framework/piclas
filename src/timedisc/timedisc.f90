@@ -3356,9 +3356,9 @@ IF(time.GE.DelayTime)THEN
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PDM%ParticleInside(iPart))CYCLE
     ! store old particle position
-    LastPartPos(1,iPart)  =PartStateN(iPart,1)
-    LastPartPos(2,iPart)  =PartStateN(iPart,2)
-    LastPartPos(3,iPart)  =PartStateN(iPart,3)
+    LastPartPos(1,iPart)  =PartStateN(1,iPart)
+    LastPartPos(2,iPart)  =PartStateN(2,iPart)
+    LastPartPos(3,iPart)  =PartStateN(3,iPart)
     ! copy date
     PEM%lastElement(iPart)=PEM%ElementN(iPart)
     IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,iPart)=0.
@@ -3535,7 +3535,7 @@ DO iStage=2,nRKStages
       DO iCounter=1,iStage-2
         PartState(1:6,iPart)=PartState(1:6,iPart)+RK_a(iStage,iCounter)*PartStage(1:6,iCounter,iPart)
       END DO ! iCounter=1,iStage-2
-      PartState(1:6,iPart)=PartStateN(iPart,1:6)+PartState(1:6,iPart)
+      PartState(1:6,iPart)=PartStateN(1:6,iPart)+PartState(1:6,iPart)
     END DO ! iPart=1,PDM%ParticleVecLength
     CALL PartVeloToImp(VeloToImp=.FALSE.)
 #if USE_LOADBALANCE
@@ -3587,9 +3587,9 @@ DO iStage=2,nRKStages
     DO iPart=1,PDM%ParticleVecLength
       IF(.NOT.PDM%ParticleInside(iPart))CYCLE
       ! position currently updated, hence store the data for tracking
-      LastPartPos(1,iPart)  =PartStateN(iPart,1)
-      LastPartPos(2,iPart)  =PartStateN(iPart,2)
-      LastPartPos(3,iPart)  =PartStateN(iPart,3)
+      LastPartPos(1,iPart)  =PartStateN(1,iPart)
+      LastPartPos(2,iPart)  =PartStateN(2,iPart)
+      LastPartPos(3,iPart)  =PartStateN(3,iPart)
       PEM%lastElement(iPart)=PEM%ElementN(iPart)
       ! build RHS of particle with current DG solution and particle position
       ! CAUTION: we have to use a local variable here. The Jacobian matrix is FIXED for one time step,
@@ -3620,7 +3620,7 @@ DO iStage=2,nRKStages
         DO iCounter=1,iStage-2
           PartState(1:6,iPart)=PartState(1:6,iPart)+RK_a(iStage,iCounter)*PartStage(1:6,iCounter,iPart)
         END DO ! iCounter=1,iStage-2
-        PartState(1:6,iPart)=PartStateN(iPart,1:6)+PartState(1:6,iPart)
+        PartState(1:6,iPart)=PartStateN(1:6,iPart)+PartState(1:6,iPart)
       END IF ! PartMeshHasReflectiveBCs
       ! compute particle RHS at time^n
       IF(PartLorentzType.EQ.5)THEN
@@ -3726,7 +3726,7 @@ IF (time.GE.DelayTime) THEN
     DO iCounter=1,nRKStages-1
       PartState(1:6,iPart) = PartState(1:6,iPart) + RK_b(iCounter)*PartStage(1:6,iCounter,iPart)
     END DO ! counter
-    PartState(1:6,iPart) = PartStateN(iPart,1:6)+PartState(1:6,iPart)
+    PartState(1:6,iPart) = PartStateN(1:6,iPart)+PartState(1:6,iPart)
   END DO ! iPart
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PUSH,tLBStart)
@@ -4399,10 +4399,10 @@ DO iPart=1,PDM%ParticleVecLength
   PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
   ! Axisymmetric treatment of particles: rotation of the position and velocity vector
   IF(Symmetry2DAxisymmetric) THEN
-    IF (PartState(iPart,2).LT.0.0) THEN
-      NewYPart = -SQRT(PartState(iPart,2)**2 + (PartState(iPart,3))**2)
+    IF (PartState(2,iPart).LT.0.0) THEN
+      NewYPart = -SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
     ELSE
-      NewYPart = SQRT(PartState(iPart,2)**2 + (PartState(iPart,3))**2)
+      NewYPart = SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
     END IF
     ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
     !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'

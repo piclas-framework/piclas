@@ -167,11 +167,11 @@ CASE(2) !PartBound%ReflectiveBC)
       IF(ElemID.GT.nElems)THEN
         ! Particle is now located in halo element: Create phantom particle, which is sent to new host Processor and removed there (set
         ! negative SpeciesID in order to remove particle in host Processor)
-        CALL CreateParticle(-PartSpecies(iPart),LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
+        CALL CreateParticle(-PartSpecies(iPart),LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
         ! Set inside to F (it is set to T in SendNbOfParticles if species ID is negative)
         PDM%ParticleInside(NewPartID)=.FALSE.
       ELSE ! Deposit single particle charge on surface here and 
-        CALL DepositParticleOnNodes(iPart,LastPartPos(iPart,1:3)+PartTrajectory(1:3)*alpha,ElemID)
+        CALL DepositParticleOnNodes(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID)
       END IF ! ElemID.GT.nElems
     END IF ! CHARGEDPARTICLE(iPart)
 
@@ -484,7 +484,7 @@ CASE(2) !PartAuxBC%ReflectiveBC)
 !print*,'*********************'
 !print*,AuxBCIdx
 !print*,iPart,alpha,PartState(4:6,iPart)
-!print*,iPart,alpha,LastPartPos(iPart,1:3),PartState(4:6,iPart)
+!print*,iPart,alpha,LastPartPos(1:3,iPart),PartState(4:6,iPart)
   IF (PartAuxBC%NbrOfSpeciesSwaps(AuxBCIdx).gt.0) THEN
 ! CALL SpeciesSwap(PartTrajectory,alpha,xi=-1.,eta=-1.,PartID=iPart,SideID=-1, &
 !      IsSpeciesSwap=IsSpeciesSwap,flip=-1,AuxBCIdx=AuxBCIdx)
@@ -508,7 +508,7 @@ CASE(2) !PartAuxBC%ReflectiveBC)
             IsSpeciesSwap=IsSpeciesSwap,opt_Reflected=crossedBC,AuxBCIdx=AuxBCIdx)
         END IF
   END IF
-!print*,iPart,alpha,LastPartPos(iPart,1:3),PartState(1:3,iPart)
+!print*,iPart,alpha,LastPartPos(1:3,iPart),PartState(1:3,iPart)
 !print*,iPart,alpha,PartState(4:6,iPart)
 !print*,'*********************'
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -1088,13 +1088,13 @@ __STAMP__ &
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | ElemID       ', ElemToGlobalElemID(PEM%Element(iPart))
         CALL GetPositionInRefElem(LastPartPos(1:3,iPart),refpos(1:3),PEM%Element(ipart))
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartRefPos: ',refpos
-        CALL GetPositionInRefElem(PartState(iPart,1:3),refpos(1:3),PEM%Element(ipart))
+        CALL GetPositionInRefElem(PartState(1:3,iPart),refpos(1:3),PEM%Element(ipart))
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartRefPos: ',refpos
         IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in last Element ... '
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | Last-ElemID  ', ElemToGlobalElemID(PEM%LastElement(iPart))
         CALL GetPositionInRefElem(LastPartPos(1:3,iPart),refpos(1:3),PEM%lastElement(ipart))
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartRefPos: ',refpos
-        CALL GetPositionInRefElem(PartState(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
+        CALL GetPositionInRefElem(PartState(1:3,iPart),refpos(1:3),PEM%lastElement(ipart))
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartRefPos: ',refpos
         !WRITE(UNIT_stdOut,'(20(=))')
         IPWRITE(UNIT_stdOut,'(I0,A)') '     | Particle is removed from computation! '

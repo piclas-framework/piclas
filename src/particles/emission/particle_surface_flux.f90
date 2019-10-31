@@ -2132,7 +2132,7 @@ __STAMP__&
                 VelZold  = PartBound%WallVelo(3,CurrentBC)
                 EtraOld = 0.0
                 EtraWall = EtraOld
-                VeloReal = VECNORM(PartState(iPart,4:6))
+                VeloReal = VECNORM(PartState(4:6,iPart))
                 EtraNew = 0.5 * Species(iSpec)%MassIC * VeloReal**2
                 ! fill Transarray
                 TransArray(1) = EtraOld
