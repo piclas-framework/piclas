@@ -95,7 +95,7 @@ DO iElem = 1, nElems
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
     DO iLoop = 1, nPart
       iPartIndx_Node(iLoop) = iPart
-      vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)
+      vBulk(1:3)  =  vBulk(1:3) + PartState(4:6,iPart)
       iPart = PEM%pNext(iPart)
     END DO
     vBulk = vBulk / nPart
@@ -173,7 +173,7 @@ ELSE
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
     DO iLoop = 1, nPart
       iPartIndx_Node(iLoop) = iPart
-      vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)
+      vBulk(1:3)  =  vBulk(1:3) + PartState(4:6,iPart)
       iPart = PEM%pNext(iPart)
     END DO
     vBulk = vBulk / nPart

@@ -217,9 +217,9 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 __STAMP__&
 ,'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
   END SELECT
-  IF ( SQRT(DOT_PRODUCT(PartState(Coll_pData(iPair)%iPart_p1,4:6),PartState(Coll_pData(iPair)%iPart_p1,4:6)))&
+  IF ( SQRT(DOT_PRODUCT(PartState(4:6,Coll_pData(iPair)%iPart_p1),PartState(4:6,Coll_pData(iPair)%iPart_p1)))&
     .LT.DSMC%veloMinColl(PartSpecies(Coll_pData(iPair)%iPart_p1)) .OR. &
-       SQRT(DOT_PRODUCT(PartState(Coll_pData(iPair)%iPart_p2,4:6),PartState(Coll_pData(iPair)%iPart_p2,4:6)))&
+       SQRT(DOT_PRODUCT(PartState(4:6,Coll_pData(iPair)%iPart_p2),PartState(4:6,Coll_pData(iPair)%iPart_p2)))&
     .LT.DSMC%veloMinColl(PartSpecies(Coll_pData(iPair)%iPart_p2))) Coll_pData(iPair)%Prob = 0.
   IF (ISNAN(Coll_pData(iPair)%Prob)) THEN
     IPWRITE(UNIT_errOut,*)iPair,'in',iElem,'is NaN!'

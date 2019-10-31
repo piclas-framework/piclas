@@ -424,17 +424,16 @@ SUBROUTINE PartMatrixVector(t,Coeff,PartID,X,Y)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,                 ONLY:Abort
-USE MOD_LinearSolver_Vars,       ONLY:reps0,PartXK,R_PartXK
-USE MOD_Equation_Vars,           ONLY:c2_inv
-USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType
-USE MOD_Part_RHS,                ONLY:PartRHS
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-!USE MOD_Eval_xyz,                ONLY:GetPositionInRefElem
-USE MOD_Particle_Vars,           ONLY:PartState!,PEM,PartPosRef
+USE MOD_Globals               ,ONLY: Abort
+USE MOD_LinearSolver_Vars     ,ONLY: reps0,PartXK,R_PartXK
+USE MOD_Equation_Vars         ,ONLY: c2_inv
+USE MOD_Particle_Vars         ,ONLY: PartState, PartLorentzType
+USE MOD_Part_RHS              ,ONLY: PartRHS
+USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
+USE MOD_PICInterpolation      ,ONLY: InterpolateFieldToSingleParticle
+USE MOD_Particle_Vars         ,ONLY: PartState
 #ifndef ROS
-USE MOD_Particle_Vars,           ONLY:PartDtFrac
+USE MOD_Particle_Vars         ,ONLY: PartDtFrac
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -451,8 +450,6 @@ REAL,INTENT(OUT)   :: Y(1:6)
 REAL               :: X_abs,epsFD
 REAL               :: PartT(1:6)
 REAL               :: LorentzFacInv
-!REAL               :: FieldAtParticle(1:6)
-!REAL               :: typ_v_abs,XK_V,sign_XK_V
 !===================================================================================================================================
 
 CALL PartVectorDotProduct(X,X,X_abs)
@@ -464,7 +461,7 @@ END IF
 
 ! CALL PartVectorDotProduct(X,X,X_abs)
 ! IF(X_abs.NE.0.)THEN
-!   CALL PartVectorDotProduct(PartState(PartID,1:6),ABS(X),typ_v_abs)
+!   CALL PartVectorDotProduct(PartState(1:6,PartID),ABS(X),typ_v_abs)
 !   CALL PartVectorDotProduct(PartXK(1:6,PartID),X,Xk_V)
 !   sign_XK_V=SIGN(1.,Xk_V)
 !   EpsFD= rEps0/X_abs*MAX(ABS(Xk_V),typ_v_abs)*SIGN_Xk_V
@@ -477,21 +474,19 @@ END IF
 ! CALL PartVectorDotProduct(X,X,X_abs)
 ! EpsFD=rEps0  * SQRT(1.+XK_V)/X_abs
 
-PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
+PartState(1:6,PartID) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
-! CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),PEM%Element(PartID))
-! CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle(PartID,1:6))
-!PartT(4:6)=Pt(PartID,1:3)
+! CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),PEM%Element(PartID))
+! CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle(1:6,PartID))
+!PartT(4:6)=Pt(1:3,PartID)
 IF(PartLorentzType.EQ.5)THEN
-  LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6))*c2_inv)
-  CALL PartRHS(PartID,FieldAtParticle(PartID,1:6),PartT(4:6),LorentzFacInv)
+  LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(4:6,PartID),PartState(4:6,PartID))*c2_inv)
+  CALL PartRHS(PartID,FieldAtParticle(1:6,PartID),PartT(4:6),LorentzFacInv)
 ELSE
   LorentzFacInv = 1.0
-  CALL PartRHS(PartID,FieldAtParticle(PartID,1:6),PartT(4:6))
+  CALL PartRHS(PartID,FieldAtParticle(1:6,PartID),PartT(4:6))
 END IF ! PartLorentzType.EQ.5
-PartT(1)=LorentzFacInv*PartState(PartID,4) ! funny, or PartXK
-PartT(2)=LorentzFacInv*PartState(PartID,5) ! funny, or PartXK
-PartT(3)=LorentzFacInv*PartState(PartID,6) ! funny, or PartXK
+PartT(1:3)=LorentzFacInv*PartState(4:6,PartID) ! funny, or PartXK
 ! or frozen version
 #if ROS
 !Y(1:6) = (Coeff*X(1:6) - (1./EpsFD)*(PartT(1:6) - R_PartXk(1:6,PartID)))
