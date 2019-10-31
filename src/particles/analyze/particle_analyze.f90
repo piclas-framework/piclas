@@ -4017,7 +4017,7 @@ REAL,INTENT(INOUT)            :: PartStateAnalytic(1:6)   !< analytic position a
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart,j
+INTEGER                       :: iPart,iPartState
 !===================================================================================================================================
 ! Get analytic particle position
 CALL CalcAnalyticalParticleState(t,PartStateAnalytic)
@@ -4029,17 +4029,20 @@ IF(iter.LT.1)THEN ! first iteration
 ELSE
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
-      DO j = 1, 6
+      DO iPartState = 1, 6
         ! OLD METHOD: original
-        ! L_2_Error_Part(j) = SQRT( ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(j,iPart))**2 )/ REAL(iter))
+        ! L_2_Error_Part(iPartState) = SQRT( ( (L_2_Error_Part(iPartState))**2*REAL(iter-1) + &
+        !                               (PartStateAnalytic(iPartState)-PartState(iPartState,iPart))**2 )/ REAL(iter))
 
         ! OLD METHOD: considering TEnd
-        ! L_2_Error_Part(j) = SQRT( Tend * ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(j,iPart))**2 ) &
+        ! L_2_Error_Part(iPartState) = SQRT( Tend * ( (L_2_Error_Part(iPartState))**2*REAL(iter-1) + &
+        !                               (PartStateAnalytic(iPartState)-PartState(iPartState,iPart))**2 ) &
         !                      / REAL(iter))
 
         ! NEW METHOD: considering variable time step
-        L_2_Error_Part(j) = SQRT(  (L_2_Error_Part(j))**2 + (t-L_2_Error_Part_time)*(PartStateAnalytic(j)-PartState(j,iPart))**2 )
-      END DO ! j = 1, 6
+        L_2_Error_Part(iPartState) = SQRT(  (L_2_Error_Part(iPartState))**2 + &
+                                   (t-L_2_Error_Part_time)*(PartStateAnalytic(iPartState)-PartState(iPartState,iPart))**2 )
+      END DO ! iPartState = 1, 6
       L_2_Error_Part_time = t
     ELSE
       L_2_Error_Part(1:6) = -1.0
