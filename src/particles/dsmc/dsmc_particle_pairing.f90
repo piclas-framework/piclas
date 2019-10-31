@@ -680,7 +680,7 @@ IF (nPart.GT.1) THEN
     ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> octree
     IF((DSMC%MeanFreePath.LT.(GEO%CharLength(iElem))) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
-      ALLOCATE(TreeNode%MappedPartStates(1:nPart, 1:3))
+      ALLOCATE(TreeNode%MappedPartStates(1:nPart,1:3))
       TreeNode%PNum_Node = nPart
       iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
       IF (DoRefMapping) THEN
@@ -781,10 +781,10 @@ __STAMP__&
   ! particle to Octree ChildNode sorting
   DO iPart=1,TreeNode%PNum_Node
     iPartIndx = TreeNode%iPartIndx_Node(iPart)
-    ChildNodeID = OCTANTCUBEID(TreeNode%MidPoint(:),TreeNode%MappedPartStates(iPart,:))
+    ChildNodeID = OCTANTCUBEID(TreeNode%MidPoint(:),TreeNode%MappedPartStates(:,iPart))
     PartNumChildNode(ChildNodeID) = PartNumChildNode(ChildNodeID) + 1
     iPartIndx_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = iPartIndx
-    MappedPart_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID),1:3) = TreeNode%MappedPartStates(iPart,1:3)
+    MappedPart_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID),1:3) = TreeNode%MappedPartStates(1:3,iPart)
   END DO
 
   IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
@@ -834,10 +834,10 @@ __STAMP__&
         NULLIFY(TreeNode%ChildNode)
         ALLOCATE(TreeNode%ChildNode)
         ALLOCATE(TreeNode%ChildNode%iPartIndx_Node(PartNumChildNode(iLoop)))
-        ALLOCATE(TreeNode%ChildNode%MappedPartStates(PartNumChildNode(iLoop),1:3))
+        ALLOCATE(TreeNode%ChildNode%MappedPartStates(1:3,PartNumChildNode(iLoop)))
         TreeNode%ChildNode%iPartIndx_Node(1:PartNumChildNode(iLoop)) = iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop))
         TreeNode%ChildNode%PNum_Node = PartNumChildNode(iLoop)
-        TreeNode%ChildNode%MappedPartStates(1:PartNumChildNode(iLoop),1:3)= &
+        TreeNode%ChildNode%MappedPartStates(1:3,1:PartNumChildNode(iLoop))= &
               MappedPart_ChildNode(iLoop,1:PartNumChildNode(iLoop),1:3)
         TreeNode%childNode%MidPoint(1:3) = OCTANTCUBEMIDPOINT(iLoop,TreeNode%NodeDepth,TreeNode%MidPoint(1:3))
         TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
@@ -932,11 +932,11 @@ TYPE(tTreeNode), POINTER      :: TreeNode
       ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
       ! the side length of a cube (approximation) with same volume as the actual cell -> octree
       IF((DSMC%MeanFreePath.LT.GEO%CharLength(iElem)).OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
-        ALLOCATE(TreeNode%MappedPartStates(1:nPart, 1:2))
+        ALLOCATE(TreeNode%MappedPartStates(1:2,1:nPart))
         TreeNode%PNum_Node = nPart
         iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
         DO iLoop = 1, nPart
-          CALL GeoCoordToMap2D(PartState(1:2,iPart), TreeNode%MappedPartStates(iLoop,1:2), iElem)
+          CALL GeoCoordToMap2D(PartState(1:2,iPart), TreeNode%MappedPartStates(1:2,iLoop), iElem)
           iPart = PEM%pNext(iPart)
         END DO
         TreeNode%NodeDepth = 1
@@ -1027,23 +1027,23 @@ END IF
 
 DO iPart=1,TreeNode%PNum_Node
   iPartIndx = TreeNode%iPartIndx_Node(iPart)
-  IF ((TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) &
-      .AND.(TreeNode%MappedPartStates(iPart,2).LE.TreeNode%MidPoint(2))) THEN
+  IF ((TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) &
+      .AND.(TreeNode%MappedPartStates(2,iPart).LE.TreeNode%MidPoint(2))) THEN
     PartNumChildNode(1) = PartNumChildNode(1) + 1
     iPartIndx_ChildNode(1,PartNumChildNode(1)) = iPartIndx
-    MappedPart_ChildNode(1,PartNumChildNode(1),1:2) = TreeNode%MappedPartStates(iPart,1:2)
-  ELSE IF(TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) THEN
+    MappedPart_ChildNode(1,PartNumChildNode(1),1:2) = TreeNode%MappedPartStates(1:2,iPart)
+  ELSE IF(TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) THEN
     PartNumChildNode(2) = PartNumChildNode(2) + 1
     iPartIndx_ChildNode(2,PartNumChildNode(2)) = iPartIndx
-    MappedPart_ChildNode(2,PartNumChildNode(2),1:2) = TreeNode%MappedPartStates(iPart,1:2)
-  ELSE IF(TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2)) THEN
+    MappedPart_ChildNode(2,PartNumChildNode(2),1:2) = TreeNode%MappedPartStates(1:2,iPart)
+  ELSE IF(TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) THEN
     PartNumChildNode(3) = PartNumChildNode(3) + 1
     iPartIndx_ChildNode(3,PartNumChildNode(3)) = iPartIndx
-    MappedPart_ChildNode(3,PartNumChildNode(3),1:2) = TreeNode%MappedPartStates(iPart,1:2)
+    MappedPart_ChildNode(3,PartNumChildNode(3),1:2) = TreeNode%MappedPartStates(1:2,iPart)
   ELSE
     PartNumChildNode(4) = PartNumChildNode(4) + 1
     iPartIndx_ChildNode(4,PartNumChildNode(4)) = iPartIndx
-    MappedPart_ChildNode(4,PartNumChildNode(4),1:2) = TreeNode%MappedPartStates(iPart,1:2)
+    MappedPart_ChildNode(4,PartNumChildNode(4),1:2) = TreeNode%MappedPartStates(1:2,iPart)
   END IF
 END DO
 
@@ -1117,10 +1117,10 @@ DO iLoop = 1, 4
       NULLIFY(TreeNode%ChildNode)
       ALLOCATE(TreeNode%ChildNode)
       ALLOCATE(TreeNode%ChildNode%iPartIndx_Node(PartNumChildNode(iLoop)))
-      ALLOCATE(TreeNode%ChildNode%MappedPartStates(PartNumChildNode(iLoop),1:2))
+      ALLOCATE(TreeNode%ChildNode%MappedPartStates(1:2,PartNumChildNode(iLoop)))
       TreeNode%ChildNode%iPartIndx_Node(1:PartNumChildNode(iLoop)) = iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop))
       TreeNode%ChildNode%PNum_Node = PartNumChildNode(iLoop)
-      TreeNode%ChildNode%MappedPartStates(1:PartNumChildNode(iLoop),1:2)= &
+      TreeNode%ChildNode%MappedPartStates(1:2,1:PartNumChildNode(iLoop))= &
             MappedPart_ChildNode(iLoop,1:PartNumChildNode(iLoop),1:2)
       IF (iLoop.LT.3) THEN
         TreeNode%ChildNode%MidPoint(1) = 1.0
@@ -1506,7 +1506,7 @@ IF (UseMacroBody .AND. GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePorti
   ALLOCATE(TreeNode)
   TreeNode%PNum_Node = nPointsMCVolumeEstimate*(8**(NodeDepth))
   ALLOCATE(TreeNode%iPartIndx_Node(1:TreeNode%PNum_Node)) ! List of particles in the cell neccessary for stat pairing
-  ALLOCATE(TreeNode%MappedPartStates(1:TreeNode%PNum_Node,1:3))
+  ALLOCATE(TreeNode%MappedPartStates(1:3,1:TreeNode%PNum_Node))
   ALLOCATE(TreeNode%MatchedPart(1:TreeNode%PNum_Node))
   TreeNode%iPartIndx_Node(1:TreeNode%PNum_Node) = 0
   TreeNode%MatchedPart(1:TreeNode%PNum_Node) = .FALSE.
@@ -1522,7 +1522,7 @@ IF (UseMacroBody .AND. GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePorti
       IF (MAXVAL(ABS(refPos)).LE.1.0) EXIT ! particle inside of element
     END DO
     TreeNode%iPartIndx_Node(iPart) = iPart
-    TreeNode%MappedPartStates(iPart,1:3)= refPos(1:3)
+    TreeNode%MappedPartStates(1:3,iPart)= refPos(1:3)
     IF (INSIDEMACROBODY(physPos)) THEN
       TreeNode%MatchedPart(iPart) = .TRUE.
     END IF
@@ -1598,11 +1598,11 @@ IF (PRESENT(TreeNode)) THEN
     ALLOCATE(MatchedPart_ChildNode(8,TreeNode%PNum_Node))
     MatchedPart_ChildNode(1:8,1:TreeNode%PNum_Node)=.FALSE.
     DO iPart=1,TreeNode%PNum_Node
-      ChildNodeID = OCTANTCUBEID(TreeNode%MidPoint(:),TreeNode%MappedPartStates(iPart,1:3))
+      ChildNodeID = OCTANTCUBEID(TreeNode%MidPoint(:),TreeNode%MappedPartStates(1:3,iPart))
       iPartIndx = TreeNode%iPartIndx_Node(iPart)
       PartNumChildNode(ChildNodeID) = PartNumChildNode(ChildNodeID) + 1
       iPartIndx_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = iPartIndx
-      MappedPart_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID),1:3) = TreeNode%MappedPartStates(iPart,1:3)
+      MappedPart_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID),1:3) = TreeNode%MappedPartStates(1:3,iPart)
       IF (TreeNode%MatchedPart(iPart)) THEN
         MatchedPart_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = .TRUE.
       END IF
@@ -1613,11 +1613,11 @@ IF (PRESENT(TreeNode)) THEN
       NULLIFY(TreeNode%ChildNode)
       ALLOCATE(TreeNode%ChildNode)
       ALLOCATE(TreeNode%ChildNode%iPartIndx_Node(PartNumChildNode(iOctant)))
-      ALLOCATE(TreeNode%ChildNode%MappedPartStates(PartNumChildNode(iOctant),1:3))
+      ALLOCATE(TreeNode%ChildNode%MappedPartStates(1:3,PartNumChildNode(iOctant)))
       ALLOCATE(TreeNode%ChildNode%MatchedPart(PartNumChildNode(iOctant)))
       TreeNode%ChildNode%iPartIndx_Node(1:PartNumChildNode(iOctant)) = iPartIndx_ChildNode(iOctant, 1:PartNumChildNode(iOctant))
       TreeNode%ChildNode%PNum_Node = PartNumChildNode(iOctant)
-      TreeNode%ChildNode%MappedPartStates(1:PartNumChildNode(iOctant),1:3)= &
+      TreeNode%ChildNode%MappedPartStates(1:3,1:PartNumChildNode(iOctant))= &
             MappedPart_ChildNode(iOctant,1:PartNumChildNode(iOctant),1:3)
       TreeNode%ChildNode%MatchedPart(1:PartNumChildNode(iOctant)) =  MatchedPart_ChildNode(iOctant,1:PartNumChildNode(iOctant))
       TreeNode%childNode%MidPoint(1:3) = OCTANTCUBEMIDPOINT(iOctant,TreeNode%NodeDepth,TreeNode%MidPoint(1:3))

@@ -114,15 +114,15 @@ END IF
 
 ! The octree refinement is performed if either the particle number or number density is above a user-given limit
 IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
-  ALLOCATE(TreeNode%MappedPartStates(1:nPart, 1:3))
+  ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
   TreeNode%PNum_Node = nPart
   IF (DoRefMapping) THEN
     DO iLoop = 1, nPart
-      TreeNode%MappedPartStates(iLoop,1:3)=PartPosRef(1:3,TreeNode%iPartIndx_Node(iLoop))
+      TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,TreeNode%iPartIndx_Node(iLoop))
     END DO
   ELSE ! position in reference space [-1,1] has to be computed
     DO iLoop = 1, nPart
-      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(iLoop,1:3),iElem)
+      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(1:3,iLoop),iElem)
     END DO
   END IF ! DoRefMapping
   TreeNode%NodeDepth = 1
@@ -249,59 +249,59 @@ totalWeight = 0.0
 DO iPart=1,TreeNode%PNum_Node
   iPartIndx = TreeNode%iPartIndx_Node(iPart)
   partWeight = GetParticleWeight(iPartIndx)
-  IF ((TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) &
-      .AND.(TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2)) &
-      .AND.(TreeNode%MappedPartStates(iPart,3).LE.TreeNode%MidPoint(3))) THEN
+  IF ((TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) &
+      .AND.(TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) &
+      .AND.(TreeNode%MappedPartStates(3,iPart).LE.TreeNode%MidPoint(3))) THEN
     PartNumChildNode(1) = PartNumChildNode(1) + 1
     iPartIndx_ChildNode(1,PartNumChildNode(1)) = iPartIndx
     vBulk(1:3,1) = vBulk(1:3,1) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(1) = totalWeight(1) + partWeight
-    MappedPart_ChildNode(1,PartNumChildNode(1),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-  ELSE IF((TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) &
-      .AND.(TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2))) THEN
+    MappedPart_ChildNode(1,PartNumChildNode(1),1:3) = TreeNode%MappedPartStates(1:3,iPart)
+  ELSE IF((TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) &
+      .AND.(TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2))) THEN
     PartNumChildNode(2) = PartNumChildNode(2) + 1
     iPartIndx_ChildNode(2,PartNumChildNode(2)) = iPartIndx
     vBulk(1:3,2) = vBulk(1:3,2) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(2) = totalWeight(2) + partWeight
-    MappedPart_ChildNode(2,PartNumChildNode(2),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-  ELSE IF((TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) &
-      .AND.(TreeNode%MappedPartStates(iPart,3).GE.TreeNode%MidPoint(3))) THEN
+    MappedPart_ChildNode(2,PartNumChildNode(2),1:3) = TreeNode%MappedPartStates(1:3,iPart)
+  ELSE IF((TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) &
+      .AND.(TreeNode%MappedPartStates(3,iPart).GE.TreeNode%MidPoint(3))) THEN
     PartNumChildNode(3) = PartNumChildNode(3) + 1
     iPartIndx_ChildNode(3,PartNumChildNode(3)) = iPartIndx
     vBulk(1:3,3) = vBulk(1:3,3) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(3) = totalWeight(3) + partWeight
-    MappedPart_ChildNode(3,PartNumChildNode(3),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-  ELSE IF (TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) THEN
+    MappedPart_ChildNode(3,PartNumChildNode(3),1:3) = TreeNode%MappedPartStates(1:3,iPart)
+  ELSE IF (TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) THEN
     PartNumChildNode(4) = PartNumChildNode(4) + 1
     iPartIndx_ChildNode(4,PartNumChildNode(4)) = iPartIndx
     vBulk(1:3,4) = vBulk(1:3,4) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(4) = totalWeight(4) + partWeight
-    MappedPart_ChildNode(4,PartNumChildNode(4),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-  ELSE IF((TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2)) &
-      .AND.(TreeNode%MappedPartStates(iPart,3).LE.TreeNode%MidPoint(3))) THEN
+    MappedPart_ChildNode(4,PartNumChildNode(4),1:3) = TreeNode%MappedPartStates(1:3,iPart)
+  ELSE IF((TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) &
+      .AND.(TreeNode%MappedPartStates(3,iPart).LE.TreeNode%MidPoint(3))) THEN
     PartNumChildNode(5) = PartNumChildNode(5) + 1
     iPartIndx_ChildNode(5,PartNumChildNode(5)) = iPartIndx
     vBulk(1:3,5) = vBulk(1:3,5) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(5) = totalWeight(5) + partWeight
-    MappedPart_ChildNode(5,PartNumChildNode(5),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-  ELSE IF (TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2)) THEN
+    MappedPart_ChildNode(5,PartNumChildNode(5),1:3) = TreeNode%MappedPartStates(1:3,iPart)
+  ELSE IF (TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) THEN
     PartNumChildNode(6) = PartNumChildNode(6) + 1
     iPartIndx_ChildNode(6,PartNumChildNode(6)) = iPartIndx
     vBulk(1:3,6) = vBulk(1:3,6) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(6) = totalWeight(6) + partWeight
-    MappedPart_ChildNode(6,PartNumChildNode(6),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-  ELSE IF (TreeNode%MappedPartStates(iPart,3).GE.TreeNode%MidPoint(3)) THEN
+    MappedPart_ChildNode(6,PartNumChildNode(6),1:3) = TreeNode%MappedPartStates(1:3,iPart)
+  ELSE IF (TreeNode%MappedPartStates(3,iPart).GE.TreeNode%MidPoint(3)) THEN
     PartNumChildNode(7) = PartNumChildNode(7) + 1
     iPartIndx_ChildNode(7,PartNumChildNode(7)) = iPartIndx
     vBulk(1:3,7) = vBulk(1:3,7) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(7) = totalWeight(7) + partWeight
-    MappedPart_ChildNode(7,PartNumChildNode(7),1:3) = TreeNode%MappedPartStates(iPart,1:3)
+    MappedPart_ChildNode(7,PartNumChildNode(7),1:3) = TreeNode%MappedPartStates(1:3,iPart)
   ELSE
     PartNumChildNode(8) = PartNumChildNode(8) + 1
     iPartIndx_ChildNode(8,PartNumChildNode(8)) = iPartIndx
     vBulk(1:3,8) = vBulk(1:3,8) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(8) = totalWeight(8) + partWeight
-    MappedPart_ChildNode(8,PartNumChildNode(8),1:3) = TreeNode%MappedPartStates(iPart,1:3)
+    MappedPart_ChildNode(8,PartNumChildNode(8),1:3) = TreeNode%MappedPartStates(1:3,iPart)
   END IF
 END DO
 
@@ -374,10 +374,10 @@ DO iLoop = 1, 8
     NULLIFY(TreeNode%ChildNode)
     ALLOCATE(TreeNode%ChildNode)
     ALLOCATE(TreeNode%ChildNode%iPartIndx_Node(PartNumChildNode(iLoop)))
-    ALLOCATE(TreeNode%ChildNode%MappedPartStates(PartNumChildNode(iLoop),1:3))
+    ALLOCATE(TreeNode%ChildNode%MappedPartStates(1:3,PartNumChildNode(iLoop)))
     TreeNode%ChildNode%iPartIndx_Node(1:PartNumChildNode(iLoop)) = iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop))
     TreeNode%ChildNode%PNum_Node = PartNumChildNode(iLoop)
-    TreeNode%ChildNode%MappedPartStates(1:PartNumChildNode(iLoop),1:3)= &
+    TreeNode%ChildNode%MappedPartStates(1:3,1:PartNumChildNode(iLoop))= &
           MappedPart_ChildNode(iLoop,1:PartNumChildNode(iLoop),1:3)
     IF (iLoop.LT.5) THEN
       TreeNode%ChildNode%MidPoint(1) = 1.0
@@ -615,15 +615,15 @@ END IF
 
 ! The quadtree refinement is performed if either the particle number or number density is above a user-given limit
 IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
-  ALLOCATE(TreeNode%MappedPartStates(1:nPart, 1:3))
+  ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
   TreeNode%PNum_Node = nPart
   IF (DoRefMapping) THEN
     DO iLoop = 1, nPart
-      TreeNode%MappedPartStates(iLoop,1:3)=PartPosRef(1:3,TreeNode%iPartIndx_Node(iLoop))
+      TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,TreeNode%iPartIndx_Node(iLoop))
     END DO
   ELSE ! position in reference space [-1,1] has to be computed
     DO iLoop = 1, nPart
-      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(iLoop,1:3),iElem)
+      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(1:3,iLoop),iElem)
     END DO
   END IF ! DoRefMapping
   TreeNode%NodeDepth = 1
@@ -747,29 +747,29 @@ totalWeight = 0.0
 DO iPart=1,TreeNode%PNum_Node
   iPartIndx = TreeNode%iPartIndx_Node(iPart)
   partWeight = GetParticleWeight(iPartIndx)
-  IF ((TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) &
-      .AND.(TreeNode%MappedPartStates(iPart,2).LE.TreeNode%MidPoint(2))) THEN
+  IF ((TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) &
+      .AND.(TreeNode%MappedPartStates(2,iPart).LE.TreeNode%MidPoint(2))) THEN
     PartNumChildNode(1) = PartNumChildNode(1) + 1
     iPartIndx_ChildNode(1,PartNumChildNode(1)) = iPartIndx
-    MappedPart_ChildNode(1,PartNumChildNode(1),1:2) = TreeNode%MappedPartStates(iPart,1:2)
+    MappedPart_ChildNode(1,PartNumChildNode(1),1:2) = TreeNode%MappedPartStates(1:2,iPart)
     vBulk(1:3,1) = vBulk(1:3,1) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(1) = totalWeight(1) + partWeight
-  ELSE IF(TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) THEN
+  ELSE IF(TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) THEN
     PartNumChildNode(2) = PartNumChildNode(2) + 1
     iPartIndx_ChildNode(2,PartNumChildNode(2)) = iPartIndx
-    MappedPart_ChildNode(2,PartNumChildNode(2),1:2) = TreeNode%MappedPartStates(iPart,1:2)
+    MappedPart_ChildNode(2,PartNumChildNode(2),1:2) = TreeNode%MappedPartStates(1:2,iPart)
     vBulk(1:3,2) = vBulk(1:3,2) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(2) = totalWeight(2) + partWeight
-  ELSE IF(TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2)) THEN
+  ELSE IF(TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) THEN
     PartNumChildNode(3) = PartNumChildNode(3) + 1
     iPartIndx_ChildNode(3,PartNumChildNode(3)) = iPartIndx
-    MappedPart_ChildNode(3,PartNumChildNode(3),1:2) = TreeNode%MappedPartStates(iPart,1:2)
+    MappedPart_ChildNode(3,PartNumChildNode(3),1:2) = TreeNode%MappedPartStates(1:2,iPart)
     vBulk(1:3,3) = vBulk(1:3,3) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(3) = totalWeight(3) + partWeight
   ELSE
     PartNumChildNode(4) = PartNumChildNode(4) + 1
     iPartIndx_ChildNode(4,PartNumChildNode(4)) = iPartIndx
-    MappedPart_ChildNode(4,PartNumChildNode(4),1:2) = TreeNode%MappedPartStates(iPart,1:2)
+    MappedPart_ChildNode(4,PartNumChildNode(4),1:2) = TreeNode%MappedPartStates(1:2,iPart)
     vBulk(1:3,4) = vBulk(1:3,4) + PartState(4:6,iPartIndx) * partWeight
     totalWeight(4) = totalWeight(4) + partWeight
   END IF
@@ -841,10 +841,10 @@ DO iLoop = 1, 4
     NULLIFY(TreeNode%ChildNode)
     ALLOCATE(TreeNode%ChildNode)
     ALLOCATE(TreeNode%ChildNode%iPartIndx_Node(PartNumChildNode(iLoop)))
-    ALLOCATE(TreeNode%ChildNode%MappedPartStates(PartNumChildNode(iLoop),1:3))
+    ALLOCATE(TreeNode%ChildNode%MappedPartStates(1:3,PartNumChildNode(iLoop)))
     TreeNode%ChildNode%iPartIndx_Node(1:PartNumChildNode(iLoop)) = iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop))
     TreeNode%ChildNode%PNum_Node = PartNumChildNode(iLoop)
-    TreeNode%ChildNode%MappedPartStates(1:PartNumChildNode(iLoop),1:3)= &
+    TreeNode%ChildNode%MappedPartStates(1:3,1:PartNumChildNode(iLoop))= &
           MappedPart_ChildNode(iLoop,1:PartNumChildNode(iLoop),1:3)
     IF (iLoop.LT.3) THEN
       TreeNode%ChildNode%MidPoint(1) = 1.0
