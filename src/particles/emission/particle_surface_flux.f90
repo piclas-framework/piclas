@@ -1923,7 +1923,7 @@ __STAMP__&
             LastPartPos(1:3,ParticleIndexNbr)=PartState(1:3,ParticleIndexNbr)
             !SELECT CASE(SideType(SideID))
             !CASE(PLANAR_RECT,PLANAR_NONRECT)
-            !  LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
+            !  LastPartPos(1:3,ParticleIndexNbr)=ElemBaryNGeo(1:3,ElemID) &
             !  + (PartState(1:3,ParticleIndexNbr)-ElemBaryNGeo(1:3,ElemID)) * (0.9999)
             !CASE(BILINEAR,CURVED,PLANAR_CURVED) !to be changed into more efficient method using known xi
             !  CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),Particle_pos(1:3),ElemID) !RefMap PartState
@@ -1933,7 +1933,7 @@ __STAMP__&
             !    END IF
             !  END DO
             !  CALL TensorProductInterpolation(Particle_pos(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID) &
-            !    ,LastPartPos(ParticleIndexNbr,1:3)) !Map back into phys. space
+            !    ,LastPartPos(1:3,ParticleIndexNbr)) !Map back into phys. space
             !CASE DEFAULT
             !  CALL abort(&
 !__STAMP__&
@@ -1941,7 +1941,7 @@ __STAMP__&
             !END SELECT
 
 !#ifdef CODE_ANALYZE
-!          CALL GetPositionInRefElem(LastPartPos(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID)
+!          CALL GetPositionInRefElem(LastPartPos(1:3,ParticleIndexNbr),Particle_pos(1:3),ElemID)
 !          IF (ANY(ABS(Particle_pos).GT.1.0)) THEN !maybe 1+epsInCell would be enough...
 !            IPWRITE(*,*) 'Particle_pos: ',Particle_pos
 !            CALL abort(&
@@ -1954,7 +1954,7 @@ __STAMP__&
               CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID) !RefMap PartState
             END IF
             ! important for implicit, correct norm, etc.
-            PartState(1:3,ParticleIndexNbr)=LastPartPos(ParticleIndexNbr,1:3)
+            PartState(1:3,ParticleIndexNbr)=LastPartPos(1:3,ParticleIndexNbr)
 #endif /*IMPA*/
 #ifdef CODE_ANALYZE
             IF(   (LastPartPos(1,ParticleIndexNbr).GT.GEO%xmaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(1,ParticleIndexNbr),GEO%xmaxglob) &

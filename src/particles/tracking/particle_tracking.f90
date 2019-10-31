@@ -591,7 +591,7 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
     ! caution: reuse of variable, foundHit=TRUE == inside
     ElemID=PEM%lastElement(iPart)
-    CALL GetPositionInRefElem(LastPartPos(iPart,1:3),RefPos,ElemID)
+    CALL GetPositionInRefElem(LastPartPos(1:3,iPart),RefPos,ElemID)
     IF (MAXVAL(ABS(RefPos)).LE.1.0+1e-4) foundHit=.TRUE.
     IF(.NOT.foundHit)THEN  ! particle not inside
      IPWRITE(UNIT_stdOut,'(I0,A)') ' PartPos not inside of element! '
