@@ -680,17 +680,17 @@ IF (nPart.GT.1) THEN
     ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> octree
     IF((DSMC%MeanFreePath.LT.(GEO%CharLength(iElem))) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
-      ALLOCATE(TreeNode%MappedPartStates(1:nPart,1:3))
+      ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
       TreeNode%PNum_Node = nPart
       iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
       IF (DoRefMapping) THEN
         DO iLoop = 1, nPart
-          TreeNode%MappedPartStates(iLoop,1:3)=PartPosRef(1:3,iPart)
+          TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,iPart)
           iPart = PEM%pNext(iPart)
         END DO
       ELSE ! position in reference space [-1,1] has to be computed
         DO iLoop = 1, nPart
-          CALL GetPositionInRefElem(PartState(1:3,iPart),TreeNode%MappedPartStates(iLoop,1:3),iElem)
+          CALL GetPositionInRefElem(PartState(1:3,iPart),TreeNode%MappedPartStates(1:3,iLoop),iElem)
           iPart = PEM%pNext(iPart)
         END DO
       END IF ! DoRefMapping
