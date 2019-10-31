@@ -787,8 +787,8 @@ IF (.NOT.IsAuxBC) THEN
       IF(CalcSurfaceImpact) THEN
         EtraOld = 0.5*Species(PartSpecies(PartID))%MassIC*VECNORM(v_old)**2
         IF(ALLOCATED(PartStateIntEn))THEN
-          EvibOld=PartStateIntEn(PartID,1)
-          ErotOld=PartStateIntEn(PartID,2)
+          EvibOld=PartStateIntEn(1,PartID)
+          ErotOld=PartStateIntEn(2,PartID)
         ELSE
           EvibOld=0.
           ErotOld=0.
@@ -1162,8 +1162,8 @@ IF (.NOT.IsAuxBC) THEN
 
     ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
     IF(ALLOCATED(PartStateIntEn))THEN
-      EvibOld=PartStateIntEn(PartID,1)
-      ErotOld=PartStateIntEn(PartID,2)
+      EvibOld=PartStateIntEn(1,PartID)
+      ErotOld=PartStateIntEn(2,PartID)
     ELSE
       EvibOld=0.
       ErotOld=0.
@@ -1621,8 +1621,8 @@ IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) TH
       EtraOld = 0.5*Species(PartSpecies(PartID))%MassIC*VECNORM(PartState(4:6,PartID))**2
 #ifndef IMPA
     IF(ALLOCATED(PartStateIntEn))THEN
-      EvibOld=PartStateIntEn(PartID,1)
-      ErotOld=PartStateIntEn(PartID,2)
+      EvibOld=PartStateIntEn(1,PartID)
+      ErotOld=PartStateIntEn(2,PartID)
     ELSE
       EvibOld=0.
       ErotOld=0.
