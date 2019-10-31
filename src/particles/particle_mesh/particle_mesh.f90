@@ -1377,7 +1377,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                     :: StartT,EndT
-INTEGER                  :: iElem,ElemToBGM(1:6,1:PP_nElems)
+INTEGER                  :: iElem,ElemToBGM(1:6,1:PP_nElems),allocstat
 INTEGER,ALLOCATABLE      :: HaloElemToBGM(:,:)
 REAL,ALLOCATABLE         :: SideOrigin(:,:), SideRadius(:)
 !=================================================================================================================================
@@ -1433,7 +1433,10 @@ END IF
 #endif /*USE_MPI*/
 
 IF(nTotalElems.GT.PP_nElems)THEN
-  ALLOCATE(HaloElemToBGM(1:6,PP_nElems+1:nTotalElems))
+  ALLOCATE(HaloElemToBGM(1:6,PP_nElems+1:nTotalElems),STAT=allocstat)
+  if (allocstat.ne.0) CALL abort(&
+    __STAMP__&
+    ,'ERROR in particle_mesh.f90: Cannot allocate HaloElemToBGM! myrank=',IntInfoOpt=myrank)
   DO iElem=PP_nElems+1,nTotalElems
     CALL BGMIndexOfElement(iElem,HaloElemToBGM(1:6,iElem))
   END DO ! iElem = nElems+1,nTotalElems
@@ -1720,7 +1723,7 @@ DO iStage=2,nRKStages-1
   halo_eps = MAX(halo_eps,RK_c(iStage+1)-RK_c(iStage))
 END DO
 halo_eps = MAX(halo_eps,1.-RK_c(nRKStages))
-CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
+CALL PrintOption('max. RKdtFrac (halo_eps)','CALCUL.',RealOpt=halo_eps)
 halo_eps = halo_eps*halo_eps_velo*deltaT*SafetyFactor !dt multiplied with maximum RKdtFrac
 #else
 halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
@@ -1732,7 +1735,7 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
   IF(halo_eps.LT.r_sf)THEN
     SWRITE(UNIT_stdOut,'(A)') ' halo_eps is smaller than shape function radius. Setting halo_eps=r_sf'
     halo_eps = r_sf
-    CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
+    CALL PrintOption('halo_eps','CALCUL.',RealOpt=halo_eps)
   END IF
 END IF
 #endif /*USE_MPI*/
@@ -1742,13 +1745,14 @@ globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 &
                  + (GEO%ymaxglob-GEO%yminglob)**2 &
                  + (GEO%zmaxglob-GEO%zminglob)**2 )
 IF(halo_eps.GT.globalDiag)THEN
-  CALL PrintOption('unlimited halo distance','CALCUL.',RealOpt=halo_eps)
-  SWRITE(UNIT_stdOut,'(A38)') ' |   limitation of halo distance  |    '
+  CALL PrintOption('unlimited halo distance (halo_eps)','CALCUL.',RealOpt=halo_eps)
   halo_eps=globalDiag
+  CALL PrintOption('limitation of halo distance  (halo_eps=globalDiag)','CALCUL.',RealOpt=halo_eps)
+ELSE
+  CALL PrintOption('halo distance (halo_eps)','CALCUL.',RealOpt=halo_eps)
 END IF
 
 halo_eps2=halo_eps*halo_eps
-CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
 
 
 #if USE_MPI
@@ -1853,7 +1857,13 @@ SWRITE(UNIT_stdOut,'(A)')' Building MPI-FIBGM ...'
 #if USE_MPI
 !--- MPI stuff for background mesh (FastinitBGM)
 BGMCells=0
-ALLOCATE(BGMCellsArray(1:(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3))
+ALLOCATE(BGMCellsArray(1:(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+  WRITE(*,'(A,6(I0,A))')'Problem allocating BGMCellsArray(1:',(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3,')'
+  CALL abort(&
+    __STAMP__&
+    ,'ERROR in particle_mesh.f90: Cannot allocate BGMCellsArray! myrank=',IntInfoOpt=myrank)
+END IF
 !Count BGMCells with Elements inside and save their indices in BGMCellsArray
 DO kBGM=BGMkmin, BGMkmax
   DO jBGM=BGMjmin, BGMjmax
@@ -1870,7 +1880,14 @@ END DO ! iBGM
 
 !Communicate number of BGMCells
 CALL MPI_ALLGATHER(BGMCells, 1, MPI_INTEGER, NbrOfBGMCells(0:PartMPI%nProcs-1), 1, MPI_INTEGER, PartMPI%COMM, IERROR)
-ALLOCATE(GlobalBGMCellsArray(1:SUM(NbrOfBGMCells)*3))
+SWRITE(*,'(A,6(I0,A))')'200'
+ALLOCATE(GlobalBGMCellsArray(1:SUM(NbrOfBGMCells)*3), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+  WRITE(*,'(A,6(I0,A))')'Problem allocating GlobalBGMCellsArray(1:',SUM(NbrOfBGMCells)*3,')'
+  CALL abort(&
+    __STAMP__&
+    ,'ERROR in particle_mesh.f90: Cannot allocate GlobalBGMCellsArray! myrank=',IntInfoOpt=myrank)
+END IF
 Displacement(1)=0
 DO i=2, PartMPI%nProcs
   Displacement(i) = SUM(NbrOfBGMCells(0:i-2))*3

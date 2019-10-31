@@ -49,6 +49,8 @@ subroutine read_IMD_results()
   use mod_hdf5_output,only:WriteStateToHDF5
   use mod_mesh_vars,only:meshfile
   use mod_part_tools,only:UpdateNextFreePosition
+  use mod_mesh,only:getmeshminmaxboundaries
+  use mod_mesh_vars,only:xyzMinMax
 
   implicit none
   ! --------------------------------------------------------
@@ -79,8 +81,19 @@ subroutine read_IMD_results()
   real                                      :: MaxZ,MaxZ_glob
   real                                      :: MinZ,MinZ_glob
   real                                      :: StartT,EndT
+  integer                                   :: allocstat
+  integer                                   :: NbrOfLostParticles,NbrOfLostParticlesGlobal
   ! -----------------------------------------------------------------------------
   if( .not. useIMDresults ) return
+
+  ! Determine the maximum and minimum mesh coordinates
+  call getmeshminmaxboundaries()
+  if( mpiroot )then
+    write(*,*) "Global mesh information"
+    write(*,*) "x-min, x-max: ", xyzMinMax(1), xyzMinMax(2)
+    write(*,*) "y-min, y-max: ", xyzMinMax(3), xyzMinMax(4)
+    write(*,*) "z-min, z-max: ", xyzMinMax(5), xyzMinMax(6)
+  end if
 
   SWRITE(UNIT_stdOut,*)'Restarting with IMD data (useIMDresults=T)'
   SWRITE(UNIT_stdOut,*)'Read IMD-results from file: ',trim(filenameIMDresults)
@@ -122,6 +135,8 @@ subroutine read_IMD_results()
   call MPI_BCAST(disp, 8, MPI_BYTE, 0, MPI_COMM_WORLD, iError)
 
   nAtoms = nGlobalAtoms/nProcessors
+  SWRITE(UNIT_stdOut,*)'Number of atoms per proc: ',nAtoms
+  SWRITE(UNIT_stdOut,*)'Number total procs: ',nProcessors
   iAtom = nGlobalAtoms - nAtoms * nProcessors
   FileOffsets(0) = 0
   DO iProc=0,nProcessors-1
@@ -130,16 +145,31 @@ subroutine read_IMD_results()
   FileOffsets(nProcessors) = nGlobalAtoms
   nAtoms = FileOffsets(myRank+1) - FileOffsets(myRank)
   PDM%ParticleVecLength = int ( nAtoms, 4 )
+
+  if ( PDM%ParticleVecLength > PDM%maxParticleNumber ) then
+    IPWRITE(UNIT_stdOut,'(I0,A,I0)')'PDM%ParticleVecLength = ',PDM%ParticleVecLength
+    IPWRITE(UNIT_stdOut,'(I0,A,I0)')'PDM%maxParticleNumber = ',PDM%maxParticleNumber
+    CALL abort(&
+    __STAMP__&
+    ,'ERROR in readIMD.f90: PDM%ParticleVecLength > PDM%maxParticleNumber. Increase maxParticleNumber and re-run the simulation!')
+  end if
+
   myOffset = FileOffsets(myRank)
 
   myFileOffset = disp + myOffset * observables * 8_8
   atomBufferSize = 8 * observables * int ( nAtoms, 4 )
-  allocate(AtomsBuffer(atomBufferSize))
+  allocate(AtomsBuffer(atomBufferSize),STAT=allocstat)
+  if (allocstat.ne.0) then
+    CALL abort(&
+    __STAMP__&
+    ,'ERROR in readIMD.f90: Cannot allocate AtomsBuffer! myrank=',IntInfoOpt=myrank)
+  end if
 
   if( mpiroot )then
     WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Reading from atom data file ...'
     StartT=MPI_WTIME()
   end if
+
   call MPI_FILE_OPEN(MPI_COMM_WORLD, trim(filenameIMDresults), MPI_MODE_RDONLY,&
                       mpiInfo, filehandle, mpiFileError)
 
@@ -164,16 +194,37 @@ subroutine read_IMD_results()
     WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Unpacking data into PartState ....'
   end if
 
+  ! check if PartStateIntEn is allocated, if not allocate it
+  if(.NOT.allocated(PartStateIntEn)) allocate( PartStateIntEn( ubound(PartState,1), 2 ) )
+
+!  atomsBufferPos = 1
+!  do iPart=1,PDM%ParticleVecLength
+!    PartState(iPart,1:6) = AtomsBuffer(atomsBufferPos:atomsBufferPos+5)
+!    atomsBufferPos = atomsBufferPos + 6
+!    PartStateIntEn(iPart,1:2) = AtomsBuffer(atomsBufferPos:atomsBufferPos+1)
+!    atomsBufferPos = atomsBufferPos + 2
+!  end do
+!  if(myRank==1)then
+!    write(*,*)'Copy atmos to ParticleInside and PartStateIntEn done'
+!
+!    do iPart=1,10
+!      write(*,*)iPart, PartState(iPart,:)
+!      write(*,*)ipart, PartStateIntEn(iPart,:)
+!      write(*,*)'-------------------------------'
+!    end do
+!
+!  end if
+
   do iPart=1,PDM%ParticleVecLength
     call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartState(iPart,1:6),&
                     6_4, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
     if ( iError .NE. 0 ) &
-        WRITE(UNIT_stdOut,*)'Error unpacking particle position to PartState(iPart,1:6) with iPart=',iPart
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)')'Error unpacking particle position to PartState(iPart,1:6) with iPart=',iPart
 
     call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartStateIntEn(iPart,1:2),&
                     int( observables-6_8, 4 ), MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
     if ( iError .NE. 0 ) &
-        WRITE(UNIT_stdOut,*)'Error unpacking particle charge and electron temperature to PartState(iPart,1:2) with iPart=',iPart
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)')'Error unpacking particle charge and electron temperature to PartState(iPart,1:2) with iPart=',iPart
   end do
 
   if( mpiroot )then
@@ -221,19 +272,24 @@ subroutine read_IMD_results()
   ! Find particles in their host cells before communicating them to their actual host proc
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Re-locating particles to their host cells ...'
   PDM%ParticleInside(:) = .False.
+  NbrOfLostParticles=0
   do iPart=1,PDM%ParticleVecLength
     PDM%ParticleInside(iPart) = .True.
     CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
     if( .not. PDM%ParticleInside(iPart) )then
-      WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(iPart,1),PartState(iPart,2),PartState(iPart,3)
+!      WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(iPart,1),PartState(iPart,2),PartState(iPart,3)
+      NbrOfLostParticles=NbrOfLostParticles+1
     end if
   end do
+  CALL MPI_REDUCE(NbrOfLostParticles , NbrOfLostParticlesGlobal , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
   if( mpiroot )then
     EndT=MPI_WTIME()
     WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+    write(*,*) "Total number of lost particles (could not be re-located): ", NbrOfLostParticlesGlobal
     StartT=MPI_WTIME()
     WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Sending particles to host procs ...'
   end if
+
   call IRecvNbofParticles()
   call SendNbOfParticles()
   call MPIParticleSend()

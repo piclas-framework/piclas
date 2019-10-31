@@ -709,7 +709,7 @@ END SUBROUTINE SwapMesh
 
 SUBROUTINE GetMeshMinMaxBoundaries()
 !============================================================================================================================
-! Deallocate all global interpolation variables.
+! Get min and max coordinates of the face xGP and store them in "xyzMinMax" array
 !============================================================================================================================
 ! MODULES
 USE MOD_Globals
