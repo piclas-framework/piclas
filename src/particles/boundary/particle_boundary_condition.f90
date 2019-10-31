@@ -560,6 +560,7 @@ USE MOD_Particle_Vars           ,ONLY: PEM
 #endif
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact
+USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -752,18 +753,7 @@ IF (.NOT.IsAuxBC) THEN
             + VarTimeStep%ParticleTimeStep(PartID)
       END IF
 
-      IF(RadialWeighting%DoRadialWeighting) THEN
-        POI_Y = LastPartPos(PartID,2) + PartTrajectory(2)*alpha
-        IF (VarTimeStep%UseVariableTimeStep) THEN
-          MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))*VarTimeStep%ParticleTimeStep(PartID)
-        ELSE
-          MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))
-        END IF
-      ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-        MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor*VarTimeStep%ParticleTimeStep(PartID)
-      ELSE
-        MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor
-      END IF
+      MacroParticleFactor = GetParticleWeight(PartID)
       !----  Sampling Forces at walls
       SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
           * (v_old(1:3) - PartState(PartID,4:6)) * MacroParticleFactor
@@ -898,6 +888,7 @@ USE MOD_BGK_Vars                ,ONLY: BGKDoVibRelaxation
 #elif (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Vars             ,ONLY: FPDoVibRelaxation
 #endif
+USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1132,18 +1123,7 @@ VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
 VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
 VeloCz  = Cmr * VeloCz
 
-IF(RadialWeighting%DoRadialWeighting) THEN
-  POI_Y = LastPartPos(PartID,2) + PartTrajectory(2)*alpha
-  IF (VarTimeStep%UseVariableTimeStep) THEN
-    MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))*VarTimeStep%ParticleTimeStep(PartID)
-  ELSE
-    MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))
-  END IF
-ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-  MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor*VarTimeStep%ParticleTimeStep(PartID)
-ELSE
-  MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor
-END IF
+MacroParticleFactor = GetParticleWeight(PartID)
 
 DoSample=DSMC%CalcSurfaceVal.AND.((Time.GE.(1.-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroSurfaceValues)
 
@@ -1438,6 +1418,7 @@ USE MOD_Particle_Surfaces_vars  ,ONLY: SideNormVec,SideType
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact
 USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn
+USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1584,18 +1565,7 @@ IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) TH
     END IF ! DoSample
   END IF
   IF (targetSpecies.eq.0) THEN !delete particle -> same as PartBound%OpenBC
-    IF(RadialWeighting%DoRadialWeighting) THEN
-      POI_Y = LastPartPos(PartID,2) + PartTrajectory(2)*alpha
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))*VarTimeStep%ParticleTimeStep(PartID)
-      ELSE
-        MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))
-      END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor*VarTimeStep%ParticleTimeStep(PartID)
-    ELSE
-      MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor
-    END IF
+    MacroParticleFactor = GetParticleWeight(PartID)
     DO iCC=1,nCollectChargesBCs !-chargeCollect
       IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
         CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &

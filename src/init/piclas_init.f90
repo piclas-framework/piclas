@@ -140,6 +140,7 @@ IF(Symmetry2DAxisymmetric) THEN
   RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
 ELSE
   RadialWeighting%DoRadialWeighting = .FALSE.
+  RadialWeighting%PerformCloning = .FALSE.
 END IF
 
 #endif /*PARTICLES*/
