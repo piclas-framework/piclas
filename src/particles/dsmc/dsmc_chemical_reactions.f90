@@ -142,7 +142,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 
   IF(EductReac(3).NE.0) THEN
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (0.5 * Species(EductReac(3))%MassIC                         &
-                         * DOTPRODUCT(PartState(iPart_p3,4:6)) &
+                         * DOTPRODUCT(PartState(4:6,iPart_p3)) &
                    + PartStateIntEn(1,iPart_p3) + PartStateIntEn(2,iPart_p3)) * Weight3
     NumWeightEduct = 3.
   END IF

@@ -164,7 +164,7 @@ DO iPart = 1,PDM%ParticleVecLength
       CYCLE
     END IF ! PUSHPARTICLE(iPart)
   END IF ! PDM%ParticleInside(iPart)
-  Pt(iPart,:)=0.
+  Pt(:,iPart)=0.
 END DO
 END SUBROUTINE CalcPartRHS
 

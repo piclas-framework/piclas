@@ -1425,7 +1425,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     ! with their charge and are then removed)
     IF(PartSpecies(PartID).LT.0)THEN
       PartSpecies(PartID) = -PartSpecies(PartID) ! make positive species ID again
-      CALL DepositParticleOnNodes(PartID,PartState(PartID,1:3),PEM%Element(PartID))
+      CALL DepositParticleOnNodes(PartID,PartState(1:3,PartID),PEM%Element(PartID))
       PartSpecies(PartID) = 0 ! For safety: nullify the speciesID
       PDM%ParticleInside(PartID) = .FALSE.
 #ifdef IMPA

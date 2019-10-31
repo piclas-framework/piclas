@@ -542,9 +542,10 @@ SUBROUTINE ComputePlanarNonRectIntersection(isHit,PartTrajectory,lengthPartTraje
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
-USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
+!USE MOD_Utils                  ,ONLY: QuadraticSolver
+USE MOD_Particle_Vars          ,ONLY: LastPartPos
+USE MOD_Particle_Surfaces_Vars ,ONLY: epsilontol,Beziercliphit
+USE MOD_Particle_Surfaces_Vars ,ONLY: BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -657,20 +658,21 @@ SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
-!USE MOD_Particle_Surfaces_Vars,  ONLY:Beziercliphit
-USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
-USE MOD_Particle_Surfaces,       ONLY:CalcNormAndTangBilinear
-USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
+USE MOD_Utils                  ,ONLY: QuadraticSolver
+USE MOD_Particle_Vars          ,ONLY: LastPartPos
+USE MOD_Mesh_Vars              ,ONLY: nBCSides,nSides
+!USE MOD_Particle_Surfaces_Vars  ,ONLY: Beziercliphit
+USE MOD_Particle_Surfaces_Vars ,ONLY: BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
+USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
-USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
-USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Particle_Surfaces_Vars ,ONLY: epsilontol
 #endif /*CODE_ANALYZE*/
 #if USE_MPI
-USE MOD_Mesh_Vars,               ONLY:BC
+USE MOD_Mesh_Vars              ,ONLY: BC
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2493,74 +2495,6 @@ END IF
 END FUNCTION FlatBoundingBoxIntersection
 
 
-
-SUBROUTINE QuadraticSolver(A,B,C,nRoot,r1,r2)
-!================================================================================================================================
-! subroutine to compute the modified a,b,c equation, parameter already mapped in final version
-!================================================================================================================================
-#ifdef CODE_ANALYZE
-USE MOD_Globals,            ONLY:UNIT_stdOut,MyRank
-#endif /*CODE_ANALYZE*/
-IMPLICIT NONE
-!--------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)         :: A,B,C
-!--------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(OUT)     :: nRoot
-REAL,INTENT(OUT)        :: R1,R2
-!--------------------------------------------------------------------------------------------------------------------------------
-! local variables
-REAL                    :: radicant
-!================================================================================================================================
-
-! Use P-Q-formula and calculate first solution R1
-! Use Theorem of Vieta (R1*R2=C/A) to calculate R2
-! cf: wikipedia 2017.06.13 https://de.wikipedia.org/wiki/Quadratische_Gleichung
-IF (A.NE.0. .AND. B.EQ.0. .AND. C.EQ.0.) THEN
-  nRoot=1
-  R1=0.
-  R2=0.
-ELSE IF(A.NE.0.)THEN
-  radicant = (0.5*B/A)**2 - (C/A)
-  IF (radicant.LT.0.) THEN
-    nRoot=0
-    R1=0.
-    R2=0.
-  ELSE
-    nRoot=2
-    R1=-0.5*(B/A)-SIGN(1.,B/A)*SQRT(radicant)
-    R2=(C/A)/R1
-  END IF
-ELSE
-  IF(B.NE.0.)THEN
-    nRoot=1
-    R1=-C/B
-    R2=0.
-  ELSE
-    nRoot=0
-    R1=0.
-    R2=0.
-  END IF
-END IF
-
-#ifdef CODE_ANALYZE
-IF(nRoot.GT.0)THEN
-  IF((ABS(R1).LE.1.).AND.(ABS(A*R1**2+B*R1+C).GT.1e-10))THEN
-    IPWRITE(UNIT_stdOut,'(I0,A,G0,A)')    ' WARNING!!!: RHS of R1 is ',A*R1**2+B*R1+C &
-        ,' (.GT.1e-10) in quadratic solver of bilinear intersection'
-  END IF
-END IF
-IF(nRoot.GT.1)THEN
-  IF((ABS(R2).LE.1.).AND.(ABS(A*R2**2+B*R2+C).GT.1e-10))THEN
-    IPWRITE(UNIT_stdOut,'(I0,A,G0,A)')    ' WARNING!!!: RHS of R2 is ',A*R2**2+B*R2+C &
-        ,' (.GT.1e-10) in quadratic solver of bilinear intersection'
-  END IF
-END IF
-#endif /*CODE_ANALYZE*/
-
-END SUBROUTINE QuadraticSolver
-
-
 FUNCTION ComputeSurfaceDistance2(SideNormVec,BiLinearCoeff,xi,eta,PartTrajectory,PartID)
 !================================================================================================================================
 ! compute the required vector length to intersection
@@ -3942,7 +3876,7 @@ WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' LastPartPos = [ ',LastpartPos(1,PartID), 
                                                         ,LastpartPos(2,PartID), ','  &
                                                         ,LastpartPos(3,PartID), '];'
 
-WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' PartPosition = [ ',PartPos(1), ','  &
+WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' PartPosition   = [ ',PartPos(1), ','  &
                                                          ,PartPos(2), ','  &
                                                          ,PartPos(3), '];'
 
@@ -4169,10 +4103,11 @@ SUBROUTINE ComputeAuxBCIntersection     (isHit                       &
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-!USE MOD_Globals_Vars,           ONLY:epsMach
-USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
-USE MOD_Particle_Boundary_Vars,  ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
+USE MOD_Utils                  ,ONLY: QuadraticSolver
+!USE MOD_Globals_Vars           ,ONLY:  epsMach
+USE MOD_Particle_Vars          ,ONLY: LastPartPos
+USE MOD_Particle_Surfaces_Vars ,ONLY: epsilontol
+USE MOD_Particle_Boundary_Vars ,ONLY: AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES

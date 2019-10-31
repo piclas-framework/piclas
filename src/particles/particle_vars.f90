@@ -73,7 +73,7 @@ INTEGER , ALLOCATABLE :: PartPosGauss(:,:)                                   ! (
 REAL    , ALLOCATABLE :: Pt(:,:)                                             ! Derivative of PartState (vx,xy,vz) only
                                                                              ! since temporal derivative of position
                                                                              ! is the velocity. Thus we can take
-                                                                             ! PartState(:,4:6) as Pt(1:3)
+                                                                             ! PartState(4:6,:) as Pt(1:3)
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
 LOGICAL               :: DoForceFreeSurfaceFlux                              ! switch if the stage reconstruction uses a force
 #if (PP_TimeDiscMethod==509)
@@ -343,6 +343,9 @@ REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! M
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
 
 INTEGER                                  :: nSpecies                         ! number of species
+INTEGER                                  :: nPointsMCVolumeEstimate          ! numer of points seeded into one element for volume
+                                                                             ! portion (that is occupied) estimtaion 
+                                                                             ! with a Monte Carlo method
 INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
@@ -483,7 +486,6 @@ TYPE tVariableTimeStep
   REAL                                 :: TargetMaxRelaxFactor
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
-
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars
