@@ -5380,24 +5380,25 @@ END DO
 ! write some code analyze output of connectivity
 DO iElem=1,PP_nElems
 #if USE_MPI
-  print*,'Rank: ',MyRank,'------ Element: ',iElem+offsetElem,' has ',GEO%NumNeighborElems(iElem),' Neighbours'
-  print*,'Rank: ',MyRank,'------ Neighbours are:'
+  IPWRITE(UNIT_StdOut,*) '------ Element: ',iElem+offsetElem,' has ',GEO%NumNeighborElems(iElem),' Neighbours'
+  IPWRITE(UNIT_StdOut,*) '------ Neighbours are:'
   DO l=1,GEO%NumNeighborElems(iElem)
     IF (GEO%ElemToNeighElems(iElem)%ElemID(l).GT.PP_nElems) THEN
-      print*,'Rank: ',MyRank,offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,GEO%ElemToNeighElems(iElem)%ElemID(l))) &
+      IPWRITE(UNIT_StdOut,*) offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,GEO%ElemToNeighElems(iElem)%ElemID(l))) &
           + PartHaloElemToProc(NATIVE_ELEM_ID,GEO%ElemToNeighElems(iElem)%ElemID(l))
     ELSE
-      print*,'Rank: ',MyRank,GEO%ElemToNeighElems(iElem)%ElemID(l) + offsetElem
+      IPWRITE(UNIT_StdOut,*) GEO%ElemToNeighElems(iElem)%ElemID(l) + offsetElem
     END IF
   END DO
 #else
-  print*,'Rank: ',MyRank,'------ Element: ',iElem,' has ',GEO%NumNeighborElems(iElem),' Neighbours'
-  print*,'Rank: ',MyRank,'------ Neighbours are:',GEO%ElemToNeighElems(iElem)%ElemID(:)
+  IPWRITE(UNIT_StdOut,*) '------ Element: ',iElem,' has ',GEO%NumNeighborElems(iElem),' Neighbours'
+  IPWRITE(UNIT_StdOut,*) '------ Neighbours are:',GEO%ElemToNeighElems(iElem)%ElemID(:)
 #endif /*USE_MPI*/
 END DO
 
 DO iNode=1,nNodes
-  print*,'Rank: ',MyRank,'------ Node: ',iNode,' has: ',GEO%ElemsOnNode(iNode),' Elements'
+  IPWRITE(UNIT_StdOut,*) '------ Node: ',iNode,' has: ',GEO%ElemsOnNode(iNode),' Elements'
+  IPWRITE(UNIT_StdOut,*) '------ Node: ',iNode,' has: ',GEO%ElemsOnNode(iNode),' Elements'
 END DO
 #endif /*CODE_ANALYZE*/
 
