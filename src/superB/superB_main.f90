@@ -84,7 +84,7 @@ END IF
 
 IF(NumOfPermanentMagnets.GT.0) THEN
   SWRITE(UNIT_stdOut,'(132("-"))')
-  SWRITE(UNIT_stdOUT,'(A)') ' Calculation of the Magnetic Potential of Permanent Magnets'
+  SWRITE(UNIT_stdOUT,'(A)') ' Calculation of the magnetic Potential of Permanent Magnets'
   DO iMagnet=1,NumOfPermanentMagnets
     SWRITE(UNIT_stdOUT,'(A,I2)') ' Magnet: ', iMagnet
     SELECT CASE(TRIM(PermanentMagnetInfo(iMagnet)%Type))
@@ -97,228 +97,81 @@ IF(NumOfPermanentMagnets.GT.0) THEN
     CASE('conic')
       CALL CalculateConicMagneticPotential(iMagnet)
     END SELECT
-    SWRITE(UNIT_stdOUT,'(A,I2)') ' ... Done Magnet #', iMagnet
-  ENDDO
-ENDIF
+    SWRITE(UNIT_stdOUT,'(A,I2)') ' ... Done magnet #', iMagnet
+  END DO
+END IF
 
 IF (NumOfPermanentMagnets.GT.0) THEN
   SWRITE(UNIT_stdOut,'(132("-"))')
-  SWRITE(UNIT_stdOUT,'(A)') ' Calculate the Gradient of the Magnetic Potentail'
+  SWRITE(UNIT_stdOUT,'(A)') ' Calculate the gradient of the magnetic potentail'
   CALL CalculateGradient()
-  SWRITE(UNIT_stdOut,'(A)') ' Done Calculating B-Field'
-ENDIF
+  SWRITE(UNIT_stdOut,'(A)') ' Done calculating B-Field'
+END IF
 
 BFieldPermMag = BGField
 BGField = 0
-! BGField(1,:,:,:,:) = PsiMag(:,:,:,:)
 
 IF(ANY(TimeDepCoil)) THEN
-
   ALLOCATE(BGFieldTDep(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems,0:nTimePoints))
   timestep = tEnd / (nTimePoints-1)
   DO iTimePoint=0,(nTimePoints-1)
     SWRITE(UNIT_stdOut,'(A)')''
     SWRITE(UNIT_stdOut,'(A33,F10.5)')' Calculating Time #', timestep*iTimePoint
-
     IF (NumOfCoils.GT.0) THEN
       SWRITE(UNIT_stdOut,'(132("-"))')
-      SWRITE(UNIT_stdOUT,'(A)') ' Calculation of Custom Coils' 
+      SWRITE(UNIT_stdOUT,'(A)') ' Calculation of coils'
       DO iCoil=1,NumOfCoils
-        SWRITE(UNIT_stdOut,'(A,I2)') ' Coil: ', iCoil
-        SWRITE(UNIT_stdOut,'(A)') ' Set up coil'
+      SWRITE(UNIT_stdOut,'(A,I2)') ' Set up coil: ', iCoil
         CALL SetUpCoil(iCoil)
-
         IF(BGFieldVTKOutput) THEN
           IF (iTimePoint.EQ.0) THEN
             SWRITE(UNIT_stdOut,'(A)') ' Write Coil to VTK File'
-            CALL WriteCoilVTk(iCoil, 1)
-          ENDIF
+            CALL WriteCoilVTK(iCoil)
+          END IF
         END IF
-
         SWRITE(UNIT_stdOut,'(A)') ' Calculation of the B-Field'
         IF (TimeDepCoil(iCoil)) THEN
-          CALL Jefimenko(iCoil, timestep * iTimePoint, 1)
+          CALL Jefimenko(iCoil, timestep * iTimePoint)
         ELSE
-          CALL BiotSavart(iCoil, 1)
-        ENDIF
-        
+          CALL BiotSavart(iCoil)
+        END IF
         CALL FinalizeCoil()
         SWRITE(UNIT_stdOut,'(A,I2)') '...Done Coil #', iCoil
-      ENDDO
-    ENDIF
-
-    IF (NumOfCircleCoils.GT.0) THEN
-      SWRITE(UNIT_stdOut,'(132("-"))')
-      SWRITE(UNIT_stdOUT,'(A)') ' Calculation of Circle Coils' 
-      DO iCoil=1,NumOfCircleCoils
-        SWRITE(UNIT_stdOut,'(A,I2)') ' Circle Coil: ', iCoil
-        SWRITE(UNIT_stdOut,'(A)') ' Set up coil'
-        CALL SetUpCircleCoil(iCoil)
-
-        IF(BGFieldVTKOutput) THEN
-          IF (iTimePoint.EQ.0) THEN
-            SWRITE(UNIT_stdOut,'(A)') ' Write Coil to VTK File'
-            CALL WriteCoilVTk(iCoil, 2)
-          ENDIF
-        END IF
-
-        SWRITE(UNIT_stdOut,'(A)') ' Calculation of the B-Field'
-        IF (TimeDepCoil(iCoil)) THEN
-          CALL Jefimenko(iCoil, timestep * iTimePoint, 2)
-        ELSE
-          CALL BiotSavart(iCoil, 2)
-        ENDIF
-        
-        CALL FinalizeCoil()
-        SWRITE(UNIT_stdOut,'(A,I2)') '...Done Coil #', iCoil
-      ENDDO
-    ENDIF
-
-    IF (NumOfRectangleCoils.GT.0) THEN
-      SWRITE(UNIT_stdOut,'(132("-"))')
-      SWRITE(UNIT_stdOUT,'(A)') ' Calculation of Rectangle Coils' 
-      DO iCoil=1,NumOfRectangleCoils
-        SWRITE(UNIT_stdOut,'(A,I2)') ' Rectangle Coil: ', iCoil
-        SWRITE(UNIT_stdOut,'(A)') ' Set up coil'
-        CALL SetUpRectangleCoil(iCoil)
-
-        IF(BGFieldVTKOutput) THEN
-          IF (iTimePoint.EQ.0) THEN
-            SWRITE(UNIT_stdOut,'(A)') ' Write Coil to VTK File'
-            CALL WriteCoilVTk(iCoil, 3)
-          ENDIF
-        END IF
-
-        SWRITE(UNIT_stdOut,'(A)') ' Calculation of the B-Field'
-        IF (TimeDepCoil(iCoil)) THEN
-          CALL Jefimenko(iCoil, timestep * iTimePoint, 3)
-        ELSE
-          CALL BiotSavart(iCoil, 3)
-        ENDIF
-        
-        CALL FinalizeCoil()
-        SWRITE(UNIT_stdOut,'(A,I2)') '...Done Coil #', iCoil
-      ENDDO
-    ENDIF
-
-    IF (NumOfLinearConductors.GT.0) THEN
-      SWRITE(UNIT_stdOut,'(132("-"))')
-      SWRITE(UNIT_stdOUT,'(A)') ' Calculation of Linear Conductors' 
-      DO iCoil=1,NumOfLinearConductors
-        SWRITE(UNIT_stdOut,'(A,I2)') ' Linear Conductor: ', iCoil
-        SWRITE(UNIT_stdOut,'(A)') ' Set up conductor'
-        CALL SetUpLinearConductor(iCoil)
-
-        IF(BGFieldVTKOutput) THEN
-          IF (iTimePoint.EQ.0) THEN
-            SWRITE(UNIT_stdOut,'(A)') ' Write Coil to VTK File'
-            CALL WriteCoilVTk(iCoil, 4)
-          ENDIF
-        END IF
-
-        SWRITE(UNIT_stdOut,'(A)') ' Calculation of the B-Field'
-        IF (TimeDepCoil(iCoil)) THEN
-          CALL Jefimenko(iCoil, timestep * iTimePoint, 4)
-        ELSE
-          CALL BiotSavart(iCoil, 4)
-        ENDIF
-        
-        CALL FinalizeCoil()
-        SWRITE(UNIT_stdOut,'(A,I2)') '...Done Conductor #', iCoil
-      ENDDO
-    ENDIF
+      END DO
+    END IF
     BGField = BGField + BFieldPermMag
     BGFieldTDep(:,:,:,:,:,iTimePoint) = BGField(:,:,:,:,:)
     BGField = 0
-  ENDDO 
+  END DO
 ELSE
   IF (NumOfCoils.GT.0) THEN
     SWRITE(UNIT_stdOut,'(132("-"))')
-    SWRITE(UNIT_stdOUT,'(A)') ' Calculation of Custom Coils' 
+    SWRITE(UNIT_stdOUT,'(A)') ' Calculation of coils'
     DO iCoil=1,NumOfCoils
-      SWRITE(UNIT_stdOut,'(A,I2)') ' Coil: ', iCoil
-      SWRITE(UNIT_stdOut,'(A)') ' Set up coil'
-      CALL SetUpCoil(iCoil)
-
+      SWRITE(UNIT_stdOut,'(A,I2)') ' Set up coil: ', iCoil
+      SELECT CASE(TRIM(CoilInfo(iCoil)%Type))
+      CASE('custom')
+        CALL SetUpCoil(iCoil)
+      CASE('circle')
+        CALL SetUpCircleCoil(iCoil)
+      CASE('rectangle')
+        CALL SetUpRectangleCoil(iCoil)
+      CASE('linear')
+        CALL SetUpLinearConductor(iCoil)
+      END SELECT
       IF(BGFieldVTKOutput) THEN
-        SWRITE(UNIT_stdOut,'(A)') ' Write Coil to VTK File'
-        CALL WriteCoilVTk(iCoil, 1)
-      END IF
-      
-      SWRITE(UNIT_stdOut,'(A)') ' Calculation of the B-Field'
-      CALL BiotSavart(iCoil, 1)
-      
-      CALL FinalizeCoil()
-      SWRITE(UNIT_stdOut,'(A,I2)') '...Done Coil #', iCoil
-    ENDDO
-  ENDIF
-
-  IF (NumOfCircleCoils.GT.0) THEN
-    SWRITE(UNIT_stdOut,'(132("-"))')
-    SWRITE(UNIT_stdOUT,'(A)') ' Calculation of Circle Coils' 
-    DO iCoil=1,NumOfCircleCoils
-      SWRITE(UNIT_stdOut,'(A,I2)') ' Circle Coil: ', iCoil
-      SWRITE(UNIT_stdOut,'(A)') ' Set up coil'
-      CALL SetUpCircleCoil(iCoil)
-
-      IF(BGFieldVTKOutput) THEN
-        SWRITE(UNIT_stdOut,'(A)') ' Write Coil to VTK File'
-        CALL WriteCoilVTk(iCoil, 2)
-      END IF
-
-      SWRITE(UNIT_stdOut,'(A)') ' Calculation of the B-Field'
-      CALL BiotSavart(iCoil, 2)
-      
-      CALL FinalizeCoil()
-      SWRITE(UNIT_stdOut,'(A,I2)') '...Done Coil #', iCoil
-    ENDDO
-  ENDIF
-
-  IF (NumOfRectangleCoils.GT.0) THEN
-    SWRITE(UNIT_stdOut,'(132("-"))')
-    SWRITE(UNIT_stdOUT,'(A)') ' Calculation of Rectangle Coils' 
-    DO iCoil=1,NumOfRectangleCoils
-      SWRITE(UNIT_stdOut,'(A,I2)') ' Rectangle Coil: ', iCoil
-      SWRITE(UNIT_stdOut,'(A)') ' Set up coil'
-      CALL SetUpRectangleCoil(iCoil)
-
-      IF(BGFieldVTKOutput) THEN
-        SWRITE(UNIT_stdOut,'(A)') ' Write Coil to VTK File'
-        CALL WriteCoilVTk(iCoil, 3)
-      END IF
-
-      SWRITE(UNIT_stdOut,'(A)') ' Calculation of the B-Field'
-      CALL BiotSavart(iCoil, 3)
-      
-      CALL FinalizeCoil()
-      SWRITE(UNIT_stdOut,'(A,I2)') '...Done Coil #', iCoil
-    ENDDO
-  ENDIF
-
-  IF (NumOfLinearConductors.GT.0) THEN
-    SWRITE(UNIT_stdOut,'(132("-"))')
-    SWRITE(UNIT_stdOUT,'(A)') ' Calculation of Linear Conductors' 
-    DO iCoil=1,NumOfLinearConductors
-      SWRITE(UNIT_stdOut,'(A,I2)') ' Linear Conductor: ', iCoil
-      SWRITE(UNIT_stdOut,'(A)') ' Set up conductor'
-      CALL SetUpLinearConductor(iCoil)
-
-      IF(BGFieldVTKOutput) THEN
-        SWRITE(UNIT_stdOut,'(A)') ' Write Coil to VTK File'
-        CALL WriteCoilVTk(iCoil, 4)
+        SWRITE(UNIT_stdOut,'(A)') ' Write coil to VTK File'
+        CALL WriteCoilVTK(iCoil)
       END IF
       SWRITE(UNIT_stdOut,'(A)') ' Calculation of the B-Field'
-      CALL BiotSavart(iCoil, 4)
-      
+      CALL BiotSavart(iCoil)
       CALL FinalizeCoil()
-      SWRITE(UNIT_stdOut,'(A,I2)') '...Done Conductor #', iCoil
-    ENDDO
-  ENDIF
-
+      SWRITE(UNIT_stdOut,'(A,I2)') '...Done coil #', iCoil
+    END DO
+  END IF
   BGField = BGField + BFieldPermMag
-
   CALL WriteBFieldToHDF5(0.)
-ENDIF
+END IF
 
 END SUBROUTINE SuperB
 
