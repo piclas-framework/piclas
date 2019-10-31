@@ -754,17 +754,17 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
   INTEGER                       :: iPart, iLoop, iPartIndx, localDepth, SpecPartNum(nSpecies), childNodeID
   INTEGER, ALLOCATABLE          :: iPartIndx_ChildNode(:,:)
   REAL, ALLOCATABLE             :: MappedPart_ChildNode(:,:,:)
-  INTEGER                       :: PartNumChildNode(8)
-  REAL                          :: NodeVolumeTemp(8)
+  INTEGER                       :: PartNumChildNode(1:8)
+  REAL                          :: NodeVolumeTemp(1:8)
 !===================================================================================================================================
 
-  ALLOCATE(iPartIndx_ChildNode(8,TreeNode%PNum_Node))
-  ALLOCATE(MappedPart_ChildNode(8,TreeNode%PNum_Node,3))
+  ALLOCATE(iPartIndx_ChildNode(1:8,TreeNode%PNum_Node))
+  ALLOCATE(MappedPart_ChildNode(1:3,TreeNode%PNum_Node,1:8))
   PartNumChildNode(:) = 0
   IF (ABS(TreeNode%MidPoint(1)) .EQ. 1.0) THEN
     CALL Abort(&
-__STAMP__&
-,'ERROR in Octree Pairing: Too many branches, machine precision reached')
+        __STAMP__&
+        ,'ERROR in Octree Pairing: Too many branches, machine precision reached')
   END IF
   !         Numbering of the 8 ChildNodes of the Octree
   !          __________
@@ -784,7 +784,7 @@ __STAMP__&
     ChildNodeID = OCTANTCUBEID(TreeNode%MidPoint(:),TreeNode%MappedPartStates(:,iPart))
     PartNumChildNode(ChildNodeID) = PartNumChildNode(ChildNodeID) + 1
     iPartIndx_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = iPartIndx
-    MappedPart_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID),1:3) = TreeNode%MappedPartStates(1:3,iPart)
+    MappedPart_ChildNode(1:3,PartNumChildNode(ChildNodeID),ChildNodeID) = TreeNode%MappedPartStates(1:3,iPart)
   END DO
 
   IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
@@ -838,7 +838,7 @@ __STAMP__&
         TreeNode%ChildNode%iPartIndx_Node(1:PartNumChildNode(iLoop)) = iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop))
         TreeNode%ChildNode%PNum_Node = PartNumChildNode(iLoop)
         TreeNode%ChildNode%MappedPartStates(1:3,1:PartNumChildNode(iLoop))= &
-              MappedPart_ChildNode(iLoop,1:PartNumChildNode(iLoop),1:3)
+                       MappedPart_ChildNode(1:3,1:PartNumChildNode(iLoop),iLoop)
         TreeNode%childNode%MidPoint(1:3) = OCTANTCUBEMIDPOINT(iLoop,TreeNode%NodeDepth,TreeNode%MidPoint(1:3))
         TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
         ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
@@ -1003,13 +1003,13 @@ TYPE(tNodeVolume),INTENT(IN), POINTER   :: NodeVol
 INTEGER                       :: iPart, iLoop, iPartIndx, localDepth
 INTEGER, ALLOCATABLE          :: iPartIndx_ChildNode(:,:)
 REAL, ALLOCATABLE             :: MappedPart_ChildNode(:,:,:)
-INTEGER                       :: PartNumChildNode(4)
-REAL                          :: NodeVolumeTemp(4), FaceVolumeTemp(4), SpecPartNum(nSpecies,4), RealParts(4), Volume(4)
+INTEGER                       :: PartNumChildNode(1:4)
+REAL                          :: NodeVolumeTemp(1:4), FaceVolumeTemp(1:4), SpecPartNum(nSpecies,1:4), RealParts(1:4), Volume(1:4)
 LOGICAL                       :: ForceNearestNeigh
 !===================================================================================================================================
 ForceNearestNeigh = .FALSE.
-ALLOCATE(iPartIndx_ChildNode(4,TreeNode%PNum_Node))
-ALLOCATE(MappedPart_ChildNode(4,TreeNode%PNum_Node,2))
+ALLOCATE(iPartIndx_ChildNode(1:4,TreeNode%PNum_Node))
+ALLOCATE(MappedPart_ChildNode(1:2,TreeNode%PNum_Node,1:4))
 PartNumChildNode(:) = 0
 IF (ABS(TreeNode%MidPoint(1)) .EQ. 1.0) THEN
   CALL Abort(&
@@ -1031,19 +1031,19 @@ DO iPart=1,TreeNode%PNum_Node
       .AND.(TreeNode%MappedPartStates(2,iPart).LE.TreeNode%MidPoint(2))) THEN
     PartNumChildNode(1) = PartNumChildNode(1) + 1
     iPartIndx_ChildNode(1,PartNumChildNode(1)) = iPartIndx
-    MappedPart_ChildNode(1,PartNumChildNode(1),1:2) = TreeNode%MappedPartStates(1:2,iPart)
+    MappedPart_ChildNode(1:2,PartNumChildNode(1),1) = TreeNode%MappedPartStates(1:2,iPart)
   ELSE IF(TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) THEN
     PartNumChildNode(2) = PartNumChildNode(2) + 1
     iPartIndx_ChildNode(2,PartNumChildNode(2)) = iPartIndx
-    MappedPart_ChildNode(2,PartNumChildNode(2),1:2) = TreeNode%MappedPartStates(1:2,iPart)
+    MappedPart_ChildNode(1:2,PartNumChildNode(2),2) = TreeNode%MappedPartStates(1:2,iPart)
   ELSE IF(TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) THEN
     PartNumChildNode(3) = PartNumChildNode(3) + 1
     iPartIndx_ChildNode(3,PartNumChildNode(3)) = iPartIndx
-    MappedPart_ChildNode(3,PartNumChildNode(3),1:2) = TreeNode%MappedPartStates(1:2,iPart)
+    MappedPart_ChildNode(1:2,PartNumChildNode(3),3) = TreeNode%MappedPartStates(1:2,iPart)
   ELSE
     PartNumChildNode(4) = PartNumChildNode(4) + 1
     iPartIndx_ChildNode(4,PartNumChildNode(4)) = iPartIndx
-    MappedPart_ChildNode(4,PartNumChildNode(4),1:2) = TreeNode%MappedPartStates(1:2,iPart)
+    MappedPart_ChildNode(1:2,PartNumChildNode(4),4) = TreeNode%MappedPartStates(1:2,iPart)
   END IF
 END DO
 
@@ -1070,7 +1070,7 @@ IF(DSMC%MergeSubcells) THEN
       IF (PartNumChildNode(iLoop).LT.7) THEN
         DO iPart=1, PartNumChildNode(iLoop)
           iPartIndx_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart) = iPartIndx_ChildNode(iLoop,iPart)
-          MappedPart_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart,1:2) = MappedPart_ChildNode(iLoop,iPart,1:2)
+          MappedPart_ChildNode(1:2,PartNumChildNode(iLoop+1)+iPart,iLoop+1) = MappedPart_ChildNode(1:2,iPart,iLoop)
         END DO
         PartNumChildNode(iLoop+1) = PartNumChildNode(iLoop+1) + PartNumChildNode(iLoop)
         PartNumChildNode(iLoop) = 0
@@ -1081,7 +1081,7 @@ IF(DSMC%MergeSubcells) THEN
     IF (PartNumChildNode(4).LT.7) THEN
       DO iPart=1, PartNumChildNode(4)
         iPartIndx_ChildNode(1,PartNumChildNode(1)+iPart) = iPartIndx_ChildNode(4,iPart)
-        MappedPart_ChildNode(1,PartNumChildNode(1)+iPart,1:2) = MappedPart_ChildNode(4,iPart,1:2)
+        MappedPart_ChildNode(1:2,PartNumChildNode(1)+iPart,1) = MappedPart_ChildNode(1:2,iPart,4)
       END DO
       PartNumChildNode(1) = PartNumChildNode(1) + PartNumChildNode(4)
       PartNumChildNode(4) = 0
@@ -1121,7 +1121,7 @@ DO iLoop = 1, 4
       TreeNode%ChildNode%iPartIndx_Node(1:PartNumChildNode(iLoop)) = iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop))
       TreeNode%ChildNode%PNum_Node = PartNumChildNode(iLoop)
       TreeNode%ChildNode%MappedPartStates(1:2,1:PartNumChildNode(iLoop))= &
-            MappedPart_ChildNode(iLoop,1:PartNumChildNode(iLoop),1:2)
+                     MappedPart_ChildNode(1:2,1:PartNumChildNode(iLoop),iLoop)
       IF (iLoop.LT.3) THEN
         TreeNode%ChildNode%MidPoint(1) = 1.0
         IF (iLoop.EQ.1) THEN
@@ -1594,7 +1594,7 @@ IF (PRESENT(TreeNode)) THEN
     !-- 1-A.1.
     PartNumChildNode(:) = 0
     ALLOCATE(iPartIndx_ChildNode(8,TreeNode%PNum_Node))
-    ALLOCATE(MappedPart_ChildNode(8,TreeNode%PNum_Node,3))
+    ALLOCATE(MappedPart_ChildNode(1:3,TreeNode%PNum_Node,1:8))
     ALLOCATE(MatchedPart_ChildNode(8,TreeNode%PNum_Node))
     MatchedPart_ChildNode(1:8,1:TreeNode%PNum_Node)=.FALSE.
     DO iPart=1,TreeNode%PNum_Node
@@ -1602,7 +1602,7 @@ IF (PRESENT(TreeNode)) THEN
       iPartIndx = TreeNode%iPartIndx_Node(iPart)
       PartNumChildNode(ChildNodeID) = PartNumChildNode(ChildNodeID) + 1
       iPartIndx_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = iPartIndx
-      MappedPart_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID),1:3) = TreeNode%MappedPartStates(1:3,iPart)
+      MappedPart_ChildNode(1:3,PartNumChildNode(ChildNodeID),ChildNodeID) = TreeNode%MappedPartStates(1:3,iPart)
       IF (TreeNode%MatchedPart(iPart)) THEN
         MatchedPart_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = .TRUE.
       END IF
@@ -1618,7 +1618,7 @@ IF (PRESENT(TreeNode)) THEN
       TreeNode%ChildNode%iPartIndx_Node(1:PartNumChildNode(iOctant)) = iPartIndx_ChildNode(iOctant, 1:PartNumChildNode(iOctant))
       TreeNode%ChildNode%PNum_Node = PartNumChildNode(iOctant)
       TreeNode%ChildNode%MappedPartStates(1:3,1:PartNumChildNode(iOctant))= &
-            MappedPart_ChildNode(iOctant,1:PartNumChildNode(iOctant),1:3)
+                     MappedPart_ChildNode(1:3,1:PartNumChildNode(iOctant),iOctant)
       TreeNode%ChildNode%MatchedPart(1:PartNumChildNode(iOctant)) =  MatchedPart_ChildNode(iOctant,1:PartNumChildNode(iOctant))
       TreeNode%childNode%MidPoint(1:3) = OCTANTCUBEMIDPOINT(iOctant,TreeNode%NodeDepth,TreeNode%MidPoint(1:3))
       TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1

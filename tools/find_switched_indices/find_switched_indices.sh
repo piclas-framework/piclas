@@ -43,10 +43,13 @@ grep -nri --include=*.f90 --color "PartStage([[:alpha:]]" ../src
 
 grep -nri --include=*.f90 --color "PEM%NormVec([[:alpha:]]" ../src
 
-grep -nri --include=*.f90 --color "MappedPartStates([[:alpha:]]" ../src
-
 grep -nri --include=*.f90 --color "PartPosRef([[:alpha:]]" ../src
 
+
+# octree stuff
+grep -nri --include=*.f90 --color "MappedPartStates([[:alpha:]]" ../src
+
+grep -nri --include=*.f90 --color "MappedPart_ChildNode([[:alpha:]]" ../src
 
 
 
