@@ -2,7 +2,7 @@
 # POSTI
 # =========================================================================
 
-CMAKE_DEPENDENT_OPTION(POSTI_BUILD_VISU "Build the visu tool" ON "PICLAS_BUILDPOSTI" OFF)
+CMAKE_DEPENDENT_OPTION(POSTI_BUILD_VISU "Build the visu tool" ON "PICLAS_BUILD_POSTI" ON)
 
 
 # Add CMakeLists

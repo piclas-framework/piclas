@@ -123,7 +123,7 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                               LD-DSMC)
 
 OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
-OPTION(PICLAS_BUILDPOSTI "Build POSTI toolset" OFF)
+OPTION(PICLAS_BUILD_POSTI "Build POSTI toolset" ON)
 OPTION(PICLAS_MPI "Compile SINGLE or MPI version" ON)
 CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use LoadBalance timemeasurement" ON "PICLAS_MPI" OFF)
 OPTION(PICLAS_MKL "Use MKL libraries instead of BLAS/LAPACK" OFF)
@@ -811,7 +811,7 @@ ADD_DEPENDENCIES(h5piclas2vtk libpiclasstatic userblocklib stacksizelib ${INTERN
 # =========================================================================
 # Posti
 # =========================================================================
-IF(PICLAS_BUILDPOSTI)
+IF(PICLAS_BUILD_POSTI)
   INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/src/posti/CMakeLists.txt)
 ELSE()
   GETLISTOFVARSSTARTINGWITH("POSTI_" postiVars)
