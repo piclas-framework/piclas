@@ -45,6 +45,7 @@ grep -nri --include=*.f90 --color "PEM%NormVec([[:alpha:]]" ../src
 
 grep -nri --include=*.f90 --color "PartPosRef([[:alpha:]]" ../src
 
+grep -nri --include=*.f90 --color "PartData([[:alpha:]]" ../src | grep -inv "ConvertPartData(InputStateFile\|SurfPartData(offsetnSurfPart\|SurfPartData(iPart\|PartData(PartDataSize\|SurfPartData(iOffset\|PartData(INT(PartDataSize,IK)," | grep -in --color PartData
 
 # octree stuff
 grep -nri --include=*.f90 --color "MappedPartStates([[:alpha:]]" ../src

@@ -3404,7 +3404,7 @@ IF (SFResampleAnalyzeSurfCollis) THEN
 END IF !SFResampleAnalyzeSurfCollis
 
 DO iSpec=1,nSpecies
-  ALLOCATE(PartData(offsetnPart(iSpec)+1:offsetnPart(iSpec)+locnPart(iSpec),PartDataSize))
+  ALLOCATE(PartData(PartDataSize,offsetnPart(iSpec)+1:offsetnPart(iSpec)+locnPart(iSpec)))
   DO iPart=1,locnPart(iSpec)
     PartData(1,offsetnPart(iSpec)+iPart)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),1)
     PartData(2,offsetnPart(iSpec)+iPart)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),2)

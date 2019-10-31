@@ -1216,15 +1216,15 @@ offsetnPart=0_IK
 nPart_glob=locnPart
 locnPart_max=locnPart
 PartDataSize=13
-ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,INT(PartDataSize,IK)))
+ALLOCATE(PartData(INT(PartDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart))
 
 DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
-  PartData(iPart,1:3)=MacroSphere(iPart)%center(1:3)
-  PartData(iPart,4:9)=MacroSphere(iPart)%velocity(1:6)
-  PartData(iPart,10)=MacroSphere(iPart)%radius
-  PartData(iPart,11)=MacroSphere(iPart)%temp
-  PartData(iPart,12)=MacroSphere(iPart)%density
-  PartData(iPart,13)=MacroSphere(iPart)%mass
+  PartData(1:3,iPart)=MacroSphere(iPart)%center(1:3)
+  PartData(4:9,iPart)=MacroSphere(iPart)%velocity(1:6)
+  PartData(10,iPart)=MacroSphere(iPart)%radius
+  PartData(11,iPart)=MacroSphere(iPart)%temp
+  PartData(12,iPart)=MacroSphere(iPart)%density
+  PartData(13,iPart)=MacroSphere(iPart)%mass
 END DO
 
 reSwitch=.FALSE.
