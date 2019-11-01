@@ -19,7 +19,7 @@ PROGRAM Piclas
 ! MODULES
 USE MOD_Globals
 USE MOD_Piclas
-USE MOD_Piclas_init ,ONLY: FinalizePiclas
+USE MOD_Piclas_init ,ONLY: FinalizePiclas,FinalizeLoadBalance
 USE MOD_TimeDisc    ,ONLY: TimeDisc
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -35,6 +35,7 @@ CALL TimeDisc()
 CALL FinalizePiclas(IsLoadBalance=.FALSE.)
 
 #if USE_MPI
+CALL FinalizeLoadBalance()
 ! we also have to finalize MPI itself here
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) STOP 'MPI finalize error'
