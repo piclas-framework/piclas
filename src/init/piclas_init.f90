@@ -388,18 +388,22 @@ CALL FinalizeTimeDisc()
 ! mssing arrays to deallocate
 SDEALLOCATE(RP_Data)
 
-!Measure simulation duration
+! Before program termination: Finalize load balance
+! Measure simulation duration
 Time=PICLASTIME()
-
-#if USE_MPI
-!! and additional required for restart with load balance
-!ReadInDone=.FALSE.
-!ParticleMPIInitIsDone=.FALSE.
-!ParticlesInitIsDone=.FALSE.
-CALL FinalizeLoadBalance()
-#endif /*USE_MPI*/
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',Time-StartTime,' sec ]'
+IF(.NOT.IsLoadBalance)THEN
+#if USE_MPI
+  !! and additional required for restart with load balance
+  !ReadInDone=.FALSE.
+  !ParticleMPIInitIsDone=.FALSE.
+  !ParticlesInitIsDone=.FALSE.
+  CALL FinalizeLoadBalance()
+#endif /*USE_MPI*/
+  SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',Time-StartTime,' sec ]'
+ELSE
+  SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS RUNNING! [',Time-StartTime,' sec ]'
+END IF ! .NOT.IsLoadBalance
 SWRITE(UNIT_stdOut,'(132("="))')
 
 END SUBROUTINE FinalizePiclas
@@ -421,8 +425,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-
-SDEALLOCATE( tCurrent  )
+SDEALLOCATE(tCurrent)
 InitLoadBalanceIsDone = .FALSE.
 
 END SUBROUTINE FinalizeLoadBalance
