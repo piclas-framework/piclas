@@ -516,9 +516,10 @@ ELSE()
     ExternalProject_Add(HDF5
       GIT_REPOSITORY ${HDF5DOWNLOAD}
       GIT_TAG ${HDF5TAG}
+      ${${GITSHALLOW}}
       PREFIX ${PICLAS_HDF5_DIR}
       UPDATE_COMMAND ""
-      CONFIGURE_COMMAND FC=${PICLAS_HDF5FC} CC=${PICLAS_HDF5CC} ${PICLAS_HDF5_DIR}/src/HDF5/configure --prefix=${PICLAS_HDF5_DIR} --enable-fortran ${PICLAS_HDF5PARALLEL} --disable-shared --libdir=${PICLAS_HDF5_DIR}/lib
+      CONFIGURE_COMMAND FC=${PICLAS_HDF5FC} CC=${PICLAS_HDF5CC} ${PICLAS_HDF5_DIR}/src/HDF5/configure --prefix=${PICLAS_HDF5_DIR} --with-pic --enable-fortran ${PICLAS_HDF5PARALLEL} --libdir=${PICLAS_HDF5_DIR}/lib
       BUILD_COMMAND ${MAKE}
     )
     LIST(APPEND SELFBUILTEXTERNALS HDF5)
