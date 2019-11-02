@@ -114,6 +114,7 @@ SUBROUTINE InitMesh(meshMode,MeshFile_IN)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_PreProc
 USE MOD_Mesh_Vars
 USE MOD_HDF5_Input
@@ -154,7 +155,7 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: MeshFile_IN !< file name of mesh to be
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                :: x(3),PI,meshScale
+REAL                :: x(3),meshScale
 REAL,POINTER        :: coords(:,:,:,:,:)
 INTEGER             :: iElem,i,j,k,nElemsLoc
 !CHARACTER(32)       :: hilf2
@@ -237,17 +238,28 @@ CALL ReadMesh(MeshFile) !set nElems
 !schmutz fink
 PP_nElems=nElems
 
+! if trees are available: compute metrics on tree level and interpolate to elements
+interpolateFromTree=.FALSE.
+IF(isMortarMesh) interpolateFromTree=GETLOGICAL('interpolateFromTree','.TRUE.')
+IF(interpolateFromTree)THEN
+  coords=>TreeCoords
+  NGeo=NGeoTree
+  nElemsLoc=nTrees
+ELSE
+  coords=>NodeCoords
+  nElemsLoc=nElems
+ENDIF
+
 ! scale and deform mesh if desired (warning: no mesh output!)
 meshScale=GETREAL('meshScale','1.0')
 IF(ABS(meshScale-1.).GT.1e-14)&
   Coords =Coords*meshScale
 
 IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
-  Pi = ACOS(-1.)
   DO iElem=1,nElems
     DO k=0,NGeo; DO j=0,NGeo; DO i=0,NGeo
       x(:)=Coords(:,i,j,k,iElem)
-      Coords(:,i,j,k,iElem) = x+ 0.1*SIN(Pi*x(1))*SIN(Pi*x(2))*SIN(Pi*x(3))
+      Coords(:,i,j,k,iElem) = x+ 0.1*SIN(PI*x(1))*SIN(PI*x(2))*SIN(PI*x(3))
     END DO; END DO; END DO;
   END DO
 END IF
@@ -316,22 +328,12 @@ IF (meshMode.GT.0) THEN
   CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
                          SideToVolA,SideToVol2A,CGNS_SideToVol2A,FS2M)
 
-  ! if trees are available: compute metrics on tree level and interpolate to elements
-  interpolateFromTree=.FALSE.
-  IF(isMortarMesh) interpolateFromTree=GETLOGICAL('interpolateFromTree','.TRUE.')
-  IF(interpolateFromTree)THEN
-    coords=>TreeCoords
-    NGeo=NGeoTree
-    nElemsLoc=nTrees
-  ELSE
-    coords=>NodeCoords
-    nElemsLoc=nElems
-  ENDIF
-  ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
 END IF
 
 IF (meshMode.GT.1) THEN
-  ! allocate type Mesh
+  
+  ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
+
   ! volume data
   ALLOCATE(      dXCL_N(3,3,0:PP_N,0:PP_N,0:PP_N,nElems)) ! temp
   ALLOCATE(Metrics_fTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
