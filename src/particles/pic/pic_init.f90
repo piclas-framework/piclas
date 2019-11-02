@@ -78,7 +78,8 @@ CALL prms%CreateLogicalOption(  'PIC-BG-Field'                , 'TODO-DEFINE-PAR
                                                                 'Define:\n'//&
                                                                 'PIC-BGFilename\n'//&
                                                                 'PIC-BGFieldScaling\n'//&
-                                                                'PIC-NBG', '.TRUE.')
+                                                                'PIC-NBG', '.FALSE.')
+CALL prms%CreateLogicalOption(  'PIC-CalcBField'              , 'Calculate the BGField from parameters supplied by user', '.FALSE.')
 CALL prms%CreateStringOption(   'PIC-BGFileName'              , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'File name for background field ([character].h5)', 'none')
 CALL prms%CreateIntOption(      'PIC-NBG'                     , 'TODO-DEFINE-PARAMETER\n'//&

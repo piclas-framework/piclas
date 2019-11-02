@@ -1,0 +1,187 @@
+!==================================================================================================================================
+! Copyright (c) 2019 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
+
+MODULE MOD_SuperB
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+IMPLICIT NONE
+PRIVATE
+!----------------------------------------------------------------------------------------------------------------------------------
+PUBLIC :: SuperB
+!===================================================================================================================================
+
+!===================================================================================================================================
+
+CONTAINS
+
+SUBROUTINE SuperB()
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_SuperB_PermMag
+USE MOD_SuperB_Coil
+USE MOD_SuperB_Vars
+USE MOD_Preproc               ,ONLY: PP_N
+USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType, NBG, BGType, BGField, BGFieldVTKOutput
+USE MOD_PICInterpolation_Vars ,ONLY: BGField_xGP, BGField_wBary, BGDataSize
+USE MOD_Interpolation_Vars    ,ONLY: xGP, wBary
+USE MOD_HDF5_Output_Tools     ,ONLY: WriteBFieldToHDF5
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,ALLOCATABLE              :: BFieldPermMag(:,:,:,:,:)
+INTEGER                       :: iMagnet, iCoil, iTimePoint
+REAL                          :: timestep
+!===================================================================================================================================
+
+! Allocate and nullify the B-Field and the magnetic potential
+ALLOCATE(BGField(1:3       , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
+ALLOCATE(BFieldPermMag(1:3 , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
+ALLOCATE(PsiMag(0:PP_N     , 0:PP_N , 0:PP_N , 1:nElems))
+ALLOCATE(MagnetFlag(0:PP_N , 0:PP_N , 0:PP_N , 1:nElems))
+PsiMag = 0
+BGField = 0
+MagnetFlag = 0
+! Setting the background field type, used in pic_interpolation.f90
+BGType = 2
+! Datasize not utilized so far but might be required for other interpolation types (e.g. particle_position)
+BGDataSize = 3
+! Background field order same as rest
+NBG = PP_N
+
+IF((TRIM(InterpolationType).NE.'particle_position').AND.(TRIM(InterpolationType).NE.'nearest_blurrycenter') &
+    .AND.(TRIM(InterpolationType).NE.'nearest_gausspoint')) THEN
+  CALL abort(__STAMP__,&
+    'ERROR: Magnetic DSMC only supports particle_position, nearest_blurrycenter and nearest_gausspoint!')
+END IF
+
+IF(TRIM(InterpolationType).EQ.'particle_position') THEN
+  ALLOCATE(BGField_xGP(0:NBG), BGField_wBary(0:NBG))
+  BGField_xGP = xGP
+  BGField_wBary = wBary
+END IF
+
+IF(NumOfPermanentMagnets.GT.0) THEN
+  SWRITE(UNIT_stdOut,'(132("-"))')
+  SWRITE(UNIT_stdOUT,'(A)') ' Calculation of the magnetic Potential of Permanent Magnets'
+  DO iMagnet=1,NumOfPermanentMagnets
+    SWRITE(UNIT_stdOUT,'(A,I2)') ' Magnet: ', iMagnet
+    SELECT CASE(TRIM(PermanentMagnetInfo(iMagnet)%Type))
+    CASE('cuboid')
+      CALL CalculateCuboidMagneticPotential(iMagnet)
+    CASE('sphere')
+      CALL CalculateSphericMagneticPotential(iMagnet)
+    CASE('cylinder')
+      CALL CalculateCylindricMagneticPotential(iMagnet)
+    CASE('conic')
+      CALL CalculateConicMagneticPotential(iMagnet)
+    END SELECT
+    SWRITE(UNIT_stdOUT,'(A,I2)') ' ... Done magnet #', iMagnet
+  END DO
+END IF
+
+IF (NumOfPermanentMagnets.GT.0) THEN
+  SWRITE(UNIT_stdOut,'(132("-"))')
+  SWRITE(UNIT_stdOUT,'(A)') ' Calculate the gradient of the magnetic potentail'
+  CALL CalculateGradient()
+  SWRITE(UNIT_stdOut,'(A)') ' Done calculating B-Field'
+END IF
+
+BFieldPermMag = BGField
+BGField = 0
+
+IF(ANY(TimeDepCoil)) THEN
+  ALLOCATE(BGFieldTDep(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems,0:nTimePoints))
+  timestep = tEnd / (nTimePoints-1)
+  DO iTimePoint=0,(nTimePoints-1)
+    SWRITE(UNIT_stdOut,'(A)')''
+    SWRITE(UNIT_stdOut,'(A33,F10.5)')' Calculating Time #', timestep*iTimePoint
+    IF (NumOfCoils.GT.0) THEN
+      SWRITE(UNIT_stdOut,'(132("-"))')
+      SWRITE(UNIT_stdOUT,'(A)') ' Calculation of coils'
+      DO iCoil=1,NumOfCoils
+        SWRITE(UNIT_stdOut,'(A,I2)') ' Set up coil: ', iCoil
+        SELECT CASE(TRIM(CoilInfo(iCoil)%Type))
+        CASE('custom')
+          CALL SetUpCoil(iCoil)
+        CASE('circle')
+          CALL SetUpCircleCoil(iCoil)
+        CASE('rectangle')
+          CALL SetUpRectangleCoil(iCoil)
+        CASE('linear')
+          CALL SetUpLinearConductor(iCoil)
+        END SELECT
+        IF(BGFieldVTKOutput) THEN
+          IF(iTimePoint.EQ.0) THEN
+            SWRITE(UNIT_stdOut,'(A)') ' Write Coil to VTK File'
+            CALL WriteCoilVTK(iCoil)
+          END IF
+        END IF
+        SWRITE(UNIT_stdOut,'(A)') ' Calculation of the B-Field'
+        IF (TimeDepCoil(iCoil)) THEN
+          CALL Jefimenko(iCoil, timestep * iTimePoint)
+        ELSE
+          CALL BiotSavart(iCoil)
+        END IF
+        CALL FinalizeCoil()
+        SWRITE(UNIT_stdOut,'(A,I2)') '...Done Coil #', iCoil
+      END DO
+    END IF
+    BGField = BGField + BFieldPermMag
+    BGFieldTDep(:,:,:,:,:,iTimePoint) = BGField(:,:,:,:,:)
+    BGField = 0
+  END DO
+ELSE
+  IF (NumOfCoils.GT.0) THEN
+    SWRITE(UNIT_stdOut,'(132("-"))')
+    SWRITE(UNIT_stdOUT,'(A)') ' Calculation of coils'
+    DO iCoil=1,NumOfCoils
+      SWRITE(UNIT_stdOut,'(A,I2)') ' Set up coil: ', iCoil
+      SELECT CASE(TRIM(CoilInfo(iCoil)%Type))
+      CASE('custom')
+        CALL SetUpCoil(iCoil)
+      CASE('circle')
+        CALL SetUpCircleCoil(iCoil)
+      CASE('rectangle')
+        CALL SetUpRectangleCoil(iCoil)
+      CASE('linear')
+        CALL SetUpLinearConductor(iCoil)
+      END SELECT
+      IF(BGFieldVTKOutput) THEN
+        SWRITE(UNIT_stdOut,'(A)') ' Write Coil to VTK File'
+        CALL WriteCoilVTK(iCoil)
+      END IF
+      SWRITE(UNIT_stdOut,'(A)') ' Calculation of the B-Field'
+      CALL BiotSavart(iCoil)
+      CALL FinalizeCoil()
+      SWRITE(UNIT_stdOut,'(A,I2)') '...Done coil #', iCoil
+    END DO
+  END IF
+  BGField = BGField + BFieldPermMag
+  CALL WriteBFieldToHDF5()
+END IF
+
+END SUBROUTINE SuperB
+
+END MODULE MOD_SuperB
