@@ -392,13 +392,13 @@ SDEALLOCATE(RP_Data)
 Time=PICLASTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
 IF(.NOT.IsLoadBalance)THEN
-#if USE_MPI
+#if USE_LOADBALANCE
   !! and additional required for restart with load balance
   !ReadInDone=.FALSE.
   !ParticleMPIInitIsDone=.FALSE.
   !ParticlesInitIsDone=.FALSE.
   CALL FinalizeLoadBalance()
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
   SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',Time-StartTime,' sec ]'
 ELSE
   SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS RUNNING! [',Time-StartTime,' sec ]'
@@ -408,7 +408,7 @@ SWRITE(UNIT_stdOut,'(132("="))')
 END SUBROUTINE FinalizePiclas
 
 
-#if USE_MPI
+#if USE_LOADBALANCE
 SUBROUTINE FinalizeLoadBalance()
 !===================================================================================================================================
 ! Deallocate arrays
@@ -428,7 +428,7 @@ SDEALLOCATE(tCurrent)
 InitLoadBalanceIsDone = .FALSE.
 
 END SUBROUTINE FinalizeLoadBalance
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
 
 
 SUBROUTINE FinalizeTimeDisc()

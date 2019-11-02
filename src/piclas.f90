@@ -14,12 +14,12 @@
 
 PROGRAM Piclas
 !===================================================================================================================================
-! Control program of the Piclas code.
+! PICLas main program
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Piclas
-USE MOD_Piclas_init ,ONLY: FinalizePiclas,FinalizeLoadBalance
+USE MOD_Piclas_init ,ONLY: FinalizePiclas
 USE MOD_TimeDisc    ,ONLY: TimeDisc
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -34,9 +34,9 @@ CALL TimeDisc()
 ! Finalize
 CALL FinalizePiclas(IsLoadBalance=.FALSE.)
 
+! MPI
 #if USE_MPI
-CALL FinalizeLoadBalance()
-! we also have to finalize MPI itself here
+! We also have to finalize MPI itself here
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) STOP 'MPI finalize error'
 #endif
