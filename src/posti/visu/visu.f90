@@ -173,7 +173,12 @@ ELSE IF (ISVALIDHDF5FILE(statefile)) THEN ! other file
     DEALLOCATE(HSize)
     SDEALLOCATE(bcnames_loc)
     ALLOCATE(bcnames_loc(nBCNamesAll))
-    CALL ReadArray('BCNames',1,(/nBCNamesAll/),Offset,1,StrArray=bcnames_loc)
+    ASSOCIATE (&
+          Offset      => INT(Offset,IK)      ,&
+          nBCNamesAll => INT(nBCNamesAll,IK)  &
+          )
+      CALL ReadArray('BCNames',1,(/nBCNamesAll/),Offset,1,StrArray=bcnames_loc)
+    END ASSOCIATE
     CALL CloseDataFile()
   END IF
 

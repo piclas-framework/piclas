@@ -183,24 +183,32 @@ DO iVar=nVarDep+1,nVarAll
 
       ! Read in the data if we have a new dataset. Also allocate Vandermonde matrix used in conversion to visu grid.
       IF (datasetChanged.AND.(iVarDataset.GT.0)) THEN
-        SELECT CASE(nDims)
-        CASE(2) ! Elementwise data
-          ! Allocate array and read dataset
-          SDEALLOCATE(ElemData)
-          ALLOCATE(ElemData(nVal,nElems))
-          CALL ReadArray(TRIM(DatasetName),2,(/nVal,nElems/),offsetElem,2,RealArray=ElemData)
-        CASE(5) ! Pointwise data
-          ! Allocate array and read dataset
-          SDEALLOCATE(FieldData)
-          ALLOCATE(FieldData(nVal,nSize,nSize,nSizeZ,nElems))
-          CALL ReadArray(TRIM(DatasetName),5,(/nVal,nSize,nSize,nSizeZ,nElems/),offsetElem,5,RealArray=FieldData)
-          ! Get Vandermonde matrix used to convert to the visu grid
-          SDEALLOCATE(Vdm_DG_Visu)
-          ALLOCATE(Vdm_DG_Visu(0:NVisu,0:nSize-1))
-          CALL GetVandermonde(nSize-1,NodeType,NVisu,NodeTypeVisuPosti,Vdm_DG_Visu,modal=.FALSE.)
-        CASE DEFAULT
-          CALL Abort(__STAMP__,'Dataset '//TRIM(DatasetName)//' does not have 2 or 5 dimensions.')
-        END SELECT
+        ASSOCIATE (&
+                   nVal       => INT(nVal,IK)       ,&
+                   nSizeZ     => INT(nSizeZ,IK)     ,&
+                   nSize      => INT(nSize,IK)      ,&
+                   nElems     => INT(nElems,IK)     ,&
+                   offsetElem => INT(offsetElem,IK)  &
+                   )
+          SELECT CASE(nDims)
+          CASE(2) ! Elementwise data
+            ! Allocate array and read dataset
+            SDEALLOCATE(ElemData)
+            ALLOCATE(ElemData(nVal,nElems))
+            CALL ReadArray(TRIM(DatasetName),2,(/nVal,nElems/),offsetElem,2,RealArray=ElemData)
+          CASE(5) ! Pointwise data
+            ! Allocate array and read dataset
+            SDEALLOCATE(FieldData)
+            ALLOCATE(FieldData(nVal,nSize,nSize,nSizeZ,nElems))
+            CALL ReadArray(TRIM(DatasetName),5,(/nVal,nSize,nSize,nSizeZ,nElems/),offsetElem,5,RealArray=FieldData)
+            ! Get Vandermonde matrix used to convert to the visu grid
+            SDEALLOCATE(Vdm_DG_Visu)
+            ALLOCATE(Vdm_DG_Visu(0:NVisu,0:nSize-1))
+            CALL GetVandermonde(INT(nSize,4)-1,NodeType,NVisu,NodeTypeVisuPosti,Vdm_DG_Visu,modal=.FALSE.)
+          CASE DEFAULT
+            CALL Abort(__STAMP__,'Dataset '//TRIM(DatasetName)//' does not have 2 or 5 dimensions.')
+          END SELECT
+        END ASSOCIATE
 
         ! Store current name of dataset
         DataSetOld = TRIM(DatasetName)
