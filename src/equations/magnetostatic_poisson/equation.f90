@@ -89,7 +89,6 @@ USE MOD_ReadInTools,ONLY:GETREALARRAY,GETREAL,GETINT
 USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
 USE MOD_Equation_Vars
 USE MOD_Mesh_Vars,ONLY:nSides
-USE MOD_TimeDisc_Vars, ONLY: TEnd
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -99,7 +98,6 @@ USE MOD_TimeDisc_Vars, ONLY: TEnd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-TEnd=GetReal('TEnd')
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    SWRITE(*,*) "InitPoisson not ready to be called or already called."
    RETURN

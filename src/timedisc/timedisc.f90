@@ -109,18 +109,19 @@ SUBROUTINE InitTimeDisc()
 ! Get information for end time and max time steps from ini file
 !===================================================================================================================================
 ! MODULES
+USE MOD_PreProc
 USE MOD_Globals
-USE MOD_ReadInTools,          ONLY:GetReal,GetInt, GETLOGICAL
-USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStepUser
-USE MOD_TimeDisc_Vars,        ONLY:CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal,dtWeight
-USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStep,DoDisplayIter
+USE MOD_ReadInTools   ,ONLY: GetReal,GetInt, GETLOGICAL
+USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStepUser
+USE MOD_TimeDisc_Vars ,ONLY: CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal,dtWeight
+USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStep,DoDisplayIter
 #ifdef IMPA
-USE MOD_TimeDisc_Vars,        ONLY:RK_c, RK_inc,RK_inflow,nRKStages
+USE MOD_TimeDisc_Vars ,ONLY: RK_c, RK_inc,RK_inflow,nRKStages
 #endif
 #ifdef ROS
-USE MOD_TimeDisc_Vars,        ONLY:RK_c, RK_inflow,nRKStages ! required for BCs
+USE MOD_TimeDisc_Vars ,ONLY: RK_c, RK_inflow,nRKStages
 #endif
-USE MOD_PreProc
+USE MOD_TimeDisc_Vars ,ONLY: TEnd
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -144,6 +145,9 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT TIMEDISC...'
 ! Read the normalized CFL number
 CFLScale = GETREAL('CFLScale')
 CALL fillCFL_DFL()
+
+! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
+TEnd=GetReal('TEnd') ! must be read in here due to DSMC_init
 
 ! read in requested IterDisplayStep (i.e. how often the message "iter: etc" is displayed, might be changed dependent on Particle-dt)
 DoDisplayIter=.FALSE.
