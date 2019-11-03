@@ -19,17 +19,26 @@ PROGRAM SuperB_standalone
 ! MODULES
 USE MOD_Globals
 USE MOD_Commandline_Arguments
-USE MOD_SuperB_Init               ,ONLY: InitializeSuperB
-USE MOD_SuperB                    ,ONLY: SuperB
-USE MOD_Globals_Vars              ,ONLY: ParameterFile
-USE MOD_ReadInTools               ,ONLY: prms,PrintDefaultparameterFile,ExtractparameterFile
-USE MOD_Interpolation             ,ONLY: InitInterpolation
-USE MOD_IO_HDF5                   ,ONLY: InitIOHDF5
-USE MOD_MPI                       ,ONLY: InitMPI
-USE MOD_Output                    ,ONLY: InitOutput
-USE MOD_Define_Parameters_Init    ,ONLY: InitDefineParameters
-USE MOD_StringTools               ,ONLY: STRICMP, GetFileExtension
-USE MOD_Interpolation_Vars        ,ONLY: BGField
+USE MOD_SuperB_Init           ,ONLY: InitializeSuperB
+USE MOD_SuperB                ,ONLY: SuperB
+USE MOD_Globals_Vars          ,ONLY: ParameterFile
+USE MOD_ReadInTools           ,ONLY: prms,PrintDefaultparameterFile,ExtractparameterFile
+USE MOD_Interpolation         ,ONLY: InitInterpolation
+USE MOD_IO_HDF5               ,ONLY: InitIOHDF5
+USE MOD_MPI                   ,ONLY: InitMPI
+USE MOD_Output                ,ONLY: InitOutput
+USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation
+USE MOD_IO_HDF5               ,ONLY: DefineParametersIO
+USE MOD_Output                ,ONLY: DefineParametersOutput
+USE MOD_Mesh                  ,ONLY: DefineParametersMesh
+USE MOD_Equation              ,ONLY: DefineParametersEquation
+USE MOD_SuperB_Init           ,ONLY: DefineParametersSuperB
+USE MOD_StringTools           ,ONLY: STRICMP, GetFileExtension
+USE MOD_Interpolation_Vars    ,ONLY: BGField
+USE MOD_Mesh                  ,ONLY: InitMesh
+#ifdef PARTICLES
+USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType
+#endif /*PARTICLES*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -70,10 +79,17 @@ CALL ParseCommandlineArguments()
 IF ((nArgs.GT.1) .OR. ((nArgs.EQ.0).AND.(doPrintHelp.EQ.0)) ) THEN
   ! Print out error message containing valid syntax
   CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: superB parameter.ini '// &
-    'or piclas --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
+    'or superB --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
 END IF
 
-CALL InitDefineParameters()
+!CALL InitDefineParameters()
+
+CALL DefineParametersIO()
+CALL DefineParametersInterpolation()
+CALL DefineParametersOutput()
+CALL DefineParametersMesh()
+CALL DefineParametersEquation()
+CALL DefineParametersSuperB()
 ! check for command line argument --help or --markdown
 IF (doPrintHelp.GT.0) THEN
   CALL PrintDefaultParameterFile(doPrintHelp.EQ.2, Args(1))
@@ -99,18 +115,27 @@ CALL InitGlobals()
 ! Initialization
 CALL InitInterpolation()
 
+CALL InitMesh(0)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the background B-field via SuperB
 !-----------------------------------------------------------------------------------------------------------------------------------
+#ifdef PARTICLES
+InterpolationType = 'particle_position'
+#endif /*PARTICLES*/
 CALL SuperB()
 
 ! Deallocation of BGField
 SDEALLOCATE(BGField)
 
+SystemTime=PICLASTIME()
+SWRITE(UNIT_stdOut,'(132("="))')
+SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' SuperB finished! [',SystemTime-StartTime,' sec ] '
+SWRITE(UNIT_stdOut,'(132("="))')
 ! MPI
 #if USE_MPI
 ! We also have to finalize MPI itself here
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) STOP 'MPI finalize error'
 #endif
+
 END PROGRAM SuperB_standalone

@@ -35,12 +35,13 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection('SuperB')
 
-CALL prms%CreateLogicalOption('PIC-CalcBField-OutputVTK', 'TO-DO','.FALSE.')
+CALL prms%CreateLogicalOption('PIC-CalcBField-OutputVTK', 'Output of the magnets/coils as separate VTK files','.FALSE.')
 
 ! Input of permanent magnets
-CALL prms%CreateIntOption(      'NumOfPermanentMagnets'             , 'TO-DO','0')
-CALL prms%CreateStringOption(   'PermanentMagnet[$]-Type'           , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BasePoint'      , 'TO-DO', numberedmulti=.TRUE.)
+CALL prms%SetSection('Input of permanent magnets')
+CALL prms%CreateIntOption(      'NumOfPermanentMagnets'             , 'Number of permanent magnets','0')
+CALL prms%CreateStringOption(   'PermanentMagnet[$]-Type'           , 'Permanent magnet type: cuboid, sphere, cylinder, conic', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BasePoint'      , 'Origin (vector) for geometry parametrization', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'PermanentMagnet[$]-NumNodes'       , 'TO-DO', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('PermanentMagnet[$]-Magnetisation'  , 'TO-DO', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector1'    , 'TO-DO', numberedmulti=.TRUE.)
@@ -51,15 +52,18 @@ CALL prms%CreateRealOption(     'PermanentMagnet[$]-Radius2'        , 'TO-DO', n
 CALL prms%CreateRealArrayOption('PermanentMagnet[$]-HeightVector'   , 'TO-DO', numberedmulti=.TRUE.)
 
 ! Input of coils
-CALL prms%CreateIntOption(      'NumOfCoils'            , 'TO-DO','0')
-CALL prms%CreateStringOption(   'Coil[$]-Type'          , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Coil[$]-BasePoint'     , 'TO-DO', numberedmulti=.TRUE.)
+CALL prms%SetSection('Input of coils')
+CALL prms%CreateIntOption(      'NumOfCoils'            , 'Number of coils','0')
+CALL prms%CreateStringOption(   'Coil[$]-Type'          , 'Coil type: custom, circle, rectangular, linear', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Coil[$]-BasePoint'     , 'Origin (vector) for geometry parametrization', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Coil[$]-LengthVector'  , 'TO-DO', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Coil[$]-NumNodes'      , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Coil[$]-LoopNum'       , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Coil[$]-PointsPerLoop' , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Coil[$]-Current'       , 'TO-DO', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Coil[$]-LoopNum'       , 'Number of coil loops', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Coil[$]-PointsPerLoop' , 'Number of points per loop (azimuthal discretization)', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Coil[$]-Current'       , 'Electrical coil current [A]', numberedmulti=.TRUE.)
+
 ! Custom coils
+CALL prms%SetSection('Custom coils')
 CALL prms%CreateRealArrayOption('Coil[$]-AxisVec1'      , 'TO-DO', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Coil[$]-NumOfSegments' , 'TO-DO', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Coil[$]-Segment[$]-SegmentType'  , 'TO-DO', numberedmulti=.TRUE.)
@@ -68,17 +72,21 @@ CALL prms%CreateRealArrayOption('Coil[$]-Segment[$]-LineVector'   , 'TO-DO', num
 CALL prms%CreateRealOption(     'Coil[$]-Segment[$]-Radius'       , 'TO-DO', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Coil[$]-Segment[$]-Phi1'         , 'TO-DO', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Coil[$]-Segment[$]-Phi2'         , 'TO-DO', numberedmulti=.TRUE.)
+
 ! Circle coils
-CALL prms%CreateRealOption(     'Coil[$]-Radius'        , 'TO-DO', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Coil[$]-Radius'        , 'Radius for circular coils', numberedmulti=.TRUE.)
+
 ! Rectangle coils
 CALL prms%CreateRealArrayOption('Coil[$]-RectVec1'      , 'TO-DO', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Coil[$]-RectVec2'      , 'TO-DO', numberedmulti=.TRUE.)
+
 ! Time-dependent coils
-CALL prms%CreateLogicalOption(  'Coil[$]-TimeDepCoil'     , 'TO-DO','.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Coil[$]-CurrentAmplitude', 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Coil[$]-CurrentFrequency', 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Coil[$]-CurrentPhase'    , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'nTimePoints'             , 'TO-DO')
+CALL prms%SetSection('Time-dependent coils')
+CALL prms%CreateLogicalOption(  'Coil[$]-TimeDepCoil'     , 'Use time-dependant current for coil','.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Coil[$]-CurrentAmplitude', 'Current amplitude', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Coil[$]-CurrentFrequency', 'Current frequency', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Coil[$]-CurrentPhase'    , 'Current phase shift', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'nTimePoints'             , 'Number of points for time discretization')
 
 END SUBROUTINE DefineParametersSuperB
 
@@ -93,6 +101,7 @@ USE MOD_ReadInTools
 USE MOD_SuperB_Vars
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput
+USE MOD_ReadInTools        ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -147,7 +156,8 @@ ALLOCATE(CurrentInfo(NumOfCoils))
 ! Read-in of coil/conductor parameters
 IF (NumOfCoils.GT.0) THEN
   DO iCoil = 1,NumOfCoils
-    SWRITE(*,*) "|       Read-in infos of coil |", iCoil
+    !SWRITE(*,*) "|       Read-in infos of coil |", iCoil
+    CALL PrintOption('Read-in infos of coil number','superB',IntOpt=iCoil)
     WRITE(UNIT=hilf,FMT='(I0)') iCoil
     CoilInfo(iCoil)%Type              = GETSTR('Coil'//TRIM(hilf)//'-Type')
     CoilInfo(iCoil)%BasePoint(1:3)    = GETREALARRAY('Coil'//TRIM(hilf)//'-BasePoint',3)

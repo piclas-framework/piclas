@@ -465,7 +465,7 @@ FileName=TRIM(ProjectName)//'_BField.h5'
 IF(MPIRoot) THEN
   CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
   ! Write file header
-  CALL WriteHDF5Header('BField',File_ID)
+  CALL WriteHDF5Header('BField',File_ID) ! File_Type='BField'
   ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
   CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=N)
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFile)/))

@@ -140,6 +140,10 @@ IF(ANY(TimeDepCoil)) THEN
           CALL SetUpRectangleCoil(iCoil)
         CASE('linear')
           CALL SetUpLinearConductor(iCoil)
+        CASE DEFAULT
+          CALL abort(&
+          __STAMP__&
+          ,'Unkown time-dependant coil type ['//TRIM(CoilInfo(iCoil)%Type)//']')
         END SELECT
         IF(BGFieldVTKOutput) THEN
           IF(iTimePoint.EQ.0) THEN
@@ -176,6 +180,10 @@ ELSE
         CALL SetUpRectangleCoil(iCoil)
       CASE('linear')
         CALL SetUpLinearConductor(iCoil)
+      CASE DEFAULT
+        CALL abort(&
+        __STAMP__&
+        ,'Unkown coil type ['//TRIM(CoilInfo(iCoil)%Type)//']')
       END SELECT
       IF(BGFieldVTKOutput) THEN
         SWRITE(UNIT_stdOut,'(A)') ' Write Coil to VTK File'

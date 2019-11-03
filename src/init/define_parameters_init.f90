@@ -41,7 +41,7 @@ USE MOD_LoadBalance                     ,ONLY: DefineParametersLoadBalance
 USE MOD_Analyze                         ,ONLY: DefineParametersAnalyze
 USE MOD_RecordPoints                    ,ONLY: DefineParametersRecordPoints
 USE MOD_TimeDisc                        ,ONLY: DefineParametersTimedisc
-USE MOD_Mesh                            ,ONLY: DefineparametersMesh
+USE MOD_Mesh                            ,ONLY: DefineParametersMesh
 USE MOD_Equation                        ,ONLY: DefineParametersEquation
 USE MOD_SuperB_Init                     ,ONLY: DefineParametersSuperB
 #if !(USE_HDG)
