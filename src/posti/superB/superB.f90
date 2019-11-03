@@ -29,7 +29,7 @@ USE MOD_MPI                       ,ONLY: InitMPI
 USE MOD_Output                    ,ONLY: InitOutput
 USE MOD_Define_Parameters_Init    ,ONLY: InitDefineParameters
 USE MOD_StringTools               ,ONLY: STRICMP, GetFileExtension
-USE MOD_InitializeBackgroundField ,ONLY: FinalizeBackGroundField
+USE MOD_Interpolation_Vars        ,ONLY: BGField
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -37,9 +37,6 @@ REAL                    :: SystemTime
 !===================================================================================================================================
 ! Initialize
 !CALL InitializePiclas()
-
-
-
 
 CALL SetStackSizeUnlimited()
 
@@ -94,16 +91,13 @@ CALL InitGlobals()
 ! Initialization
 CALL InitInterpolation()
 
-
-
-
-
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the background B-field via SuperB
-CALL InitializeSuperB()
+!-----------------------------------------------------------------------------------------------------------------------------------
 CALL SuperB()
 
 ! Deallocation of BGField
-CALL  FinalizeBackgroundField()
+SDEALLOCATE(BGField)
 
 ! MPI
 #if USE_MPI
