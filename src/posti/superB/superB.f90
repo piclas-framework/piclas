@@ -43,15 +43,23 @@ CALL SetStackSizeUnlimited()
 CALL InitMPI()
 
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A)')"                                        _______      "
-SWRITE(UNIT_stdOut,'(A)')"                                       (  ____ \     "
-SWRITE(UNIT_stdOut,'(A)')"                                       | (    \/     "
-SWRITE(UNIT_stdOut,'(A)')"                                       | (_____      "
-SWRITE(UNIT_stdOut,'(A)')"                                       (_____  )     "
-SWRITE(UNIT_stdOut,'(A)')"                                             ) |     "
-SWRITE(UNIT_stdOut,'(A)')"                                       /\____) |     "
-SWRITE(UNIT_stdOut,'(A)')"                                       \_______)uperB"
-SWRITE(UNIT_stdOut,'(132(" "))')
+SWRITE(UNIT_stdOut,'(A)') "                                                                             D  "
+SWRITE(UNIT_stdOut,'(A)') "                                                                      :NNNNNNNN "
+SWRITE(UNIT_stdOut,'(A)') "                                                                             D  "
+SWRITE(UNIT_stdOut,'(A)') "                                                                                "
+SWRITE(UNIT_stdOut,'(A)') "    MMMMMMMMI                                                         MMMMMMMM~ "
+SWRITE(UNIT_stdOut,'(A)') "  MM,      D=                                                         MM     MM~"
+SWRITE(UNIT_stdOut,'(A)') " ?MZ            MI     MM   MM NMMMM      ,MMMMN     MO +MMD         IM      MM "
+SWRITE(UNIT_stdOut,'(A)') " ,MM           MM      M,   MMM   OMM   +MN    MM   MMMM             MM    IMM  "
+SWRITE(UNIT_stdOut,'(A)') "   NMMMMMM     MM     MM   +M7     MM   M      MM   MM               MMMMMMMMM  "
+SWRITE(UNIT_stdOut,'(A)') "         MM:  IM+     MN   MM      MM  MMMMMMMMMM  :M?              MM       MM "
+SWRITE(UNIT_stdOut,'(A)') "         7M:  MM     $M,   MM     OM+  MM          MM               MM       MM "
+SWRITE(UNIT_stdOut,'(A)') "M~      ?MM   MM    ?MM   IM     DM7   MM      ?   MM              ZMZ     ~MM  "
+SWRITE(UNIT_stdOut,'(A)') "MMMMMMMMM     NMMMMM MM   MMMMMMMM      MMMMMMMN  ZM               MMMMMMMMM    "
+SWRITE(UNIT_stdOut,'(A)') "                         M=                                                     "
+SWRITE(UNIT_stdOut,'(A)') "                        MM                                                      "
+SWRITE(UNIT_stdOut,'(A)') "                        ~~                                                      "
+SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')"superB version 1.0.0"
 SWRITE(UNIT_stdOut,'(132("="))')
 
