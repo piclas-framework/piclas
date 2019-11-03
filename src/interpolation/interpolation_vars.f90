@@ -23,18 +23,23 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reserved for Gauss Points with polynomial degree N, all allocated (0:N)
-REAL,ALLOCATABLE  :: L_Plus(:), L_Minus(:)       ! L for boundary flux computation at both sides (-1,1)
-REAL,ALLOCATABLE  :: L_PlusMinus(:,:)            ! L for boundary flux computation at both sides (-1,1)
-REAL,ALLOCATABLE  :: xGP(:)                      ! Gauss point coordinates
-REAL,ALLOCATABLE  :: wGP(:)                      ! GP integration weights
-REAL,ALLOCATABLE  :: swGP(:)                     ! 1.0/ GP integration weights
-REAL,ALLOCATABLE  :: wBary(:)                    ! barycentric weights
-REAL,ALLOCATABLE  :: wGPSurf(:,:)                ! wGPSurf(i,j)=wGP(i)*wGP(j)
-REAL,ALLOCATABLE  :: NChooseK(:,:)               ! array n over n
+REAL,ALLOCATABLE  :: L_Plus(:)                   !< L for boundary flux computation at plus side  (1)
+REAL,ALLOCATABLE  :: L_Minus(:)                  !< L for boundary flux computation at minus side (-1)
+REAL,ALLOCATABLE  :: L_PlusMinus(:,:)            !< L for boundary flux computation at both sides (-1,1)
+REAL,ALLOCATABLE  :: xGP(:)                      !< Gauss point coordinates
+REAL,ALLOCATABLE  :: wGP(:)                      !< GP integration weights
+REAL,ALLOCATABLE  :: swGP(:)                     !< 1.0/ GP integration weights
+REAL,ALLOCATABLE  :: wBary(:)                    !< barycentric weights
+REAL,ALLOCATABLE  :: wGPSurf(:,:)                !< wGPSurf(i,j)=wGP(i)*wGP(j)
+REAL,ALLOCATABLE  :: NChooseK(:,:)               !< array n over n
 REAL,ALLOCATABLE  :: Vdm_Leg(:,:), sVdm_Leg(:,:) !< Legendre Vandermonde matrix
+
+!==================================================================================================================================
+!@{ Named nodetype parameters
+!==================================================================================================================================
 CHARACTER(LEN=255),PARAMETER :: NodeTypeG    = 'GAUSS'                    !< Gauss nodes (-1,1)
 CHARACTER(LEN=255),PARAMETER :: NodeTypeGL   = 'GAUSS-LOBATTO'            !< Gauss-Lobatto nodes [-1,1]
-CHARACTER(LEN=255),PARAMETER :: NodeTypeCL   = 'CHEBYSHEV-GAUSS-LOBATTO'
+CHARACTER(LEN=255),PARAMETER :: NodeTypeCL   = 'CHEBYSHEV-GAUSS-LOBATTO'  !< Chebyshev-Gauss-Lobatto nodes [-1,1]
 CHARACTER(LEN=255),PARAMETER :: NodeTypeVISU = 'VISU'                     !< equidistant nodes [-1,1]
 #if (PP_NodeType==1)
   CHARACTER(LEN=255),PARAMETER :: NodeType = 'GAUSS'
@@ -43,7 +48,19 @@ CHARACTER(LEN=255),PARAMETER :: NodeTypeVISU = 'VISU'                     !< equ
 #elif (PP_NodeType==3)
   CHARACTER(LEN=255),PARAMETER :: NodeType = 'CHEBYSHEV-GAUSS-LOBATTO'
 #endif
+
+!==================================================================================================================================
+! (Magnetic) background field
+!==================================================================================================================================
+INTEGER          :: NBG                !< Polynomial degree of BG-Field
+INTEGER          :: BGType             !< Type of BG-Field (Electric,Magnetic,Both)
+INTEGER          :: BGDataSize         !< Type of BG-Field (Electric,Magnetic,Both)
+REAL,ALLOCATABLE :: BGField(:,:,:,:,:) !< BGField data (1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems)
+REAL,ALLOCATABLE :: BGField_xGP(:)     !< Gauss point coordinates
+REAL,ALLOCATABLE :: BGField_wGP(:)     !< GP integration weights
+REAL,ALLOCATABLE :: BGField_wBary(:)   !< barycentric weights
+LOGICAL          :: BGFieldVTKOutput   !< Output the background field in VTK data format
 !===================================================================================================================================
 
-LOGICAL           :: InterpolationInitIsDone = .FALSE.
+LOGICAL           :: InterpolationInitIsDone = .FALSE. !< Flag whether the initialization has been completed or not
 END MODULE MOD_Interpolation_Vars

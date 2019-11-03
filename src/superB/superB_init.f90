@@ -90,9 +90,9 @@ SUBROUTINE InitializeSuperB()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Globals_Vars            ,ONLY: PI
-USE MOD_PICInterpolation_Vars   ,ONLY: BGFieldVTKOutput
 USE MOD_SuperB_Vars
+USE MOD_Globals_Vars       ,ONLY: PI
+USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -106,10 +106,10 @@ CHARACTER(LEN=32)         :: hilf,hilf2
 !===================================================================================================================================
 
 ! Output of the magnets/coils as separate VTK files
-BGFieldVTKOutput         = GETLOGICAL('PIC-CalcBField-OutputVTK','.FALSE.')
+BGFieldVTKOutput     = GETLOGICAL('PIC-CalcBField-OutputVTK','.FALSE.')
 
 ! Get the number of magnets
-NumOfPermanentMagnets       = GETINT('NumOfPermanentMagnets','0')
+NumOfPermanentMagnets= GETINT('NumOfPermanentMagnets','0')
 ! Allocate the magnets
 ALLOCATE(PermanentMagnetInfo(NumOfPermanentMagnets))
 ! Read-in of magnet parameters
@@ -234,24 +234,26 @@ END IF
 END SUBROUTINE InitializeSuperB
 
 
-SUBROUTINE FinalizeSuperB
-!===================================================================================================================================
-!> 
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-! IMPLICIT VARIABLE HANDLING
+SUBROUTINE FinalizeSuperB()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Deallocate the respective arrays used by superB
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_SuperB_Vars
+!----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES 
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-
-
-
+SDEALLOCATE(PsiMag)
+SDEALLOCATE(MagnetFlag)
+SDEALLOCATE(PermanentMagnetInfo)
+SDEALLOCATE(CoilInfo)
+SDEALLOCATE(TimeDepCoil)
+SDEALLOCATE(CurrentInfo)
 END SUBROUTINE FinalizeSuperB
+
 
 END MODULE MOD_SuperB_Init

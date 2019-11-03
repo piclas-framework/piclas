@@ -48,12 +48,12 @@ USE MOD_Mesh_Vars             ,ONLY: OffsetElem,nGlobalElems,MeshFile
 USE MOD_Preproc               ,ONLY: PP_nElems
 USE MOD_ReadInTools           ,ONLY: GETSTR,GETINT,GETREAL
 USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray
-USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType,NBG,BGType,BGField,CalcBField
-USE MOD_PICInterpolation_Vars ,ONLY: BGField_xGP,BGField_wGP,BGField_wBary,BGDataSize
+USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType,CalcBField
+USE MOD_Interpolation_Vars    ,ONLY: NBG,BGType,BGField
+USE MOD_Interpolation_Vars    ,ONLY: BGField_xGP,BGField_wGP,BGField_wBary,BGDataSize
 USE MOD_Interpolation_Vars    ,ONLY: NodeType
 USE MOD_ReadInTools           ,ONLY: PrintOption
 USE MOD_SuperB                ,ONLY: SuperB
-USE MOD_SuperB_Init           ,ONLY: InitializeSuperB
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -79,7 +79,6 @@ SWRITE(UNIT_stdOut,'(A)')' INIT BackGround-Field'
 ! Check whether the background field is to be calculated or directly supplied in a .h5 file
 IF (CalcBField) THEN
   ! Calculate the background B-field via SuperB
-  CALL InitializeSuperB()
   CALL SuperB()
 ELSE
   ! Load background field from file
@@ -248,10 +247,10 @@ USE MOD_PICInterpolation_Vars,  ONLY:BGField_xGP,BGField_wGP,BGField_wBary,BGFie
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SDEALLOCATE( BGField)
-SDEALLOCATE( BGField_xGP)
-SDEALLOCATE( BGField_wGP)
-SDEALLOCATE( BGField_wBary)
+SDEALLOCATE(BGField)
+SDEALLOCATE(BGField_xGP)
+SDEALLOCATE(BGField_wGP)
+SDEALLOCATE(BGField_wBary)
 END SUBROUTINE FinalizeBackGroundField
 
 END MODULE
