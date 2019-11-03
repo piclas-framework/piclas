@@ -26,6 +26,7 @@ USE MOD_ReadInTools           ,ONLY: prms,PrintDefaultparameterFile,Extractparam
 USE MOD_Interpolation         ,ONLY: InitInterpolation
 USE MOD_IO_HDF5               ,ONLY: InitIOHDF5
 USE MOD_MPI                   ,ONLY: InitMPI
+USE MOD_Equation              ,ONLY: InitEquation
 USE MOD_Output                ,ONLY: InitOutput
 USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation
 USE MOD_IO_HDF5               ,ONLY: DefineParametersIO
@@ -114,6 +115,7 @@ CALL InitGlobals()
 
 ! Initialization
 CALL InitInterpolation()
+CALL InitEquation()
 
 CALL InitMesh(0)
 !-----------------------------------------------------------------------------------------------------------------------------------
