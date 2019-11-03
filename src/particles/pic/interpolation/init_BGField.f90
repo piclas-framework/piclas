@@ -237,7 +237,7 @@ SUBROUTINE FinalizeBackgroundField
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PICInterpolation_Vars,  ONLY:BGField_xGP,BGField_wGP,BGField_wBary,BGField
+USE MOD_Interpolation_Vars, ONLY:BGField_xGP,BGField_wGP,BGField_wBary,BGField
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

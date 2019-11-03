@@ -173,7 +173,7 @@ USE MOD_Equation_Vars          ,ONLY: B,E
 #endif /*PP_nVar==1*/
 #endif /*USE_HDG*/
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
-USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
+USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
 #if USE_MPI
 ! only required for shape function??  only required for shape function??
@@ -182,10 +182,11 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
 #endif /* CODE_ANALYZE */
-USE MOD_PICInterpolation_Vars     ,ONLY: CalcBField,BGField
-USE MOD_SuperB_Vars               ,ONLY: TimeDepCoil, nTimePoints, BGFieldTDep
-USE MOD_TimeDisc_Vars             ,ONLY: Time, TEnd
-USE MOD_HDF5_Output_Tools         ,ONLY: WriteBFieldToHDF5
+USE MOD_PICInterpolation_Vars  ,ONLY: CalcBField
+USE MOD_Interpolation_Vars     ,ONLY: BGField
+USE MOD_SuperB_Vars            ,ONLY: TimeDepCoil, nTimePoints, BGFieldTDep
+USE MOD_TimeDisc_Vars          ,ONLY: Time, TEnd
+USE MOD_HDF5_Output_Tools      ,ONLY: WriteBFieldToHDF5
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
