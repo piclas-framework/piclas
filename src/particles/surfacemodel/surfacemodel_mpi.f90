@@ -855,10 +855,10 @@ IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner B
   DO iSide=nBCSides+1,nSides
     IF(BC(iSide).EQ.0) CYCLE
     IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
-      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1) THEN ! SlaveSide
+      TargetHaloSide = SurfMesh%innerBCSideToHaloMap(iSide)
+      IF(TargetHaloSide.NE.-1) THEN ! SlaveSide
         DO q=1,nSurfSample
           DO p=1,nSurfSample
-            TargetHaloSide = SurfMesh%innerBCSideToHaloMap(iSide)
             SurfSideID=SurfMesh%SideIDToSurfID(iSide)
             SurfSideHaloID=SurfMesh%SideIDToSurfID(TargetHaloSide)
             IF (locReverse) THEN
