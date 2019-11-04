@@ -251,7 +251,7 @@ INTEGER,ALLOCATABLE           :: iPartIndex(:), PairingPartner(:), iPartIndexSpe
 REAL                          :: iRan, ProbRest
 !===================================================================================================================================
 nPart = PEM%pNumber(iElem)
-MCC_TotalPairNum = 0.
+MCC_TotalPairNum = 0
 
 ALLOCATE(iPartIndex(nPart))
 CollInf%Coll_SpecPartNum = 0.
