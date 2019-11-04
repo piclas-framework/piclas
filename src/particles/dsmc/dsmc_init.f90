@@ -355,6 +355,14 @@ CALL prms%CreateStringOption(     'DSMC-Reaction[$]-TLU_FileName'  &
                                 , 'with DoScat=F: No TLU-File needed '//&
                                 '(def.: )', '0' , numberedmulti=.TRUE.)
 
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
+                                           ,'Utilize collision cross sections for the determination of collision probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
+                                                               'should be named with species pair (e.g. "Ar-electron"). The '//&
+                                                               'first column shall contain the energy in eV and the second '//&
+                                                               'column the cross-section in m^2', 'none')
+
 END SUBROUTINE DefineParametersDSMC
 
 SUBROUTINE InitDSMC()
@@ -377,6 +385,7 @@ USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, PartBound
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
+USE MOD_DSMC_SpecXSec          ,ONLY: MCC_Init
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -635,12 +644,19 @@ ELSE !CollisMode.GT.0
       !the omega should be the same for both in vhs!!!
     END DO
   END DO
-
   !-----------------------------------------------------------------------------------------------------------------------------------
-  ! reading BG Gas stuff (required for the temperature definition in iInit=0)
+  ! Collision cross-sections (required for MCC treatment of particles)
   !-----------------------------------------------------------------------------------------------------------------------------------
-  !...moved to InitializeVariables!!!
-
+  DO iSpec = 1, nSpecies
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
+  END DO
+  IF(ANY(SpecDSMC(:)%UseCollXSec)) THEN
+    UseMCC = .TRUE.
+    CALL MCC_Init()
+  ELSE
+    UseMCC = .FALSE.
+  END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! reading/writing molecular stuff
   !-----------------------------------------------------------------------------------------------------------------------------------
