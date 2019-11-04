@@ -82,19 +82,20 @@ INTEGER               :: INFO, iQuant, iQuaMax, nRotRelax, nVibRelax, info_dgesv
 REAL                  :: partWeight, totalWeight
 #ifdef CODE_ANALYZE
 REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
-INTEGER               :: iMom
+INTEGER               :: iMom, iPart
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
 #ifdef CODE_ANALYZE
 ! Momentum and energy conservation check: summing up old values
 Momentum_new = 0.0; Momentum_old = 0.0; Energy_new = 0.0; Energy_old = 0.0
 DO iLoop = 1, nPart
-  partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
-  Momentum_old(1:3) = Momentum_old(1:3) + PartState(4:6,iPartIndx_Node(iLoop)) * partWeight
-  Energy_old = Energy_old + (PartState(4,iPartIndx_Node(iLoop))**2. + PartState(5,iPartIndx_Node(iLoop))**2. &
-                             + PartState(6,iPartIndx_Node(iLoop))**2.)*0.5*Species(1)%MassIC * partWeight
+  iPart = iPartIndx_Node(iLoop)
+  partWeight = GetParticleWeight(iPart)
+  Momentum_old(1:3) = Momentum_old(1:3) + PartState(4:6,iPart) * partWeight
+  Energy_old = Energy_old + (PartState(4,iPart)**2. + PartState(5,iPart)**2. &
+                             + PartState(6,iPart)**2.)*0.5*Species(1)%MassIC * partWeight
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
-    Energy_old = Energy_old + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop))) * partWeight
+    Energy_old = Energy_old + (PartStateIntEn(1,iPart) + PartStateIntEn(2,iPart)) * partWeight
   END IF
 END DO
 #endif
@@ -641,14 +642,14 @@ DEALLOCATE(Ni)
 
 #ifdef CODE_ANALYZE
 DO iLoop = 1, nPart
-  partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
-  Momentum_new(1:3) = Momentum_new(1:3) + (DSMC_RHS(1:3,iPartIndx_Node(iLoop)) + PartState((4:6,iPartIndx_Node(iLoop)))*partWeight
+  iPart = iPartIndx_Node(iLoop)
+  partWeight = GetParticleWeight(iPart)
+  Momentum_new(1:3) = Momentum_new(1:3) + (DSMC_RHS(1:3,iPart) + PartState(4:6,iPart))*partWeight
   Energy_new = Energy_new &
-          + ((DSMC_RHS(1,iPartIndx_Node(iLoop)) + PartState(4,iPartIndx_Node(iLoop)))**2. &
-          +  (DSMC_RHS(2,iPartIndx_Node(iLoop)) + PartState(5,iPartIndx_Node(iLoop)))**2. &
-          +  (DSMC_RHS(3,iPartIndx_Node(iLoop)) + PartState(6,iPartIndx_Node(iLoop)))**2.)*0.5*Species(1)%MassIC*partWeight
+          + ((DSMC_RHS(1,iPart) + PartState(4,iPart))**2. + (DSMC_RHS(2,iPart) + PartState(5,iPart))**2. &
+          +  (DSMC_RHS(3,iPart) + PartState(6,iPart))**2.)*0.5*Species(1)%MassIC*partWeight
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
-    Energy_new = Energy_new + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop))*partWeight
+    Energy_new = Energy_new + (PartStateIntEn(1,iPart) + PartStateIntEn(2,iPart))*partWeight
   END IF
 END DO
 ! Check for energy difference
