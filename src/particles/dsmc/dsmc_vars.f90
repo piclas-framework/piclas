@@ -173,6 +173,15 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
   INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
 !                                                           ! ionization)
+  ! Collision cross-sections for MCC
+  LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
+                                                            ! treated with read-in collision cross-section (currently only with BGG)
+  REAL,ALLOCATABLE                  :: CollXSec(:,:)        ! Collision cross-section as read-in from the database
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: Cross-section at the respective energy level [m^2]
+  REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
+                                                            ! null collision method of MCC
+  REAL                              :: MaxCollFreq          ! Maximal collision frequency at certain energy level and cross-section
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
@@ -277,6 +286,10 @@ TYPE tBGGas
 END TYPE tBGGas
 
 TYPE(tBGGas)                        :: BGGas
+
+LOGICAL                             :: UseMCC
+CHARACTER(LEN=256)                  :: MCC_Database
+INTEGER                             :: MCC_TotalPairNum
 
 TYPE tPairData
   REAL              :: CRela2                               ! squared relative velo of the particles in a pair
