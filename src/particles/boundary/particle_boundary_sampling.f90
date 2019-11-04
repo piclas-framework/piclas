@@ -147,6 +147,11 @@ LOGICAL,ALLOCATABLE                    :: IsSlaveSide(:)
 INTEGER                                :: iElem,HaloElemID,iHaloSide,iLocSide
 #endif /*USE_MPI*/
 !===================================================================================================================================
+! Workflow
+! 0. Create boundary name mapping for surfaces SurfaceBC number mapping
+! 1. Normal BCs
+! 2. Inner BCs
+! 3. HALO BCs
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
 WRITE(UNIT=hilf,FMT='(I0)') NGeo
@@ -180,7 +185,9 @@ DO q=0,nSurfSample
   XiEQ_SurfSample(q) = dXiEQ_SurfSample * REAL(q) - 1.
 END DO
 
-! create boundary name mapping for surfaces SurfaceBC number mapping
+! --------------------------------------------------
+! 0. Create boundary name mapping for surfaces SurfaceBC number mapping
+! --------------------------------------------------
 nSurfBC = 0
 ALLOCATE(BCName(1:nBCs))
 DO iBC=1,nBCs
@@ -210,6 +217,9 @@ NBElemOfHalo(1:nTotalSides)=-1
 ALLOCATE(IsSlaveSide(1:nSides))
 IsSlaveSide(1:nSides)= .FALSE.
 
+! --------------------------------------------------
+! 1. Normal BCs
+! --------------------------------------------------
 ! own BCsides
 SurfMesh%nSides=0
 SurfMesh%nMasterSides=0
@@ -224,6 +234,10 @@ DO iSide=1,nBCSides
     SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
   END IF
 END DO
+
+! --------------------------------------------------
+! 2. Inner BCs
+! --------------------------------------------------
 ! own inner BCsides (inner sides with refelctive PartBC)
 ! for clear assignment of innerBCSide between two procs Master/Slave definition is used
 !   (1)     SlaveSides that are innerBCsides are tagged by IsSlaveSide(iSide)
@@ -267,6 +281,9 @@ __STAMP__&
   END IF
 END DO
 
+! --------------------------------------------------
+! 3. HALO BCs
+! --------------------------------------------------
 ! SlaveSides that are innerBCsides are added to SurfMesh%nSides after all innerBC MasterSides
 ! in in order to get the correct InnerSideOffset for hdf5 output =>
 ! second loop over iSide=nBCSides+1,nSides is needed
