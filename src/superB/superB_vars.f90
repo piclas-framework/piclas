@@ -1,0 +1,93 @@
+!==================================================================================================================================
+! Copyright (c) 2019 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
+
+MODULE MOD_SuperB_Vars
+!===================================================================================================================================
+! Contains the global variables for different coils and permanent magnets
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+PUBLIC
+SAVE
+
+! === Coils
+INTEGER :: NumOfCoils
+
+TYPE tSegmentInfo
+  CHARACTER(LEN=255)  :: SegmentType ! 1: Line, 2: Circle Segment
+  INTEGER             :: NumOfPoints
+  REAL                :: LineVector(2)
+  REAL                :: Radius
+  REAL                :: Phi1
+  REAL                :: Phi2
+END TYPE tSegmentInfo
+
+TYPE tCoilInfo
+  CHARACTER(LEN=255)              :: Type                       !< Custom, circle, rectangle, linear
+  INTEGER                         :: NumNodes
+  REAL                            :: Current
+  INTEGER                         :: LoopNum
+  INTEGER                         :: PointsPerLoop
+  INTEGER                         :: NumOfSegments
+  REAL                            :: LengthVector(3)
+  REAL                            :: Length
+  REAL                            :: AxisVec1(3)
+  REAL                            :: BasePoint(3)
+  TYPE(tSegmentInfo),ALLOCATABLE  :: SegmentInfo(:)
+  REAL                            :: LoopLength
+  REAL                            :: Radius                     !< Circular coil-specific
+  REAL                            :: RectVec1(2)                !< Rectangular coil-specific
+  REAL                            :: RectVec2(2)                !< Rectangular coil-specific
+END TYPE tCoilInfo
+
+TYPE(tCoilInfo),ALLOCATABLE       :: CoilInfo(:)
+
+REAL, ALLOCATABLE                 :: CoilNodes(:,:)
+
+TYPE tCurrentInfo
+  REAL                            :: CurrentAmpl
+  REAL                            :: CurrentFreq
+  REAL                            :: CurrentPhase
+END TYPE tCurrentInfo
+
+TYPE(tCurrentInfo),ALLOCATABLE    :: CurrentInfo(:)
+
+LOGICAL, ALLOCATABLE              :: TimeDepCoil(:)
+INTEGER                           :: nTimePoints
+REAL, ALLOCATABLE                 :: BGFieldTDep(:,:,:,:,:,:)   !< Time dep. BGField (1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems,1:nTime)
+
+! === Permanent Magnets
+
+INTEGER                 :: NumOfPermanentMagnets
+
+TYPE tPermanentMagnetInfo
+  CHARACTER(LEN=255)    :: Type                       !< Cuboid, sphere, cylinder, conic
+  REAL                  :: BasePoint(3)
+  REAL                  :: BaseVector1(3)
+  REAL                  :: BaseVector2(3)
+  REAL                  :: BaseVector3(3)
+  INTEGER               :: NumNodes
+  REAL                  :: Magnetisation(3)
+  REAL                  :: Radius                     !< Sphere, cylinder, conic
+  REAL                  :: HeightVector(3)            !< Cylinder, conic
+  REAL                  :: Radius2                    !< Conic
+END TYPE tPermanentMagnetInfo
+
+TYPE(tPermanentMagnetInfo),ALLOCATABLE :: PermanentMagnetInfo(:)
+
+REAL, ALLOCATABLE                   :: PsiMag(:,:,:,:)
+INTEGER, ALLOCATABLE                :: MagnetFlag(:,:,:,:)
+
+END MODULE MOD_SuperB_Vars
