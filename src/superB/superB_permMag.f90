@@ -14,7 +14,7 @@
 
 MODULE MOD_SuperB_PermMag
 !===================================================================================================================================
-! Contains the calculation of the magnetic field of a permanent magnet
+!> Contains the calculation of the magnetic field of a permanent magnet
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -54,7 +54,7 @@ CONTAINS
 
 SUBROUTINE CalculateCuboidMagneticPotential(iMagnet)
 !===================================================================================================================================
-! Calculates the magnetic potential of a cuboid permanent magnet
+!> Calculates the magnetic potential of a cuboid permanent magnet
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars       ,ONLY: PI
@@ -268,9 +268,10 @@ SDEALLOCATE( wGP)
 
 END SUBROUTINE CalculateCuboidMagneticPotential
 
+
 SUBROUTINE CalculateSphericMagneticPotential(iMagnet)
 !===================================================================================================================================
-! Calculates the magnetic potential of a spheric permanent magnet
+!> Calculates the magnetic potential of a spheric permanent magnet
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars       ,ONLY: PI
@@ -411,9 +412,10 @@ SDEALLOCATE( wGP)
 
 END SUBROUTINE CalculateSphericMagneticPotential
 
+
 SUBROUTINE CalculateCylindricMagneticPotential(iMagnet)
 !===================================================================================================================================
-! Calculates the magnetic potential of a cylindric permanent magnet
+!> Calculates the magnetic potential of a cylindric permanent magnet
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -622,9 +624,10 @@ END IF
 
 END SUBROUTINE CalculateCylindricMagneticPotential
 
+
 SUBROUTINE CalculateConicMagneticPotential(iMagnet)
 !===================================================================================================================================
-! Calculates the magnetic potential of a conic part
+!> Calculates the magnetic potential of a conic part
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars       ,ONLY: PI
@@ -836,9 +839,10 @@ END IF
 
 END SUBROUTINE CalculateConicMagneticPotential
 
+
 SUBROUTINE CalculateNormalVector(vec1, vec2, vec3, normalVec, normalUnitVec)
 !===================================================================================================================================
-! Contains the calculation of the surface normal vector and its corresponding unit vector
+!> Contains the calculation of the surface normal vector and its corresponding unit vector
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -873,7 +877,7 @@ END SUBROUTINE CalculateNormalVector
 
 SUBROUTINE CalculateGradient()
 !===================================================================================================================================
-! Contains the calculation of the gradient of the magnetic potential to get the B-Field
+!> Contains the calculation of the gradient of the magnetic potential to get the B-Field
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -947,4 +951,3 @@ END DO
 END SUBROUTINE CalculateGradient
 
 END MODULE MOD_SuperB_PermMag
-

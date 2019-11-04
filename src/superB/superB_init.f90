@@ -35,50 +35,75 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection('SuperB')
 
-CALL prms%CreateLogicalOption('PIC-CalcBField-OutputVTK', 'Output of the magnets/coils as separate VTK files','.FALSE.')
+CALL prms%CreateLogicalOption('PIC-CalcBField-OutputVTK', 'Output of the magnets/coils geometry as separate VTK files','.FALSE.')
 
 ! Input of permanent magnets
 CALL prms%SetSection('Input of permanent magnets')
 CALL prms%CreateIntOption(      'NumOfPermanentMagnets'             , 'Number of permanent magnets','0')
-CALL prms%CreateStringOption(   'PermanentMagnet[$]-Type'           , 'Permanent magnet type: cuboid, sphere, cylinder, conic', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BasePoint'      , 'Origin (vector) for geometry parametrization', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'PermanentMagnet[$]-NumNodes'       , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('PermanentMagnet[$]-Magnetisation'  , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector1'    , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector2'    , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector3'    , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'PermanentMagnet[$]-Radius'         , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'PermanentMagnet[$]-Radius2'        , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('PermanentMagnet[$]-HeightVector'   , 'TO-DO', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'PermanentMagnet[$]-Type'           , 'Permanent magnet type: cuboid, sphere, cylinder, conic', &
+                                                                      numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BasePoint'      , 'Origin (vector) for geometry parametrization', &
+                                                                      numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'PermanentMagnet[$]-NumNodes'       , 'Number of Gauss points for the discretization of the '//&
+                                                                      'permanent magnet:\n'//&
+                                                                      'Cuboid: N points in each direction (total number: 6N^2)\n'//&
+                                                                      'Sphere: N divisions in the zenith direction with 2*N '//&
+                                                                      'points in the azimuthal direction\n'//&
+                                                                      'Cylinder: N divisions along height vector, 2*N points in '//&
+                                                                      'the azimuthal direction, N points in radial direction on '//&
+                                                                      'the top and bottom face\n'//&
+                                                                      'Conic: see the cylinder NumNodes description', &
+                                                                      numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('PermanentMagnet[$]-Magnetisation'  , 'Magnetisation vector in [A/m]', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector1'    , 'Vector 1 spanning the cuboid', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector2'    , 'Vector 2 spanning the cuboid', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector3'    , 'Vector 3 spanning the cuboid', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'PermanentMagnet[$]-Radius'         , 'Radius of a spheric, cylindric and conic (first radius) '//&
+                                                                      'permanent magnet', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'PermanentMagnet[$]-Radius2'        , 'Radius of the second radius of the conic permanent magnet', &
+                                                                      numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('PermanentMagnet[$]-HeightVector'   , 'Height vector of cylindric and conic permanent magnet', &
+                                                                      numberedmulti=.TRUE.)
 
 ! Input of coils
 CALL prms%SetSection('Input of coils')
 CALL prms%CreateIntOption(      'NumOfCoils'            , 'Number of coils','0')
-CALL prms%CreateStringOption(   'Coil[$]-Type'          , 'Coil type: custom, circle, rectangular, linear', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Coil[$]-BasePoint'     , 'Origin (vector) for geometry parametrization', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Coil[$]-LengthVector'  , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Coil[$]-NumNodes'      , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Coil[$]-LoopNum'       , 'Number of coil loops', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Coil[$]-PointsPerLoop' , 'Number of points per loop (azimuthal discretization)', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Coil[$]-Type'          , 'Coil type: custom, circle, rectangular, linear conductor (straight '//&
+                                                          'wire)', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Coil[$]-BasePoint'     , 'Origin vector of the coil/linear conductor', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Coil[$]-LengthVector'  , 'Length vector of the coil/linear conductor, normal to the cross-'//&
+                                                          'sectional area', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Coil[$]-Current'       , 'Electrical coil current [A]', numberedmulti=.TRUE.)
 
+! Linear conductor (calculated from the number of loops and points per loop for coils)
+CALL prms%CreateIntOption(      'Coil[$]-NumNodes'      , 'Number of nodes for a linear conductor' &
+                                                        , numberedmulti=.TRUE.)
+! Coils
+CALL prms%CreateIntOption(      'Coil[$]-LoopNum'       , 'Number of coil loops', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Coil[$]-PointsPerLoop' , 'Number of points per loop (azimuthal discretization)', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Coil[$]-AxisVec1'      , 'Axial vector defines the orientation of the cross-section together '//&
+                                                          'with the length vector', numberedmulti=.TRUE.)
 ! Custom coils
 CALL prms%SetSection('Custom coils')
-CALL prms%CreateRealArrayOption('Coil[$]-AxisVec1'      , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Coil[$]-NumOfSegments' , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Coil[$]-Segment[$]-SegmentType'  , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Coil[$]-Segment[$]-NumOfPoints'  , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Coil[$]-Segment[$]-LineVector'   , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Coil[$]-Segment[$]-Radius'       , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Coil[$]-Segment[$]-Phi1'         , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Coil[$]-Segment[$]-Phi2'         , 'TO-DO', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Coil[$]-NumOfSegments' , 'Number of segments for the custom coil definition', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Coil[$]-Segment[$]-SegmentType'  , 'Possible segment types: line or circle', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Coil[$]-Segment[$]-NumOfPoints'  , 'Number of points to discretize the segment', &
+                                                                    numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Coil[$]-Segment[$]-LineVector'   , 'Line segment: Vector (x,y) in the cross-sectional plane '//&
+                                                                    'defined by the length and axial vector', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Coil[$]-Segment[$]-Radius'       , 'Circle segment: Radius in the cross-sectional plane '//&
+                                                                    'defined by the length and axial vector', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Coil[$]-Segment[$]-Phi1'         , 'Circle segment: Initial angle in [deg]', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Coil[$]-Segment[$]-Phi2'         , 'Circle segment: Final angle in [deg]', numberedmulti=.TRUE.)
 
 ! Circle coils
 CALL prms%CreateRealOption(     'Coil[$]-Radius'        , 'Radius for circular coils', numberedmulti=.TRUE.)
 
 ! Rectangle coils
-CALL prms%CreateRealArrayOption('Coil[$]-RectVec1'      , 'TO-DO', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Coil[$]-RectVec2'      , 'TO-DO', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Coil[$]-RectVec1'      , 'Vector 1 (x,y) in the cross-sectional plane defined by the length '//&
+                                                          'and axial vector, spanning the rectangular coil', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Coil[$]-RectVec2'      , 'Vector 2 (x,y) in the cross-sectional plane defined by the length '//&
+                                                          'and axial vector, spanning the rectangular coil', numberedmulti=.TRUE.)
 
 ! Time-dependent coils
 CALL prms%SetSection('Time-dependent coils')
@@ -86,14 +111,14 @@ CALL prms%CreateLogicalOption(  'Coil[$]-TimeDepCoil'     , 'Use time-dependant 
 CALL prms%CreateRealOption(     'Coil[$]-CurrentAmplitude', 'Current amplitude', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Coil[$]-CurrentFrequency', 'Current frequency', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Coil[$]-CurrentPhase'    , 'Current phase shift', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'nTimePoints'             , 'Number of points for time discretization')
+CALL prms%CreateIntOption(      'nTimePoints'             , 'Number of points for the time discretization')
 
 END SUBROUTINE DefineParametersSuperB
 
 
 SUBROUTINE InitializeSuperB()
 !===================================================================================================================================
-!>
+!> Read-in of SuperB parameters for permanent magnets, coils and time-dependent coils
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -115,10 +140,10 @@ CHARACTER(LEN=32)         :: hilf,hilf2
 !===================================================================================================================================
 
 ! Output of the magnets/coils as separate VTK files
-BGFieldVTKOutput     = GETLOGICAL('PIC-CalcBField-OutputVTK','.FALSE.')
+BGFieldVTKOutput     = GETLOGICAL('PIC-CalcBField-OutputVTK')
 
 ! Get the number of magnets
-NumOfPermanentMagnets= GETINT('NumOfPermanentMagnets','0')
+NumOfPermanentMagnets= GETINT('NumOfPermanentMagnets')
 ! Allocate the magnets
 ALLOCATE(PermanentMagnetInfo(NumOfPermanentMagnets))
 ! Read-in of magnet parameters
@@ -144,6 +169,9 @@ IF (NumOfPermanentMagnets.GT.0) THEN
       PermanentMagnetInfo(iMagnet)%Radius             = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius')
       PermanentMagnetInfo(iMagnet)%Radius2            = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius2')
       PermanentMagnetInfo(iMagnet)%HeightVector(1:3)  = GETREALARRAY('PermanentMagnet'//TRIM(hilf)//'-HeightVector',3)
+    CASE DEFAULT
+      CALL abort(__STAMP__, &
+        'ERROR SuperB: Given permanent magnet geometry is not implemented! Permanent magnet number:', iMagnet)
     END SELECT
   END DO
 END IF
@@ -223,6 +251,9 @@ IF (NumOfCoils.GT.0) THEN
       CoilInfo(iCoil)%NumNodes = (CoilInfo(iCoil)%PointsPerLoop - 1) * CoilInfo(iCoil)%LoopNum + 1
     CASE('linear')
       CoilInfo(iCoil)%NumNodes = GETINT('Coil'//TRIM(hilf)//'-NumNodes')
+    CASE DEFAULT
+      CALL abort(__STAMP__, &
+        'ERROR SuperB: Given coil geometry is not implemented! Coil number:', iCoil)
     END SELECT
     ! --------------------- Time-dependent current ---------------------------------------
     TimeDepCoil(iCoil) = GETLOGICAL('Coil'//TRIM(hilf)//'-TimeDepCoil')

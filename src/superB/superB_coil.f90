@@ -14,7 +14,7 @@
 
 MODULE MOD_SuperB_Coil
 !===================================================================================================================================
-! Contains the calculation of the magnetic field of coils
+!> Contains the calculation of the magnetic field of coils
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -61,7 +61,7 @@ CONTAINS
 
 SUBROUTINE SetUpCoil(iCoil)
 !===================================================================================================================================
-! Sets up a coil defined by segments
+!> Sets up a coil defined by segments (line and circle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -142,9 +142,10 @@ END DO
 
 END SUBROUTINE SetUpCoil
 
+
 SUBROUTINE SetUpCircleCoil(iCoil)
 !===================================================================================================================================
-! Sets up a coil consisting of a circle
+!> Sets up a coil consisting of a circle cross-section
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -278,9 +279,10 @@ END DO
 
 END SUBROUTINE SetUpRectangleCoil
 
+
 SUBROUTINE SetUpLinearConductor(iCoil)
 !===================================================================================================================================
-! Sets up a linear conductor
+!> Sets up a linear conductor
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -308,7 +310,7 @@ END SUBROUTINE SetUpLinearConductor
 
 SUBROUTINE BiotSavart(iCoil)
 !===================================================================================================================================
-! Calculates the magnetic field of a coil with Biot-Savarts law
+!> Calculates the magnetic field of a coil with Biot-Savart's law
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -361,7 +363,7 @@ END SUBROUTINE BiotSavart
 
 SUBROUTINE Jefimenko(iCoil, t)
 !===================================================================================================================================
-! Calculates the magnetic field of a coil with a time-dependent current with Jefimenkos Law
+!> Calculates the magnetic field of a coil with a time-dependent current with Jefimenko's Law
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -420,7 +422,7 @@ END SUBROUTINE Jefimenko
 
 SUBROUTINE WriteCoilVTK(iCoil)
 !===================================================================================================================================
-! Write Coil to VTK
+!> Write Coil to VTK
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -473,7 +475,7 @@ END SUBROUTINE WriteCoilVTK
 
 SUBROUTINE FinalizeCoil()
 !===================================================================================================================================
-! Finalize coil
+!> Finalize coil
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
