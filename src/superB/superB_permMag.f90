@@ -14,7 +14,7 @@
 
 MODULE MOD_SuperB_PermMag
 !===================================================================================================================================
-!> Contains the calculation of the magnetic field of a permanent magnet
+!> Contains the calculation of the magnetic field of different types of permanent magnets
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -87,7 +87,7 @@ CHARACTER(LEN=26) :: myFileName
 ALLOCATE(xGP(PermanentMagnetInfo(iMagnet)%NumNodes))
 ALLOCATE(wGP(PermanentMagnetInfo(iMagnet)%NumNodes))
 
-! Get the Gauss-Legendre Nodes and Weigths
+! Get the Gauss-Legendre nodes and weights
 ! ATTENTION: The nodes are still in [-1,1] and need to be mapped
 CALL LegendreGaussNodesAndWeights(PermanentMagnetInfo(iMagnet)%NumNodes - 1, xGP, wGP)
 
@@ -299,7 +299,7 @@ CHARACTER(LEN=26) :: myFileName
 ALLOCATE(xGP(PermanentMagnetInfo(iMagnet)%NumNodes))
 ALLOCATE(wGP(PermanentMagnetInfo(iMagnet)%NumNodes))
 
-! Get the Gauss-Legendre Nodes and Weigths of the polar angle
+! Get the Gauss-Legendre nodes and weights of the polar angle
 ! ATTENTION: The nodes are still in [-1,1] and need to be mapped to an angle
 CALL LegendreGaussNodesAndWeights(PermanentMagnetInfo(iMagnet)%NumNodes - 1, xGP, wGP)
 
@@ -445,7 +445,7 @@ CHARACTER(LEN=26)   :: myFileName
 ALLOCATE(xGP(PermanentMagnetInfo(iMagnet)%NumNodes))
 ALLOCATE(wGP(PermanentMagnetInfo(iMagnet)%NumNodes))
 
-! Get the Gauss-Legendre Nodes and Weigths of the polar angle
+! Get the Gauss-Legendre nodes and weights of the polar angle
 ! ATTENTION: The nodes are still in [-1,1] and need to be mapped to an angle
 CALL LegendreGaussNodesAndWeights(PermanentMagnetInfo(iMagnet)%NumNodes - 1, xGP, wGP)
 
@@ -657,7 +657,7 @@ CHARACTER(LEN=26)  :: myFileName
 ALLOCATE(xGP(PermanentMagnetInfo(iMagnet)%NumNodes))
 ALLOCATE(wGP(PermanentMagnetInfo(iMagnet)%NumNodes))
 
-! Get the Gauss-Legendre Nodes and Weigths of the polar angle
+! Get the Gauss-Legendre nodes and weights of the polar angle
 ! ATTENTION: The nodes are still in [-1,1] and need to be mapped to an angle
 CALL LegendreGaussNodesAndWeights(PermanentMagnetInfo(iMagnet)%NumNodes - 1, xGP, wGP)
 

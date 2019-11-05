@@ -107,11 +107,12 @@ CALL prms%CreateRealArrayOption('Coil[$]-RectVec2'      , 'Vector 2 (x,y) in the
 
 ! Time-dependent coils
 CALL prms%SetSection('Time-dependent coils')
-CALL prms%CreateLogicalOption(  'Coil[$]-TimeDepCoil'     , 'Use time-dependant current for coil','.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Coil[$]-CurrentAmplitude', 'Current amplitude', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Coil[$]-CurrentFrequency', 'Current frequency', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Coil[$]-CurrentPhase'    , 'Current phase shift', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'nTimePoints'             , 'Number of points for the time discretization')
+CALL prms%CreateLogicalOption(  'Coil[$]-TimeDepCoil'     , 'Use time-dependent current (sinusoidal curve) for coil', &
+                                                            '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Coil[$]-CurrentAmplitude', 'Current amplitude [A]', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Coil[$]-CurrentFrequency', 'Current frequency [1/s]', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Coil[$]-CurrentPhase'    , 'Current phase shift [rad]', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'nTimePoints'             , 'Number of points for the discretization of the sinusoidal curve')
 
 END SUBROUTINE DefineParametersSuperB
 

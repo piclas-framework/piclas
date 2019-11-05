@@ -36,7 +36,7 @@ CONTAINS
 
 SUBROUTINE FindLinIndependentVectors(NormalVector, Vector1, Vector2)
 !===================================================================================================================================
-! Finds two linear vectors of a normal vector around a base point
+!> Finds two linear vectors of a normal vector around a base point
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -80,7 +80,7 @@ END SUBROUTINE FindLinIndependentVectors
 
 SUBROUTINE GramSchmidtAlgo(Vector1, Vector2, Vector3)
 !===================================================================================================================================
-! Contains the Gram Schmidt algorithm for an orthonormal basis
+!> Contains the Gram Schmidt algorithm for an orthonormal basis
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

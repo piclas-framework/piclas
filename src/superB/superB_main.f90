@@ -28,7 +28,9 @@ CONTAINS
 
 SUBROUTINE SuperB()
 !===================================================================================================================================
-!>
+!> Routines for the calculation of magnetic fields of different permanent magnets and coils. Possibility to output the geometry
+!> of the coil/magnet as a separate VTK file for visualization. Background field is stored in separate HDF5 file and can be utilized
+!> as input for future simulations.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

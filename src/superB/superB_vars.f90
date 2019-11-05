@@ -23,71 +23,79 @@ PUBLIC
 SAVE
 
 ! === Coils
-INTEGER :: NumOfCoils
+INTEGER :: NumOfCoils                                           !< Total number of coils
 
 TYPE tSegmentInfo
-  CHARACTER(LEN=255)  :: SegmentType ! 1: Line, 2: Circle Segment
-  INTEGER             :: NumOfPoints
-  REAL                :: LineVector(2)
-  REAL                :: Radius
-  REAL                :: Phi1
-  REAL                :: Phi2
+  CHARACTER(LEN=255)              :: SegmentType                !< 1: Line, 2: Circle Segment
+  INTEGER                         :: NumOfPoints                !< Number of discretization points per segment
+  REAL                            :: LineVector(2)              !< 2D vector defining the line segment in the cross-section plane
+  REAL                            :: Radius                     !< Radial of circle segment [m]
+  REAL                            :: Phi1                       !< Initial angle of circle segment [deg]
+  REAL                            :: Phi2                       !< Final angle of circle segment [deg]
 END TYPE tSegmentInfo
 
 TYPE tCoilInfo
-  CHARACTER(LEN=255)              :: Type                       !< Custom, circle, rectangle, linear
-  INTEGER                         :: NumNodes
-  REAL                            :: Current
-  INTEGER                         :: LoopNum
-  INTEGER                         :: PointsPerLoop
-  INTEGER                         :: NumOfSegments
-  REAL                            :: LengthVector(3)
-  REAL                            :: Length
-  REAL                            :: AxisVec1(3)
-  REAL                            :: BasePoint(3)
-  TYPE(tSegmentInfo),ALLOCATABLE  :: SegmentInfo(:)
-  REAL                            :: LoopLength
+  CHARACTER(LEN=255)              :: Type                       !< "custom", "circle", "rectangle" cross-section, "linear" conductor
+  INTEGER                         :: NumNodes                   !< Discretization of the linear conductor
+  REAL                            :: Current                    !< Current in [A]
+  INTEGER                         :: LoopNum                    !< Number of coils loops
+  INTEGER                         :: PointsPerLoop              !< Number of discretization points per loop
+  REAL                            :: BasePoint(3)               !< Origin vector for the coil
+  REAL                            :: LengthVector(3)            !< Length vector normal to the coil cross-section
+  REAL                            :: AxisVec1(3)                !< Axial vector orthogonal to the length vector (custom, cuboid)
+  INTEGER                         :: NumOfSegments              !< Custom coil: Number of segments
+  TYPE(tSegmentInfo),ALLOCATABLE  :: SegmentInfo(:)             !< Custom coil: Container for segment information [1:NumOfSegments]
   REAL                            :: Radius                     !< Circular coil-specific
-  REAL                            :: RectVec1(2)                !< Rectangular coil-specific
-  REAL                            :: RectVec2(2)                !< Rectangular coil-specific
+  REAL                            :: RectVec1(2)                !< Cuboid coil-specific vector in the cross-section plane
+  REAL                            :: RectVec2(2)                !< Cuboid coil-specific vector in the cross-section plane
+  REAL                            :: Length                     !< Length of coil, calculated from the length vector
 END TYPE tCoilInfo
 
-TYPE(tCoilInfo),ALLOCATABLE       :: CoilInfo(:)
+TYPE(tCoilInfo),ALLOCATABLE       :: CoilInfo(:)                !< Container for the coil information [1:NumOfCoils]
 
-REAL, ALLOCATABLE                 :: CoilNodes(:,:)
+REAL, ALLOCATABLE                 :: CoilNodes(:,:)             !< Geometric information of the coils [1:3,CoilInfo(iCoil)%NumNodes]
 
+! === Time-dependent coils
 TYPE tCurrentInfo
-  REAL                            :: CurrentAmpl
-  REAL                            :: CurrentFreq
-  REAL                            :: CurrentPhase
+  REAL                            :: CurrentAmpl                !< Current amplitude [A]
+  REAL                            :: CurrentFreq                !< Current frequency [1/s]
+  REAL                            :: CurrentPhase               !< Current phase [rad]
 END TYPE tCurrentInfo
 
-TYPE(tCurrentInfo),ALLOCATABLE    :: CurrentInfo(:)
+TYPE(tCurrentInfo),ALLOCATABLE    :: CurrentInfo(:)             !< Container for the time-dependent coil information [1:NumOfCoils]
 
-LOGICAL, ALLOCATABLE              :: TimeDepCoil(:)
-INTEGER                           :: nTimePoints
-REAL, ALLOCATABLE                 :: BGFieldTDep(:,:,:,:,:,:)   !< Time dep. BGField (1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems,1:nTime)
+LOGICAL, ALLOCATABLE              :: TimeDepCoil(:)             !< Flag if the coil has a time-dependent current [1:NumOfCoils]
+INTEGER                           :: nTimePoints                !< Number of time discretization points for the sinusoidal curve
+REAL, ALLOCATABLE                 :: BGFieldTDep(:,:,:,:,:,:)   !< Time dep. BGField [1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems,1:nTime]
 
 ! === Permanent Magnets
 
-INTEGER                 :: NumOfPermanentMagnets
+INTEGER                 :: NumOfPermanentMagnets                !< Total number of permanent magnets
 
 TYPE tPermanentMagnetInfo
-  CHARACTER(LEN=255)    :: Type                       !< Cuboid, sphere, cylinder, conic
-  REAL                  :: BasePoint(3)
-  REAL                  :: BaseVector1(3)
-  REAL                  :: BaseVector2(3)
-  REAL                  :: BaseVector3(3)
-  INTEGER               :: NumNodes
-  REAL                  :: Magnetisation(3)
-  REAL                  :: Radius                     !< Sphere, cylinder, conic
-  REAL                  :: HeightVector(3)            !< Cylinder, conic
-  REAL                  :: Radius2                    !< Conic
+  CHARACTER(LEN=255)    :: Type                                 !< Cuboid, sphere, cylinder, conic
+  REAL                  :: BasePoint(3)                         !< Origin vector for the permanent magnet
+  REAL                  :: BaseVector1(3)                       !< Vector 1 spanning the cuboid permanent magnet
+  REAL                  :: BaseVector2(3)                       !< Vector 2 spanning the cuboid permanent magnet
+  REAL                  :: BaseVector3(3)                       !< Vector 3 spanning the cuboid permanent magnet
+  INTEGER               :: NumNodes                             !< Number of nodes for the discretization:
+                                                                !< Cuboid: N points in each direction (total number: 6N^2)
+                                                                !< Sphere: N divisions in the zenith direction with 2*N points in
+                                                                !<          the azimuthal direction
+                                                                !< Cylinder: N divisions along height vector, 2*N points in the
+                                                                !<            azimuthal direction, N points in radial direction on
+                                                                !<            the top and bottom face
+                                                                !< Conic: analogous to the cylinder
+  REAL                  :: Magnetisation(3)                     !< Magnetisation vector in [A/m]
+  REAL                  :: Radius                               !< Radius in [m] for sphere, cylinder, conic magnets
+  REAL                  :: HeightVector(3)                      !< Height vector [m] for cylinder, conic magnets
+  REAL                  :: Radius2                              !< Second radius for conic magnets
 END TYPE tPermanentMagnetInfo
 
-TYPE(tPermanentMagnetInfo),ALLOCATABLE :: PermanentMagnetInfo(:)
+TYPE(tPermanentMagnetInfo),ALLOCATABLE :: PermanentMagnetInfo(:)!< Container for the permanent magnet info [1:NumOfPermanentMagnets]
 
-REAL, ALLOCATABLE                   :: PsiMag(:,:,:,:)
-INTEGER, ALLOCATABLE                :: MagnetFlag(:,:,:,:)
+REAL, ALLOCATABLE                   :: PsiMag(:,:,:,:)          !< Magnetic potential [1:PP_N,1:PP_N,1:PP_N,1:nElems]
+INTEGER, ALLOCATABLE                :: MagnetFlag(:,:,:,:)      !< Number of the magnet that occupies the point, otherwise zero
+                                                                !< [0:PP_N,0:PP_N,0:PP_N,1:nElems]
 
 END MODULE MOD_SuperB_Vars
