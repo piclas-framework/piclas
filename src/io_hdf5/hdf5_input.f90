@@ -509,9 +509,7 @@ CHARACTER(LEN=255),&
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: DSet_ID,Type_ID,MemSpace,FileSpace,PList_ID
 INTEGER(HSIZE_T)               :: Offset(Rank),Dimsf(Rank)
-#ifndef HDF5_F90 /* HDF5 compiled with fortran2003 flag */
 TYPE(C_PTR)                    :: buf
-#endif
 #if USE_MPI
 INTEGER(HID_T)                 :: driver
 #endif /*USE_MPI*/
@@ -541,23 +539,11 @@ IF(driver.EQ.H5FD_MPIO_F) CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE
 CALL H5DGET_TYPE_F(DSet_ID, Type_ID, iError)
 
 ! Read the data
-#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
-IF(PRESENT(RealArray))THEN
-  CALL H5DREAD_F(DSet_ID,Type_ID,RealArray   ,Dimsf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
-END IF
-IF(PRESENT(IntegerArray))THEN
-  CALL H5DREAD_F(DSet_ID,Type_ID,IntegerArray,Dimsf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
-END IF
-IF(PRESENT(StrArray))THEN
-  CALL H5DREAD_F(DSet_ID,Type_ID,StrArray    ,Dimsf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
-END IF
-#else /*HDF5_F90*/
 IF(PRESENT(RealArray))       buf=C_LOC(RealArray)
 IF(PRESENT(IntegerArray))    buf=C_LOC(IntegerArray)
 IF(PRESENT(IntegerArray_i4)) buf=C_LOC(IntegerArray_i4)
 IF(PRESENT(StrArray))        buf=C_LOC(StrArray(1))
 CALL H5DREAD_F(DSet_ID,Type_ID,buf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
-#endif /*HDF5_F90*/
 
 ! Close the datatype, property list, dataspaces and dataset.
 CALL H5TCLOSE_F(Type_ID, iError)
@@ -601,10 +587,8 @@ INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID
 INTEGER(HSIZE_T), DIMENSION(1) :: Dimsf
 INTEGER                        :: i
 INTEGER,TARGET                 :: IntToLog
-#ifndef HDF5_F90 /* HDF5 compiled with fortran2003 flag */
 CHARACTER(LEN=255),TARGET      :: StrTmp(1)
 TYPE(C_PTR)                    :: buf
-#endif
 !===================================================================================================================================
 LOGWRITE(*,*)' READ ATTRIBUTE "',TRIM(AttribName),'" FROM HDF5 FILE...'
 Dimsf(1)=nVal
@@ -632,15 +616,6 @@ IF(PRESENT(StrArray))THEN
 END IF
 
 ! Read the attribute data.
-#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
-IF(PRESENT(RealArray))      CALL H5AREAD_F(Attr_ID, Type_ID, RealArray,     Dimsf, iError)
-IF(PRESENT(RealScalar))     CALL H5AREAD_F(Attr_ID, Type_ID, RealScalar,    Dimsf, iError)
-IF(PRESENT(IntegerArray))   CALL H5AREAD_F(Attr_ID, Type_ID, IntegerArray,  Dimsf, iError)
-IF(PRESENT(IntegerScalar))  CALL H5AREAD_F(Attr_ID, Type_ID, IntegerScalar, Dimsf, iError)
-IF(PRESENT(LogicalScalar))  CALL H5AREAD_F(Attr_ID, Type_ID, IntToLog,      Dimsf, iError)
-IF(PRESENT(StrScalar))      CALL H5AREAD_F(Attr_ID, Type_ID, StrScalar,     Dimsf, iError)
-IF(PRESENT(StrArray))       CALL H5AREAD_F(Attr_ID, Type_ID, StrArray,      Dimsf, iError)
-#else /* HDF5_F90 */
 IF(PRESENT(RealArray))      buf=C_LOC(RealArray)
 IF(PRESENT(RealScalar))     buf=C_LOC(RealScalar)
 IF(PRESENT(IntegerArray))   buf=C_LOC(IntegerArray)
@@ -650,7 +625,6 @@ IF(PRESENT(StrScalar))      buf=C_LOC(StrTmp(1))
 IF(PRESENT(StrArray))       buf=C_LOC(StrArray(1))
 CALL H5AREAD_F(Attr_ID, Type_ID, buf, iError)
 IF(PRESENT(StrScalar))      StrScalar=StrTmp(1)
-#endif /* HDF5_F90 */
 IF(PRESENT(LogicalScalar)) LogicalScalar=(IntToLog.EQ.1)
 
 CALL H5TCLOSE_F(Type_ID, iError)

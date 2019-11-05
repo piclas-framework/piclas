@@ -159,7 +159,6 @@ IF(ANY(TimeDepCoil)) THEN
         ELSE
           CALL BiotSavart(iCoil)
         END IF
-        CALL FinalizeCoil()
         SWRITE(UNIT_stdOut,'(A,I2)') '...Done Coil #', iCoil
       END DO
     END IF
@@ -193,7 +192,6 @@ ELSE
       END IF
       SWRITE(UNIT_stdOut,'(A)') ' Calculation of the B-Field'
       CALL BiotSavart(iCoil)
-      CALL FinalizeCoil()
       SWRITE(UNIT_stdOut,'(A,I2)') '...Done coil #', iCoil
     END DO
   END IF

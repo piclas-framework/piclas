@@ -86,8 +86,6 @@ CALL prms%CreateIntOption(    'nSkipAvg'             , 'Iter every which CalcTim
                                                  !"Default: Same as IniExactFunc")
 !CALL prms%CreateIntOption(    'AnalyzeRefState' ,"Define state used for analyze (e.g. for computing L2 errors). "//&
                                                  !"Default: Same as IniRefState")
-!CALL prms%CreateLogicalOption('doMeasureFlops',  "Set true to measure flop count, if compiled with PAPI.",&
-                                                 !'.TRUE.')
 !CALL DefineParametersAnalyzeEquation()
 #ifdef CODE_ANALYZE
 CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info to CodeAnalyze.csv','.TRUE.')

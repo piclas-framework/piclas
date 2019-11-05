@@ -21,7 +21,7 @@ MODULE MOD_SuperB_Coil
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC :: SetUpCoil, SetUpCircleCoil, SetUpRectangleCoil, SetUpLinearConductor, BiotSavart, Jefimenko, WriteCoilVTK, FinalizeCoil
+PUBLIC :: SetUpCoil, SetUpCircleCoil, SetUpRectangleCoil, SetUpLinearConductor, BiotSavart, Jefimenko, WriteCoilVTK
 !===================================================================================================================================
 
 INTERFACE SetUpCoil
@@ -52,9 +52,6 @@ INTERFACE WriteCoilVTK
   MODULE PROCEDURE WriteCoilVTK
 END INTERFACE WriteCoilVTK
 
-INTERFACE FinalizeCoil
-  MODULE PROCEDURE FinalizeCoil
-END INTERFACE FinalizeCoil
 !===================================================================================================================================
 
 CONTAINS
@@ -151,7 +148,7 @@ SUBROUTINE SetUpCircleCoil(iCoil)
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_SuperB_Vars
-USE MOD_SuperB_Tools, ONLY: FindLinIndependentVectors, GramSchmidtAlgo
+USE MOD_SuperB_Tools  ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -359,6 +356,8 @@ DO iElem=1,nElems
   END DO; END DO; END DO
 END DO
 
+SDEALLOCATE(CoilNodes)
+
 END SUBROUTINE BiotSavart
 
 SUBROUTINE Jefimenko(iCoil, t)
@@ -417,6 +416,8 @@ DO iElem=1,nElems
   END DO; END DO; END DO
 END DO
 
+SDEALLOCATE(CoilNodes)
+
 END SUBROUTINE Jefimenko
 
 
@@ -426,7 +427,7 @@ SUBROUTINE WriteCoilVTK(iCoil)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_SuperB_Vars, ONLY: CoilNodes, CoilInfo
+USE MOD_SuperB_Vars ,ONLY: CoilNodes, CoilInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -471,28 +472,6 @@ WRITE(1112,*)''
 CLOSE(1112)
 
 END SUBROUTINE WriteCoilVTK
-
-
-SUBROUTINE FinalizeCoil()
-!===================================================================================================================================
-!> Finalize coil
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_SuperB_Vars, ONLY: CoilNodes
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-SDEALLOCATE( CoilNodes)
-
-END SUBROUTINE FinalizeCoil
 
 END MODULE MOD_SuperB_Coil
 
