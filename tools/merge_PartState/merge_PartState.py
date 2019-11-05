@@ -38,6 +38,7 @@ parser.add_argument('files', type=str, help='Files (.h5) that are to be merged t
 args = parser.parse_args()
 
 # Display all command line arguments
+print('='*132)
 print("Running with the following command line options")
 for arg in list(args.__dict__) :
     print(arg.ljust(15)+" = [ "+str(getattr(args,arg))+" ]")
@@ -66,7 +67,17 @@ for statefile in args.files :
 print("t_max     : %s" % maxtime)
 print("t_max_str : %s" % timestr)
 print("newfile   : %s" % newFile)
+print()
 
+# Get maximum number of characters in h5 file names
+max_length=0
+for statefile in files :
+    max_length = max(max_length,len(statefile))
+
+print(132*"-")
+s="Example.h5"
+print("".ljust(max_length-len(s)),s," | (dim1, dim2)")
+print(132*"-")
 n = 0
 for statefile in files :
     n+=1
@@ -90,7 +101,7 @@ for statefile in files :
     
     # 1.1.1   Read the dataset from the hdf5 file
     b1 = f1[data_set][:]
-    print(statefile,b1.shape)
+    print("".ljust(max_length-len(statefile)),statefile," | %s" % str(b1.shape))
 
     # Save old file
     if n > 1 :
@@ -105,6 +116,8 @@ for statefile in files :
     b2 = b1
     statefile_old = statefile
     f1.close()
+print(132*"-")
+print("Files have been merged into %s" % newFile)
 
 
 
