@@ -7,6 +7,7 @@ author:
   - Institute for Aerodynamics and Gas Dynamics (IAG)
   - Institute for Space Systems (IRS)
   - University of Stuttgart, Germany
+  - boltzplatz - Numerical Plasma Dynamics
 institute: IAG IRS
 date: \today
 documentclass: scrreprt

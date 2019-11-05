@@ -458,6 +458,12 @@ where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|}$ is the distance betwe
 grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$ and
 $R$ is the cut-off radius.
 
+## Background Field \label{sec:superB}
+
+Certain application cases allow the utilization of a constant magnetic background field. The magnetic field resulting from certain types of coils and permanent magnets can be calculated during the initialization within PICLas or with the standalone tool **superB** (see Section \ref{sec:compileroptions} for compilation).
+
+WIP
+
 ## Direct Simulation Monte Carlo
 
 To enable the simulation with DSMC, an appropriate time discretization method including the DSMC module should be chosen before the code compilation. A stand-alone DSMC simulation can be enabled by compiling PICLas with the following parameter

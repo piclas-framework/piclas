@@ -154,6 +154,11 @@ For some external libraries and programs that **PICLas** uses, the following opt
 
 * ``HDF5_DIR``: If you want to use a prebuilt HDF5 library that has been build using the CMake system, this directory should contain the CMake configuration file for HDF5 (optional).
 
+* ``PICLAS_BUILD_POSTI``: Enables the compilation of additional tools and activates the following options:
+  * ``POSTI_BUILD_SUPERB``: Enables the compilation of **superB**, which is allows the computation of magnetic fields based on an input of coils and permanent magnets (Section \ref{sec:superB})
+  * ``POSTI_BUILD_VISU``: Enables the compilation of the post-processing tool **h5piclas2vtk**, which enables the conversion of output files into the VTK format (Section \ref{sec:tools_posti_visu})
+  * ``POSTI_USE_PARAVIEW``: Enables the compilation of the ParaView plugin, which enables the direct read-in of output files within ParaView
+
 ## Solver settings
 
 Before setting up a simulation, the code must be compiled with the desired parameters. The most important compiler options to be set are:
@@ -253,4 +258,4 @@ The grid elements are organized along a space-filling curved, which gives a uniq
 h5piclas2vtk [posti.ini] output.h5
 ~~~~~~~
 
-Multiple HDF5 files can be passed to the h5piclas2vtk tool at once. The (optional) runtime parameters to be set in `posti.ini` are given in Section \ref{sec:tools_posti}.
+Multiple HDF5 files can be passed to the h5piclas2vtk tool at once. The (optional) runtime parameters to be set in `posti.ini` are given in Section \ref{sec:tools_posti_visu}.
