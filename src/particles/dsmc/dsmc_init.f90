@@ -512,7 +512,7 @@ IF(DSMC%CalcQualityFactors) THEN
   VarNum = 4
   ! VarNum + 1: Number of cloned particles per cell
   ! VarNum + 2: Number of identical particles (no relative velocity)
-  IF(RadialWeighting%DoRadialWeighting) VarNum = VarNum + 2
+  IF(RadialWeighting%PerformCloning) VarNum = VarNum + 2
   ALLOCATE(DSMC%QualityFacSamp(nElems,VarNum))
   DSMC%QualityFacSamp(1:nElems,1:VarNum) = 0.0
 END IF
