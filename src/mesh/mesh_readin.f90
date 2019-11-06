@@ -413,10 +413,11 @@ DO iElem=FirstElemInd,LastElemInd
 END DO
 
 #if USE_MPI
+CALL MPI_ALLREDUCE(nElems,nTotalElems,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
 MPISharedSize = INT(ElemInfoSize*nTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/ElemInfoSize,nTotalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemInfo_Shared_Win,IERROR)
-ElemInfo_Shared(:,offsetElem:offsetElem+nElems) = ElemInfo(:,:)
+ElemInfo_Shared(:,offsetElem+1:offsetElem+nElems) = ElemInfo(:,:)
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
 #endif  /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------
@@ -446,7 +447,7 @@ CALL MPI_ALLREDUCE(nSideIDs,nTotalSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IER
 MPISharedSize = INT(SideInfoSize*nTotalSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/SideInfoSize,nTotalSides/),SideInfo_Shared_Win,SideInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideInfo_Shared_Win,IERROR)
-SideInfo_Shared(:,offsetSideID:offsetSideID+nSides) = SideInfo(:,:)
+SideInfo_Shared(:,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo(:,:)
 CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
 #endif  /*USE_MPI*/
 
@@ -609,13 +610,13 @@ CALL MPI_ALLREDUCE(nNodeIDs,nTotalNodes,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IER
 MPISharedSize = INT(nTotalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/nTotalNodes/),NodeInfo_Shared_Win,NodeInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,NodeInfo_Shared_Win,IERROR)
-NodeInfo_Shared(offsetNodeID:offsetNodeID+nNodeIDs) = NodeInfo(:)
+NodeInfo_Shared(offsetNodeID+1:offsetNodeID+nNodeIDs) = NodeInfo(:)
 CALL MPI_WIN_SYNC(NodeInfo_Shared_Win,IERROR)
 
 MPISharedSize = INT(3_IK*nTotalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/3_IK,nTotalNodes/),NodeCoords_Shared_Win,NodeCoords_Shared)
 CALL MPI_WIN_LOCK_ALL(0,NodeCoords_Shared_Win,IERROR)
-NodeCoords_Shared(:,offsetNodeID:offsetNodeID+nNodeIDs) = NodeCoords_indx(:,:)
+NodeCoords_Shared(:,offsetNodeID+1:offsetNodeID+nNodeIDs) = NodeCoords_indx(:,:)
 CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
 #endif  /*USE_MPI*/
 
@@ -713,13 +714,13 @@ IF(isMortarMesh)THEN
   MPISharedSize = INT(3*2*nTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
   CALL Allocate_Shared(MPISharedSize,(/3,2,nTotalElems/),xiMinMax_Shared_Win,xiMinMax_Shared)
   CALL MPI_WIN_LOCK_ALL(0,xiMinMax_Shared_Win,IERROR)
-  xiMinMax_Shared(:,:,offsetElem:offsetElem+nElems) = xiMinMax(:,:,:)
+  xiMinMax_Shared(:,:,offsetElem+1:offsetElem+nElems) = xiMinMax(:,:,:)
   CALL MPI_WIN_SYNC(xiMinMax_Shared_Win,IERROR)
 
   MPISharedSize = INT(nTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
   CALL Allocate_Shared(MPISharedSize,(/nTotalElems/),ElemToTree_Shared_Win,ElemToTree_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemToTree_Shared_Win,IERROR)
-  ElemToTree_Shared(offsetElem:offsetElem+nElems) = ElemToTree(:)
+  ElemToTree_Shared(offsetElem+1:offsetElem+nElems) = ElemToTree(:)
   CALL MPI_WIN_SYNC(ElemToTree_Shared_Win,IERROR)
 #endif  /*USE_MPI*/
 

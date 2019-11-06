@@ -88,6 +88,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                   :: i,worldGroup,sharedGroup
+INTEGER                         :: color
 !==================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MPI SHARED COMMUNICATION ...'
@@ -120,10 +121,12 @@ CALL MPI_GROUP_TRANSLATE_RANKS(worldGroup,nProcessors,MPIRankGlobal,sharedGroup,
 ! now split global communicator into small group leaders and the others
 MPI_COMM_LEADERS_SHARED=MPI_COMM_NULL
 myLeaderRank_Shared=-1
+color=MPI_UNDEFINED
+IF(myRank_Shared.EQ.0) color=101
+CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,myRank,MPI_COMM_LEADERS_SHARED,iError)
 IF(myRank_Shared.EQ.0)THEN
-  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,0,myRank,MPI_COMM_LEADERS_SHARED,iError)
-  CALL MPI_COMM_RANK( MPI_COMM_LEADERS_SHARED,myLeaderRank_Shared,iError)
-  CALL MPI_COMM_SIZE( MPI_COMM_LEADERS_SHARED,nLeaderProcs_Shared,iError)
+  CALL MPI_COMM_RANK(MPI_COMM_LEADERS_SHARED,myLeaderRank_Shared,iError)
+  CALL MPI_COMM_SIZE(MPI_COMM_LEADERS_SHARED,nLeaderProcs_Shared,iError)
 END IF
 
 MPISharedInitIsDone=.TRUE.
@@ -468,6 +471,7 @@ SDEALLOCATE(MPIRankShared)
 
 ! Free the shared communicator
 CALL MPI_COMM_FREE(MPI_COMM_SHARED, IERROR)
+CALL MPI_COMM_FREE(MPI_COMM_LEADERS_SHARED, IERROR)
 MPISharedInitIsDone=.FALSE.
 
 END SUBROUTINE FinalizeMPIShared
