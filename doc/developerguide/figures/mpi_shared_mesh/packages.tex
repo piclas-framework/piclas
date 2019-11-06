@@ -1,0 +1,85 @@
+% --------------------------------------------------------------------------------------------------
+% Warnings
+% --------------------------------------------------------------------------------------------------
+\usepackage{silence}
+% Font shape `T1/lmss/m/sc' in size <9> not available
+\WarningFilter{latexfont}{Font shape}
+\WarningFilter{latexfont}{Some font}
+
+
+
+% --------------------------------------------------------------------------------------------------
+% 
+% --------------------------------------------------------------------------------------------------
+\RequirePackage{etex}
+\usepackage{etoolbox}  % insert new e-TEX commands (required for \AfterEndEnvironment)
+
+%-------------------------------------------------------------------------------
+% LANGUAGE
+%-------------------------------------------------------------------------------
+\usepackage[ngerman,english]{babel} % Sprache 
+\usepackage[utf8]{inputenc} % Tippen von Umlauten
+
+%-------------------------------------------------------------------------------
+% TEXT AND MATH FONT
+%-------------------------------------------------------------------------------
+\setkomafont{sectioning}{\normalfont\bfseries}
+\usepackage{calligra}                          % font for thanks
+
+\usepackage{cmbright}                          % Schriftart
+
+
+% Font size and position adjustment
+\usepackage{relsize}
+\usepackage{lmodern}% http://ctan.org/pkg/lm
+
+
+
+% --------------------------------------------------------------------------------------------------
+% Microtypes: micro-typographic extensions (character protrusion and font expansion,
+% furthermore the adjustment of inter­word spacing and additional kerning, as well as
+% hyphenatable letter spacing (tracking) and the possibility to disable all or selected
+% ligatures)
+% --------------------------------------------------------------------------------------------------
+\usepackage[
+  protrusion=true,
+  expansion=true
+]{microtype}
+
+%-------------------------------------------------------------------------------
+% IMAGES / GRAPHICS
+%-------------------------------------------------------------------------------
+\usepackage{graphicx}
+
+\usepackage{xcolor}
+
+% -------------------------------------------------------------------------------
+% SI units
+% -------------------------------------------------------------------------------
+\usepackage{siunitx}
+%\sisetup{inter-unit-product =$\cdot$}
+\sisetup{exponent-product = \cdot, output-product = \cdot}
+%\sisetup{detect-weight, detect-display-math}
+%\sisetup{detect-inline-weight=math}
+\sisetup{allow-number-unit-breaks}
+\usepackage{textcomp} % Fix for: ``Package microtype Warning: Unknown slot number of character
+%                                  `\textminus '''
+%                        But: ``Das kann allerdings wieder zu Problemen mit dem listings-Paket 
+%                               fuehren, bei mir fehlten dann die Mal-Sternchen in den
+%                               Code-Beispielen.''
+
+
+
+%-------------------------------------------------------------------------------
+% EQUATIONS
+%-------------------------------------------------------------------------------
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{breqn}
+\usepackage{mathtools}
+
+\usepackage{amsfonts,mathrsfs,datetime}
+
+
+%\usepackage[cal=boondox]{mathalfa}

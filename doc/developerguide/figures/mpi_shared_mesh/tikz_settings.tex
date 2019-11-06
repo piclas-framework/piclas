@@ -1,0 +1,186 @@
+% =====================================================================================================
+% PACKAGES and Settings
+% =====================================================================================================
+
+\usepackage{tikz}
+\usepackage{xifthen}
+\usetikzlibrary{spy,arrows}
+\usetikzlibrary{arrows.meta}
+\usetikzlibrary{shapes.geometric}
+\usetikzlibrary{decorations.markings}
+\usetikzlibrary{intersections}
+\usetikzlibrary{positioning}
+\usetikzlibrary{backgrounds}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.7}
+\usetikzlibrary{calc}
+\tikzstyle{rounded}  = [rounded corners]     
+\tikzstyle{function} = [rectangle, text centered, draw=black,minimum width=6.0cm,minimum height=1.0cm]
+\tikzstyle{mpi}      = [anchor=south west, xshift=0.2cm] 
+
+% fuer alle Beispiele benutze N=3 => vier Gausspunkte ...
+\newcommand{\xGP}{-0.866, -0.339,  0.339, 0.866}
+\newcommand{\wGP}{0.348, 0.652, 0.652, 0.348}
+\newcommand{\innerborders}{-0.652,0,0.652}
+\newcommand{\xGPeq}{-0.75, -0.25,  0.25, 0.75}
+\newcommand{\wGPeq}{0.5, 0.5, 0.5, 0.5}
+\newcommand{\innerborderseq}{-0.5,0,0.5}
+
+\usetikzlibrary{3d}
+
+\usetikzlibrary{fillbetween}
+\usetikzlibrary{decorations,decorations.text,backgrounds}
+
+\usepackage{pgfplotstable}
+\pgfplotsset{filter discard warning=false,compat=newest,/pgf/number format/.cd,1000 sep={}}         
+\usepgfplotslibrary{colormaps,external}
+
+
+
+
+\usetikzlibrary{calc}
+
+
+\usepgfplotslibrary{patchplots} 
+\usepgflibrary{plothandlers}
+
+
+\usepackage{tikz-3dplot}       % 3D axis plotting
+\tdplotsetmaincoords{60}{125}
+\tdplotsetrotatedcoords{0}{0}{0} %<- rotate around (z,y,z)
+\usetikzlibrary{plotmarks}
+
+\usepackage{gnuplot-lua-tikz}
+\usetikzlibrary{shapes,arrows,fadings,shadows}
+\usetikzlibrary{decorations.pathreplacing,decorations.markings}
+
+
+
+
+
+\usetikzlibrary{lindenmayersystems}
+
+
+
+% =====================================================================================================
+% Commands
+% =====================================================================================================
+\newcommand{\dittotikz}{%
+    \tikz{
+        \draw [line width=0.12ex] (-0.2ex,0) -- +(0,0.8ex)
+            (0.2ex,0) -- +(0,0.8ex);
+        \draw [line width=0.08ex] (-0.6ex,0.4ex) -- +(-1.5em,0)
+            (0.6ex,0.4ex) -- +(1.5em,0);
+    }%
+  }
+
+
+
+
+
+
+% =====================================================================================================
+% MACROS
+% =====================================================================================================
+
+
+
+
+%-----------------------------------------------------------------------------------------------------
+% for EOC triangle in log-log-plots
+%-----------------------------------------------------------------------------------------------------
+
+%------------------------------------------------------
+%%% START MACRO FOR ANNOTATION OF TRIANGLE WITH SLOPE %%%.
+\newcommand{\logLogSlopeTriangleBelow}[7]
+{
+    % #1. Relative offset in x direction.
+    % #2. Width in x direction, so xA-xB.
+    % #3. Relative offset in y direction.
+    % #4. Slope d(y)/d(log10(x)).
+    % #5. Plot options.
+
+    \pgfplotsextra
+    {
+        \pgfkeysgetvalue{/pgfplots/xmin}{\xmin}
+        \pgfkeysgetvalue{/pgfplots/xmax}{\xmax}
+        \pgfkeysgetvalue{/pgfplots/ymin}{\ymin}
+        \pgfkeysgetvalue{/pgfplots/ymax}{\ymax}
+
+        % Calculate auxilliary quantities, in relative sense.
+        \pgfmathsetmacro{\xArel}{#1}
+        \pgfmathsetmacro{\yArel}{#3}
+        \pgfmathsetmacro{\xBrel}{#1-#2}
+        \pgfmathsetmacro{\yBrel}{\yArel}
+        \pgfmathsetmacro{\xCrel}{\xArel}
+        %\pgfmathsetmacro{\yCrel}{ln(\yC/exp(\ymin))/ln(exp(\ymax)/exp(\ymin))} % REPLACE THIS EXPRESSION WITH AN EXPRESSION INDEPENDENT OF \yC TO PREVENT THE 'DIMENSION TOO LARGE' ERROR.
+
+        \pgfmathsetmacro{\lnxB}{\xmin*(1-(#1-#2))+\xmax*(#1-#2)} % in [xmin,xmax].
+        \pgfmathsetmacro{\lnxA}{\xmin*(1-#1)+\xmax*#1} % in [xmin,xmax].
+        \pgfmathsetmacro{\lnyA}{\ymin*(1-#3)+\ymax*#3} % in [ymin,ymax].
+        \pgfmathsetmacro{\lnyC}{\lnyA+#4*(\lnxA-\lnxB)}
+        \pgfmathsetmacro{\yCrel}{\lnyC-\ymin)/(\ymax-\ymin)} % THE IMPROVED EXPRESSION WITHOUT 'DIMENSION TOO LARGE' ERROR.
+
+        % Define coordinates for \draw. MIND THE 'rel axis cs' as opposed to the 'axis cs'.
+        \coordinate (A) at (rel axis cs:\xArel,\yArel);
+        \coordinate (B) at (rel axis cs:\xBrel,\yBrel);
+        \coordinate (C) at (rel axis cs:\xCrel,\yCrel);
+
+        % Draw slope triangle.
+        \draw[#5]   (A)-- node[pos=0.5,anchor=#6] {1}
+                    (B)-- 
+                    (C)-- node[pos=0.5,anchor=#7] {#4}
+                    cycle;
+    }
+}
+%%% END MACRO FOR ANNOTATION OF TRIANGLE WITH SLOPE %%%.
+
+
+
+%------------------------------------------------------
+
+%%% START MACRO FOR ANNOTATION OF TRIANGLE WITH SLOPE %%%.
+\newcommand{\logLogSlopeTriangleAbove}[7]
+{
+    % #1. Relative offset in x direction.
+    % #2. Width in x direction, so xA-xB.
+    % #3. Relative offset in y direction.
+    % #4. Slope d(y)/d(log10(x)).
+    % #5. Plot options.
+
+    \pgfplotsextra
+    {
+        \pgfkeysgetvalue{/pgfplots/xmin}{\xmin}
+        \pgfkeysgetvalue{/pgfplots/xmax}{\xmax}
+        \pgfkeysgetvalue{/pgfplots/ymin}{\ymin}
+        \pgfkeysgetvalue{/pgfplots/ymax}{\ymax}
+
+        % Calculate auxilliary quantities, in relative sense.
+        \pgfmathsetmacro{\xArel}{#1}
+        \pgfmathsetmacro{\yArel}{#3}
+        \pgfmathsetmacro{\xBrel}{#1-#2}
+        \pgfmathsetmacro{\yBrel}{\yArel}
+        \pgfmathsetmacro{\xCrel}{\xArel}
+        %\pgfmathsetmacro{\yCrel}{ln(\yC/exp(\ymin))/ln(exp(\ymax)/exp(\ymin))} % REPLACE THIS EXPRESSION WITH AN EXPRESSION INDEPENDENT OF \yC TO PREVENT THE 'DIMENSION TOO LARGE' ERROR.
+
+        \pgfmathsetmacro{\lnxB}{\xmin*(1-(#1-#2))+\xmax*(#1-#2)} % in [xmin,xmax].
+        \pgfmathsetmacro{\lnxA}{\xmin*(1-#1)+\xmax*#1} % in [xmin,xmax].
+        \pgfmathsetmacro{\lnyA}{\ymin*(1-#3)+\ymax*#3} % in [ymin,ymax].
+        \pgfmathsetmacro{\lnyC}{\lnyA+#4*(\lnxA-\lnxB)}
+        \pgfmathsetmacro{\yCrel}{\lnyC-\ymin)/(\ymax-\ymin)} % THE IMPROVED EXPRESSION WITHOUT 'DIMENSION TOO LARGE' ERROR.
+
+        % Define coordinates for \draw. MIND THE 'rel axis cs' as opposed to the 'axis cs'.
+        \coordinate (A) at (rel axis cs:\xBrel,\yCrel);
+        \coordinate (B) at (rel axis cs:\xBrel,\yBrel);
+        \coordinate (C) at (rel axis cs:\xCrel,\yCrel);
+
+        % Draw slope triangle.
+        \draw[#5]   (A)-- node[pos=0.5,anchor=#6] {#4} %north
+                    (B)-- 
+                    (C)-- node[pos=0.5,anchor=#7] {1} % west
+                    cycle;
+    }
+}
+%%% END MACRO FOR ANNOTATION OF TRIANGLE WITH SLOPE %%%.
+
+
