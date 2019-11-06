@@ -43,7 +43,7 @@ USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Interpolation_Vars    ,ONLY: NBG, BGType, BGField, BGFieldVTKOutput
 USE MOD_Interpolation_Vars    ,ONLY: BGDataSize
 USE MOD_HDF5_Output_Tools     ,ONLY: WriteBFieldToHDF5
-USE MOD_SuperB_Init           ,ONLY: InitializeSuperB,FinalizeSuperB
+USE MOD_SuperB_Init           ,ONLY: InitializeSuperB
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType
 USE MOD_Interpolation_Vars    ,ONLY: BGField_xGP, BGField_wBary
@@ -145,7 +145,7 @@ IF(ANY(TimeDepCoil)) THEN
         CASE DEFAULT
           CALL abort(&
           __STAMP__&
-          ,'Unkown time-dependant coil type ['//TRIM(CoilInfo(iCoil)%Type)//']')
+          ,'Unknown time-dependent coil type ['//TRIM(CoilInfo(iCoil)%Type)//']')
         END SELECT
         IF(BGFieldVTKOutput) THEN
           IF(iTimePoint.EQ.0) THEN
@@ -184,7 +184,7 @@ ELSE
       CASE DEFAULT
         CALL abort(&
         __STAMP__&
-        ,'Unkown coil type ['//TRIM(CoilInfo(iCoil)%Type)//']')
+        ,'Unknown coil type ['//TRIM(CoilInfo(iCoil)%Type)//']')
       END SELECT
       IF(BGFieldVTKOutput) THEN
         SWRITE(UNIT_stdOut,'(A)') ' Write Coil to VTK File'
@@ -199,10 +199,12 @@ ELSE
   CALL WriteBFieldToHDF5()
 END IF
 
-! Finalization of SuperB
-CALL FinalizeSuperB()
+SDEALLOCATE(PsiMag)
+SDEALLOCATE(MagnetFlag)
+SDEALLOCATE(PermanentMagnetInfo)
+SDEALLOCATE(CoilInfo)
+SDEALLOCATE(CurrentInfo)
 
 END SUBROUTINE SuperB
-
 
 END MODULE MOD_SuperB

@@ -66,7 +66,8 @@ TYPE(tCurrentInfo),ALLOCATABLE    :: CurrentInfo(:)             !< Container for
 
 LOGICAL, ALLOCATABLE              :: TimeDepCoil(:)             !< Flag if the coil has a time-dependent current [1:NumOfCoils]
 INTEGER                           :: nTimePoints                !< Number of time discretization points for the sinusoidal curve
-REAL, ALLOCATABLE                 :: BGFieldTDep(:,:,:,:,:,:)   !< Time dep. BGField [1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems,1:nTime]
+REAL, ALLOCATABLE                 :: BGFieldTDep(:,:,:,:,:,:)   !< Time-dependent background field
+                                                                !< [1:3,0:NBG,0:NBG,0:NBG,1:PP_nElems,1:nTimePoints]
 
 ! === Permanent Magnets
 

@@ -19,7 +19,7 @@ PROGRAM SuperB_standalone
 ! MODULES
 USE MOD_Globals
 USE MOD_Commandline_Arguments
-USE MOD_SuperB_Init           ,ONLY: InitializeSuperB
+USE MOD_SuperB_Init           ,ONLY: DefineParametersSuperB, FinalizeSuperB
 USE MOD_SuperB                ,ONLY: SuperB
 USE MOD_Globals_Vars          ,ONLY: ParameterFile
 USE MOD_ReadInTools           ,ONLY: prms,PrintDefaultparameterFile,ExtractparameterFile
@@ -33,8 +33,6 @@ USE MOD_IO_HDF5               ,ONLY: DefineParametersIO
 USE MOD_Output                ,ONLY: DefineParametersOutput
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh
 USE MOD_Equation              ,ONLY: DefineParametersEquation
-USE MOD_SuperB_Init           ,ONLY: DefineParametersSuperB
-USE MOD_StringTools           ,ONLY: STRICMP, GetFileExtension
 USE MOD_Interpolation_Vars    ,ONLY: BGField
 USE MOD_Mesh                  ,ONLY: InitMesh
 #ifdef PARTICLES
@@ -118,16 +116,18 @@ CALL InitInterpolation()
 CALL InitEquation()
 
 CALL InitMesh(0)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Calculate the background B-field via SuperB
-!-----------------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
 InterpolationType = 'particle_position'
 #endif /*PARTICLES*/
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Calculate the background B-field via SuperB
+!-----------------------------------------------------------------------------------------------------------------------------------
 CALL SuperB()
 
 ! Deallocation of BGField
 SDEALLOCATE(BGField)
+! Finalize SuperB
+CALL FinalizeSuperB()
 
 SystemTime=PICLASTIME()
 SWRITE(UNIT_stdOut,'(132("="))')

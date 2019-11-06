@@ -289,13 +289,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SDEALLOCATE(PsiMag)
-SDEALLOCATE(MagnetFlag)
-SDEALLOCATE(PermanentMagnetInfo)
-SDEALLOCATE(CoilInfo)
 SDEALLOCATE(TimeDepCoil)
-SDEALLOCATE(CurrentInfo)
+SDEALLOCATE(BGFieldTDep)
 END SUBROUTINE FinalizeSuperB
-
 
 END MODULE MOD_SuperB_Init

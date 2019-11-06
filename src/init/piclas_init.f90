@@ -287,6 +287,7 @@ USE MOD_MPI                        ,ONLY: FinalizeMPI
 #ifdef PARTICLES
 USE MOD_Particle_Surfaces          ,ONLY: FinalizeParticleSurfaces
 USE MOD_InitializeBackgroundField  ,ONLY: FinalizeBackGroundField
+USE MOD_SuperB_Init                ,ONLY: FinalizeSuperB
 USE MOD_Particle_Mesh              ,ONLY: FinalizeParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: FinalizeParticleAnalyze
 USE MOD_PICDepo                    ,ONLY: FinalizeDeposition
@@ -363,6 +364,7 @@ CALL FinalizeBGK()
 CALL FinalizeParticles()
 CALL FinalizeMacroBody()
 CALL FinalizeBackGroundField()
+CALL FinalizeSuperB()
 #endif /*PARTICLES*/
 #if USE_MPI
 CALL FinalizeMPI()
