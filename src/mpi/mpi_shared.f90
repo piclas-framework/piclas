@@ -11,7 +11,7 @@
 !
 ! You should have received a copy of the GNU General Public License along with FLEXI. If not, see <http://www.gnu.org/licenses/>.
 !=================================================================================================================================
-#include "flexi.h"
+#include "piclas.h"
 !===================================================================================================================================
 !> Contains the routines to exchange data using MPI-3 shared memory
 !===================================================================================================================================
@@ -21,7 +21,7 @@ MODULE MOD_MPI_Shared
 IMPLICIT NONE
 PRIVATE
 
-#if USE_MPI_SHARED
+#if USE_MPI
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -116,6 +116,15 @@ CALL MPI_COMM_GROUP(MPI_COMM_SHARED,sharedGroup,IERROR)
 
 ! Finally translate global rank to local rank
 CALL MPI_GROUP_TRANSLATE_RANKS(worldGroup,nProcessors,MPIRankGlobal,sharedGroup,MPIRankShared,IERROR)
+
+! now split global communicator into small group leaders and the others
+MPI_COMM_LEADERS_SHARED=MPI_COMM_NULL
+myLeaderRank_Shared=-1
+IF(myRank_Shared.EQ.0)THEN
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,0,myRank,MPI_COMM_LEADERS_SHARED,iError)
+  CALL MPI_COMM_RANK( MPI_COMM_LEADERS_SHARED,myLeaderRank_Shared,iError)
+  CALL MPI_COMM_SIZE( MPI_COMM_LEADERS_SHARED,nLeaderProcs_Shared,iError)
+END IF
 
 MPISharedInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')      ' INIT MPI SHARED COMMUNICATION DONE!'
@@ -463,5 +472,5 @@ MPISharedInitIsDone=.FALSE.
 
 END SUBROUTINE FinalizeMPIShared
 
-#endif /* MPI_SHARED */
+#endif /* USE_MPI */
 END MODULE

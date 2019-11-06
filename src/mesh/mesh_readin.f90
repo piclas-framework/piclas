@@ -234,6 +234,8 @@ USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE,createSides
 USE MOD_IO_HDF5
 #if USE_MPI
 USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc
+USE MOD_MPI_Shared_Vars
+USE MOD_MPI_Shared           ,ONLY: Allocate_Shared
 USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
 #ifdef PARTICLES
 #if USE_LOADBALANCE
@@ -278,7 +280,7 @@ INTEGER                        :: iMortar,jMortar,nMortars
 INTEGER                        :: iNbProc
 INTEGER                        :: iProc
 INTEGER,ALLOCATABLE            :: MPISideCount(:)
-! new weight distribution method
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #endif /*USE_MPI*/
 LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
@@ -444,7 +446,7 @@ CALL MPI_ALLREDUCE(nSideIDs,nTotalSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IER
 MPISharedSize = INT(SideInfoSize*nTotalSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/SideInfoSize,nTotalSides/),SideInfo_Shared_Win,SideInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideInfo_Shared_Win,IERROR)
-SideInfo_Shared(:,offsetSide:offsetSide+nSides) = SideInfo(:,:)
+SideInfo_Shared(:,offsetSideID:offsetSideID+nSides) = SideInfo(:,:)
 CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
 #endif  /*USE_MPI*/
 
@@ -707,6 +709,20 @@ IF(isMortarMesh)THEN
     ElemToTree=0
     CALL ReadArray('ElemToTree',1,(/nElems/),offsetElem,1,IntegerArray_i4=ElemToTree)
   END ASSOCIATE
+#if USE_MPI
+  MPISharedSize = INT(3*2*nTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/3,2,nTotalElems/),xiMinMax_Shared_Win,xiMinMax_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,xiMinMax_Shared_Win,IERROR)
+  xiMinMax_Shared(:,:,offsetElem:offsetElem+nElems) = xiMinMax(:,:,:)
+  CALL MPI_WIN_SYNC(xiMinMax_Shared_Win,IERROR)
+
+  MPISharedSize = INT(nTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/nTotalElems/),ElemToTree_Shared_Win,ElemToTree_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ElemToTree_Shared_Win,IERROR)
+  ElemToTree_Shared(offsetElem:offsetElem+nElems) = ElemToTree(:)
+  CALL MPI_WIN_SYNC(ElemToTree_Shared_Win,IERROR)
+#endif  /*USE_MPI*/
+
 
   ! only read trees, connected to a procs elements
   offsetTree=MINVAL(ElemToTree)-1
@@ -717,12 +733,20 @@ IF(isMortarMesh)THEN
   TreeCoords=-1.
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
-        NGeoTree   => INT(NGeoTree)            ,&
-        nTrees     => INT(nTrees)              ,&
-        offsetTree => INT(offsetTree)          )
+        NGeoTree   => INT(NGeoTree,IK)            ,&
+        nTrees     => INT(nTrees,IK)              ,&
+        offsetTree => INT(offsetTree,IK)          )
     CALL ReadArray('TreeCoords',2,(/3_IK,(NGeoTree+1_IK)**3_IK*nTrees/),&
         (NGeoTree+1_IK)**3_IK*offsetTree,2,RealArray=TreeCoords)
   END ASSOCIATE
+#if USE_MPI
+  CALL MPI_ALLREDUCE(nTrees,nTotalTrees,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
+  MPISharedSize = INT((NGeoTree+1)**3*nTotalTrees,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/3,nGeoTree+1,nGeoTree+1,nGeoTree+1,nTotalTrees/),TreeCoords_Shared_Win,TreeCoords_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,TreeCoords_Shared_Win,IERROR)
+  TreeCoords_Shared(:,:,:,:,offsetTree:offsetTree+nTrees) = TreeCoords(:,:,:,:,:)
+  CALL MPI_WIN_SYNC(TreeCoords_Shared_Win,IERROR)
+#endif  /*USE_MPI*/
 ELSE
   nTrees=0
 END IF
@@ -730,6 +754,27 @@ END IF
 DEALLOCATE(ElemInfo,SideInfo,NodeInfo,NodeMap)
 
 CALL CloseDataFile()
+
+#if USE_MPI
+IF(myRank_Shared.EQ.0)THEN
+  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared   ,ElemInfoSize*nTotalElems  &
+      ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
+  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared   ,SideInfoSize*nTotalSides  &
+      ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
+  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeInfo_Shared   ,nTotalNodes  &
+      ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
+  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeCoords_Shared   ,3*nTotalNodes  &
+      ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
+  IF(isMortarMesh)THEN
+    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,xiMinMax_Shared   ,3*2*nTotalElems  &
+        ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
+    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemToTree_Shared ,nTotalElems      &
+        ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
+    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,TreeCoords_Shared ,(NGeoTree+1)**3*nTotalTrees &
+        ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
+  END IF
+END IF
+#endif  /*USE_MPI*/
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              COUNT SIDES

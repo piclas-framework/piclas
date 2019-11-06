@@ -20,7 +20,7 @@ MODULE MOD_MPI_Shared_Vars
 IMPLICIT NONE
 PUBLIC
 SAVE
-#if USE_MPI_SHARED
+#if USE_MPI
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -28,11 +28,14 @@ LOGICAL            :: MPISharedInitIsDone=.FALSE.
 
 ! Communication
 INTEGER            :: myRank_Shared                   !> Rank of current proc on current node
+INTEGER            :: myLeaderRank_Shared             !> Rank of current node root in node root comm
 INTEGER,ALLOCATABLE:: MPIRankGlobal(:)                !> Array of size nProcessors holding the global rank of each proc
 INTEGER,ALLOCATABLE:: MPIRankShared(:)                !> Array of size nProcessors holding the shared rank of each proc
 INTEGER            :: nProcessors_Shared              !> Number of procs on current node
+INTEGER            :: nLeaderProcs_Shared             !> Number of nodes
 INTEGER            :: nProcessors_Global              !> Number of total procs
 INTEGER            :: MPI_COMM_SHARED                 !> Communicator on current node
+INTEGER            :: MPI_COMM_LEADERS_SHARED         !> Communicator node roots (my_rank_shared=0)
 
 ! Mesh
 !> Counters
@@ -46,18 +49,28 @@ INTEGER            :: OffsetElem_Shared_Root          !> offsetElem of root on c
 INTEGER            :: OffsetSide_Shared_Root          !> offsetSide of root on current node
 INTEGER            :: OffsetElemHalo_Shared           !> offsetElem on current node (only halo region)
 INTEGER            :: OffsetSideHalo_Shared           !> offsetSide on current node (only halo region)
+INTEGER            :: nTotalSides                     !> total nb. of sides
+INTEGER            :: nTotalElems                     !> total nb. of elems
+INTEGER            :: nTotalNodes                     !> total nb. of nodes
+INTEGER            :: nTotalTrees                     !> total nb. of trees
 
-INTEGER,POINTER     :: ElemInfo_Shared(:,:)            
-INTEGER            :: ElemInfo_Shared_Win    
+INTEGER,POINTER :: ElemInfo_Shared(:,:)
+INTEGER         :: ElemInfo_Shared_Win
 
-INTEGER,POINTER     :: SideInfo_Shared(:,:)            
-INTEGER            :: SideInfo_Shared_Win 
+INTEGER,POINTER :: SideInfo_Shared(:,:)
+INTEGER         :: SideInfo_Shared_Win
 
-INTEGER,POINTER     :: NodeInfo_Shared(:)            
-INTEGER             :: NodeInfo_Shared_Win              
-REAL,POINTER       :: NodeCoords_Shared(:,:)            
-INTEGER            :: NodeCoords_Shared_Win              
+INTEGER,POINTER :: NodeInfo_Shared(:)
+INTEGER         :: NodeInfo_Shared_Win
+REAL,POINTER    :: NodeCoords_Shared(:,:)
+INTEGER         :: NodeCoords_Shared_Win
 
+REAL,POINTER    :: xiMinMax_Shared(:,:,:)
+INTEGER         :: xiMinMax_Shared_Win
+REAL,POINTER    :: TreeCoords_Shared(:,:,:,:,:)
+INTEGER         :: TreeCoords_Shared_Win
+INTEGER,POINTER :: ElemToTree_Shared(:)
+INTEGER         :: ElemToTree_Shared_Win
 
-#endif /* MPI_SHARED */
+#endif /* USE_MPI */
 END MODULE
