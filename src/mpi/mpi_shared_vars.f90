@@ -27,32 +27,29 @@ SAVE
 LOGICAL            :: MPISharedInitIsDone=.FALSE.
 
 ! Communication
-INTEGER            :: myRank_Shared                   !> Rank of current proc on current node
-INTEGER            :: myLeaderRank_Shared             !> Rank of current node root in node root comm
+INTEGER            :: myRank_Shared                   !> Rank of current proc on current compute-node
+INTEGER            :: myLeaderRank_Shared             !> Rank of current compute-node root in compute-node root comm
 INTEGER,ALLOCATABLE:: MPIRankGlobal(:)                !> Array of size nProcessors holding the global rank of each proc
 INTEGER,ALLOCATABLE:: MPIRankShared(:)                !> Array of size nProcessors holding the shared rank of each proc
-INTEGER            :: nProcessors_Shared              !> Number of procs on current node
+INTEGER            :: nProcessors_Shared              !> Number of procs on current compute-node
 INTEGER            :: nLeaderProcs_Shared             !> Number of nodes
 INTEGER            :: nProcessors_Global              !> Number of total procs
-INTEGER            :: MPI_COMM_SHARED                 !> Communicator on current node
-INTEGER            :: MPI_COMM_LEADERS_SHARED         !> Communicator node roots (my_rank_shared=0)
+INTEGER            :: MPI_COMM_SHARED                 !> Communicator on current compute-node
+INTEGER            :: MPI_COMM_LEADERS_SHARED         !> Communicator compute-node roots (my_rank_shared=0)
 
 ! Mesh
 !> Counters
-INTEGER            :: nElems_Shared                   !> Number of elems on current node
-INTEGER            :: nSides_Shared                   !> Number of sides on current node
-INTEGER            :: nTotalElems_Shared              !> Number of elems on current node (including halo region)
-INTEGER            :: nTotalSides_Shared              !> Number of sides on current node (including halo region)
-INTEGER            :: nElemsHalo_Shared               !> Number of elems on current node (only halo region)
-INTEGER            :: nSidesHalo_Shared               !> Number of sides on current node (only halo region)
-INTEGER            :: OffsetElem_Shared_Root          !> offsetElem of root on current node
-INTEGER            :: OffsetSide_Shared_Root          !> offsetSide of root on current node
-INTEGER            :: OffsetElemHalo_Shared           !> offsetElem on current node (only halo region)
-INTEGER            :: OffsetSideHalo_Shared           !> offsetSide on current node (only halo region)
+INTEGER            :: nElems_Shared                   !> Number of elems on current compute-node
+INTEGER            :: nSides_Shared                   !> Number of sides on current compute-node
+INTEGER            :: nNodes_Shared                   !> Number of nodes on current compute-node
+INTEGER            :: nTotalElems_Shared              !> Number of elems on current compute-node (including halo region)
+INTEGER            :: nTotalSides_Shared              !> Number of sides on current compute-node (including halo region)
+INTEGER            :: nTotalNodes_Shared              !> Number of nodes on current compute-node (including halo region)
 INTEGER            :: nTotalSides                     !> total nb. of sides
 INTEGER            :: nTotalElems                     !> total nb. of elems
 INTEGER            :: nTotalNodes                     !> total nb. of nodes
 INTEGER            :: nTotalTrees                     !> total nb. of trees
+INTEGER            :: offsetNodeID_Shared             !> node offset of compute-node root
 
 INTEGER,POINTER :: ElemInfo_Shared(:,:)
 INTEGER         :: ElemInfo_Shared_Win

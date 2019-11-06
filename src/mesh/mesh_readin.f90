@@ -756,7 +756,10 @@ DEALLOCATE(ElemInfo,SideInfo,NodeInfo,NodeMap)
 CALL CloseDataFile()
 
 #if USE_MPI
+CALL MPI_ALLREDUCE(nNodeIDs,nTotalNodes_Shared,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
 IF(myRank_Shared.EQ.0)THEN
+  OffsetNodeID_Shared=offsetNodeID
+  CALL MPI_BCAST(offSetNodeID_Shared,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
   CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared   ,ElemInfoSize*nTotalElems  &
       ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
   CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared   ,SideInfoSize*nTotalSides  &

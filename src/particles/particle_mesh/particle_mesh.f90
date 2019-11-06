@@ -19,8 +19,7 @@ MODULE MOD_Particle_Mesh
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-PUBLIC
-SAVE
+PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -166,13 +165,6 @@ CALL prms%CreateIntOption(     'BezierSampleN'&
 
 
 ! Background mesh init variables
-CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'&
-  , 'Define the deltas for the cartesian Fast-Init-Background-Mesh.'//&
-  ' They should be of the similar size as the smallest cells of the used mesh for simulation.'&
-  , '1. , 1. , 1.')
-CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
-  , 'Factor with which the background mesh will be scaled.'&
-  , '1. , 1. , 1.')
 CALL prms%CreateLogicalOption( 'printMPINeighborWarnings'&
     ,  ' Print warning if the MPI-Halo-region between to procs are not overlapping. Only one proc find the other in halo ' &
     ,'.FALSE.')
@@ -223,6 +215,8 @@ USE MOD_Mesh_Vars              ,ONLY: nElems,nSides,nNodes,SideToElem,ElemToSide
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux,WriteTriaSurfaceFluxDebugMesh
 USE MOD_Mesh_Vars              ,ONLY: useCurveds,NGeo,MortarType
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -242,14 +236,15 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH ...'
 IF(ParticleMeshInitIsDone) CALL abort(&
 __STAMP__&
 , ' Particle-Mesh is already initialized.')
-! allocate and duplicate partElemToside
-nTotalSides=nSides
-nTotalBCSides=nSides
-nTotalElems=nElems
-nTotalNodes=nNodes
-ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalSides)    &
-        ,PartSideToElem(1:5,1:nTotalSides)        &
-        ,PartElemToElemGlob(1:4,1:6,1:nTotalElems)&
+
+CALL GetMeshMinMax()
+CALL BuildBGM()
+CALL IdentifyHaloRegion()
+CALL ReduceSharedArrays()
+
+nTotalBCSides=nTotalSides_Shared
+ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalElems_Shared)    &
+        ,PartSideToElem(1:5,1:nTotalSides_Shared)        &
         ,STAT=ALLOCSTAT                      )
 IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
@@ -257,7 +252,6 @@ __STAMP__&
 ! nullify
 PartElemToSide=-1
 PartSideToElem=-1
-PartElemToElemGlob=-1
 
 DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
 TriaTracking       = GETLOGICAL('TriaTracking','.FALSE.')
@@ -1711,10 +1705,7 @@ __STAMP__&
 , 'halo_eps_velo.EQ.c -> Halo Eps Velocity for MPI not defined')
 END IF
 #endif
-#if (PP_TimeDiscMethod==201)
-deltaT=CALCTIMESTEP()
-halo_eps = c*deltaT*SafetyFactor*max(dt_part_ratio,1.0)
-#elif (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 halo_eps = RK_c(2)
 DO iStage=2,nRKStages-1
   halo_eps = MAX(halo_eps,RK_c(iStage+1)-RK_c(iStage))
@@ -6268,55 +6259,30 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER         :: iSide
-REAL            :: xmin, xmax, ymin, ymax, zmin, zmax
+!INTEGER         :: iSide
+!REAL            :: xmin, xmax, ymin, ymax, zmin, zmax
 !===================================================================================================================================
 
-!--- calc min and max coordinates for mesh
-xmin = HUGE(1.0)
-xmax =-HUGE(1.0)
-ymin = HUGE(1.0)
-ymax =-HUGE(1.0)
-zmin = HUGE(1.0)
-zmax =-HUGE(1.0)
-
-! serch for min,max of BezierControlPoints, e.g. the convec hull of the domain
-! more accurate, XCL_NGeo
-!DO iElem=1,nTotalElems
-!  xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
-!  xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
-!  ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
-!  ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
-!  zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
-!  zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
-!END DO ! iElem
-
-! bounding box!!
-DO iSide=1,nTotalSides
-  IF(MortarSlave2MasterInfo(iSide).NE.-1) CYCLE
-  xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,iSide)))
-  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,iSide)))
-  ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,iSide)))
-  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,iSide)))
-  zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,iSide)))
-  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,iSide)))
-END DO ! iSide
-
-GEO%xmin=xmin
-GEO%xmax=xmax
-GEO%ymin=ymin
-GEO%ymax=ymax
-GEO%zmin=zmin
-GEO%zmax=zmax
+GEO%xmin=MINVAL(NodeCoords(1,:,:,:,:))
+GEO%xmax=MAXVAL(NodeCoords(1,:,:,:,:))
+GEO%ymin=MINVAL(NodeCoords(2,:,:,:,:))
+GEO%ymax=MAXVAL(NodeCoords(2,:,:,:,:))
+GEO%zmin=MINVAL(NodeCoords(3,:,:,:,:))
+GEO%zmax=MAXVAL(NodeCoords(3,:,:,:,:))
 
 #if USE_MPI
-! get global min, max
-  CALL MPI_ALLREDUCE(GEO%xmin, GEO%xminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
-  CALL MPI_ALLREDUCE(GEO%ymin, GEO%yminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
-  CALL MPI_ALLREDUCE(GEO%zmin, GEO%zminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
-  CALL MPI_ALLREDUCE(GEO%xmax, GEO%xmaxglob, 1, MPI_DOUBLE_PRECISION, MPI_MAX, PartMPI%COMM, IERROR)
-  CALL MPI_ALLREDUCE(GEO%ymax, GEO%ymaxglob, 1, MPI_DOUBLE_PRECISION, MPI_MAX, PartMPI%COMM, IERROR)
-  CALL MPI_ALLREDUCE(GEO%zmax, GEO%zmaxglob, 1, MPI_DOUBLE_PRECISION, MPI_MAX, PartMPI%COMM, IERROR)
+  GEO%xmin_Shared=MINVAL(NodeCoords_Shared(1,offsetNodeID_Shared:offsetNodeID_Shared+nTotalNodes_Shared))
+  GEO%ymin_Shared=MAXVAL(NodeCoords_Shared(1,offsetNodeID_Shared:offsetNodeID_Shared+nTotalNodes_Shared))
+  GEO%zmin_Shared=MINVAL(NodeCoords_Shared(2,offsetNodeID_Shared:offsetNodeID_Shared+nTotalNodes_Shared))
+  GEO%xmax_Shared=MAXVAL(NodeCoords_Shared(2,offsetNodeID_Shared:offsetNodeID_Shared+nTotalNodes_Shared))
+  GEO%ymax_Shared=MINVAL(NodeCoords_Shared(3,offsetNodeID_Shared:offsetNodeID_Shared+nTotalNodes_Shared))
+  GEO%zmax_Shared=MAXVAL(NodeCoords_Shared(3,offsetNodeID_Shared:offsetNodeID_Shared+nTotalNodes_Shared))
+  GEO%xminglob=MINVAL(NodeCoords_Shared(1,:))
+  GEO%yminglob=MAXVAL(NodeCoords_Shared(1,:))
+  GEO%zminglob=MINVAL(NodeCoords_Shared(2,:))
+  GEO%xmaxglob=MAXVAL(NodeCoords_Shared(2,:))
+  GEO%ymaxglob=MINVAL(NodeCoords_Shared(3,:))
+  GEO%zmaxglob=MAXVAL(NodeCoords_Shared(3,:))
 #else
   GEO%xminglob=GEO%xmin
   GEO%yminglob=GEO%ymin
@@ -6324,7 +6290,7 @@ GEO%zmax=zmax
   GEO%xmaxglob=GEO%xmax
   GEO%ymaxglob=GEO%ymax
   GEO%zmaxglob=GEO%zmax
-#endif
+#endif /*USE_MPI*/
 
 END SUBROUTINE GetMeshMinMax
 
