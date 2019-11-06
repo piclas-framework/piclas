@@ -655,7 +655,6 @@ FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
                                 ./src/readintools/*.f90
                                 ./src/recordpoints/*.f90
                                 ./src/restart/*.f90
-                                ./src/superB/*.f90
                                 ./src/timedisc/*.f90
                                 ./src/utils/*.f90 )
 
@@ -706,6 +705,7 @@ ENDIF()
 FILE(GLOB mainF90 ./src/piclas.f90
                   ./src/piclaslib.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
+                               ./src/posti/superB/*.f90
                                ./src/interpolation/eval_xyz.f90)
 FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90
