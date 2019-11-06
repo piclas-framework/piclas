@@ -82,12 +82,7 @@ IF (CalcBField) THEN
   CALL SuperB()
 ELSE
   ! Load background field from file
-  BGFileName = GETSTR('PIC-BGFileName','none')
-  IF(TRIM(BGFileName).EQ.'none')THEN
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR: No Filename for Background-Field defined!')
-  END IF
+  BGFileName = GETSTR('PIC-BGFileName')
 
   NBG = GETINT('PIC-NBG','1')
   BGFieldScaling = GETREAL('PIC-BGFieldScaling','1.')
