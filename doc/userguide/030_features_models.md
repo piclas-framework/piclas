@@ -486,7 +486,7 @@ In the following the parameters for different coils and permanent magnets based 
 
 ### Magnetic Field by Permanent Magnets
 
-First, the total number of permanent magnets has to be defined and the type selected. Options are ``cuboid``, ``sphere``, ``cylinder`` and ``conic``.
+First, the total number of permanent magnets has to be defined and the type selected. Options are `cuboid`, `sphere`, `cylinder` and `conic`.
 
     NumOfPermanentMagnets = 1
     PermanentMagnet1-Type = cuboid
@@ -498,7 +498,7 @@ All options require the input of a base/origin vector, a number of discretizatio
 
     PermanentMagnet1-BasePoint = (/0.,0.,0./)
     PermanentMagnet1-NumNodes = 10
-    PermanentMagnet1-Magnetisation = (/0.,0.,1.0/)
+    PermanentMagnet1-Magnetisation = (/0.,0.,1./)
 
 The geometries require different input parameters given below
 
@@ -515,45 +515,46 @@ The geometries require different input parameters given below
 
 ### Magnetic Field by Coils
 
-The total number of coils and the respective type of the cross-section (``linear``,``circle``,``rectangular``,``custom``) is defined by
+The total number of coils and the respective type of the cross-section (`linear`,`circle`,`rectangle`,`custom`) is defined by
 
     NumOfCoils = 1
     Coil1-Type = linear
                  circle
-                 rectangular
+                 rectangle
                  custom
 
 All options require the input of a base/origin vector, a length vector (vector normal to the cross-section of the coil) and the current in [A]
 
-    Coil1-BasePoint = (/0.,0.,0.0/)
-    Coil1-LengthVector = (/0.,1.,0.0/)
+    Coil1-BasePoint = (/0.0,0.0,0.0/)
+    Coil1-LengthVector = (/0.0,1.0,0.0/)
     Coil1-Current = 1.
 
-The first option ``linear`` represents a simple linear conductor (e.g. a straight wire) and requires only the input of a number of discretization points
+The first option `linear` represents a simple linear conductor (e.g. a straight wire) and requires only the input of a number of discretization points
 
     Coil1-NumNodes = 5
 
-The other three types, which are actually coils, are described by the number of loops, the number of discretization points per loop and a vector, which must be orthogonal to the ``-LengthVector`` to define the orientation of the cross-section plane.
+The other three types, which are actually coils, are described by the number of loops and the number of discretization points per loop
 
     Coil1-LoopNum = 10
     Coil1-PointsPerLoop = 10
-    Coil1-AxisVec1 = (/0.,0.,1.0/)
 
-The cross-section of the coil is defined in a plane normal to the ``-LengthVector``. A circular coil cross-section requires simply the input of a radius while a rectangular coil cross-section is spanned by two vectors
+The cross-section of the coil is defined in a plane normal to the `-LengthVector`. A circular coil cross-section requires simply the input of a radius while a rectangular coil cross-section is spanned by two vectors (`-RectVec1` and `-RectVec2`) and an additional vector, which must be orthogonal to the `-LengthVector` to define the orientation of the cross-section (`-AxisVec1`). In these two cases, the base/origin vector defines the middle point of the cross-section.
 
     ! Circular coil cross-section
     Coil1-Radius = 1.
     ! Rectangular coil cross-section
     Coil1-RectVec1 = (/1.0,0.0/)
     Coil1-RectVec2 = (/0.0,1.0/)
+    Coil1-AxisVec1 = (/0.0,0.0,1.0/)
 
-The last cross-section type ``custom`` allows the definition of a cross-section as a combination of multiple linear (``line``) and circular (``circle``) segments
+The last cross-section type `custom` allows the definition of a cross-section as a combination of multiple linear (`line`) and circular (`circle`) segments and also requires an additional vector to define the orientation of the cross-section (`-AxisVec1`)
 
+    Coil1-AxisVec1 = (/0.0,0.0,1.0/)
     Coil1-NumOfSegments = 3
     ! Linear segment defined by 
     Coil1-Segment1-SegmentType = line
     Coil1-Segment1-NumOfPoints = 5
-    Coil1-Segment1-LineVector = (/1.0,1,.0/)
+    Coil1-Segment1-LineVector = (/1.0,1.0/)
     ! Circular segment connected to the previous segment
     Coil1-Segment2-SegmentType = circle
     Coil1-Segment2-NumOfPoints = 5
@@ -565,7 +566,7 @@ The last cross-section type ``custom`` allows the definition of a cross-section 
     Coil1-Segment3-NumOfPoints = 5
     Coil1-Segment3-LineVector = (/-2.0,0.0/)
 
-The ``-NumOfPoints`` controls the number of discretization points per segment. A linear segment is simply described by a vector in the cross-section plane. The circular segment is defined by a radius and the initial as well as final angle of the segment.
+The `-NumOfPoints` controls the number of discretization points per segment. A linear segment is simply described by a vector in the cross-section plane. The circular segment is defined by a radius and the initial as well as final angle of the segment. It should be noted that the base point defines the start of the first segment as opposed to the circular and rectangular cross-sections, where it is the middle point of the cross-section.
 
 ## Direct Simulation Monte Carlo
 
