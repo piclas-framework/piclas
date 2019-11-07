@@ -60,6 +60,7 @@ REAL,ALLOCATABLE :: BGField_xGP(:)     !< Gauss point coordinates
 REAL,ALLOCATABLE :: BGField_wGP(:)     !< GP integration weights
 REAL,ALLOCATABLE :: BGField_wBary(:)   !< barycentric weights
 LOGICAL          :: BGFieldVTKOutput   !< Output the background field in VTK data format
+REAL,ALLOCATABLE :: PsiMag(:,:,:,:)    !< Magnetic potential [1:PP_N,1:PP_N,1:PP_N,1:nElems]
 !===================================================================================================================================
 
 LOGICAL           :: InterpolationInitIsDone = .FALSE. !< Flag whether the initialization has been completed or not

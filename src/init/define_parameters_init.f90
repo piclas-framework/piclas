@@ -43,7 +43,6 @@ USE MOD_RecordPoints                    ,ONLY: DefineParametersRecordPoints
 USE MOD_TimeDisc                        ,ONLY: DefineParametersTimedisc
 USE MOD_Mesh                            ,ONLY: DefineParametersMesh
 USE MOD_Equation                        ,ONLY: DefineParametersEquation
-USE MOD_SuperB_Init                     ,ONLY: DefineParametersSuperB
 #if !(USE_HDG)
 USE MOD_PML                             ,ONLY: DefineParametersPML
 #endif /*USE_HDG*/
@@ -73,6 +72,7 @@ USE MOD_FPFlow_Init                     ,ONLY: DefineParametersFPFlow
 USE MOD_Particle_Boundary_Porous        ,ONLY: DefineParametersPorousBC
 USE MOD_Particle_VarTimeStep            ,ONLY: DefineParametersVaribleTimeStep
 USE MOD_DSMC_Symmetry2D                 ,ONLY: DefineParametersParticleSymmetry
+USE MOD_SuperB_Init                     ,ONLY: DefineParametersSuperB
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
@@ -113,8 +113,8 @@ CALL DefineParametersDielectric()
 CALL DefineParametersFilter()
 CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()
-CALL DefineParametersSuperB()
 #ifdef PARTICLES
+CALL DefineParametersSuperB()
 CALL DefineParametersParticles()
 CALL DefineParametersMacroBody()
 CALL DefineParametersParticlesBoundarySampling()

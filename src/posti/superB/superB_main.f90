@@ -40,8 +40,7 @@ USE MOD_SuperB_Vars
 USE MOD_Preproc               ,ONLY: PP_N
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Interpolation_Vars    ,ONLY: NBG, BGType, BGField, BGFieldVTKOutput
-USE MOD_Interpolation_Vars    ,ONLY: BGDataSize
+USE MOD_Interpolation_Vars    ,ONLY: NBG, BGType, BGField, BGFieldVTKOutput, BGDataSize, PsiMag
 USE MOD_HDF5_Output_Tools     ,ONLY: WriteBFieldToHDF5
 USE MOD_SuperB_Init           ,ONLY: InitializeSuperB
 #ifdef PARTICLES

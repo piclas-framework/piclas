@@ -61,8 +61,8 @@ USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Preproc            ,ONLY: PP_N
 USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights
-USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput
-USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, PsiMag, MagnetFlag
+USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput, PsiMag
+USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, MagnetFlag
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -278,8 +278,8 @@ USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Preproc            ,ONLY: PP_N
 USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights
-USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput
-USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, PsiMag, MagnetFlag
+USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput, PsiMag
+USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, MagnetFlag
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -423,8 +423,8 @@ USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights
 USE MOD_SuperB_Tools       ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
-USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, psiMag, MagnetFlag
-USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput
+USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput, PsiMag
+USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, MagnetFlag
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -634,9 +634,9 @@ USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Preproc
 USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights
-USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, psiMag, MagnetFlag
+USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput, PsiMag
+USE MOD_SuperB_Vars        ,ONLY: PermanentMagnetInfo, MagnetFlag
 USE MOD_SuperB_Tools       ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
-USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput
 ! IMPLICIT NONE
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -875,18 +875,18 @@ normalUnitVec = normalVec/normalVectorLength
 
 END SUBROUTINE CalculateNormalVector
 
+
 SUBROUTINE CalculateGradient()
 !===================================================================================================================================
 !> Contains the calculation of the gradient of the magnetic potential to get the B-Field
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
-USE MOD_Mesh_Vars          ,ONLY: Metrics_fTilde, Metrics_gTilde, Metrics_hTilde, sJ
-USE MOD_SuperB_Vars
-USE MOD_Interpolation_Vars ,ONLY: BGField
 USE MOD_Basis
-USE MOD_Interpolation_Vars ,ONLY: xGP
-USE MOD_Equation_Vars      ,ONLY: mu0
+USE MOD_SuperB_Vars         ,ONLY: PermanentMagnetInfo, MagnetFlag
+USE MOD_Mesh_Vars           ,ONLY: Metrics_fTilde, Metrics_gTilde, Metrics_hTilde, sJ
+USE MOD_Interpolation_Vars  ,ONLY: BGField, xGP, PsiMag
+USE MOD_Equation_Vars       ,ONLY: mu0
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

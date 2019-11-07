@@ -423,9 +423,7 @@ USE MOD_Mesh_Vars          ,ONLY: offsetElem,nGlobalElems, nElems,MeshFile
 USE MOD_io_HDF5
 USE MOD_HDF5_output        ,ONLY: WriteArrayToHDF5, copy_userblock
 USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
-USE MOD_Interpolation_Vars ,ONLY: BGField
-USE MOD_Interpolation_Vars ,ONLY: NodeType
-USE MOD_SuperB_Vars        ,ONLY: PsiMag
+USE MOD_Interpolation_Vars ,ONLY: BGField, NodeType, PsiMag
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

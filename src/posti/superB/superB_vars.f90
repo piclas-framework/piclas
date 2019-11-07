@@ -72,6 +72,8 @@ REAL, ALLOCATABLE                 :: BGFieldTDep(:,:,:,:,:,:)   !< Time-dependen
 ! === Permanent Magnets
 
 INTEGER                 :: NumOfPermanentMagnets                !< Total number of permanent magnets
+INTEGER, ALLOCATABLE    :: MagnetFlag(:,:,:,:)                  !< Number of the magnet that occupies the point, otherwise zero
+                                                                !< [0:PP_N,0:PP_N,0:PP_N,1:nElems]
 
 TYPE tPermanentMagnetInfo
   CHARACTER(LEN=255)    :: Type                                 !< Cuboid, sphere, cylinder, conic
@@ -94,9 +96,5 @@ TYPE tPermanentMagnetInfo
 END TYPE tPermanentMagnetInfo
 
 TYPE(tPermanentMagnetInfo),ALLOCATABLE :: PermanentMagnetInfo(:)!< Container for the permanent magnet info [1:NumOfPermanentMagnets]
-
-REAL, ALLOCATABLE                   :: PsiMag(:,:,:,:)          !< Magnetic potential [1:PP_N,1:PP_N,1:PP_N,1:nElems]
-INTEGER, ALLOCATABLE                :: MagnetFlag(:,:,:,:)      !< Number of the magnet that occupies the point, otherwise zero
-                                                                !< [0:PP_N,0:PP_N,0:PP_N,1:nElems]
 
 END MODULE MOD_SuperB_Vars
