@@ -414,11 +414,16 @@ END DO
 
 #if USE_MPI
 CALL MPI_ALLREDUCE(nElems,nTotalElems,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
-MPISharedSize = INT(ElemInfoSize*nTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/ElemInfoSize,nTotalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
+CALL MPI_ALLREDUCE(nElems,nElems_Shared,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
+MPISharedSize = INT((ElemInfoSize+1)*nTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/ElemInfoSize+1,nTotalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemInfo_Shared_Win,IERROR)
-ElemInfo_Shared(:,offsetElem+1:offsetElem+nElems) = ElemInfo(:,:)
+ElemInfo_Shared(1:ElemInfoSize,offsetElem+1:offsetElem+nElems) = ElemInfo(:,:)
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
+IF(myRank_Shared.EQ.0) THEN
+  OffsetElem_Shared=offsetElem
+  CALL MPI_BCAST(offSetElem_Shared,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+END IF
 #endif  /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------
 !                              SIDES
@@ -444,10 +449,11 @@ END ASSOCIATE
 
 #if USE_MPI
 CALL MPI_ALLREDUCE(nSideIDs,nTotalSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
-MPISharedSize = INT(SideInfoSize*nTotalSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/SideInfoSize,nTotalSides/),SideInfo_Shared_Win,SideInfo_Shared)
+MPISharedSize = INT((SideInfoSize+1)*nTotalSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/SideInfoSize+1,nTotalSides/),SideInfo_Shared_Win,SideInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideInfo_Shared_Win,IERROR)
-SideInfo_Shared(:,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo(:,:)
+SideInfo_Shared(1:SideInfoSize,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo(:,:)
+SideInfo_Shared(SideInfoSize+1,offsetSideID+1:offsetSideID+nSideIDs) = 0
 CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
 #endif  /*USE_MPI*/
 
@@ -574,6 +580,12 @@ DO iElem=FirstElemInd,LastElemInd
           aSide%connection%flip=aSide%flip
           aSide%connection%Elem=>GETNEWELEM()
           aSide%NbProc = ELEMIPROC(elemID)
+          IF (ElemID.LE.offsetElem_Shared+1 .OR. ElemID.GT.offSetElem_Shared+nElems_Shared) THEN
+            ! neighbour element is outside of compute-node
+            SideInfo_Shared(SideInfoSize+1,iSide) = 2
+          ELSE
+            SideInfo_Shared(SideInfoSize+1,iSide) = 1
+          END IF ! ElemID.LT.offsetElem_Shared+1 .OR. ElemID.GT.offSetElem_Shared+nElems_Shared
 #else
           CALL abort(__STAMP__, &
             ' ElemID of neighbor not in global Elem list ')
@@ -584,6 +596,9 @@ DO iElem=FirstElemInd,LastElemInd
   END DO !iLocSide
 END DO !iElem
 
+#if USE_MPI
+CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
+#endif
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              NODES
@@ -761,9 +776,9 @@ CALL MPI_ALLREDUCE(nNodeIDs,nTotalNodes_Shared,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SH
 IF(myRank_Shared.EQ.0)THEN
   OffsetNodeID_Shared=offsetNodeID
   CALL MPI_BCAST(offSetNodeID_Shared,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared   ,ElemInfoSize*nTotalElems  &
+  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared(1:ElemInfoSize,:),ElemInfoSize*nTotalElems  &
       ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared   ,SideInfoSize*nTotalSides  &
+  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared(1:SideInfoSize,:)   ,SideInfoSize*nTotalSides  &
       ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
   CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeInfo_Shared   ,nTotalNodes  &
       ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)

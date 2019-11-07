@@ -102,6 +102,7 @@ PUBLIC::PartInElemCheck
 PUBLIC::InitParticleGeometry
 PUBLIC::MarkAuxBCElems
 PUBLIC::GetMeshMinMax
+PUBLIC::InitElemBoundingBox
 !===================================================================================================================================
 !
 PUBLIC::DefineParametersParticleMesh
@@ -205,6 +206,7 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_BGM           ,ONLY: BuildBGM
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation,BezierControlPoints3DElevated
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts,CartesianPeriodic
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, WriteTriaDebugMesh
@@ -6243,13 +6245,10 @@ SUBROUTINE GetMeshMinMax()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
+USE MOD_Mesh_Vars          ,ONLY: NodeCoords
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_Mesh_Vars              ,ONLY: MortarSlave2MasterInfo
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,nTotalSides
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 #if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_MPI_Shared_Vars
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -6259,8 +6258,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!INTEGER         :: iSide
-!REAL            :: xmin, xmax, ymin, ymax, zmin, zmax
 !===================================================================================================================================
 
 GEO%xmin=MINVAL(NodeCoords(1,:,:,:,:))
@@ -6271,25 +6268,25 @@ GEO%zmin=MINVAL(NodeCoords(3,:,:,:,:))
 GEO%zmax=MAXVAL(NodeCoords(3,:,:,:,:))
 
 #if USE_MPI
-  GEO%xmin_Shared=MINVAL(NodeCoords_Shared(1,offsetNodeID_Shared:offsetNodeID_Shared+nTotalNodes_Shared))
-  GEO%ymin_Shared=MAXVAL(NodeCoords_Shared(1,offsetNodeID_Shared:offsetNodeID_Shared+nTotalNodes_Shared))
-  GEO%zmin_Shared=MINVAL(NodeCoords_Shared(2,offsetNodeID_Shared:offsetNodeID_Shared+nTotalNodes_Shared))
-  GEO%xmax_Shared=MAXVAL(NodeCoords_Shared(2,offsetNodeID_Shared:offsetNodeID_Shared+nTotalNodes_Shared))
-  GEO%ymax_Shared=MINVAL(NodeCoords_Shared(3,offsetNodeID_Shared:offsetNodeID_Shared+nTotalNodes_Shared))
-  GEO%zmax_Shared=MAXVAL(NodeCoords_Shared(3,offsetNodeID_Shared:offsetNodeID_Shared+nTotalNodes_Shared))
-  GEO%xminglob=MINVAL(NodeCoords_Shared(1,:))
-  GEO%yminglob=MAXVAL(NodeCoords_Shared(1,:))
-  GEO%zminglob=MINVAL(NodeCoords_Shared(2,:))
-  GEO%xmaxglob=MAXVAL(NodeCoords_Shared(2,:))
-  GEO%ymaxglob=MINVAL(NodeCoords_Shared(3,:))
-  GEO%zmaxglob=MAXVAL(NodeCoords_Shared(3,:))
+GEO%xmin_Shared=MINVAL(NodeCoords_Shared(1,offsetNodeID_Shared+1:offsetNodeID_Shared+nTotalNodes_Shared))
+GEO%xmax_Shared=MAXVAL(NodeCoords_Shared(1,offsetNodeID_Shared+1:offsetNodeID_Shared+nTotalNodes_Shared))
+GEO%ymin_Shared=MINVAL(NodeCoords_Shared(2,offsetNodeID_Shared+1:offsetNodeID_Shared+nTotalNodes_Shared))
+GEO%ymax_Shared=MAXVAL(NodeCoords_Shared(2,offsetNodeID_Shared+1:offsetNodeID_Shared+nTotalNodes_Shared))
+GEO%zmin_Shared=MINVAL(NodeCoords_Shared(3,offsetNodeID_Shared+1:offsetNodeID_Shared+nTotalNodes_Shared))
+GEO%zmax_Shared=MAXVAL(NodeCoords_Shared(3,offsetNodeID_Shared+1:offsetNodeID_Shared+nTotalNodes_Shared))
+GEO%xminglob=MINVAL(NodeCoords_Shared(1,:))
+GEO%xmaxglob=MAXVAL(NodeCoords_Shared(1,:))
+GEO%yminglob=MINVAL(NodeCoords_Shared(2,:))
+GEO%ymaxglob=MAXVAL(NodeCoords_Shared(2,:))
+GEO%zminglob=MINVAL(NodeCoords_Shared(3,:))
+GEO%zmaxglob=MAXVAL(NodeCoords_Shared(3,:))
 #else
-  GEO%xminglob=GEO%xmin
-  GEO%yminglob=GEO%ymin
-  GEO%zminglob=GEO%zmin
-  GEO%xmaxglob=GEO%xmax
-  GEO%ymaxglob=GEO%ymax
-  GEO%zmaxglob=GEO%zmax
+GEO%xminglob=GEO%xmin
+GEO%xmaxglob=GEO%xmax
+GEO%yminglob=GEO%ymin
+GEO%ymaxglob=GEO%ymax
+GEO%zminglob=GEO%zmin
+GEO%zmaxglob=GEO%zmax
 #endif /*USE_MPI*/
 
 END SUBROUTINE GetMeshMinMax

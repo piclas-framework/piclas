@@ -120,8 +120,6 @@ USE MOD_Metrics                ,ONLY: CalcMetrics
 USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,CalcMeshInfo
 USE MOD_Mappings               ,ONLY: InitMappings
 #ifdef PARTICLES
-USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh,InitParticleGeometry
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideSlabNormals,SideSlabIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty,ElemSlabNormals,ElemSlabIntervals
 #endif
@@ -262,18 +260,6 @@ MortarInfo=-1
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 CALL fillMeshInfo()
 
-#ifdef PARTICLES
-! save geometry information for particle tracking
-CALL InitParticleMesh()
-IF (TriaTracking) THEN
-  CALL InitParticleGeometry()
-END IF
-#endif
-
-! dealloacte pointers
-SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
-CALL deleteMeshPointer()
-
 ! build necessary mappings
 CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
                        SideToVolA,SideToVol2A,CGNS_SideToVol2A,FS2M)
@@ -379,6 +365,12 @@ CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
 ! compute elem bary and elem radius
 ALLOCATE(ElemBaryNGeo(1:3,1:nElems) )
 CALL BuildElementOrigin()
+
+#ifndef PARTICLES
+! dealloacte pointers
+SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
+CALL deleteMeshPointer()
+#endif
 
 ! Initialize element volumes and characteristic lengths
 CALL InitElemVolumes()

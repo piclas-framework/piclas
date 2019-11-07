@@ -50,6 +50,7 @@ INTEGER            :: nTotalElems                     !> total nb. of elems
 INTEGER            :: nTotalNodes                     !> total nb. of nodes
 INTEGER            :: nTotalTrees                     !> total nb. of trees
 INTEGER            :: offsetNodeID_Shared             !> node offset of compute-node root
+INTEGER            :: offsetElem_Shared               !> node offset of compute-node root
 
 INTEGER,POINTER :: ElemInfo_Shared(:,:)
 INTEGER         :: ElemInfo_Shared_Win
@@ -68,6 +69,11 @@ REAL,POINTER    :: TreeCoords_Shared(:,:,:,:,:)
 INTEGER         :: TreeCoords_Shared_Win
 INTEGER,POINTER :: ElemToTree_Shared(:)
 INTEGER         :: ElemToTree_Shared_Win
+
+INTEGER,POINTER :: FIBGM_nElem_Shared(:,:,:)               ! FastInitBackgroundMesh of compute node
+INTEGER         :: FIBGM_nElem_Shared_Win
+INTEGER,POINTER :: FIBGM_Element_Shared(:)                 ! FastInitBackgroundMesh of compute node
+INTEGER         :: FIBGM_Element_Shared_Win
 
 #endif /* USE_MPI */
 END MODULE
