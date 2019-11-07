@@ -97,6 +97,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #endif
 !===================================================================================================================================
 
+#if USE_MPI
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
 GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
 GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
@@ -539,7 +540,8 @@ DEALLOCATE(offsetElemsInBGMCell)
 CALL MPI_WIN_SYNC(FIBGM_Element_Shared,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
-#else  /*NOT USE_MPI*/
+#else
+!/*NOT USE_MPI*/
 
 DO iElem = 1, nElems
   xmin=MINVAL(NodeCoords(1,:,:,:,iElem))

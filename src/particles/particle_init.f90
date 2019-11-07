@@ -1062,6 +1062,8 @@ USE MOD_Particle_Vars
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
 USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO
+USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh,InitParticleGeometry
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, TriaSurfaceFlux
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas, RadialWeighting
@@ -2404,12 +2406,6 @@ __STAMP__&
   END IF
 END IF
 
-!--- Read Manual Time Step
-useManualTimeStep = .FALSE.
-ManualTimeStep = GETREAL('Particles-ManualTimeStep', '0.0')
-IF (ManualTimeStep.GT.0.0) THEN
-  useManualTimeStep=.True.
-END IF
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
   dt_part_ratio = GETREAL('Particles-dt_part_ratio', '3.8')
   overrelax_factor = GETREAL('Particles-overrelax_factor', '1.0')
@@ -2714,14 +2710,21 @@ CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 
 ! get new min max
 SWRITE(UNIT_stdOut,'(A)')' Getting Mesh min-max ...'
-CALL GetMeshMinMax()
+!CALL GetMeshMinMax()
 
 CALL InitPIC()
 
 !-- Build BGM and halo region
 SWRITE(UNIT_StdOut,'(132("-"))')
-SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
-halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
+
+! save geometry information for particle tracking
+CALL InitParticleMesh()
+IF (TriaTracking) THEN
+  CALL InitParticleGeometry()
+END IF
+SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
+CALL deleteMeshPointer()
+
 CALL InitFIBGM()
 
 !-- Macroscopic bodies inside domain
