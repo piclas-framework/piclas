@@ -74,8 +74,6 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   iSpec1     = PartSpecies(iPart1)
   iSpec2     = PartSpecies(iPart2)
 
-  iPType      = SpecDSMC(iSpec1)%InterID + SpecDSMC(iSpec2)%InterID ! collision case definition
-
   iPType = SpecDSMC(iSpec1)%InterID + SpecDSMC(iSpec2)%InterID !definition of collision case
 
   IF (PRESENT(NodeVolume)) THEN
@@ -141,7 +139,6 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
                                  * MacroParticleFactor * dtCell / Volume                                                       &
                                  * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omegaLaux(iSpec1,iSpec2))
         END IF
-
 !         CASE(5,6) !Atom - Electron ! Molecule - Electron
 !           ALLOCATE(Coll_pData(iPair)%Sigma(0:3))  ! Cross Section of Collision of this pair
 !           Coll_pData(iPair)%Sigma = 0
@@ -266,7 +263,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !                                 ! weighting Fact, here only one MPF is used!!!
 !                         * Coll_pData(iPair)%CRela2 ** (0.5-CollInf%omegaLaux(iSpec1,iSpec2)) &
 !                                 ! relative velo to the power of (1 -2omegaLaux)
-!                         * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
+!                         * dt / Volume                     ! timestep (should be scaled in time disc)  divided by cell volume
 !             ELSE
 !               Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))                &
 !                       * CollInf%crossSectionConstantCab(PairType)           &    ! Cab species comb fac
@@ -275,7 +272,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !                         / CollInf%Coll_CaseNum(PairType)                                                  &
 !                       * Coll_pData(iPair)%CRela2 ** (0.5-CollInf%omegaLaux(iSpec1,iSpec2))        &
 !                               ! relative velo to the power of (1 -2omegaLaux)
-!                       * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
+!                       * dt / Volume                     ! timestep (should be scaled in time disc)  divided by cell volume
 !             END IF
 !           ELSE
 !            ! collision probability based on polarization

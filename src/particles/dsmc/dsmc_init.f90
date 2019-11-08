@@ -197,15 +197,15 @@ CALL prms%CreateIntOption(   'Part-Collision[$]-partnerSpecies[$]'  &
                                             '     and   Part-Collision1-partnerSpecies2=3', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-Tref'  &
                                            ,'collision parameter: collision-specific reference temperature for VHS/VSS model.'&
-                                           , '0', numberedmulti=.TRUE.)
+                                           , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-dref'  &
                                            ,'collision parameter: collision-specific reference diameter for VHS/VSS model. '&
-                                           , '0.', numberedmulti=.TRUE.)
+                                           , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-omega'  &
                                            ,'collision parameter: collision-specific\n'//&
                                             'temperature exponent omega=2/(eta-1)\nfor VHS/VSS model.\n'//&
-                                            'default omega=0 + default alpha=1\nreproduces HS model\n' //&
-                                            'CAUTION: omega=omega_bird1994-0.5','0', numberedmulti=.TRUE.)
+                                            'omega=0 + alpha=1\nreproduces HS model\n' //&
+                                            'CAUTION: omega=omega_bird1994-0.5', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-alphaVSS'  &
                                            ,'collision parameter: collision-specific scattering\n'//&
                                             'exponent alpha for VSS model\n'//&
@@ -229,14 +229,14 @@ CALL prms%CreateIntOption(     'Part-Species[$]-InteractionID' , 'ID for identif
                                                                  '400: Excited Molecular Ion)', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Tref'  &
                                            ,'collision parameter: species-specific reference temperature for VHS/VSS model.' &
-                                           , '0.', numberedmulti=.TRUE.)
+                                           , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-dref' &
                                            ,'collision parameter: species-specific reference diameter for VHS/VSS model.'&
-                                           , '1.', numberedmulti=.TRUE.)
+                                           , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-omega'  &
                                            ,'collision parameter: species-specific temperature exponent omega = 2 / (eta - 1)'//&
                                             ' for VHS/VSS model.\nCAUTION: omega = omega_bird1994 - 0.5'&
-                                           , '0.', numberedmulti=.TRUE.)
+                                           , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-alphaVSS'&
                                            ,'collision parameter: species-specific scattering exponent alpha for VSS model\n'//&
                                             'default alphaVSS=1 reproduces VHS model\n'//&
@@ -584,18 +584,23 @@ END IF
       SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
       ! averagedCollisionParameters set true: species-specific collision parameters get read in
       IF(CollInf%averagedCollisionParameters) THEN
-        SpecDSMC(iSpec)%Tref         = GETREAL('Part-Species'//TRIM(hilf)//'-Tref'      ,'0')
-        SpecDSMC(iSpec)%dref         = GETREAL('Part-Species'//TRIM(hilf)//'-dref'      ,'0')
-        SpecDSMC(iSpec)%omegaLaux    = GETREAL('Part-Species'//TRIM(hilf)//'-omega'     ,'0')
-        SpecDSMC(iSpec)%alphaVSS     = GETREAL('Part-Species'//TRIM(hilf)//'-alphaVSS'  ,'1')
+        SpecDSMC(iSpec)%Tref         = GETREAL('Part-Species'//TRIM(hilf)//'-Tref'     )
+        SpecDSMC(iSpec)%dref         = GETREAL('Part-Species'//TRIM(hilf)//'-dref'     )
+        SpecDSMC(iSpec)%omegaLaux    = GETREAL('Part-Species'//TRIM(hilf)//'-omega'    )
+        SpecDSMC(iSpec)%alphaVSS     = GETREAL('Part-Species'//TRIM(hilf)//'-alphaVSS' )
         ! check for faulty parameters
         IF((SpecDSMC(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
           CALL Abort(&
           __STAMP__&
           ,'ERROR in species data: check collision parameters in ini \n'//&
-           'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS .EQ. 0'//&
+           'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0'//&
            ' - but must not be 0')
         END IF ! (Tref * dref * alphaVSS) .EQ. 0
+        IF ((SpecDSMC(iSpec)%alphaVSS.LT.1) .OR. (SpecDSMC(iSpec)%alphaVSS.GT.2)) THEN
+          CALL Abort(&
+          __STAMP__&
+          ,'ERROR: Check set parameter Part-Species'//TRIM(hilf)//'-alphaVSS must not be lower 1 or greater 2')
+        END IF ! alphaVSS parameter check
       END IF ! averagedCollisionParameters
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
@@ -676,10 +681,10 @@ END IF
         CollInf%omegaLaux (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omegaLaux + SpecDSMC(jSpec)%omegaLaux)
         CollInf%alphaVSS  (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%alphaVSS  + SpecDSMC(jSpec)%alphaVSS)
       ELSE ! collision-specific parameters
-        CollInf%Tref      (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref'      ,'0')
-        CollInf%dref      (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-dref'      ,'0')
-        CollInf%omegaLaux (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omega'     ,'0')
-        CollInf%alphaVSS  (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-alphaVSS'  ,'1')
+        CollInf%Tref      (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref'     )
+        CollInf%dref      (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-dref'     )
+        CollInf%omegaLaux (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omega'    )
+        CollInf%alphaVSS  (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-alphaVSS' )
       END IF ! averagedCollisionParameters
       IF (iSpec.NE.jSpec) THEN ! fill lower triangular matrix
         CollInf%Tref      (jSpec,iSpec) = CollInf%Tref      (iSpec,jSpec)
@@ -688,10 +693,15 @@ END IF
         CollInf%alphaVSS  (jSpec,iSpec) = CollInf%alphaVSS  (iSpec,jSpec)
       END IF ! filled lower triangular matrix
       IF(CollInf%dref(iSpec,jSpec) * CollInf%Tref(iSpec,jSpec) * CollInf%alphaVSS(iSpec,jSpec) .EQ. 0) THEN
-          CALL Abort(&
-          __STAMP__&
-          ,'ERROR: Check collision parameters! (Part-Collision'//TRIM(hilf)//'-Tref * dref * alphaVSS .EQ. 0 - but must not be 0)')
+        CALL Abort(&
+        __STAMP__&
+        ,'ERROR: Check collision parameters! (Part-Collision'//TRIM(hilf)//'-Tref * dref * alphaVSS) .EQ. 0 - but must not be 0)')
       END IF ! check if collision parameters are set
+      IF ((CollInf%alphaVSS(iSpec,jSpec).LT.1) .OR. (CollInf%alphaVSS(iSpec,jSpec).GT.2)) THEN
+        CALL Abort(&
+        __STAMP__&
+        ,'ERROR: Check set parameter Part-Collision'//TRIM(hilf)//'-alphaVSS must not be lower 1 or greater 2')
+      END IF ! alphaVSS parameter check
     END DO ! iColl=nColl
     IF(CollInf%crossSectionConstantMode.EQ.0) THEN ! one omega for all - DEFAULT
       CollInf%omegaLaux(:,:)=CollInf%omegaLaux(1,1)
@@ -1385,6 +1395,9 @@ IF (CollisMode.EQ.0) THEN
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate vib collision numbers and characteristic velocity, according to Abe
 !-----------------------------------------------------------------------------------------------------------------------------------
+  ! (i) dref changed from dref = 0.5 * (dref_1+dref_2) 
+  !                  to   dref(iSpec,jSpec) which is identical to old definition (for averagedCollisionParameters=TRUE (DEFAULT))
+  ! in case of averagedCollisionParameter=FALSE dref(iSpec,jSpec) contains collision specific dref see --help for details
   IF((DSMC%VibRelaxProb.EQ.2).AND.(CollisMode.GE.2)) THEN
     VarVibRelaxProb%alpha = GETREAL('Particles-DSMC-alpha','0.99')
     IF ((VarVibRelaxProb%alpha.LT.0).OR.(VarVibRelaxProb%alpha.GE.1)) THEN

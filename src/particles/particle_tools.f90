@@ -146,7 +146,7 @@ CALL LBPauseTime(LB_UNFP,tLBStart)
   RETURN
 END SUBROUTINE UpdateNextFreePosition
 
-FUNCTION DiceDeflectedVelocityVector(cRela2,ur,vr,wr,alphaVSS)
+FUNCTION DiceDeflectedVelocityVector(cRela2,alphaVSS,ur,vr,wr)
 !===================================================================================================================================
 !> Calculation of post collision velocity vector
 !>
@@ -162,8 +162,8 @@ FUNCTION DiceDeflectedVelocityVector(cRela2,ur,vr,wr,alphaVSS)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   REAL,INTENT(IN)            :: cRela2                 ! squared relative velocity of particle pair for scaling
-  REAL,INTENT(IN)            :: ur, vr, wr             ! pre-collision relative velocity cRela=(/ur,vr,wr/) for transformation
-  REAL,INTENT(IN), OPTIONAL  :: alphaVSS               ! Variable Soft Sphere scattering exponent
+  REAL,INTENT(IN)            :: alphaVSS               ! Variable Soft Sphere scattering exponent
+  REAL,INTENT(IN), OPTIONAL  :: ur, vr, wr             ! pre-collision relative velocity cRela=(/ur,vr,wr/) for transformation
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -182,22 +182,25 @@ FUNCTION DiceDeflectedVelocityVector(cRela2,ur,vr,wr,alphaVSS)
 
   cos_scatAngle = 2. * iRan ** ( 1. / alphaVSS ) - 1. ! deflection x-component in collision plane  (chi e [-1,1], away from center)
   sin_scatAngle = SQRT ( 1. - cos_scatAngle ** 2. )   ! deflection y-component in collision plane  (                      -of-mass)
-
-  ! transfer collision vector to 3D space by relation of coll to ref plane
-  DiceDeflectedVelocityVector(1) = cRela * cos_scatAngle ! deflection y-component in collision plane
-
+  
+  ! transfer 2D collision vector to 3D space through relation of collision to reference plane
   CALL RANDOM_NUMBER(iRan) ! dice rotation angle between collision and reference plane :  epsilon e [0,2*pi]
   rotAngle = 2. * Pi * iRan
 
+  DiceDeflectedVelocityVector(1) = cRela * cos_scatAngle                 ! x-component in collision plane
   DiceDeflectedVelocityVector(2) = cRela * sin_scatAngle * COS(rotAngle) ! y-component between collision and reference plane
   DiceDeflectedVelocityVector(3) = cRela * sin_scatAngle * SIN(rotAngle) ! z-component between collision and reference plane
 
+            ! !ALTER ORDER JUST FOR DEBUGGING: NOT VALID FOR VSS !to be solved
+            !  DiceDeflectedVelocityVector(3) = - cRela * cos_scatAngle 
+            !  DiceDeflectedVelocityVector(1) = cRela * sin_scatAngle * COS(rotAngle) 
+            !  DiceDeflectedVelocityVector(2) = cRela * sin_scatAngle * SIN(rotAngle) 
 ! for VSS the direction of the velocity is no longer negligible
   IF (alphaVSS.GT.1) THEN ! VSS
     IF ((vr.NE.0.) .AND. (wr.NE.0.)) THEN ! if no radial component: collision plane and laboratory identical-> no transformation
       ! axis transformation from reduced- mass frame back to center-of-mass frame
       ! via Bird1994 p.36 (2.22)=A*b MATMUL for performance reasons
-
+  !    WRITE(*,*) "Entered transformation" !to be solved
       ! initializing rotation matrix
       trafoMatrix(1,1) = ur / cRela
       trafoMatrix(1,2) = 0

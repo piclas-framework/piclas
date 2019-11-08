@@ -709,7 +709,7 @@ IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
         DO jSpec = 1, nSpecies
           IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
             MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
-                                  * (CollInf%Tref(iSpec,jSpec)/Temp)**(CollInf%omegaLaux(iSpec,jSpec)) &
+                                  * (CollInf%Tref(iSpec,jSpec)/Temp)**(omega) &
                                   * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
           END IF
         END DO
@@ -730,6 +730,7 @@ ELSE
     END IF
   END DO
 END IF
+! WRITE(*,*) "MEANFREEPATH",CalcMeanFreePath ! to be solved
 RETURN
 
 END FUNCTION CalcMeanFreePath
