@@ -171,30 +171,30 @@ FUNCTION DiceDeflectedVelocityVector(cRela2,alphaVSS,ur,vr,wr)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
  REAL                        :: cRela               ! absolute value of pre-coll relative velocity abs(cRela), Bird1994 (2.3),(2.8)
- REAL                        :: iRan, rotAngle, cos_scatAngle, sin_scatAngle
+ REAL                        :: rRan, rotAngle, cos_scatAngle, sin_scatAngle
  REAL,DIMENSION(3,3)         :: trafoMatrix
 !===================================================================================================================================
   cRela = SQRT ( cRela2 )  ! absolute value of post-collision relative velocity
 
-  CALL RANDOM_NUMBER(iRan) ! iRan = (b / d) ^ 2  : dice impact parameter b to distance d relation in y-direction
+  CALL RANDOM_NUMBER(rRan) ! rRan = (b / d) ^ 2  : dice impact parameter b to distance d relation in y-direction
                            ! 0                   : frontal collision
                            ! 1                   : brush without change of direction
 
-  cos_scatAngle = 2. * iRan ** ( 1. / alphaVSS ) - 1. ! deflection x-component in collision plane  (chi e [-1,1], away from center)
+  cos_scatAngle = 2. * rRan ** ( 1. / alphaVSS ) - 1. ! deflection x-component in collision plane  (chi e [-1,1], away from center)
   sin_scatAngle = SQRT ( 1. - cos_scatAngle ** 2. )   ! deflection y-component in collision plane  (                      -of-mass)
   
   ! transfer 2D collision vector to 3D space through relation of collision to reference plane
-  CALL RANDOM_NUMBER(iRan) ! dice rotation angle between collision and reference plane :  epsilon e [0,2*pi]
-  rotAngle = 2. * Pi * iRan
+  CALL RANDOM_NUMBER(rRan) ! dice rotation angle between collision and reference plane :  epsilon e [0,2*pi]
+  rotAngle = 2. * Pi * rRan
 
   DiceDeflectedVelocityVector(1) = cRela * cos_scatAngle                 ! x-component in collision plane
   DiceDeflectedVelocityVector(2) = cRela * sin_scatAngle * COS(rotAngle) ! y-component between collision and reference plane
   DiceDeflectedVelocityVector(3) = cRela * sin_scatAngle * SIN(rotAngle) ! z-component between collision and reference plane
 
-            ! !ALTER ORDER JUST FOR DEBUGGING: NOT VALID FOR VSS !to be solved
-            !  DiceDeflectedVelocityVector(3) = - cRela * cos_scatAngle 
-            !  DiceDeflectedVelocityVector(1) = cRela * sin_scatAngle * COS(rotAngle) 
-            !  DiceDeflectedVelocityVector(2) = cRela * sin_scatAngle * SIN(rotAngle) 
+! !ALTER ORDER JUST FOR DEBUGGING: NOT VALID FOR VSS !to be solved
+!  DiceDeflectedVelocityVector(3) = - cRela * cos_scatAngle 
+!  DiceDeflectedVelocityVector(1) = cRela * sin_scatAngle * COS(rotAngle) 
+!  DiceDeflectedVelocityVector(2) = cRela * sin_scatAngle * SIN(rotAngle) 
 ! for VSS the direction of the velocity is no longer negligible
   IF (alphaVSS.GT.1) THEN ! VSS
     IF ((vr.NE.0.) .AND. (wr.NE.0.)) THEN ! if no radial component: collision plane and laboratory identical-> no transformation
@@ -234,16 +234,16 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   REAL                     :: DiceUnitVector(3)
-  REAL                     :: iRan, cos_scatAngle, sin_scatAngle, rotAngle
+  REAL                     :: rRan, cos_scatAngle, sin_scatAngle, rotAngle
 !===================================================================================================================================
-  CALL RANDOM_NUMBER(iRan)
+  CALL RANDOM_NUMBER(rRan)
 
-  cos_scatAngle     = 2.*iRan-1.
+  cos_scatAngle     = 2.*rRan-1.
   sin_scatAngle     = SQRT(1. - cos_scatAngle ** 2.)
   DiceUnitVector(1) = cos_scatAngle
 
-  CALL RANDOM_NUMBER(iRan)
-  rotAngle          = 2. * Pi * iRan
+  CALL RANDOM_NUMBER(rRan)
+  rotAngle          = 2. * Pi * rRan
 
   DiceUnitVector(2) = sin_scatAngle * COS(rotAngle)
   DiceUnitVector(3) = sin_scatAngle * SIN(rotAngle)

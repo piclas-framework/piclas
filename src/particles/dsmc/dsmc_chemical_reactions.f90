@@ -889,8 +889,8 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     Coll_pData(iPair)%CRela2 = 2 * ERel_React1_React2 / MassRed
 
     !Calculation of post collision relative velocity vector in reference frame and retransformation to COM frame
-    RanVelo(1:3) = DiceDeflectedVelocityVector( Coll_pData(iPair)%cRela2 , cRelaX , cRelaY , cRelaZ &
-                 , CollInf%alphaVSS(ProductReac(1) , ProductReac(2)))
+    RanVelo(1:3) = DiceDeflectedVelocityVector( Coll_pData(iPair)%cRela2 , CollInf%alphaVSS(ProductReac(1) , ProductReac(2)) &
+                   , cRelaX , cRelaY , cRelaZ)
 
     ! Determine right-hand side for the second product molecule (only required due to the push procedure in the timedisc)
     DSMC_RHS(React2Inx,1) = VeloMx - FracMassCent1*RanVelo(1) - PartState(React2Inx, 4)
@@ -934,8 +934,8 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / ReducedMass
 
     !Calculation of post collision relative velocity vector in reference frame and retransformation to COM frame
-    RanVelo(1:3) = DiceDeflectedVelocityVector( Coll_pData(iPair)%cRela2 , cRelaX , cRelaY , cRelaZ &
-                 , CollInf%alphaVSS(ProductReac(1) , ProductReac(3)))
+    RanVelo(1:3) = DiceDeflectedVelocityVector( Coll_pData(iPair)%cRela2 ,CollInf%alphaVSS(ProductReac(1) , ProductReac(3)) &
+                  , cRelaX , cRelaY , cRelaZ) 
 
     !deltaV particle 1
     DSMC_RHS(React1Inx,1) = VxPseuMolec + FracMassCent2*RanVelo(1) - PartState(React1Inx, 4)
@@ -1026,8 +1026,8 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / ReducedMass
 
     !Calculation of post collision relative velocity vector in reference frame and retransformation to COM frame
-    RanVelo(1:3) = DiceDeflectedVelocityVector( Coll_pData(iPair)%cRela2 , cRelaX , cRelaY , cRelaZ &
-                 , CollInf%alphaVSS(ProductReac(1) , ProductReac(2)))
+    RanVelo(1:3) = DiceDeflectedVelocityVector( Coll_pData(iPair)%cRela2 , CollInf%alphaVSS(ProductReac(1) , ProductReac(2)) &
+                   , cRelaX , cRelaY , cRelaZ)
 
     !deltaV particle 1
     DSMC_RHS(React1Inx,1) = VxPseuMolec + FracMassCent2*RanVelo(1) - PartState(React1Inx, 4)
