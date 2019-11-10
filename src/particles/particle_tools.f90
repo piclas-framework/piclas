@@ -37,12 +37,25 @@ INTERFACE ChargedParticle
   MODULE PROCEDURE ChargedParticle
 END INTERFACE
 
+INTERFACE PushParticle
+  MODULE PROCEDURE PushParticle
+END INTERFACE
+
+INTERFACE DepositParticle
+  MODULE PROCEDURE DepositParticle
+END INTERFACE
+
+INTERFACE InterpolateParticle
+  MODULE PROCEDURE InterpolateParticle
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle, ChargedParticle
+PUBLIC :: PushParticle, DepositParticle, InterpolateParticle
 !===================================================================================================================================
 
 CONTAINS
@@ -414,6 +427,93 @@ ELSE
   ChargedParticle = .FALSE.
 END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
 END FUNCTION ChargedParticle
+
+
+PURE FUNCTION PushParticle(iPart)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Check if particle has charge unequal to zero
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+#if (PP_TimeDiscMethod==300) /*FP-Flow*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
+#elif (PP_TimeDiscMethod==400) /*BGK*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
+#else /*all other methods, mainly PIC*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
+#endif
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)  :: iPart
+LOGICAL             :: PushParticle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+  PushParticle = .TRUE.
+ELSE
+  PushParticle = .FALSE.
+END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
+END FUNCTION PushParticle
+
+
+PURE FUNCTION DepositParticle(iPart)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Check if particle has charge unequal to zero
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+#if (PP_TimeDiscMethod==300) /*FP-Flow*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
+#elif (PP_TimeDiscMethod==400) /*BGK*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
+#else /*all other methods, mainly PIC*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
+#endif
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)  :: iPart
+LOGICAL             :: DepositParticle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+  DepositParticle = .TRUE.
+ELSE
+  DepositParticle = .FALSE.
+END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
+END FUNCTION DepositParticle
+
+
+PURE FUNCTION InterpolateParticle(iPart)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Check if particle has charge unequal to zero
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+#if (PP_TimeDiscMethod==300) /*FP-Flow*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
+#elif (PP_TimeDiscMethod==400) /*BGK*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
+#else /*all other methods, mainly PIC*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
+#endif
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)  :: iPart
+LOGICAL             :: InterpolateParticle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+  InterpolateParticle = .TRUE.
+ELSE
+  InterpolateParticle = .FALSE.
+END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
+END FUNCTION InterpolateParticle
 
 
 END MODULE MOD_part_tools
