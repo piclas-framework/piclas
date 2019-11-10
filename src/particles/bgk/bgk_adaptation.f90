@@ -51,7 +51,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, PartPosRef,Species,WriteMacroVolumeValues, usevMPF
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
-USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength,BGKSplittingDens
+USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKMovingAverage,ElemNodeAveraging,BGKSplittingDens,BGKMovingAverageLength
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
@@ -192,8 +192,7 @@ USE MOD_DSMC_Vars             ,ONLY: tTreeNode, tNodeVolume, ElemNodeVol
 USE MOD_Particle_Vars         ,ONLY: PartState
 USE MOD_BGK_CollOperator      ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes
-USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell,tNodeAverage, BGKMovingAverage
-USE MOD_BGK_Vars              ,ONLY: BGKMovingAverageLength
+USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell,tNodeAverage, BGKMovingAverage, BGKMovingAverageLength
 USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperator
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -484,7 +483,6 @@ END DO
 
 END SUBROUTINE AddBGKOctreeNode
 
-
 SUBROUTINE BGK_AllocateAveragingNode(Averaging)
 !===================================================================================================================================
 !> Allocation of the arrays and iteration counter required for the sampling of the moving average in the octree subnodes
@@ -538,7 +536,6 @@ Averaging%SubNode7%CorrectStep = 0
 Averaging%SubNode8%CorrectStep = 0
 
 END SUBROUTINE BGK_AllocateAveragingNode
-
 
 SUBROUTINE BGK_quadtree_adapt(iElem)
 !===================================================================================================================================

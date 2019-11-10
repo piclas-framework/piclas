@@ -1055,7 +1055,7 @@ IF(DoRestart)THEN
 
       CALL UpdateNextFreePosition()
 
-      IF (RadialWeighting%DoRadialWeighting) THEN
+      IF (RadialWeighting%PerformCloning) THEN
         CALL DatasetExists(File_ID,'CloneData',CloneExists)
         IF(CloneExists) THEN
           CALL RestartClones()
@@ -1067,7 +1067,7 @@ IF(DoRestart)THEN
             RadialWeighting%CloneDelayDiff = 0
           END IF ! RadialWeighting%CloneMode.EQ.1
         END IF ! CloneExists
-      END IF ! RadialWeighting%DoRadialWeighting
+      END IF ! RadialWeighting%PerformCloning
     ELSE ! not PartIntExists
       SWRITE(UNIT_stdOut,*)'PartInt does not exists in restart file'
     END IF ! PartIntExists
