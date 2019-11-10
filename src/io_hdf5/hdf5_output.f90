@@ -347,7 +347,7 @@ CALL WriteMacroParticleToHDF5(FileName)
 IF(UseAdaptive.OR.(nAdaptiveBC.GT.0).OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
-IF(RadialWeighting%DoRadialWeighting) CALL WriteClonesToHDF5(FileName)
+IF(RadialWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/

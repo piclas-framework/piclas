@@ -1524,7 +1524,7 @@ IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL abort(&
     __STAMP__&
     ,' ParticleVecLegnth>MaxParticleNumber due to MPI-communication!')
 
-IF(RadialWeighting%DoRadialWeighting) THEN
+IF(RadialWeighting%PerformCloning) THEN
   ! Checking whether received particles have to be cloned or deleted
   DO iPart = 1,nrecv
     PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)

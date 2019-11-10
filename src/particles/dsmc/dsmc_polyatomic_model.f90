@@ -942,6 +942,64 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM_MH(iPair, iPart,FakXi)
 END SUBROUTINE DSMC_VibRelaxPoly_ARM_MH
 
 
+SUBROUTINE DSMC_VibRelaxPolySingle(iPair, iPart, FakXi, DOFRelax)
+!===================================================================================================================================
+! Vibrational relaxation routine for polyatomic molecules, only treating a single given vibrational mode with ARM
+! NOTE: Not compatible for radial weighting yet.
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar, Coll_pData, DSMC
+USE MOD_Particle_Vars         ,ONLY: PartSpecies
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPair, iPart, DOFRelax
+REAL, INTENT(IN)              :: FakXi
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: iRan, MaxColQua
+INTEGER                       :: iPolyatMole, iQua, iQuaMax
+!===================================================================================================================================
+! Not all vibrational energy is redistributed but only the energy of the selected vibrational degree of freedom
+Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,iPart)
+
+iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
+! Adding the vibrational energy of the selected vibrational mode DOFRelax
+Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (VibQuantsPar(iPart)%Quants(DOFRelax) + DSMC%GammaQuant) * BoltzmannConst  &
+                                                * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
+! Determining the maximal quantum number with the available collision energy
+MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)) - DSMC%GammaQuant
+iQuaMax = MIN(INT(MaxColQua) + 1, PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(DOFRelax))
+! Get the new vibrational quantum number
+CALL RANDOM_NUMBER(iRan)
+iQua = INT(iRan * iQuaMax)
+CALL RANDOM_NUMBER(iRan)
+DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
+  !laux diss page 31
+  CALL RANDOM_NUMBER(iRan)
+  iQua = INT(iRan * iQuaMax)
+  CALL RANDOM_NUMBER(iRan)
+END DO
+! Setting the new vibrational state
+PartStateIntEn(1,iPart) = PartStateIntEn(1,iPart) &
+  ! Substracting the old energy of the specific mode
+  - VibQuantsPar(iPart)%Quants(DOFRelax) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax) &
+  ! Adding the new energy of the specific mode
+  + iQua * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
+
+! Saving the vibrational quantum number
+VibQuantsPar(iPart)%Quants(DOFRelax) = iQua
+! Removing the vibrational energy from the remaining collision energy
+Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
+  - (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
+
+END SUBROUTINE DSMC_VibRelaxPolySingle
+
+
 SUBROUTINE DSMC_RotRelaxPoly(iPair, iPart,FakXi)
 !===================================================================================================================================
 ! Rotational relaxation routine

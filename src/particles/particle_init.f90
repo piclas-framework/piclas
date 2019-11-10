@@ -2769,7 +2769,8 @@ CALL MarkMacroBodyElems()
 IF(Symmetry2D) CALL DSMC_2D_InitVolumes()
 IF(Symmetry2DAxisymmetric) THEN
   IF(RadialWeighting%DoRadialWeighting) THEN
-  ! Initialization of RadialWeighting in 2D axisymmetric simulations
+    ! Initialization of RadialWeighting in 2D axisymmetric simulations
+    RadialWeighting%PerformCloning = .TRUE.
     CALL DSMC_2D_InitRadialWeighting()
   END IF
   IF(.NOT.TriaTracking) CALL abort(&

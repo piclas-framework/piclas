@@ -1711,7 +1711,8 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
       IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
         Total_PartNum = 0.0
         DO iSpec = 1, nSpecies
-          DSMC_MacroVal(nVarLoc*(iSpec-1)+11,kk,ll,mm, iElem) = DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) / REAL(DSMC%SampNum)
+          IF(DSMC%SampNum.GT.0) DSMC_MacroVal(nVarLoc*(iSpec-1)+11,kk,ll,mm, iElem) = DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) &
+                                                                                      / REAL(DSMC%SampNum)
           IF(nSpecies.GT.1) Total_PartNum = Total_PartNum + DSMC_MacroVal(nVarLoc*(iSpec-1)+11,kk,ll,mm, iElem)
         END DO
       END IF
@@ -1744,7 +1745,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
         DSMC_MacroVal(nVarCount+1,kk,ll,mm,iElem) = VarTimeStep%ElemFac(iElem)
         nVarCount = nVarCount + 1
       END IF
-      IF(RadialWeighting%DoRadialWeighting) THEN
+      IF(RadialWeighting%PerformCloning) THEN
         IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
           DSMC_MacroVal(nVarCount+1:nVarCount+2,kk,ll,mm,iElem)=DSMC%QualityFacSamp(iElem,5:6) / DSMC%QualityFacSamp(iElem,4)
         END IF
@@ -2096,7 +2097,7 @@ END IF
 IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
   IF(VarTimeStep%UseVariableTimeStep) nVar_quality = nVar_quality + 1
-  IF(RadialWeighting%DoRadialWeighting) nVar_quality = nVar_quality + 2
+  IF(RadialWeighting%PerformCloning) nVar_quality = nVar_quality + 2
   IF(BGKInitDone) nVar_quality = nVar_quality + 4
   IF(FPInitDone) nVar_quality = nVar_quality + 5
 ELSE
@@ -2170,7 +2171,7 @@ IF (DSMC%CalcQualityFactors) THEN
     StrVarNames(nVarCount+1) ='VariableTimeStep'
     nVarCount = nVarCount + 1
   END IF
-  IF(RadialWeighting%DoRadialWeighting) THEN
+  IF(RadialWeighting%PerformCloning) THEN
     StrVarNames(nVarCount+1) = '2D_ClonesInCell'
     StrVarNames(nVarCount+2) = '2D_IdenticalParticles'
     nVarCount=nVarCount+2
