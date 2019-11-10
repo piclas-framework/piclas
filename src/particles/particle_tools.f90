@@ -14,7 +14,7 @@
 
 MODULE MOD_part_tools
 !===================================================================================================================================
-! Contains tools for particles
+! Contains tools for particle related operations. This routine is uses MOD_Particle_Boundary_Tools, but not vice versa!
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -33,12 +33,16 @@ INTERFACE CreateParticle
   MODULE PROCEDURE CreateParticle
 END INTERFACE
 
+INTERFACE ChargedParticle
+  MODULE PROCEDURE ChargedParticle
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle, ChargedParticle
 !===================================================================================================================================
 
 CONTAINS
@@ -387,6 +391,29 @@ PEM%lastElement(newParticleID)    = ElemID
 IF (PRESENT(NewPartID)) NewPartID=newParticleID
 
 END SUBROUTINE CreateParticle
+
+
+PURE FUNCTION ChargedParticle(iPart)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Check if particle has charge unequal to zero
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)  :: iPart
+LOGICAL             :: ChargedParticle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+  ChargedParticle = .TRUE.
+ELSE
+  ChargedParticle = .FALSE.
+END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
+END FUNCTION ChargedParticle
 
 
 END MODULE MOD_part_tools
