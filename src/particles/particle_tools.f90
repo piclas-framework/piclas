@@ -99,7 +99,7 @@ IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
       PEM%pNumber(PEM%Element(i)) = &                      ! Number of Particles in Element
           PEM%pNumber(PEM%Element(i)) + 1
       IF (VarTimeStep%UseVariableTimeStep) THEN
-        VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(i,1),PartState(i,2),PEM%Element(i))
+        VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),PEM%Element(i))
       END IF
       IF (KeepWallParticles) THEN
         IF (PDM%ParticleAtWall(i)) THEN
@@ -337,22 +337,36 @@ INTEGER :: newParticleID
 
 !IPWRITE(UNIT_stdOut,*) 'NEW PARTICLE!'
 
-newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+1)
-IF (newParticleID .EQ. 0) CALL abort(&
-__STAMP__&
-,'ERROR in CreateParticle: newParticleID.EQ.0 - maximum nbr of particles reached?')
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+!newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+1) ! add +1 because PDM%CurrentNextFreePosition starts at 0
+!IF (newParticleID .EQ. 0) CALL abort(&
+!__STAMP__&
+!,'ERROR in CreateParticle: newParticleID.EQ.0 - maximum nbr of particles reached?')
+!#if USE_MPI
+
+! Do not increase the ParticleVecLength for Phantom particles!
+PDM%ParticleVecLength = PDM%ParticleVecLength + 1 ! Increase particle vector length
+newParticleID = PDM%ParticleVecLength
+IF(newParticleID.GT.PDM%MaxParticleNumber)THEN
+  CALL abort(&
+      __STAMP__&
+      ,'CreateParticle: newParticleID.GT.PDM%MaxParticleNumber. newParticleID=',IntInfoOpt=newParticleID)
+END IF
+!IF(Species.LT.0) PDM%PhantomParticles = PDM%PhantomParticles + 1
+!#endif /*USE_MPI*/
+
+! Increase the NextFreePosition for further particle creation
+!PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
 
 PartSpecies(newParticleID) = Species
-LastPartPos(newParticleID,1:3)=Pos(1:3)
-PartState(newParticleID,1:3) = Pos(1:3)
-PartState(newParticleID,4:6) = Velocity(1:3)
+LastPartPos(1:3,newParticleID)=Pos(1:3)
+PartState(1:3,newParticleID) = Pos(1:3)
+PartState(4:6,newParticleID) = Velocity(1:3)
 
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-  PartStateIntEn(newParticleID, 1) = VibEnergy
-  PartStateIntEn(newParticleID, 2) = RotEnergy
+  PartStateIntEn(1,newParticleID) = VibEnergy
+  PartStateIntEn(2,newParticleID) = RotEnergy
   IF (DSMC%ElectronicModel) THEN
-    PartStateIntEn(newParticleID, 3) = ElecEnergy
+    PartStateIntEn(3,newParticleID) = ElecEnergy
   ENDIF
 END IF
 
@@ -365,13 +379,14 @@ PEM%lastElement(newParticleID)    = ElemID
 ! ?????? necessary?
 ! IF (VarTimeStep%UseVariableTimeStep) THEN
 !   VarTimeStep%ParticleTimeStep(newParticleID) &
-!     = CalcVarTimeStep(PartState(newParticleID,1),PartState(newParticleID,2),PEM%Element(newParticleID))
+!     = CalcVarTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%Element(newParticleID))
 ! END IF
 ! IF (RadialWeighting%DoRadialWeighting) THEN
-!   PartMPF(newParticleID) = CalcRadWeightMPF(PartState(newParticleID,2), 1,newParticleID)
+!   PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID), 1,newParticleID)
 ! END IF
 IF (PRESENT(NewPartID)) NewPartID=newParticleID
 
 END SUBROUTINE CreateParticle
+
 
 END MODULE MOD_part_tools

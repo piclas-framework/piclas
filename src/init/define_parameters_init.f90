@@ -57,6 +57,7 @@ USE MOD_Filter                          ,ONLY: DefineParametersFilter
 USE MOD_Piclas_Init                     ,ONLY: DefineParametersPiclas
 #ifdef PARTICLES
 USE MOD_ParticleInit                    ,ONLY: DefineParametersParticles
+USE MOD_MacroBody_Init                  ,ONLY: DefineParametersMacroBody
 USE MOD_Particle_Boundary_Sampling      ,ONLY: DefineParametersParticlesBoundarySampling
 USE MOD_Particle_Mesh                   ,ONLY: DefineparametersParticleMesh
 USE MOD_Particle_Analyze                ,ONLY: DefineParametersParticleAnalyze
@@ -64,7 +65,6 @@ USE MOD_TTMInit                         ,ONLY: DefineParametersTTM
 USE MOD_PICInit                         ,ONLY: DefineParametersPIC
 USE MOD_Part_Emission                   ,ONLY: DefineParametersParticleEmission
 USE MOD_DSMC_Init                       ,ONLY: DefineParametersDSMC
-USE MOD_LD_Init                         ,ONLY: DefineParametersLD
 USE MOD_SurfaceModel_Init               ,ONLY: DefineParametersSurfModel
 USE MOD_SurfaceModel_Analyze            ,ONLY: DefineParametersSurfModelAnalyze
 USE MOD_BGK_Init                        ,ONLY: DefineParametersBGK
@@ -114,6 +114,7 @@ CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()
 #ifdef PARTICLES
 CALL DefineParametersParticles()
+CALL DefineParametersMacroBody()
 CALL DefineParametersParticlesBoundarySampling()
 CALL DefineParametersParticleSymmetry()
 CALL DefineParametersVaribleTimeStep()
@@ -124,7 +125,6 @@ CALL DefineParametersTTM()
 CALL DefineParametersPIC()
 CALL DefineParametersParticleEmission()
 CALL DefineParametersDSMC()
-CALL DefineParametersLD()
 #if (PP_TimeDiscMethod==300)
 CALL DefineParametersFPFlow()
 #endif

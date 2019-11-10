@@ -80,9 +80,9 @@ LOGICAL,ALLOCATABLE :: IsLocalDepositionBCElem(:)             ! is an element wh
                                                               ! would result in the truncation of the shape function at the boundary.
 TYPE tElemHaloInfo
   INTEGER,ALLOCATABLE            :: ElemHaloInfo(:)           !< Contains information regarding the halo region of each rank
-                                                              !< ElemHaloInfo = -1            : element not in list
-                                                              !<              = 0             : halo elements
-                                                              !<              = 1 to PP_nElems: local elements
+                                                              !< ElemHaloInfo = 0                           : element not in list
+                                                              !<              = -nTotalElems to -PP_nElems  : halo elements (negative numbers)
+                                                              !<              = 1 to PP_nElems              : local elements
                                                               !< the default value of this variable is FALSE
 END TYPE
 TYPE(tElemHaloInfo),ALLOCATABLE      :: ElemHaloInfoProc(:)   ! ElemHaloInfo array for each rank
@@ -184,6 +184,7 @@ TYPE tGeometry
   INTEGER,ALLOCATABLE                    :: ElemToFIBGM(:,:)                  ! range of FIGMB cells per element
                                                                               ! 1:6,1:nTotalElems, xmin,max,yminmax,...
   REAL, ALLOCATABLE                      :: Volume(:)                         ! Volume(nElems) for nearest_blurrycenter
+  REAL, ALLOCATABLE                      :: MPVolumePortion(:)                ! portion of Volume(nElems) filled by macroPart
   REAL, ALLOCATABLE                      :: CharLength(:)                     ! Characteristic length for each cell: L=V^(1/3)
   REAL, ALLOCATABLE                      :: CharLengthX(:)                    ! Characteristic length in X for each cell
   REAL, ALLOCATABLE                      :: CharLengthY(:)                    ! Characteristic length in Y for each cell
@@ -217,7 +218,7 @@ TYPE (tGeometry)                         :: GEO
 INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded
                                                                               ! into themselves)
 LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! Flag defining if mapping for neighbour elements
-                                                                              ! is build via nodes
+                                                                              ! is built via nodes
 
 TYPE tBCElem
   INTEGER                                :: nInnerSides                       ! Number of BC-Sides of Element

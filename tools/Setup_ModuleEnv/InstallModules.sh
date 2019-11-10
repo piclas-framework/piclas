@@ -31,7 +31,13 @@ if [ ! -d "${MODULESHOME}" ]; then
       CPPFLAGS="-DUSE_INTERP_ERRORLINE" ../configure --prefix=${INSTALLDIR}/modules/${MODULEVERSION} --with-module-path=${INSTALLDIR}/modules/modulefiles
     fi
     make 2>&1 | tee make.out
-    make install 2>&1 | tee install.out
+    if [ ${PIPESTATUS[0]} -ne 0 ]; then
+      echo " "
+      echo "Failed: [make -j 2>&1 | tee make.out]"
+      exit
+    else
+      make install 2>&1 | tee install.out
+    fi
 
     if [ -z "$(grep "if.*Modules.*${MODULEVERSION}.*init.*bash.*then" /etc/profile)" ]; then
       sed -i '1 i\if [ -f /opt/modules/'${MODULEVERSION}'/Modules/'${MODULEVERSION}'/init/bash ]; then' /etc/profile
@@ -39,7 +45,7 @@ if [ ! -d "${MODULESHOME}" ]; then
       sed -i '3 i\fi' /etc/profile
     else
       echo "modules init already exists in /etc/profile"
-      break
+      exit
     fi
     if [ -z "$(grep "if.*Modules.*${MODULEVERSION}.*init.*bash.*then" /etc/bash.bashrc)" ]; then
       sed -i '1 i\if [ -f /opt/modules/'${MODULEVERSION}'/Modules/'${MODULEVERSION}'/init/bash ]; then' /etc/bash.bashrc
@@ -47,7 +53,7 @@ if [ ! -d "${MODULESHOME}" ]; then
       sed -i '3 i\fi' /etc/bash.bashrc
     else
       echo "modules init already exists in /etc/bash.bashrc"
-      break
+      exit
     fi
     source /etc/profile
 

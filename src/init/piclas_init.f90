@@ -44,7 +44,6 @@ CALL prms%SetSection("Piclas Initialization")
 CALL prms%CreateIntOption(      'TimeStampLength', 'Length of the floating number time stamp', '21')
 #ifdef PARTICLES
 CALL prms%CreateLogicalOption(  'UseDSMC'        , "Flag for using DSMC in Calculation", '.FALSE.')
-CALL prms%CreateLogicalOption(  'UseLD'          , "Flag for using LD in Calculation", '.FALSE.')
 #endif
 
 END SUBROUTINE DefineParametersPiclas
@@ -89,7 +88,6 @@ USE MOD_MPI                  ,ONLY: InitMPIvars
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC, RadialWeighting
 USE MOD_Particle_Vars        ,ONLY: Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
 USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_Init
-USE MOD_LD_Vars              ,ONLY: UseLD
 USE MOD_ParticleInit         ,ONLY: InitParticles
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
@@ -142,10 +140,9 @@ IF(Symmetry2DAxisymmetric) THEN
   RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
 ELSE
   RadialWeighting%DoRadialWeighting = .FALSE.
+  RadialWeighting%PerformCloning = .FALSE.
 END IF
 
-useLD=GETLOGICAL('UseLD','.FALSE.')
-IF(useLD) useDSMC=.TRUE.
 #endif /*PARTICLES*/
 
 ! Initialization
@@ -167,12 +164,13 @@ END IF
 
 #ifdef PARTICLES
 !--- Variable time step
-VarTimeStep%UseVariableTimeStep = GETLOGICAL('Part-VariableTimeStep')
-IF (VarTimeStep%UseVariableTimeStep)  THEN
+VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling')
+VarTimeStep%UseDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution')
+IF (VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution)  THEN
+  VarTimeStep%UseVariableTimeStep = .TRUE.
   IF(.NOT.IsLoadBalance) CALL VarTimeStep_Init()
 ELSE
-  VarTimeStep%UseLinearScaling = .FALSE.
-  VarTimeStep%UseDistribution = .FALSE.
+  VarTimeStep%UseVariableTimeStep = .FALSE.
 END IF
 #endif
 
@@ -291,6 +289,7 @@ USE MOD_Particle_Mesh,             ONLY:FinalizeParticleMesh
 USE MOD_Particle_Analyze,          ONLY:FinalizeParticleAnalyze
 USE MOD_PICDepo,                   ONLY:FinalizeDeposition
 USE MOD_ParticleInit,              ONLY:FinalizeParticles
+USE MOD_MacroBody_Init,            ONLY:FinalizeMacroBody
 USE MOD_TTMInit,                   ONLY:FinalizeTTM
 USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
 #if (PP_TimeDiscMethod==300)
@@ -360,6 +359,7 @@ CALL FinalizeFPFlow()
 CALL FinalizeBGK()
 #endif
 CALL FinalizeParticles()
+CALL FinalizeMacroBody()
 CALL FinalizeBackGroundField()
 #endif /*PARTICLES*/
 #if USE_MPI

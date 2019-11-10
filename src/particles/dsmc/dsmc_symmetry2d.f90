@@ -252,6 +252,7 @@ USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC, PartStateIntEn, us
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC, CollInf
 USE MOD_Particle_Vars           ,ONLY: PartMPF, PDM, PartSpecies, PartState, Species, LastPartPos
 USE MOD_TimeDisc_Vars           ,ONLY: iter
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartOut
 USE Ziggurat
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -272,7 +273,7 @@ DeleteProb = 0.
 IF (.NOT.(PartMPF(iPart).GT.Species(PartSpecies(iPart))%MacroParticleFactor)) RETURN
 
 ! 1.) Determine the new particle weight and decide whether to clone or to delete the particle
-NewMPF = CalcRadWeightMPF(PartState(iPart,2), PartSpecies(iPart),iPart)
+NewMPF = CalcRadWeightMPF(PartState(2,iPart), PartSpecies(iPart),iPart)
 OldMPF = PartMPF(iPart)
 CloneProb = (OldMPF/NewMPF)-INT(OldMPF/NewMPF)
 CALL RANDOM_NUMBER(iRan)
@@ -310,10 +311,10 @@ IF(DoCloning) THEN
   ! Storing the particle information
   RadialWeighting%ClonePartNum(DelayCounter) = RadialWeighting%ClonePartNum(DelayCounter) + 1
   cloneIndex = RadialWeighting%ClonePartNum(DelayCounter)
-  ClonedParticles(cloneIndex,DelayCounter)%PartState(1:6)= PartState(iPart,1:6)
+  ClonedParticles(cloneIndex,DelayCounter)%PartState(1:6)= PartState(1:6,iPart)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-    ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(1:2) = PartStateIntEn(iPart,1:2)
-    IF(DSMC%ElectronicModel) ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(iPart,3)
+    ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(1:2) = PartStateIntEn(1:2,iPart)
+    IF(DSMC%ElectronicModel) ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(3,iPart)
     IF(SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
       IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%VibQuants)) &
@@ -324,12 +325,14 @@ IF(DoCloning) THEN
   END IF
   ClonedParticles(cloneIndex,DelayCounter)%Species = PartSpecies(iPart)
   ClonedParticles(cloneIndex,DelayCounter)%Element = iElem
-  ClonedParticles(cloneIndex,DelayCounter)%LastPartPos(1:3) = LastPartPos(iPart,1:3)
+  ClonedParticles(cloneIndex,DelayCounter)%LastPartPos(1:3) = LastPartPos(1:3,iPart)
   ClonedParticles(cloneIndex,DelayCounter)%WeightingFactor = PartMPF(iPart)
 ELSE
 ! ######## Particle Delete #######################################################################################################
 ! 2b.) Particle deletion, if the local weighting factor is greater than the previous (particle travelling upwards)
   IF(NewMPF.GT.OldMPF) THEN
+    ! Start deleting particles after the clone delay has passed and particles are also inserted
+    IF((INT(iter,4)+RadialWeighting%CloneDelayDiff).LE.RadialWeighting%CloneInputDelay) RETURN
     DeleteProb = 1. - CloneProb
     IF (DeleteProb.GT.0.5) THEN
       IPWRITE(*,*) 'New weighting factor:', NewMPF, 'Old weighting factor:', OldMPF
@@ -341,6 +344,9 @@ ELSE
     IF(DeleteProb.GT.iRan) THEN
       PDM%ParticleInside(iPart) = .FALSE.
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(iPart) = 0
+      IF(CalcPartBalance) THEN
+        nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
+      END IF ! CalcPartBalance
     END IF
   END IF
 END IF
@@ -357,12 +363,13 @@ SUBROUTINE DSMC_2D_SetInClones()
 !> 3.) Reset the list
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_DSMC_Vars             ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, RadialWeighting
-  USE MOD_DSMC_Vars             ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive
-  USE MOD_Particle_Vars         ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, VarTimeStep
-  USE MOD_Particle_VarTimeStep  ,ONLY: CalcVarTimeStep
-  USE MOD_TimeDisc_Vars         ,ONLY: iter
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive
+USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, VarTimeStep
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_TimeDisc_Vars           ,ONLY: iter
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -415,12 +422,12 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PDM%ParticleInside(PositionNbr) = .TRUE.
   PDM%IsNewPart(PositionNbr) = .TRUE.
   PDM%dtFracPush(PositionNbr) = .FALSE.
-  PartState(PositionNbr,1:5) = ClonedParticles(iPart,DelayCounter)%PartState(1:5)
+  PartState(1:5,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartState(1:5)
   ! Creating a relative velocity in the z-direction
-  PartState(PositionNbr,6) = - ClonedParticles(iPart,DelayCounter)%PartState(6)
+  PartState(6,PositionNbr) = - ClonedParticles(iPart,DelayCounter)%PartState(6)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-    PartStateIntEn(PositionNbr,1:2) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
-    IF(DSMC%ElectronicModel) PartStateIntEn(PositionNbr,3) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
+    PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
+    IF(DSMC%ElectronicModel) PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
     IF(SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%SpecToPolyArray
       IF(ALLOCATED(VibQuantsPar(PositionNbr)%Quants)) DEALLOCATE(VibQuantsPar(PositionNbr)%Quants)
@@ -431,10 +438,10 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PartSpecies(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Species
   PEM%Element(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
   PEM%lastElement(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
-  LastPartPos(PositionNbr,1:3) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
+  LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
   IF (VarTimeStep%UseVariableTimeStep) THEN
-    VarTimeStep%ParticleTimeStep(PositionNbr) = CalcVarTimeStep(PartState(PositionNbr,1),PartState(PositionNbr,2),&
+    VarTimeStep%ParticleTimeStep(PositionNbr) = CalcVarTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),&
                                                                 PEM%Element(PositionNbr))
   END IF
   ! Counting the number of clones per cell
@@ -442,6 +449,9 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
     IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(PEM%Element(PositionNbr),5) = &
                                             DSMC%QualityFacSamp(PEM%Element(PositionNbr),5) + 1
   END IF
+  IF(CalcPartBalance) THEN
+    nPartIn(PartSpecies(PositionNbr))=nPartIn(PartSpecies(PositionNbr)) + 1
+  END IF ! CalcPartBalance
 END DO
 
 ! 3.) Reset the list

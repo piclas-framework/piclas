@@ -1311,7 +1311,7 @@ CASE ('cuboid')
       CASE (1)
         PDM%ParticleInside(Particle)=.false.
       CASE (2)
-        BN(1:3) = PartState(Particle,1:3) - Species(iSpec)%Init(iInit)%BasePointIC
+        BN(1:3) = PartState(1:3,Particle) - Species(iSpec)%Init(iInit)%BasePointIC
         det1 = BN(1)*BV2(2)*OV(3) + BN(2)*BV2(3)*OV(1) + BN(3)*BV2(1)*OV(2) - &
                BN(3)*BV2(2)*OV(1) - BN(1)*BV2(3)*OV(2) - BN(2)*BV2(1)*OV(3)
         det2 = BV1(1)*BN(2)*OV(3) + BV1(2)*BN(3)*OV(1) + BV1(3)*BN(1)*OV(2) - &
@@ -1337,7 +1337,7 @@ CASE ('cylinder')
       CASE (1)
         PDM%ParticleInside(Particle)=.false.
       CASE (2)
-        BN(1:3) = PartState(Particle,1:3) - Species(iSpec)%Init(iInit)%BasePointIC
+        BN(1:3) = PartState(1:3,Particle) - Species(iSpec)%Init(iInit)%BasePointIC
         BV2(1) = BN(2) * OV(3) - BN(3) * OV(2)                   !Vector orthogonal on BN and OrthoVector
         BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
         BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
@@ -1407,14 +1407,14 @@ CASE ('cuboid')
       SELECT CASE (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(PEM%Element(Particle)))
       CASE (1)
         nPartInside = nPartInside + 1
-        vau(1) = vau(1) + PartState(Particle,4)
-        vau(2) = vau(2) + PartState(Particle,5)
-        vau(3) = vau(3) + PartState(Particle,6)
-        vauquad(1) = vauquad(1) + PartState(Particle,4)**2
-        vauquad(2) = vauquad(2) + PartState(Particle,5)**2
-        vauquad(3) = vauquad(3) + PartState(Particle,6)**2
+        vau(1) = vau(1) + PartState(4,Particle)
+        vau(2) = vau(2) + PartState(5,Particle)
+        vau(3) = vau(3) + PartState(6,Particle)
+        vauquad(1) = vauquad(1) + PartState(4,Particle)**2
+        vauquad(2) = vauquad(2) + PartState(5,Particle)**2
+        vauquad(3) = vauquad(3) + PartState(6,Particle)**2
       CASE (2)
-        BN(1:3) = PartState(Particle,1:3) - Species(iSpec)%Init(iInit)%BasePointIC
+        BN(1:3) = PartState(1:3,Particle) - Species(iSpec)%Init(iInit)%BasePointIC
         det1 = BN(1)*BV2(2)*OV(3) + BN(2)*BV2(3)*OV(1) + BN(3)*BV2(1)*OV(2) - &
                BN(3)*BV2(2)*OV(1) - BN(1)*BV2(3)*OV(2) - BN(2)*BV2(1)*OV(3)
         det2 = BV1(1)*BN(2)*OV(3) + BV1(2)*BN(3)*OV(1) + BV1(3)*BN(1)*OV(2) - &
@@ -1428,12 +1428,12 @@ CASE ('cuboid')
 
         IF (((det1-0.5)**2 .LE. 0.25).AND.((det2-0.5)**2 .LE. 0.25).AND.((det3-0.5)**2 .LE. 0.25)) THEN
           nPartInside = nPartInside + 1
-          vau(1) = vau(1) + PartState(Particle,4)
-          vau(2) = vau(2) + PartState(Particle,5)
-          vau(3) = vau(3) + PartState(Particle,6)
-          vauquad(1) = vauquad(1) + PartState(Particle,4)**2
-          vauquad(2) = vauquad(2) + PartState(Particle,5)**2
-          vauquad(3) = vauquad(3) + PartState(Particle,6)**2
+          vau(1) = vau(1) + PartState(4,Particle)
+          vau(2) = vau(2) + PartState(5,Particle)
+          vau(3) = vau(3) + PartState(6,Particle)
+          vauquad(1) = vauquad(1) + PartState(4,Particle)**2
+          vauquad(2) = vauquad(2) + PartState(5,Particle)**2
+          vauquad(3) = vauquad(3) + PartState(6,Particle)**2
         END IF
       CASE (3)
       END SELECT
@@ -1447,10 +1447,10 @@ CASE ('cylinder')
       SELECT CASE (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(PEM%Element(Particle)))
       CASE (1)
         nPartInside = nPartInside + 1
-        vau = vau + PartState(Particle,4:6)
-        vauquad = vauquad + PartState(Particle,4:6)**2
+        vau = vau + PartState(4:6,Particle)
+        vauquad = vauquad + PartState(4:6,Particle)**2
       CASE (2)
-        BN(1:3) = PartState(Particle,1:3) - Species(iSpec)%Init(iInit)%BasePointIC
+        BN(1:3) = PartState(1:3,Particle) - Species(iSpec)%Init(iInit)%BasePointIC
         BV2(1) = BN(2) * OV(3) - BN(3) * OV(2)                   !Vector orthogonal on BN and OrthoVector
         BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
         BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
@@ -1477,8 +1477,8 @@ CASE ('cylinder')
           END IF
           IF ((dist2 .LT. 1.) .AND. (dist2 .GT. 0.)) THEN
             nPartInside = nPartInside + 1
-            vau = vau + PartState(Particle,4:6)
-            vauquad = vauquad + PartState(Particle,4:6)**2
+            vau = vau + PartState(4:6,Particle)
+            vauquad = vauquad + PartState(4:6,Particle)**2
           END IF
         END IF
       END SELECT

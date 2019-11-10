@@ -55,7 +55,7 @@ CALL prms%CreateLogicalOption(  'DielectricFluxNonConserving'  , 'Use non-conser
                                                                //'dielectric region and vacuum' , '.FALSE.')
 CALL prms%CreateRealOption(     'DielectricEpsR'               , 'Relative permittivity' , '1.')
 CALL prms%CreateRealOption(     'DielectricMuR'                , 'Relative permeability' , '1.')
-CALL prms%CreateLogicalOption(  'DielectricNoParticles'        , 'Do not insert/emit particles into dielectric regions' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'DielectricNoParticles'        , 'Do not insert/emit particles into dielectric regions' , '.TRUE.')
 CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Test cases, e.g., "FishEyeLens" or "FH_lens"' , 'default')
 CALL prms%CreateRealOption(     'DielectricRmax'               , 'Radius parameter for functions' , '1.')
 CALL prms%CreateLogicalOption(  'DielectricCheckRadius'        , 'Use additional parameter "DielectricRadiusValue" for checking'&
@@ -79,12 +79,12 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars
-USE MOD_HDF5_output     ,ONLY: WriteDielectricGlobalToHDF5
-USE MOD_Equation_Vars   ,ONLY: c
-USE MOD_Interfaces      ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
-USE MOD_Mesh            ,ONLY: GetMeshMinMaxBoundaries
-#if !(USE_HDG)
-USE MOD_Equation_Vars   ,ONLY: c_corr
+USE MOD_HDF5_Output_Tools ,ONLY: WriteDielectricGlobalToHDF5
+USE MOD_Equation_Vars     ,ONLY: c
+USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
+USE MOD_Mesh              ,ONLY: GetMeshMinMaxBoundaries
+#if ! (USE_HDG)
+USE MOD_Equation_Vars     ,ONLY: c_corr
 #endif /*if not USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -106,12 +106,12 @@ IF(.NOT.DoDielectric) THEN
   nDielectricElems=0
   RETURN
 END IF
-DielectricNoParticles            = GETLOGICAL('DielectricNoParticles','.FALSE.')
-DielectricFluxNonConserving      = GETLOGICAL('DielectricFluxNonConserving','.FALSE.')
-DielectricEpsR                   = GETREAL('DielectricEpsR','1.')
-DielectricMuR                    = GETREAL('DielectricMuR','1.')
-DielectricTestCase               = GETSTR('DielectricTestCase','default')
-DielectricRmax                   = GETREAL('DielectricRmax','1.')
+DielectricNoParticles            = GETLOGICAL('DielectricNoParticles')
+DielectricFluxNonConserving      = GETLOGICAL('DielectricFluxNonConserving')
+DielectricEpsR                   = GETREAL('DielectricEpsR')
+DielectricMuR                    = GETREAL('DielectricMuR')
+DielectricTestCase               = GETSTR('DielectricTestCase')
+DielectricRmax                   = GETREAL('DielectricRmax')
 IF((DielectricEpsR.LE.0.0).OR.(DielectricMuR.LE.0.0))THEN
   CALL abort(&
   __STAMP__&
@@ -125,12 +125,12 @@ DielectricConstant_RootInv       = 1./sqrt(DielectricEpsR*DielectricMuR) !      
 #endif /*if USE_HDG*/
   c_dielectric                     = c*DielectricConstant_RootInv          !          c/sqrt(EpsR*MuR)
   c2_dielectric                    = c*c/(DielectricEpsR*DielectricMuR)            !           c**2/(EpsR*MuR)
-DielectricCheckRadius            = GETLOGICAL('DielectricCheckRadius','.FALSE.')
-DielectricRadiusValue            = GETREAL('DielectricRadiusValue','-1.')
+DielectricCheckRadius            = GETLOGICAL('DielectricCheckRadius')
+DielectricRadiusValue            = GETREAL('DielectricRadiusValue')
 IF(DielectricRadiusValue.LE.0.0) DielectricCheckRadius=.FALSE.
 ! determine Dielectric elements
-xyzPhysicalMinMaxDielectric(1:6) = GETREALARRAY('xyzPhysicalMinMaxDielectric',6,'0.0,0.0,0.0,0.0,0.0,0.0')
-xyzDielectricMinMax(1:6)         = GETREALARRAY('xyzDielectricMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
+xyzPhysicalMinMaxDielectric(1:6) = GETREALARRAY('xyzPhysicalMinMaxDielectric',6)
+xyzDielectricMinMax(1:6)         = GETREALARRAY('xyzDielectricMinMax',6)
 ! use xyzPhysicalMinMaxDielectric before xyzDielectricMinMax:
 ! 1.) check for xyzPhysicalMinMaxDielectric
 ! 2.) check for xyzDielectricMinMax
@@ -159,7 +159,7 @@ ELSE ! find all elements located outside of 'xyzPhysicalMinMaxDielectric'
 END IF
 
 ! find all faces in the Dielectric region
-CALL FindInterfacesInRegion(isDielectricFace,isDielectricInterFace,isDielectricElem)
+CALL FindInterfacesInRegion(isDielectricFace,isDielectricInterFace,isDielectricElem,info_opt='find all faces in the Dielectric region')
 
 ! Get number of Dielectric Elems, Faces and Interfaces. Create Mappngs Dielectric <-> physical region
 CALL CountAndCreateMappings('Dielectric',&
@@ -190,7 +190,7 @@ CALL SetDielectricVolumeProfile()
       DielectricRatio=DielectricEpsR_inv
     END IF
     ! get the axial electric field strength in x-direction of the dielectric sphere setup
-    Dielectric_E_0 = GETREAL('Dielectric_E_0','1.')
+    Dielectric_E_0 = GETREAL('Dielectric_E_0')
   !END IF
 #endif /*USE_HDG*/
 

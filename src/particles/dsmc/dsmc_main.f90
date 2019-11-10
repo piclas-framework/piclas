@@ -43,31 +43,27 @@ SUBROUTINE DSMC_main(DoElement)
 USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
+USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, MCC_pairing_bggas, DSMC_FinalizeBGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-USE MOD_DSMC_Vars             ,ONLY: ChemReac, SpecDSMC
+USE MOD_DSMC_Vars             ,ONLY: ChemReac, SpecDSMC, VarVibRelaxProb, ConsiderVolumePortions, MCC_TotalPairNum, UseMCC
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
-USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D
+USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D, PartSpecies
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcEkin
-USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
+USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib, &
+                                     SamplingRotVibRelaxProb
 USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
-USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
-USE MOD_Particle_Vars         ,ONLY: KeepWallParticles
-#if (PP_TimeDiscMethod==1001)
-USE MOD_LD_Vars               ,ONLY: BulkValues, LD_DSMC_RHS
-#endif
-#if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
+USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision, DSMC_calc_var_P_vib
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_Mesh_Vars             ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars         ,ONLY: iter
 USE MOD_DSMC_Vars             ,ONLY: UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
-#endif
+USE MOD_Particle_Vars,         ONLY: KeepWallParticles
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -80,24 +76,22 @@ LOGICAL,OPTIONAL  :: DoElement(nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem, nPart, nPair, iPair
-REAL              :: iRan
-#if (PP_TimeDiscMethod!=1001)
+  INTEGER           :: iElem, nPart, nPair, iPair, cSpec1, cSpec2, iSpec
+  REAL              :: iRan, VibProb
 INTEGER           :: nOutput
-#endif
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 IF(.NOT.PRESENT(DoElement)) THEN
-  DSMC_RHS(1:PDM%ParticleVecLength,1) = 0
-  DSMC_RHS(1:PDM%ParticleVecLength,2) = 0
-  DSMC_RHS(1:PDM%ParticleVecLength,3) = 0
+  DSMC_RHS(1,1:PDM%ParticleVecLength) = 0
+  DSMC_RHS(2,1:PDM%ParticleVecLength) = 0
+  DSMC_RHS(3,1:PDM%ParticleVecLength) = 0
 END IF
 DSMCSumOfFormedParticles = 0
 
-IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_InitBGGas
+IF((BGGas%BGGasSpecies.NE.0).AND.(.NOT.UseMCC)) CALL DSMC_InitBGGas
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -105,16 +99,21 @@ DO iElem = 1, nElems ! element/cell main loop
   IF(PRESENT(DoElement)) THEN
     IF (.NOT.DoElement(iElem)) CYCLE
   END IF
-#if (PP_TimeDiscMethod==1001)
-  IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN  ! --- DSMC Cell ?
-#endif
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
       DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
+      IF(DSMC%RotRelaxProb.GT.2) THEN
+        DSMC%CalcRotProb = 0.
+      END IF
+      IF(DSMC%VibRelaxProb.EQ.2) THEN
+        DSMC%CalcVibProb = 0.
+      END IF
     END IF
     IF (CollisMode.NE.0) THEN
       ChemReac%nPairForRec = 0
-      IF(BGGas%BGGasSpecies.NE.0) THEN
+      IF(UseMCC) THEN
+        CALL MCC_pairing_bggas(iElem)
+      ELSE IF(BGGas%BGGasSpecies.NE.0) THEN
         CALL DSMC_pairing_bggas(iElem)
       ELSE IF (DSMC%UseOctree) THEN
         IF(Symmetry2D) THEN
@@ -137,9 +136,35 @@ DO iElem = 1, nElems ! element/cell main loop
         ELSE
           nPart = PEM%pNumber(iElem)
         END IF
-        nPair = INT(nPart/2)
+
+        IF(UseMCC) THEN
+          nPair = MCC_TotalPairNum
+        ELSE
+          nPair = INT(nPart/2)
+        END IF
 
         DO iPair = 1, nPair
+          ! variable vibrational relaxation probability has to average of all collisions
+          IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+            cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
+            cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
+            IF((SpecDSMC(cSpec1)%InterID.EQ.2).OR.(SpecDSMC(cSpec1)%InterID.EQ.20)) THEN
+              CALL DSMC_calc_var_P_vib(cSpec1,cSpec2,iPair,VibProb)
+              VarVibRelaxProb%ProbVibAvNew(cSpec1) = VarVibRelaxProb%ProbVibAvNew(cSpec1) + VibProb
+              VarVibRelaxProb%nCollis(cSpec1) = VarVibRelaxProb%nCollis(cSpec1) + 1
+              IF(DSMC%CalcQualityFactors) THEN
+                DSMC%CalcVibProb(cSpec1,2) = MAX(DSMC%CalcVibProb(cSpec1,2),VibProb)
+              END IF
+            END IF
+            IF((SpecDSMC(cSpec2)%InterID.EQ.2).OR.(SpecDSMC(cSpec2)%InterID.EQ.20)) THEN
+              CALL DSMC_calc_var_P_vib(cSpec2,cSpec1,iPair,VibProb)
+              VarVibRelaxProb%ProbVibAvNew(cSpec2) = VarVibRelaxProb%ProbVibAvNew(cSpec2) + VibProb
+              VarVibRelaxProb%nCollis(cSpec2) = VarVibRelaxProb%nCollis(cSpec2) + 1
+              IF(DSMC%CalcQualityFactors) THEN
+                DSMC%CalcVibProb(cSpec2,2) = MAX(DSMC%CalcVibProb(cSpec2,2),VibProb)
+              END IF
+            END IF
+          END IF
           IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
             CALL DSMC_prob_calc(iElem, iPair)
             CALL RANDOM_NUMBER(iRan)
@@ -147,29 +172,44 @@ DO iElem = 1, nElems ! element/cell main loop
 #if (PP_TimeDiscMethod==42)
               IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN
 #else
-                IF(CalcEkin) THEN
+              IF(CalcEkin) THEN
 #endif
-                  DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
-                  DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
-                END IF
-                CALL DSMC_perform_collision(iPair,iElem)
+                DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
+                DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
               END IF
-            END IF
-          END DO
-          IF(DSMC%CalcQualityFactors) THEN
-            IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-              ! Calculation of the mean free path
-              DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),GEO%Volume(iElem), &
-                  SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
-              ! Determination of the MCS/MFP for the case without octree
-              IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
-                  / DSMC%MeanFreePath
+              CALL DSMC_perform_collision(iPair,iElem)
             END IF
           END IF
-          DEALLOCATE(Coll_pData)
-        END IF                                                                                     ! end no octree
+        END DO
         IF(DSMC%CalcQualityFactors) THEN
           IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+            ! Calculation of the mean free path
+            IF (ConsiderVolumePortions) THEN
+              DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum)&
+                          ,GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem)),SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+            ELSE
+              DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),GEO%Volume(iElem), &
+                                                    SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+            END IF
+            ! Determination of the MCS/MFP for the case without octree
+            IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
+                                                                                            / DSMC%MeanFreePath
+          END IF
+        END IF
+        DEALLOCATE(Coll_pData)
+        IF(DSMC%VibRelaxProb.EQ.2.0) THEN
+          DO iSpec=1,nSpecies
+            IF(VarVibRelaxProb%nCollis(iSpec).NE.0) THEN ! Calc new vibrational relaxation probability
+              VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VarVibRelaxProb%ProbVibAv(iElem,iSpec) &
+                                                     * VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec)) &
+                                                     + (1.-VarVibRelaxProb%alpha**(VarVibRelaxProb%nCollis(iSpec))) &
+                                                     / (VarVibRelaxProb%nCollis(iSpec)) * VarVibRelaxProb%ProbVibAvNew(iSpec)
+            END IF
+          END DO
+        END IF
+      END IF ! end no octree
+      IF(DSMC%CalcQualityFactors) THEN
+        IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
             ! mean collision probability of all collision pairs
             IF(DSMC%CollProbMeanCount.GT.0) THEN
               DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
@@ -179,23 +219,21 @@ DO iElem = 1, nElems ! element/cell main loop
             IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
             ! Counting sample size
             DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
+            ! Sample rotation relaxation probability
+            IF((DSMC%RotRelaxProb.EQ.2).OR.(DSMC%VibRelaxProb.EQ.2)) CALL SamplingRotVibRelaxProb(iElem)
           END IF
         END IF
       END IF  ! --- CollisMode.NE.0
-#if (PP_TimeDiscMethod==1001)
-    END IF  ! --- END DSMC Cell?
-#endif
 #if USE_LOADBALANCE
     CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END DO ! iElem Loop
   ! Output!
-#if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
   PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
   IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_FinalizeBGGas
 #if (PP_TimeDiscMethod==42)
-  IF ((.NOT.DSMC%ReservoirSimu).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
+    IF ((.NOT.DSMC%ReservoirSimu).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
 #else
     IF (.NOT.WriteMacroVolumeValues .AND. .NOT.WriteMacroSurfaceValues) THEN
 #endif
@@ -249,11 +287,6 @@ DO iElem = 1, nElems ! element/cell main loop
         END IF
       END IF
     END IF
-#else /* --- LD-DSMC? */
-    LD_DSMC_RHS(1:PDM%ParticleVecLength,1) = DSMC_RHS(1:PDM%ParticleVecLength,1)
-    LD_DSMC_RHS(1:PDM%ParticleVecLength,2) = DSMC_RHS(1:PDM%ParticleVecLength,2)
-    LD_DSMC_RHS(1:PDM%ParticleVecLength,3) = DSMC_RHS(1:PDM%ParticleVecLength,3)
-#endif /* --- END LD-DSMC? */
 END SUBROUTINE DSMC_main
 
 END MODULE MOD_DSMC

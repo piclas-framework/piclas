@@ -826,12 +826,14 @@ REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
-ALLOCATE(GEO%Volume(nElems),STAT=ALLOCSTAT)
+ALLOCATE(GEO%Volume(nElems),&
+         GEO%MPVolumePortion(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
       __STAMP__&
       ,'ERROR in InitElemGeometry: Cannot allocate GEO%Volume!')
 END IF
+GEO%MPVolumePortion(:)=0.
 ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
@@ -969,9 +971,6 @@ SUBROUTINE FinalizeMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
-#ifdef PARTICLES
-!USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
-#endif
 #ifdef CODE_ANALYZE
 #ifndef PARTICLES
 USE MOD_Particle_Surfaces_Vars, ONLY: SideBoundingBoxVolume
@@ -995,6 +994,8 @@ SDEALLOCATE(VdM_CLN_GaussN)
 SDEALLOCATE(VdM_CLNGeo_GaussN)
 SDEALLOCATE(Vdm_CLNGeo_CLN)
 SDEALLOCATE(Vdm_NGeo_CLNgeo)
+SDEALLOCATE(Vdm_N_EQ)
+SDEALLOCATE(Vdm_EQ_N)
 ! BCS
 SDEALLOCATE(BoundaryName)
 SDEALLOCATE(BoundaryType)

@@ -85,7 +85,7 @@ SUBROUTINE AddPartInfoToSample(PartID,Transarray,IntArray,SampleType)
 !> Adds the velocities and particle energy of a particle to the correct position of transarray and intarray
 !>   only performed if sampling is enabled
 !===================================================================================================================================
-USE MOD_Globals       ,ONLY: abort
+USE MOD_Globals       ,ONLY: abort,VECNORM
 USE MOD_Particle_Vars ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
 USE MOD_DSMC_Vars     ,ONLY: CollisMode, useDSMC, SpecDSMC
@@ -108,18 +108,18 @@ INTEGER :: ETransID, ERotID, EVibID
 IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
   TransArray(:)=0.
   IntArray(:)=0.
-  VeloReal = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))
+  VeloReal = VECNORM(PartState(4:6,PartID))
   ETrans = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
   SELECT CASE (TRIM(SampleType))
   CASE ('old')
     ! must be old_velocity-new_velocity
-    TransArray(4:6) = PartState(PartID,4:6)
+    TransArray(4:6) = PartState(4:6,PartID)
     ETransID = 1
     ERotID = 1
     EVibID = 4
   CASE ('new')
     ! must be old_velocity-new_velocity
-    TransArray(4:6) = -PartState(PartID,4:6)
+    TransArray(4:6) = -PartState(4:6,PartID)
     ETransID = 3
     ERotID = 3
     EVibID = 6
@@ -131,8 +131,8 @@ __STAMP__&
   TransArray(ETransID) = ETrans
   IF (useDSMC .AND. CollisMode.GT.1) THEN
     IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.SpecDSMC(PartSpecies(PartID))%InterID.EQ.20) THEN
-      IntArray(ERotID) = PartStateIntEn(PartID,2)
-      IntArray(EVibID) = PartStateIntEn(PartID,1)
+      IntArray(ERotID) = PartStateIntEn(2,PartID)
+      IntArray(EVibID) = PartStateIntEn(1,PartID)
     END IF
   END IF
 END IF
@@ -231,7 +231,7 @@ ASSOCIATE ( MPF  => Species(PartSpecies(PartID))%MacroParticleFactor ,&
 
   ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
   ! only works if impact_opt_loc=CalcSurfaceImpact=T
-  IF(impact_opt_loc) CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MPF,TransArray(1),IntArray(1),IntArray(4),&
+  IF(impact_opt_loc) CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MPF,TransArray(1),IntArray(4),IntArray(1),&
                                              PartTrajectory_opt,SurfaceNormal_opt,p,q)
 
 END ASSOCIATE
@@ -276,13 +276,13 @@ IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
 __STAMP__&
 ,'maxSurfCollisNumber reached!')
     END IF
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) = PartState(PartID,4)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) = PartState(PartID,5)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) = PartState(PartID,6)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) = LastPartPos(PartID,1)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) = LastPartPos(PartID,2)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) = LastPartPos(PartID,3)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(1:3,PartID) + alpha * PartTrajectory(1:3)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) = PartState(4,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) = PartState(5,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) = PartState(6,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) = LastPartPos(1,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) = LastPartPos(2,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) = LastPartPos(3,PartID)
     AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1))   = PartSpecies(PartID)
     AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1))   = locBCID
   END IF
@@ -320,7 +320,7 @@ IF (useDSMC .AND. CollisMode.GT.1) THEN
       iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
       IF(ALLOCATED(VibQuantsPar(PartID)%Quants)) DEALLOCATE(VibQuantsPar(PartID)%Quants)
       ALLOCATE(VibQuantsPar(PartID)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-      PartStateIntEn(PartID, 1) = 0.0
+      PartStateIntEn( 1,PartID) = 0.0
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
         CALL RANDOM_NUMBER(RanNum)
         VibQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
@@ -328,25 +328,25 @@ IF (useDSMC .AND. CollisMode.GT.1) THEN
           CALL RANDOM_NUMBER(RanNum)
           VibQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
         END DO
-        PartStateIntEn(PartID, 1) = PartStateIntEn(PartID, 1) &
+        PartStateIntEn( 1,PartID) = PartStateIntEn( 1,PartID) &
                                    + (VibQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
         VibQuantsPar(PartID)%Quants(iDOF)=VibQuant
       END DO
       IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.2) THEN
         CALL RANDOM_NUMBER(RanNum)
-        PartStateIntEn(PartID, 2) = -BoltzmannConst*WallTemp*LOG(RanNum)
+        PartStateIntEn( 2,PartID) = -BoltzmannConst*WallTemp*LOG(RanNum)
       ELSE IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.3) THEN
         CALL RANDOM_NUMBER(RanNum)
-        PartStateIntEn(PartID, 2) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-        NormProb = SQRT(PartStateIntEn(PartID, 2))*EXP(-PartStateIntEn(PartID, 2))/(SQRT(0.5)*EXP(-0.5))
+        PartStateIntEn( 2,PartID) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+        NormProb = SQRT(PartStateIntEn( 2,PartID))*EXP(-PartStateIntEn( 2,PartID))/(SQRT(0.5)*EXP(-0.5))
         CALL RANDOM_NUMBER(RanNum)
         DO WHILE (RanNum.GE.NormProb)
           CALL RANDOM_NUMBER(RanNum)
-          PartStateIntEn(PartID, 2) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-          NormProb = SQRT(PartStateIntEn(PartID, 2))*EXP(-PartStateIntEn(PartID, 2))/(SQRT(0.5)*EXP(-0.5))
+          PartStateIntEn( 2,PartID) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+          NormProb = SQRT(PartStateIntEn( 2,PartID))*EXP(-PartStateIntEn( 2,PartID))/(SQRT(0.5)*EXP(-0.5))
           CALL RANDOM_NUMBER(RanNum)
         END DO
-        PartStateIntEn(PartID, 2) = PartStateIntEn(PartID, 2)*BoltzmannConst*WallTemp
+        PartStateIntEn( 2,PartID) = PartStateIntEn( 2,PartID)*BoltzmannConst*WallTemp
       END IF
     ELSE
       ! Set vibrational energy
@@ -356,15 +356,15 @@ IF (useDSMC .AND. CollisMode.GT.1) THEN
         CALL RANDOM_NUMBER(RanNum)
         VibQuant = INT(-LOG(RanNum)*WallTemp/SpecDSMC(PartSpecies(PartID))%CharaTVib)
       END DO
-      PartStateIntEn(PartID, 1) = (VibQuant + DSMC%GammaQuant)*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst
+      PartStateIntEn( 1,PartID) = (VibQuant + DSMC%GammaQuant)*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst
       ! Set rotational energy
       CALL RANDOM_NUMBER(RanNum)
-      PartStateIntEn(PartID, 2) = -BoltzmannConst*WallTemp*LOG(RanNum)
+      PartStateIntEn( 2,PartID) = -BoltzmannConst*WallTemp*LOG(RanNum)
     END IF
   ELSE
     ! Nullify energy for atomic species
-    PartStateIntEn(PartID, 1) = 0.0
-    PartStateIntEn(PartID, 2) = 0.0
+    PartStateIntEn( 1,PartID) = 0.0
+    PartStateIntEn( 2,PartID) = 0.0
   END IF
 END IF
 !End internal energy accomodation
@@ -510,12 +510,12 @@ IF (sigma.GT.1.) sigma = 1.
 END FUNCTION
 
 
-SUBROUTINE CountSurfaceImpact(SurfSideID,SpecID,MPF,ETrans,ERot,EVib,PartTrajectory,SurfaceNormal,p,q)
+SUBROUTINE CountSurfaceImpact(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,PartTrajectory,SurfaceNormal,p,q)
 !===================================================================================================================================
 !> Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
 !>
 !===================================================================================================================================
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
+!USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
 USE MOD_Particle_Boundary_Vars ,ONLY: SampWall
 USE MOD_Globals_Vars           ,ONLY: PI
 IMPLICIT NONE
@@ -539,10 +539,8 @@ INTEGER,INTENT(IN) :: q                 !< Surface sub-faces
 
 !----- Sampling of impact energy for each species (trans, rot, vib)
 SampWall(SurfSideID)%ImpactEnergy(SpecID,1,p,q)   = SampWall(SurfSideID)%ImpactEnergy(SpecID,1,p,q) + ETrans * MPF
-IF((SpecDSMC(SpecID)%InterID.EQ.2).OR.(SpecDSMC(SpecID)%InterID.EQ.20))THEN
-  SampWall(SurfSideID)%ImpactEnergy(SpecID,2,p,q) = SampWall(SurfSideID)%ImpactEnergy(SpecID,2,p,q) + ERot   * MPF
-  SampWall(SurfSideID)%ImpactEnergy(SpecID,3,p,q) = SampWall(SurfSideID)%ImpactEnergy(SpecID,3,p,q) + EVib   * MPF
-END IF ! (SpecDSMC(SpecID)%InterID.EQ.2).OR.(SpecDSMC(SpecID)%InterID.EQ.20)
+SampWall(SurfSideID)%ImpactEnergy(SpecID,2,p,q) = SampWall(SurfSideID)%ImpactEnergy(SpecID,2,p,q)   + ERot   * MPF
+SampWall(SurfSideID)%ImpactEnergy(SpecID,3,p,q) = SampWall(SurfSideID)%ImpactEnergy(SpecID,3,p,q)   + EVib   * MPF
 
 !----- Sampling of impact vector for each species (x,y,z)
 SampWall(SurfSideID)%ImpactVector(SpecID,1,p,q)   = SampWall(SurfSideID)%ImpactVector(SpecID,1,p,q) + PartTrajectory(1) * MPF

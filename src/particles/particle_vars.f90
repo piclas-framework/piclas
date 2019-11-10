@@ -66,13 +66,14 @@ INTEGER               :: NextTimeStepAdjustmentIter                          ! i
 INTEGER               :: MaxwellIterNum                                      ! number of iterations for the maxwell solver
 INTEGER               :: WeirdElems                                          ! Number of Weird Elements (=Elements which are folded
                                                                              ! into themselves)
-REAL    , ALLOCATABLE :: PartState(:,:)                                      ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
+REAL    , ALLOCATABLE :: PartState(:,:)                                      ! 1st index: x,y,z,vx,vy,vz
+!                                                                            ! 2nd index: 1:NParts
 REAL    , ALLOCATABLE :: PartPosRef(:,:)                                     ! (1:3,1:NParts) particles pos mapped to -1|1 space
 INTEGER , ALLOCATABLE :: PartPosGauss(:,:)                                   ! (1:NParts,1:3) Gauss point localization of particles
 REAL    , ALLOCATABLE :: Pt(:,:)                                             ! Derivative of PartState (vx,xy,vz) only
                                                                              ! since temporal derivative of position
                                                                              ! is the velocity. Thus we can take
-                                                                             ! PartState(:,4:6) as Pt(1:3)
+                                                                             ! PartState(4:6,:) as Pt(1:3)
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
 LOGICAL               :: DoForceFreeSurfaceFlux                              ! switch if the stage reconstruction uses a force
 #if (PP_TimeDiscMethod==509)
@@ -103,7 +104,8 @@ LOGICAL , ALLOCATABLE :: DoPartInNewton(:)                                   ! p
 REAL    , ALLOCATABLE :: Pt_temp(:,:)                                        ! LSERK4 additional derivative of PartState
 
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
-REAL    , ALLOCATABLE :: LastPartPos(:,:)                                    ! (1:NParts,1:3) with 2nd index: x,y,z
+REAL    , ALLOCATABLE :: LastPartPos(:,:)                                    ! 1st index: x,y,z
+!                                                                            ! 2nd index: 1:NParts with 2nd index
 INTEGER , ALLOCATABLE :: PartSpecies(:)                                      ! (1:NParts)
 REAL    , ALLOCATABLE :: PartMPF(:)                                          ! (1:NParts) MacroParticleFactor by variable MPF
 INTEGER               :: PartLorentzType
@@ -196,7 +198,7 @@ TYPE tInit                                                                   ! P
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
   REAL                                   :: ConstantPressure                 ! Pressure for an Area with a Constant Pressure
   REAL                                   :: ConstPressureRelaxFac            ! RelaxFac. for ConstPressureSamp
-  REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) for LD_insert or
+  REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) or
                                                                              ! (vpi_)cub./cyl. as alternative to Part.Emis. in Type1
   INTEGER                                :: ElemTemperatureFileID
   REAL , ALLOCATABLE                     :: ElemTemperatureIC(:,:)           ! Temperature from macrorestart [1:3,1:nElems)
@@ -341,6 +343,9 @@ REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! M
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
 
 INTEGER                                  :: nSpecies                         ! number of species
+INTEGER                                  :: nPointsMCVolumeEstimate          ! numer of points seeded into one element for volume
+                                                                             ! portion (that is occupied) estimtaion 
+                                                                             ! with a Monte Carlo method
 INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
@@ -481,7 +486,6 @@ TYPE tVariableTimeStep
   REAL                                 :: TargetMaxRelaxFactor
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
-
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

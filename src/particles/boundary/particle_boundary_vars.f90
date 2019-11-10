@@ -16,6 +16,9 @@ MODULE MOD_Particle_Boundary_Vars
 ! Contains global variables provided by the particle surfaces routines
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -62,11 +65,11 @@ TYPE tSurfaceCOMM
   INTEGER                               :: nOutputProcs                  ! number of output processes
 #if USE_MPI
   LOGICAL                               :: InnerBCs                      ! are there InnerSides with reflective properties
-  INTEGER                               :: COMM                          ! communicator
+  INTEGER                               :: COMM=MPI_COMM_NULL            ! communicator
   INTEGER                               :: nMPINeighbors                 ! number of processes to communicate with
   TYPE(tSurfaceSendList),ALLOCATABLE    :: MPINeighbor(:)                ! list containing all mpi neighbors
+  INTEGER                               :: OutputCOMM=MPI_COMM_NULL      ! communicator for output
 #endif /*USE_MPI*/
-  INTEGER                               :: OutputCOMM                    ! communicator for output
 END TYPE
 TYPE (tSurfaceCOMM)                     :: SurfCOMM
 
@@ -241,22 +244,18 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: SolidAreaIncrease(:)
   INTEGER , ALLOCATABLE                  :: SolidStructure(:)             ! crystal structure of solid boundary (1:fcc100 2:fcc111)
   INTEGER , ALLOCATABLE                  :: SolidCrystalIndx(:)
-  LOGICAL , ALLOCATABLE                  :: AmbientCondition(:)
-  LOGICAL , ALLOCATABLE                  :: AmbientConditionFix(:)
-  REAL    , ALLOCATABLE                  :: AmbientTemp(:)
-  REAL    , ALLOCATABLE                  :: AmbientMeanPartMass(:)
-  REAL    , ALLOCATABLE                  :: AmbientBeta(:)
-  REAL    , ALLOCATABLE                  :: AmbientVelo(:,:)
-  REAL    , ALLOCATABLE                  :: AmbientDens(:)
-  REAL    , ALLOCATABLE                  :: AmbientDynamicVisc(:)               ! dynamic viscousity
-  REAL    , ALLOCATABLE                  :: AmbientThermalCond(:)               ! thermal conuctivity
   LOGICAL , ALLOCATABLE                  :: Adaptive(:)
   INTEGER , ALLOCATABLE                  :: AdaptiveType(:)
   INTEGER , ALLOCATABLE                  :: AdaptiveMacroRestartFileID(:)
   REAL    , ALLOCATABLE                  :: AdaptivePressure(:)
   REAL    , ALLOCATABLE                  :: AdaptiveTemp(:)
-  LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                   !Use Boundary for Q-Criterion ?
-  LOGICAL , ALLOCATABLE                  :: Resample(:)                      !Resample Equilibirum Distribution with reflection
+  LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                ! Use Boundary for Q-Criterion ?
+  LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibirum Distribution with reflection
+  LOGICAL , ALLOCATABLE                  :: Dielectric(:)                 ! Define if particle boundary [$] is a dielectric
+!                                                                         ! interface, i.e. an interface between a dielectric and 
+!                                                                         ! a non-dielectric or a between to different dielectrics 
+!                                                                         ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
+!                                                                         ! (Default=FALSE.)
 END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries
