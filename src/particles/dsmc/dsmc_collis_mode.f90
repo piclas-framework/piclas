@@ -731,17 +731,15 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   VeloMy = FracMassCent1 * PartState(iPart1, 5) + FracMassCent2 * PartState(iPart2, 5)
   VeloMz = FracMassCent1 * PartState(iPart1, 6) + FracMassCent2 * PartState(iPart2, 6)
 
+  Coll_pData(iPair)%cRela2 = 2 * Coll_pData(iPair)%Ec/ReducedMass
   IF (CollInf%alphaVSS(iSpec1,iSpec2).GT.1) THEN
     !Calculate relative velocities and new squared velocity
     cRelaOld(1:3) = PartState(iPart1, 4:6) - PartState(iPart2, 4:6)
-
-    Coll_pData(iPair)%cRela2 = 2 * Coll_pData(iPair)%Ec/ReducedMass
-    
     ! Calculation of post collision velocity vector in reference frame and retransformation to center-of-mass frame
     cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 ,CollInf%alphaVSS(iSpec1,iSpec2) &
                                                ,cRelaOld(1),cRelaOld(2),cRelaOld(3))
   ELSE ! alphaVSS .LE. 1
-    ! Calculation of post collision velocity vector in reference frame 
+    ! Calculation of post collision velocity vector in reference frame
     cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2,CollInf%alphaVSS(iSpec1,iSpec2))
   END IF  ! alphaVSS
 
@@ -1132,11 +1130,11 @@ __STAMP__&
   VeloMy = FracMassCent1 * PartState(iPart1, 5) + FracMassCent2 * PartState(iPart2, 5)
   VeloMz = FracMassCent1 * PartState(iPart1, 6) + FracMassCent2 * PartState(iPart2, 6)
 
+  Coll_pData(iPair)%cRela2 = 2. * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
+
   IF (CollInf%alphaVSS(iSpec1,iSpec2).GT.1) THEN
     ! Calculate relative velocites and the squared velocities
     cRelaOld(1:3) = PartState(iPart1, 4:6) - PartState(iPart2, 4:6)
-
-    Coll_pData(iPair)%cRela2 = 2. * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
 
     ! Calculation of post collision velocity vector in reference frame and retransformation to center-of-mass frame
     cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 ,CollInf%alphaVSS(iSpec1,iSpec2) &
@@ -3049,7 +3047,7 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
 ! LOCAL VARIABLES
   REAL                      :: TempCorr, cRela
 !===================================================================================================================================
-  ! (i) dref changed from dref = 0.5 * (dref_1+dref_2) 
+  ! (i) dref changed from dref = 0.5 * (dref_1+dref_2)
   !                  to   dref(iSpec,jSpec) which is identical to old definition (for averagedCollisionParameters=TRUE (DEFAULT))
   ! in case of averagedCollisionParameter=FALSE dref(iSpec,jSpec) contains collision specific dref see --help for details
 
