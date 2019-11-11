@@ -803,29 +803,31 @@ IF(connected)THEN
 END IF
 END FUNCTION GETFREEUNIT
 
+
 PURE FUNCTION CROSS(v1,v2)
 !===================================================================================================================================
-! computes the cross product of to 3 dimensional vectpors: cross=v1 x v2
+! Computes the cross product of two 3-dimensional vectors: cross=v1 x v2
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN) :: v1(3)    !
-REAL,INTENT(IN) :: v2(3)    !
+REAL,INTENT(IN) :: v1(3)
+REAL,INTENT(IN) :: v2(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL            :: CROSS(3) !
+REAL            :: CROSS(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 CROSS=(/v1(2)*v2(3)-v1(3)*v2(2),v1(3)*v2(1)-v1(1)*v2(3),v1(1)*v2(2)-v1(2)*v2(1)/)
 END FUNCTION CROSS
 
+
 PURE FUNCTION CROSSNORM(v1,v2)
 !===================================================================================================================================
-! computes the cross product of to 3 dimensional vectpors: cross=v1 x v2
+! Computes the cross product of to 3 dimensional vectors: cross=v1 x v2
 ! and normalizes the vector
 !===================================================================================================================================
 ! MODULES
@@ -833,11 +835,10 @@ PURE FUNCTION CROSSNORM(v1,v2)
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN) :: v1(3)    !
-REAL,INTENT(IN) :: v2(3)    !
+REAL,INTENT(IN) :: v1(3),v2(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL            :: CROSSNORM(3) !
+REAL            :: CROSSNORM(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL            :: length
@@ -846,6 +847,7 @@ CROSSNORM=(/v1(2)*v2(3)-v1(3)*v2(2),v1(3)*v2(1)-v1(1)*v2(3),v1(1)*v2(2)-v1(2)*v2
 length=SQRT(CROSSNORM(1)*CROSSNORM(1)+CROSSNORM(2)*CROSSNORM(2)+CROSSNORM(3)*CROSSNORM(3))
 CROSSNORM=CROSSNORM/length
 END FUNCTION CROSSNORM
+
 
 PURE FUNCTION UNITVECTOR(v1)
 !===================================================================================================================================
@@ -872,7 +874,7 @@ END FUNCTION UNITVECTOR
 
 PURE FUNCTION VECNORM(v1)
 !===================================================================================================================================
-! computes the length of an vector
+! Computes the Euclidean norm (length) of a vector
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -892,7 +894,7 @@ END FUNCTION VECNORM
 
 PURE FUNCTION DOTPRODUCT(v1)
 !===================================================================================================================================
-! computes the dot product of an single vector with itself
+! Computes the dot product of a vector with itself
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
