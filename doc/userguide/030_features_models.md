@@ -491,38 +491,34 @@ The particle velocity distribution within the domain is then generated assuming 
 
 ### Variable Time Step \label{sec:vartimestep}
 
-A spatially variable time step (VTS) can be activated for steady-state DSMC simulations
-
-    Part-VariableTimeStep = T
-
-Two options are currently available and described in the following:
+A spatially variable time step (VTS) can be activated for steady-state DSMC, BGK and FP simulations, where two options are currently available and described in the following:
 
 * Distribution: use a simulation result to adapt the time step in order to resolve physical parameters (e.g. collision frequency)
 * Linear scaling: use a linearly increasing/decreasing time step along a given direction
 
 #### Distribution
 
-The first option which is currently only available for DSMC is to adapt the time step during a simulation restart based on certain parameters of the DSMC simulation such as maximal collision probability, mean collision separation distance over mean free path and particle number. This requires the read-in of a DSMC state file that includes DSMC quality factors (see Section \ref{sec:dsmc_quality}).
+The first option is to adapt the time step during a simulation restart based on certain parameters of the DSMC/BGK/FP simulation such as maximal collision probability (DSMC), mean collision separation distance over mean free path (DSMC), maximal relaxation factor (BGK/FP) and particle number. This requires the read-in of a DSMC state file that includes DSMC quality factors (see Section \ref{sec:dsmc_quality}).
 
     Part-VariableTimeStep-Distribution = T
     Part-VariableTimeStep-Distribution-Adapt = T
-    Part-VariableTimeStep-Distribution-TargetMCSoverMFP = 0.3   ! Default = 0.25
-    Part-VariableTimeStep-Distribution-TargetMaxCollProb = 0.8  ! Default = 0.8
     Part-VariableTimeStep-Distribution-MaxFactor = 1.0
     Part-VariableTimeStep-Distribution-MinFactor = 0.1
     Part-VariableTimeStep-Distribution-MinPartNum = 10          ! Optional
-    Particles-MacroscopicRestart = T    ! Disable if no adaptation is performed!
+    ! DSMC only
+    Part-VariableTimeStep-Distribution-TargetMCSoverMFP = 0.3   ! Default = 0.25
+    Part-VariableTimeStep-Distribution-TargetMaxCollProb = 0.8  ! Default = 0.8
+    ! BGK/FP only
+    Part-VariableTimeStep-Distribution-TargetMaxRelaxFactor = 0.8
+    ! Restart from a given DSMC state file (Disable if no adaptation is performed!)
+    Particles-MacroscopicRestart = T
     Particles-MacroscopicRestart-Filename = Test_DSMCState.h5
 
 The second flag allows to enable/disable the adaptation of the time step distribution. Typically, a simulation would be performed until a steady-state (or close to it, e.g. the particle number is not increasing significantly anymore) is reached with a uniform time step. Then a restart with the above options would be performed, where the time step distribution is adapted using the DSMC output of the last simulation. Now, the user can decide to continue adapting the time step with the subsequent DSMC outputs (Note: Do not forget to update the DSMCState file name!) or to disable the adaptation and to continue the simulation with the distribution from the last simulation (the adapted particle time step is saved within the regular state file). It should be noted that if after a successful restart at e.g. $t=2$, and the simulation fails during the runtime at $t=2.5$ before the next state file could be written out at $t=3$, an adaptation for the next simulation attempt shoud NOT be performed as the adapted time step is stored in the output of new restart file at the restart time $t=2$. Restart files from which the restart is performed are overwritten after a successful restart.
 
-The parameters `TargetMCSoverMFP` (ratio of the mean collision separation distance over mean free path) and `TargetMaxCollProb` (maximum collision probability) allow to modify the target values for the adaptation. The `MaxFactor` and `MinFactor` allow to limit the adapted time step within a range of $f_\mathrm{min} \Delta t$ and $f_\mathrm{max} \Delta t$. Finally, the time step adaptation can be used to increase the number of particles by defining a minimum particle number (e.g `MinPartNum` = 10, optional).
+The `MaxFactor` and `MinFactor` allow to limit the adapted time step within a range of $f_\mathrm{min} \Delta t$ and $f_\mathrm{max} \Delta t$. The time step adaptation can be used to increase the number of particles by defining a minimum particle number (e.g `MinPartNum` = 10, optional). For DSMC, the parameters `TargetMCSoverMFP` (ratio of the mean collision separation distance over mean free path) and `TargetMaxCollProb` (maximum collision probability) allow to modify the target values for the adaptation. For the BGK and FP methods, the time step can be adapted according to a target maximal relaxation frequency.
 
 The last two flags enable to initialize the particles distribution from the given DSMC state file, using the macroscopic properties such as flow velocity, number density and temperature (see Section \ref{sec:macro_restart}). Strictly speaking, the VTS procedure only requires the `Filename` for the read-in of the aforementioned parameters, however, it is recommended to perform a macroscopic restart to initialize the correct particle number per cells. Otherwise, cells with a decreased/increased time step will require some time until the additional particles have reached/left the cell.
-
-For the BGK method, the time step can be adapted according to a target maximal relaxation factor, analogous to the maximal collision probability in DSMC
-
-    Part-VariableTimeStep-Distribution-TargetMaxRelaxFactor = 0.8
 
 The time step adaptation can also be utilized in coupled BGK-DSMC simulations, where the time step will be adapted in both regions according to the respective criteria as the BGK factors are zero in the DSMC region and vice versa. Attention should be payed in the transitional region between BGK and DSMC, where the factors are potentially calculated for both methods. Here, the time step required to fulfil the maximal collision probability criteria will be utilized as it is the more stringent one.
 
@@ -536,7 +532,7 @@ The second option is to use a linearly increasing time step along a given direct
     Part-VariableTimeStep-StartPoint    =     (/-0.4,0.0,0.0/)
     Part-VariableTimeStep-EndPoint      =  (/-99999.,0.0,0.0/)
 
-Besides DSMC, the linear scaling is available for the BGK method. Finally, specific options for 2D/axisymmetric simulations are discussed in Section \ref{sec:2DAxi_vts}.
+Besides DSMC, the linear scaling is available for the BGK and FP method. Finally, specific options for 2D/axisymmetric simulations are discussed in Section \ref{sec:2DAxi_vts}.
 
 ### 2D/Axisymmetric Simulation \label{sec:2DAxi}
 
@@ -592,7 +588,7 @@ An alternative to the particle position-based weighting is the cell-local radial
 
 However, this method is not preferable if the cell dimensions in $y$-direction are large, resulting in numerical artifacts due to the clustered cloning processes at cell boundaries.
 
-Besides DSMC, 2D/axisymmetric simulations are also possible the BGK particle method with the same parameters as discussed above (for more informatino about the BGK method see Section \ref{sec:bgk}).
+Besides DSMC, 2D/axisymmetric simulations are also possible the BGK/FP particle method with the same parameters as discussed above (for more informatino about the BGK and FP methods, see Section \ref{sec:continuum}).
 
 #### Variable Time Step: Linear scaling \label{sec:2DAxi_vts}
 
@@ -661,32 +657,46 @@ WIP: octree, nearest neighbor, VHS
 
 Particles-DSMC-ProhibitDoubleCollision [@Shevyrin2005,@Akhlaghi2018]
 
-### Relaxation \label{sec:dsmc_relaxation}
+### Inelastic Collisions \& Relaxation \label{sec:dsmc_relaxation}
 
-To determine the different relaxation probabilities of the different internal degrees of freedom, different models are implemented. The first and easiest model are constant relaxation probabilities and second more complex models with variable, mostly temperature dependent, relaxation probabilities. Three different kinds of internal degrees of freedom are implemented in piclas: rotational, vibrational and electronical ones. For each one, different relaxation models are neccesary. Also different selection procedures are implemented: multi-relaxation and prohibiting-double-relaxation. The following flag has to be set true to enable the correction factor of Lumpkin [@Lumpkin1991],:
+To consider inelastic collisions and relaxation processes within PICLas, the chosen `CollisMode` has to be at least 2
 
-    Particles-DSMC-useRelaxProbCorrFactor = false
+    Particles-DSMC-CollisMode = 2
 
-#### Rotational Relaxation \label{sec:dsmc_rotational_relxation}
+Two selection procedures are implemented, which differ whether only a single or as many as possible relaxation processes can occur for a collision pair. The default model (`SelectionProcedure = 1`) allows the latter, so-called multi-relaxation method, while `SelectionProcedure = 2` enables the prohibiting double-relaxation method [@Haas1994b]
 
-To adjust the rotational relaxation this variable has to be changed with its default value of $0.2$:
+    Particles-DSMC-SelectionProcedure = 1    ! Multi-relaxation
+                                        2    ! Prohibiting double-relaxation
 
-    Particles-DSMC-RotRelaxProb = 0.2
+Rotational, vibrational and electronic relaxation (not included by default, see Section \ref{sec:dsmc_electronic_relaxation} for details) processes are implemented in PICLas and their specific options to use either constant relaxation probabilities (default) or variable, mostly temperature dependent, relaxation probabilities are discussed in the following sections. To achieve consistency between continuum and particle-based relaxation modelling, the correction factor of Lumpkin [@Lumpkin1991] can be enabled (default = F):
 
-If the Rotational Relaxation Probability is between 0 and 1, this value is set as constant probability, is it 2 the variable rotational relaxation model is activated according to Boyd [@Boyd1990a]. Therefore, for each molecular species two additional parameters has to be defined; the rotational collision number and the rotational reference temperature. As example nitrogen is used [@Boyd1990b].
+    Particles-DSMC-useRelaxProbCorrFactor = T
+
+#### Rotational Relaxation \label{sec:dsmc_rotational_relaxation}
+
+To adjust the rotational relaxation this variable has to be changed:
+
+    Particles-DSMC-RotRelaxProb = 0.2   ! Value between 0 and 1 as a constant probability
+                                    2   ! Model by Boyd
+                                    3   ! Model by Zhang
+
+If `RotRelaxProb` is between 0 and 1, it is set as a constant rotational relaxation probability (default = 0.2). `RotRelaxProb = 2` activates the variable rotational relaxation model according to Boyd [@Boyd1990a]. Consequently, for each molecular species two additional parameters have to be defined, the rotational collision number and the rotational reference temperature. As an example, nitrogen is used [@Boyd1990b].
 
     Part-Species1-CollNumRotInf = 23.3
     Part-Species1-TempRefRot = 91.5
 
-If the relaxation probability is equal 3, the relaxation model of Zhang et al. [@Zhang2012] is used. But, it is only implemented for nitrogen and is not tested. It is not recommended to use it!
+It is not recommended to use this model with the prohibiting double-relaxation selection procedure (`Particles-DSMC-SelectionProcedure = 2`). Low collision energies result in high relaxation probabilities, which can lead to cumulative collision probabilities greater than 1.
 
-#### Vibrational Relaxation \label{sec:dsmc_vibrational_relxation}
+If the relaxation probability is equal to 3, the relaxation model of Zhang et al. [@Zhang2012] is used. However, it is only implemented for nitrogen and not tested. It is not recommended for use.
 
-Equal to the rotational relaxation probability, the vibrational relaxation probability is implemented. This variable has to be changed, if the vibrational relaxation probability should be adjusted:
+#### Vibrational Relaxation \label{sec:dsmc_vibrational_relaxation}
 
-    Particles-DSMC-VibRelaxProb = 0.004
+Analogous to the rotational relaxation probability, the vibrational relaxation probability is implemented. This variable has to be changed, if the vibrational relaxation probability should be adjusted:
 
-$0.004$ is the default. If the value of this variable is between 0 and 1, this value is used as constant vibrational relaxation probability. Is it set to 2, the variable vibrational relaxation model of Boyd [@Boyd1990b] is used. For each molecular species pair the constants A and B according to Millikan and White [@MillikanWhite1963] (which will be used for the calculation of the characteristic velocity and vibrational collision number according to Abe [@Abe1994]) and the vibrational cross section has to be defined. The given example below is a 2 species mixture of nitrogen and oxygen and the values of A and B are used Farbar [@Farbar2010] and the vibrational cross section is used Boyd [@Boyd1990b]:
+    Particles-DSMC-VibRelaxProb = 0.004 ! Value between 0 and 1 as a constant probability
+                                      2 ! Model by Boyd
+
+If `VibRelaxProb` is between 0 and 1, it is used as a constant vibrational relaxation probability (default = 0.004). The variable vibrational relaxation model of Boyd [@Boyd1990b] can be activated with `VibRelaxProb = 2`. For each molecular species pair, the constants A and B according to Millikan and White [@MillikanWhite1963] (which will be used for the calculation of the characteristic velocity and vibrational collision number according to Abe [@Abe1994]) and the vibrational cross section have to be defined. The given example below is a 2 species mixture of nitrogen and oxygen, using the values for A and B given by Farbar [@Farbar2010] and the vibrational cross section given by Boyd [@Boyd1990b]:
 
     Part-Species1-MWConstA-1-1 = 220.00
     Part-Species1-MWConstA-1-2 = 115.10
@@ -700,35 +710,32 @@ $0.004$ is the default. If the value of this variable is between 0 and 1, this v
     Part-Species2-MWConstB-2-1 = -6.92
     Part-Species2-VibCrossSection = 1e-19
 
-It is not possible to calculate an instantanious vibrational relaxation probability with this model [@Boyd1992]. Thus, the probablility is calculated for every colission and is averaged. To avoid large errors in cells containing only a few particles, a relaxation of this average probability is implemented. The relaxation factor alpha can be changed with the following parameter in the ini file:
+It is not possible to calculate an instantaneous vibrational relaxation probability with this model [@Boyd1992]. Thus, the probability is calculated for every colission and is averaged. To avoid large errors in cells containing only a few particles, a relaxation of this average probability is implemented. The relaxation factor $\alpha$ can be changed with the following parameter in the ini file:
 
     Particles-DSMC-alpha = 0.99
 
-The new probability is calculated with the vibrational relaxation probability of the $n^{th}$ iteration $VibProb_{n}$, the number of Collision Pairs $n_{Pair}$ and the average vibrational relaxation probability of the actual iteration $VibProbIter$.
+The new probability is calculated with the vibrational relaxation probability of the $n^\mathrm{th}$ iteration $P^{n}_\mathrm{v}$, the number of collision pairs $n_\mathrm{pair}$ and the average vibrational relaxation probability of the actual iteration $P^\mathrm{iter}_\mathrm{v}$.
 
-$$VibProb_{n+1}= VibProb_{n}  \cdot  \alpha^{2  \cdot  n_{Pair}} + (1-\alpha^{2  \cdot  n_{Pair}}) \cdot VibProbIter $$
+$$P^{n+1}_\mathrm{v}= P^{n}_\mathrm{v}  \cdot  \alpha^{2  \cdot  n_\mathrm{pair}} + (1-\alpha^{2  \cdot  n_\mathrm{pair}}) \cdot P^\mathrm{iter}_\mathrm{v} $$
 
-This model is extended to more species by calculating for each species a separate probability. An initial vibrational relaxation probability is set by calculating $INT(1/(1-\alpha))$ vibrational relaxation probabilities for each species and cell with using the instantanious cell temperature. The collision partner is choosen by the mole fraction of them inside the cell.
+This model is extended to more species by calculating a separate probability for each species. An initial vibrational relaxation probability is set by calculating $\mathrm{INT}(1/(1-\alpha))$ vibrational relaxation probabilities for each species and cell by using an instantaneous translational cell temperature.
 
-#### Electronic Relaxation \label{sec:dsmc_electronic_relxation}
+#### Electronic Relaxation \label{sec:dsmc_electronic_relaxation}
 
-WIP
+The modelling of electronic states is based on the work of [@Liechty2011a] and uses tabulated energy levels, which can be found in literature for a wide range of species (e.g. for monatomic [@NISTASD], diatomic [@Huber1979], polyatomic [@Herzberg1966] molecules). An example database `DSMCSpecies_electronic_state_full_Data.h5` can be found in e.g. `piclas/regressioncheck/checks/NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec`, where the energy levels are stored in containers and accessed via the species name, e.g. `Part-Species1-SpeciesName=N2`. Each level is described by its degeneracy in the first column and by the energy in [J] in the seconed column. To include electronic excitation in the simulation, the following parameters are required
 
-#### Multi-Relaxation \label{sec:dsmc_multi_relxation}
+    Particles-DSMC-ElectronicModel  = T
+    Particles-DSMCElectronicDatabase = DSMCSpecies_electronic_state_full_Data.h5
 
-default
+In case of a large number of electronic levels, their number can be reduced by providing a relative merge tolerance. Levels those relative differences are below this parameter will be merged:
 
-    Particles-DSMC-SelectionProcedure = 1
+    EpsMergeElectronicState = 1E-3
 
-WIP
+However, this option should be evaluated carefully based on the specific simulation case and tested against a zero/very low merge tolerance. Finally, the default relaxation probability can be adjusted by
 
-#### Prohibiting-Double-Relaxation \label{sec:dsmc_prohibiting_double_relxation}
+    Particles-DSMC-ElecRelaxProb = 0.01
 
-    Particles-DSMC-SelectionProcedure = 2
-
-It is not recommended to use this relaxation procedure with `Particles-DSMC-RotRelaxProb=2`. Low collision energies results in high relaxation probabilities, which results again in a summed relaxation probability greater than 1.
-
-WIP
+An electronic state database can be created using a Fortran tool in `piclas/tools/electronic_data`. An alternative is to use the Python-based script discussed in Section \ref{sec:tools_mcc} and to adapt it to electronic energy levels.
 
 ### Chemistry & Ionization \label{sec:dsmc_chemistry}
 
@@ -750,13 +757,48 @@ $$w < \frac{1}{\left(\sqrt{2}\pi d_\mathrm{ref}^2 n^{2/3}\right)^3},$$
 
 where $d_\mathrm{ref}$ is the reference diameter and $n$ the number density. Here, the largest number density within the simulation domain should be used as the worst-case. For supersonic/hypersonic flows, the conditions behind a normal shock can be utilized as a first guess. For a thruster/nozzle expansion simulation, the chamber or throat conditions are the limiting factor.
 
-## Modelling of Continuum Gas Flows
+## Background Gas
+
+A constant background gas can be utilized to enable efficient particle collisions between the background gas and other particle species (represented by actual simulation particles). The assumption is that the density of the background gas $n_\mathrm{gas}$ is much greater than the density of the particle species, e.g. the charged species in a plasma, $n_\mathrm{charged}$
+
+$$ n_\mathrm{gas} >> n_\mathrm{charged}.$$
+
+Under this assumption, collisions within the particle species can be neglected and collisions between the background gas and particle species do not change the conditions of the background gas. It can be activated by defining the species (as defined in Section \ref{sec:dsmc_species}) that should act as the background gas and the number density in m$^{-3}$.
+
+    Particles-DSMCBackgroundGas        = 1
+    Particles-DSMCBackgroundGasDensity = 9.64E+21
+
+Other species parameters such as mass, charge, temperature and velocity distribution for the background are defined by the regular read-in parameters
+
+    Part-Species1-SpaceIC              = cuboid
+    Part-Species1-velocityDistribution = maxwell_lpn
+    Part-Species1-MWTemperatureIC      = 300.0
+    Part-Species1-ChargeIC             = 0
+    Part-Species1-MassIC               = 6.6464764E-27
+    Part-Species1-TempElec             = 300.0
+
+Every time step, particles are generated from the background species and paired with the particle species. Consequently, the collision probabilities are calculated using the conventional DSMC routines and the VHS cross-section model. Aftwards, the collilsion process is performed (if the probability is greater than a random number) and it is tested whether additional energy exchange and chemical reactions occur. While the VHS model is sufficient to model collisions between neutral species, it cannot reproduce the phenomena of a neutral-electron interaction. For this purpose, the cross-section based collision probabilities should be utilized, which are discussed in the following.
+
+### Cross-section based collision probability
+
+For modelling of particle collisions with the Particle-in-Cell method, often the Monte Carlo Collision (MCC) algorithm is utilized. Here, experimentally measured or ab-initio calculated cross-sections are typically utilized to determine the collision probability. In PICLas, the null collision method after [@Birdsall1991],[@Vahedi1995] is implemented, where the number of collision pairs is determined based a maximum collision frequency. Thus, the computational effort is reduced as not every particle has to be checked for a collision, such as in the previously described DSMC-based background gas. To activate the MCC procedure, the collision cross-sections have to be supplied via read-in from a database
+
+    Particles-CollXSec-Database = MCC_Database.h5
+
+An example database, containing the effective collision cross-sections of Argon-electron and Helium-electron, is provided in the tools folder: `piclas/tools/crosssection_database`. Details on how to create an own database with custom cross-section data is given in Section \ref{sec:tools_mcc}. Finally, the input which species should be treated with the MCC model is required
+
+    Part-Species2-SpeciesName = electron
+    Part-Species2-UseCollXSec = T
+
+The read-in of the cross-section data is based on the provided species name and the species name of the background gas (e.g. if the background species name is Ar, the code will look for a container named `Ar-electron` in the MCC database). Finally, the cross-section based collision modelling (e.g. for neutral-charged collisions) and the VHS model (e.g. for neutral-neutral collisions) can be utilized within a simulation for different species.
+
+## Modelling of Continuum Gas Flows \label{sec:continuum}
 
 Two methods are currently implemented to allow the simulation of gas flows in the continuum and transitional regime, where the DSMC method is computationally too expensive. The Fokker–Planck- and Bhatnagar-Gross-Krook-based approximation of the collision integral are compared in detail in paper to be published in Physics of Fluids. It is recommended to utilize a previous DSMC parameter file to ensure a complete simulation setup.
 
-### Fokker–Planck Collision Operator
+### Fokker–Planck Collision Operator \label{sec:fpflow}
 
-The implementation of the FP-based collision operator is based on the publications by @Gorji2014 and @Pfeiffer2017. The collision integral is hereby approximated by a drift and diffusion process
+The implementation of the FP-based collision operator is based on the publications by [@Gorji2014] and [@Pfeiffer2017]. The collision integral is hereby approximated by a drift and diffusion process
 
 $$  \left.\frac{\partial f}{\partial t}\right|_\mathrm{coll}\approx-\sum_{i=1}^3 {\frac{\partial }{\partial v_i}(A_i f)+\frac{1}{2}\sum_{i=1}^3 \sum_{j=1}^3\frac{\partial ^2 }{\partial v_i\partial v_j}(D_{ij}f)}, $$
 
@@ -765,13 +807,16 @@ where $\mathbf{A}$ is the drift vector and $\mathcal{D}$ the diffusion matrix.
 The current implementation supports:
 
 - 2 different methods: Cubic (only atomic species) and Ellipsoidal Statistical (ES)
-- Single species, monoatomic and diatomic gases
+- Single species, monoatomic and polyatomic gases
 - Thermal non-equilibrium with rotational and vibrational excitation (continuous or quantized treatment)
+- 2D/Axisymmetric simulations
+- Variable time step (adaption of the distribution according to the maximal relaxation factor and linear scaling)
 
 Relevant publications of the developers:
 
-- Implementation of the cubic Fokker-Planck in PICLas (@Pfeiffer2017)
-- Comparison of the cubic and ellipsoidal statistical Fokker-Planck (@Jun2019)
+- Implementation of the cubic Fokker-Planck in PICLas [@Pfeiffer2017]
+- Comparison of the cubic and ellipsoidal statistical Fokker-Planck [@Jun2019]
+- Simulation of a nozzle expansion (including the pressure chamber) with ESBGK, ESFP and coupled ESBGK-DSMC, comparison to experimental measurements [@Pfeiffer2019a]
 
 To enable the simulation with the FP module, the respective compiler setting has to be activated:
 
@@ -804,7 +849,7 @@ where $\Delta t$ is the chosen time step and $1/\tau$ the relaxation frequency. 
 
 ### Bhatnagar-Gross-Krook Collision Operator \label{sec:bgk}
 
-The implementation of the BGK-based collision operator is based on the publications by @Pfeiffer2018a and @Pfeiffer2018b. It allows the simulation of gas flows in the continuum and transitional regime, where the DSMC method is computationally too expensive. The collision integral is hereby approximated by a relaxation process:
+The implementation of the BGK-based collision operator is based on the publications by [@Pfeiffer2018a] and [@Pfeiffer2018b]. It allows the simulation of gas flows in the continuum and transitional regime, where the DSMC method is computationally too expensive. The collision integral is hereby approximated by a relaxation process:
 
 $$ \left.\frac{\partial f}{\partial t}\right|_\mathrm{coll} \approx \nu(f^t-f), $$
 
@@ -813,21 +858,21 @@ where $f^t$ is the target distribution function and $\nu$ the relaxation frequen
 The current implementation supports:
 
 - 4 different methods (i.e. different target distribution functions): Ellipsoidal Statistical, Shakov, standard BGK, and Unified
-- Single species, monoatomic and diatomic gases
+- Single species, monoatomic and polyatomic gases
 - Thermal non-equilibrium with rotational and vibrational excitation (continuous or quantized treatment)
 - 2D/Axisymmetric simulations
 - Variable time step (adaption of the distribution according to the maximal relaxation factor and linear scaling)
 
 Relevant publications of the developers:
 
-- Implementation and comparison of the ESBGK, SBGK, and Unified models in PICLas for atomic species @Pfeiffer2018a
-- Extension of the modelling to diatomic species including quantized vibrational energy treatment, validation of ESBGK with the Mach 20 hypersonic flow measurements of the heat flux on a $70^\circ$ cone @Pfeiffer2018b
-- Simulation of a nozzle expansion (including the pressure chamber) with ESBGK, SBGK and coupled ESBGK-DSMC, comparison to experimental measurements (*to be published*)
-- Simulation of the carbon dioxide hypersonic flow around a flat-faced cylinder, comparison of ESBGK, SBGK and DSMC regarding the shock structure and heat flux  (*to be published*)
+- Implementation and comparison of the ESBGK, SBGK, and Unified models in PICLas for atomic species [@Pfeiffer2018a]
+- Extension of the modelling to diatomic species including quantized vibrational energy treatment, validation of ESBGK with the Mach 20 hypersonic flow measurements of the heat flux on a $70^\circ$ cone [@Pfeiffer2018b]
+- Simulation of a nozzle expansion (including the pressure chamber) with ESBGK, SBGK and coupled ESBGK-DSMC, comparison to experimental measurements [@Pfeiffer2019a],[@Pfeiffer2019b]
+- Extension to polyatomic molecules, simulation of the carbon dioxide hypersonic flow around a flat-faced cylinder, comparison of ESBGK, SBGK and DSMC regarding the shock structure and heat flux [@Pfeiffer2019c]
 
 To enable the simulation with the BGK module, the respective compiler setting has to be activated:
 
-    PICLAS_TIMEDISCMETHOD = BGK
+    PICLAS_TIMEDISCMETHOD = BGK-Flow
 
 A parameter file and species initialization file is required, analogous to the DSMC setup. To enable the simulation with the BGK methods, select the BGK method, ES (`=1`), Shakov (`=2`), Standard BGK (`=3`), and Unified (`=4`):
 

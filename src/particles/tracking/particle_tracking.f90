@@ -146,7 +146,7 @@ doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
 
-IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_SetInClones()
+IF(RadialWeighting%PerformCloning) CALL DSMC_2D_SetInClones()
 
 ! 1) Loop over all particles that are still inside
 DO i = 1,PDM%ParticleVecLength
@@ -415,7 +415,7 @@ DO i = 1,PDM%ParticleVecLength
 #endif /*USE_LOADBALANCE*/
   END IF
   ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
-  IF(RadialWeighting%DoRadialWeighting) THEN
+  IF(RadialWeighting%PerformCloning) THEN
     IF(PDM%ParticleInside(i)) THEN
       IF (PEM%Element(i).LE.PP_nElems) CALL DSMC_2D_RadialWeighting(i,PEM%Element(i))
     END IF
@@ -545,7 +545,7 @@ IF (.NOT. ASSOCIATED(firstIntersect)) THEN
   lastIntersect%prev => firstIntersect
 END IF
 
-! IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_SetInClones()
+! IF(RadialWeighting%PerformCloning) CALL DSMC_2D_SetInClones()
 
 DO iPart=1,PDM%ParticleVecLength
   PartDoubleCheck=.FALSE.
@@ -1106,7 +1106,7 @@ __STAMP__ &
 #endif /*USE_LOADBALANCE*/
   END IF ! Part inside
   ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
-  ! IF(RadialWeighting%DoRadialWeighting) THEN
+  ! IF(RadialWeighting%PerformCloning) THEN
   !   IF(PDM%ParticleInside(iPart)) THEN
   !     CALL DSMC_2D_RadialWeighting(iPart,PEM%Element(iPart))
   !   END IF

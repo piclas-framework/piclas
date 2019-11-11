@@ -588,10 +588,9 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
 ! MODULES
   USE MOD_Globals,                ONLY : Abort
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, PolyatomMolDSMC, VibQuantsPar, &
-                                         SpecDSMC, PartStateIntEn
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, PolyatomMolDSMC, SpecDSMC, PartStateIntEn
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, PEM
-  USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
+  USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly, DSMC_VibRelaxPolySingle
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
   USE MOD_part_tools,             ONLY : DiceUnitVector
 ! IMPLICIT VARIABLE HANDLING
@@ -610,8 +609,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   REAL (KIND=8)                 :: iRan
   LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2               ! Check whether rot or vib relax is performed
   REAL (KIND=8)                 :: FakXi, Xi_rel                                ! Factors of DOF
-  INTEGER                       :: iQuaMax, iQua                                ! Quantum Numbers
-  REAL                          :: MaxColQua, RanVec(3)                         ! Max. Quantum Number
+  REAL                          :: RanVec(3)                                    ! Max. Quantum Number
   REAL                          :: PartStateIntEnTemp                           ! temp. var for inertial energy (needed for vMPF)
   REAL                          :: ProbFrac1, ProbFrac2, ProbFrac3, ProbFrac4   ! probability-fractions according to Zhang
   REAL                          :: ProbRot1, ProbRot2, ProbVib1, ProbVib2       ! probabilities for rot-/vib-relax for part 1/2
@@ -745,34 +743,9 @@ __STAMP__&
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,Coll_pData(iPair)%iPart_p1)
       ELSE
         ! --------------------------------------------------------------------------------------------------!
-        !  Single-mode relaxation with loop over all vibrational modes
+        !  Single-mode relaxation of a previously selected mode
         ! --------------------------------------------------------------------------------------------------!
-        !  Not all vibrational energy is redistributed but only the energy of the selected vibrational degree of freedom
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,Coll_pData(iPair)%iPart_p1)
-        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec                                                                 &
-                      + (VibQuantsPar(Coll_pData(iPair)%iPart_p1)%Quants(DOFRelax) + DSMC%GammaQuant) * BoltzmannConst  &
-                      * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
-        MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax))  &
-                  - DSMC%GammaQuant
-        iQuaMax = MIN(INT(MaxColQua) + 1, PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(DOFRelax))
-        CALL RANDOM_NUMBER(iRan)
-        iQua = INT(iRan * iQuaMax)
-        CALL RANDOM_NUMBER(iRan)
-        DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
-         !laux diss page 31
-         CALL RANDOM_NUMBER(iRan)
-         iQua = INT(iRan * iQuaMax)
-         CALL RANDOM_NUMBER(iRan)
-        END DO
-        PartStateIntEn(1,Coll_pData(iPair)%iPart_p1) = PartStateIntEn(1,Coll_pData(iPair)%iPart_p1)     &
-          - (VibQuantsPar(Coll_pData(iPair)%iPart_p1)%Quants(DOFRelax) + DSMC%GammaQuant) * BoltzmannConst  &
-          * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)                                                       &
-          + (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
-
-        VibQuantsPar(Coll_pData(iPair)%iPart_p1)%Quants(DOFRelax) = iQua
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
-                                - (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
+        CALL DSMC_VibRelaxPolySingle(iPair,Coll_pData(iPair)%iPart_p1,FakXi,DOFRelax)
       END IF
     ELSE
       CALL DSMC_VibRelaxDiatomic(iPair,Coll_pData(iPair)%iPart_p1,FakXi)
@@ -795,34 +768,9 @@ __STAMP__&
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,Coll_pData(iPair)%iPart_p2)
       ELSE
         ! --------------------------------------------------------------------------------------------------!
-        !  Single-mode relaxation with loop over all vibrational modes
+        !  Single-mode relaxation of a previously selected mode
         ! --------------------------------------------------------------------------------------------------!
-        !  Not all vibrational energy is redistributed but only the energy of the selected vibrational degree of freedom
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,Coll_pData(iPair)%iPart_p2)
-        iPolyatMole = SpecDSMC(jSpec)%SpecToPolyArray
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec                                                                 &
-                      + (VibQuantsPar(Coll_pData(iPair)%iPart_p2)%Quants(DOFRelax) + DSMC%GammaQuant) * BoltzmannConst  &
-                      * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
-        MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax))  &
-                  - DSMC%GammaQuant
-        iQuaMax = MIN(INT(MaxColQua) + 1, PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(DOFRelax))
-        CALL RANDOM_NUMBER(iRan)
-        iQua = INT(iRan * iQuaMax)
-        CALL RANDOM_NUMBER(iRan)
-        DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
-         !laux diss page 31
-         CALL RANDOM_NUMBER(iRan)
-         iQua = INT(iRan * iQuaMax)
-         CALL RANDOM_NUMBER(iRan)
-        END DO
-        PartStateIntEn(1,Coll_pData(iPair)%iPart_p2) = PartStateIntEn(1,Coll_pData(iPair)%iPart_p2)     &
-          - (VibQuantsPar(Coll_pData(iPair)%iPart_p2)%Quants(DOFRelax) + DSMC%GammaQuant) * BoltzmannConst  &
-          * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)                                                       &
-          + (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
-
-        VibQuantsPar(Coll_pData(iPair)%iPart_p2)%Quants(DOFRelax) = iQua
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
-                                - (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
+        CALL DSMC_VibRelaxPolySingle(iPair,Coll_pData(iPair)%iPart_p2,FakXi,DOFRelax)
       END IF
     ELSE
       CALL DSMC_VibRelaxDiatomic(iPair,Coll_pData(iPair)%iPart_p2,FakXi)
