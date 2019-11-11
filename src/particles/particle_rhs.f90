@@ -148,7 +148,7 @@ SUBROUTINE CalcPartRHS()
 USE MOD_Globals
 USE MOD_Particle_Vars         ,ONLY: PDM,Pt
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
-USE MOD_Part_Tools            ,ONLY: PushParticle
+USE MOD_Part_Tools            ,ONLY: isPushParticle
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -160,10 +160,10 @@ INTEGER                          :: iPart
 DO iPart = 1,PDM%ParticleVecLength
   ! Particle is inside and not a neutral particle
   IF(PDM%ParticleInside(iPart))THEN
-    IF(PushParticle(iPart))THEN
+    IF(isPushParticle(iPart))THEN
       CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
       CYCLE
-    END IF ! PushParticle(iPart)
+    END IF ! isPushParticle(iPart)
   END IF ! PDM%ParticleInside(iPart)
   Pt(:,iPart)=0.
 END DO
