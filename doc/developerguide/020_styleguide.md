@@ -39,9 +39,9 @@ this accounts for variables and function/subroutines. An exception are the initi
     IMPLICIT NONE
     !--------------------------------------------------------------
     ! INPUT/OUTPUT VARIABLES
-    INTEGER,INTENT(IN)              :: NLoc                                    !< Polynomial degree of solution 
-    REAL,INTENT(IN)                 :: xGP(3,    0:NLoc,0:NLoc,0:NLoc,nElems)  !< Coordinates of Gauss-points
-    REAL,INTENT(OUT)                :: U(PP_nVar,0:NLoc,0:NLoc,0:NLoc,nElems)  !< Solution array
+    INTEGER,INTENT(IN)              :: NLoc                                      !< Polynomial degree of solution 
+    REAL,INTENT(IN)                 :: xGP(3,    0:NLoc,0:NLoc,0:NLoc,nElems)    !< Coordinates of Gauss-points
+    REAL,INTENT(OUT)                :: U(1:PP_nVar,0:NLoc,0:NLoc,0:NLoc,nElems)  !< Solution array
     !--------------------------------------------------------------
     ! LOCAL VARIABLES
     INTEGER                         :: i,j,k,iElem
@@ -71,12 +71,17 @@ The separators `!====` and `!----` are exactly 132 characters long (here they ha
 
 * Variables generally begin with a capital letter (composite words also)
     ```
-    ALLOCATE(ActualElem)
+    ActualElem
+    ```
+
+* Dimension allocations must be specified by giving both a lower and an upper boundary
+    ```
+    ALLOCATE(U(1:PP_nVar,0:NLoc,0:NLoc,0:NLoc,nElems))
     ```
 
 * When using single characters: small at the beginning when using composite words otherwise in
   capital letters. Both is possible when purely single characters are used. Exceptions are allowed in
-  special cases, but they are not recommened.
+  special cases, but they are not recommended.
     ```
     hTilde, TildeH, (Elem%U)
     ```
@@ -121,7 +126,6 @@ Additionally to the header description, a short workflow table of contents at th
 subroutine or function  is required for longer subroutines in which multiple tasks are completed.
 Example:
 
-    ```
     ! -----------------------------------------------------------------------------
     ! MAIN STEPS        []=FV only
     ! -----------------------------------------------------------------------------
@@ -139,47 +143,41 @@ Example:
     ! 12. Sponge and source terms
     ! 13. Perform overintegration and apply Jacobian
     ! -----------------------------------------------------------------------------
-    ```
 
 Furthermore, the steps are required to be found at the appropriate position within the code. It is
 not allowed to just incorporate the corresponding number of the step within the code.
 
-    ```
     ! (0. Nullify arrays)
-    ! NOTE: UT and U are nullified in DGInit, and Ut is set directly in the volume integral, so in this implementation,
-    !       ARRAYS DO NOT NEED TO BE NULLIFIED, OTHERWISE THEY HAVE TO!
-    ! CALL VNullify(nTotalU,Ut)
+    ! NOTE: UT and U are nullified in DGInit, and Ut is set directly
     
-    ! 1. Filter the solution vector if applicable, filter_pointer points to cut-off filter or LAF filter (see filter.f90)
+    ! 1. Filter the solution vector if applicable, filter_pointer points to cut-off
     IF(FilterType.GT.0) CALL Filter_Pointer(U,FilterMat)
     
     ! 2. Convert Volume solution to primitive
     CALL ConsToPrim(PP_N,UPrim,U)
     
-    ! X. Update mortar operators and neighbour connectivity for the sliding mesh interface.
+    ! X. Update mortar operators and neighbour connectivity for the sliding mesh
     CALL PrepareSM()
     
-    ! 3. Prolong the solution to the face integration points for flux computation (and do overlapping communication)
-    ! -----------------------------------------------------------------------------------------------------------
-    ! General idea: The slave sends its surface data to the master, where the flux is computed and sent back to the slaves.
+    ! 3. Prolong the solution to the face integration points for flux computation
+    ! --------------------------------------------------------------
+    ! General idea: The slave sends its surface data to the master
+    ! where the flux is computed and sent back to the slaves.
     ! Steps:
-    ! * (these steps are done for all slave MPI sides first and then for all remaining sides):
-    ! 3.1)  Prolong solution to faces and store in U_master/slave. Use them to build mortar data (split into 2/4 smaller sides).
-    !       Then U_slave can be communicated from the slave to master MPI side.
-    ![3.2)] The information which element is a DG or FV subcells element is stored in FV_Elems per element. To know which of the
-    !       data inside the face-arrays U_master/slave is DG or FV the FV_Elems is 'prolongated' (copied) to FV_Elems_master/slave.
-    !       These directly correspond to U_master/slave and must be handled in the same way as U_master/slave. Therefore they are
-    !       'mortarized' and then FV_Elems_slave is transmitted like U_slave.
-    ![3.3)] The reconstruction of slopes over element interfaces requires, besides U_slave and FV_Elems_slave, some more
-    !       information that has to be transmitted from the slave to the master MPI side (same direction as U_slave and
-    !       FV_Elems_slave), which does the whole flux computation.
-    !       This additional data is different for the two the element types (DG or FV) and is stored in the multipurpose array
-    !       FV_multi_master/slave.
+    ! (these steps are done for all slave MPI sides and then for all remaining sides):
+    ! 3.1)  Prolong solution to faces and store in U_master/slave. 
+    !       Use them to build mortar data (split into 2/4 smaller sides).
+    ![3.2)] The information which element is a DG or FV subcells element is stored 
+    !       in FV_Elems per element.
+    ![3.3)] The reconstruction of slopes over element interfaces requires, 
+    !       besides U_slave and FV_Elems_slave, some more information that 
+    !       has to be transmitted from the slave to the master MPI side.
     ! 3.4)  Finish all started MPI communications (after step 2. due to latency hiding)
     
     #if USE_MPI
     ! Step 3 for all slave MPI sides
-    ! 3.1)
+    ! 3.1) Prolong solution to faces and store in U_master/slave.
+    !      Use them to build mortar data (split into 2/4 smaller sides).
     CALL StartReceiveMPIData(U_slave,DataSizeSide,1,nSides,MPIRequest_U(:,SEND),SendID=2) ! Receive MINE / U_slave: slave -> master
     CALL StartReceiveSM_MPIData(PP_nVar,U_MorRot,MPIRequestSM_U,SendID=2) ! Receive MINE / U_slave: slave -> master
     CALL ProlongToFaceCons(PP_N,U,U_master,U_slave,L_Minus,L_Plus,doMPISides=.TRUE.)
@@ -188,7 +186,9 @@ not allowed to just incorporate the corresponding number of the step within the 
     CALL StartSendMPIData(   U_slave,DataSizeSide,1,nSides,MPIRequest_U(:,RECV),SendID=2) ! SEND YOUR / U_slave: slave -> master
     CALL StartSendSM_MPIData(   PP_nVar,U_MorRot,MPIRequestSM_U,SendID=2) ! SEND YOUR / U_slave: slave -> master
     #if FV_ENABLED
-    ! 3.2)
+    ! 3.2) The information which element is a DG or FV subcells element is stored
+    !      in FV_Elems per element.
     CALL FV_Elems_Mortar(FV_Elems_master,FV_Elems_slave,doMPISides=.TRUE.)
     CALL StartExchange_FV_Elems(FV_Elems_slave,1,nSides,MPIRequest_FV_Elems(:,SEND),MPIRequest_FV_Elems(:,RECV),SendID=2)
-    ```
+    #endif /* FV_ENABLED */
+
