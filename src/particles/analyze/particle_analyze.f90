@@ -2169,6 +2169,7 @@ END IF
 END SUBROUTINE CalcTemperature
 
 
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
 !===================================================================================================================================
 ! Calculates global rotational and vibrational relaxation probability for PartAnalyse.csv
@@ -2247,6 +2248,7 @@ ELSE
   VibRelaxProb = DSMC%VibRelaxProb
 END IF
 END SUBROUTINE CalcRelaxProbRotVib
+#endif
 
 
 SUBROUTINE CalcTransTemp(NumSpec, Temp)
@@ -4153,9 +4155,10 @@ END SUBROUTINE RemoveParticle
 !===================================================================================================================================
 SUBROUTINE CalcCoupledPowerPart(iPart,mode,EDiff)
 ! MODULES
-USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies, PEM
-USE MOD_Particle_Analyze_Vars  ,ONLY: PCoupl, PCouplAverage, PCouplSpec
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, PEM
+USE MOD_Particle_Analyze_Vars ,ONLY: PCoupl, PCouplAverage, PCouplSpec
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_Part_Tools            ,ONLY: isChargedParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -4170,7 +4173,7 @@ REAL,INTENT(INOUT)              :: EDiff                        !< Kinetic energ
 INTEGER                         :: iElem, iSpec
 !===================================================================================================================================
 
-IF(.NOT.CHARGEDPARTICLE(iPart)) RETURN
+IF(.NOT.isChargedParticle(iPart)) RETURN
 
 SELECT CASE(TRIM(mode))
 CASE('before')
