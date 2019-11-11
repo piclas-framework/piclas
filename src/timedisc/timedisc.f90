@@ -1262,7 +1262,6 @@ IF (useDSMC) THEN
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
     PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
-
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
