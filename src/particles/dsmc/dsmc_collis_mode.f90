@@ -464,8 +464,6 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 
   Coll_pData(iPair)%Ec = 0.5 * ReducedMass* Coll_pData(iPair)%cRela2
 
-  Coll_pData(iPair)%Ec = 0.5 * ReducedMass* Coll_pData(iPair)%cRela2
-
   Xi = Xi_rel !Xi are all DOF in the collision
 
 !--------------------------------------------------------------------------------------------------!
@@ -668,8 +666,8 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
     cRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
     cRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
 
-    Coll_pData(iPair)%cRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
-
+    Coll_pData(iPair)%cRela2 = 2 * Coll_pData(iPair)%Ec/ReducedMass
+    
     ! Calculation of post collision velocity vector in reference frame and retransformation to center-of-mass frame
     RanVelo(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 , CollInf%alphaVSS(iSpec1,iSpec2), cRelaX , cRelaY , cRelaZ)
 
@@ -739,11 +737,9 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
 !===================================================================================================================================
   iPart1 = Coll_pData(iPair)%iPart_p1
   iPart2 = Coll_pData(iPair)%iPart_p2
-
   iSpec1 = PartSpecies(iPart1)
   iSpec2 = PartSpecies(iPart2)
-
-  iElem  = PEM%Element(Coll_pData(iPair)%iPart_p1)
+  iElem  = PEM%Element(iPart1)
 
   ! set some initial values
   DoRot1  = .FALSE.
@@ -1019,9 +1015,9 @@ __STAMP__&
   IF (CollInf%alphaVSS(iSpec1,iSpec2).GT.1) THEN
     
     ! Calculate relative velocites and the squared velocities
-    cRelax = PartState(iPart1, 4) - PartState(iPart2, 4)
-    cRelay = PartState(iPart1, 5) - PartState(iPart2, 5)
-    cRelaz = PartState(iPart1, 6) - PartState(iPart2, 6)
+    cRelaX = PartState(iPart1, 4) - PartState(iPart2, 4)
+    cRelaY = PartState(iPart1, 5) - PartState(iPart2, 5)
+    cRelaZ = PartState(iPart1, 6) - PartState(iPart2, 6)
 
     Coll_pData(iPair)%cRela2 = 2. * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
 
@@ -1030,7 +1026,7 @@ __STAMP__&
 
   ELSE ! alphaVSS .LE. 1
     ! Calculation of post collision velocity vector in reference frame 
-    RanVelo(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2,CollInf%alphaVSS(iSpec1,iSpec2))
+    RanVelo(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2, CollInf%alphaVSS(iSpec1,iSpec2))
   END IF  ! alphaVSS 
 
 !WRITE(*,*) "DiceDeflectedVector in Relax Gimelshein",RanVelo/sqrt(Coll_pData(iPair)%cRela2) !to be solved 
