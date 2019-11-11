@@ -45,8 +45,8 @@ INTERFACE isDepositParticle
   MODULE PROCEDURE isDepositParticle
 END INTERFACE
 
-INTERFACE InterpolateParticle
-  MODULE PROCEDURE InterpolateParticle
+INTERFACE isInterpolateParticle
+  MODULE PROCEDURE isInterpolateParticle
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -55,7 +55,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle, isChargedParticle
-PUBLIC :: isPushParticle, isDepositParticle, InterpolateParticle
+PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle
 !===================================================================================================================================
 
 CONTAINS
@@ -460,7 +460,7 @@ END FUNCTION isPushParticle
 
 PURE FUNCTION isDepositParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
-! Check if particle is to be deposited on the grid (particle-grid coupling).
+! Check if particle is to be deposited on the grid (particle-to-grid coupling).
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -487,9 +487,10 @@ END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
 END FUNCTION isDepositParticle
 
 
-PURE FUNCTION InterpolateParticle(iPart)
+PURE FUNCTION isInterpolateParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
-! Check if particle has charge unequal to zero
+! Check if particle is to be interpolated (field-to-particle coupling), which is required for calculating the acceleration, e.g.,
+! due to Lorentz forces at the position of the particle.
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -504,16 +505,16 @@ USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
 INTEGER,INTENT(IN)  :: iPart
-LOGICAL             :: InterpolateParticle
+LOGICAL             :: isInterpolateParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
-  InterpolateParticle = .TRUE.
+  isInterpolateParticle = .TRUE.
 ELSE
-  InterpolateParticle = .FALSE.
+  isInterpolateParticle = .FALSE.
 END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
-END FUNCTION InterpolateParticle
+END FUNCTION isInterpolateParticle
 
 
 END MODULE MOD_part_tools

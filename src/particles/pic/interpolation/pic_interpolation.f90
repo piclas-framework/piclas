@@ -146,7 +146,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM,PartPosGauss,DoFieldIonization
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
-USE MOD_Part_Tools             ,ONLY: InterpolateParticle
+USE MOD_Part_Tools             ,ONLY: isInterpolateParticle
 #if !(USE_HDG)
 USE MOD_DG_Vars                ,ONLY: U
 #endif
@@ -226,7 +226,7 @@ IF (.NOT.InterpolationElemLoop) THEN
   DO iPart = firstPart, LastPart
     IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     ! Don't interpolate the field at neutral particles (only when considering field ionization)
-    IF(DoFieldIonization.OR.InterpolateParticle(iPart))THEN
+    IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
     END IF
   END DO
@@ -261,7 +261,7 @@ ELSE ! use variable or fixed external field
 #endif
     ! Bz field strength at particle position
     DO iPart = firstPart, LastPart
-      IF(InterpolateParticle(iPart))THEN
+      IF(isInterpolateParticle(iPart))THEN
         FieldAtParticle(6,iPart) = InterpolateVariableExternalField(PartState(3,iPart))
       END IF
     END DO
@@ -320,7 +320,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       DO iPart=firstPart,LastPart
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
         ! Don't interpolate the field at neutral particles (only when considering field ionization)
-        IF(DoFieldIonization.OR.InterpolateParticle(iPart))THEN
+        IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
             FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
           END IF! Element(iPart).EQ.iElem
@@ -332,7 +332,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       DO iPart = firstPart, LastPart
         IF(.NOT.PDM%ParticleInside(iPart))CYCLE
         ! Don't interpolate the field at neutral particles (only when considering field ionization)
-        IF(DoFieldIonization.OR.InterpolateParticle(iPart))THEN
+        IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
             Pos = PartState(1:3,iPart)
             !--- evaluate at Particle position
@@ -363,7 +363,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif /*(PP_nVar==8)*/
             FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
           END IF ! Element(iPart).EQ.iElem
-        END IF ! DoFieldIonization.OR.InterpolateParticle(iPart)
+        END IF ! DoFieldIonization.OR.isInterpolateParticle(iPart)
       END DO ! iPart
     END DO ! iElem=1,PP_nElems
   CASE('particle_position')
@@ -373,7 +373,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         DO iPart=firstPart,LastPart
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           ! Don't interpolate the field at neutral particles (only when considering field ionization)
-          IF(DoFieldIonization.OR.InterpolateParticle(iPart))THEN
+          IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
             IF(PEM%Element(iPart).EQ.iElem)THEN
               IF(.NOT.DoRefMapping)THEN
                 CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem)
@@ -406,7 +406,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
               FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
             END IF ! Element(iPart).EQ.iElem
-          END IF ! DoFieldIonization.OR.InterpolateParticle(iPart)
+          END IF ! DoFieldIonization.OR.isInterpolateParticle(iPart)
         END DO ! iPart
       END DO ! iElem=1,PP_nElems
     ELSE IF(NotMappedSurfFluxParts .AND.(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint'))THEN
@@ -415,7 +415,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         DO iPart=firstPart,LastPart
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           ! Don't interpolate the field at neutral particles (only when considering field ionization)
-          IF(DoFieldIonization.OR.InterpolateParticle(iPart))THEN
+          IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
             IF(PEM%Element(iPart).EQ.iElem)THEN
               IF(PDM%dtFracPush(iPart))THEN ! same as in "particles are not yet mapped"
                 Pos = PartState(1:3,iPart)
@@ -478,7 +478,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
               END IF !PDM%dtFracPush(iPart)
               FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
             END IF ! Element(iPart).EQ.iElem
-          END IF ! DoFieldIonization.OR.InterpolateParticle(iPart)
+          END IF ! DoFieldIonization.OR.isInterpolateParticle(iPart)
         END DO ! iPart
       END DO ! iElem=1,PP_nElems
     ELSE ! particles are not yet mapped
@@ -486,7 +486,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         DO iPart=firstPart,LastPart
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           ! Don't interpolate the field at neutral particles (only when considering field ionization)
-          IF(DoFieldIonization.OR.InterpolateParticle(iPart))THEN
+          IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
             IF(PEM%Element(iPart).EQ.iElem)THEN
               Pos = PartState(1:3,iPart)
               !--- evaluate at Particle position
@@ -517,7 +517,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
               FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
             END IF ! Element(iPart).EQ.iElem
-          END IF ! DoFieldIonization.OR.InterpolateParticle(iPart)
+          END IF ! DoFieldIonization.OR.isInterpolateParticle(iPart)
         END DO ! iPart
       END DO ! iElem=1,PP_nElems
     END IF ! DoRefMapping .or. Depositiontype=nearest_gausspoint
@@ -534,7 +534,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       DO iPart=firstPart,LastPart
         IF(.NOT.PDM%ParticleInside(iPart))CYCLE
         ! Don't interpolate the field at neutral particles (only when considering field ionization)
-        IF(DoFieldIonization.OR.InterpolateParticle(iPart))THEN
+        IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
             IF(.NOT.DoRefMapping .OR. (NotMappedSurfFluxParts .AND. PDM%dtFracPush(iPart)))THEN
               CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem)
@@ -602,7 +602,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
 #endif
           END IF ! Element(iPart).EQ.iElem
-        END IF ! DoFieldIonization.OR.InterpolateParticle(iPart)
+        END IF ! DoFieldIonization.OR.isInterpolateParticle(iPart)
       END DO ! iPart
     END DO ! iElem=1,PP_nElems
   CASE DEFAULT
