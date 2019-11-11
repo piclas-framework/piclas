@@ -25,8 +25,8 @@ INTERFACE UpdateNextFreePosition
   MODULE PROCEDURE UpdateNextFreePosition
 END INTERFACE
 
-INTERFACE VELOFROMDISTRIBUTION
-  MODULE PROCEDURE VELOFROMDISTRIBUTION
+INTERFACE VeloFromDistribution
+  MODULE PROCEDURE VeloFromDistribution
 END INTERFACE
 
 INTERFACE CreateParticle
@@ -54,7 +54,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle, isChargedParticle
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CreateParticle, isChargedParticle
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle
 !===================================================================================================================================
 
@@ -183,7 +183,7 @@ DiceUnitVector(2) = aVec * SIN(bVec)
 END FUNCTION DiceUnitVector
 
 
-FUNCTION VELOFROMDISTRIBUTION(distribution,specID,Tempergy)
+FUNCTION VeloFromDistribution(distribution,specID,Tempergy)
 !===================================================================================================================================
 !> calculation of velocityvector (Vx,Vy,Vz) sampled from given distribution function
 !>  liquid_evap: normal direction to surface with ARM from shifted evaporation rayleigh, tangential from normal distribution
@@ -206,7 +206,7 @@ REAL,INTENT(IN)             :: Tempergy         !< input temperature [K] or ener
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL, PARAMETER :: xmin=0., xmax=5.
-REAL            :: veloFromDistribution(1:3)
+REAL            :: VeloFromDistribution(1:3)
 REAL            :: alpha, beta
 REAL            :: y1, f, ymax, i, binsize
 REAL            :: sigma, val(1:2)
@@ -223,17 +223,17 @@ CASE('deltadistribution')
     !Velo2 = 2.*RandVal(2) - 1.
     !Velosq = Velo1**2 + Velo2**2
   !END DO
-  !veloFromDistribution(1) = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
-  !veloFromDistribution(2) = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
+  !VeloFromDistribution(1) = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
+  !VeloFromDistribution(2) = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
   !CALL RANDOM_NUMBER(RandVal)
-  !veloFromDistribution(3) = SQRT(-2*LOG(RandVal(1)))
+  !VeloFromDistribution(3) = SQRT(-2*LOG(RandVal(1)))
 
   ! Get random vector
-  veloFromDistribution = DiceUnitVector()
+  VeloFromDistribution = DiceUnitVector()
   ! Mirror z-component of velocity (particles are emitted from surface!)
-  veloFromDistribution(3) = ABS(veloFromDistribution(3))
+  VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
   ! Set magnitude
-  veloFromDistribution = Tempergy*veloFromDistribution
+  VeloFromDistribution = Tempergy*VeloFromDistribution
 
 CASE('liquid_evap','liquid_refl')
   ! sample normal direction with ARM from given, shifted rayleigh distribution function
@@ -276,7 +276,7 @@ CASE('liquid_evap','liquid_refl')
     END SELECT
     y1=ymax*RandVal(2)
   END DO
-  veloFromDistribution(3) = sigma*Velo1
+  VeloFromDistribution(3) = sigma*Velo1
   ! build tangential velocities from gauss (normal) distribution
   Velosq = 2
   DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
@@ -285,8 +285,8 @@ CASE('liquid_evap','liquid_refl')
     Velo2 = 2.*RandVal(2) - 1.
     Velosq = Velo1**2 + Velo2**2
   END DO
-  veloFromDistribution(1) = Velo1*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
-  veloFromDistribution(2) = Velo2*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
+  VeloFromDistribution(1) = Velo1*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
+  VeloFromDistribution(2) = Velo2*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
 CASE DEFAULT
   WRITE (UNIT_stdOut,'(A)') "distribution =", distribution
   CALL abort(&
@@ -294,7 +294,7 @@ __STAMP__&
 ,'wrong velo-distri!')
 END SELECT
 
-END FUNCTION VELOFROMDISTRIBUTION
+END FUNCTION VeloFromDistribution
 
 
 PURE REAL FUNCTION GetParticleWeight(iPart)
