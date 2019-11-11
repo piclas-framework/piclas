@@ -1370,6 +1370,7 @@ USE MOD_Basis                  ,ONLY: LagrangeInterpolationPolys,BernSteinPolyno
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,casematrix, NbrOfCases
 USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
+USE MOD_Part_Tools             ,ONLY: isDepositParticle
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -1497,7 +1498,7 @@ CASE('nearest_blurrycenter')
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
       END IF
       ! Don't deposit neutral particles!
-      IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
+      IF(.NOT.isDepositParticle(iPart)) CYCLE
       IF(PEM%Element(iPart).EQ.iElem)THEN
         IF(usevMPF)THEN
           IF(doCalculateCurrentDensity)THEN
@@ -1554,7 +1555,7 @@ CASE('cell_volweight')
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral particles!
-    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
+    IF(.NOT.isDepositParticle(iPart)) CYCLE
     IF (usevMPF) THEN
       Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
     ELSE
@@ -1753,7 +1754,7 @@ CASE('epanechnikov')
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral particles!
-    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
+    IF(.NOT.isDepositParticle(iPart)) CYCLE
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
@@ -1859,7 +1860,7 @@ CASE('shape_function','shape_function_simple')
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
       END IF
       ! Don't deposit neutral particles!
-      IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
+      IF(.NOT.isDepositParticle(iPart)) CYCLE
       CALL calcSfSource(4,Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)*w_sf &
         ,Vec1,Vec2,Vec3,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
     END DO ! iPart
@@ -1872,7 +1873,7 @@ CASE('shape_function','shape_function_simple')
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
       END IF
       ! Don't deposit neutral particles!
-      IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
+      IF(.NOT.isDepositParticle(iPart)) CYCLE
       CALL calcSfSource(4,Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor*w_sf &
         ,Vec1,Vec2,Vec3,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
     END DO ! iPart
@@ -2080,7 +2081,7 @@ CASE('shape_function_1d')
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral particles!
-    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
+    IF(.NOT.isDepositParticle(iPart)) CYCLE
     ! Set charge pre-factor
     IF (usevMPF) THEN
       Fac(4)= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)*w_sf
@@ -2312,7 +2313,7 @@ CASE('shape_function_2d')
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral particles!
-    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
+    IF(.NOT.isDepositParticle(iPart)) CYCLE
     ! Set charge pre-factor
     IF (usevMPF) THEN
       Fac(4)= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)*w_sf
@@ -2606,7 +2607,7 @@ CASE('shape_function_cylindrical','shape_function_spherical')
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral particles!
-    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
+    IF(.NOT.isDepositParticle(iPart)) CYCLE
     ! compute local radius
     local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(1:SfRadiusInt,iPart),PartState(1:SfRadiusInt,iPart)))
     local_r2_sf=local_r_sf*local_r_sf
@@ -2811,7 +2812,7 @@ CASE('delta_distri')
       END IF
       IF(PEM%Element(iPart).EQ.iElem)THEN
         ! Don't deposit neutral particles!
-        IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
+        IF(.NOT.isDepositParticle(iPart)) CYCLE
         ! Set pre-factor
         IF (usevMPF) THEN
           prefac= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
@@ -2909,7 +2910,7 @@ CASE('nearest_gausspoint')
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
       END IF
       ! Don't deposit neutral particles!
-      IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
+      IF(.NOT.isDepositParticle(iPart)) CYCLE
       IF(PEM%Element(iPart).EQ.iElem)THEN
         IF (usevMPF) THEN
           prefac= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
@@ -2998,7 +2999,7 @@ CASE('cartmesh_volumeweighting')
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral particles!
-    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
+    IF(.NOT.isDepositParticle(iPart)) CYCLE
     IF (usevMPF) THEN
       Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
     ELSE
@@ -3101,7 +3102,7 @@ CASE('cartmesh_splines')
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral particles!
-    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
+    IF(.NOT.isDepositParticle(iPart)) CYCLE
 !      Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
     IF (usevMPF) THEN
       Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)

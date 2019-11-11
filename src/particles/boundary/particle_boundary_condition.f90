@@ -14,7 +14,8 @@
 
 MODULE MOD_Particle_Boundary_Condition
 !===================================================================================================================================
-!! Determines how particles interact with a given boundary condition
+! Determines how particles interact with a given boundary condition. This routine is used by MOD_Part_Tools, hence, it cannot be 
+! used here due to circular definitions! 
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -77,6 +78,7 @@ USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_Particle_Boundary_Tools  ,ONLY: BoundaryParticleOutput,DielectricSurfaceCharge
+USE MOD_Part_Tools               ,ONLY: CreateParticle,isChargedParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

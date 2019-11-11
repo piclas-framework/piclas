@@ -42,24 +42,6 @@
 #define ALMOSTEQUAL(x,y)  (ABS((x)-(y)).LE.MAX(ABS(x),ABS(y))*(4.441E-16))
 #define ALMOSTZERO(x) (ABS(x).LE.(2.22e-16))
 
-! Check for charged particles: x = iPart
-#define CHARGEDPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
-
-! Check for particles to be interpolated or deposited: x = iPart
-#if (PP_TimeDiscMethod==300) /*FP-Flow*/
-#define PUSHPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
-#define DEPOSITPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
-#define INTERPOLATEPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
-#elif (PP_TimeDiscMethod==400) /*BGK*/
-#define PUSHPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
-#define DEPOSITPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
-#define INTERPOLATEPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
-#else /*all other methods, mainly PIC*/
-#define PUSHPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
-#define DEPOSITPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
-#define INTERPOLATEPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
-#endif
-
 #if USE_MPI
 #  define SWRITE IF(MPIRoot) WRITE
 #  define IPWRITE(a,b) WRITE(a,b)myRank,

@@ -286,7 +286,7 @@ SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi
 USE MOD_Globals                 ,ONLY: CROSSNORM,UNITVECTOR,OrthoNormVec
 USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
-USE MOD_Part_Tools              ,ONLY: VELOFROMDISTRIBUTION, CreateParticle
+USE MOD_Part_Tools              ,ONLY: VeloFromDistribution, CreateParticle
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Vars           ,ONLY: PartState,Species,PartSpecies
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
@@ -325,7 +325,7 @@ INTEGER                          :: ProductSpec(2)   !< 1: product species of in
                                                           !< with respective species
 INTEGER                          :: ProductSpecNbr   !< number of emitted particles for ProductSpec(1)
 CHARACTER(30)                    :: velocityDistribution(2)   !< specifying keyword for velocity distribution
-REAL                             :: TempErgy(2)               !< temperature, energy or velocity used for velofromdistribution
+REAL                             :: TempErgy(2)               !< temperature, energy or velocity used for VeloFromDistribution
 REAL                             :: reactionEnthalpy     !< negative: transferred to surface / positive: transferred from surface
 LOGICAL                          :: SampledEnthalpy
 REAL                             :: PartTrajectory2(1:3)
@@ -579,7 +579,7 @@ CASE(3) ! reactive interaction case
     oldVelo(1:3) = PartState(4:6,PartID)
     IF(TRIM(velocityDistribution(1)).NE.'') THEN
       ! sample new velocity for reflected particle
-      NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(1),ProductSpec(1),TempErgy(1))
+      NewVelo(1:3) = VeloFromDistribution(velocityDistribution(1),ProductSpec(1),TempErgy(1))
       ! important: n_loc points outwards
       PartState(4:6,PartID) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
@@ -652,7 +652,7 @@ CASE(3) ! reactive interaction case
       SurfModel%Info(ProductSpec(2))%NumOfDes = SurfModel%Info(ProductSpec(2))%NumOfDes + 1
       ! create new particle and assign correct energies
       ! sample newly created velocity
-      NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),ProductSpec(2),TempErgy(2))
+      NewVelo(1:3) = VeloFromDistribution(velocityDistribution(2),ProductSpec(2),TempErgy(2))
       ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
       NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
