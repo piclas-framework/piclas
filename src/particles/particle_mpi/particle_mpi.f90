@@ -338,7 +338,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIExchange,PartHaloElemToProc, PartTargetProc
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species,PartPosRef
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_Part_Tools             ,ONLY: DepositParticle
+USE MOD_Part_Tools             ,ONLY: isDepositParticle
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts,PartMPIDepoSend
 USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector
@@ -413,7 +413,7 @@ IF(DoExternalParts)THEN
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral external particles!
-    IF(.NOT.DepositParticle(iPart)) CYCLE
+    IF(.NOT.isDepositParticle(iPart)) CYCLE
     ! Don't deposit external shape function particles in cells where local deposition is used (only when DoSFLocalDepoAtBounds=T)
     IF(SkipExternalSFParticles(iPart)) CYCLE
     ! Get indices of background mesh cells

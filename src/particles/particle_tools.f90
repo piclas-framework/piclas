@@ -41,8 +41,8 @@ INTERFACE PushParticle
   MODULE PROCEDURE PushParticle
 END INTERFACE
 
-INTERFACE DepositParticle
-  MODULE PROCEDURE DepositParticle
+INTERFACE isDepositParticle
+  MODULE PROCEDURE isDepositParticle
 END INTERFACE
 
 INTERFACE InterpolateParticle
@@ -55,7 +55,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle, isChargedParticle
-PUBLIC :: PushParticle, DepositParticle, InterpolateParticle
+PUBLIC :: PushParticle, isDepositParticle, InterpolateParticle
 !===================================================================================================================================
 
 CONTAINS
@@ -458,9 +458,9 @@ END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
 END FUNCTION PushParticle
 
 
-PURE FUNCTION DepositParticle(iPart)
+PURE FUNCTION isDepositParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
-! Check if particle has charge unequal to zero
+! Check if particle is to be deposited on the grid (particle-grid coupling)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -475,16 +475,16 @@ USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
 INTEGER,INTENT(IN)  :: iPart
-LOGICAL             :: DepositParticle
+LOGICAL             :: isDepositParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
-  DepositParticle = .TRUE.
+  isDepositParticle = .TRUE.
 ELSE
-  DepositParticle = .FALSE.
+  isDepositParticle = .FALSE.
 END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
-END FUNCTION DepositParticle
+END FUNCTION isDepositParticle
 
 
 PURE FUNCTION InterpolateParticle(iPart)
