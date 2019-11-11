@@ -170,7 +170,7 @@ FUNCTION DiceDeflectedVelocityVector(cRela2,alphaVSS,ur,vr,wr)
   REAL                       :: DiceDeflectedVelocityVector(3) ! post-collision relative velocity vector cRela*
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
- REAL                        :: cRela               ! absolute value of pre-coll relative velocity abs(cRela), Bird1994 (2.3),(2.8)
+ REAL                        :: cRela,CRelaTrafo               ! absolute value of pre-coll relative velocity abs(cRela), Bird1994 (2.3),(2.8)
  REAL                        :: rRan, rotAngle, cos_scatAngle, sin_scatAngle
  REAL,DIMENSION(3,3)         :: trafoMatrix
 !===================================================================================================================================
@@ -182,7 +182,7 @@ FUNCTION DiceDeflectedVelocityVector(cRela2,alphaVSS,ur,vr,wr)
 
   cos_scatAngle = 2. * rRan ** ( 1. / alphaVSS ) - 1. ! deflection x-component in collision plane  (chi e [-1,1], away from center)
   sin_scatAngle = SQRT ( 1. - cos_scatAngle ** 2. )   ! deflection y-component in collision plane  (                      -of-mass)
-  
+
   ! transfer 2D collision vector to 3D space through relation of collision to reference plane
   CALL RANDOM_NUMBER(rRan) ! dice rotation angle between collision and reference plane :  epsilon e [0,2*pi]
   rotAngle = 2. * Pi * rRan
@@ -192,25 +192,26 @@ FUNCTION DiceDeflectedVelocityVector(cRela2,alphaVSS,ur,vr,wr)
   DiceDeflectedVelocityVector(3) = cRela * sin_scatAngle * SIN(rotAngle) ! z-component between collision and reference plane
 
 ! !ALTER ORDER JUST FOR DEBUGGING: NOT VALID FOR VSS !to be solved
-!  DiceDeflectedVelocityVector(3) = - cRela * cos_scatAngle 
-!  DiceDeflectedVelocityVector(1) = cRela * sin_scatAngle * COS(rotAngle) 
-!  DiceDeflectedVelocityVector(2) = cRela * sin_scatAngle * SIN(rotAngle) 
+!  DiceDeflectedVelocityVector(3) = - cRela * cos_scatAngle
+!  DiceDeflectedVelocityVector(1) = cRela * sin_scatAngle * COS(rotAngle)
+!  DiceDeflectedVelocityVector(2) = cRela * sin_scatAngle * SIN(rotAngle)
 ! for VSS the direction of the velocity is no longer negligible
   IF (alphaVSS.GT.1) THEN ! VSS
     IF ((vr.NE.0.) .AND. (wr.NE.0.)) THEN ! if no radial component: collision plane and laboratory identical-> no transformation
+      CrelaTrafo = SQRT(ur**2 + vr**2 + wr**2)
       ! axis transformation from reduced- mass frame back to center-of-mass frame
       ! via Bird1994 p.36 (2.22)=A*b MATMUL for performance reasons
   !    WRITE(*,*) "Entered transformation" !to be solved
       ! initializing rotation matrix
-      trafoMatrix(1,1) = ur / cRela
+      trafoMatrix(1,1) = ur / cRelaTrafo
       trafoMatrix(1,2) = 0
-      trafoMatrix(1,3) = SQRT (vr ** 2 + wr ** 2) / cRela
-      trafoMatrix(2,1) = vr / cRela
+      trafoMatrix(1,3) = SQRT (vr ** 2 + wr ** 2) / cRelaTrafo
+      trafoMatrix(2,1) = vr / cRelaTrafo
       trafoMatrix(2,2) = wr / SQRT (vr ** 2 + wr ** 2)
-      trafoMatrix(2,3) = - ur * vr / (cRela * SQRT (vr ** 2 + wr ** 2))
-      trafoMatrix(3,1) = wr / cRela
+      trafoMatrix(2,3) = - ur * vr / (cRelaTrafo * SQRT (vr ** 2 + wr ** 2))
+      trafoMatrix(3,1) = wr / cRelaTrafo
       trafoMatrix(3,2) = - vr / SQRT (vr ** 2 + wr ** 2)
-      trafoMatrix(3,3) = - ur * wr / (cRela * SQRT (vr ** 2 + wr ** 2))
+      trafoMatrix(3,3) = - ur * wr / (cRelaTrafo * SQRT (vr ** 2 + wr ** 2))
 
       ! relative post collision v elocity transformation from reduced mass to COM frame
       DiceDeflectedVelocityVector(:) = MATMUL (trafoMatrix , DiceDeflectedVelocityVector)
