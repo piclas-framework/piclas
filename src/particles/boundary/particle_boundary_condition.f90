@@ -81,7 +81,7 @@ USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
 USE MOD_PICDepo_Tools            ,ONLY: DepositParticleOnNodes
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
-USE MOD_Part_Tools               ,ONLY: CreateParticle,ChargedParticle
+USE MOD_Part_Tools               ,ONLY: CreateParticle,isChargedParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -164,7 +164,7 @@ CASE(2) !PartBound%ReflectiveBC)
           ,'Negative speciesID')
     END IF ! PartSpecies(iPart)
 
-    IF(ChargedParticle(iPart))THEN
+    IF(isChargedParticle(iPart))THEN
       IF(ElemID.GT.nElems)THEN
         ! Particle is now located in halo element: Create phantom particle, which is sent to new host Processor and removed there (set
         ! negative SpeciesID in order to remove particle in host Processor)
@@ -174,7 +174,7 @@ CASE(2) !PartBound%ReflectiveBC)
       ELSE ! Deposit single particle charge on surface here and 
         CALL DepositParticleOnNodes(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID)
       END IF ! ElemID.GT.nElems
-    END IF ! ChargedParticle(iPart)
+    END IF ! isChargedParticle(iPart)
 
   END IF
 

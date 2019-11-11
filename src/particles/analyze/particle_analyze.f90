@@ -4139,7 +4139,7 @@ SUBROUTINE CalcCoupledPowerPart(iPart,mode,EDiff)
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PEM
 USE MOD_Particle_Analyze_Vars ,ONLY: PCoupl, PCouplAverage, PCouplSpec
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
-USE MOD_Part_Tools            ,ONLY: ChargedParticle
+USE MOD_Part_Tools            ,ONLY: isChargedParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -4154,7 +4154,7 @@ REAL,INTENT(INOUT)              :: EDiff                        !< Kinetic energ
 INTEGER                         :: iElem, iSpec
 !===================================================================================================================================
 
-IF(.NOT.ChargedParticle(iPart)) RETURN
+IF(.NOT.isChargedParticle(iPart)) RETURN
 
 SELECT CASE(TRIM(mode))
 CASE('before')

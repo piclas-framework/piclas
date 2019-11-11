@@ -33,8 +33,8 @@ INTERFACE CreateParticle
   MODULE PROCEDURE CreateParticle
 END INTERFACE
 
-INTERFACE ChargedParticle
-  MODULE PROCEDURE ChargedParticle
+INTERFACE isChargedParticle
+  MODULE PROCEDURE isChargedParticle
 END INTERFACE
 
 INTERFACE PushParticle
@@ -54,7 +54,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle, ChargedParticle
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle, isChargedParticle
 PUBLIC :: PushParticle, DepositParticle, InterpolateParticle
 !===================================================================================================================================
 
@@ -406,9 +406,9 @@ IF (PRESENT(NewPartID)) NewPartID=newParticleID
 END SUBROUTINE CreateParticle
 
 
-PURE FUNCTION ChargedParticle(iPart)
+PURE FUNCTION isChargedParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
-! Check if particle has charge unequal to zero
+! Check if particle has charge unequal to zero and return T/F logical.
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -417,16 +417,16 @@ USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
 INTEGER,INTENT(IN)  :: iPart
-LOGICAL             :: ChargedParticle
+LOGICAL             :: isChargedParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
-  ChargedParticle = .TRUE.
+  isChargedParticle = .TRUE.
 ELSE
-  ChargedParticle = .FALSE.
+  isChargedParticle = .FALSE.
 END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
-END FUNCTION ChargedParticle
+END FUNCTION isChargedParticle
 
 
 PURE FUNCTION PushParticle(iPart)
