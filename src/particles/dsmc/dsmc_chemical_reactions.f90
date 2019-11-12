@@ -878,9 +878,9 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
           , (/Weight1,WeightProd,Weight2/))
 
     !Calculate relative velocities and new squared velocity
-    cRelaX = PartState(React1Inx, 4) - PartState(React2Inx, 4)
-    cRelaY = PartState(React1Inx, 5) - PartState(React2Inx, 5)
-    cRelaZ = PartState(React1Inx, 6) - PartState(React2Inx, 6)
+    cRelaX = PartState(4,React1Inx) - PartState(4,React2Inx)
+    cRelaY = PartState(5,React1Inx) - PartState(5,React2Inx)
+    cRelaZ = PartState(6,React1Inx) - PartState(6,React2Inx)
 
     Coll_pData(iPair)%CRela2 = 2 * ERel_React1_React2 / MassRed
 
@@ -923,9 +923,9 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     END IF
 
     !Calculate relative velocities and new squared velocity
-    cRelaX = PartState(React1Inx, 4) - PartState(React3Inx, 4)
-    cRelaY = PartState(React1Inx, 5) - PartState(React3Inx, 5)
-    cRelaZ = PartState(React1Inx, 6) - PartState(React3Inx, 6)
+    cRelaX = PartState(4,React1Inx) - PartState(4,React3Inx)
+    cRelaY = PartState(5,React1Inx) - PartState(5,React3Inx)
+    cRelaZ = PartState(6,React1Inx) - PartState(6,React3Inx)
 
     Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / ReducedMass
 
@@ -1009,9 +1009,9 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     END IF
 
     !Calculate relative velocities and new squared velocity
-    cRelaX = PartState(React1Inx, 4) - PartState(React3Inx, 4)
-    cRelaY = PartState(React1Inx, 5) - PartState(React3Inx, 5)
-    cRelaZ = PartState(React1Inx, 6) - PartState(React3Inx, 6)
+    cRelaX = PartState(4,React1Inx) - PartState(4,React3Inx)
+    cRelaY = PartState(5,React1Inx) - PartState(5,React3Inx)
+    cRelaZ = PartState(6,React1Inx) - PartState(6,React3Inx)
 
     Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / ReducedMass
 
