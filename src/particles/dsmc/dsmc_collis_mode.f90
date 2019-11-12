@@ -759,7 +759,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
                                                      + (VeloMy + FracMassCent2*cRelaNew(2))**2 &
                                                      + (VeloMz + FracMassCent2*cRelaNew(3))**2) * Weight1 &
                         + (PartStateIntEn(1,iPart1) + PartStateIntEn(2,iPart1)) * Weight1 &
-                        + (PartStateIntEn(1,iPart2) + PartStateIntEn(2,iPart2,)) * Weight2
+                        + (PartStateIntEn(1,iPart2) + PartStateIntEn(2,iPart2)) * Weight2
   IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(3,iPart1) * Weight1 &
                                                    + PartStateIntEn(3,iPart2) * Weight2
   ! Check for energy difference
@@ -980,10 +980,10 @@ __STAMP__&
         ! --------------------------------------------------------------------------------------------------!
         !  Single-mode relaxation of a previously selected mode
         ! --------------------------------------------------------------------------------------------------!
-        CALL DSMC_VibRelaxPolySingle(iPair,Part1,FakXi,DOFRelax)
+        CALL DSMC_VibRelaxPolySingle(iPair,iPart1,FakXi,DOFRelax)
       END IF
     ELSE
-      CALL DSMC_VibRelaxDiatomic(iPair,Coll_pData(iPair)%iPart_p1,FakXi)
+      CALL DSMC_VibRelaxDiatomic(iPair,iPart1,FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,iPart1)
     END IF
 
@@ -1008,7 +1008,7 @@ __STAMP__&
         CALL DSMC_VibRelaxPolySingle(iPair,iPart2,FakXi,DOFRelax)
       END IF
     ELSE
-      CALL DSMC_VibRelaxDiatomic(iPart2,FakXi)
+      CALL DSMC_VibRelaxDiatomic(iPair,iPart2,FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,iPart2)
     END IF
   END IF

@@ -230,9 +230,9 @@ __STAMP__&
 ,'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
   END IF
   IF(DSMC%CalcQualityFactors) THEN
-    IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
+    IF(SpecDSMC(iSpec1)%UseCollXSec) THEN
       ! Calculate the collision probability for cross section case
-      CollProb = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
+      CollProb = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec1,CollEnergy)*BGGas%BGGasDensity*dt)
     ELSE
       CollProb = Coll_pData(iPair)%Prob
     END IF
@@ -246,9 +246,9 @@ __STAMP__&
     DO iSpec=1, nSpecies
       iReac=ChemReac%ReactNum(iSpec1,iSpec2,iSpec)
       IF (iReac.NE.0) THEN
-        IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
+        IF(SpecDSMC(iSpec1)%UseCollXSec) THEN
           ! Calculate the collision probability for cross section case
-          CollProb = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
+          CollProb = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec1,CollEnergy)*BGGas%BGGasDensity*dt)
         ELSE
           CollProb = Coll_pData(iPair)%Prob
         END IF
