@@ -1895,7 +1895,7 @@ SUBROUTINE FinalizeParticleBoundarySampling()
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars
 #if USE_MPI
-USE MOD_Particle_MPI_Vars           ,ONLY:SurfSendBuf,SurfRecvBuf,SurfExchange,PartHaloSideToProc
+USE MOD_Particle_MPI_Vars           ,ONLY:SurfSendBuf,SurfRecvBuf,SurfExchange,PartHaloSideToProc,PorousBCSendBuf,PorousBCRecvBuf
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1952,6 +1952,8 @@ END DO ! iProc=1,PartMPI%nMPINeighbors
 SDEALLOCATE(SurfCOMM%MPINeighbor)
 SDEALLOCATE(SurfSendBuf)
 SDEALLOCATE(SurfRecvBuf)
+SDEALLOCATE(PorousBCSendBuf)
+SDEALLOCATE(PorousBCRecvBuf)
 SDEALLOCATE(OffSetSurfSideMPI)
 SDEALLOCATE(OffSetInnerSurfSideMPI)
 IF(SurfCOMM%OutputCOMM.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%OutputCOMM,iERROR)
