@@ -14,7 +14,7 @@
 
 MODULE MOD_Particle_Surfaces
 !===================================================================================================================================
-! Contains subroutines to build the required data to track particles on (curvilinear) meshes, etc.
+! Contains subroutines to build the requiered data to track particles on (curviilinear) meshes, etc.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -863,7 +863,7 @@ LOGICAL,INTENT(OUT) :: BoundingBoxIsEmpty
 !INTEGER                           :: lastSideID,flip,SideID
 INTEGER            :: p,q, i
 !REAL                              :: tmp(3,0:NGeo,0:NGeo)
-REAL               :: skalprod(3),dx,dy,dz,dMax,dMin,w,h,l
+REAL               :: skalprod(3),dx,dy,dz,dMax,w,h,l
 LOGICAL            :: SideIsCritical
 !===================================================================================================================================
 
@@ -972,9 +972,9 @@ END DO
 ! 2-c.) bounding box extension
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-dx=ABS(ABS(SideSlabIntervals(2))-ABS(SideSlabIntervals(1)))
-dy=ABS(ABS(SideSlabIntervals(4))-ABS(SideSlabIntervals(3)))
-dz=ABS(ABS(SideSlabIntervals(6))-ABS(SideSlabIntervals(5)))
+dx=ABS(SideSlabIntervals(2)-SideSlabIntervals(1))
+dy=ABS(SideSlabIntervals(4)-SideSlabIntervals(3))
+dz=ABS(SideSlabIntervals(6)-SideSlabIntervals(5))
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 3.) Is Side critical? (particle path parallel to the larger surface, therefore numerous intersections are possilbe)
@@ -1001,20 +1001,40 @@ END IF
 !     this results also in the decision whether a side is also considered flat or bilinear!
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-IF(dx*dy*dz.LT.0) THEN
-  IF(dx*dy*dz.LT.0) CALL Abort(&
-    __STAMP__&
-    ,'A bounding box (for sides) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
+! check dimensions of sideslabs in x, y and z direction where the slab area (w)x(l) is defined by x-z and the height of the side-slab is y
+dMax=MAX(h,l,w)
+IF(l/dMax.LT.1.0e-6)THEN
+  ! side is almost a line
+  CALL Abort(&
+__STAMP__&
+,'ERROR: found degenerated side. length/dMax of a side slab is ->',0,l/dMax)
+END IF
+IF(w/dMax.LT.1.0e-6)THEN
+  ! side is almost a line
+  CALL Abort(&
+__STAMP__&
+,'ERROR: found degenerated side. width/dMax of a side slab is ->',0,w/dMax)
+END IF
+IF(h/dMax.LT.1.0e-6)THEN
+  ! the height of the sideslab is almost zero --> flat in regards to machine precision
+  SideSlabIntervals(3:4)=0.
+  h=0.
 END IF
 
-IF(ALMOSTZERO(dy/SQRT(dx*dx+dy*dy+dz*dz)))THEN ! bounding box volume is approx zeros
+IF(l*w*h.LT.0.) THEN
+  CALL Abort(&
+__STAMP__&
+,'A bounding box (for sides) is negative!?. length*width*height.LT.0 ->',0,(l*w*h))
+END IF
+
+IF(ALMOSTZERO(h/SQRT(l*l+w*w+h*h)))THEN ! bounding box volume is approx zeros
   BoundingBoxIsEmpty=.TRUE.
 ELSE
   BoundingBoxIsEmpty=.FALSE.
 END IF
 
 #ifdef CODE_ANALYZE
-SideBoundingBoxVolume=dx*dy*dz
+SideBoundingBoxVolume=h*l*w
 #endif /*CODE_ANALYZE*/
 END SUBROUTINE GetSideSlabNormalsAndIntervals
 

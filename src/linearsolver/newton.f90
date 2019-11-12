@@ -477,29 +477,17 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       DO iPart=1,PDM%ParticleVecLength
         IF(PartIsImplicit(iPart))THEN
           ! update the last part pos and element for particle movement
-          !LastPartPos(iPart,1)=StagePartPos(iPart,1)
-          !LastPartPos(iPart,2)=StagePartPos(iPart,2)
-          !LastPartPos(iPart,3)=StagePartPos(iPart,3)
+          !LastPartPos(1,iPart)=StagePartPos(iPart,1)
+          !LastPartPos(2,iPart)=StagePartPos(iPart,2)
+          !LastPartPos(3,iPart)=StagePartPos(iPart,3)
           !PEM%lastElement(iPart)=PEM%StageElement(iPart)
-          LastPartPos(iPart,1)=PartState(iPart,1)
-          LastPartPos(iPart,2)=PartState(iPart,2)
-          LastPartPos(iPart,3)=PartState(iPart,3)
+          LastPartPos(1:3,iPart)=PartState(1:3,iPart)
           PEM%lastElement(iPart)=PEM%Element(iPart)
           tmpFac=(1.0-PartRelaxationFac)
-          PartState(iPart,1)=PartRelaxationFac*PartState(iPart,1)+tmpFac*PartStateN(iPart,1)
-          PartState(iPart,2)=PartRelaxationFac*PartState(iPart,2)+tmpFac*PartStateN(iPart,2)
-          PartState(iPart,3)=PartRelaxationFac*PartState(iPart,3)+tmpFac*PartStateN(iPart,3)
-          PartState(iPart,4)=PartRelaxationFac*PartState(iPart,4)+tmpFac*PartStateN(iPart,4)
-          PartState(iPart,5)=PartRelaxationFac*PartState(iPart,5)+tmpFac*PartStateN(iPart,5)
-          PartState(iPart,6)=PartRelaxationFac*PartState(iPart,6)+tmpFac*PartStateN(iPart,6)
+          PartState(1:6,iPart) = PartRelaxationFac*PartState(1:6,iPart)+tmpFac*PartStateN(1:6,iPart)
           DO iCounter=1,iStage-1
             tmpFac=tmpFac*dt*ESDIRK_a(iStage-1,iCounter)
-            PartState(iPart,1) = PartState(iPart,1) + tmpFac*PartStage(iPart,1,iCounter)
-            PartState(iPart,2) = PartState(iPart,2) + tmpFac*PartStage(iPart,2,iCounter)
-            PartState(iPart,3) = PartState(iPart,3) + tmpFac*PartStage(iPart,3,iCounter)
-            PartState(iPart,4) = PartState(iPart,4) + tmpFac*PartStage(iPart,4,iCounter)
-            PartState(iPart,5) = PartState(iPart,5) + tmpFac*PartStage(iPart,5,iCounter)
-            PartState(iPart,6) = PartState(iPart,6) + tmpFac*PartStage(iPart,6,iCounter)
+            PartState(1:6,iPart) = PartState(1:6,iPart) + tmpFac*PartStage(1:6,iCounter,iPart)
           END DO
         END IF ! ParticleInside
       END DO ! iPart
