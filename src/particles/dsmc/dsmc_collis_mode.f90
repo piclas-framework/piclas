@@ -73,12 +73,12 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
   IF(DSMC%CalcQualityFactors) THEN
     IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
       IF(Symmetry2D) THEN
-        Distance = SQRT((PartState(iPart1,1) - PartState(iPart2,1))**2 &
-                       +(PartState(iPart1,2) - PartState(iPart2,2))**2)
+        Distance = SQRT((PartState(1,iPart1) - PartState(1,iPart2))**2 &
+                       +(PartState(2,iPart1) - PartState(2,iPart2))**2)
       ELSE
-        Distance = SQRT((PartState(iPart1,1) - PartState(iPart2,1))**2 &
-                       +(PartState(iPart1,2) - PartState(iPart2,2))**2 &
-                       +(PartState(iPart1,3) - PartState(iPart2,3))**2)
+        Distance = SQRT((PartState(1,iPart1) - PartState(1,iPart2))**2 &
+                       +(PartState(2,iPart1) - PartState(2,iPart2))**2 &
+                       +(PartState(3,iPart1) - PartState(3,iPart2))**2)
       END IF
       DSMC%CollSepDist = DSMC%CollSepDist + Distance
       DSMC%CollSepCount = DSMC%CollSepCount + 1
@@ -189,8 +189,8 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
 
 #ifdef CODE_ANALYZE
   ! Momentum conservation
-  Momentum_old(1:3) = Species(iSpec1)%MassIC * PartState(iPart1,4:6) * GetParticleWeight(iPart1) &
-                    + Species(iSpec2)%MassIC * PartState(iPart2,4:6) * GetParticleWeight(iPart2)
+  Momentum_old(1:3) = Species(iSpec1)%MassIC * PartState(4:6,iPart1) * GetParticleWeight(iPart1) &
+                    + Species(iSpec2)%MassIC * PartState(4:6,iPart2) * GetParticleWeight(iPart2)
 #endif /* CODE_ANALYZE */
 
   IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
@@ -524,11 +524,11 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   Weight1 = GetParticleWeight(iPart1)
   Weight2 = GetParticleWeight(iPart2)
   ! Energy conservation
-  Energy_old=0.5*Species(iSpec1)%MassIC*DOT_PRODUCT(PartState(iPart1,4:6),PartState(iPart1,4:6)) * Weight1 &
-            +0.5*Species(iSpec2)%MassIC*DOT_PRODUCT(PartState(iPart2,4:6),PartState(iPart2,4:6)) * Weight2 &
-            + (PartStateIntEn(iPart1,1) + PartStateIntEn(iPart1,2)) * Weight1 &
-            + (PartStateIntEn(iPart2,1) + PartStateIntEn(iPart2,2)) * Weight2
-  IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(iPart1,3)*Weight1 + PartStateIntEn(iPart2, 3) * Weight2
+  Energy_old=0.5*Species(iSpec1)%MassIC*DOT_PRODUCT(PartState(4:6,iPart1),PartState(4:6,iPart1)) * Weight1 &
+            +0.5*Species(iSpec2)%MassIC*DOT_PRODUCT(PartState(4:6,iPart2),PartState(4:6,iPart2)) * Weight2 &
+            + (PartStateIntEn(1,iPart1) + PartStateIntEn(2,iPart1)) * Weight1 &
+            + (PartStateIntEn(1,iPart2) + PartStateIntEn(2,iPart2)) * Weight2
+  IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,iPart1)*Weight1 + PartStateIntEn(3,iPart2) * Weight2
 #endif /* CODE_ANALYZE */
   Xi_rel = 2*(2. - CollInf%omegaLaux(iSpec1,iSpec2))
   ! DOF of relative motion in VHS model
@@ -732,7 +732,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   Coll_pData(iPair)%cRela2 = 2 * Coll_pData(iPair)%Ec/ReducedMass
   IF (CollInf%alphaVSS(iSpec1,iSpec2).GT.1) THEN
     !Calculate relative velocities and new squared velocity
-    cRelaOld(1:3) = PartState(iPart1, 4:6) - PartState(iPart2, 4:6)
+    cRelaOld(1:3) = PartState(4:6,iPart1) - PartState(4:6,iPart2)
     ! Calculation of post collision velocity vector in reference frame and retransformation to center-of-mass frame
     cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 ,CollInf%alphaVSS(iSpec1,iSpec2) &
                                                ,cRelaOld(1),cRelaOld(2),cRelaOld(3))
@@ -865,11 +865,11 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   Weight1 = GetParticleWeight(iPart1)
   Weight2 = GetParticleWeight(iPart2)
   ! Energy conservation
-  Energy_old=0.5*Species(iSpec1)%MassIC*DOT_PRODUCT(PartState(iPart1,4:6),PartState(iPart1,4:6)) * Weight1 &
-            +0.5*Species(iSpec2)%MassIC*DOT_PRODUCT(PartState(iPart2,4:6),PartState(iPart2,4:6)) * Weight2 &
-            + (PartStateIntEn(iPart1,1) + PartStateIntEn(iPart1,2)) * Weight1 &
-            + (PartStateIntEn(iPart2,1) + PartStateIntEn(iPart2,2)) * Weight2
-  IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(iPart1,3)*Weight1 + PartStateIntEn(iPart2, 3) * Weight2
+  Energy_old=0.5*Species(iSpec1)%MassIC*DOT_PRODUCT(PartState(4:6,iPart1),PartState(4:6,iPart1)) * Weight1 &
+            +0.5*Species(iSpec2)%MassIC*DOT_PRODUCT(PartState(4:6,iPart2),PartState(4:6,iPart2)) * Weight2 &
+            + (PartStateIntEn(1,iPart1) + PartStateIntEn(2,iPart1)) * Weight1 &
+            + (PartStateIntEn(1,iPart2) + PartStateIntEn(2,iPart2)) * Weight2
+  IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(3,iPart1)*Weight1 + PartStateIntEn(3,iPart2) * Weight2
 #endif /* CODE_ANALYZE */
 !--------------------------------------------------------------------------------------------------!
 ! Decision if Rotation, Vibration and Electronic Relaxation of particles is performed
@@ -1100,13 +1100,13 @@ __STAMP__&
 !WRITE(*,*) "DiceDeflectedVector in Relax Gimelshein",cRelaNew/sqrt(Coll_pData(iPair)%cRela2) !to be solved
 
   ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
-  DSMC_RHS(iPart1,1) = VeloMx + FracMassCent2*cRelaNew(1) - PartState(4,iPart1)
-  DSMC_RHS(iPart1,2) = VeloMy + FracMassCent2*cRelaNew(2) - PartState(5,iPart1)
-  DSMC_RHS(iPart1,3) = VeloMz + FracMassCent2*cRelaNew(3) - PartState(6,iPart1)
+  DSMC_RHS(1,iPart1) = VeloMx + FracMassCent2*cRelaNew(1) - PartState(4,iPart1)
+  DSMC_RHS(2,iPart1) = VeloMy + FracMassCent2*cRelaNew(2) - PartState(5,iPart1)
+  DSMC_RHS(3,iPart1) = VeloMz + FracMassCent2*cRelaNew(3) - PartState(6,iPart1)
   ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame)
-  DSMC_RHS(iPart2,1) = VeloMx - FracMassCent1*cRelaNew(1) - PartState(4,iPart2)
-  DSMC_RHS(iPart2,2) = VeloMy - FracMassCent1*cRelaNew(2) - PartState(5,iPart2)
-  DSMC_RHS(iPart2,3) = VeloMz - FracMassCent1*cRelaNew(3) - PartState(6,iPart2)
+  DSMC_RHS(1,iPart2) = VeloMx - FracMassCent1*cRelaNew(1) - PartState(4,iPart2)
+  DSMC_RHS(2,iPart2) = VeloMy - FracMassCent1*cRelaNew(2) - PartState(5,iPart2)
+  DSMC_RHS(3,iPart2) = VeloMz - FracMassCent1*cRelaNew(3) - PartState(6,iPart2)
 #ifdef CODE_ANALYZE
   Energy_new= 0.5*Species(PartSpecies(iPart2))%MassIC*((VeloMx - FracMassCent1*cRelaNew(1))**2 &
                                                      + (VeloMy - FracMassCent1*cRelaNew(2))**2 &
