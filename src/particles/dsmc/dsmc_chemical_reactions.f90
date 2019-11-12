@@ -888,7 +888,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
 
     Coll_pData(iPair)%CRela2 = 2 * ERel_React1_React2 / MassRed
 
-    !Calculation of post collision relative velocity vector in reference frame and retransformation to COM frame
+    !Calculation of post collision relative velocity vector in reference frame and retransformation to center of mass frame
     RanVelo(1:3) = DiceDeflectedVelocityVector( Coll_pData(iPair)%cRela2 , CollInf%alphaVSS(ProductReac(1) , ProductReac(2)) &
                    , cRelaX , cRelaY , cRelaZ)
 
@@ -1019,13 +1019,13 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     END IF
 
     !Calculate relative velocities and new squared velocity
-    cRelaX = PartState(React1Inx, 4) - PartState(React2Inx, 4)
-    cRelaY = PartState(React1Inx, 5) - PartState(React2Inx, 5)
-    cRelaZ = PartState(React1Inx, 6) - PartState(React2Inx, 6)
+    cRelaX = PartState(React1Inx, 4) - PartState(React3Inx, 4)
+    cRelaY = PartState(React1Inx, 5) - PartState(React3Inx, 5)
+    cRelaZ = PartState(React1Inx, 6) - PartState(React3Inx, 6)
 
     Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / ReducedMass
 
-    !Calculation of post collision relative velocity vector in reference frame and retransformation to COM frame
+    !Calculation of post collision relative velocity vector in reference frame and retransformation to Ccenter of mass frame
     RanVelo(1:3) = DiceDeflectedVelocityVector( Coll_pData(iPair)%cRela2 , CollInf%alphaVSS(ProductReac(1) , ProductReac(2)) &
                    , cRelaX , cRelaY , cRelaZ)
 

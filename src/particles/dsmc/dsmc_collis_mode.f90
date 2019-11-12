@@ -2901,7 +2901,7 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
 ! LOCAL VARIABLES
   REAL                      :: TempCorr, cRela
 !===================================================================================================================================
-  ! (i) dref changed from dref = 0.5 * (dref_1+dref_2) 
+  ! (i) dref changed from   DrefVHS = 0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(jSpec)%DrefVHS)
   !                  to   dref(iSpec,jSpec) which is identical to old definition (for averagedCollisionParameters=TRUE (DEFAULT))
   ! in case of averagedCollisionParameter=FALSE dref(iSpec,jSpec) contains collision specific dref see --help for details
 
