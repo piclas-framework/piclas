@@ -37,30 +37,30 @@ SUBROUTINE InitializeParticleSurfaceflux()
 !===================================================================================================================================
 ! Modules
 #if USE_MPI
-USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Globals
-USE MOD_Globals_Vars,          ONLY: PI, BoltzmannConst
+USE MOD_Globals_Vars           ,ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
-USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC, nPorousBC
-USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges, DoTimeDepInflow, &
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound, nAdaptiveBC, nPorousBC
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges, DoTimeDepInflow, &
                                      Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac, VarTimeStep
-USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptive, UseCircularInflow
-USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
-USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
-USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
-USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
-USE MOD_Particle_Surfaces_Vars,ONLY: SurfFluxSideSize, TriaSurfaceFlux, WriteTriaSurfaceFluxDebugMesh, SideType
-USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas, GetSideBoundingBox, CalcNormAndTangTriangle
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide, GEO
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking, DoRefMapping
+USE MOD_PARTICLE_Vars          ,ONLY: nMacroRestartFiles, UseAdaptive, UseCircularInflow
+USE MOD_Particle_Vars          ,ONLY: DoForceFreeSurfaceFlux
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
+USE MOD_Mesh_Vars              ,ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
+USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, WriteTriaSurfaceFluxDebugMesh, SideType
+USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas, GetSideBoundingBox, CalcNormAndTangTriangle
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide, GEO
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, DoRefMapping
 USE MOD_IO_HDF5
 USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray,GetDataSize
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
-USE MOD_Particle_Vars           ,ONLY: Symmetry2D, Symmetry2DAxisymmetric
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D         ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
-USE MOD_Restart_Vars            ,ONLY: DoRestart, RestartTime
+USE MOD_Particle_Vars          ,ONLY: Symmetry2D, Symmetry2DAxisymmetric
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
+USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -554,8 +554,11 @@ DO iBC=1,nDataBC
   END IF
   IF(RadialWeighting%DoRadialWeighting) THEN
     ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(1:TmpSideNumber(iBC)))
+    BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor = 1.
     ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
+    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight = 0.
     ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
+    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea = 0.
   END IF
   DO iSpec=1,nSpecies
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
@@ -1153,6 +1156,8 @@ USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools              ,ONLY: UpdateNextFreePosition
+USE MOD_MacroBody_vars          ,ONLY: UseMacroBody
+USE MOD_MacroBody_tools         ,ONLY: INSIDEMACROBODY
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, RadialWeighting
 USE MOD_SurfaceModel_Vars       ,ONLY: SurfModel
 USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
@@ -1786,6 +1791,11 @@ __STAMP__&
             ELSE !no check for rmax-rejection
               AcceptPos=.TRUE.
             END IF ! CircularInflow
+            IF (UseMacroBody) THEN
+              IF (INSIDEMACROBODY(Particle_pos)) THEN
+                AcceptPos=.FALSE.
+              END IF
+            END IF
 
             !-- save position if accepted:
             IF (AcceptPos) THEN
@@ -1799,7 +1809,7 @@ __STAMP__&
               iPart=iPart+1
             ELSE
               nReject=nReject+1
-              IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
+              IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow .OR. UseMacroBody) THEN !check rmax-rejection
                 allowedRejections=allowedRejections+1
               END IF
             END IF
@@ -1814,12 +1824,12 @@ __STAMP__&
               + PDM%CurrentNextFreePosition)
           END IF
           IF (ParticleIndexNbr .ne. 0) THEN
-            PartState(ParticleIndexNbr,1:3) = particle_positions(3*(iPart-1)+1:3*(iPart-1)+3)
+            PartState(1:3,ParticleIndexNbr) = particle_positions(3*(iPart-1)+1:3*(iPart-1)+3)
 #ifdef CODE_ANALYZE
             IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
               IF(ParticleIndexNbr.EQ.PARTOUT)THEN
                 WRITE(UNIT_stdout,'(A32)') ' ---------------------------------------------------------------'
-                IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' SurfFlux Pos:      ', PartState(ParticleIndexNbr,1:3)
+                IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' SurfFlux Pos:      ', PartState(1:3,ParticleIndexNbr)
                 IF (TriaSurfaceFlux) THEN
                   !- the following lines are inverted to recalc. the RandVal
                   !Particle_pos = (/xNod,yNod,zNod/) + Vector1 * RandVal2(1) + Vector2 * RandVal2(2)
@@ -1830,11 +1840,11 @@ __STAMP__&
                   !  Particle_pos(1:3) = 2*midpoint(1:3)-Particle_pos(1:3)
                   !END IF
                   !- recalc. the RandVal assuming no flip:
-                  tmpVec=PartState(ParticleIndexNbr,1:3)
+                  tmpVec=PartState(1:3,ParticleIndexNbr)
                   tmpVec = tmpVec - (/xNod,yNod,zNod/) != Vector1 * RandVal2(1) + Vector2 * RandVal2(2)
                   IPWRITE(UNIT_stdOut,'(I0,A,2(X,E15.8))') ' SurfFlux RandVals1:', CalcVectorAdditionCoeffs(tmpVec,Vector1,Vector2)
                   !- recalc. the RandVal assuming flip:
-                  tmpVec=2*midpoint(1:3)-PartState(ParticleIndexNbr,1:3)
+                  tmpVec=2*midpoint(1:3)-PartState(1:3,ParticleIndexNbr)
                   tmpVec = tmpVec - (/xNod,yNod,zNod/) != Vector1 * RandVal2(1) + Vector2 * RandVal2(2)
                   IPWRITE(UNIT_stdOut,'(I0,A,2(X,E15.8))') ' SurfFlux RandVals2:', CalcVectorAdditionCoeffs(tmpVec,Vector1,Vector2)
                 END IF
@@ -1889,10 +1899,10 @@ __STAMP__&
                 END IF ! sampling is on (CalcSurfaceVal)
               END IF ! wallmodel or liquidsim
               IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) THEN
-                PartState(ParticleIndexNbr,4:5) = particle_xis(2*(iPart-1)+1:2*(iPart-1)+2) !use velo as dummy-storage for xi!
+                PartState(4:5,ParticleIndexNbr) = particle_xis(2*(iPart-1)+1:2*(iPart-1)+2) !use velo as dummy-storage for xi!
               ELSE IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !PartState is used as drift for case of MB-distri!
-                point(1)=PartState(ParticleIndexNbr,dir(2))-origin(1)
-                point(2)=PartState(ParticleIndexNbr,dir(3))-origin(2)
+                point(1)=PartState(dir(2),ParticleIndexNbr)-origin(1)
+                point(2)=PartState(dir(3),ParticleIndexNbr)-origin(2)
                 radius=SQRT( (point(1))**2+(point(2))**2 )
                 phi=ATAN2(point(2),point(1))
                 !-- evaluate radial fit
@@ -1904,29 +1914,29 @@ __STAMP__&
                   CALL abort(__STAMP__,&
                     'ERROR in VeloFit!')
                 END IF
-                PartState(ParticleIndexNbr,3+dir(1)) = SIGN(vTot * SQRT(1.-veloR**2) &
+                PartState(3+dir(1),ParticleIndexNbr) = SIGN(vTot * SQRT(1.-veloR**2) &
                   ,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(dir(1)))
                 veloR = veloR * vToT
-                PartState(ParticleIndexNbr,3+dir(2)) = veloR*cos(phi)
-                PartState(ParticleIndexNbr,3+dir(3)) = veloR*sin(phi)
+                PartState(3+dir(2),ParticleIndexNbr) = veloR*cos(phi)
+                PartState(3+dir(3),ParticleIndexNbr) = veloR*sin(phi)
               END IF !VeloIsNormal or SimpleRadialVeloFit
             END IF
 
             ! shift lastpartpos minimal into cell for fail-safe tracking
-            LastPartPos(ParticleIndexNbr,1:3)=PartState(ParticleIndexNbr,1:3)
+            LastPartPos(1:3,ParticleIndexNbr)=PartState(1:3,ParticleIndexNbr)
             !SELECT CASE(SideType(SideID))
             !CASE(PLANAR_RECT,PLANAR_NONRECT)
-            !  LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
-            !  + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (0.9999)
+            !  LastPartPos(1:3,ParticleIndexNbr)=ElemBaryNGeo(1:3,ElemID) &
+            !  + (PartState(1:3,ParticleIndexNbr)-ElemBaryNGeo(1:3,ElemID)) * (0.9999)
             !CASE(BILINEAR,CURVED,PLANAR_CURVED) !to be changed into more efficient method using known xi
-            !  CALL GetPositionInRefElem(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID) !RefMap PartState
+            !  CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),Particle_pos(1:3),ElemID) !RefMap PartState
             !  DO iLoop=1,3 !shift border-RefCoords into elem
             !    IF( ABS(Particle_pos(iLoop)) .GT. 0.9999 ) THEN
             !      Particle_pos(iLoop)=SIGN(0.999999,Particle_pos(iLoop))
             !    END IF
             !  END DO
             !  CALL TensorProductInterpolation(Particle_pos(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID) &
-            !    ,LastPartPos(ParticleIndexNbr,1:3)) !Map back into phys. space
+            !    ,LastPartPos(1:3,ParticleIndexNbr)) !Map back into phys. space
             !CASE DEFAULT
             !  CALL abort(&
 !__STAMP__&
@@ -1934,7 +1944,7 @@ __STAMP__&
             !END SELECT
 
 !#ifdef CODE_ANALYZE
-!          CALL GetPositionInRefElem(LastPartPos(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID)
+!          CALL GetPositionInRefElem(LastPartPos(1:3,ParticleIndexNbr),Particle_pos(1:3),ElemID)
 !          IF (ANY(ABS(Particle_pos).GT.1.0)) THEN !maybe 1+epsInCell would be enough...
 !            IPWRITE(*,*) 'Particle_pos: ',Particle_pos
 !            CALL abort(&
@@ -1944,18 +1954,18 @@ __STAMP__&
 !#endif /*CODE_ANALYZE*/
 #if defined(IMPA) || defined(ROS)
             IF(DoRefMapping)THEN
-              CALL GetPositionInRefElem(PartState(ParticleIndexNbr,1:3),PartPosRef(1:3,ParticleIndexNbr),ElemID) !RefMap PartState
+              CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID) !RefMap PartState
             END IF
             ! important for implicit, correct norm, etc.
-            PartState(ParticleIndexNbr,1:3)=LastPartPos(ParticleIndexNbr,1:3)
+            PartState(1:3,ParticleIndexNbr)=LastPartPos(1:3,ParticleIndexNbr)
 #endif /*IMPA*/
 #ifdef CODE_ANALYZE
-            IF(   (LastPartPos(ParticleIndexNbr,1).GT.GEO%xmaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(ParticleIndexNbr,1),GEO%xmaxglob) &
-              .OR.(LastPartPos(ParticleIndexNbr,1).LT.GEO%xminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(ParticleIndexNbr,1),GEO%xminglob) &
-              .OR.(LastPartPos(ParticleIndexNbr,2).GT.GEO%ymaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(ParticleIndexNbr,2),GEO%ymaxglob) &
-              .OR.(LastPartPos(ParticleIndexNbr,2).LT.GEO%yminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(ParticleIndexNbr,2),GEO%yminglob) &
-              .OR.(LastPartPos(ParticleIndexNbr,3).GT.GEO%zmaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(ParticleIndexNbr,3),GEO%zmaxglob) &
-              .OR.(LastPartPos(ParticleIndexNbr,3).LT.GEO%zminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(ParticleIndexNbr,3),GEO%zminglob) ) THEN
+            IF(   (LastPartPos(1,ParticleIndexNbr).GT.GEO%xmaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(1,ParticleIndexNbr),GEO%xmaxglob) &
+              .OR.(LastPartPos(1,ParticleIndexNbr).LT.GEO%xminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(1,ParticleIndexNbr),GEO%xminglob) &
+              .OR.(LastPartPos(2,ParticleIndexNbr).GT.GEO%ymaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(2,ParticleIndexNbr),GEO%ymaxglob) &
+              .OR.(LastPartPos(2,ParticleIndexNbr).LT.GEO%yminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(2,ParticleIndexNbr),GEO%yminglob) &
+              .OR.(LastPartPos(3,ParticleIndexNbr).GT.GEO%zmaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(3,ParticleIndexNbr),GEO%zmaxglob) &
+              .OR.(LastPartPos(3,ParticleIndexNbr).LT.GEO%zminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(3,ParticleIndexNbr),GEO%zminglob) ) THEN
               IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' ParticleInside ',PDM%ParticleInside(ParticleIndexNbr)
 #ifdef IMPA
               IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(ParticleIndexNbr)
@@ -1963,11 +1973,11 @@ __STAMP__&
 #endif /*IMPA*/
               IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PDM%IsNewPart ', PDM%IsNewPart(ParticleIndexNbr)
               IPWRITE(UNIt_stdOut,'(I0,A18,x,A18,x,A18)')                  '    min ', ' value ', ' max '
-              IPWRITE(UNIt_stdOut,'(I0,A2,x,ES25.14,x,ES25.14,x,ES25.14)') ' x', GEO%xminglob, LastPartPos(ParticleIndexNbr,1) &
-                                                                            , GEO%xmaxglob
-              IPWRITE(UNIt_stdOut,'(I0,A2,x,ES25.14,x,ES25.14,x,ES25.14)') ' y', GEO%yminglob, LastPartPos(ParticleIndexNbr,2) &
-                                                                            , GEO%ymaxglob
-              IPWRITE(UNIt_stdOut,'(I0,A2,x,ES25.14,x,ES25.14,x,ES25.14)') ' z', GEO%zminglob, LastPartPos(ParticleIndexNbr,3) &
+              IPWRITE(UNIt_stdOut,'(I0,A2,x,ES25.14,x,ES25.14,x,ES25.14)') ' x', GEO%xminglob, LastPartPos(1,ParticleIndexNbr) &
+                                                                            , GEO%xmaxglob                   
+              IPWRITE(UNIt_stdOut,'(I0,A2,x,ES25.14,x,ES25.14,x,ES25.14)') ' y', GEO%yminglob, LastPartPos(2,ParticleIndexNbr) &
+                                                                            , GEO%ymaxglob                   
+              IPWRITE(UNIt_stdOut,'(I0,A2,x,ES25.14,x,ES25.14,x,ES25.14)') ' z', GEO%zminglob, LastPartPos(3,ParticleIndexNbr) &
                                                                             , GEO%zmaxglob
               CALL abort(&
                  __STAMP__ &
@@ -1986,10 +1996,10 @@ __STAMP__&
             iPartTotal = iPartTotal + 1
             IF (VarTimeStep%UseVariableTimeStep) THEN
               VarTimeStep%ParticleTimeStep(ParticleIndexNbr) &
-                = CalcVarTimeStep(PartState(ParticleIndexNbr,1),PartState(ParticleIndexNbr,2),PEM%Element(ParticleIndexNbr))
+                = CalcVarTimeStep(PartState(1,ParticleIndexNbr),PartState(2,ParticleIndexNbr),PEM%Element(ParticleIndexNbr))
             END IF
             IF (RadialWeighting%DoRadialWeighting) THEN
-              PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(ParticleIndexNbr,2), 1,ParticleIndexNbr)
+              PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), 1,ParticleIndexNbr)
             END IF
           ELSE
             CALL abort(&
@@ -2125,22 +2135,21 @@ __STAMP__&
                 VelZold  = PartBound%WallVelo(3,CurrentBC)
                 EtraOld = 0.0
                 EtraWall = EtraOld
-                VeloReal = SQRT(PartState(PartID,4) * PartState(PartID,4) + PartState(PartID,5) * PartState(PartID,5) &
-                                + PartState(PartID,6) * PartState(PartID,6))
+                VeloReal = VECNORM(PartState(4:6,iPart))
                 EtraNew = 0.5 * Species(iSpec)%MassIC * VeloReal**2
                 ! fill Transarray
                 TransArray(1) = EtraOld
                 TransArray(2) = EtraWall
                 TransArray(3) = EtraNew
                 ! must be old_velocity-new_velocity
-                TransArray(4) = VelXold-PartState(PartID,4)
-                TransArray(5) = VelYold-PartState(PartID,5)
-                TransArray(6) = VelZold-PartState(PartID,6)
+                TransArray(4) = VelXold-PartState(4,PartID)
+                TransArray(5) = VelYold-PartState(5,PartID)
+                TransArray(6) = VelZold-PartState(6,PartID)
                 IF (CollisMode.GT.1) THEN
                   ! set rotational energies
                   ErotWall = 0
                   ErotOld  = ErotWall
-                  ErotNew  = PartStateIntEn(PartID,2)
+                  ErotNew  = PartStateIntEn(2,PartID)
                   ! fill rotational internal array
                   IntArray(1) = ErotOld
                   IntArray(2) = ErotWall
@@ -2148,7 +2157,7 @@ __STAMP__&
                   ! set vibrational energies
                   EvibWall = 0 ! calculated and added in particle desorption calculation
                   EvibOld  = EvibWall ! calculated and added in particle desorption calculation
-                  EvibNew  = PartStateIntEn(PartID,1)
+                  EvibNew  = PartStateIntEn(1,PartID)
                   ! fill vibrational internal array
                   IntArray(4) = EvibOld
                   IntArray(5) = EvibWall
@@ -2337,7 +2346,7 @@ SUBROUTINE SetSurfacefluxVelocities(FractNbr,iSF,iSample,jSample,iSide,BCSideID,
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY : PI, BoltzmannConst
 USE MOD_Particle_Vars
-USE MOD_Part_Tools,             ONLY : VELOFROMDISTRIBUTION
+USE MOD_Part_Tools,             ONLY : VeloFromDistribution
 USE MOD_Particle_Surfaces_Vars, ONLY : SurfMeshSubSideData, TriaSurfaceFlux
 USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBezier
 USE MOD_Particle_Boundary_Vars, ONLY : PartBound
@@ -2476,7 +2485,7 @@ CASE('constant') !constant with normal velocities (for VeloVecIC see SetParticle
         vec_t1(1:3) = 0. !dummy
         vec_t2(1:3) = 0. !dummy
       ELSE IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal) THEN
-        CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),xi=PartState(PositionNbr,4),eta=PartState(PositionNbr,5),SideID=SideID )
+        CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),xi=PartState(4,PositionNbr),eta=PartState(5,PositionNbr),SideID=SideID )
         vec_nIn(1:3) = -vec_nIn(1:3)
         vec_t1(1:3) = 0. !dummy
         vec_t2(1:3) = 0. !dummy
@@ -2488,7 +2497,7 @@ __STAMP__&
 
 !-- build complete velo-vector
       Vec3D(1:3) = vec_nIn(1:3) * Species(FractNbr)%Surfaceflux(iSF)%VeloIC
-      PartState(PositionNbr,4:6) = Vec3D(1:3)
+      PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF !PositionNbr .NE. 0
   END DO !i = ...NbrOfParticle
 CASE('liquid')
@@ -2499,14 +2508,14 @@ CASE('liquid')
     vec_t2(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2(1:3)
   ELSE IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal) THEN
     CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),tang1=vec_t1(1:3),tang2=vec_t2(1:3) &
-      ,xi=PartState(PositionNbr,4),eta=PartState(PositionNbr,5),SideID=SideID )
+      ,xi=PartState(4,PositionNbr),eta=PartState(5,PositionNbr),SideID=SideID )
     vec_nIn(1:3) = -vec_nIn(1:3)
   END IF
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
-      Vec3D(1:3) = VELOFROMDISTRIBUTION('liquid_evap',FractNbr,T)
-      PartState(PositionNbr,4:6) = vec_nIn(1:3)*(a*SQRT(2*BoltzmannConst*T/Species(FractNbr)%MassIC)+Vec3D(3)) &
+      Vec3D(1:3) = VeloFromDistribution('liquid_evap',FractNbr,T)
+      PartState(4:6,PositionNbr) = vec_nIn(1:3)*(a*SQRT(2*BoltzmannConst*T/Species(FractNbr)%MassIC)+Vec3D(3)) &
                                  + vec_t1(1:3)*(Velo_t1+Vec3D(1)) &
                                  + vec_t2(1:3)*(Velo_t2+Vec3D(2))
     ELSE !PositionNbr .EQ. 0
@@ -2548,20 +2557,20 @@ CASE('maxwell_surfaceflux')
         vec_t2(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2(1:3)
       ELSE IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal) THEN
         CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),tang1=vec_t1(1:3),tang2=vec_t2(1:3) &
-          ,xi=PartState(PositionNbr,4),eta=PartState(PositionNbr,5),SideID=SideID )
+          ,xi=PartState(4,PositionNbr),eta=PartState(5,PositionNbr),SideID=SideID )
         vec_nIn(1:3) = -vec_nIn(1:3)
 !-- 0b.: initialize DataTriaSF if particle-dependent (as in case of SimpleRadialVeloFit), drift vector is already in PartState!!!
       ELSE IF (Species(FractNbr)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
-        VeloIC = SQRT(DOT_PRODUCT(PartState(PositionNbr,4:6),PartState(PositionNbr,4:6)))
+        VeloIC = VECNORM(PartState(4:6,PositionNbr))
         IF (ALMOSTZERO(VeloIC)) THEN
           projFak = 1. !dummy
           a = 0.
         ELSE
-          projFak = DOT_PRODUCT(vec_nIn,PartState(PositionNbr,4:6)) / VeloIC
+          projFak = DOT_PRODUCT(vec_nIn,PartState(4:6,PositionNbr)) / VeloIC
           a = VeloIC * projFak / SQRT(2.*BoltzmannConst*T/Species(FractNbr)%MassIC) !speed ratio proj. to inwards n (can be negative!)
         END IF
-        Velo_t1 = DOT_PRODUCT(vec_t1,PartState(PositionNbr,4:6)) !v in t1-dir
-        Velo_t2 = DOT_PRODUCT(vec_t2,PartState(PositionNbr,4:6)) !v in t2-dir
+        Velo_t1 = DOT_PRODUCT(vec_t1,PartState(4:6,PositionNbr)) !v in t1-dir
+        Velo_t2 = DOT_PRODUCT(vec_t2,PartState(4:6,PositionNbr)) !v in t2-dir
         !-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]
         IF (ALMOSTZERO(VeloIC*projFak)) THEN
           ! Rayleigh distri
@@ -2706,7 +2715,7 @@ __STAMP__&
       Vec3D(1:3) = Vec3D(1:3) + vec_t2(1:3) &
         * ( Velo_t2+Velo2*SQRT(BoltzmannConst*T/Species(FractNbr)%MassIC) )     !t2-Komponente (Gauss)
 
-      PartState(PositionNbr,4:6) = Vec3D(1:3)
+      PartState(4:6,PositionNbr) = Vec3D(1:3)
     ELSE !PositionNbr .EQ. 0
       CALL abort(&
 __STAMP__&

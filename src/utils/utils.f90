@@ -40,10 +40,15 @@ INTERFACE RootsOfBesselFunctions
   MODULE PROCEDURE RootsOfBesselFunctions
 END INTERFACE
 
+INTERFACE QuadraticSolver
+  MODULE PROCEDURE QuadraticSolver
+END INTERFACE
+
 PUBLIC:: BubbleSortID
 PUBLIC:: InsertionSort
 PUBLIC:: QSort1Doubleint1Pint
 PUBLIC:: RootsOfBesselFunctions
+PUBLIC:: QuadraticSolver
 !===================================================================================================================================
 
 CONTAINS
@@ -449,5 +454,73 @@ REAL ( KIND = 8)  :: bessel
 
   l0 = l2
 END SUBROUTINE RootsOfBesselFunctions
+
+
+!================================================================================================================================
+!> Stable algorithm to compute the number of (nRoot) non-complex solutions R1 and R2 for the quadratic equation A*x^2 + B*x + C 
+!================================================================================================================================
+SUBROUTINE QuadraticSolver(A,B,C,nRoot,r1,r2)
+#ifdef CODE_ANALYZE
+USE MOD_Globals,            ONLY:UNIT_stdOut,MyRank
+#endif /*CODE_ANALYZE*/
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)         :: A,B,C
+!--------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(OUT)     :: nRoot
+REAL,INTENT(OUT)        :: R1,R2
+!--------------------------------------------------------------------------------------------------------------------------------
+! local variables
+REAL                    :: radicant
+!================================================================================================================================
+
+! Use P-Q-formula and calculate first solution R1
+! Use Theorem of Vieta (R1*R2=C/A) to calculate R2
+! cf: wikipedia 2017.06.13 https://de.wikipedia.org/wiki/Quadratische_Gleichung
+IF (A.NE.0. .AND. B.EQ.0. .AND. C.EQ.0.) THEN
+  nRoot=1
+  R1=0.
+  R2=0.
+ELSE IF(A.NE.0.)THEN
+  radicant = (0.5*B/A)**2 - (C/A)
+  IF (radicant.LT.0.) THEN
+    nRoot=0
+    R1=0.
+    R2=0.
+  ELSE
+    nRoot=2
+    R1=-0.5*(B/A)-SIGN(1.,B/A)*SQRT(radicant)
+    R2=(C/A)/R1
+  END IF
+ELSE
+  IF(B.NE.0.)THEN
+    nRoot=1
+    R1=-C/B
+    R2=0.
+  ELSE
+    nRoot=0
+    R1=0.
+    R2=0.
+  END IF
+END IF
+
+#ifdef CODE_ANALYZE
+IF(nRoot.GT.0)THEN
+  IF((ABS(R1).LE.1.).AND.(ABS(A*R1**2+B*R1+C).GT.1e-10))THEN
+    IPWRITE(UNIT_stdOut,'(I0,A,G0,A)')    ' WARNING!!!: RHS of R1 is ',A*R1**2+B*R1+C &
+        ,' (.GT.1e-10) in quadratic solver.'
+  END IF
+END IF
+IF(nRoot.GT.1)THEN
+  IF((ABS(R2).LE.1.).AND.(ABS(A*R2**2+B*R2+C).GT.1e-10))THEN
+    IPWRITE(UNIT_stdOut,'(I0,A,G0,A)')    ' WARNING!!!: RHS of R2 is ',A*R2**2+B*R2+C &
+        ,' (.GT.1e-10) in quadratic solver.'
+  END IF
+END IF
+#endif /*CODE_ANALYZE*/
+
+END SUBROUTINE QuadraticSolver
+
 
 END MODULE MOD_Utils

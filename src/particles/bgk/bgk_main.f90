@@ -46,7 +46,7 @@ USE MOD_Mesh_Vars           ,ONLY: nElems
 USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, PartSpecies, Species, WriteMacroVolumeValues, Symmetry2D, usevMPF
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues, Symmetry2D, usevMPF
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength,BGKDSMCSwitchDens
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor
@@ -62,10 +62,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart, iSpec
+INTEGER               :: iElem, nPart, iLoop, iPart
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 LOGICAL               :: DoElement(nElems)
-REAL                  :: vBulk(3), TotalMass, dens, partWeight
+REAL                  :: vBulk(3), dens, partWeight, totalWeight
 !===================================================================================================================================
 DSMC_RHS = 0.0
 DoElement = .FALSE.
@@ -74,18 +74,18 @@ DO iElem = 1, nElems
   nPart = PEM%pNumber(iElem)
   IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
 
-  TotalMass = 0.0
+  totalWeight = 0.0
   iPart = PEM%pStart(iElem)
   DO iLoop = 1, nPart
     partWeight = GetParticleWeight(iPart)
-    TotalMass = TotalMass + partWeight
+    totalWeight = totalWeight + partWeight
     iPart = PEM%pNext(iPart)
   END DO
 
   IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    dens = TotalMass / GEO%Volume(iElem)
+    dens = totalWeight / GEO%Volume(iElem)
   ELSE
-    dens = TotalMass * Species(1)%MacroParticleFactor / GEO%Volume(iElem)
+    dens = totalWeight * Species(1)%MacroParticleFactor / GEO%Volume(iElem)
   END IF
 
   IF (dens.LT.BGKDSMCSwitchDens) THEN
@@ -101,18 +101,17 @@ DO iElem = 1, nElems
     END IF
   ELSE
     ALLOCATE(iPartIndx_Node(nPart))
-    TotalMass = 0.0
+    totalWeight = 0.0
     vBulk(1:3) = 0.0
     iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
       iPartIndx_Node(iLoop) = iPart
-      iSpec = PartSpecies(iPart)
       partWeight = GetParticleWeight(iPart)
-      vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6) * partWeight
-      TotalMass = TotalMass + partWeight
+      vBulk(1:3)  =  vBulk(1:3) + PartState(4:6,iPart) * partWeight
+      totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
-    vBulk = vBulk / TotalMass
+    vBulk = vBulk / totalWeight
 
     IF(DSMC%CalcQualityFactors) THEN
       BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
@@ -124,6 +123,7 @@ DO iElem = 1, nElems
     ELSE
       CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
     END IF
+    DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
         BGK_QualityFacSamp(1,iElem) = BGK_QualityFacSamp(1,iElem) + BGK_MeanRelaxFactor
@@ -133,7 +133,6 @@ DO iElem = 1, nElems
         BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
       END IF
     END IF
-    DEALLOCATE(iPartIndx_Node)
   END IF
 END DO
 
@@ -196,7 +195,7 @@ ELSE ! No octree cell refinement
     DO iLoop = 1, nPart
       partWeight = GetParticleWeight(iPart)
       iPartIndx_Node(iLoop) = iPart
-      vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6) * partWeight
+      vBulk(1:3)  =  vBulk(1:3) + PartState(4:6,iPart) * partWeight
       totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
@@ -213,6 +212,7 @@ ELSE ! No octree cell refinement
     ELSE
       CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
     END IF
+    DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
         BGK_QualityFacSamp(1,iElem) = BGK_QualityFacSamp(1,iElem) + BGK_MeanRelaxFactor
@@ -222,7 +222,6 @@ ELSE ! No octree cell refinement
         BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
       END IF
     END IF
-    DEALLOCATE(iPartIndx_Node)
   END DO
 END IF ! DoBGKCellAdaptation
 

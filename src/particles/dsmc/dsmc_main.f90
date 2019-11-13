@@ -43,10 +43,10 @@ SUBROUTINE DSMC_main(DoElement)
 USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
+USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, MCC_pairing_bggas, DSMC_FinalizeBGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, DSMCSumOfFormedParticles, BGGas, CollisMode
-USE MOD_DSMC_Vars             ,ONLY: ChemReac
+USE MOD_DSMC_Vars             ,ONLY: ChemReac, ConsiderVolumePortions, MCC_TotalPairNum, UseMCC
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SamplingRotVibRelaxProb
 USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
 USE MOD_Particle_Vars         ,ONLY: PDM, WriteMacroVolumeValues, Symmetry2D
@@ -80,13 +80,13 @@ REAL              :: tLBStart
 !===================================================================================================================================
 
 IF(.NOT.PRESENT(DoElement)) THEN
-  DSMC_RHS(1:PDM%ParticleVecLength,1) = 0
-  DSMC_RHS(1:PDM%ParticleVecLength,2) = 0
-  DSMC_RHS(1:PDM%ParticleVecLength,3) = 0
+  DSMC_RHS(1,1:PDM%ParticleVecLength) = 0
+  DSMC_RHS(2,1:PDM%ParticleVecLength) = 0
+  DSMC_RHS(3,1:PDM%ParticleVecLength) = 0
 END IF
 DSMCSumOfFormedParticles = 0
 
-IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_InitBGGas
+IF((BGGas%BGGasSpecies.NE.0).AND.(.NOT.UseMCC)) CALL DSMC_InitBGGas
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -106,7 +106,9 @@ DO iElem = 1, nElems ! element/cell main loop
   END IF
   IF (CollisMode.NE.0) THEN
     ChemReac%nPairForRec = 0
-    IF(BGGas%BGGasSpecies.NE.0) THEN
+    IF(UseMCC) THEN
+      CALL MCC_pairing_bggas(iElem)
+    ELSE IF(BGGas%BGGasSpecies.NE.0) THEN
       CALL DSMC_pairing_bggas(iElem)
     ELSE IF (DSMC%UseOctree) THEN
       IF(Symmetry2D) THEN

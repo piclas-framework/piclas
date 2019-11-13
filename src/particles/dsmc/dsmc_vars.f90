@@ -52,7 +52,8 @@ INTEGER                       :: SelectionProc              ! Mode of Selection 
 INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for energy redistribution
                                                             ! 2: partical with minimal MPF of this Pair
 LOGICAL                       :: useDSMC
-REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! (npartmax,1:3) with 2nd index: Evib, Erot, Eel
+REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! 1st index: 1:npartmax 
+!                                                           ! 2nd index: Evib, Erot, Eel
 
 LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
 
@@ -71,9 +72,11 @@ TYPE tRadialWeighting
   REAL                        :: PartScaleFactor
   INTEGER                     :: NextClone
   INTEGER                     :: CloneDelayDiff
-  LOGICAL                     :: DoRadialWeighting              ! Enables radial weighting in the axisymmetric simulations
-  INTEGER                     :: CloneMode                      ! 1 = Clone Delay
-                                                                ! 2 = Clone Random Delay
+  LOGICAL                     :: DoRadialWeighting          ! Enables radial weighting in the axisymmetric simulations
+  LOGICAL                     :: PerformCloning             ! Flag whether the cloning/deletion routine should be performed,
+                                                            ! when using radial weighting (e.g. no cloning for the BGK/FP methods)
+  INTEGER                     :: CloneMode                  ! 1 = Clone Delay
+                                                            ! 2 = Clone Random Delay
   INTEGER, ALLOCATABLE        :: ClonePartNum(:)
   INTEGER                     :: CloneInputDelay
   LOGICAL                     :: CellLocalWeighting
@@ -170,6 +173,15 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
   INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
 !                                                           ! ionization)
+  ! Collision cross-sections for MCC
+  LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
+                                                            ! treated with read-in collision cross-section (currently only with BGG)
+  REAL,ALLOCATABLE                  :: CollXSec(:,:)        ! Collision cross-section as read-in from the database
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: Cross-section at the respective energy level [m^2]
+  REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
+                                                            ! null collision method of MCC
+  REAL                              :: MaxCollFreq          ! Maximal collision frequency at certain energy level and cross-section
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
@@ -274,6 +286,10 @@ TYPE tBGGas
 END TYPE tBGGas
 
 TYPE(tBGGas)                        :: BGGas
+
+LOGICAL                             :: UseMCC
+CHARACTER(LEN=256)                  :: MCC_Database
+INTEGER                             :: MCC_TotalPairNum
 
 TYPE tPairData
   REAL              :: CRela2                               ! squared relative velo of the particles in a pair
@@ -410,17 +426,6 @@ TYPE tChemReactions
    INTEGER                       :: nPairForRec
    REAL, ALLOCATABLE             :: Hab(:)                  ! Factor Hab of Arrhenius Ansatz for diatomic/polyatomic molecs
    TYPE(tReactInfo), ALLOCATABLE  :: ReactInfo(:)           ! Informations of Reactions (nReactions)
-END TYPE
-
-TYPE tTreeNode
-!  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
-  TYPE (tTreeNode), POINTER       :: ChildNode       => null()       !8 Childnodes of Octree Treenode
-  REAL                            :: MidPoint(1:3)          ! approx Middle Point of Treenode
-  INTEGER                         :: PNum_Node              ! Particle Number of Treenode
-  INTEGER, ALLOCATABLE            :: iPartIndx_Node(:)      ! Particle Index List of Treenode
-  REAL, ALLOCATABLE               :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
-  REAL                            :: NodeVolume(8)
-  INTEGER                         :: NodeDepth
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
@@ -616,9 +621,21 @@ END TYPE tHODSMC
 
 TYPE(tHODSMC)             :: HODSMC
 REAL,ALLOCATABLE          :: DSMC_HOSolution(:,:,:,:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
+REAL,ALLOCATABLE          :: DSMC_VolumeSample(:)         !sampnum samples of volume in element
 
-TYPE tElemNodeVolumes
-    TYPE (tNodeVolume), POINTER             :: Root => null()
+LOGICAL                   :: ConsiderVolumePortions       ! Flag set in case volume portions are required, enables MC volume calc
+
+TYPE tTreeNode
+!  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
+  TYPE (tTreeNode), POINTER       :: ChildNode       => null()       !8 Childnodes of Octree Treenode
+  REAL                            :: MidPoint(1:3)          ! approx Middle Point of Treenode
+  INTEGER                         :: PNum_Node              ! Particle Number of Treenode
+  INTEGER, ALLOCATABLE            :: iPartIndx_Node(:)      ! Particle Index List of Treenode
+  REAL, ALLOCATABLE               :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
+  LOGICAL, ALLOCATABLE            :: MatchedPart(:)         ! Flag signaling that mapped particle is inside of macroparticle
+  REAL                            :: NodeVolume(8)
+  INTEGER                         :: NodeDepth
+  REAL                            :: MPNodeVolumePortion(8)
 END TYPE
 
 TYPE tNodeVolume
@@ -631,8 +648,14 @@ TYPE tNodeVolume
     TYPE (tNodeVolume), POINTER             :: SubNode7 => null()
     TYPE (tNodeVolume), POINTER             :: SubNode8 => null()
     REAL                                    :: Volume
+    REAL                                    :: MPVolumePortion
+    LOGICAL                                 :: MPVolumeDone=.FALSE.
     REAL                                    :: Area
     REAL,ALLOCATABLE                        :: PartNum(:,:)
+END TYPE
+
+TYPE tElemNodeVolumes
+    TYPE (tNodeVolume), POINTER             :: Root => null()
 END TYPE
 
 TYPE (tElemNodeVolumes), ALLOCATABLE        :: ElemNodeVol(:)

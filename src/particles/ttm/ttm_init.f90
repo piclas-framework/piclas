@@ -882,13 +882,13 @@ DO iElem=1,PP_nElems
     CALL RANDOM_NUMBER(PartPosRef(1:3)) ! get random reference space
     PartPosRef(1:3)=PartPosRef(1:3)*2. - 1. ! map (0,1) -> (-1,1)
     CALL TensorProductInterpolation(PartPosRef(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) &
-                      ,PartState(ParticleIndexNbr,1:3)) !Map into phys. space
+                      ,PartState(1:3,ParticleIndexNbr)) !Map into phys. space
 
     ! Set the internal energies (vb, rot and electronic) to zero if needed
     IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
-      PartStateIntEn(ParticleIndexNbr, 1) = 0.
-      PartStateIntEn(ParticleIndexNbr, 2) = 0.
-      IF ( DSMC%ElectronicModel )  PartStateIntEn(ParticleIndexNbr, 3) = 0.
+      PartStateIntEn( 1,ParticleIndexNbr) = 0.
+      PartStateIntEn( 2,ParticleIndexNbr) = 0.
+      IF ( DSMC%ElectronicModel )  PartStateIntEn( 3,ParticleIndexNbr) = 0.
     END IF
 
     ! Set the element ID of the electron to the current element ID
@@ -902,7 +902,7 @@ DO iElem=1,PP_nElems
     END IF
 
     ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
-    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(ParticleIndexNbr,4:6),&
+    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(4:6,ParticleIndexNbr),&
                                   Temperature=CellElectronTemperature)
   END DO
 END DO

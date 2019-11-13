@@ -435,6 +435,14 @@ gnu_PIC_deposition:
 #  script:
 #    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SurfaceModel/ ; fi
 
+gnu_MacroBody_check:
+  <<: *defaults_gnu
+  stage: reggie_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_MacroBody/ ; fi
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
@@ -474,6 +482,22 @@ gnu_DSMC_Reservoir:
     - withmodules
   script:
     - if [ -n "${DO_WEEKLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_Reservoir ; fi
+
+gnu_FPFlow:
+  <<: *defaults_gnu
+  stage: reggie_weekly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_WEEKLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_FPFlow ; fi
+
+gnu_BGKFlow:
+  <<: *defaults_gnu
+  stage: reggie_weekly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_WEEKLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_BGKFlow ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "userguide": Compile the userguide and developer guide
