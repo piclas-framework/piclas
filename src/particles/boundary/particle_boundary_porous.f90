@@ -39,6 +39,7 @@ INTERFACE PorousBoundaryRemovalProb_Pressure
 END INTERFACE
 
 PUBLIC::DefineParametersPorousBC, InitPorousBoundaryCondition, PorousBoundaryTreatment, PorousBoundaryRemovalProb_Pressure
+PUBLIC::FinalizePorousBoundaryCondition
 !===================================================================================================================================
 
 CONTAINS
@@ -268,16 +269,6 @@ DO iSurfSide=1,SurfMesh%nTotalSides
       END SELECT
     END IF
     SideNumber = SideNumber + 1
-  END IF
-END DO
-
-! 4) Check if a porous BC has been defined but does not have any sides assigned to it (e.g. wrong region definition)
-DO iPorousBC = 1, nPorousBC
-  IF(PorousBC(iPorousBC)%UsingRegion) THEN
-    IF(ALL(PorousBC(iPorousBC)%RegionSideType(:).EQ.1)) THEN
-      CALL abort(__STAMP__&
-        ,'ERROR Porous BC: Check your region definition! No sides were found for porous BC number: ', iPorousBC)
-    END IF
   END IF
 END DO
 
@@ -793,5 +784,28 @@ ELSE
 END IF
 
 END SUBROUTINE GetRadialDistance2D
+
+
+SUBROUTINE FinalizePorousBoundaryCondition()
+!===================================================================================================================================
+!> Deallocates
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBC, MapBCtoPorousBC, MapSurfSideToPorousSide, PorousBCMacroVal
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SDEALLOCATE(PorousBCMacroVal)
+SDEALLOCATE(PorousBC)
+SDEALLOCATE(MapBCtoPorousBC)
+SDEALLOCATE(MapSurfSideToPorousSide)
+END SUBROUTINE FinalizePorousBoundaryCondition
 
 END MODULE MOD_Particle_Boundary_Porous
