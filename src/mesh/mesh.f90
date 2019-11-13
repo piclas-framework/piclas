@@ -331,9 +331,6 @@ CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral')
 ! assign 1/detJ (sJ)
 ! assign normal and tangential vectors and surfElems on faces
 #ifdef PARTICLES
-ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) )
-BezierControlPoints3D=0.
-
 ALLOCATE(SideSlabNormals(1:3,1:3,1:nSides),SideSlabIntervals(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
 SideSlabNormals=0.
 SideSlabIntervals=0.
@@ -375,7 +372,9 @@ CALL deleteMeshPointer()
 ! Initialize element volumes and characteristic lengths
 CALL InitElemVolumes()
 
+#ifndef PARTICLES
 DEALLOCATE(NodeCoords)
+#endif
 DEALLOCATE(dXCL_N)
 DEALLOCATE(Ja_Face)
 
@@ -406,11 +405,6 @@ USE MOD_Mesh_Vars,               ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm
                                        ,wBaryCL_NGeo,XiCL_NGeo,DeltaXi_NGeo
 USE MOD_Basis,                   ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis,                   ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
-#ifdef PARTICLES
-USE MOD_Mesh_Vars,               ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1
-USE MOD_Particle_Surfaces_Vars,  ONLY: Vdm_Bezier,sVdm_Bezier,D_Bezier
-USE MOD_Basis,                   ONLY: BuildBezierVdm,BuildBezierDMat
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -424,9 +418,6 @@ REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP
 ! LOCAL VARIABLES
 REAL,DIMENSION(0:N_in)                     :: XiCL_N,wBaryCL_N
 REAL,DIMENSION(0:NGeo_in)                  :: wBary_NGeo!: XiCL_NGeo,!,wBaryCL_NGeo,wBary_NGeo
-#ifdef PARTICLES
-!REAL,DIMENSION(0:NGeo_in)                  :: XiEquiPartCurved
-#endif
 INTEGER                                    :: i
 !===================================================================================================================================
 ALLOCATE(DCL_N(0:N_in,0:N_in),Vdm_CLN_GaussN(0:N_in,0:N_in))
@@ -458,25 +449,6 @@ CALL PolynomialDerivativeMatrix(NGeo_in,XiCL_NGeo,DCL_NGeo)
 CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,xGP      ,Vdm_CLNGeo_GaussN)
 CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,XiCL_N   ,Vdm_CLNGeo_CLN   )
 CALL InitializeVandermonde(NGeo_in,NGeo_in,wBary_NGeo  ,Xi_NGeo  ,XiCL_NGeo,Vdm_NGeo_CLNGeo  )
-#ifdef PARTICLES
-! small wBaryCL_NGEO
-ALLOCATE(wBaryCL_NGeo1(0:1),XiCL_NGeo1(0:1))
-CALL ChebyGaussLobNodesAndWeights(1,XiCL_NGeo1)
-CALL BarycentricWeights(1,XiCL_NGeo1,wBaryCL_NGeo1)
-ALLOCATE(Vdm_CLNGeo1_CLNGeo(0:NGeo_In,0:1) )
-CALL InitializeVandermonde(1, NGeo_in,wBaryCL_NGeo1,XiCL_NGeo1,XiCL_NGeo ,Vdm_CLNGeo1_CLNGeo)
-
-! new for curved particle sides
-ALLOCATE(Vdm_Bezier(0:NGeo_in,0:NGeo_in),sVdm_Bezier(0:NGeo_in,0:NGeo_in))
-! initialize vandermonde for super-sampled surfaces (particle tracking with curved elements)
-!DO i=0,NGeo_in
-!  XiEquiPartCurved(i) = 2./REAL(NGeo_in) * REAL(i) - 1.
-!END DO
-! initialize vandermonde for bezier basis surface representation (particle tracking with curved elements)
-CALL BuildBezierVdm(NGeo_in,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
-ALLOCATE(D_Bezier(0:NGeo_in,0:NGeo_in))
-CALL BuildBezierDMat(NGeo_in,Xi_NGeo,D_Bezier)
-#endif
 
 END SUBROUTINE InitMeshBasis
 

@@ -32,6 +32,9 @@ LOGICAL             :: ParticleMeshInitIsDone
 ! Mesh info
 !-----------------------------------------------------------------------------------------------------------------------------------
 
+INTEGER, ALLOCATABLE                     :: offSetTotalElems(:)
+INTEGER, ALLOCATABLE                     :: offSetSharedElems(:)
+
 ! periodic case
 INTEGER, ALLOCATABLE                     :: casematrix(:,:)   ! matrix to compute periodic cases
 INTEGER                                  :: NbrOfCases        ! Number of periodic cases
@@ -140,6 +143,14 @@ TYPE tNodeToElem
 END TYPE
 
 TYPE tGeometry
+#if USE_MPI
+  REAL                                   :: xmin_Shared              ! minimum x coord of all compute-node nodes
+  REAL                                   :: xmax_Shared              ! minimum y coord of all compute-node nodes
+  REAL                                   :: ymin_Shared              ! minimum z coord of all compute-node nodes
+  REAL                                   :: ymax_Shared              ! max x coord of all compute-node nodes
+  REAL                                   :: zmin_Shared              ! max y coord of all compute-node nodes
+  REAL                                   :: zmax_Shared              ! max z coord of all compute-node nodes
+#endif /*USE_MPI*/
   REAL                                   :: xminglob                 ! global minimum x coord of all nodes
   REAL                                   :: yminglob                 ! global minimum y coord of all nodes
   REAL                                   :: zminglob                 ! global minimum z coord of all nodes
@@ -172,6 +183,14 @@ TYPE tGeometry
   INTEGER                                :: FIBGMjmax                         ! biggest index of FastInitBGM (y)
   INTEGER                                :: FIBGMkmin                         ! smallest index of FastInitBGM (z)
   INTEGER                                :: FIBGMkmax                         ! biggest index of FastInitBGM (z)
+#if USE_MPI
+  REAL                                   :: FIBGMimin_Shared              ! smallest index of FastInitBGM (x) for compute-node
+  REAL                                   :: FIBGMimax_Shared              ! biggest index of FastInitBGM (x) for compute-node
+  REAL                                   :: FIBGMjmin_Shared              ! smallest index of FastInitBGM (y) for compute-node
+  REAL                                   :: FIBGMjmax_Shared              ! biggest index of FastInitBGM (y) for compute-node
+  REAL                                   :: FIBGMkmin_Shared              ! smallest index of FastInitBGM (z) for compute-node
+  REAL                                   :: FIBGMkmax_Shared              ! biggest index of FastInitBGM (z) for compute-node
+#endif /*USE_MPI*/
 
   TYPE (tFastInitBGM),ALLOCATABLE        :: TFIBGM(:,:,:)  !       =>NULL()   ! FastInitBackgroundMesh
   INTEGER                                :: TFIBGMimin                        ! smallest index of FastInitBGM (x)

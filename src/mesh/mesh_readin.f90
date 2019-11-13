@@ -27,29 +27,6 @@ USE MOD_HDF5_Input
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
-!> @defgroup eleminfo ElemInfo parameters
-!>  Named parameters for ElemInfo array in mesh file
-!> @{
-INTEGER,PARAMETER    :: ElemInfoSize=6        !< number of entry in each line of ElemInfo
-INTEGER,PARAMETER    :: ELEM_Type=1           !< entry position,
-INTEGER,PARAMETER    :: ELEM_Zone=2
-INTEGER,PARAMETER    :: ELEM_FirstSideInd=3
-INTEGER,PARAMETER    :: ELEM_LastSideInd=4
-INTEGER,PARAMETER    :: ELEM_FirstNodeInd=5
-INTEGER,PARAMETER    :: ELEM_LastNodeInd=6
-!> @}
-
-!> @defgroup sideinfo SideInfo parameters
-!>  Named parameters for SideInfo array in mesh file
-!> @{
-INTEGER,PARAMETER    :: SideInfoSize=5        !< number of entries in each line of SideInfo
-INTEGER,PARAMETER    :: SIDE_Type=1
-INTEGER,PARAMETER    :: SIDE_ID=2
-INTEGER,PARAMETER    :: SIDE_nbElemID=3
-INTEGER,PARAMETER    :: SIDE_Flip=4
-INTEGER,PARAMETER    :: SIDE_BCID=5
-!> @}
-
 INTEGER,ALLOCATABLE  :: NodeInfo(:)
 INTEGER,ALLOCATABLE  :: NodeMap(:)
 INTEGER              :: nNodeIDs
@@ -391,34 +368,35 @@ CALL readBCs()
 !read local ElemInfo from data file
 FirstElemInd=offsetElem+1
 LastElemInd=offsetElem+nElems
-ALLOCATE(Elems(                FirstElemInd:LastElemInd))
-ALLOCATE(ElemInfo(ElemInfoSize,FirstElemInd:LastElemInd))
+ALLOCATE(Elems(                   FirstElemInd:LastElemInd))
+ALLOCATE(ElemInfo(ELEMINFOSIZE_H5,FirstElemInd:LastElemInd))
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-      ElemInfoSize => INT(ElemInfoSize,IK) ,&
+      ElemInfoSize => INT(ELEMINFOSIZE_H5,IK) ,&
       nElems       => INT(nElems,IK)       ,&
       offsetElem   => INT(offsetElem,IK)  )
-  CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray_i4=ElemInfo)
+  CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray_i4=ElemInfo(1:ElemInfoSize,:))
 END ASSOCIATE
 
 DO iElem=FirstElemInd,LastElemInd
-  iSide=ElemInfo(ELEM_FirstSideInd,iElem) !first index -1 in Sideinfo
-  iNode=ElemInfo(ELEM_FirstNodeInd,iElem) !first index -1 in NodeInfo
+  iSide=ElemInfo(ELEM_FIRSTSIDEIND,iElem) !first index -1 in Sideinfo
+  iNode=ElemInfo(ELEM_FIRSTNODEIND,iElem) !first index -1 in NodeInfo
   Elems(iElem)%ep=>GETNEWELEM()
   aElem=>Elems(iElem)%ep
   aElem%Ind    = iElem
-  aElem%Type   = ElemInfo(ELEM_Type,iElem)
-  aElem%Zone   = ElemInfo(ELEM_Zone,iElem)
+  aElem%Type   = ElemInfo(ELEM_TYPE,iElem)
+  aElem%Zone   = ElemInfo(ELEM_ZONE,iElem)
 END DO
 
 #if USE_MPI
 CALL MPI_ALLREDUCE(nElems,nTotalElems,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
 CALL MPI_ALLREDUCE(nElems,nElems_Shared,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
-MPISharedSize = INT((ElemInfoSize+1)*nTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/ElemInfoSize+1,nTotalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
+MPISharedSize = INT((ELEM_HALOFLAG)*nTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/ELEMINFOSIZE,nTotalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemInfo_Shared_Win,IERROR)
-ElemInfo_Shared(1:ElemInfoSize,offsetElem+1:offsetElem+nElems) = ElemInfo(:,:)
+ElemInfo_Shared(1:ELEMINFOSIZE_H5,offsetElem+1:offsetElem+nElems) = ElemInfo(:,:)
+ElemInfo_Shared(ELEM_RANK,offsetElem+1:offsetElem+nElems) = myRank
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
 IF(myRank_Shared.EQ.0) THEN
   OffsetElem_Shared=offsetElem
@@ -432,41 +410,45 @@ END IF
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 #endif /*USE_MPI*/
-offsetSideID=ElemInfo(ELEM_FirstSideInd,FirstElemInd) ! hdf5 array starts at 0-> -1
-nSideIDs=ElemInfo(ELEM_LastSideInd,LastElemInd)-ElemInfo(ELEM_FirstSideInd,FirstElemInd)
+offsetSideID=ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nSideIDs=ElemInfo(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
 !read local SideInfo from data file
 FirstSideInd=offsetSideID+1
 LastSideInd=offsetSideID+nSideIDs
-ALLOCATE(SideInfo(SideInfoSize,FirstSideInd:LastSideInd))
+ALLOCATE(SideInfo(SIDEINFOSIZE,FirstSideInd:LastSideInd))
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-      SideInfoSize   => INT(SideInfoSize,IK)   ,&
+      SideInfoSize   => INT(SIDEINFOSIZE_H5,IK)   ,&
       nSideIDs       => INT(nSideIDs,IK)       ,&
       offsetSideID   => INT(offsetSideID,IK)  )
-  CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo)
+  CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo(1:SideInfoSize,:))
 END ASSOCIATE
 
 #if USE_MPI
+DO iElem=FirstElemInd,LastElemInd
+  iSide=ElemInfo(ELEM_FIRSTSIDEIND,iElem) !first index -1 in Sideinfo
+  SideInfo(SIDE_ELEMID,iSide+1:iSide+6) = iElem
+END DO
 CALL MPI_ALLREDUCE(nSideIDs,nTotalSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
-MPISharedSize = INT((SideInfoSize+1)*nTotalSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/SideInfoSize+1,nTotalSides/),SideInfo_Shared_Win,SideInfo_Shared)
+MPISharedSize = INT((SIDEINFOSIZE+1)*nTotalSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/SIDEINFOSIZE+1,nTotalSides/),SideInfo_Shared_Win,SideInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideInfo_Shared_Win,IERROR)
-SideInfo_Shared(1:SideInfoSize,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo(:,:)
-SideInfo_Shared(SideInfoSize+1,offsetSideID+1:offsetSideID+nSideIDs) = 0
+SideInfo_Shared(1:SIDEINFOSIZE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo(:,:)
+SideInfo_Shared(SIDEINFOSIZE+1,offsetSideID+1:offsetSideID+nSideIDs) = 0
 CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
 #endif  /*USE_MPI*/
 
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
-  iSide=ElemInfo(ELEM_FirstSideInd,iElem) !first index -1 in Sideinfo
+  iSide=ElemInfo(ELEM_FIRSTSIDEIND,iElem) !first index -1 in Sideinfo
   !build up sides of the element according to CGNS standard
   ! assign flip
   DO iLocSide=1,6
     aSide=>aElem%Side(iLocSide)%sp
     iSide=iSide+1
     ! ALLOCATE MORTAR
-    ElemID=SideInfo(SIDE_nbElemID,iSide) !IF nbElemID <0, this marks a mortar master side.
+    ElemID=SideInfo(SIDE_NBELEMID,iSide) !IF nbElemID <0, this marks a mortar master side.
                                          ! The number (-1,-2,-3) is the Type of mortar
     IF(ElemID.LT.0)THEN ! mortar Sides attached!
       aSide%MortarType=ABS(ElemID)
@@ -483,7 +465,7 @@ DO iElem=FirstElemInd,LastElemInd
     ELSE
       aSide%nMortars=0
     END IF
-    IF(SideInfo(SIDE_Type,iSide).LT.0) aSide%MortarType=-10 !marks small neighbor  side as belonging to a mortar
+    IF(SideInfo(SIDE_TYPE,iSide).LT.0) aSide%MortarType=-10 !marks small neighbor  side as belonging to a mortar
 
     IF(aSide%MortarType.LE.0)THEN
       aSide%Elem=>aElem
@@ -495,7 +477,7 @@ DO iElem=FirstElemInd,LastElemInd
         aSide%BC_Alpha=99
 #endif /*PARTICLES*/
       ELSE !not oriented
-        aSide%flip=MOD(Sideinfo(SIDE_Flip,iSide),10)
+        aSide%flip=MOD(Sideinfo(SIDE_FLIP,ISIde),10)
         IF((aSide%flip.LT.0).OR.(aSide%flip.GT.4)) STOP 'NodeID doesnt belong to side'
 #ifdef PARTICLES
         aSide%BC_Alpha=-99
@@ -519,7 +501,7 @@ END DO !iElem
 ! build up side connection
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
-  iSide=ElemInfo(ELEM_FirstSideInd,iElem) !first index -1 in Sideinfo
+  iSide=ElemInfo(ELEM_FIRSTSIDEIND,iElem) !first index -1 in Sideinfo
   DO iLocSide=1,6
     aSide=>aElem%Side(iLocSide)%sp
     iSide=iSide+1
@@ -530,7 +512,7 @@ DO iElem=FirstElemInd,LastElemInd
         iSide=iSide+1
         aSide=>aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp
       END IF
-      elemID  = SideInfo(SIDE_nbElemID,iSide)
+      elemID  = SideInfo(SIDE_NBELEMID,iSide)
       BCindex = SideInfo(SIDE_BCID,iSide)
 
       doConnection=.TRUE. ! for periodic sides if BC is reassigned as non periodic
@@ -582,9 +564,9 @@ DO iElem=FirstElemInd,LastElemInd
           aSide%NbProc = ELEMIPROC(elemID)
           IF (ElemID.LE.offsetElem_Shared+1 .OR. ElemID.GT.offSetElem_Shared+nElems_Shared) THEN
             ! neighbour element is outside of compute-node
-            SideInfo_Shared(SideInfoSize+1,iSide) = 2
+            SideInfo_Shared(SIDEINFOSIZE+1,iSide) = 2
           ELSE
-            SideInfo_Shared(SideInfoSize+1,iSide) = 1
+            SideInfo_Shared(SIDEINFOSIZE+1,iSide) = 1
           END IF ! ElemID.LT.offsetElem_Shared+1 .OR. ElemID.GT.offSetElem_Shared+nElems_Shared
 #else
           CALL abort(__STAMP__, &
@@ -605,8 +587,8 @@ CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
 !----------------------------------------------------------------------------------------------------------------------------
 
 !read local Node Info from data file
-offsetNodeID=ElemInfo(ELEM_FirstNodeInd,FirstElemInd) ! hdf5 array starts at 0-> -1
-nNodeIDs=ElemInfo(ELEM_LastNodeInd,LastElemInd)-ElemInfo(ELEM_FirstNodeInd,FirstElemind)
+offsetNodeID=ElemInfo(ELEM_FIRSTNODEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nNodeIDs=ElemInfo(ELEM_LASTNODEIND,LastElemInd)-ElemInfo(ELEM_FIRSTNODEIND,FirstElemind)
 FirstNodeInd=offsetNodeID+1
 LastNodeInd=offsetNodeID+nNodeIDs
 ALLOCATE(NodeInfo(FirstNodeInd:LastNodeInd))
@@ -655,9 +637,9 @@ CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
 !assign nodes and get physical coordinates to Node pointers (new procedure compared to old mapping due to new meshformat)
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
-  !iNode=ElemInfo(ELEM_FirstNodeInd,iElem) !first index -1 in NodeInfo
+  !iNode=ElemInfo(ELEM_FIRSTNODEIND,iElem) !first index -1 in NodeInfo
   DO jNode=1,8
-    iNode = ElemInfo(ELEM_FirstNodeInd,iElem)+CornerNodeIDswitch(jNode)
+    iNode = ElemInfo(ELEM_FIRSTNODEIND,iElem)+CornerNodeIDswitch(jNode)
     NodeID=ABS(NodeInfo(iNode))       !global, unique NodeID
     iNodeP=INVMAP(NodeID,nNodes,NodeMap)  ! index in local Nodes pointer array
     IF(iNodeP.LE.0) STOP 'Problem in INVMAP'
@@ -776,9 +758,9 @@ CALL MPI_ALLREDUCE(nNodeIDs,nTotalNodes_Shared,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SH
 IF(myRank_Shared.EQ.0)THEN
   OffsetNodeID_Shared=offsetNodeID
   CALL MPI_BCAST(offSetNodeID_Shared,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared(1:ElemInfoSize,:),ElemInfoSize*nTotalElems  &
+  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared(1:ELEMINFOSIZE-1,:),(ELEMINFOSIZE-1)*nTotalElems  &
       ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared(1:SideInfoSize,:)   ,SideInfoSize*nTotalSides  &
+  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared(1:SIDEINFOSIZE,:)   ,SIDEINFOSIZE*nTotalSides  &
       ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
   CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeInfo_Shared   ,nTotalNodes  &
       ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)

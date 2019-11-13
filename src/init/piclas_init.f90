@@ -91,8 +91,6 @@ USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_Init
 USE MOD_ParticleInit         ,ONLY: InitParticles
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
-USE MOD_Particle_Surfaces    ,ONLY: InitParticleSurfaces
-USE MOD_Particle_Mesh        ,ONLY: InitParticleMesh, InitElemBoundingBox
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
@@ -176,14 +174,6 @@ CALL InitMesh()
 #if USE_MPI
 CALL InitMPIVars()
 #endif /*USE_MPI*/
-#ifdef PARTICLES
-!#if USE_MPI
-CALL InitParticleMPI
-CALL InitElemBoundingBox()
-!#endif /*USE_MPI*/
-CALL InitParticleSurfaces()
-!CALL InitParticleMesh()
-#endif /*PARTICLES*/
 CALL InitEquation()
 CALL InitBC()
 !#ifdef PARTICLES
@@ -203,6 +193,7 @@ CALL InitLinearSolver()
 !CALL InitCSR()
 !#endif /*IMEX*/
 #ifdef PARTICLES
+CALL InitParticleMPI
 CALL InitParticles()
 #if defined(IMPA) || defined(ROS)
 CALL InitPartSolver()

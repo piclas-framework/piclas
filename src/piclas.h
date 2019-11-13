@@ -86,6 +86,33 @@
 #define MPI_INTEGER_INT_KIND MPI_INTEGER
 #endif
 
+! number of entry in each line of ElemInfo
+#define ELEMINFOSIZE_H5   6
+#if USE_MPI
+#define ELEMINFOSIZE      8
+#else
+#define ELEMINFOSIZE      6
+#endif /* USE_MPI*/
+! ElemInfo in H5 file
+#define ELEM_TYPE         1
+#define ELEM_ZONE         2
+#define ELEM_FIRSTSIDEIND 3
+#define ELEM_LASTSIDEIND  4
+#define ELEM_FIRSTNODEIND 5
+#define ELEM_LASTNODEIND  6
+! ElemInfo for shared array
+#define ELEM_RANK         7
+#define ELEM_HALOFLAG     8
+! number of entries in each line of SideInfo
+#define SIDEINFOSIZE_H5   5
+#define SIDEINFOSIZE      6
+#define SIDE_TYPE         1
+#define SIDE_ID           2
+#define SIDE_NBELEMID     3
+#define SIDE_FLIP         4
+#define SIDE_BCID         5
+#define SIDE_ELEMID       6
+
 ! Predefined "PARAMETER-like" variables
 #define XI_MINUS   5
 #define XI_PLUS    3

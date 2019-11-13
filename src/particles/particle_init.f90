@@ -1064,7 +1064,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,Aux
 USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh,InitParticleGeometry
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
-USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
+USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs, deleteMeshPointer, NodeCoords
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, TriaSurfaceFlux
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas, RadialWeighting
 USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
@@ -2724,6 +2724,7 @@ IF (TriaTracking) THEN
 END IF
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
 CALL deleteMeshPointer()
+DEALLOCATE(NodeCoords)
 
 CALL InitFIBGM()
 

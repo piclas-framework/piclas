@@ -75,5 +75,19 @@ INTEGER         :: FIBGM_nElem_Shared_Win
 INTEGER,POINTER :: FIBGM_Element_Shared(:)                 ! FastInitBackgroundMesh of compute node
 INTEGER         :: FIBGM_Element_Shared_Win
 
+REAL,POINTER    :: BoundsOfElem_Shared(:,:)              ! Cartesian bouding box around element
+INTEGER         :: BoundsOfElem_Shared_Win
+INTEGER,POINTER :: ElemToBGM_Shared(:,:)               ! BGM Bounding box around element (respective BGM indeces) of compute node
+INTEGER         :: ElemToBGM_Shared_Win
+INTEGER,POINTER :: FIBGM_offsetElem_Shared(:,:,:)
+INTEGER         :: FIBGM_offsetElem_Shared_Win
+
+REAL,POINTER    :: XCL_NGeo_Shared(:,:,:,:,:)
+INTEGER         :: XCL_NGeo_Shared_Win
+REAL,POINTER    :: dXCL_NGeo_Shared(:,:,:,:,:,:)
+INTEGER         :: dXCL_NGeo_Shared_Win
+REAL,POINTER    :: BezierControlPoints3D_Shared(:,:,:,:)
+INTEGER         :: BezierControlPoints3D_Shared_Win
+
 #endif /* USE_MPI */
 END MODULE

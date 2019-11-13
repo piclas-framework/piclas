@@ -206,7 +206,8 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_BGM           ,ONLY: BuildBGM
+USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo,dXCL_NGeo, InterpolateFromTree,Xi_NGeo,NodeCoords
+USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation,BezierControlPoints3DElevated
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts,CartesianPeriodic
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, WriteTriaDebugMesh
@@ -217,6 +218,13 @@ USE MOD_Mesh_Vars              ,ONLY: nElems,nSides,nNodes,SideToElem,ElemToSide
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux,WriteTriaSurfaceFluxDebugMesh
 USE MOD_Mesh_Vars              ,ONLY: useCurveds,NGeo,MortarType
+USE MOD_Mesh_Vars              ,ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1
+USE MOD_Particle_Surfaces_Vars ,ONLY: Vdm_Bezier,sVdm_Bezier,D_Bezier
+USE MOD_Basis                  ,ONLY: BuildBezierVdm,BuildBezierDMat
+USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
+USE MOD_Basis                  ,ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 !#if USE_MPI
 USE MOD_MPI_Shared_Vars
 ! IMPLICIT VARIABLE HANDLING
@@ -228,9 +236,14 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: ALLOCSTAT,RefMappingGuessProposal
-INTEGER           :: iElem, ilocSide,iSide,iSample,ElemIDGlob, SideIDMortar
-CHARACTER(LEN=2)  :: hilf
+INTEGER                        :: ALLOCSTAT,RefMappingGuessProposal
+INTEGER                        :: iElem, ilocSide,iSide,iSample,ElemIDGlob, SideIDMortar
+CHARACTER(LEN=2)               :: hilf
+REAL                           :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
+INTEGER                        :: ElemID, firstElem, lastElem, firstHaloElem, lastHaloElem, nHaloElems
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+INTEGER                        :: firstNodeID, nNodeIDs, nodeID, i, j, k
+REAL                           :: NodeCoordstmp(1:3,0:NGeo,0:NGeo,0:NGeo)
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -239,21 +252,35 @@ IF(ParticleMeshInitIsDone) CALL abort(&
 __STAMP__&
 , ' Particle-Mesh is already initialized.')
 
-CALL GetMeshMinMax()
-CALL BuildBGM()
-!CALL IdentifyHaloRegion()
-!CALL ReduceSharedArrays()
+! small wBaryCL_NGEO
+ALLOCATE(wBaryCL_NGeo1(0:1),&
+         XiCL_NGeo1(0:1))
+CALL ChebyGaussLobNodesAndWeights(1,XiCL_NGeo1)
+CALL BarycentricWeights(1,XiCL_NGeo1,wBaryCL_NGeo1)
+ALLOCATE(Vdm_CLNGeo1_CLNGeo(0:NGeo,0:1) )
+CALL InitializeVandermonde(1, NGeo,wBaryCL_NGeo1,XiCL_NGeo1,XiCL_NGeo ,Vdm_CLNGeo1_CLNGeo)
+! new for curved particle sides
+ALLOCATE(Vdm_Bezier(0:NGeo,0:NGeo),sVdm_Bezier(0:NGeo,0:NGeo))
+! initialize vandermonde for bezier basis surface representation (particle tracking with curved elements)
+CALL BuildBezierVdm(NGeo,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
+ALLOCATE(D_Bezier(0:NGeo,0:NGeo))
+CALL BuildBezierDMat(NGeo,Xi_NGeo,D_Bezier)
 
-nTotalBCSides=nTotalSides_Shared
-ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalElems_Shared)    &
-        ,PartSideToElem(1:5,1:nTotalSides_Shared)        &
-        ,STAT=ALLOCSTAT                      )
-IF (ALLOCSTAT.NE.0) CALL abort(&
-__STAMP__&
-,'  Cannot allocate particle mesh vars!')
+CALL InitializeVandermonde(NGeo,NGeo,wBaryCL_NGeo,Xi_NGeo,XiCL_NGeo,Vdm_NGeo_CLNGeo)
+
+CALL GetMeshMinMax()
+CALL BuildBGMAndIdentifyHaloRegion()
+
+!nTotalBCSides=nTotalSides_Shared
+!ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalElems_Shared)    &
+!        ,PartSideToElem(1:5,1:nTotalSides_Shared)        &
+!        ,STAT=ALLOCSTAT                      )
+!IF (ALLOCSTAT.NE.0) CALL abort(&
+!__STAMP__&
+!,'  Cannot allocate particle mesh vars!')
 ! nullify
-PartElemToSide=-1
-PartSideToElem=-1
+!PartElemToSide=-1
+!PartSideToElem=-1
 
 DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
 TriaTracking       = GETLOGICAL('TriaTracking','.FALSE.')
@@ -320,7 +347,67 @@ END IF
 !,' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',RefMappingGuess)
 !END IF
 
-CALL CalcBezierControlPointsElevated(....)
+nHaloElems = nTotalElems_Shared - nElems_Shared
+IF (.NOT.TriaTracking) THEN
+  MPISharedSize = INT((3*(NGeo+1)**3*nElems_Shared),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/3,NGeo+1,NGeo+1,NGeo+1,nElems_Shared/),XCL_NGeo_Shared_Win,XCL_NGeo_Shared)
+  MPISharedSize = INT((3*3*(NGeo+1)**3*nElems_Shared),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/3,3,NGeo+1,NGeo+1,NGeo+1,nElems_Shared/),dXCL_NGeo_Shared_Win,dXCL_NGeo_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,BezierControlPoints3D_Shared_Win,IERROR)
+  CALL MPI_WIN_LOCK_ALL(0,XCL_NGeo_Shared_Win,IERROR)
+  CALL MPI_WIN_LOCK_ALL(0,dXCL_NGeo_Shared_Win,IERROR)
+  firstElem=INT(REAL(myRank_Shared*nTotalElems_Shared)/REAL(nProcessors_Shared))+1
+  lastElem=INT(REAL((myRank_Shared+1)*nTotalElems_Shared)/REAL(nProcessors_Shared))
+  DO iElem = 1, nElems
+    XCL_NGeo_Shared(:,:,:,:,offSetSharedElems(offsetElem+iElem)) = XCL_NGeo(:,:,:,:,iElem)
+    dXCL_NGeo_Shared(:,:,:,:,:,offSetSharedElems(offsetElem+iElem)) = dXCL_NGeo(:,:,:,:,:,iElem)
+  END DO ! iElem = 1, nElems
+  IF (nHaloElems.GT.nProcessors_Shared) THEN
+    firstHaloElem=INT(REAL(myRank_Shared*nHaloElems)/REAL(nProcessors_Shared))+1
+    lastHaloElem=INT(REAL((myRank_Shared+1)*nHaloElems)/REAL(nProcessors_Shared))
+  ELSE
+    firstHaloElem = myRank_Shared + 1
+    IF (myRank_Shared.LT.nHaloElems) THEN
+      lastHaloElem = myRank_Shared + 1
+    ELSE
+      lastHaloElem = 0
+    END IF
+  END IF
+  ! build XCL_NGEo for halo region
+  IF(interpolateFromTree) THEN
+    CALL abort(&
+      __STAMP__&
+      ,'ERROR: Stephen failed')
+  ELSE
+    DO iElem = firstHaloElem, lastHaloElem
+      ElemID = offsetTotalElems(nElems_Shared+iElem)
+      firstNodeID=ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)
+      nNodeIDs=ElemInfo_Shared(ELEM_LASTNODEIND,iElem)-ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)
+      nodeID = 0
+      DO i = 0, NGeo
+        DO j = 0, NGeo
+          DO k = 0, NGeo
+            NodeCoordstmp(:,i,j,k) = NodeCoords_Shared(1,firstNodeID+NodeID)
+            nodeID = nodeID + 1
+          END DO
+        END DO
+      END DO ! i = 0, NGeo
+      CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_NGeo_CLNGeo,NodeCoordstmp,XCL_Ngeo_Shared(:,:,:,:,ElemID))
+    END DO ! iElem = firstHaloElem, lastHaloElem
+  END IF
+  CALL MPI_WIN_SYNC(XCL_NGeo_Shared_Win,IERROR)
+  CALL MPI_WIN_SYNC(dXCL_NGeo_Shared_Win,IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+  MPISharedSize = INT((3*(NGeo+1)**2*nTotalSides_Shared),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/3,NGeo+1,NGeo+1,nTotalSides_Shared/),BezierControlPoints3D_Shared_Win,BezierControlPoints3D_Shared)
+
+  DO iElem = firstElem, lastElem
+    !CALL GetBezierControlPoints3D(XCL_NGeo_Shared,iElem)
+    !CALL CalcBezierControlPointsElevated(....)
+  END DO ! iElem = firstElem, lastElem
+  CALL MPI_WIN_SYNC(BezierControlPoints3D_Shared_Win,IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+END IF
 
 ! BezierAreaSample stuff:
 WRITE(hilf,'(L1)') TriaTracking
@@ -373,41 +460,41 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitParticleMesh
 
 
-SUBROUTINE CalcBezierControlPointsElevated(XCL_NGeo_Out,dXCL_NGeo_out)
-!===================================================================================================================================
-!> This routine computes the geometries volume metric terms.
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-USE MOD_Mesh_Vars,               ONLY:NGeo,NGeoRef
-USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,crossProductMetrics
-USE MOD_Mesh_Vars,               ONLY:Face_xGP,normVec,surfElem,TangVec1,TangVec2
-USE MOD_Mesh_Vars,               ONLY:nElems,dXCL_N
-USE MOD_Mesh_Vars,               ONLY:detJac_Ref,Ja_Face
-USE MOD_Mesh_Vars,               ONLY:crossProductMetrics
-USE MOD_Mesh_Vars,               ONLY:NodeCoords,TreeCoords,Elem_xGP
-USE MOD_Mesh_Vars,               ONLY:ElemToTree,xiMinMax,interpolateFromTree
-USE MOD_Mesh_Vars,               ONLY:nElems,offSetElem
-USE MOD_Interpolation,           ONLY:GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
-USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
-USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
-#ifdef PARTICLES
-#if USE_MPI
-USE MOD_Mesh_Vars,               ONLY:nSides
-#endif
-USE MOD_Mesh_Vars,               ONLY:NGeoElevated
-USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals
-USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D
-USE MOD_Mesh_Vars,               ONLY:SideToElem
-USE MOD_Mesh_Vars,               ONLY:MortarSlave2MasterInfo
-USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
-                                        ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
-#if !(USE_MPI)
-USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMortarInnerSides
-#endif /*!(USE_MPI)*/
-#endif /*PARTICLES*/
+!SUBROUTINE CalcBezierControlPointsElevated(XCL_NGeo_Out,dXCL_NGeo_out)
+!!===================================================================================================================================
+!!> This routine computes the geometries volume metric terms.
+!!===================================================================================================================================
+!! MODULES
+!USE MOD_Globals
+!USE MOD_PreProc
+!USE MOD_Mesh_Vars,               ONLY:NGeo,NGeoRef
+!USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,crossProductMetrics
+!USE MOD_Mesh_Vars,               ONLY:Face_xGP,normVec,surfElem,TangVec1,TangVec2
+!USE MOD_Mesh_Vars,               ONLY:nElems,dXCL_N
+!USE MOD_Mesh_Vars,               ONLY:detJac_Ref,Ja_Face
+!USE MOD_Mesh_Vars,               ONLY:crossProductMetrics
+!USE MOD_Mesh_Vars,               ONLY:NodeCoords,TreeCoords,Elem_xGP
+!USE MOD_Mesh_Vars,               ONLY:ElemToTree,xiMinMax,interpolateFromTree
+!USE MOD_Mesh_Vars,               ONLY:nElems,offSetElem
+!USE MOD_Interpolation,           ONLY:GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
+!USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
+!USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
+!USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
+!#ifdef PARTICLES
+!#if USE_MPI
+!USE MOD_Mesh_Vars,               ONLY:nSides
+!#endif
+!USE MOD_Mesh_Vars,               ONLY:NGeoElevated
+!USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals
+!USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D
+!USE MOD_Mesh_Vars,               ONLY:SideToElem
+!USE MOD_Mesh_Vars,               ONLY:MortarSlave2MasterInfo
+!USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
+!                                        ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
+!#if !(USE_MPI)
+!USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMortarInnerSides
+!#endif /*!(USE_MPI)*/
+!#endif /*PARTICLES*/
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -415,79 +502,79 @@ USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMortarInnerSides
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: ALLOCSTAT,RefMappingGuessProposal
-INTEGER           :: iElem, ilocSide,iSide,iSample,ElemIDGlob, SideIDMortar
-CHARACTER(LEN=2)  :: hilf
+!INTEGER           :: ALLOCSTAT,RefMappingGuessProposal
+!INTEGER           :: iElem, ilocSide,iSide,iSample,ElemIDGlob, SideIDMortar
+!CHARACTER(LEN=2)  :: hilf
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)') ' '
-SWRITE(UNIT_stdOut,'(A)') 'BEZIERCONTROLPOINTS ...'
-StartT2=PICLASTIME()
+!SWRITE(UNIT_stdOut,'(A)') ' '
+!SWRITE(UNIT_stdOut,'(A)') 'BEZIERCONTROLPOINTS ...'
+!StartT2=PICLASTIME()
 
-BezierElevation = GETINT('BezierElevation','0')
-NGeoElevated    = NGeo + BezierElevation
-SDEALLOCATE(BezierControlPoints3DElevated)
-ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeo+BezierElevation,0:NGeo+BezierElevation,1:nSides) &
-        ,STAT=ALLOCSTAT )
-IF (ALLOCSTAT.NE.0) CALL abort(&
-__STAMP__&
-,'  Cannot allocate BezierControlPoints3DElevated!')
-BezierControlPoints3DElevated=0.
+!BezierElevation = GETINT('BezierElevation','0')
+!NGeoElevated    = NGeo + BezierElevation
+!SDEALLOCATE(BezierControlPoints3DElevated)
+!ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeo+BezierElevation,0:NGeo+BezierElevation,1:nSides) &
+!        ,STAT=ALLOCSTAT )
+!IF (ALLOCSTAT.NE.0) CALL abort(&
+!__STAMP__&
+!,'  Cannot allocate BezierControlPoints3DElevated!')
+!BezierControlPoints3DElevated=0.
 
-BezierTime=0.
+!BezierTime=0.
 
-#if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
-#endif /*USE_MPI*/
+!#if USE_MPI
+!CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+!#endif /*USE_MPI*/
 
-#if USE_MPI
-lowerLimit=nSides ! all incl. my mortar sides
-#else
-lowerLimit=nBCSides+nMortarInnerSides+nInnerSides
-#endif /*USE_MPI*/
+!#if USE_MPI
+!lowerLimit=nSides ! all incl. my mortar sides
+!#else
+!lowerLimit=nBCSides+nMortarInnerSides+nInnerSides
+!#endif /*USE_MPI*/
 
-! Next, build the BezierControlPoints,SideSlabNormals,SideSlabIntervals and BoundingBoxIsEmpty for
-! nBCSides, nInnerMortarSides, nInnerSides, nMPISides_MINE and MINE mortar sides
-! this requires check for flip and MortarSlave2Master
-DO iSide=1,lowerLimit
-  ! check flip or mortar sideid
-  ElemID  =SideToElem(S2E_ELEM_ID,iSide)
-  NBElemID=SideToElem(S2E_NB_ELEM_ID,iSide)
-  SideID=MortarSlave2MasterInfo(iSide)
-  IF(ElemID.EQ.NBElemID)THEN
-    IF(ElemID.EQ.-1) BezierControlPoints3D(:,:,:,iSide)=BezierControlPoints3D(:,:,:,SideID)
-  END IF
-  ! elevation occurs within this routine
-  IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
-  CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
-                                     ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
-                                     ,SideSlabNormals(1:3,1:3,iSide)                                         &
-                                     ,SideSlabInterVals(1:6,iSide)                                           &
-                                     ,BoundingBoxIsEmpty(iSide)                                              )
-END DO
+!! Next, build the BezierControlPoints,SideSlabNormals,SideSlabIntervals and BoundingBoxIsEmpty for
+!! nBCSides, nInnerMortarSides, nInnerSides, nMPISides_MINE and MINE mortar sides
+!! this requires check for flip and MortarSlave2Master
+!DO iSide=1,lowerLimit
+!  ! check flip or mortar sideid
+!  ElemID  =SideToElem(S2E_ELEM_ID,iSide)
+!  NBElemID=SideToElem(S2E_NB_ELEM_ID,iSide)
+!  SideID=MortarSlave2MasterInfo(iSide)
+!  IF(ElemID.EQ.NBElemID)THEN
+!    IF(ElemID.EQ.-1) BezierControlPoints3D(:,:,:,iSide)=BezierControlPoints3D(:,:,:,SideID)
+!  END IF
+!  ! elevation occurs within this routine
+!  IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
+!  CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
+!                                     ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
+!                                     ,SideSlabNormals(1:3,1:3,iSide)                                         &
+!                                     ,SideSlabInterVals(1:6,iSide)                                           &
+!                                     ,BoundingBoxIsEmpty(iSide)                                              )
+!END DO
 
-! here, check the BC-control-points
-DO iSide=1,lowerLimit
-  ElemID=SideToElem(S2E_ELEM_ID,iSide)
-  SideID=MortarSlave2MasterInfo(iSide)
-  ! elevation occurs within this routine
-  IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
-  IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10)THEN
-    IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Warning, BezierControlPoint is zero! SideID:', iSide
-    IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Elem and NBElemID:', ElemID,SideToElem(S2E_NB_ELEM_ID,iSide)
-    IPWRITE(UNIT_stdOut,*) 'Points',BezierControlPoints3D(:,:,:,iSide)
-  END IF
-END DO
+!! here, check the BC-control-points
+!DO iSide=1,lowerLimit
+!  ElemID=SideToElem(S2E_ELEM_ID,iSide)
+!  SideID=MortarSlave2MasterInfo(iSide)
+!  ! elevation occurs within this routine
+!  IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
+!  IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10)THEN
+!    IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Warning, BezierControlPoint is zero! SideID:', iSide
+!    IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Elem and NBElemID:', ElemID,SideToElem(S2E_NB_ELEM_ID,iSide)
+!    IPWRITE(UNIT_stdOut,*) 'Points',BezierControlPoints3D(:,:,:,iSide)
+!  END IF
+!END DO
 
-endT=PICLASTIME()
-BezierTime=BezierTime+endT-StartT2
+!endT=PICLASTIME()
+!BezierTime=BezierTime+endT-StartT2
 
-SWRITE(UNIT_stdOut,'(A)') ' '
-endt=PICLASTIME()
-SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of Bezier control points took [',BezierTime            ,'s]'
-SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT-BezierTime,'s]'
+!SWRITE(UNIT_stdOut,'(A)') ' '
+!endt=PICLASTIME()
+!SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of Bezier control points took [',BezierTime            ,'s]'
+!SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT-BezierTime,'s]'
 
-END SUBROUTINE CalcBezierControlPointsElevated
+!END SUBROUTINE CalcBezierControlPointsElevated
 
 
 SUBROUTINE InitParticleGeometry()
@@ -6355,7 +6442,7 @@ SUBROUTINE GetMeshMinMax()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Mesh_Vars          ,ONLY: NodeCoords
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
 #endif /*USE_MPI*/
@@ -6367,14 +6454,16 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL,POINTER                   :: NodeCoordsPointer(:,:,:,:,:)
 !===================================================================================================================================
 
-GEO%xmin=MINVAL(NodeCoords(1,:,:,:,:))
-GEO%xmax=MAXVAL(NodeCoords(1,:,:,:,:))
-GEO%ymin=MINVAL(NodeCoords(2,:,:,:,:))
-GEO%ymax=MAXVAL(NodeCoords(2,:,:,:,:))
-GEO%zmin=MINVAL(NodeCoords(3,:,:,:,:))
-GEO%zmax=MAXVAL(NodeCoords(3,:,:,:,:))
+NodeCoordsPointer => NodeCoords
+GEO%xmin=MINVAL(NodeCoordsPointer(1,:,:,:,:))
+GEO%xmax=MAXVAL(NodeCoordsPointer(1,:,:,:,:))
+GEO%ymin=MINVAL(NodeCoordsPointer(2,:,:,:,:))
+GEO%ymax=MAXVAL(NodeCoordsPointer(2,:,:,:,:))
+GEO%zmin=MINVAL(NodeCoordsPointer(3,:,:,:,:))
+GEO%zmax=MAXVAL(NodeCoordsPointer(3,:,:,:,:))
 
 #if USE_MPI
 GEO%xmin_Shared=MINVAL(NodeCoords_Shared(1,offsetNodeID_Shared+1:offsetNodeID_Shared+nTotalNodes_Shared))
