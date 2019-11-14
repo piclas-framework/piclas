@@ -1476,13 +1476,6 @@ IF (PartMPI%MPIROOT) THEN
   END IF
 #endif /*USE_MPI*/
 
-! Reset output variables
-IF(CalcPorousBCInfo) THEN
-  DO iPBC = 1,nPorousBC
-    PorousBC(iPBC)%Output(1:5) = 0.
-  END DO
-END IF
-
 ! Reset coupled power to particles if output of coupled power is active
 IF (CalcCoupledPower) THEN
   PCouplAverage = PCouplAverage * (Time-RestartTime) ! PCouplAverage is reseted

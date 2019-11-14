@@ -356,7 +356,7 @@ SUBROUTINE PorousBoundaryRemovalProb_Pressure()
 ! 1) MPI communication of particles that impinged on halo sides to corresponding side
 ! 2) Loop over all porous BCs
 !   a) Summing up the number of impinged particles for the whole BC surface
-!   2.1) Loop over all sides within each porous BC
+!   2.1) Loop over all sides within each porous BC: a), b) & d) is only performed if the pumping speed is adapted
 !       a) Determining the delta between current gas mixture pressure in adjacent cell and target pressure
 !       b) Adapting the pumping capacity (m^3/s) according to pressure difference (control through proportional and integral part)
 !       c) Calculate the removal probability if any particles hit the pump
@@ -408,6 +408,8 @@ DO iPBC = 1,nPorousBC
 #if USE_MPI
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,SumPartPorousBC,1,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,iError)
 #endif
+  ! Zero the output variable
+  IF(CalcPorousBCInfo) PorousBC(iPBC)%Output = 0.
   ! 2.1) Loop over all sides within each porous BC
   DO iPBCSideID = 1, PorousBC(iPBC)%SideNumber
     SurfSideID = PorousBC(iPBC)%SideList(iPBCSideID)
@@ -422,44 +424,56 @@ DO iPBC = 1,nPorousBC
     IF (ElemID.LT.1) THEN !not sure if necessary
       ElemID = SideToElem(2,SurfMesh%SurfIDToSideID(SurfSideID))
     END IF
+    ! Skip element if number density is zero
+    IF(SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,1:nSpecies)).EQ.0.0) CYCLE
     ! Get the correct time step of the cell
     IF(VarTimeStep%UseVariableTimeStep) THEN
       dtVar = dt * CalcVarTimeStep(GEO%ElemMidPoint(1,ElemID), GEO%ElemMidPoint(2,ElemID), ElemID)
     ELSE
       dtVar = dt
     END IF
-    IF(SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,1:nSpecies)).EQ.0.0) CYCLE
-    ! a) Determining the delta between current gas mixture pressure in adjacent cell and target pressure
-    DeltaPressure = SUM(Adaptive_MacroVal(12,ElemID,1:nSpecies))-PorousBC(iPBC)%Pressure
-    ! Integrating the pressure difference (only utilized later if DeltaPumpingSpeedKi was given)
-    IF(PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID).GT.0.0) THEN
-      Adaptive_MacroVal(13,ElemID,1) = Adaptive_MacroVal(13,ElemID,1) + DeltaPressure * dtVar
+    ! Determine the removal probability based on the pumping speed (adaptive to a target pressure or fixed)
+    IF((PorousBC(iPBC)%DeltaPumpingSpeedKp.GT.0.).OR.(PorousBC(iPBC)%DeltaPumpingSpeedKi.GT.0.)) THEN
+      ! a) Determining the delta between current gas mixture pressure in adjacent cell and target pressure
+      DeltaPressure = SUM(Adaptive_MacroVal(12,ElemID,1:nSpecies))-PorousBC(iPBC)%Pressure
+      ! Integrating the pressure difference (only utilized later if DeltaPumpingSpeedKi was given)
+      IF(PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID).GT.0.0) THEN
+        Adaptive_MacroVal(13,ElemID,1) = Adaptive_MacroVal(13,ElemID,1) + DeltaPressure * dtVar
+      ELSE
+        Adaptive_MacroVal(13,ElemID,1) = 0.0
+      END IF
+      ! b) Adapting the pumping capacity (m^3/s) according to pressure difference (control through proportional and integral part)
+      PumpingSpeedTemp = PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID) + PorousBC(iPBC)%DeltaPumpingSpeedKp * DeltaPressure &
+          + PorousBC(iPBC)%DeltaPumpingSpeedKi * Adaptive_MacroVal(13,ElemID,1)
+      ! c) Calculate the removal probability if any particles hit the pump
+      IF(SumPartPorousBC.GT.0) THEN
+        PorousBC(iPBC)%RemovalProbability(iPBCSideID) = PumpingSpeedTemp*SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,1:nSpecies)) &
+                                                        * dtVar / (SumPartPorousBC*partWeight)
+      ELSE
+        PorousBC(iPBC)%RemovalProbability(iPBCSideID) = 0.0
+      END IF
+      ! d) Limit removal probability to values between 0 and 1
+      IF(PorousBC(iPBC)%RemovalProbability(iPBCSideID).GT.1.0) THEN
+        PorousBC(iPBC)%RemovalProbability(iPBCSideID) = 1.0
+        ! Setting pumping speed to maximum value (alpha=1)
+        PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID) = SumPartPorousBC*partWeight &
+                                                      / (SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,1:nSpecies))*dtVar)
+      ELSE IF(PorousBC(iPBC)%RemovalProbability(iPBCSideID).LE.0.0) THEN
+        PorousBC(iPBC)%RemovalProbability(iPBCSideID) = 0.0
+        ! Avoiding negative pumping speeds
+        PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID) = 0.0
+      ELSE
+        ! Only adapting the pumping speed if alpha is between zero and one
+        PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID) = PumpingSpeedTemp
+      END IF
     ELSE
-      Adaptive_MacroVal(13,ElemID,1) = 0.0
-    END IF
-    ! b) Adapting the pumping capacity (m^3/s) according to pressure difference (control through proportional and integral part)
-    PumpingSpeedTemp = PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID) + PorousBC(iPBC)%DeltaPumpingSpeedKp * DeltaPressure &
-        + PorousBC(iPBC)%DeltaPumpingSpeedKi * Adaptive_MacroVal(13,ElemID,1)
-    ! c) Calculate the removal probability if any particles hit the pump
-    IF(SumPartPorousBC.GT.0) THEN
-      PorousBC(iPBC)%RemovalProbability(iPBCSideID) = PumpingSpeedTemp*SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,1:nSpecies)) &
-                                                      * dtVar / (SumPartPorousBC*partWeight)
-    ELSE
-      PorousBC(iPBC)%RemovalProbability(iPBCSideID) = 0.0
-    END IF
-    ! d) Limit removal probability to values between 0 and 1
-    IF(PorousBC(iPBC)%RemovalProbability(iPBCSideID).GT.1.0) THEN
-      PorousBC(iPBC)%RemovalProbability(iPBCSideID) = 1.0
-      ! Setting pumping speed to maximum value (alpha=1)
-      PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID) = SumPartPorousBC*partWeight &
-                                                    / (SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,1:nSpecies))*dtVar)
-    ELSE IF(PorousBC(iPBC)%RemovalProbability(iPBCSideID).LE.0.0) THEN
-      PorousBC(iPBC)%RemovalProbability(iPBCSideID) = 0.0
-      ! Avoiding negative pumping speeds
-      PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID) = 0.0
-    ELSE
-      ! Only adapting the pumping speed if alpha is between zero and one
-      PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID) = PumpingSpeedTemp
+      ! Constant given pumping speed
+      IF(SumPartPorousBC.GT.0) THEN
+        PorousBC(iPBC)%RemovalProbability(iPBCSideID) = PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID) &
+                        * SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,1:nSpecies)) * dtVar / (SumPartPorousBC*partWeight)
+      ELSE
+        PorousBC(iPBC)%RemovalProbability(iPBCSideID) = 0.0
+      END IF
     END IF
     ! Storing the pumping speed for the restart state file
     Adaptive_MacroVal(11,ElemID,1) = PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID)
@@ -481,7 +495,7 @@ DO iPBC = 1,nPorousBC
         PorousBC(iPBC)%Output(3) = PorousBC(iPBC)%Output(3) + PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID)
         ! Removal probability
         PorousBC(iPBC)%Output(4) = PorousBC(iPBC)%Output(4) + PorousBC(iPBC)%RemovalProbability(iPBCSideID)
-        ! Normalized pressure at the pump (sampled over PumpSampIter number of iterations)
+        ! Normalized pressure at the pump
         PorousBC(iPBC)%Output(5) = PorousBC(iPBC)%Output(5) + SUM(Adaptive_MacroVal(12,ElemID,1:nSpecies)) / PorousBC(iPBC)%Pressure
       END IF
     END IF
