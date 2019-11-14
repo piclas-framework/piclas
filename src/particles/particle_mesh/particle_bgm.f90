@@ -96,7 +96,7 @@ REAL                           :: globalDiag
 INTEGER,ALLOCATABLE            :: sendbuf(:,:,:), recvbuf(:,:,:)
 INTEGER,ALLOCATABLE            :: offsetElemsInBGMCell(:,:,:)
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
-INTEGER                        :: nHaloElems, nMPISidesShared, currentOffset
+INTEGER                        :: nHaloElems, nMPISidesShared, currentOffset, moveBGMindex
 INTEGER,ALLOCATABLE            :: offsetHaloElem(:), offsetMPISideShared(:)
 REAL,ALLOCATABLE               :: BoundsOfElemCenter(:), MPISideBoundsOfElemCenter(:,:)
 LOGICAL                        :: ElemInsideHalo
