@@ -379,9 +379,8 @@ IF (.NOT.TriaTracking) THEN
       ,'ERROR: Stephen failed')
   ELSE
     DO iElem = firstHaloElem, lastHaloElem
-      ElemID = offsetTotalElems(nElems_Shared+iElem)
-      firstNodeID=ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)
-      nNodeIDs=ElemInfo_Shared(ELEM_LASTNODEIND,iElem)-ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)
+      ElemID = offsetShared2TotalElems(nElems_Shared+iElem)
+      firstNodeID=ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+1
       nodeID = 0
       DO i = 0, NGeo
         DO j = 0, NGeo
