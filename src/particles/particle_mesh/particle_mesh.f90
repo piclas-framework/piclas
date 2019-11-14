@@ -240,7 +240,7 @@ INTEGER                        :: ALLOCSTAT,RefMappingGuessProposal
 INTEGER                        :: iElem, ilocSide,iSide,iSample,ElemIDGlob, SideIDMortar
 CHARACTER(LEN=2)               :: hilf
 REAL                           :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
-INTEGER                        :: ElemID, firstElem, lastElem, firstHaloElem, lastHaloElem, nHaloElems
+INTEGER                        :: ElemID, firstElem, lastElem, firstHaloElem, lastHaloElem, nComputeNodeHaloElems
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 INTEGER                        :: firstNodeID, nNodeIDs, nodeID, i, j, k
 REAL                           :: NodeCoordstmp(1:3,0:NGeo,0:NGeo,0:NGeo)
@@ -347,39 +347,41 @@ END IF
 !,' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',RefMappingGuess)
 !END IF
 
-nHaloElems = nTotalElems_Shared - nElems_Shared
+#if USE_MPI
+nComputeNodeHaloElems = nComputeNodeTotalElems - nComputeNodeElems
 IF (.NOT.TriaTracking) THEN
-  MPISharedSize = INT((3*(NGeo+1)**3*nElems_Shared),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/3,NGeo+1,NGeo+1,NGeo+1,nElems_Shared/),XCL_NGeo_Shared_Win,XCL_NGeo_Shared)
-  MPISharedSize = INT((3*3*(NGeo+1)**3*nElems_Shared),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/3,3,NGeo+1,NGeo+1,NGeo+1,nElems_Shared/),dXCL_NGeo_Shared_Win,dXCL_NGeo_Shared)
+  MPISharedSize = INT((3*(NGeo+1)**3*nComputeNodeElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/3,NGeo+1,NGeo+1,NGeo+1,nComputeNodeElems/),XCL_NGeo_Shared_Win,XCL_NGeo_Shared)
+  MPISharedSize = INT((3*3*(NGeo+1)**3*nComputeNodeElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/3,3,NGeo+1,NGeo+1,NGeo+1,nComputeNodeElems/),dXCL_NGeo_Shared_Win,dXCL_NGeo_Shared)
   CALL MPI_WIN_LOCK_ALL(0,XCL_NGeo_Shared_Win,IERROR)
   CALL MPI_WIN_LOCK_ALL(0,dXCL_NGeo_Shared_Win,IERROR)
-  firstElem=INT(REAL(myRank_Shared*nTotalElems_Shared)/REAL(nProcessors_Shared))+1
-  lastElem=INT(REAL((myRank_Shared+1)*nTotalElems_Shared)/REAL(nProcessors_Shared))
+  firstElem=INT(REAL(myComputeNodeRank*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+  lastElem=INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+  ! Copy local XCL and dXCL into shared
   DO iElem = 1, nElems
-    XCL_NGeo_Shared(:,:,:,:,offSetSharedElems(offsetElem+iElem)) = XCL_NGeo(:,:,:,:,iElem)
-    dXCL_NGeo_Shared(:,:,:,:,:,offSetSharedElems(offsetElem+iElem)) = dXCL_NGeo(:,:,:,:,:,iElem)
+    XCL_NGeo_Shared(:,:,:,:,GlobalElem2CNTotalElem(offsetElem+iElem)) = XCL_NGeo(:,:,:,:,iElem)
+    dXCL_NGeo_Shared(:,:,:,:,:,GlobalElem2CNTotalElem(offsetElem+iElem)) = dXCL_NGeo(:,:,:,:,:,iElem)
   END DO ! iElem = 1, nElems
-  IF (nHaloElems.GT.nProcessors_Shared) THEN
-    firstHaloElem=INT(REAL(myRank_Shared*nHaloElems)/REAL(nProcessors_Shared))+1
-    lastHaloElem=INT(REAL((myRank_Shared+1)*nHaloElems)/REAL(nProcessors_Shared))
+  IF (nComputeNodeHaloElems.GT.nComputeNodeProcessors) THEN
+    firstHaloElem=INT(REAL(myComputeNodeRank*nComputeNodeHaloElems)/REAL(nComputeNodeProcessors))+1
+    lastHaloElem=INT(REAL((myComputeNodeRank+1)*nComputeNodeHaloElems)/REAL(nComputeNodeProcessors))
   ELSE
-    firstHaloElem = myRank_Shared + 1
-    IF (myRank_Shared.LT.nHaloElems) THEN
-      lastHaloElem = myRank_Shared + 1
+    firstHaloElem = myComputeNodeRank + 1
+    IF (myComputeNodeRank.LT.nComputeNodeHaloElems) THEN
+      lastHaloElem = myComputeNodeRank + 1
     ELSE
       lastHaloElem = 0
     END IF
   END IF
-  ! build XCL_NGEo for halo region
+  ! Build XCL and dXCL for compute node halo region (each proc of compute-node build only its fair share)
   IF(interpolateFromTree) THEN
     CALL abort(&
       __STAMP__&
       ,'ERROR: Stephen failed')
   ELSE
     DO iElem = firstHaloElem, lastHaloElem
-      ElemID = offsetShared2TotalElems(nElems_Shared+iElem)
+      ElemID = CNTotalElem2GlobalElem(nComputeNodeElems+iElem)
       firstNodeID=ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+1
       nodeID = 0
       DO i = 0, NGeo
@@ -396,8 +398,9 @@ IF (.NOT.TriaTracking) THEN
   CALL MPI_WIN_SYNC(XCL_NGeo_Shared_Win,IERROR)
   CALL MPI_WIN_SYNC(dXCL_NGeo_Shared_Win,IERROR)
   CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
-  MPISharedSize = INT((3*(NGeo+1)**2*nTotalSides_Shared),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/3,NGeo+1,NGeo+1,nTotalSides_Shared/),BezierControlPoints3D_Shared_Win,BezierControlPoints3D_Shared)
+  ! Build BezierControlPoints3D (compute-node local+halo)
+  MPISharedSize = INT((3*(NGeo+1)**2*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/3,NGeo+1,NGeo+1,nComputeNodeTotalSides/),BezierControlPoints3D_Shared_Win,BezierControlPoints3D_Shared)
   CALL MPI_WIN_LOCK_ALL(0,BezierControlPoints3D_Shared_Win,IERROR)
 
   DO iElem = firstElem, lastElem
@@ -407,6 +410,7 @@ IF (.NOT.TriaTracking) THEN
   CALL MPI_WIN_SYNC(BezierControlPoints3D_Shared_Win,IERROR)
   CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 END IF
+#endif
 
 ! BezierAreaSample stuff:
 WRITE(hilf,'(L1)') TriaTracking
@@ -6465,12 +6469,12 @@ GEO%zmin=MINVAL(NodeCoordsPointer(3,:,:,:,:))
 GEO%zmax=MAXVAL(NodeCoordsPointer(3,:,:,:,:))
 
 #if USE_MPI
-GEO%xmin_Shared=MINVAL(NodeCoords_Shared(1,offsetNodeID_Shared+1:offsetNodeID_Shared+nTotalNodes_Shared))
-GEO%xmax_Shared=MAXVAL(NodeCoords_Shared(1,offsetNodeID_Shared+1:offsetNodeID_Shared+nTotalNodes_Shared))
-GEO%ymin_Shared=MINVAL(NodeCoords_Shared(2,offsetNodeID_Shared+1:offsetNodeID_Shared+nTotalNodes_Shared))
-GEO%ymax_Shared=MAXVAL(NodeCoords_Shared(2,offsetNodeID_Shared+1:offsetNodeID_Shared+nTotalNodes_Shared))
-GEO%zmin_Shared=MINVAL(NodeCoords_Shared(3,offsetNodeID_Shared+1:offsetNodeID_Shared+nTotalNodes_Shared))
-GEO%zmax_Shared=MAXVAL(NodeCoords_Shared(3,offsetNodeID_Shared+1:offsetNodeID_Shared+nTotalNodes_Shared))
+GEO%xmin_Shared=MINVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+GEO%xmax_Shared=MAXVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+GEO%ymin_Shared=MINVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+GEO%ymax_Shared=MAXVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+GEO%zmin_Shared=MINVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+GEO%zmax_Shared=MAXVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
 GEO%xminglob=MINVAL(NodeCoords_Shared(1,:))
 GEO%xmaxglob=MAXVAL(NodeCoords_Shared(1,:))
 GEO%yminglob=MINVAL(NodeCoords_Shared(2,:))

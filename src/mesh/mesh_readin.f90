@@ -280,6 +280,8 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
 CALL ReadAttribute(File_ID,'nUniqueSides',1,IntegerScalar=nGlobalUniqueSidesFromMesh)
+CALL ReadAttribute(File_ID,'nSides',1,IntegerScalar=nNonUniqueGlobalSides)
+CALL ReadAttribute(File_ID,'nNodes',1,IntegerScalar=nNonUniqueGlobalNodes)
 CALL CloseDataFile()
 CHECKSAFEINT(HSize(2),4)
 nGlobalElems=INT(HSize(2),4) !global number of elements
@@ -390,17 +392,16 @@ DO iElem=FirstElemInd,LastElemInd
 END DO
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(nElems,nTotalElems,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
-CALL MPI_ALLREDUCE(nElems,nElems_Shared,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
-MPISharedSize = INT((ELEM_HALOFLAG)*nTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/ELEMINFOSIZE,nTotalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
+CALL MPI_ALLREDUCE(nElems,nComputeNodeElems,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
+MPISharedSize = INT((ELEM_HALOFLAG)*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/ELEMINFOSIZE,nGlobalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemInfo_Shared_Win,IERROR)
 ElemInfo_Shared(1:ELEMINFOSIZE_H5,offsetElem+1:offsetElem+nElems) = ElemInfo(:,:)
 ElemInfo_Shared(ELEM_RANK,offsetElem+1:offsetElem+nElems) = myRank
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
-IF(myRank_Shared.EQ.0) THEN
-  OffsetElem_Shared=offsetElem
-  CALL MPI_BCAST(offSetElem_Shared,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+IF(myComputeNodeRank.EQ.0) THEN
+  offsetComputeNodeElem=offsetElem
+  CALL MPI_BCAST(offsetComputeNodeElem,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 END IF
 #endif  /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------
@@ -430,9 +431,10 @@ DO iElem=FirstElemInd,LastElemInd
   iSide=ElemInfo(ELEM_FIRSTSIDEIND,iElem) !first index -1 in Sideinfo
   SideInfo(SIDE_ELEMID,iSide+1:iSide+6) = iElem
 END DO
-CALL MPI_ALLREDUCE(nSideIDs,nTotalSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
-MPISharedSize = INT((SIDEINFOSIZE+1)*nTotalSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/SIDEINFOSIZE+1,nTotalSides/),SideInfo_Shared_Win,SideInfo_Shared)
+! all procs on my compute-node communicate the number of non-unique sides
+CALL MPI_ALLREDUCE(nSideIDs,nComputeNodeSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
+MPISharedSize = INT((SIDEINFOSIZE+1)*nNonUniqueGlobalSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/SIDEINFOSIZE+1,nNonUniqueGlobalSides/),SideInfo_Shared_Win,SideInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SideInfo_Shared_Win,IERROR)
 SideInfo_Shared(1:SIDEINFOSIZE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo(:,:)
 SideInfo_Shared(SIDEINFOSIZE+1,offsetSideID+1:offsetSideID+nSideIDs) = 0
@@ -562,12 +564,12 @@ DO iElem=FirstElemInd,LastElemInd
           aSide%connection%flip=aSide%flip
           aSide%connection%Elem=>GETNEWELEM()
           aSide%NbProc = ELEMIPROC(elemID)
-          IF (ElemID.LE.offsetElem_Shared+1 .OR. ElemID.GT.offSetElem_Shared+nElems_Shared) THEN
+          IF (ElemID.LE.offsetComputeNodeElem+1 .OR. ElemID.GT.offsetComputeNodeElem+nComputeNodeElems) THEN
             ! neighbour element is outside of compute-node
             SideInfo_Shared(SIDEINFOSIZE+1,iSide) = 2
           ELSE
             SideInfo_Shared(SIDEINFOSIZE+1,iSide) = 1
-          END IF ! ElemID.LT.offsetElem_Shared+1 .OR. ElemID.GT.offSetElem_Shared+nElems_Shared
+          END IF ! ElemID.LT.offsetComputeNodeElem+1 .OR. ElemID.GT.offsetComputeNodeElem+nComputeNodeElems
 #else
           CALL abort(__STAMP__, &
             ' ElemID of neighbor not in global Elem list ')
@@ -603,15 +605,15 @@ ASSOCIATE (&
 END ASSOCIATE
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(nNodeIDs,nTotalNodes,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
-MPISharedSize = INT(nTotalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/nTotalNodes/),NodeInfo_Shared_Win,NodeInfo_Shared)
+CALL MPI_ALLREDUCE(nNodeIDs,nComputeNodeNodes,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
+MPISharedSize = INT(nNonUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nNonUniqueGlobalNodes/),NodeInfo_Shared_Win,NodeInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,NodeInfo_Shared_Win,IERROR)
 NodeInfo_Shared(offsetNodeID+1:offsetNodeID+nNodeIDs) = NodeInfo(:)
 CALL MPI_WIN_SYNC(NodeInfo_Shared_Win,IERROR)
 
-MPISharedSize = INT(3_IK*nTotalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/3_IK,nTotalNodes/),NodeCoords_Shared_Win,NodeCoords_Shared)
+MPISharedSize = INT(3_IK*nNonUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3_IK,nNonUniqueGlobalNodes/),NodeCoords_Shared_Win,NodeCoords_Shared)
 CALL MPI_WIN_LOCK_ALL(0,NodeCoords_Shared_Win,IERROR)
 NodeCoords_Shared(:,offsetNodeID+1:offsetNodeID+nNodeIDs) = NodeCoords_indx(:,:)
 CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
@@ -708,14 +710,14 @@ IF(isMortarMesh)THEN
     CALL ReadArray('ElemToTree',1,(/nElems/),offsetElem,1,IntegerArray_i4=ElemToTree)
   END ASSOCIATE
 #if USE_MPI
-  MPISharedSize = INT(3*2*nTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/3,2,nTotalElems/),xiMinMax_Shared_Win,xiMinMax_Shared)
+  MPISharedSize = INT(3*2*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/3,2,nGlobalElems/),xiMinMax_Shared_Win,xiMinMax_Shared)
   CALL MPI_WIN_LOCK_ALL(0,xiMinMax_Shared_Win,IERROR)
   xiMinMax_Shared(:,:,offsetElem+1:offsetElem+nElems) = xiMinMax(:,:,:)
   CALL MPI_WIN_SYNC(xiMinMax_Shared_Win,IERROR)
 
-  MPISharedSize = INT(nTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/nTotalElems/),ElemToTree_Shared_Win,ElemToTree_Shared)
+  MPISharedSize = INT(nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/nGlobalElems/),ElemToTree_Shared_Win,ElemToTree_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemToTree_Shared_Win,IERROR)
   ElemToTree_Shared(offsetElem+1:offsetElem+nElems) = ElemToTree(:)
   CALL MPI_WIN_SYNC(ElemToTree_Shared_Win,IERROR)
@@ -738,9 +740,9 @@ IF(isMortarMesh)THEN
         (NGeoTree+1_IK)**3_IK*offsetTree,2,RealArray=TreeCoords)
   END ASSOCIATE
 #if USE_MPI
-  CALL MPI_ALLREDUCE(nTrees,nTotalTrees,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
-  MPISharedSize = INT((NGeoTree+1)**3*nTotalTrees,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/3,nGeoTree+1,nGeoTree+1,nGeoTree+1,nTotalTrees/),TreeCoords_Shared_Win,TreeCoords_Shared)
+  CALL MPI_ALLREDUCE(nTrees,nNonUniqueGlobalTrees,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
+  MPISharedSize = INT((NGeoTree+1)**3*nNonUniqueGlobalTrees,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/3,nGeoTree+1,nGeoTree+1,nGeoTree+1,nNonUniqueGlobalTrees/),TreeCoords_Shared_Win,TreeCoords_Shared)
   CALL MPI_WIN_LOCK_ALL(0,TreeCoords_Shared_Win,IERROR)
   TreeCoords_Shared(:,:,:,:,offsetTree:offsetTree+nTrees) = TreeCoords(:,:,:,:,:)
   CALL MPI_WIN_SYNC(TreeCoords_Shared_Win,IERROR)
@@ -754,24 +756,25 @@ DEALLOCATE(ElemInfo,SideInfo,NodeInfo,NodeMap)
 CALL CloseDataFile()
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(nNodeIDs,nTotalNodes_Shared,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
-IF(myRank_Shared.EQ.0)THEN
-  OffsetNodeID_Shared=offsetNodeID
-  CALL MPI_BCAST(offSetNodeID_Shared,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared(1:ELEMINFOSIZE-1,:),(ELEMINFOSIZE-1)*nTotalElems  &
+IF(myComputeNodeRank.EQ.0)THEN
+  offsetComputeNodeSide=offsetSideID
+  CALL MPI_BCAST(offsetComputeNodeSide,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+  offsetComputeNodeNode=offsetNodeID
+  CALL MPI_BCAST(offsetComputeNodeNode,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared(1:ELEMINFOSIZE-1,:),(ELEMINFOSIZE-1)*nGlobalElems  &
       ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared(1:SIDEINFOSIZE,:)   ,SIDEINFOSIZE*nTotalSides  &
+  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared(1:SIDEINFOSIZE,:)   ,SIDEINFOSIZE*nNonUniqueGlobalSides  &
       ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeInfo_Shared   ,nTotalNodes  &
+  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeInfo_Shared   ,nNonUniqueGlobalNodes  &
       ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeCoords_Shared   ,3*nTotalNodes  &
+  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeCoords_Shared   ,3*nNonUniqueGlobalNodes  &
       ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
   IF(isMortarMesh)THEN
-    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,xiMinMax_Shared   ,3*2*nTotalElems  &
+    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,xiMinMax_Shared   ,3*2*nGlobalElems  &
         ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
-    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemToTree_Shared ,nTotalElems      &
+    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemToTree_Shared ,nGlobalElems      &
         ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,TreeCoords_Shared ,(NGeoTree+1)**3*nTotalTrees &
+    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,TreeCoords_Shared ,(NGeoTree+1)**3*nNonUniqueGlobalTrees &
         ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
   END IF
 END IF

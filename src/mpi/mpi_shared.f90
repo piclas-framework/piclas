@@ -101,9 +101,9 @@ nProcessors_Global = nProcessors
 CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, myRank, MPI_INFO_NULL, MPI_COMM_SHARED,IERROR)
 
 ! Find my rank on the shared communicator, comm size and proc name
-CALL MPI_COMM_RANK(MPI_COMM_SHARED, myRank_Shared,IERROR)
-CALL MPI_COMM_SIZE(MPI_COMM_SHARED, nProcessors_Shared,IERROR)
-SWRITE(UNIT_stdOUt,'(A,I3,A)') ' | Starting shared communication with ',nProcessors_Shared,' procs per node'
+CALL MPI_COMM_RANK(MPI_COMM_SHARED, myComputeNodeRank,IERROR)
+CALL MPI_COMM_SIZE(MPI_COMM_SHARED, nComputeNodeProcessors,IERROR)
+SWRITE(UNIT_stdOUt,'(A,I3,A)') ' | Starting shared communication with ',nComputeNodeProcessors,' procs per node'
 
 ! Map global rank number into shared rank number. Returns MPI_UNDEFINED if not on the same node
 ALLOCATE(MPIRankGlobal(0:nProcessors-1))
@@ -121,13 +121,13 @@ CALL MPI_GROUP_TRANSLATE_RANKS(worldGroup,nProcessors,MPIRankGlobal,sharedGroup,
 
 ! now split global communicator into small group leaders and the others
 MPI_COMM_LEADERS_SHARED=MPI_COMM_NULL
-myLeaderRank_Shared=-1
+myLeaderGroupRank=-1
 color=MPI_UNDEFINED
-IF(myRank_Shared.EQ.0) color=101
+IF(myComputeNodeRank.EQ.0) color=101
 CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,myRank,MPI_COMM_LEADERS_SHARED,iError)
-IF(myRank_Shared.EQ.0)THEN
-  CALL MPI_COMM_RANK(MPI_COMM_LEADERS_SHARED,myLeaderRank_Shared,iError)
-  CALL MPI_COMM_SIZE(MPI_COMM_LEADERS_SHARED,nLeaderProcs_Shared,iError)
+IF(myComputeNodeRank.EQ.0)THEN
+  CALL MPI_COMM_RANK(MPI_COMM_LEADERS_SHARED,myLeaderGroupRank,iError)
+  CALL MPI_COMM_SIZE(MPI_COMM_LEADERS_SHARED,nLeaderGroupProcs,iError)
 END IF
 
 MPISharedInitIsDone=.TRUE.
@@ -160,7 +160,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of
 !==================================================================================================================================
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myRank_Shared.EQ.0) THEN
+IF (myComputeNodeRank.EQ.0) THEN
   WIN_SIZE  = datasize_byte
 ELSE
   WIN_SIZE  = 0
@@ -171,7 +171,7 @@ DISP_UNIT = 1
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
-IF (myRank_Shared.NE.0) THEN
+IF (myComputeNodeRank.NE.0) THEN
   CALL MPI_WIN_SHARED_QUERY(SM_WIN, 0, WIN_SIZE, DISP_UNIT, SM_PTR,IERROR)
 END IF
 
@@ -205,7 +205,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of
 !==================================================================================================================================
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myRank_Shared.EQ.0) THEN
+IF (myComputeNodeRank.EQ.0) THEN
   WIN_SIZE  = datasize_byte
 ELSE
   WIN_SIZE  = 0
@@ -216,7 +216,7 @@ DISP_UNIT = 1
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
-IF (myRank_Shared.NE.0) THEN
+IF (myComputeNodeRank.NE.0) THEN
   CALL MPI_WIN_SHARED_QUERY(SM_WIN, 0, WIN_SIZE, DISP_UNIT, SM_PTR,IERROR)
 END IF
 
@@ -250,7 +250,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of
 !==================================================================================================================================
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myRank_Shared.EQ.0) THEN
+IF (myComputeNodeRank.EQ.0) THEN
   WIN_SIZE  = datasize_byte
 ELSE
   WIN_SIZE  = 0
@@ -261,7 +261,7 @@ DISP_UNIT = 1
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
-IF (myRank_Shared.NE.0) THEN
+IF (myComputeNodeRank.NE.0) THEN
   CALL MPI_WIN_SHARED_QUERY(SM_WIN, 0, WIN_SIZE, DISP_UNIT, SM_PTR,IERROR)
 END IF
 
@@ -295,7 +295,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of
 !==================================================================================================================================
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myRank_Shared.EQ.0) THEN
+IF (myComputeNodeRank.EQ.0) THEN
   WIN_SIZE  = datasize_byte
 ELSE
   WIN_SIZE  = 0
@@ -306,7 +306,7 @@ DISP_UNIT = 1
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
-IF (myRank_Shared.NE.0) THEN
+IF (myComputeNodeRank.NE.0) THEN
   CALL MPI_WIN_SHARED_QUERY(SM_WIN, 0, WIN_SIZE, DISP_UNIT, SM_PTR,IERROR)
 END IF
 
@@ -340,7 +340,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of
 !==================================================================================================================================
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myRank_Shared.EQ.0) THEN
+IF (myComputeNodeRank.EQ.0) THEN
   WIN_SIZE  = datasize_byte
 ELSE
   WIN_SIZE  = 0
@@ -351,7 +351,7 @@ DISP_UNIT = 1
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
-IF (myRank_Shared.NE.0) THEN
+IF (myComputeNodeRank.NE.0) THEN
   CALL MPI_WIN_SHARED_QUERY(SM_WIN, 0, WIN_SIZE, DISP_UNIT, SM_PTR,IERROR)
 END IF
 
@@ -385,7 +385,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of
 !==================================================================================================================================
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myRank_Shared.EQ.0) THEN
+IF (myComputeNodeRank.EQ.0) THEN
   WIN_SIZE  = datasize_byte
 ELSE
   WIN_SIZE  = 0
@@ -396,7 +396,7 @@ DISP_UNIT = 1
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
-IF (myRank_Shared.NE.0) THEN
+IF (myComputeNodeRank.NE.0) THEN
   CALL MPI_WIN_SHARED_QUERY(SM_WIN, 0, WIN_SIZE, DISP_UNIT, SM_PTR,IERROR)
 END IF
 
@@ -430,7 +430,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of
 !==================================================================================================================================
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myRank_Shared.EQ.0) THEN
+IF (myComputeNodeRank.EQ.0) THEN
   WIN_SIZE  = datasize_byte
 ELSE
   WIN_SIZE  = 0
@@ -441,7 +441,7 @@ DISP_UNIT = 1
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
-IF (myRank_Shared.NE.0) THEN
+IF (myComputeNodeRank.NE.0) THEN
   CALL MPI_WIN_SHARED_QUERY(SM_WIN, 0, WIN_SIZE, DISP_UNIT, SM_PTR,IERROR)
 END IF
 
@@ -475,7 +475,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of
 !==================================================================================================================================
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
-IF (myRank_Shared.EQ.0) THEN
+IF (myComputeNodeRank.EQ.0) THEN
   WIN_SIZE  = datasize_byte
 ELSE
   WIN_SIZE  = 0
@@ -486,7 +486,7 @@ DISP_UNIT = 1
 CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_NULL, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
 
 ! Node MPI root already knows the location in virtual memory, all other find it here
-IF (myRank_Shared.NE.0) THEN
+IF (myComputeNodeRank.NE.0) THEN
   CALL MPI_WIN_SHARED_QUERY(SM_WIN, 0, WIN_SIZE, DISP_UNIT, SM_PTR,IERROR)
 END IF
 

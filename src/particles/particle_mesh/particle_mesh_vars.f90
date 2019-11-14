@@ -32,8 +32,8 @@ LOGICAL             :: ParticleMeshInitIsDone
 ! Mesh info
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-INTEGER, ALLOCATABLE                     :: offSetTotalElems(:)
-INTEGER, ALLOCATABLE                     :: offSetSharedElems(:)
+INTEGER, ALLOCATABLE                     :: CNTotalElem2GlobalElem(:)
+INTEGER, ALLOCATABLE                     :: GlobalElem2CNTotalElem(:)
 
 ! periodic case
 INTEGER, ALLOCATABLE                     :: casematrix(:,:)   ! matrix to compute periodic cases

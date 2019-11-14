@@ -58,9 +58,9 @@ SUBROUTINE BuildBGMAndIdentifyHaloRegion()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars            ,ONLY: nElems, offsetElem
+USE MOD_Mesh_Vars            ,ONLY: nElems, offsetElem, nSides, nGlobalElems
 USE MOD_Partilce_Periodic_BC ,ONLY: InitPeriodicBC
-USE MOD_Particle_Mesh_Vars   ,ONLY: GEO, OffsetTotalElems, OffsetSharedElems
+USE MOD_Particle_Mesh_Vars   ,ONLY: GEO, CNTotalElem2GlobalElem, GlobalElem2CNTotalElem
 USE MOD_Equation_Vars        ,ONLY: c
 USE MOD_ReadInTools          ,ONLY: GETREAL, GetRealArray, PrintOption
 #if !(USE_HDG)
@@ -97,7 +97,7 @@ INTEGER,ALLOCATABLE            :: sendbuf(:,:,:), recvbuf(:,:,:)
 INTEGER,ALLOCATABLE            :: offsetElemsInBGMCell(:,:,:)
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 INTEGER                        :: nHaloElems, nMPISidesShared, currentOffset, moveBGMindex
-INTEGER,ALLOCATABLE            :: offsetHaloElem(:), offsetMPISideShared(:)
+INTEGER,ALLOCATABLE            :: offsetGlobal2CNHaloElem(:), offsetMPISideShared(:)
 REAL,ALLOCATABLE               :: BoundsOfElemCenter(:), MPISideBoundsOfElemCenter(:,:)
 LOGICAL                        :: ElemInsideHalo
 INTEGER                        :: FirstElem, LastElem, firstHaloElem, lastHaloElem
@@ -114,14 +114,14 @@ GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 #if USE_MPI
-MPISharedSize = INT(6*nTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/6,nTotalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
-CALL Allocate_Shared(MPISharedSize,(/6,nTotalElems/),BoundsOfElem_Shared_Win,BoundsOfElem_Shared)
+MPISharedSize = INT(6*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/6,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
+CALL Allocate_Shared(MPISharedSize,(/6,nGlobalElems/),BoundsOfElem_Shared_Win,BoundsOfElem_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,BoundsOfElem_Shared_Win,IERROR)
 
-firstElem=INT(REAL(myRank_Shared*nTotalElems)/REAL(nProcessors_Shared))+1
-lastElem=INT(REAL((myRank_Shared+1)*nTotalElems)/REAL(nProcessors_Shared))
+firstElem=INT(REAL(myComputeNodeRank*nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem=INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
 moveBGMindex = 1 ! BGM indeces must be >1 --> move by 1
 DO iElem = firstElem, lastElem
   offSetNodeID=ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)
@@ -297,7 +297,7 @@ DO iElem = firstElem, lastElem
         IF(kBGM.LT.BGMkmin) CYCLE
         IF(kBGM.GT.BGMkmax) CYCLE
         !GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
-        IF(iElem.GE.offsetElem_Shared+1 .AND. iElem.LE.offsetElem_Shared+nElems_Shared) THEN
+        IF(iElem.GE.offsetComputeNodeElem+1 .AND. iElem.LE.offsetComputeNodeElem+nComputeNodeElems) THEN
           ElemInfo_Shared(ELEM_HALOFLAG,iElem)=1 ! compute-node element
         ELSE
           ElemInfo_Shared(ELEM_HALOFLAG,iElem)=2 ! halo element
@@ -311,18 +311,18 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 ! sum up potential halo elements and create correct offset mapping in ElemInfo_Shared
 nHaloElems = 0
-ALLOCATE(offsetHaloElem(nTotalElems))
-DO iElem = 1, nTotalElems
+ALLOCATE(offsetGlobal2CNHaloElem(nGlobalElems))
+DO iElem = 1, nGlobalElems
   IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.2) THEN
     nHaloElems = nHaloElems + 1
-    offsetHaloElem(nHaloElems) = iElem
+    offsetGlobal2CNHaloElem(nHaloElems) = iElem
   END IF
 END DO
 
 ! sum all MPI-side of compute-node and create correct offset mapping in SideInfo_Shared
 nMPISidesShared = 0
-ALLOCATE(offsetMPISideShared(nTotalSides))
-DO iSide = 1, nTotalSides
+ALLOCATE(offsetMPISideShared(nNonUniqueGlobalSides))
+DO iSide = 1, nNonUniqueGlobalSides
   IF (SideInfo_Shared(SIDEINFOSIZE+1,iSide).EQ.2) THEN
     nMPISidesShared = nMPISidesShared + 1
     offsetMPISideShared(nMPISidesShared) = iSide
@@ -330,13 +330,13 @@ DO iSide = 1, nTotalSides
 END DO
 
 ! Distribute nHaloElements evenly on compute-node procs
-IF (nHaloElems.GT.nProcessors_Shared) THEN
-  firstHaloElem=INT(REAL(myRank_Shared*nHaloElems)/REAL(nProcessors_Shared))+1
-  lastHaloElem=INT(REAL((myRank_Shared+1)*nHaloElems)/REAL(nProcessors_Shared))
+IF (nHaloElems.GT.nComputeNodeProcessors) THEN
+  firstHaloElem=INT(REAL(myComputeNodeRank*nHaloElems)/REAL(nComputeNodeProcessors))+1
+  lastHaloElem=INT(REAL((myComputeNodeRank+1)*nHaloElems)/REAL(nComputeNodeProcessors))
 ELSE
-  firstHaloElem = myRank_Shared + 1
-  IF (myRank_Shared.LT.nHaloElems) THEN
-    lastHaloElem = myRank_Shared + 1
+  firstHaloElem = myComputeNodeRank + 1
+  IF (myComputeNodeRank.LT.nHaloElems) THEN
+    lastHaloElem = myComputeNodeRank + 1
   ELSE
     lastHaloElem = 0
   END IF
@@ -359,7 +359,7 @@ END DO
 ! against the bounding boxes of the elements of the MPI-surface (inter compute-node MPI sides) 
 ALLOCATE(BoundsOfElemCenter(1:4))
 DO iElem = firstHaloElem, lastHaloElem
-  ElemID = offsetHaloElem(iElem)
+  ElemID = offsetGlobal2CNHaloElem(iElem)
   ElemInsideHalo = .FALSE.
   BoundsOfElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,ElemID)), &
                                SUM(BoundsOfElem_Shared(3:4,ElemID)), &
@@ -454,7 +454,7 @@ DEALLOCATE(recvbuf)
 
 ! last proc of compute-node calculates total number of elements in each BGM-cell 
 ! after this loop sendbuf of last proc contains nElems per BGM cell
-IF(myRank_Shared.EQ.nProcessors_Shared-1)THEN
+IF(myComputeNodeRank.EQ.nComputeNodeProcessors-1)THEN
   DO iBGM = BGMimin,BGMimax
     DO jBGM = BGMjmin,BGMjmax
       DO kBGM = BGMkmin,BGMkmax
@@ -476,7 +476,7 @@ CALL Allocate_Shared(MPISharedSize,(/BGMimax-BGMimin+1,BGMjmax-BGMjmin+1,BGMkmax
 CALL MPI_WIN_LOCK_ALL(0,FIBGM_offsetElem_Shared_Win,IERROR)
 
 ! last proc of compute-node writes into shared memory to make nElems per BGM accessible for every proc
-IF(myRank_Shared.EQ.nProcessors_Shared-1)THEN
+IF(myComputeNodeRank.EQ.nComputeNodeProcessors-1)THEN
   currentOffset = 0
   DO iBGM = BGMimin,BGMimax
     DO jBGM = BGMjmin,BGMjmax
@@ -509,7 +509,7 @@ DO kBGM = BGMkmin,BGMkmax
 END DO ! iBGM
 
 DO iElem = firstHaloElem, lastHaloElem
-  ElemID = offsetHaloElem(iElem)
+  ElemID = offsetGlobal2CNHaloElem(iElem)
   IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).EQ.0) CYCLE
   BGMCellXmin = ElemToBGM_Shared(1,ElemID)
   BGMCellXmax = ElemToBGM_Shared(2,ElemID)
@@ -577,42 +577,42 @@ CALL MPI_WIN_SYNC(FIBGM_Element_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 ! sum up Number of all elements on current compute-node (including halo region)
-nTotalElems_Shared = 0
-DO iElem = 1, nTotalElems
+nComputeNodeTotalElems = 0
+DO iElem = 1, nGlobalElems
   IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.2 .OR. ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.1) THEN
-    nTotalElems_Shared = nTotalElems_Shared + 1
+    nComputeNodeTotalElems = nComputeNodeTotalElems + 1
   END IF
 END DO
-ALLOCATE(offSetTotalElems(1:nTotalElems_Shared))
-ALLOCATE(offSetSharedElems(1:nTotalElems))
-nTotalElems_Shared = 0
-offSetSharedElems(1:nTotalElems) = -1
-DO iElem = 1,nTotalElems
+ALLOCATE(CNTotalElem2GlobalElem(1:nComputeNodeTotalElems))
+ALLOCATE(GlobalElem2CNTotalElem(1:nGlobalElems))
+nComputeNodeTotalElems = 0
+GlobalElem2CNTotalElem(1:nGlobalElems) = -1
+DO iElem = 1,nGlobalElems
   IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.1) THEN
-    nTotalElems_Shared = nTotalElems_Shared + 1
-    offSetTotalElems(nTotalElems_Shared) = iElem
-    offsetSharedElems(iElem) = nTotalElems_Shared
+    nComputeNodeTotalElems = nComputeNodeTotalElems + 1
+    CNTotalElem2GlobalElem(nComputeNodeTotalElems) = iElem
+    GlobalElem2CNTotalElem(iElem) = nComputeNodeTotalElems
   END IF
 END DO
-DO iElem = 1,nTotalElems
+DO iElem = 1,nGlobalElems
   IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.2) THEN
-    nTotalElems_Shared = nTotalElems_Shared + 1
-    offSetTotalElems(nTotalElems_Shared) = iElem
-    offsetSharedElems(iElem) = nTotalElems_Shared
+    nComputeNodeTotalElems = nComputeNodeTotalElems + 1
+    CNTotalElem2GlobalElem(nComputeNodeTotalElems) = iElem
+    GlobalElem2CNTotalElem(iElem) = nComputeNodeTotalElems
   END IF
 END DO
 
-!MPISharedSize = INT(nTotalElems_Shared,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-!CALL Allocate_Shared(MPISharedSize,(/nTotalElems_Shared/),offSetTotalElems_Shared_Win,offsetTotalElems_Shared)
+!MPISharedSize = INT(nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+!CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),offSetTotalElems_Shared_Win,offsetTotalElems_Shared)
 !CALL MPI_WIN_LOCK_ALL(0,offSetTotalElems_Shared_Win,IERROR)
-!firstOffsetElem=INT(REAL(myRank_Shared*nTotalElems_Shared)/REAL(nProcessors_Shared))+1
-!lastOffsetElem=INT(REAL((myRank_Shared+1)*nTotalElems_Shared)/REAL(nProcessors_Shared))
-!offSetTotalElems_Shared(firstOffsetElem:lastOffsetElem) = offSetTotalElems(firstOfffsetElem:lastOffsetElem)
+!firstOffsetElem=INT(REAL(myComputeNodeRank*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+!lastOffsetElem=INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+!offSetTotalElems_Shared(firstOffsetElem:lastOffsetElem) = CNTotalElem2GlobalElem(firstOfffsetElem:lastOffsetElem)
 !CALL MPI_WIN_SYNC(offSetTotalElems_Shared_Win,IERROR)
 !CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
-!DEALLOCATE(offSetTotalElems)
+!DEALLOCATE(CNTotalElem2GlobalElem)
 
-nTotalSides_Shared = nTotalElems_Shared * 6
+nComputeNodeTotalSides = nComputeNodeTotalElems * 6
 
 #else
 !/*NOT USE_MPI*/
