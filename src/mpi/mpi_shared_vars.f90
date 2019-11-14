@@ -28,11 +28,11 @@ LOGICAL            :: MPISharedInitIsDone=.FALSE.
 
 ! Communication
 INTEGER            :: myComputeNodeRank               !> Rank of current proc on current compute-node
-INTEGER            :: myLeaderGroupRank             !> Rank of compute-node root in compute-node-root comm
+INTEGER            :: myLeaderGroupRank               !> Rank of compute-node root in compute-node-root comm
 INTEGER,ALLOCATABLE:: MPIRankGlobal(:)                !> Array of size nProcessors holding the global rank of each proc
 INTEGER,ALLOCATABLE:: MPIRankShared(:)                !> Array of size nProcessors holding the shared rank of each proc
-INTEGER            :: nComputeNodeProcessors              !> Number of procs on current compute-node
-INTEGER            :: nLeaderGroupProcs             !> Number of nodes
+INTEGER            :: nComputeNodeProcessors          !> Number of procs on current compute-node
+INTEGER            :: nLeaderGroupProcs               !> Number of nodes
 INTEGER            :: nProcessors_Global              !> Number of total procs
 INTEGER            :: MPI_COMM_SHARED                 !> Communicator on current compute-node
 INTEGER            :: MPI_COMM_LEADERS_SHARED         !> Communicator compute-node roots (my_rank_shared=0)
@@ -88,6 +88,8 @@ REAL,POINTER    :: dXCL_NGeo_Shared(:,:,:,:,:,:)
 INTEGER         :: dXCL_NGeo_Shared_Win
 REAL,POINTER    :: BezierControlPoints3D_Shared(:,:,:,:)
 INTEGER         :: BezierControlPoints3D_Shared_Win
+REAL,POINTER    :: BezierControlPoints3DElevated_Shared(:,:,:,:)
+INTEGER         :: BezierControlPoints3DElevated_Shared_Win
 
 #endif /* USE_MPI */
 END MODULE

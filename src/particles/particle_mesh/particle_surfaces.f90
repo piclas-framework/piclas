@@ -69,6 +69,10 @@ INTERFACE RotateMasterToSlave
   MODULE PROCEDURE RotateMasterToSlave
 END INTERFACE
 
+INTERFACE ElevateBezierPolynomial
+  MODULE PROCEDURE ElevateBezierPolynomial
+END INTERFACE
+
 INTERFACE EvaluateBezierPolynomialAndGradient
   MODULE PROCEDURE EvaluateBezierPolynomialAndGradient
 END INTERFACE
@@ -84,6 +88,7 @@ PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, GetBezierControlPoints3D
 
 PUBLIC::CalcNormAndTangBilinear, CalcNormAndTangBezier, CalcNormAndTangTriangle
 PUBLIC::RotateMasterToSlave
+PUBLIC::ElevateBezierPolynomial
 
 #ifdef CODE_ANALYZE
 PUBLIC::OutputBezierControlPoints

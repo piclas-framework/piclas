@@ -164,10 +164,6 @@ REAL    :: xiCL_N(0:PP_N)   ,wBaryCL_N(0:PP_N)
 REAL    :: xiCL_NGeo(0:NGeo)   ,wBaryCL_NGeo(0:NGeo)
 REAL    :: xi0(3),dxi(3),length(3)
 
-#ifdef PARTICLES
-INTEGER            :: iSide,lowerLimit,ElemID,SideID,NBElemID
-REAL               :: StartT2,BezierTime
-#endif /*PARTICLES*/
 REAL               :: StartT,EndT
 !===================================================================================================================================
 
