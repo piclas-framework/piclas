@@ -48,6 +48,7 @@ USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, DSMCSumOfFormedParticles, BGGas, CollisMode
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SamplingRotVibRelaxProb
+USE MOD_DSMC_Collis           ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
 USE MOD_Particle_Vars         ,ONLY: PDM, WriteMacroVolumeValues, Symmetry2D
 USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
@@ -106,6 +107,7 @@ DO iElem = 1, nElems ! element/cell main loop
   END IF
   IF (CollisMode.NE.0) THEN
     ChemReac%nPairForRec = 0
+    CALL InitCalcVibRelaxProb
     IF(UseMCC) THEN
       CALL MCC_pairing_bggas(iElem)
     ELSE IF(BGGas%BGGasSpecies.NE.0) THEN
@@ -119,6 +121,7 @@ DO iElem = 1, nElems ! element/cell main loop
     ELSE
       CALL DSMC_pairing_statistical(iElem)  ! pairing of particles per cell
     END IF
+    CALL FinalizeCalcVibRelaxProb(iElem)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
         ! mean collision probability of all collision pairs

@@ -105,7 +105,6 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   USE MOD_Particle_Vars          ,ONLY: KeepWallParticles, PDM
   USE MOD_part_tools             ,ONLY: GetParticleWeight
   USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-  USE MOD_DSMC_Collis            ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -127,7 +126,6 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   IF (CollisMode.EQ.3) THEN
     ChemReac%RecombParticle = 0
   END IF
-  CALL InitCalcVibRelaxProb()
 
   ALLOCATE(iPartIndx(nPart))
   iPartIndx = 0
@@ -151,7 +149,6 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     iPart = PEM%pNext(iPart)
   END DO
   CALL PerformPairingAndCollision(iPartIndx, nPart, iElem , GEO%Volume(iElem))
-  CALL FinalizeCalcVibRelaxProb(iElem)
   DEALLOCATE(iPartIndx)
 END SUBROUTINE DSMC_pairing_statistical
 
@@ -550,7 +547,6 @@ SUBROUTINE DSMC_pairing_octree(iElem)
   USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
   USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
   USE MOD_part_tools              ,ONLY: GetParticleWeight
-  USE MOD_DSMC_Collis             ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -568,7 +564,6 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
-CALL InitCalcVibRelaxProb
 
 IF (nPart.GT.1) THEN
   NULLIFY(TreeNode)
@@ -625,8 +620,6 @@ IF (nPart.GT.1) THEN
   DEALLOCATE(TreeNode%iPartIndx_Node)
   DEALLOCATE(TreeNode)
 END IF !nPart > 0
-
-CALL FinalizeCalcVibRelaxProb(iElem)
 
 END SUBROUTINE DSMC_pairing_octree
 
@@ -776,7 +769,6 @@ USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, CollInf
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_part_tools              ,ONLY: GetParticleWeight
-USE MOD_DSMC_Collis             ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -792,7 +784,6 @@ TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
   Volume = GEO%Volume(iElem)
-  CALL InitCalcVibRelaxProb()
   SpecPartNum = 0.
 
   NULLIFY(TreeNode)
@@ -841,7 +832,6 @@ TYPE(tTreeNode), POINTER      :: TreeNode
     DEALLOCATE(TreeNode%iPartIndx_Node)
     DEALLOCATE(TreeNode)
   END IF
-  Call FinalizeCalcVibRelaxProb(iELem)
 
 END SUBROUTINE DSMC_pairing_quadtree
 
