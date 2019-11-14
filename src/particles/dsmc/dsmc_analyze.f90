@@ -57,8 +57,8 @@ INTERFACE CalcInstantTransTemp
   MODULE PROCEDURE CalcInstantTransTemp
 END INTERFACE
 
-INTERFACE SamplingRotVibRelaxProb
-  MODULE PROCEDURE SamplingRotVibRelaxProb
+INTERFACE SummarizeQualityFactors
+  MODULE PROCEDURE SummarizeQualityFactors
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -68,7 +68,7 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMCHO_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
 PUBLIC :: CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly, InitHODSMC, WriteDSMCHOToHDF5, CalcGammaVib
-PUBLIC :: CalcInstantTransTemp, SamplingRotVibRelaxProb
+PUBLIC :: CalcInstantTransTemp, SummarizeQualityFactors
 !===================================================================================================================================
 
 CONTAINS
@@ -3524,5 +3524,44 @@ INTEGER                       :: iSpec
   END IF
 END SUBROUTINE SamplingRotVibRelaxProb
 
+
+SUBROUTINE SummarizeQualityFactors(iElem)
+!===================================================================================================================================
+!> Sample quality factors. MCS over MFP, max and mean collision probability
+!===================================================================================================================================
+! MODULES
+USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: DSMC
+USE MOD_Particle_Vars         ,ONLY: WriteMacroVolumeValues
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)    :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+  ! mean collision probability of all collision pairs
+  IF(DSMC%CollProbMeanCount.GT.0) THEN
+    DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
+    DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + DSMC%CollProbMean / REAL(DSMC%CollProbMeanCount)
+  END IF
+  ! mean collision separation distance of actual collisions
+  IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
+  ! Counting sample size
+  DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
+  ! Sample rotation relaxation probability
+  IF((DSMC%RotRelaxProb.EQ.2).OR.(DSMC%VibRelaxProb.EQ.2)) CALL SamplingRotVibRelaxProb(iElem)
+END IF
+! mean collision separation distance of actual collisions
+IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
+! Counting sample size
+DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
+
+END SUBROUTINE SummarizeQualityFactors
 
 END MODULE MOD_DSMC_Analyze

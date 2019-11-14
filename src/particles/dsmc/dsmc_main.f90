@@ -47,7 +47,7 @@ USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, MCC_pai
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, DSMCSumOfFormedParticles, BGGas, CollisMode
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC
-USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SamplingRotVibRelaxProb
+USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors
 USE MOD_DSMC_Collis           ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
 USE MOD_Particle_Vars         ,ONLY: PDM, WriteMacroVolumeValues, Symmetry2D
@@ -122,25 +122,7 @@ DO iElem = 1, nElems ! element/cell main loop
       CALL DSMC_pairing_statistical(iElem)  ! pairing of particles per cell
     END IF
     CALL FinalizeCalcVibRelaxProb(iElem)
-    IF(DSMC%CalcQualityFactors) THEN
-      IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-        ! mean collision probability of all collision pairs
-        IF(DSMC%CollProbMeanCount.GT.0) THEN
-          DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
-          DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + DSMC%CollProbMean / REAL(DSMC%CollProbMeanCount)
-        END IF
-        ! mean collision separation distance of actual collisions
-        IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
-        ! Counting sample size
-        DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
-        ! Sample rotation relaxation probability
-        IF((DSMC%RotRelaxProb.EQ.2).OR.(DSMC%VibRelaxProb.EQ.2)) CALL SamplingRotVibRelaxProb(iElem)
-      END IF
-      ! mean collision separation distance of actual collisions
-      IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
-      ! Counting sample size
-      DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
-    END IF
+    IF(DSMC%CalcQualityFactors) CALL SummarizeQualityFactors(iElem)
   END IF  ! --- CollisMode.NE.0
 #if USE_LOADBALANCE
   CALL LBElemSplitTime(iElem,tLBStart)
