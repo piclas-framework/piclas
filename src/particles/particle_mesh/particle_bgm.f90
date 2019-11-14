@@ -297,7 +297,7 @@ DO iElem = firstElem, lastElem
         IF(kBGM.LT.BGMkmin) CYCLE
         IF(kBGM.GT.BGMkmax) CYCLE
         !GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
-        IF(iElem.GT.offsetElem_Shared+1 .AND. iElem.LE.offsetElem_Shared+nElems_Shared) THEN
+        IF(iElem.GE.offsetElem_Shared+1 .AND. iElem.LE.offsetElem_Shared+nElems_Shared) THEN
           ElemInfo_Shared(ELEM_HALOFLAG,iElem)=1 ! compute-node element
         ELSE
           ElemInfo_Shared(ELEM_HALOFLAG,iElem)=2 ! halo element
