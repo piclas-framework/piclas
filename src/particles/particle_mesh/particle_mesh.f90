@@ -353,7 +353,6 @@ IF (.NOT.TriaTracking) THEN
   CALL Allocate_Shared(MPISharedSize,(/3,NGeo+1,NGeo+1,NGeo+1,nElems_Shared/),XCL_NGeo_Shared_Win,XCL_NGeo_Shared)
   MPISharedSize = INT((3*3*(NGeo+1)**3*nElems_Shared),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
   CALL Allocate_Shared(MPISharedSize,(/3,3,NGeo+1,NGeo+1,NGeo+1,nElems_Shared/),dXCL_NGeo_Shared_Win,dXCL_NGeo_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,BezierControlPoints3D_Shared_Win,IERROR)
   CALL MPI_WIN_LOCK_ALL(0,XCL_NGeo_Shared_Win,IERROR)
   CALL MPI_WIN_LOCK_ALL(0,dXCL_NGeo_Shared_Win,IERROR)
   firstElem=INT(REAL(myRank_Shared*nTotalElems_Shared)/REAL(nProcessors_Shared))+1
@@ -400,6 +399,7 @@ IF (.NOT.TriaTracking) THEN
   CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
   MPISharedSize = INT((3*(NGeo+1)**2*nTotalSides_Shared),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
   CALL Allocate_Shared(MPISharedSize,(/3,NGeo+1,NGeo+1,nTotalSides_Shared/),BezierControlPoints3D_Shared_Win,BezierControlPoints3D_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,BezierControlPoints3D_Shared_Win,IERROR)
 
   DO iElem = firstElem, lastElem
     !CALL GetBezierControlPoints3D(XCL_NGeo_Shared,iElem)

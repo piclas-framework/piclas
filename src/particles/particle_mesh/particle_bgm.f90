@@ -96,7 +96,7 @@ REAL                           :: globalDiag
 INTEGER,ALLOCATABLE            :: sendbuf(:,:,:), recvbuf(:,:,:)
 INTEGER,ALLOCATABLE            :: offsetElemsInBGMCell(:,:,:)
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
-INTEGER                        :: nHaloElems, nMPISidesShared
+INTEGER                        :: nHaloElems, nMPISidesShared, currentOffset
 INTEGER,ALLOCATABLE            :: offsetHaloElem(:), offsetMPISideShared(:)
 REAL,ALLOCATABLE               :: BoundsOfElemCenter(:), MPISideBoundsOfElemCenter(:,:)
 LOGICAL                        :: ElemInsideHalo
@@ -469,19 +469,28 @@ MPISharedSize = INT(((BGMimax-BGMimin)+1)*((BGMjmax-BGMjmin)+1)*((BGMkmax-BGMkmi
 CALL Allocate_Shared(MPISharedSize,(/BGMimax-BGMimin+1,BGMjmax-BGMjmin+1,BGMkmax-BGMkmin+1/) &
                     ,FIBGM_nElem_Shared_Win,FIBGM_nElem_Shared)
 CALL MPI_WIN_LOCK_ALL(0,FIBGM_nElem_Shared_Win,IERROR)
+! allocated shared memory for BGM cell offset in 1D array of BGM to element mapping
+MPISharedSize = INT(((BGMimax-BGMimin)+1)*((BGMjmax-BGMjmin)+1)*((BGMkmax-BGMkmin)+1),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/BGMimax-BGMimin+1,BGMjmax-BGMjmin+1,BGMkmax-BGMkmin+1/) &
+                    ,FIBGM_offsetElem_Shared_Win,FIBGM_offsetElem_Shared)
+CALL MPI_WIN_LOCK_ALL(0,FIBGM_offsetElem_Shared_Win,IERROR)
 
 ! last proc of compute-node writes into shared memory to make nElems per BGM accessible for every proc
 IF(myRank_Shared.EQ.nProcessors_Shared-1)THEN
+  currentOffset = 0
   DO iBGM = BGMimin,BGMimax
     DO jBGM = BGMjmin,BGMjmax
       DO kBGM = BGMkmin,BGMkmax
         FIBGM_nElem_Shared(iBGM,jBGM,kBGM) = sendbuf(iBGM,jBGM,kBGM)
+        FIBGM_offsetElem_Shared(iBGM,jBGM,kBGM) = currentOffset
+        currentOffset = currentoffset + sendbuf(iBGM,jBGM,kBGM)
       END DO ! kBGM
     END DO ! jBGM
   END DO ! iBGM
 END IF
 DEALLOCATE(sendbuf)
 CALL MPI_WIN_SYNC(FIBGM_nElem_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(FIBGM_offsetElem_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 ! allocate 1D array for mapping of BGM cell to Element indeces
