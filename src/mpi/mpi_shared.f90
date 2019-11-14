@@ -158,6 +158,9 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+IF (ASSOCIATED(DataPointer)) CALL abort(&
+__STAMP__&
+,'ERROR: Datapointer (Int1) already associated')
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 IF (myComputeNodeRank.EQ.0) THEN
@@ -203,6 +206,9 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+IF (ASSOCIATED(DataPointer)) CALL abort(&
+__STAMP__&
+,'ERROR: Datapointer (Int2) already associated')
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 IF (myComputeNodeRank.EQ.0) THEN
@@ -248,6 +254,9 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+IF (ASSOCIATED(DataPointer)) CALL abort(&
+__STAMP__&
+,'ERROR: Datapointer (Int3) already associated')
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 IF (myComputeNodeRank.EQ.0) THEN
@@ -293,6 +302,9 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+IF (ASSOCIATED(DataPointer)) CALL abort(&
+__STAMP__&
+,'ERROR: Datapointer (Real2) already associated')
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 IF (myComputeNodeRank.EQ.0) THEN
@@ -338,6 +350,9 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+IF (ASSOCIATED(DataPointer)) CALL abort(&
+__STAMP__&
+,'ERROR: Datapointer (Real3) already associated')
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 IF (myComputeNodeRank.EQ.0) THEN
@@ -383,6 +398,9 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+IF (ASSOCIATED(DataPointer)) CALL abort(&
+__STAMP__&
+,'ERROR: Datapointer (Real4) already associated')
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 IF (myComputeNodeRank.EQ.0) THEN
@@ -428,6 +446,9 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+IF (ASSOCIATED(DataPointer)) CALL abort(&
+__STAMP__&
+,'ERROR: Datapointer (Real5) already associated')
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 IF (myComputeNodeRank.EQ.0) THEN
@@ -473,6 +494,9 @@ TYPE(C_PTR)                               :: SM_PTR                   !> Base po
 INTEGER                                   :: DISP_UNIT                !> Displacement unit
 INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
 !==================================================================================================================================
+IF (ASSOCIATED(DataPointer)) CALL abort(&
+__STAMP__&
+,'ERROR: Datapointer (Real6) already associated')
 
 ! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
 IF (myComputeNodeRank.EQ.0) THEN
