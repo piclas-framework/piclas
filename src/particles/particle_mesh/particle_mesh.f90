@@ -427,31 +427,31 @@ ELSE
   END DO
 END IF
 
-! copy
-DO iElem=1,PP_nElems
-  DO iLocSide=1,6
-    PartElemToSide(:,iLocSide,iElem)=ElemToSide(:,iLocSide,iElem)
-  END DO
-  ElemIDGlob=OffSetElem+iElem
-  PartElemToElemGlob(1:4,1:6,iElem)=ElemToElemGlob(1:4,1:6,ElemIDGlob)
-END DO
-DO iSide=1,nSides
-  PartSideToElem(:,iSide)=SideToElem(:,iSide)
-END DO
+!! copy
+!DO iElem=1,PP_nElems
+!  DO iLocSide=1,6
+!    PartElemToSide(:,iLocSide,iElem)=ElemToSide(:,iLocSide,iElem)
+!  END DO
+!  ElemIDGlob=OffSetElem+iElem
+!  PartElemToElemGlob(1:4,1:6,iElem)=ElemToElemGlob(1:4,1:6,ElemIDGlob)
+!END DO
+!DO iSide=1,nSides
+!  PartSideToElem(:,iSide)=SideToElem(:,iSide)
+!END DO
 
-IF(TriaTracking) THEN
-  ALLOCATE(PartElemIsMortar(1:PP_nElems))
-  PartElemIsMortar = .FALSE.
-  DO iElem=1,PP_nElems
-    DO iLocSide = 1,6
-      SideIDMortar=MortarType(2,PartElemToSide(E2S_SIDE_ID,iLocSide,iElem))
-      IF (SideIDMortar.GT.0) THEN
-        PartElemIsMortar(iElem) = .TRUE.
-        EXIT
-      END IF
-    END DO
-  END DO
-END IF
+!IF(TriaTracking) THEN
+!  ALLOCATE(PartElemIsMortar(1:PP_nElems))
+!  PartElemIsMortar = .FALSE.
+!  DO iElem=1,PP_nElems
+!    DO iLocSide = 1,6
+!      SideIDMortar=MortarType(2,PartElemToSide(E2S_SIDE_ID,iLocSide,iElem))
+!      IF (SideIDMortar.GT.0) THEN
+!        PartElemIsMortar(iElem) = .TRUE.
+!        EXIT
+!      END IF
+!    END DO
+!  END DO
+!END IF
 
 ParticleMeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH DONE!'

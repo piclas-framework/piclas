@@ -2726,7 +2726,7 @@ SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
 CALL deleteMeshPointer()
 DEALLOCATE(NodeCoords)
 
-CALL InitFIBGM()
+!CALL InitFIBGM()
 
 !-- Macroscopic bodies inside domain
 CALL InitMacroBody()
