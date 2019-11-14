@@ -46,7 +46,7 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, MCC_pairing_bggas, DSMC_FinalizeBGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, DSMCSumOfFormedParticles, BGGas, CollisMode
-USE MOD_DSMC_Vars             ,ONLY: ChemReac, ConsiderVolumePortions, MCC_TotalPairNum, UseMCC
+USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SamplingRotVibRelaxProb
 USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
 USE MOD_Particle_Vars         ,ONLY: PDM, WriteMacroVolumeValues, Symmetry2D

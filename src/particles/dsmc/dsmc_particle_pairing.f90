@@ -99,9 +99,9 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
 ! Classic statistical pairing method
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars              ,ONLY: CollisMode, ChemReac
+  USE MOD_DSMC_Vars              ,ONLY: CollisMode, ChemReac, PartStateIntEn, CollInf
   USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcInstantTransTemp
-  USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies
+  USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies
   USE MOD_Particle_Vars          ,ONLY: KeepWallParticles, PDM
   USE MOD_part_tools             ,ONLY: GetParticleWeight
   USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -544,7 +544,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
-  USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, VarVibRelaxProb, ConsiderVolumePortions
+  USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, ConsiderVolumePortions
   USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies,PartPosRef
   USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
   USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping

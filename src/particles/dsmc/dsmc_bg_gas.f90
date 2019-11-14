@@ -140,7 +140,7 @@ USE MOD_DSMC_Relaxation        ,ONLY: SetMeanVibQua
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                       :: nPair, iPair, iPart, iLoop, nPart
-  INTEGER                       :: cSpec1, cSpec2, iCase
+  INTEGER                       :: cSpec1, cSpec2, iCase, iSpec
   REAL                          :: iRan
 !===================================================================================================================================
   nPart = PEM%pNumber(iElem)
@@ -268,10 +268,11 @@ SUBROUTINE MCC_pairing_bggas(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib
+USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles, ConsiderVolumePortions
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
+USE MOD_Particle_Vars           ,ONLY: WriteMacroVolumeValues
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
@@ -297,7 +298,7 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, PositionNbr, PairCount, RandomPart
+INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, PositionNbr, PairCount, RandomPart, nPair
 INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNum(nSpecies), SpecPairNumCounter(nSpecies), SpecPartNum(nSpecies)
 INTEGER,ALLOCATABLE           :: iPartIndex(:), PairingPartner(:), iPartIndexSpec(:,:)
 REAL                          :: iRan, ProbRest
