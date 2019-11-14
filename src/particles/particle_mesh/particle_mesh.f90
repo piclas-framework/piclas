@@ -220,6 +220,13 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideS
 USE MOD_Mesh_Vars              ,ONLY: useCurveds,NGeo,MortarType
 USE MOD_Mesh_Vars              ,ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1
 USE MOD_Particle_Surfaces_Vars ,ONLY: Vdm_Bezier,sVdm_Bezier,D_Bezier
+#ifdef PARTICLES
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideSlabNormals,SideSlabIntervals
+USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty,ElemSlabNormals,ElemSlabIntervals
+#endif
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
+#endif /*CODE_ANALYZE*/
 USE MOD_Basis                  ,ONLY: BuildBezierVdm,BuildBezierDMat
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
@@ -270,17 +277,6 @@ CALL InitializeVandermonde(NGeo,NGeo,wBaryCL_NGeo,Xi_NGeo,XiCL_NGeo,Vdm_NGeo_CLN
 
 CALL GetMeshMinMax()
 CALL BuildBGMAndIdentifyHaloRegion()
-
-!nTotalBCSides=nTotalSides_Shared
-!ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalElems_Shared)    &
-!        ,PartSideToElem(1:5,1:nTotalSides_Shared)        &
-!        ,STAT=ALLOCSTAT                      )
-!IF (ALLOCSTAT.NE.0) CALL abort(&
-!__STAMP__&
-!,'  Cannot allocate particle mesh vars!')
-! nullify
-!PartElemToSide=-1
-!PartSideToElem=-1
 
 DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
 TriaTracking       = GETLOGICAL('TriaTracking','.FALSE.')
@@ -429,6 +425,20 @@ ELSE
     BezierSampleXi(iSample)=-1.+2.0/BezierSampleN*iSample
   END DO
 END IF
+
+#ifdef PARTICLES
+ALLOCATE(SideSlabNormals(1:3,1:3,1:nSides),SideSlabIntervals(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
+SideSlabNormals=0.
+SideSlabIntervals=0.
+BoundingBoxIsEmpty=.TRUE.
+ALLOCATE(ElemSlabNormals(1:3,0:3,1:nElems),ElemSlabIntervals(1:6,nElems) )
+ElemSlabNormals=0.
+ElemSlabIntervals=0.
+#endif /*PARTICLES*/
+#ifdef CODE_ANALYZE
+ALLOCATE(SideBoundingBoxVolume(1:nSides))
+SideBoundingBoxVolume=0.
+#endif /*CODE_ANALYZE*/
 
 !! copy
 !DO iElem=1,PP_nElems

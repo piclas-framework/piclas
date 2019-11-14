@@ -119,16 +119,9 @@ USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Metrics                ,ONLY: CalcMetrics
 USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,CalcMeshInfo
 USE MOD_Mappings               ,ONLY: InitMappings
-#ifdef PARTICLES
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideSlabNormals,SideSlabIntervals
-USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty,ElemSlabNormals,ElemSlabIntervals
-#endif
 #if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
-#endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
@@ -330,19 +323,6 @@ CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral')
 ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
 ! assign 1/detJ (sJ)
 ! assign normal and tangential vectors and surfElems on faces
-#ifdef PARTICLES
-ALLOCATE(SideSlabNormals(1:3,1:3,1:nSides),SideSlabIntervals(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
-SideSlabNormals=0.
-SideSlabIntervals=0.
-BoundingBoxIsEmpty=.TRUE.
-ALLOCATE(ElemSlabNormals(1:3,0:3,1:nElems),ElemSlabIntervals(1:6,nElems) )
-ElemSlabNormals=0.
-ElemSlabIntervals=0.
-#endif /*PARTICLES*/
-#ifdef CODE_ANALYZE
-ALLOCATE(SideBoundingBoxVolume(1:nSides))
-SideBoundingBoxVolume=0.
-#endif /*CODE_ANALYZE*/
 
 crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
