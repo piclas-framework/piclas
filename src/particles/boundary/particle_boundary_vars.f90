@@ -159,10 +159,8 @@ TYPE tPorousBC
   INTEGER, ALLOCATABLE                  :: SideList(:)            ! Mapping from porous BC side list to the BC side list
   REAL, ALLOCATABLE                     :: Sample(:,:)            ! Allocated with SideNumber and nPorousBCVars
   INTEGER, ALLOCATABLE                  :: RegionSideType(:)      ! 0: side is completely inside porous region
-                                                                  ! 1: side is completely outside porous region
-                                                                  ! 2: side is partially inside porous region
+                                                                  ! 1: side is partially inside porous region
   REAL, ALLOCATABLE                     :: RemovalProbability(:)  ! Removal probability at the porous BC
-  REAL, ALLOCATABLE                     :: PressureDifference(:)  ! Removal probability at the porous BC
   REAL, ALLOCATABLE                     :: PumpingSpeedSide(:)    ! Removal probability at the porous BC
   REAL                                  :: Output(1:5)            ! 1: Counter of impinged particles on the BC
                                                                   ! 2: Measured pumping speed [m3/s] through # of deleted particles
@@ -172,8 +170,8 @@ TYPE tPorousBC
 END TYPE
 TYPE(tPorousBC), ALLOCATABLE            :: PorousBC(:)            ! Container for the porous BC, allocated with nPorousBC
 
-INTEGER, ALLOCATABLE                    :: MapBCtoPorousBC(:)     ! Mapping the porous BC to the BC (input: BC, output: porous BC)
-INTEGER, ALLOCATABLE                    :: MapSurfSideToPorousSide(:) !
+INTEGER, ALLOCATABLE                    :: MapSurfSideToPorousBC(:)   ! Mapping of the surface side to the porous BC
+INTEGER, ALLOCATABLE                    :: MapSurfSideToPorousSide(:) ! Mapping of the surface side to the porous side
 
 TYPE tSurfColl
   INTEGER                               :: NbrOfSpecies           ! Nbr. of Species to be counted for wall collisions (def. 0: all)

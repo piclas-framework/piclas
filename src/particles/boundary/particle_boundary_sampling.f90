@@ -218,11 +218,11 @@ DO iSide=1,nBCSides
     SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
   END IF
 END DO
-! own inner BCsides (inner sides with refelctive PartBC)
+! own inner BCsides (inner sides with reflective PartBC)
 ! for clear assignment of innerBCSide between two procs Master/Slave definition is used
 !   (1)     SlaveSides that are innerBCsides are tagged by IsSlaveSide(iSide)
 !   (2)     SlaveSides is mapped to corresponding HaloSide
-!           SampWall Informations of SlaveSides are added to SampWall Informations of corresponding HaloSide
+!           SampWall information of SlaveSides are added to SampWall information of corresponding HaloSide
 DO iSide=nBCSides+1,nSides
   IF(BC(iSide).EQ.0) CYCLE
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
