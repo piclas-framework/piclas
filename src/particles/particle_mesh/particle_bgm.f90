@@ -122,6 +122,7 @@ CALL MPI_WIN_LOCK_ALL(0,BoundsOfElem_Shared_Win,IERROR)
 
 firstElem=INT(REAL(myRank_Shared*nTotalElems)/REAL(nProcessors_Shared))+1
 lastElem=INT(REAL((myRank_Shared+1)*nTotalElems)/REAL(nProcessors_Shared))
+moveBGMindex = 1 ! BGM indeces must be >1 --> move by 1
 DO iElem = firstElem, lastElem
   offSetNodeID=ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)
   nNodeIDs=ElemInfo_Shared(ELEM_LASTNODEIND,iElem)-ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)
@@ -142,12 +143,13 @@ DO iElem = firstElem, lastElem
   BoundsOfElem_Shared(5,iElem) = zmin
   BoundsOfElem_Shared(6,iElem) = zmax
 
-  ElemToBGM_Shared(1,iElem) = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-  ElemToBGM_Shared(2,iElem) = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-  ElemToBGM_Shared(3,iElem) = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  ElemToBGM_Shared(4,iElem) = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  ElemToBGM_Shared(5,iElem) = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-  ElemToBGM_Shared(6,iElem) = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+  ! BGM indeces must be >1 --> move by 1
+  ElemToBGM_Shared(1,iElem) = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)) +moveBGMindex
+  ElemToBGM_Shared(2,iElem) = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)) +moveBGMindex
+  ElemToBGM_Shared(3,iElem) = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)) +moveBGMindex
+  ElemToBGM_Shared(4,iElem) = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2)) +moveBGMindex
+  ElemToBGM_Shared(5,iElem) = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)) +moveBGMindex
+  ElemToBGM_Shared(6,iElem) = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)) +moveBGMindex
 END DO ! iElem = 1, nElems
 CALL MPI_WIN_SYNC(ElemToBGM_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(BoundsOfElem_Shared_Win,IERROR)
@@ -235,13 +237,14 @@ END IF
 halo_eps2=halo_eps*halo_eps
 CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
 
+moveBGMindex = 2 ! BGM indeces must be >1 --> move by 2
 ! enlarge BGM with halo region (all element outside of this region will be cut off)
-BGMimax = INT((MIN(GEO%xmax_Shared+halo_eps,GEO%xmaxglob)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
-BGMimin = INT((MAX(GEO%xmin_Shared-halo_eps,GEO%xminglob)-GEO%xminglob)/GEO%FIBGMdeltas(1))-1
-BGMjmax = INT((MIN(GEO%ymax_Shared+halo_eps,GEO%ymaxglob)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
-BGMjmin = INT((MAX(GEO%ymin_Shared-halo_eps,GEO%yminglob)-GEO%yminglob)/GEO%FIBGMdeltas(2))-1
-BGMkmax = INT((MIN(GEO%zmax_Shared+halo_eps,GEO%zmaxglob)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
-BGMkmin = INT((MAX(GEO%zmin_Shared-halo_eps,GEO%zminglob)-GEO%zminglob)/GEO%FIBGMdeltas(3))-1
+BGMimax = INT((MIN(GEO%xmax_Shared+halo_eps,GEO%xmaxglob)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1  + moveBGMindex
+BGMimin = INT((MAX(GEO%xmin_Shared-halo_eps,GEO%xminglob)-GEO%xminglob)/GEO%FIBGMdeltas(1))-1  + moveBGMindex
+BGMjmax = INT((MIN(GEO%ymax_Shared+halo_eps,GEO%ymaxglob)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1  + moveBGMindex
+BGMjmin = INT((MAX(GEO%ymin_Shared-halo_eps,GEO%yminglob)-GEO%yminglob)/GEO%FIBGMdeltas(2))-1  + moveBGMindex
+BGMkmax = INT((MIN(GEO%zmax_Shared+halo_eps,GEO%zmaxglob)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1  + moveBGMindex
+BGMkmin = INT((MAX(GEO%zmin_Shared-halo_eps,GEO%zminglob)-GEO%zminglob)/GEO%FIBGMdeltas(3))-1  + moveBGMindex
 ! write function-local BGM indeces into global variables
 GEO%FIBGMimax_Shared=BGMimax
 GEO%FIBGMimin_Shared=BGMimin
@@ -250,12 +253,12 @@ GEO%FIBGMjmin_Shared=BGMjmin
 GEO%FIBGMkmax_Shared=BGMkmax
 GEO%FIBGMkmin_Shared=BGMkmin
 ! initialize BGM min/max indeces using GEO min/max distances
-GEO%FIBGMimax = INT((GEO%xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
-GEO%FIBGMimin = INT((GEO%xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))-1
-GEO%FIBGMjmax = INT((GEO%ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
-GEO%FIBGMjmin = INT((GEO%ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))-1
-GEO%FIBGMkmax = INT((GEO%zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
-GEO%FIBGMkmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))-1
+GEO%FIBGMimax = INT((GEO%xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))+1  + moveBGMindex
+GEO%FIBGMimin = INT((GEO%xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))-1  + moveBGMindex
+GEO%FIBGMjmax = INT((GEO%ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))+1  + moveBGMindex
+GEO%FIBGMjmin = INT((GEO%ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))-1  + moveBGMindex
+GEO%FIBGMkmax = INT((GEO%zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))+1  + moveBGMindex
+GEO%FIBGMkmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))-1  + moveBGMindex
 
 ALLOCATE(GEO%FIBGM(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax))
 
