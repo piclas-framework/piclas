@@ -99,21 +99,6 @@ USE MOD_Interpolation,           ONLY:GetVandermonde,GetNodesAndWeights,GetDeriv
 USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
-#ifdef PARTICLES
-#if USE_MPI
-USE MOD_Mesh_Vars,               ONLY:nSides
-#endif
-USE MOD_Mesh_Vars,               ONLY:NGeoElevated
-USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals
-USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D
-USE MOD_Mesh_Vars,               ONLY:SideToElem
-USE MOD_Mesh_Vars,               ONLY:MortarSlave2MasterInfo
-USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals &
-                                        ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
-#if !(USE_MPI)
-USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMortarInnerSides
-#endif /*!(USE_MPI)*/
-#endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
