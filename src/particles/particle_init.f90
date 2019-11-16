@@ -2708,9 +2708,16 @@ END IF
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 #endif /*USE_MPI*/
 
-! get new min max
+!--- Read Manual Time Step
+useManualTimeStep = .FALSE.
+ManualTimeStep = GETREAL('Particles-ManualTimeStep', '0.0')
+IF (ManualTimeStep.GT.0.0) THEN
+  useManualTimeStep=.True.
+END IF
+
+! calculate cartesian borders of node local and global mesh
 SWRITE(UNIT_stdOut,'(A)')' Getting Mesh min-max ...'
-!CALL GetMeshMinMax()
+CALL GetMeshMinMax()
 
 CALL InitPIC()
 

@@ -242,8 +242,6 @@ IF(ParticleMeshInitIsDone) CALL abort(&
 __STAMP__&
 , ' Particle-Mesh is already initialized.')
 
-! calculate cartesian borders of node local and global mesh
-CALL GetMeshMinMax()
 ! Build BGM to Element mapping and identify which of the elements, sides and nodes are in the compute-node local and halo region
 CALL BuildBGMAndIdentifyHaloRegion()
 
@@ -443,10 +441,17 @@ CALL MPI_WIN_LOCK_ALL(0,dXCL_NGeo_Shared_Win,IERROR)
 firstElem=INT(REAL(myComputeNodeRank*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem=INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 ! Copy local XCL and dXCL into shared
-DO iElem = 1, nElems
-  XCL_NGeo_Shared(:,:,:,:,GlobalElem2CNTotalElem(offsetElem+iElem)) = XCL_NGeo(:,:,:,:,iElem)
-  dXCL_NGeo_Shared(:,:,:,:,:,GlobalElem2CNTotalElem(offsetElem+iElem)) = dXCL_NGeo(:,:,:,:,:,iElem)
-END DO ! iElem = 1, nElems
+IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
+  DO iElem = 1, nElems
+    XCL_NGeo_Shared(:,:,:,:,offsetElem+iElem) = XCL_NGeo(:,:,:,:,iElem)
+    dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) = dXCL_NGeo(:,:,:,:,:,iElem)
+  END DO ! iElem = 1, nElems
+ELSE
+  DO iElem = 1, nElems
+    XCL_NGeo_Shared(:,:,:,:,GlobalElem2CNTotalElem(offsetElem+iElem)) = XCL_NGeo(:,:,:,:,iElem)
+    dXCL_NGeo_Shared(:,:,:,:,:,GlobalElem2CNTotalElem(offsetElem+iElem)) = dXCL_NGeo(:,:,:,:,:,iElem)
+  END DO ! iElem = 1, nElems
+END IF
 nComputeNodeHaloElems = nComputeNodeTotalElems - nComputeNodeElems
 IF (nComputeNodeHaloElems.GT.nComputeNodeProcessors) THEN
   firstHaloElem=INT(REAL(myComputeNodeRank*nComputeNodeHaloElems)/REAL(nComputeNodeProcessors))+1
@@ -548,13 +553,13 @@ REAL,ALLOCATABLE               :: temp(:,:,:)
 INTEGER                        :: p,q,pq(2)
 REAL                           :: tmp(3,0:NGeo,0:NGeo)
 REAL                           :: tmp2(3,0:NGeo,0:NGeo)
-REAL                           :: StartT,EndT
+!REAL                           :: StartT,EndT
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 !INTEGER            :: lowerLimit,ElemID,SideID,NBElemID
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' CALCULATING BezierControlPoints ...'
-StartT=PICLASTIME()
+!StartT=PICLASTIME()
 
 ! Build BezierControlPoints3D (compute-node local+halo)
 #if USE_MPI
@@ -691,8 +696,8 @@ END IF
 !  END IF
 !END DO
 
-EndT=PICLASTIME()
-SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of Bezier control points took  [',EndT-StartT,'s]'
+!EndT=PICLASTIME()
+!SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of Bezier control points took  [',EndT-StartT,'s]'
 
 END SUBROUTINE CalcBezierControlPoints
 
@@ -6599,6 +6604,12 @@ GEO%ymaxglob=MAXVAL(NodeCoords_Shared(2,:))
 GEO%zminglob=MINVAL(NodeCoords_Shared(3,:))
 GEO%zmaxglob=MAXVAL(NodeCoords_Shared(3,:))
 #else
+GEO%xmin_Shared=GEO%xmin
+GEO%xmax_Shared=GEO%xmax
+GEO%ymin_Shared=GEO%ymin
+GEO%ymax_Shared=GEO%ymax
+GEO%zmin_Shared=GEO%zmin
+GEO%zmax_Shared=GEO%zmax
 GEO%xminglob=GEO%xmin
 GEO%xmaxglob=GEO%xmax
 GEO%yminglob=GEO%ymin

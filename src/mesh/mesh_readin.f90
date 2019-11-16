@@ -403,6 +403,9 @@ IF(myComputeNodeRank.EQ.0) THEN
   offsetComputeNodeElem=offsetElem
   CALL MPI_BCAST(offsetComputeNodeElem,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 END IF
+#else
+ALLOCATE(ElemInfo_Shared(1:ELEMINFOSIZE,1:nElems))
+ElemInfo_Shared(1:ELEMINFOSIZE_H5,1:nElems) = ElemInfo(:,:)
 #endif  /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------
 !                              SIDES
@@ -439,6 +442,10 @@ CALL MPI_WIN_LOCK_ALL(0,SideInfo_Shared_Win,IERROR)
 SideInfo_Shared(1:SIDEINFOSIZE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo(:,:)
 SideInfo_Shared(SIDEINFOSIZE+1,offsetSideID+1:offsetSideID+nSideIDs) = 0
 CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
+#else
+ALLOCATE(SideInfo_Shared(1:SIDEINFOSIZE,1:nSideIDs))
+SideInfo_Shared(1:SIDEINFOSIZE,1:nSideIDs) = SideInfo(:,:)
+SideInfo_Shared(SIDEINFOSIZE+1,1:nSideIDs) = 0
 #endif  /*USE_MPI*/
 
 DO iElem=FirstElemInd,LastElemInd
@@ -617,6 +624,11 @@ CALL Allocate_Shared(MPISharedSize,(/3_IK,nNonUniqueGlobalNodes/),NodeCoords_Sha
 CALL MPI_WIN_LOCK_ALL(0,NodeCoords_Shared_Win,IERROR)
 NodeCoords_Shared(:,offsetNodeID+1:offsetNodeID+nNodeIDs) = NodeCoords_indx(:,:)
 CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
+#else
+ALLOCATE(NodeInfo_Shared(1:nNodeIDs))
+NodeInfo_Shared(1:nNodeIDs) = NodeInfo(:)
+ALLOCATE(NodeCoords_Shared(3,nNodeIDs))
+NodeCoords_Shared(:,:) = NodeCoords_indx(:,:)
 #endif  /*USE_MPI*/
 
 CALL GetNodeMap() !get nNodes and local NodeMap from NodeInfo array
