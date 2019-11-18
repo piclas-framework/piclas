@@ -432,7 +432,10 @@ END ASSOCIATE
 #if USE_MPI
 DO iElem=FirstElemInd,LastElemInd
   iSide=ElemInfo(ELEM_FIRSTSIDEIND,iElem) !first index -1 in Sideinfo
-  SideInfo(SIDE_ELEMID,iSide+1:iSide+6) = iElem
+  ! if an element has hanging nodes, the big side has negative index (-1,-2 or -3) 
+  ! and the next 2 (-2, -3) or 4 (-1) sides are the subsides
+  ! Consequently, a hexahedral element can have more than 6 non-unique sides
+  SideInfo(SIDE_ELEMID,iSide+1:ElemInfo(ELEM_LASTSIDEIND,iElem)) = iElem
 END DO
 ! all procs on my compute-node communicate the number of non-unique sides
 CALL MPI_ALLREDUCE(nSideIDs,nComputeNodeSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)

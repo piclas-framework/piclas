@@ -633,8 +633,11 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
   nComputeNodeTotalElems = nGlobalElems
   nComputeNodeTotalSides = nNonUniqueGlobalSides
+  nComputeNodeTotalNodes = nNonUniqueGlobalNodes
 ELSE
   nComputeNodeTotalElems = 0
+  nComputeNodeTotalSides = 0
+  nComputeNodeTotalNodes = 0
   DO iElem = 1, nGlobalElems
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.2 .OR. ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.1) THEN
       nComputeNodeTotalElems = nComputeNodeTotalElems + 1
@@ -643,12 +646,17 @@ ELSE
   ALLOCATE(CNTotalElem2GlobalElem(1:nComputeNodeTotalElems))
   ALLOCATE(GlobalElem2CNTotalElem(1:nGlobalElems))
   nComputeNodeTotalElems = 0
+  nComputeNodeTotalElems = 0
   GlobalElem2CNTotalElem(1:nGlobalElems) = -1
   DO iElem = 1,nGlobalElems
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.1) THEN
       nComputeNodeTotalElems = nComputeNodeTotalElems + 1
       CNTotalElem2GlobalElem(nComputeNodeTotalElems) = iElem
       GlobalElem2CNTotalElem(iElem) = nComputeNodeTotalElems
+      nComputeNodeTotalSides = nComputeNodeTotalElems &
+                             + (ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) - ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem))
+      nComputeNodeTotalNodes = nComputeNodeTotalNodes &
+                             + (ElemInfo_Shared(ELEM_LASTNODEIND,iElem) - ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem))
     END IF
   END DO
   DO iElem = 1,nGlobalElems
@@ -656,9 +664,12 @@ ELSE
       nComputeNodeTotalElems = nComputeNodeTotalElems + 1
       CNTotalElem2GlobalElem(nComputeNodeTotalElems) = iElem
       GlobalElem2CNTotalElem(iElem) = nComputeNodeTotalElems
+      nComputeNodeTotalSides = nComputeNodeTotalElems &
+                             + (ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) - ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem))
+      nComputeNodeTotalNodes = nComputeNodeTotalNodes &
+                             + (ElemInfo_Shared(ELEM_LASTNODEIND,iElem) - ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem))
     END IF
   END DO
-  nComputeNodeTotalSides = nComputeNodeTotalElems * 6
 END IF
 #endif  /*USE_MPI*/ 
 
