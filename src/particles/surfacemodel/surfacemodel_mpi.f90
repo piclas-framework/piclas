@@ -756,7 +756,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   SurfDistRecvBuf(iProc)%content_int = 0
 END DO ! iProc
 
-IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner BCs on SlaveSide
+IF(SurfMesh%nSides.GT.SurfMesh%nOutputSides) THEN ! There are reflective inner BCs on SlaveSide
   DO iSide=nBCSides+1,nSides
     IF(BC(iSide).EQ.0) CYCLE
     IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
@@ -784,7 +784,7 @@ IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner B
 END IF
 
 ! assign bond order to surface atoms in the surfacelattice for halo sides
-DO iSurfSide = SurfMesh%nMasterSides+1,SurfMesh%nTotalSides
+DO iSurfSide = SurfMesh%nOutputSides+1,SurfMesh%nTotalSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%SurfaceModel(PartboundID).NE.3) CYCLE
@@ -851,7 +851,7 @@ ELSE
   locReverse = .FALSE.
 END IF
 
-IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner BCs on SlaveSide
+IF(SurfMesh%nSides.GT.SurfMesh%nOutputSides) THEN ! There are reflective inner BCs on SlaveSide
   DO iSide=nBCSides+1,nSides
     IF(BC(iSide).EQ.0) CYCLE
     IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN

@@ -222,14 +222,14 @@ IsSlaveSide(1:nSides)= .FALSE.
 ! --------------------------------------------------
 ! own BCsides
 SurfMesh%nSides=0
-SurfMesh%nMasterSides=0
+SurfMesh%nOutputSides=0
 SurfMesh%nBCSides=0
 SurfMesh%nInnerSides=0
 DO iSide=1,nBCSides
   IF(BC(iSide).EQ.0) CYCLE
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
     SurfMesh%nSides                = SurfMesh%nSides + 1
-    SurfMesh%nMasterSides          = SurfMesh%nMasterSides + 1
+    SurfMesh%nOutputSides          = SurfMesh%nOutputSides + 1
     SurfMesh%nBCSides              = SurfMesh%nBCSides + 1
     SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
   END IF
@@ -265,14 +265,14 @@ __STAMP__&
         ElemOfInnerBC(iSide)= PartSideToElem(iElem,iSide)
       ELSE ! innerBCSide is between two procs and on output side
         SurfMesh%nSides                = SurfMesh%nSides + 1
-        SurfMesh%nMasterSides          = SurfMesh%nMasterSides + 1
+        SurfMesh%nOutputSides          = SurfMesh%nOutputSides + 1
         SurfMesh%nInnerSides           = SurfMesh%nInnerSides + 1  ! increment only for MasterSides
         SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
       END IF
     ELSE ! innerBCSide is NOT between two procs
 #endif /*USE_MPI*/
       SurfMesh%nSides                = SurfMesh%nSides + 1
-      SurfMesh%nMasterSides          = SurfMesh%nMasterSides + 1
+      SurfMesh%nOutputSides          = SurfMesh%nOutputSides + 1
       SurfMesh%nInnerSides           = SurfMesh%nInnerSides + 1  ! increment only for MasterSides
       SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
 #if USE_MPI
@@ -351,9 +351,9 @@ IF(SurfMesh%nTotalSides.GT.0) SurfMesh%SurfOnProc=.TRUE.
 
 #if USE_MPI
 !CALL MPI_ALLREDUCE(SurfMesh%nSides,SurfMesh%nGlobalSides,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
-CALL MPI_ALLREDUCE(SurfMesh%nMasterSides,SurfMesh%nGlobalSides,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
+CALL MPI_ALLREDUCE(SurfMesh%nOutputSides,SurfMesh%nGlobalSides,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
 #else
-SurfMesh%nGlobalSides=SurfMesh%nMasterSides
+SurfMesh%nGlobalSides=SurfMesh%nOutputSides
 #endif
 
 
@@ -647,7 +647,7 @@ END IF
 ! now, create output communicator
 OutputOnProc=.FALSE.
 color=MPI_UNDEFINED
-IF(SurfMesh%nMasterSides.GT.0) THEN
+IF(SurfMesh%nOutputSides.GT.0) THEN
   OutputOnProc=.TRUE.
   color=1002
 END IF
@@ -656,7 +656,7 @@ IF(PartMPI%MPIRoot) THEN
   Surfrank=-1
   noSurfrank=-1
   SurfCOMM%MyOutputRank=0
-  IF(SurfMesh%nMasterSides.GT.0) THEN
+  IF(SurfMesh%nOutputSides.GT.0) THEN
     Surfrank=0
   ELSE
     noSurfrank=0
@@ -691,21 +691,21 @@ END IF
 
 IF(SurfMesh%nTotalSides.EQ.0) RETURN
 ! check if any proc has innersides and set flag for all proc to do additional communication and slave mapping
-IF((SurfMesh%nSides-SurfMesh%nMasterSides).GT.0) THEN
+IF((SurfMesh%nSides-SurfMesh%nOutputSides).GT.0) THEN
   InnerSlaveBCs = .TRUE.
 ELSE
   InnerSlaveBCs = .FALSE.
 END IF
 CALL MPI_ALLREDUCE(InnerSlaveBCs,SurfCOMM%InnerBCs,1,MPI_LOGICAL,MPI_LOR,SurfCOMM%COMM,iError)
 
-IF(SurfMesh%nMasterSides.EQ.0) RETURN
+IF(SurfMesh%nOutputSides.EQ.0) RETURN
 ! get correct offsets for output of hdf5 file (master sides)
 ALLOCATE(offsetSurfSideMPI(0:SurfCOMM%nOutputProcs))
 offsetSurfSideMPI=0
 ALLOCATE(countSurfSideMPI(0:SurfCOMM%nOutputProcs-1))
 countSurfSideMPI=0
 
-CALL MPI_GATHER(SurfMesh%nMasterSides,1,MPI_INTEGER,countSurfSideMPI,1,MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
+CALL MPI_GATHER(SurfMesh%nOutputSides,1,MPI_INTEGER,countSurfSideMPI,1,MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
 
 ! new offsets due to InnerSurfSides
 ALLOCATE(offsetInnerSurfSideMPI(0:SurfCOMM%nOutputProcs))
@@ -1419,7 +1419,7 @@ IMPLICIT NONE
 INTEGER                         :: iSide,TargetHaloSide,q,p,SurfSideID,SurfSideHaloID,iReact
 !===================================================================================================================================
 
-IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner BCs on SlaveSide
+IF(SurfMesh%nSides.GT.SurfMesh%nOutputSides) THEN ! There are reflective inner BCs on SlaveSide
   DO iSide=nBCSides+1,nSides
     IF(BC(iSide).EQ.0) CYCLE
     IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
@@ -1506,7 +1506,7 @@ REAL                                :: tstart,tend
 
 #if USE_MPI
 CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
-IF(SurfMesh%nMasterSides.EQ.0) RETURN
+IF(SurfMesh%nOutputSides.EQ.0) RETURN
 #endif /*USE_MPI*/
 IF(SurfCOMM%MPIOutputRoot)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DSMCSurfSTATE TO HDF5 FILE...'
@@ -1635,7 +1635,7 @@ ASSOCIATE (&
       offsetInnerSurfSide  => INT(offsetInnerSurfSide,IK)   ,&
       nVar2D_Spec          => INT(nVar2D_Spec,IK)           ,&
       nVar2D               => INT(nVar2D,IK)                ,&
-      nOutputSides         => INT(SurfMesh%nMasterSides,IK) )
+      nOutputSides         => INT(SurfMesh%nOutputSides,IK) )
   DO iSpec = 1,nSpecies
     CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                      , &
                             nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides/)  , &

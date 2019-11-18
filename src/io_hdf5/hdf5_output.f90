@@ -1579,7 +1579,7 @@ IF(.NOT.SurfMesh%SurfOnProc) RETURN
 IF(.NOT.(ANY(PartBound%Reactive))) RETURN
 
 ! only pocs with real surfaces (not halo) in own proc write out
-IF(SurfMesh%nMasterSides.EQ.0) RETURN
+IF(SurfMesh%nOutputSides.EQ.0) RETURN
 #if USE_MPI
 CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
 #endif /*USE_MPI*/
@@ -1598,9 +1598,9 @@ END IF
 #endif
 
 ! write surfacemodel type for every surface into partstate
-ALLOCATE(SurfModelType(SurfMesh%nMasterSides))
+ALLOCATE(SurfModelType(SurfMesh%nOutputSides))
 SurfModelType = 0
-DO iSurfSide = 1,SurfMesh%nMasterSides
+DO iSurfSide = 1,SurfMesh%nOutputSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%Reactive(PartboundID)) THEN
@@ -1618,7 +1618,7 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       nGlobalSides   => INT(SurfMesh%nGlobalSides,IK) ,&
-      nSides         => INT(SurfMesh%nMasterSides,IK) ,&
+      nSides         => INT(SurfMesh%nOutputSides,IK) ,&
       offsetSurfSide => INT(offsetSurfSide,IK) )
   CALL WriteArrayToHDF5(DataSetName=H5_Name , rank=1, &
                         nValGlobal =(/nGlobalSides/) , &
@@ -1654,9 +1654,9 @@ END IF
 #endif
 
 ! rewrite and save arrays for SurfCalcData
-ALLOCATE(SurfCalcData(nVar,nSurfSample,nSurfSample,SurfMesh%nMasterSides,nSpecies))
+ALLOCATE(SurfCalcData(nVar,nSurfSample,nSurfSample,SurfMesh%nOutputSides,nSpecies))
 SurfCalcData = 0.
-DO iSurfSide = 1,SurfMesh%nMasterSides
+DO iSurfSide = 1,SurfMesh%nOutputSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%Reactive(PartboundID)) THEN
@@ -1678,7 +1678,7 @@ WRITE(H5_Name,'(A)') 'SurfCalcData'
 !CALL GatheredWriteArray(FileName,create=.FALSE.,&
 !                        DataSetName=H5_Name, rank=5,&
 !                        nValGlobal=(/nVar,nSurfSample,nSurfSample,SurfMesh%nGlobalSides,nSpecies/),&
-!                        nVal=      (/nVar,nSurfSample,nSurfSample,SurfMesh%nMasterSides,nSpecies/),&
+!                        nVal=      (/nVar,nSurfSample,nSurfSample,SurfMesh%nOutputSides,nSpecies/),&
 !                        offset=    (/0   ,0          ,0          ,offsetSurfSide       ,0       /),&
 !                        collective=.TRUE.,  RealArray=SurfCalcData)
 !#else
@@ -1694,7 +1694,7 @@ ASSOCIATE (&
       nVar           => INT(nVar,IK)                  ,&
       nSurfSample    => INT(nSurfSample,IK)           ,&
       nGlobalSides   => INT(SurfMesh%nGlobalSides,IK) ,&
-      nSides         => INT(SurfMesh%nMasterSides,IK) ,&
+      nSides         => INT(SurfMesh%nOutputSides,IK) ,&
       offsetSurfSide => INT(offsetSurfSide,IK) )
   CALL WriteArrayToHDF5(DataSetName=H5_Name , rank=5                                                   , &
                         nValGlobal =(/nVar   , nSurfSample , nSurfSample , nGlobalSides   , nSpecies/) , &
@@ -1727,7 +1727,7 @@ nSurfPart_glob = 0
 offsetnSurfPart = 0
 
 ! calculate number of adsorbates on each coordination (already on surface) and all sites
-DO iSurfSide = 1,SurfMesh%nMasterSides
+DO iSurfSide = 1,SurfMesh%nOutputSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%Reactive(PartboundID)) THEN
@@ -1760,10 +1760,10 @@ offsetnSurfPart=0
 nSurfPart_glob=locnSurfPart
 #endif
 
-ALLOCATE(SurfPartInt(offsetSurfSide+1:offsetSurfSide+SurfMesh%nMasterSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize))
+ALLOCATE(SurfPartInt(offsetSurfSide+1:offsetSurfSide+SurfMesh%nOutputSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize))
 ALLOCATE(SurfPartData(offsetnSurfPart+1:offsetnSurfPart+locnSurfPart,SurfPartDataSize))
 iOffset = offsetnSurfPart
-DO iSurfSide = 1,SurfMesh%nMasterSides
+DO iSurfSide = 1,SurfMesh%nOutputSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   DO jsubsurf = 1,nSurfSample
@@ -1831,7 +1831,7 @@ ASSOCIATE (&
       SurfPartIntSize  => INT(SurfPartIntSize,IK)      ,&
       nSurfSample      => INT(nSurfSample,IK)          ,&
       nGlobalSides     => INT(SurfMesh%nGlobalSides,IK),&
-      nSides           => INT(SurfMesh%nMasterSides,IK),&
+      nSides           => INT(SurfMesh%nOutputSides,IK),&
       offsetSurfSide   => INT(offsetSurfSide,IK))
 #if USE_MPI
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)

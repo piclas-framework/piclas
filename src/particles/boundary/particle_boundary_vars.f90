@@ -81,7 +81,10 @@ TYPE tSurfaceMesh
   INTEGER                               :: nSides                        ! Number of Sides on Surface (reflective)
   INTEGER                               :: nBCSides                      ! Number of OuterSides with Surface (reflective) properties
   INTEGER                               :: nInnerSides                   ! Number of InnerSides with Surface (reflective) properties
-  INTEGER                               :: nMasterSides                  ! Number of maser surfaces (bcsides+maser_innersides)
+  INTEGER                               :: nOutputSides                  ! Number of surfaces that are assigned to an MPI rank for
+                                                                         ! surface sampling (MacroSurfaceVal and MacroSurfaceSpecVal) 
+                                                                         ! and output to .h5 (SurfData) purposes:
+                                                                         ! nOutputSides = bcsides + maser_innersides
   INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
   INTEGER                               :: nGlobalSides                  ! Global number of Sides on Surfaces (reflective)
   INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping of side ID to surface side ID (reflective)
