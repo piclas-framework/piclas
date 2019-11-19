@@ -76,9 +76,9 @@ if [ ! -d "${MODULESHOME}" ]; then
     if [ -e "${INSTALLDIR}/modules/${MODULEVERSION}/Modules/${MODULEVERSION}/init/.modulespath" ]; then
       if [ -e "${INSTALLDIR}/modules/${MODULEVERSION}/Modules/${MODULEVERSION}/init/bash" ]; then
         echo "Modules correctly installed. System restart required."
-      fi
       else
         echo "bash was not created correctly."
+      fi
     else
       echo ".modulespath was not created correctly."
     fi
