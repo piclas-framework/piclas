@@ -83,6 +83,11 @@ sudo apt-get install hdfview
 # Install libs for reggie
 sudo apt-get install python-h5py
 
+```
+
+When no module environment is to be used on the server, the following packages are also required
+
+```
 # Further libs
 sudo apt-get install hdf5-tools libhdf5-dev # this is maybe not required (do not install them if it works without these packages)
 
@@ -114,6 +119,9 @@ cd ../..
 rm hdf5-1.10.5.tar.bz2
 ```
 
+otherwise a module environment can be installed at this point, see
+`~/Flexi/piclas/tools/Setup_ModuleEnv/README.txt`, which is explained in detail in Chapter \ref{chap:tools} under Section \ref{sec:tools_module_env}.
+
 When no module environment is to be used on the server, the following commands must be places in the
 *.gitlab-ci.yml* file:
 
@@ -130,6 +138,11 @@ before_script:
   - export LD_LIBRARY_PATH=/opt/hdf5/1.10.5/lib/:$LD_LIBRARY_PATH
   - export CMAKE_PREFIX_PATH=/opt/hdf5/1.10.5/:$CMAKE_PREFIX_PATH
   - export CMAKE_LIBRARY_PATH=/opt/hdf5/1.10.5/lib:$CMAKE_LIBRARY_PAT
+```
+
+otherwise, the correct environment must be loaded, e.g.,
+```
+module load XX/XX
 ```
 
 NOTE: The stack size limit has been removed here by `ulimit -s unlimited`, which might be required

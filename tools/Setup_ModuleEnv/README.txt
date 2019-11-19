@@ -1,4 +1,4 @@
-These script help setting up an environment for development with piclas
+These scripts help setting up an environment for development with piclas
 
 ------------------------------------------------------------
 Order of how to setup environment
