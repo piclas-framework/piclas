@@ -30,9 +30,17 @@ system. In a second step, the *gitlab-runner* program is installed and the setup
 described.
 
 ### Required Installation of Software on Clean Ubuntu Setup (18.04)
-    Latest test: on ubuntu (18.04), 3 Jul 2019
+Latest tests on 
 
-The following packages can be installed automaticall by using the script located in `./tools/Setup_ModuleEnv/InstallPackagesReggie.sh`
+  * Ubuntu (18.04), 3 Jul 2019
+  * Ubuntu server (18.04.3 LTS), 19 Nov 2019
+
+The following packages can be installed automatically by using the script located at `./tools/Setup_ModuleEnv/InstallPackagesReggie.sh`.
+The system inquiries can be skipped by forcing `yes` as input via
+
+    yes | ./InstallPackagesRe
+
+The script contains the following packages
 
 ```
 # Check for updates
@@ -142,7 +150,9 @@ Latest test: on ubuntu (18.04), 3 Jul 2019
     ```
     sudo gitlab-runner start
     ```
-3. Register a runner using a shell executor (follow information in official guideline, varies slightly from version to version), on gitlab see `Settings` -> `CI / CD Settings` -> `Runners` (registration token during setup)
+3. Register a runner using a shell executor (follow the information in the official guideline as it 
+   can vary slightly from version to version), on gitlab see `Settings` $\rightarrow$ `CI / CD Settings` 
+   $\rightarrow$ `Runners` (registration token during setup)
     ```
     sudo gitlab-runner register
     ```
