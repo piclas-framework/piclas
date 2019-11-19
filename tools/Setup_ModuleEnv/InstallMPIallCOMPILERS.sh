@@ -49,7 +49,13 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
     # if no mpi module for this compiler found, install ${WHICHMPI} and create module
     if [ ! -e "${MPIMODULEFILE}" ]; then
       echo "creating ${WHICHMPI}-${MPIVERSION} for ${WHICHCOMPILER}-${COMPILERVERSION}"
+
+      if [[ -n $(module purge 2>&1) ]]; then
+        echo "module: command not found"
+        exit
+      fi
       module purge
+
       if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
         echo "module ${WHICHCOMPILER}/${COMPILERVERSION} not found "
         break
