@@ -30,7 +30,9 @@ system. In a second step, the *gitlab-runner* program is installed and the setup
 described.
 
 ### Required Installation of Software on Clean Ubuntu Setup (18.04)
-Latest test: on ubuntu (18.04), 3 Jul 2019
+    Latest test: on ubuntu (18.04), 3 Jul 2019
+
+The following packages can be installed automaticall by using the script located in `./tools/Setup_ModuleEnv/InstallPackagesReggie.sh`
 
 ```
 # Check for updates
@@ -60,7 +62,7 @@ sudo apt-get install libstdc++5
 sudo apt-get install gzip gimp htop meld gnuplot gnuplot-x11 vlc okular ddd gmsh unzip
 sudo apt-get install openvpn openssl openssh-client
 
-# for FLEXI
+# for FLEXI/PICLas
 sudo apt-get install liblapack3 liblapack-dev zlib1g-dev exuberant-ctags
 
 # for documentation
