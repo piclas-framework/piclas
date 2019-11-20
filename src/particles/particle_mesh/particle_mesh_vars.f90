@@ -32,8 +32,8 @@ LOGICAL             :: ParticleMeshInitIsDone
 ! Mesh info
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-INTEGER, ALLOCATABLE                     :: CNTotalElem2GlobalElem(:)
-INTEGER, ALLOCATABLE                     :: GlobalElem2CNTotalElem(:)
+INTEGER, ALLOCATABLE                     :: CNTotalElem2GlobalElem(:) !< Compute Nodes mapping 1:nTotal -> 1:nGlobal
+INTEGER, ALLOCATABLE                     :: GlobalElem2CNTotalElem(:) !> Reverse Mapping
 
 ! periodic case
 INTEGER, ALLOCATABLE                     :: casematrix(:,:)   ! matrix to compute periodic cases
@@ -46,15 +46,23 @@ INTEGER,ALLOCATABLE :: SidePeriodicType(:)                    ! 1:nTotalSides, p
                                                               ! >0 type of periodic displacement
 REAL,ALLOCATABLE    :: SidePeriodicDisplacement(:,:)          ! displacement vector
 
+! ====================================================================
 INTEGER,ALLOCATABLE :: PartElemToSide(:,:,:)                  ! extended list: 1:2,1:6,1:nTotalElems
                                                               ! ElemToSide: my geometry + halo
                                                               ! geometry + halo information
+! -> this information is now in ElemInfo_Shared                                                              
+! ====================================================================
 
 
+! ====================================================================
 INTEGER,ALLOCATABLE :: PartSideToElem(:,:)                    ! extended list: 1:5,1:6,1:nTotalSides
                                                               ! SideToElem: my geometry + halo
                                                               ! geometry + halo information
+! -> this information is now in SideInfo_Shared                                                              
+! ====================================================================
 
+
+! ====================================================================
 INTEGER(KIND=8),ALLOCATABLE :: PartElemToElemGlob(:,:,:)          ! Mapping from ElemToElem
                                                               ! 1:4,1:6,1:nTotalElems
                                                               ! now in global-elem-ids !!!
@@ -65,11 +73,18 @@ INTEGER(KIND=4),ALLOCATABLE :: PartElemToElemAndSide(:,:,:)   ! Mapping from Ele
                                                               ! [2]1:6 - locSideID
                                                               ! [3]    - nTotalElems
                                                               ! now in global-elem-ids !!!
+! -> this information is now deprecated
+! ====================================================================
+
+
+! ====================================================================
 INTEGER             :: nPartSides                             ! nPartSides - nSides+nPartPeriodicSides
 INTEGER             :: nTotalSides                            ! total nb. of sides (my+halo)
 INTEGER             :: nPartPeriodicSides                     ! total nb. of sides (my+halo)
 INTEGER             :: nTotalElems                            ! total nb. of elems (my+halo)
 INTEGER             :: nTotalNodes                            ! total nb. of nodes (my+halo)
+! -> this information is now shared (nComputeNodeSides)
+! ====================================================================
 
 INTEGER,ALLOCATABLE :: TracingBCInnerSides(:)                 ! number of local element boundary faces
                                                               ! used for tracing (connected to element)
@@ -92,14 +107,16 @@ TYPE(tElemHaloInfo),ALLOCATABLE      :: ElemHaloInfoProc(:)   ! ElemHaloInfo arr
 
 INTEGER,ALLOCATABLE :: ElemType(:)              !< Type of Element 1: only planar side, 2: one bilinear side 3. one curved side
 LOGICAL,ALLOCATABLE :: ElemHasAuxBCs(:,:)
-INTEGER             :: nTotalBCSides                          ! total number of BC sides (my+halo)
-INTEGER             :: nTotalBCElems                          ! total number of bc elems (my+halo)
-INTEGER,ALLOCATABLE :: PartBCSideList(:)                      ! mapping from SideID to BCSideID
+INTEGER             :: nTotalBCSides                          ! total number of BC sides (my+halo) -> RefMapping
+INTEGER             :: nTotalBCElems                          ! total number of bc elems (my+halo) -> RefMapping
+INTEGER,ALLOCATABLE :: PartBCSideList(:)                      ! mapping from SideID to BCSideID    -> RefMapping
 
+! ====================================================================
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: XiEtaZetaBasis     ! element local basis vector (linear elem)
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: slenXiEtaZetaBasis ! inverse of length of basis vector
 REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadiusNGeo     ! radius of element
 REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadius2NGeo    ! radius of element + 2% tolerance
+
 INTEGER                                 :: RefMappingGuess    ! select guess for mapping into reference
                                                               ! element
                                                               ! 1 - Linear, cubical element
@@ -113,15 +130,22 @@ REAL,ALLOCATABLE                        :: epsOneCell(:)      ! tolerance for pa
                                                               ! inside ref element 1+epsinCell
 
 !LOGICAL                                 :: DoRefMapping      ! tracking by mapping particle into reference element
+! RefMapping???
+! ====================================================================
 
+
+! ====================================================================
 LOGICAL,ALLOCATABLE                     :: PartElemIsMortar(:)! Flag is true if element has at least one side with mortar elements,
                                                               ! required in TriaTracking for an additional check in which element
                                                               ! the particle ended up after the MPI comm of particles (1:nElems)
+! -> deprecated with new HALO region?
+! ====================================================================
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 
 
 !-----------------------------------------------------------------------------------------------------------------------------------
+! ====================================================================
 TYPE tFastInitBGM
   INTEGER                                :: nElem             ! Number of elements in background mesh cell
   INTEGER, ALLOCATABLE                   :: Element(:)        ! List of elements/physical cells in BGM cell
@@ -137,10 +161,15 @@ TYPE tFastInitBGM
 END TYPE
 
 INTEGER                                  :: FIBGMCellPadding(1:3)
+! -> this is now shared and correct (large enough halo region)
+! ====================================================================
 
+! ====================================================================
 TYPE tNodeToElem
   INTEGER, ALLOCATABLE                   :: ElemID(:)
 END TYPE
+! -> this should be replaced with NodeInfo_Shared
+! ====================================================================
 
 TYPE tGeometry
 #if USE_MPI

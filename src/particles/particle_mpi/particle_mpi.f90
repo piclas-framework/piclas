@@ -1532,6 +1532,7 @@ IF(RadialWeighting%DoRadialWeighting) THEN
   END DO
 END IF
 
+! With new HALO region, this is deprecated?
 IF(TriaTracking) THEN
   IF(nGlobalMortarSides.GT.0) THEN
     DO iPart = 1,nrecv
