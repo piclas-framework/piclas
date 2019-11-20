@@ -98,7 +98,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
 INTEGER                              :: ReflectionIndex, iSpec, iSF,NewPartID
-LOGICAL                              :: isSpeciesSwap, PorousReflection
+LOGICAL                              :: isSpeciesSwap, ElasticReflectionAtPorousBC
 !===================================================================================================================================
 
 IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
@@ -141,9 +141,9 @@ CASE(1) !PartBound%OpenBC)
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   !---- Treatment of adaptive and porous boundary conditions (deletion of particles in case of circular inflow or porous BC)
-  PorousReflection = .FALSE.
+  ElasticReflectionAtPorousBC = .FALSE.
   IF(UseCircularInflow) CALL SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,lengthPartTrajectory,flip,xi,eta)
-  IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PorousReflection)
+  IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,ElasticReflectionAtPorousBC)
 
   !---- Dielectric particle-surface interaction
   IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(PartBound%MapToPartBC(BC(SideID))))THEN ! deposit charge on surface
@@ -195,7 +195,7 @@ CASE(2) !PartBound%ReflectiveBC)
       ! simple reflection (Maxwellian scattering)
       ReflectionIndex=2 ! diffuse reflection
       CALL RANDOM_NUMBER(RanNum)
-      IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID))).OR.PorousReflection) ReflectionIndex=1 ! perfect reflection
+      IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID))).OR.ElasticReflectionAtPorousBC) ReflectionIndex=1 ! perfect reflection
     END IF
     ! assign right treatment
     SELECT CASE (ReflectionIndex)

@@ -159,6 +159,7 @@ The porous boundary condition uses a removal probability to determine whether a 
     Part-PorousBC1-BC=2
     Part-PorousBC1-Pressure=5.
     Part-PorousBC1-Temperature=300.
+    Part-PorousBC1-Type='pump'
     Part-PorousBC1-PumpingSpeed=2e-9
     Part-PorousBC1-DeltaPumpingSpeed-Kp=0.1
     Part-PorousBC1-DeltaPumpingSpeed-Ki=0.0
@@ -192,7 +193,14 @@ The absolute coordinates are defined as follows for the respective normal direct
 |      y (=2)      |    (z,x)    |
 |      z (=3)      |    (x,y)    |
 
-Using the regions, multiple pumps can be defined on a single boundary.
+Using the regions, multiple pumps can be defined on a single boundary. Additionally, the BC can be used as a sensor by defining the respective type:
+
+    Part-PorousBC1-BC=3
+    Part-PorousBC1-Pressure=5.
+    Part-PorousBC1-Temperature=300.
+    Part-PorousBC1-Type='sensor'
+
+Together with a region definition, a pump as well as a sensor can be defined on a single and/or multiple boundaries, allowing e.g. to determine the pressure difference between the pump and a remote area of interest.
 
 ### Surface Chemistry \label{sec:chem_reac}
 

@@ -145,7 +145,7 @@ TYPE tPorousBC
   INTEGER                               :: BC                     ! Number of the reflective BC to be used as a porous BC
   REAL                                  :: Pressure               ! Pressure at the BC [Pa], user-given
   REAL                                  :: Temperature            ! Temperature at the BC [K], user-given
-  REAL                                  :: NumberDensity          ! Calculated number density [1/m3]
+  CHARACTER(LEN=50)                     :: Type
   REAL                                  :: PumpingSpeed           ! Given/calculated pumping speed [m3/s]
   REAL                                  :: DeltaPumpingSpeedKp    ! Proportional factor for the pumping speed controller
   REAL                                  :: DeltaPumpingSpeedKi    ! Integral factor for the pumping speed controller

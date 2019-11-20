@@ -63,6 +63,13 @@ CALL prms%CreateRealOption(     'Part-PorousBC[$]-Pressure' &
                                 , 'Pressure [Pa] at the porous boundary', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-PorousBC[$]-Temperature' &
                                 , 'Temperature [K] at the porous boundary', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-PorousBC[$]-Type' &
+                                , 'Define the type of porous boundary, currently available are sensor and pump.' //&
+                                  'Option sensor: Using the defined region/BC to measure the pressure difference between the '//&
+                                  'defined pressure and the pressure at the sensor. Option pump: Use the defined region/BC as '//&
+                                  'as a pump by supplying a constant -PumpingSpeed or by supplying -DeltaPumpingSpeed-Kp ' //&
+                                  'and -DeltaPumpingSpeed-Ki to adapt the pumping speed until the target pressure is reached.' &
+                                , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-PorousBC[$]-PumpingSpeed' &
                                 , 'PorousBC used as a pump: Removal probability at the BC is determined through the pumping ' //&
                                   'speed, which can be controlled to achieve the given pressure. Initial pumping speed [m3/s] ' //&
@@ -157,19 +164,29 @@ DO iPorousBC = 1, nPorousBC
   ! Read-in of the conditions at the porous boundary
   PorousBC(iPorousBC)%Pressure  = GETREAL('Part-PorousBC'//TRIM(hilf)//'-Pressure')
   PorousBC(iPorousBC)%Temperature  = GETREAL('Part-PorousBC'//TRIM(hilf)//'-Temperature')
-  PorousBC(iPorousBC)%NumberDensity  = PorousBC(iPorousBC)%Pressure / (BoltzmannConst * PorousBC(iPorousBC)%Temperature)
-  ! Initial pumping speed at the porous boundary [m3/s]
-  PorousBC(iPorousBC)%PumpingSpeed = GETREAL('Part-PorousBC'//TRIM(hilf)//'-PumpingSpeed')
-  ! Proportional and integral factors for the control of the pumping speed
-  PorousBC(iPorousBC)%DeltaPumpingSpeedKp = GETREAL('Part-PorousBC'//TRIM(hilf)//'-DeltaPumpingSpeed-Kp')
-  PorousBC(iPorousBC)%DeltaPumpingSpeedKi = GETREAL('Part-PorousBC'//TRIM(hilf)//'-DeltaPumpingSpeed-Ki')
-  ! Determining the order of magnitude
-  IF(PorousBC(iPorousBC)%Pressure.GT.0.0) THEN
-    PorousBC(iPorousBC)%DeltaPumpingSpeedKp = PorousBC(iPorousBC)%DeltaPumpingSpeedKp &
-                                                    / 10.0**(ANINT(LOG10(PorousBC(iPorousBC)%Pressure)))
-    PorousBC(iPorousBC)%DeltaPumpingSpeedKi = PorousBC(iPorousBC)%DeltaPumpingSpeedKi &
-                                                    / 10.0**(ANINT(LOG10(PorousBC(iPorousBC)%Pressure)))
-  END IF
+  PorousBC(iPorousBC)%Type  = TRIM(GETSTR('Part-PorousBC'//TRIM(hilf)//'-Type'))
+  SELECT CASE(PorousBC(iPorousBC)%Type)
+    CASE('sensor')
+      PorousBC(iPorousBC)%PumpingSpeed = 0.0
+      PorousBC(iPorousBC)%DeltaPumpingSpeedKp = 0.0
+      PorousBC(iPorousBC)%DeltaPumpingSpeedKi = 0.0
+    CASE('pump')
+      ! Initial pumping speed at the porous boundary [m3/s]
+      PorousBC(iPorousBC)%PumpingSpeed = GETREAL('Part-PorousBC'//TRIM(hilf)//'-PumpingSpeed')
+      ! Proportional and integral factors for the control of the pumping speed
+      PorousBC(iPorousBC)%DeltaPumpingSpeedKp = GETREAL('Part-PorousBC'//TRIM(hilf)//'-DeltaPumpingSpeed-Kp')
+      PorousBC(iPorousBC)%DeltaPumpingSpeedKi = GETREAL('Part-PorousBC'//TRIM(hilf)//'-DeltaPumpingSpeed-Ki')
+      ! Determining the order of magnitude
+      IF(PorousBC(iPorousBC)%Pressure.GT.0.0) THEN
+        PorousBC(iPorousBC)%DeltaPumpingSpeedKp = PorousBC(iPorousBC)%DeltaPumpingSpeedKp &
+                                                        / 10.0**(ANINT(LOG10(PorousBC(iPorousBC)%Pressure)))
+        PorousBC(iPorousBC)%DeltaPumpingSpeedKi = PorousBC(iPorousBC)%DeltaPumpingSpeedKi &
+                                                        / 10.0**(ANINT(LOG10(PorousBC(iPorousBC)%Pressure)))
+      END IF
+    CASE DEFAULT
+      CALL abort(__STAMP__&
+      ,'ERROR in type definition of porous bc:', iPorousBC)
+  END SELECT
   PorousBC(iPorousBC)%Region = TRIM(GETSTR('Part-PorousBC'//TRIM(hilf)//'-Region','none'))
   IF(PorousBC(iPorousBC)%Region.EQ.'none') THEN
     PorousBC(iPorousBC)%UsingRegion = .FALSE.
@@ -294,7 +311,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION DONE!'
 
 END SUBROUTINE InitPorousBoundaryCondition
 
-SUBROUTINE PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PorousReflection)
+SUBROUTINE PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,ElasticReflectionAtPorousBC)
 !===================================================================================================================================
 ! Treatment of particles impinging on the porous boundary
 ! 1) (Optional) When using regions on the BC, it is determined whether the particle hit the porous BC region or only the regular BC
@@ -317,18 +334,19 @@ REAL, INTENT(IN)              :: PartTrajectory(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)            :: alpha
-LOGICAL,INTENT(INOUT)         :: PorousReflection
+LOGICAL,INTENT(INOUT)         :: ElasticReflectionAtPorousBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: point(1:2), intersectionPoint(1:3), radius, iRan
 INTEGER                       :: iSpec, SurfSideID, PorousBCID, pBCSideID
+LOGICAL                       :: ParticleHitPorousBC
 !===================================================================================================================================
 SurfSideID = SurfMesh%SideIDToSurfID(SideID)
 PorousBCID = MapSurfSideToPorousBC(SurfSideID)
 
 IF(PorousBCID.GT.0) THEN
   pBCSideID = MapSurfSideToPorousSide(SurfSideID)
-  PorousReflection = .TRUE.
+  ParticleHitPorousBC = .TRUE.
   ! 1) Determination whether the particle hit the porous BC region or only the regular BC
   IF(PorousBC(PorousBCID)%UsingRegion) THEN
     IF(PorousBC(PorousBCID)%RegionSideType(pBCSideID).EQ.1) THEN
@@ -339,26 +357,34 @@ IF(PorousBCID.GT.0) THEN
       radius=SQRT( (point(1))**2+(point(2))**2 )
       ! Check if particle hit outside the region
       IF ((radius.GT.PorousBC(PorousBCID)%rmax).OR.(radius.LT.PorousBC(PorousBCID)%rmin)) THEN
-        PorousReflection = .FALSE.
+        ParticleHitPorousBC = .FALSE.
       END IF
     END IF
   END IF
   ! 2) Comparison of the removal probability with a random number to determine whether the particle is deleted
-  IF(PorousReflection) THEN
+  IF(ParticleHitPorousBC) THEN
     ! Counting particles that are impinging the porous BC (required for the calculation of the removal probability for the next dt)
     PorousBC(PorousBCID)%Sample(pBCSideID,1)   = PorousBC(PorousBCID)%Sample(pBCSideID,1) + GetParticleWeight(iPart)
-    CALL RANDOM_NUMBER(iRan)
-    IF(iRan.LE.PorousBC(PorousBCID)%RemovalProbability(pBCSideID)) THEN
-      PDM%ParticleInside(iPart)=.FALSE.
-      alpha=-1.
-      ! Counting particles that leave the domain through the porous BC (required for the calculation of the pumping capacity)
-      PorousBC(PorousBCID)%Sample(pBCSideID,2) = PorousBC(PorousBCID)%Sample(pBCSideID,2) + GetParticleWeight(iPart)
-      IF(CalcPartBalance) THEN
-        iSpec = PartSpecies(iPart)
-        nPartOut(iSpec)=nPartOut(iSpec) + 1
-        PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(iPart)
-      END IF ! CalcPartBalance
-    END IF
+    SELECT CASE(PorousBC(PorousBCID)%Type)
+      CASE('sensor')
+        ! Treat the sensor area as a regular boundary condition
+        ElasticReflectionAtPorousBC = .FALSE.
+      CASE('pump')
+        CALL RANDOM_NUMBER(iRan)
+        IF(iRan.LE.PorousBC(PorousBCID)%RemovalProbability(pBCSideID)) THEN
+          PDM%ParticleInside(iPart)=.FALSE.
+          alpha=-1.
+          ! Counting particles that leave the domain through the porous BC (required for the calculation of the pumping capacity)
+          PorousBC(PorousBCID)%Sample(pBCSideID,2) = PorousBC(PorousBCID)%Sample(pBCSideID,2) + GetParticleWeight(iPart)
+          IF(CalcPartBalance) THEN
+            iSpec = PartSpecies(iPart)
+            nPartOut(iSpec)=nPartOut(iSpec) + 1
+            PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(iPart)
+          END IF ! CalcPartBalance
+        END IF
+        ! Treat the pump as a perfect reflection (particle is not removed and keeps its temperature)
+        ElasticReflectionAtPorousBC = .TRUE.
+    END SELECT
   END IF
 END IF
 
@@ -476,7 +502,7 @@ DO iPBC = 1,nPorousBC
         ! Only adapting the pumping speed if alpha is between zero and one
         PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID) = PumpingSpeedTemp
       END IF
-    ELSE
+    ELSE IF(PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID).GT.0.0) THEN
       ! Constant given pumping speed
       IF(SumPartPorousBC.GT.0) THEN
         PorousBC(iPBC)%RemovalProbability(iPBCSideID) = PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID) &
