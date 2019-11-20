@@ -117,14 +117,16 @@ GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 #if USE_MPI
 MPISharedSize = INT(6*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/6,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
-CALL Allocate_Shared(MPISharedSize,(/6,nGlobalElems/),BoundsOfElem_Shared_Win,BoundsOfElem_Shared)
+CALL Allocate_Shared(MPISharedSize,(/2,3,nGlobalElems/),BoundsOfElem_Shared_Win,BoundsOfElem_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,BoundsOfElem_Shared_Win,IERROR)
 firstElem = INT(REAL(myComputeNodeRank*nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
 #else
+! In order to use only one type of variables VarName_Shared in code structure such as tracking etc. for NON_MPI 
+! the same variables are allocated on the single proc and used from mesh_vars instead of mpi_shared_vars
 ALLOCATE(ElemToBGM_Shared(1:6,1:nElems))
-ALLOCATE(BoundsOfElem_Shared(1:6,1:nElems))
+ALLOCATE(BoundsOfElem_Shared(1:2,1:3,1:nElems)) ! 1-2: Min, Max value; 1-3: x,y,z
 firstElem = 1
 lastElem  = nElems
 #endif  /*USE_MPI*/
@@ -143,12 +145,12 @@ DO iElem = firstElem, lastElem
   zmin=MINVAL(NodeCoords_Shared(3,firstNodeID:lastNodeID))
   zmax=MAXVAL(NodeCoords_Shared(3,firstNodeID:lastNodeID))
 
-  BoundsOfElem_Shared(1,iElem) = xmin
-  BoundsOfElem_Shared(2,iElem) = xmax
-  BoundsOfElem_Shared(3,iElem) = ymin
-  BoundsOfElem_Shared(4,iElem) = ymax
-  BoundsOfElem_Shared(5,iElem) = zmin
-  BoundsOfElem_Shared(6,iElem) = zmax
+  BoundsOfElem_Shared(1,1,iElem) = xmin
+  BoundsOfElem_Shared(2,1,iElem) = xmax
+  BoundsOfElem_Shared(1,2,iElem) = ymin
+  BoundsOfElem_Shared(2,2,iElem) = ymax
+  BoundsOfElem_Shared(1,3,iElem) = zmin
+  BoundsOfElem_Shared(2,3,iElem) = zmax
 
   ! BGM indeces must be >1 --> move by 1
   ElemToBGM_Shared(1,iElem) = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)) +moveBGMindex
@@ -368,12 +370,12 @@ ELSE
   DO iSide = 1, nMPISidesShared
     SideID = offsetMPISideShared(iSide)
     ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
-    MPISideBoundsOfElemCenter(1:3,SideID) = (/ SUM(BoundsOfElem_Shared(1:2,ElemID)), &
-                                               SUM(BoundsOfElem_Shared(3:4,ElemID)), &
-                                               SUM(BoundsOfElem_Shared(5:6,ElemID)) /) / 2.
-    MPISideBoundsOfElemCenter(4,SideID) = VECNORM ((/ BoundsOfElem_Shared(2,ElemID)-BoundsOfElem_Shared(1,ElemID), &
-                                                      BoundsOfElem_Shared(4,ElemID)-BoundsOfElem_Shared(3,ElemID), &
-                                                      BoundsOfElem_Shared(6,ElemID)-BoundsOfElem_Shared(5,ElemID) /) / 2.)
+    MPISideBoundsOfElemCenter(1:3,SideID) = (/ SUM(BoundsOfElem_Shared(1:2,1,ElemID)), &
+                                               SUM(BoundsOfElem_Shared(1:2,2,ElemID)), &
+                                               SUM(BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+    MPISideBoundsOfElemCenter(4,SideID) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                                      BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                                      BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
   END DO
 
   ! do refined check: (refined halo region reduction)
@@ -383,12 +385,12 @@ ELSE
   DO iElem = firstHaloElem, lastHaloElem
     ElemID = offsetCNHalo2GlobalElem(iElem)
     ElemInsideHalo = .FALSE.
-    BoundsOfElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,ElemID)), &
-                                 SUM(BoundsOfElem_Shared(3:4,ElemID)), &
-                                 SUM(BoundsOfElem_Shared(5:6,ElemID)) /) / 2.
-    BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2,ElemID)-BoundsOfElem_Shared(1,ElemID), &
-                                               BoundsOfElem_Shared(4,ElemID)-BoundsOfElem_Shared(3,ElemID), &
-                                               BoundsOfElem_Shared(6,ElemID)-BoundsOfElem_Shared(5,ElemID) /) / 2.)
+    BoundsOfElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,ElemID)), &
+                                 SUM(BoundsOfElem_Shared(1:2,2,ElemID)), &
+                                 SUM(BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+    BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                        BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                        BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
     DO iSide = 1, nMPISidesShared
       SideID = offsetMPISideShared(iSide)
       ! compare distance of centers with sum of element outer radii+halo_eps

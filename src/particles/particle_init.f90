@@ -1070,7 +1070,7 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas, RadialWeighting
 USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
 USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_PICInit                ,ONLY: InitPIC
-USE MOD_Particle_Mesh          ,ONLY: GetMeshMinMax,InitFIBGM,MapRegionToElem,MarkAuxBCElems
+USE MOD_Particle_Mesh          ,ONLY: GetMeshMinMax,MapRegionToElem,MarkAuxBCElems !,InitFIBGM
 USE MOD_MacroBody_Init         ,ONLY: InitMacroBody
 USE MOD_MacroBody_tools        ,ONLY: MarkMacroBodyElems
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking

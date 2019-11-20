@@ -798,6 +798,12 @@ USE MOD_DSMC_Symmetry2D        ,ONLY: CalcRadWeightMPF
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
 USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROBODY
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
+#if USE_MPI
+USE MOD_MPI_Shared_Vars              ,ONLY: BoundsOfElem_Shared
+#else
+USE MOD_Mesh_Vars              ,ONLY: BoundsOfElem_Shared
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -849,7 +855,8 @@ __STAMP__,&
   ichunkSize = 1
   ParticleIndexNbr = 1
   DO iElem = 1, nElems
-    ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+    !ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+    ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,offsetElem+iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
       IF (UseExactPartNum) THEN
         nPart = CellChunkSize(iElem)
       ELSE

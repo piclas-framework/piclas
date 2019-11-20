@@ -827,8 +827,7 @@ END SUBROUTINE GetBezierControlPoints3D
 
 
 
-SUBROUTINE GetSideSlabNormalsAndIntervals(BezierControlPoints3D,BezierControlPoints3DElevated &
-                                         ,SideSlabNormals,SideSlabInterVals,BoundingBoxIsEmpty )
+SUBROUTINE GetSideSlabNormalsAndIntervals(BezierControlPoints3D,SideSlabNormals,SideSlabInterVals,BoundingBoxIsEmpty)
 !===================================================================================================================================
 ! computes the oriented-slab box for each bezier basis surface (i.e. 3 slab normals + 3 intervalls)
 ! see article:
@@ -848,9 +847,6 @@ USE MOD_Mesh_Vars,                ONLY: NGeo,NGeoElevated
 !USE MOD_Particle_Surfaces_Vars,   ONLY: SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 !USE MOD_Particle_Surfaces_Vars,   ONLY: BezierControlPoints3D,BezierControlPoints3DElevated,BezierElevation
 USE MOD_Particle_Surfaces_Vars,   ONLY: BezierElevation
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars,   ONLY: SideBoundingBoxVolume
-#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -859,7 +855,6 @@ IMPLICIT NONE
 REAL,INTENT(IN)     :: BezierControlPoints3D(1:3,0:NGeo,0:NGeo)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)    :: BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated)
 REAL,INTENT(OUT)    :: SideSlabNormals(1:3,1:3)
 REAL,INTENT(OUT)    :: SideSlabInterVals(1:6)
 LOGICAL,INTENT(OUT) :: BoundingBoxIsEmpty
@@ -870,6 +865,7 @@ INTEGER            :: p,q, i
 !REAL                              :: tmp(3,0:NGeo,0:NGeo)
 REAL               :: skalprod(3),dx,dy,dz,dMax,w,h,l
 LOGICAL            :: SideIsCritical
+REAL    :: BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated)
 !===================================================================================================================================
 
 
@@ -1038,9 +1034,6 @@ ELSE
   BoundingBoxIsEmpty=.FALSE.
 END IF
 
-#ifdef CODE_ANALYZE
-SideBoundingBoxVolume=h*l*w
-#endif /*CODE_ANALYZE*/
 END SUBROUTINE GetSideSlabNormalsAndIntervals
 
 
