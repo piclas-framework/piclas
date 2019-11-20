@@ -150,7 +150,10 @@ NOTE: The stack size limit has been removed here by `ulimit -s unlimited`, which
 by memory consuming programs
 
 ### Installation Steps for Gitlab Runners 
-Latest test: on ubuntu (18.04), 3 Jul 2019
+Latest tests on 
+
+  * Ubuntu (18.04) with gitlab-runner 10.5.0 (10.5.0), 3 Jul 2019
+  * Ubuntu server (18.04.3 LTS) with gitlab-runner 10.5.0 (10.5.0), 19 Nov 2019
 
 1. Install gitlab-runner from ubuntu packages (choose old version to avoid problems https://gitlab.com/gitlab-org/gitlab-runner/issues/1379)
    This creates the user gitlab-runner and a home directory (for 10.5 in /var/lib/gitlab-runner/)
