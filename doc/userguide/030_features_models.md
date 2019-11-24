@@ -151,6 +151,14 @@ Additionally, a wall velocity [m/s] and voltage [V] can be given
     Part-Boundary2-WallVelo=(/0,0,100/)
     Part-Boundary2-Voltage=100
 
+A linear temperature gradient across a boundary can be defined by supplying a second wall temperature and the start and end vector
+
+    Part-Boundary2-WallTemp2=500.
+    Part-Boundary2-TemperatureGradientStart=(/0.,0.,0./)
+    Part-Boundary2-TemperatureGradientEnd=(/0.,0.,1./)
+
+Between these two points the temperature will be interpolated while the start vector corresponds to the first wall temperature, while the end vector to the second wall temperature. Beyond these position values, the first and second temperature will be used as the constant wall temperature, respectively.
+
 ### Porous Wall / Pump
 
 The porous boundary condition uses a removal probability to determine whether a particle is deleted or reflected at the boundary. The main application of the implemented condition is to model a pump, according to [@Lei2017]. It is defined by giving the number of porous boundaries and the respective boundary number (`BC=2` corresponds to the `BC_WALL` boundary defined in the previous section) on which the porous condition is.

@@ -582,7 +582,13 @@ IF(PartBound%WallTemp2(locBCID).GT.0.0) THEN
                       + DOT_PRODUCT((POI(1:3) - PartBound%TempGradStart(1:3,locBCID)),PartBound%TempGradVec(1:3,locBCID)) &
                         / DOTPRODUCT(PartBound%TempGradVec(1:3,locBCID)) * PartBound%TempGradVec(1:3,locBCID)
   TempGradLength = VECNORM(POI_projected(1:3))/VECNORM(PartBound%TempGradVec(1:3,locBCID))
-  GetWallTemperature = PartBound%WallTemp(locBCID) + TempGradLength * PartBound%WallTempDelta(locBCID)
+  IF(TempGradLength.LT.0.0) THEN
+    GetWallTemperature = PartBound%WallTemp(locBCID)
+  ELSE IF(TempGradLength.GT.1.0) THEN
+    GetWallTemperature = PartBound%WallTemp2(locBCID)
+  ELSE
+    GetWallTemperature = PartBound%WallTemp(locBCID) + TempGradLength * PartBound%WallTempDelta(locBCID)
+  END IF
 ELSE
   GetWallTemperature = PartBound%WallTemp(locBCID)
 END IF
