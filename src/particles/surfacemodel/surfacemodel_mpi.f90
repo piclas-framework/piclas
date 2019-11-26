@@ -823,7 +823,6 @@ SUBROUTINE MapHaloInnerToOriginInnerSurf(IntDataIN,RealDataIN,AddFlag,Reverse)
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh,nSurfSample,PartBound
 USE MOD_Mesh_Vars              ,ONLY: nBCSides,nSides,BC
-USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

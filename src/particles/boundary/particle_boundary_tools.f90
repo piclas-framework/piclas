@@ -498,7 +498,7 @@ SUBROUTINE DielectricSurfaceCharge(iPart,ElemID,PartTrajectory,alpha)
 USE MOD_Globals       ,ONLY: abort,myrank
 USE MOD_Mesh_Vars     ,ONLY: nElems
 USE MOD_Part_Tools    ,ONLY: CreateParticle,isChargedParticle
-USE MOD_Particle_Vars ,ONLY: PDM,PartSpecies,LastPartPos,Species
+USE MOD_Particle_Vars ,ONLY: PDM,PartSpecies,LastPartPos
 USE MOD_PICDepo_Tools ,ONLY: DepositParticleOnNodes
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE

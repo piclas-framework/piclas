@@ -342,7 +342,13 @@ END ASSOCIATE
 
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
-IF(DoBoundaryParticleOutput) CALL WriteBoundaryParticleToHDF5(OutputTime_loc,PreviousTime_loc,usePreviousTime_loc,MeshFileName)
+IF(DoBoundaryParticleOutput) THEN
+  IF (usePreviousTime_loc) THEN
+    CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc,PreviousTime_loc)
+  ELSE
+    CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc)
+  END IF
+END IF
 CALL WriteMacroParticleToHDF5(FileName)
 IF(UseAdaptive.OR.(nAdaptiveBC.GT.0).OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
@@ -1157,7 +1163,7 @@ END IF
 END SUBROUTINE WriteParticleToHDF5
 
 
-SUBROUTINE WriteBoundaryParticleToHDF5(OutputTime_loc,PreviousTime_loc,usePreviousTime_loc,MeshFileName)
+SUBROUTINE WriteBoundaryParticleToHDF5(MeshFileName,OutputTime,PreviousTime)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
@@ -1181,10 +1187,9 @@ USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                :: OutputTime_loc
-REAL,INTENT(IN)                :: PreviousTime_loc
-LOGICAL,INTENT(IN)             :: usePreviousTime_loc
 CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
+REAL,INTENT(IN)                :: OutputTime
+REAL,INTENT(IN),OPTIONAL       :: PreviousTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1203,23 +1208,30 @@ REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
 INTEGER(KIND=IK)               :: locnPart_max
 CHARACTER(LEN=255)             :: FileName
+REAL                           :: PreviousTime_loc
 !===================================================================================================================================
 ! Do not write to file on restart or fresh computation
 IF(iter.EQ.0) RETURN
+! set local variables for output and previous times
+IF(PRESENT(PreviousTime))PreviousTime_loc = PreviousTime
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PartStateBoundary',OutputTime_loc))//'.h5'
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PartStateBoundary',OutputTime))//'.h5'
 
 #if USE_HDG
 #if PP_nVar==1
-IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',4,StrVarNames,MeshFileName,OutputTime_loc)
+IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',4,StrVarNames,MeshFileName,OutputTime)
 #elif PP_nVar==3
-IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',3,StrVarNames,MeshFileName,OutputTime_loc)
+IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',3,StrVarNames,MeshFileName,OutputTime)
 #else
-IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',7,StrVarNames,MeshFileName,OutputTime_loc)
+IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',7,StrVarNames,MeshFileName,OutputTime)
 #endif
 #else
-IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
+IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar,StrVarNames,MeshFileName,OutputTime)
 #endif /*USE_HDG*/
+! generate nextfile info in previous output file
+IF(PRESENT(PreviousTime))THEN
+  IF(MPIRoot .AND. PreviousTime_loc.LT.OutputTime) CALL GenerateNextFileInfo('PartStateBoundary',OutputTime,PreviousTime_loc)
+END IF
 
 ! Reopen file and write DG solution
 #if USE_MPI
@@ -1227,7 +1239,7 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 
 ! 3xPos [m], 3xvelo [m/s], species [-]
-PartDataSize = 7               
+PartDataSize = 7
 ! Kinetic energy [eV]
 PartDataSize = PartDataSize + 1
 ! MPF [-]
@@ -1269,10 +1281,10 @@ DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
   PartData(iPart,4)=PartStateBoundary(4,pcount)
   PartData(iPart,5)=PartStateBoundary(5,pcount)
   PartData(iPart,6)=PartStateBoundary(6,pcount)
-  
+
   ! SpeciesID
   PartData(iPart,7)=PartStateBoundarySpec(pcount)
-  
+
   ! Kinetic energy [J->eV] (do not consider the MPF here!)
   PartData(iPart,8)=CalcEkinPart2(PartStateBoundary(4:6,pcount),PartStateBoundarySpec(pcount),1.0) / ElementaryCharge
 
@@ -1518,7 +1530,7 @@ ASSOCIATE (PartDataSize => INT(PartDataSize,IK))
                         offset      = (/offsetnPart , 0_IK  /)                , &
                         collective  = .TRUE.        , RealArray = PartData)
   CALL CloseDataFile()
-#endif /*USE_MPI*/                          
+#endif /*USE_MPI*/
 END ASSOCIATE
 ! reswitch
 IF(reSwitch) gatheredWrite=.TRUE.
@@ -3129,7 +3141,7 @@ DO iElem=1,PP_nElems
     NodeSourceExtEqui(1,0,0,1) = NodeSourceExt(NodeID(5))/CellLocNodes_Volumes(NodeID(5))
     NodeSourceExtEqui(1,1,0,1) = NodeSourceExt(NodeID(6))/CellLocNodes_Volumes(NodeID(6))
     NodeSourceExtEqui(1,1,1,1) = NodeSourceExt(NodeID(7))/CellLocNodes_Volumes(NodeID(7))
-    NodeSourceExtEqui(1,0,1,1) = NodeSourceExt(NodeID(8))/CellLocNodes_Volumes(NodeID(8)) 
+    NodeSourceExtEqui(1,0,1,1) = NodeSourceExt(NodeID(8))/CellLocNodes_Volumes(NodeID(8))
     ! Map equidistant distribution to G/GL (current node type)
     CALL ChangeBasis3D(1, 1, PP_N, Vdm_EQ_N, NodeSourceExtEqui(:,:,:,:),NodeSourceExtGlobal(:,:,:,:,iElem))
   END ASSOCIATE
@@ -3137,7 +3149,7 @@ END DO!iElem
 
 ! Write data twice to .h5 file
 ! 1. to _State_.h5 file (or restart)
-! 2. to separate file (for visu) 
+! 2. to separate file (for visu)
 #if USE_DEBUG
 iMax=2 ! write to state and to a separate file (for debugging)
 #else
