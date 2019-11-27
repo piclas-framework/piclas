@@ -8,26 +8,37 @@ $$ \frac{\partial f}{\partial t} + \mathbf{v}\cdot\frac{\partial f}{\partial \ma
 
 ## Particle Tracking
 
-Three different particle tracking methods are implemented in PICLas. For conventional computations on linear meshes, the following tracking algorithm is recommended:
+Three different particle tracking methods are implemented in PICLas and are selected via
 
-    TriaTracking = T
-    DoRefMapping = F
+    TrackingMethod = triatracking ! Define Method that is used for tracking of
+                                  ! particles:
+                                  ! refmapping (1): reference mapping of particle
+                                  ! position with (bi-)linear and bezier (curved)
+                                  ! description of sides. 
+                                  ! tracing (2): tracing of particle path with
+                                  ! (bi-)linear and bezier (curved) description of
+                                  ! sides.
+                                  ! triatracking (3): tracing of particle path with
+                                  ! triangle-aproximation of (bi-)linear sides.
 
-The option DoRefMapping should be disabled. The two alternative tracking routines and their options are described in the following.
+For conventional computations on (bi-, tri-) linear meshes, the following tracking algorithm is recommended:
 
-### DoRefMapping (NEEDS UPDATING)
+    TrackingMethod = triatracking
 
-    TriaTracking = F
-    DoRefMapping = T
+The two alternative tracking routines and their options are described in the following.
 
-This method is the slowest implemented method for linear grids and large particle movements. A particle is mapped into
-a element to compute the particle position
-in the reference space. This test determines in which element a particle is located. Each element has a slightly larger
+### DoRefMapping
+
+    TrackingMethod = refmapping
+
+This method is the slowest implemented method for linear grids and large particle displacements.
+A particle is mapped into a element to compute the particle position in the reference space. 
+This test determines in which element a particle is located. Each element has a slightly larger
 reference space due to tolerance. Starting from reference values >=1. the best element is found and used for the
 hosting element. In order to take boundary interactions into account, all BC faces in the halo vicinity of the element
-are checked for boundary interactions and a boundary condition is performed accordingly. This algorithm has a
-inherent self check. If a boundary condition is not detected, the particle position is located outside of all elements.
-A fall-back algorithm is used to recompute the position and boundary interaction. Periodic domains are only possible
+are checked for boundary interactions and a boundary condition is performed accordingly. This algorithm has an
+inherent self-check. If a boundary condition is not detected, the particle position is located outside of all elements.
+A fall-back algorithm is then used to recompute the position and boundary interaction. Periodic domains are only possible
 for Cartesian meshes. The particle position is used for periodic displacements.
 
 |      Option       | Values |                          Notes                          |
@@ -39,19 +50,18 @@ for Cartesian meshes. The particle position is used for periodic displacements.
 |                   |        |  can be several times the mesh size in this direction.  |
 
 
-### Tracing  (NEEDS UPDATING)
+### Tracing
 
-    TriaTracking = F
-    DoRefMapping = F
+    TrackingMethod = tracing
 
-This method traces the particles throughout the domain. The initial element is determined by computing the intersection
-between the particle-element-origin vector and each element face. If non of the six element faces are hit, the particle is
+This method traces the particle trajectory throughout the domain. The initial element is determined by computing the intersection
+between the particle-element-origin vector and each element face. If none of the six element faces are hit, the particle is
 located inside of this element. Next, the particle trajectory is traced throughout the domain. Hence, each face is checked
-for an intersection and a particle mapped accordingly into the neighbor element or perform a boundary condition. This
-algorithm has no inherent self-consistency check. For critical intersections (beginning,end of particle path or close to
-edges of faces) an additional safety check is performed by recomputing the element check and if it fails a re-localization of
-the particle. Particles traveling parallel to faces are in a undefined state and a currently removed. This prints a warning
-message. Note, the tracing on periodic meshes works only for non-mpi computations. Periodic displacement requires
+for an intersection and a particle assigned accordingly to neighbor elements or the interaction with boundary conditions occur. This
+algorithm has no inherent self-consistency check. For critical intersections (beginning or end of a particle path or if a particle is located close to
+the edges of element faces) an additional safety check is performed by recomputing the element check and if it fails a re-localization of
+the particle is required. Particles traveling parallel to element faces are in an undefined state and are currently removed from the computation. 
+This leads to a warning message. Note that tracing on periodic meshes works only for non-mpi computations. Periodic displacement requires
 additional coding.
 
 
