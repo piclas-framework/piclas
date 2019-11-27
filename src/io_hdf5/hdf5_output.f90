@@ -1207,7 +1207,7 @@ INTEGER(KIND=IK)               :: iPart,nPart_glob
 REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
 INTEGER(KIND=IK)               :: locnPart_max
-CHARACTER(LEN=255)             :: FileName
+CHARACTER(LEN=255)             :: FileName,PreviousFileName
 REAL                           :: PreviousTime_loc
 !===================================================================================================================================
 ! Do not write to file on restart or fresh computation
@@ -1230,7 +1230,10 @@ IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar,StrVarNames,Me
 #endif /*USE_HDG*/
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
-  IF(MPIRoot .AND. PreviousTime_loc.LT.OutputTime) CALL GenerateNextFileInfo('PartStateBoundary',OutputTime,PreviousTime_loc)
+  PreviousFileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PartStateBoundary',PreviousTime))//'.h5'
+  IF(MPIRoot.AND.PreviousTime_loc.LT.OutputTime.AND.FILEEXISTS(PreviousFileName)) THEN
+    CALL GenerateNextFileInfo('PartStateBoundary',OutputTime,PreviousTime_loc)
+  END IF
 END IF
 
 ! Reopen file and write DG solution
