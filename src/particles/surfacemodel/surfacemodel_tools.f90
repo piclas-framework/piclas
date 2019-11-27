@@ -281,7 +281,6 @@ SUBROUTINE CalcDesorbProb()
 !===================================================================================================================================
 !> Calculcation of desorption probability for different model (wallmodel 1 and 2)
 !===================================================================================================================================
-USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
@@ -378,7 +377,6 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Species,Surfpos,I
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Boundary_vars ,ONLY: PartBound, SurfMesh
 USE MOD_Particle_Vars          ,ONLY: nSpecies
@@ -1157,7 +1155,7 @@ SUBROUTINE SMCR_AdjustMapNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,Spec
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh, SampWall

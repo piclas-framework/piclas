@@ -892,7 +892,7 @@ SUBROUTINE setSideRanges()
 !
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals   ,ONLY: UNIT_logOut,UNIT_StdOut,abort
+USE MOD_Globals   ,ONLY: abort
 USE MOD_Mesh_Vars ,ONLY: firstBCSide,firstMortarInnerSide,firstInnerSide,firstMPISide_MINE,firstMPISide_YOUR
 USE MOD_Mesh_Vars ,ONLY: nMPISides_MINE,nMPISides_YOUR,nInnerSides,nMortarInnerSides,nBCSides
 USE MOD_Mesh_Vars ,ONLY: lastBCSide,lastMortarInnerSide,lastInnerSide,lastMPISide_MINE,lastMPISide_YOUR,lastMortarMPISide

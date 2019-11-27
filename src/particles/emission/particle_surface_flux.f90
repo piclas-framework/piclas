@@ -2738,7 +2738,6 @@ SUBROUTINE CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Globals_Vars                ,ONLY:BoltzmannConst
 USE MOD_Particle_Vars               ,ONLY:Species
 USE MOD_Particle_Surfaces_Vars      ,ONLY:SurfMeshSubSideData, BCdata_auxSF, SurfFluxSideSize, TriaSurfaceFlux
 !----------------------------------------------------------------------------------------------------------------------------------!

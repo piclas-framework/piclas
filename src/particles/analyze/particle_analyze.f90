@@ -642,7 +642,6 @@ SUBROUTINE AnalyzeParticles(Time)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars
 USE MOD_PARTICLE_Vars          ,ONLY: nSpecies
@@ -3679,7 +3678,6 @@ USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCell
 USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCellX,MaxPartDisplacementCellY,MaxPartDisplacementCellZ
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_TimeDisc_Vars         ,ONLY: dt
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass
 USE MOD_Globals               ,ONLY: VECNORM
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Vars         ,ONLY: PDM,PEM,PartState

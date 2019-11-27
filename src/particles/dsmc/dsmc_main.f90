@@ -42,7 +42,6 @@ SUBROUTINE DSMC_main(DoElement)
 ! MODULES
 USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
 USE MOD_Globals
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, MCC_pairing_bggas, DSMC_FinalizeBGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
