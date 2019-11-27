@@ -1081,14 +1081,20 @@ DO iLoop = 1, nPart
   V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulkSpec(1:3,iSpec)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2  
   u2Spec(iSpec) = u2Spec(iSpec) + vmag2
-  DO fillMa1 =1, 3
-    DO fillMa2 =fillMa1, 3
-      u0ijSpec(fillMa1, fillMa2,iSpec)= u0ijSpec(fillMa1, fillMa2,iSpec) + V_rel(fillMa1)*V_rel(fillMa2)
-    END DO
-  END DO
-  u0iSpec(1:3, iSpec) = u0iSpec(1:3, iSpec) + V_rel(1:3)
+!  DO fillMa1 =1, 3
+!    DO fillMa2 =fillMa1, 3
+!      u0ijSpec(fillMa1, fillMa2,iSpec)= u0ijSpec(fillMa1, fillMa2,iSpec) + V_rel(fillMa1)*V_rel(fillMa2)
+!    END DO
+!  END DO
+!  u0iSpec(1:3, iSpec) = u0iSpec(1:3, iSpec) + V_rel(1:3)
   V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulkAll(1:3)  
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2  
+  DO fillMa1 =1, 3
+    DO fillMa2 =fillMa1, 3
+      u0ij(fillMa1, fillMa2)= u0ij(fillMa1, fillMa2) + V_rel(fillMa1)*V_rel(fillMa2)*Species(iSpec)%MassIC
+    END DO
+  END DO
+  u0i(1:3) = u0i(1:3) + V_rel(1:3)*Species(iSpec)%MassIC
   OldEn = OldEn + 0.5*Species(iSpec)%MassIC * vmag2
 END DO
 
@@ -1107,8 +1113,8 @@ DO iSpec = 1, nSpecies
   Ener(iSpec) = Ener(iSpec) + nSpec(iSpec) * Species(iSpec)%MassIC / 2. * vmag2
   EnerTotal = EnerTotal + Ener(iSpec)
 !  u2 = u2 + nSpec(iSpec)*u2Spec(iSpec)
-  u0ij = u0ij + nSpec(iSpec)*u0ijSpec(:,:,iSpec)
-  u0i = u0i + nSpec(iSpec)*u0iSpec(:,iSpec)
+!  u0ij = u0ij + nSpec(iSpec)*u0ijSpec(:,:,iSpec)
+!  u0i = u0i + nSpec(iSpec)*u0iSpec(:,iSpec)
 !  CellTemp = CellTemp +  nSpec(iSpec)*SpecTemp(iSpec)
 END DO
 vmag2 = vBulkAll(1)*vBulkAll(1) + vBulkAll(2)*vBulkAll(2) + vBulkAll(3)*vBulkAll(3)
@@ -1119,13 +1125,11 @@ EnerTotal = EnerTotal -  TotalMass / 2. * vmag2
 CellTemp = 2. * EnerTotal / (3.*nPart*BoltzmannConst)
 u2 = 3. * CellTemp * BoltzmannConst * nPart / TotalMass
 
-u0ij = u0ij/nPart
+!u0ij = u0ij/nPart
+!u0i(1:3) = u0i(1:3)/nPart
 
-!second way
-!A = u0ij
-!CALL DSYEV('N','U',3,A,3,W,Work,1000,INFO)
-
-u0i(1:3) = u0i(1:3)/nPart
+u0ij = u0ij/TotalMass
+u0i(1:3) = u0i(1:3)/TotalMass
 dens = nPart * Species(1)%MacroParticleFactor / NodeVolume
 InnerDOF = 0.
 CellTempRelax = CellTemp
