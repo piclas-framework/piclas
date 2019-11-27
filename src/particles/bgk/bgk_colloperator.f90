@@ -1096,26 +1096,29 @@ SpecTemp = 0.0
 CellTemp = 0.0
 nTemp = 0
 Ener = 0.0
-EnerTotal = 0.0
+EnerTotal = 0.0 ! Brull
 DO iSpec = 1, nSpecies
   IF (nSpec(iSpec).GE.2) THEN
     SpecTemp(iSpec) = Species(iSpec)%MassIC * u2Spec(iSpec)/(3.0*BoltzmannConst*(nSpec(iSpec)-1.))
     nTemp = nTemp +  nSpec(iSpec)
     Ener(iSpec) =  3./2.*BoltzmannConst*SpecTemp(iSpec) * nSpec(iSpec)
   END IF
-  vmag2 = vBulkSpec(1,iSpec)*vBulkSpec(1,iSpec) + vBulkSpec(2,iSpec)*vBulkSpec(2,iSpec) + vBulkSpec(3,iSpec)*vBulkSpec(3,iSpec)
+  vmag2 = vBulkSpec(1,iSpec)**2. + vBulkSpec(2,iSpec)**2. + vBulkSpec(3,iSpec)**2.
   Ener(iSpec) = Ener(iSpec) + nSpec(iSpec) * Species(iSpec)%MassIC / 2. * vmag2
-  EnerTotal = EnerTotal + Ener(iSpec)  
-  u2 = u2 + nSpec(iSpec)*u2Spec(iSpec)
+  EnerTotal = EnerTotal + Ener(iSpec)
+!  u2 = u2 + nSpec(iSpec)*u2Spec(iSpec)
   u0ij = u0ij + nSpec(iSpec)*u0ijSpec(:,:,iSpec)
   u0i = u0i + nSpec(iSpec)*u0iSpec(:,iSpec)
 !  CellTemp = CellTemp +  nSpec(iSpec)*SpecTemp(iSpec)
 END DO
 vmag2 = vBulkAll(1)*vBulkAll(1) + vBulkAll(2)*vBulkAll(2) + vBulkAll(3)*vBulkAll(3)
-EnerTotal = EnerTotal -  nPart * Species(iSpec)%MassIC / 2. * vmag2
-CellTemp = 2. * EnerTotal / (3.*nPart*BoltzmannConst)
+EnerTotal = EnerTotal -  TotalMass / 2. * vmag2
+
 !CellTemp = CellTemp / nTemp
-u2 = u2/nPart
+!u2 = u2/nPart
+CellTemp = 2. * EnerTotal / (3.*nPart*BoltzmannConst)
+u2 = 3. * CellTemp * BoltzmannConst * nPart / TotalMass
+
 u0ij = u0ij/nPart
 
 !second way
@@ -1225,55 +1228,6 @@ IF (nRelax.GT.0) THEN
   SMat(3,1)=SMat(1,3)
   SMat(3,2)=SMat(2,3)
   CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
-
-!  !! Exact Solution
-!  W = 0.
-!  A = 0.
-!  !! Exact Solution
-!  DO fillMa1 =1, 3
-!    DO fillMa2 =fillMa1, 3
-!      IF (fillMa1.EQ.fillMa2) THEN
-!        KronDelta = 1.0
-!      ELSE
-!        KronDelta = 0.0
-!      END IF
-!      A(fillMa1, fillMa2) = (1.-nu)*KronDelta + nu*u0ij(fillMa1, fillMa2)*3./u2
-!    END DO
-!  END DO
-!  CALL DSYEV('V','U',3,A,3,W,Work,1000,INFO)
-!  SMat = 0.0
-!  IF (W(1).LT.0.0) THEN
-!    print*,'OHOOOOOO', W(:)
-!!    read*
-!    W(1) = 0.0
-!    IF (W(2).LT.0) W(2) = 0.0
-!  END IF
-!  IF (W(3).LT.0) THEN 
-!    print*, 'NEEEEEEEEEEIIIIN'   
-!    W(3) = 0.0
-!    DO fillMa1 =1, 3
-!      DO fillMa2 =fillMa1, 3
-!        IF (fillMa1.EQ.fillMa2) THEN
-!          KronDelta = 1.0
-!        ELSE
-!          KronDelta = 0.0
-!        END IF
-!        SMat(fillMa1, fillMa2)= KronDelta - (1.-Prandtl)/(2.*Prandtl) &
-!          *(3./u2*(u0ij(fillMa1, fillMa2)-u0i(fillMa1)*u0i(fillMa2))-KronDelta) 
-!      END DO
-!    END DO
-!    SMat(2,1)=SMat(1,2)
-!    SMat(3,1)=SMat(1,3)
-!    SMat(3,2)=SMat(2,3)
-!  ELSE
-!    SMat(1,1) = SQRT(W(1))
-!    SMat(2,2) = SQRT(W(2))
-!    SMat(3,3) = SQRT(W(3))
-!    SMat = MATMUL(A, SMat)
-!    SMat = MATMUL(SMat, TRANSPOSE(A))
-!  END IF
-!  CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
-
   
   DO iLoop = 1, nRelax
     iSpec = PartSpecies(iPartIndx_NodeRelax(iLoop))
