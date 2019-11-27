@@ -1,4 +1,15 @@
-#!/bin/bash
+#!/bin/bash -i
+
+#==============================================================================
+# title       : InstallMPIallCOMPILERS.sh
+# description : This script installs openmpi or mpich in a pre-installed module 
+#               env for all compiler that are found and able to be loaded
+# date        : Nov 27, 2019
+# version     : 1.0   
+# usage       : bash InstallMPIallCOMPILERS.sh
+# notes       : Bash in run interactively via "-i" to use "module load/purge" 
+#               commands
+#==============================================================================
 
 # chose which mpi you want to have installed (openmpi or mpich)
 WHICHMPI=openmpi
