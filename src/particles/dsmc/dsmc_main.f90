@@ -115,14 +115,21 @@ DO iElem = 1, nElems ! element/cell main loop
         CALL MCC_pairing_bggas(iElem)
       ELSE IF(BGGas%BGGasSpecies.NE.0) THEN
         CALL DSMC_pairing_bggas(iElem)
-      ELSE IF (DSMC%UseOctree) THEN
-        IF(Symmetry2D) THEN
-          CALL DSMC_pairing_quadtree(iElem)
-        ELSE
-          CALL DSMC_pairing_octree(iElem)
-        END IF
       ELSE
-        CALL DSMC_pairing_statistical(iElem)  ! pairing of particles per cell
+        nPart = PEM%pNumber(iElem)
+        IF (nPart.GT.1) THEN
+          IF (DSMC%UseOctree) THEN
+            IF(Symmetry2D) THEN
+              CALL DSMC_pairing_quadtree(iElem)
+            ELSE
+              CALL DSMC_pairing_octree(iElem)
+            END IF
+          ELSE ! NOT DSMC%UseOctree
+            CALL DSMC_pairing_statistical(iElem)  ! pairing of particles per cell
+          END IF ! DSMC%UseOctree
+        ELSE ! less than 2 particles
+          CYCLE ! next element
+        END IF ! nPart.GT.1
       END IF
 
       IF (.NOT.DSMC%UseOctree) THEN                                                               ! no octree
@@ -180,7 +187,7 @@ DO iElem = 1, nElems ! element/cell main loop
               CALL DSMC_perform_collision(iPair,iElem)
             END IF
           END IF
-        END DO
+        END DO ! iPair = 1, nPair
         IF(DSMC%CalcQualityFactors) THEN
           IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
             ! Calculation of the mean free path

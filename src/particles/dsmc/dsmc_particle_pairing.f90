@@ -911,7 +911,7 @@ TYPE(tTreeNode), POINTER      :: TreeNode
 
   NULLIFY(TreeNode)
   nPart = PEM%pNumber(iElem)
-  IF(nPart.GT.0) THEN
+  IF(nPart.GT.1) THEN
     ALLOCATE(TreeNode)
     ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
     TreeNode%iPartIndx_Node(1:nPart) = 0
