@@ -867,7 +867,7 @@ END ASSOCIATE
 
 DO iPart=1,nParts
   PartData(1:nPartsVar+3,iPart) = tmpPartData(iPart,1:nPartsVar+3)
-  ConnectInfo(1,iPart)=iPart-1
+  ConnectInfo(1,iPart)=iPart
 END DO
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuPart',OutputTime))//'.vtu'
