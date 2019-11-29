@@ -400,6 +400,9 @@ ELSE
 
   ! Compute the element XiEtaZetaBasis and the radius of the convex hull
   CALL BuildElementBasisAndRadius()
+
+  ! Get basevectors for (bi-)linear sides
+  CALL GetLinearSideBaseVectors()
 END IF
 
 ! BezierAreaSample stuff:
@@ -4699,6 +4702,10 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars ,ONLY: BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,nTotalBCSides
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartBCSideList
+#if USE_MPI
+USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars
+#endif /* USE_MPI */
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -4706,73 +4713,68 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                               :: iSide, BCSide
-REAL                                  :: crossVec(3)
-! INTEGER                               :: iSide_temp
+INTEGER                        :: iSide, BCSide,Shift, firstSide, lastSide
+REAL                           :: crossVec(3)
+#if USE_MPI
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+#endif /*USE_MPI*/
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' GET LINEAR SIDE BASEVECTORS...'
-IF(.NOT.DoRefMapping)THEN
-!   ALLOCATE(SideID2PlanarSideID(1:nTotalSides))
-!   SideID2PlanarSideID(:) = 0
-!   iSide_temp = 0
-!   DO iSide=1,nTotalSides
-!     IF (SideType(iSide).EQ.PLANAR_RECT) THEN
-!       iSide_temp = iSide_temp + 1
-!       SideID2PlanarSideID(iSide) = iSide_temp
-!     END IF
-!   END DO
+#if USE_MPI
+MPISharedSize = INT((3*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalSides/),BaseVectors0_Shared_Win,BaseVectors0_Shared)
+CALL MPI_WIN_LOCK_ALL(0,BaseVectors0_Shared_Win,IERROR)
+CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalSides/),BaseVectors1_Shared_Win,BaseVectors1_Shared)
+CALL MPI_WIN_LOCK_ALL(0,BaseVectors1_Shared_Win,IERROR)
+CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalSides/),BaseVectors2_Shared_Win,BaseVectors2_Shared)
+CALL MPI_WIN_LOCK_ALL(0,BaseVectors2_Shared_Win,IERROR)
+CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalSides/),BaseVectors3_Shared_Win,BaseVectors3_Shared)
+CALL MPI_WIN_LOCK_ALL(0,BaseVectors3_Shared_Win,IERROR)
+BaseVectors0 => BaseVectors0_Shared
+BaseVectors1 => BaseVectors1_Shared
+BaseVectors2 => BaseVectors2_Shared
+BaseVectors3 => BaseVectors3_Shared
+MPISharedSize = INT((nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),BaseVectorsScale_Shared_Win,BaseVectorsScale_Shared)
+CALL MPI_WIN_LOCK_ALL(0,BaseVectorsScale_Shared_Win,IERROR)
+BaseVectorsScale => BaseVectorsScale_Shared
+firstSide=INT(REAL(myComputeNodeRank*nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
+lastSide=INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
+Shift=1
+#else
+ALLOCATE( BaseVectors0(1:3,1:nNonUniqueGlobalSides),&
+          BaseVectors1(1:3,1:nNonUniqueGlobalSides),&
+          BaseVectors2(1:3,1:nNonUniqueGlobalSides),&
+          BaseVectors3(1:3,1:nNonUniqueGlobalSides),&
+          BaseVectorsScale(1:nNonUniqueGlobalSides))
+firstSide=1
+lastSide=nNonUniqueGlobalSides
+Shift=0
+#endif /*USE_MPI*/
 
-  ALLOCATE( BaseVectors0(1:3,1:nTotalSides),&
-            BaseVectors1(1:3,1:nTotalSides),&
-            BaseVectors2(1:3,1:nTotalSides),&
-            BaseVectors3(1:3,1:nTotalSides),&
-            BaseVectorsScale(1:nTotalSides))
-  !IF (GEO%nPeriodicVectors.GT.0) THEN
-  !  ALLOCATE( BaseVectors0flip(1:3,1:nTotalSides),&
-  !            BaseVectors1flip(1:3,1:nTotalSides),&
-  !            BaseVectors2flip(1:3,1:nTotalSides),&
-  !            BaseVectors3flip(1:3,1:nTotalSides))
-  !END IF
 
-  DO iSide=1,nTotalSides
-    ! extension for periodic sides
-!     IF ((SideType(iSide).EQ.PLANAR_RECT) &
-!        .OR. (SideType(iSide).EQ.PLANAR_NONRECT) .OR. (SideType(iSide).EQ.BILINEAR)))THEN
-!       iSide_temp = SideID2PlanarSideID(iSide)
-    BaseVectors0(:,iSide) = (+BezierControlPoints3D(:,0,0,iSide)+BezierControlPoints3D(:,NGeo,0,iSide)   &
-                              +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
-    BaseVectors1(:,iSide) = (-BezierControlPoints3D(:,0,0,iSide)+BezierControlPoints3D(:,NGeo,0,iSide)   &
-                              -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
-    BaseVectors2(:,iSide) = (-BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)   &
-                              +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
-    BaseVectors3(:,iSide) = (+BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)   &
-                              -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
-    crossVec = CROSS(BaseVectors1(:,iSide),BaseVectors2(:,iSide)) !vector with length of approx. 4x area (BV12 have double length)
-    BaseVectorsScale(iSide) = 0.25*SQRT(DOT_PRODUCT(crossVec,crossVec))
-  END DO ! iSide
-ELSE
-  ALLOCATE( BaseVectors0(1:3,1:nTotalBCSides),&
-            BaseVectors1(1:3,1:nTotalBCSides),&
-            BaseVectors2(1:3,1:nTotalBCSides),&
-            BaseVectors3(1:3,1:nTotalBCSides),&
-            BaseVectorsScale(1:nTotalBCSides))
-  DO iSide=1,nTotalSides
-    BCSide = PartBCSideList(iSide)
-    ! extension for periodic sides
-    IF(BCSide.EQ.-1) CYCLE
-    BaseVectors0(:,BCSide) = (+BezierControlPoints3D(:,0,0,BCSide)+BezierControlPoints3D(:,NGeo,0,BCSide)   &
-                              +BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
-    BaseVectors1(:,BCSide) = (-BezierControlPoints3D(:,0,0,BCSide)+BezierControlPoints3D(:,NGeo,0,BCSide)   &
-                              -BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
-    BaseVectors2(:,BCSide) = (-BezierControlPoints3D(:,0,0,BCSide)-BezierControlPoints3D(:,NGeo,0,BCSide)   &
-                              +BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
-    BaseVectors3(:,BCSide) = (+BezierControlPoints3D(:,0,0,BCSide)-BezierControlPoints3D(:,NGeo,0,BCSide)   &
-                              -BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
-    crossVec = CROSS(BaseVectors1(:,BCSide),BaseVectors2(:,BCSide)) !vector with length of approx. 4x area (BV12 have double length)
-    BaseVectorsScale(BCSide) = 0.25*SQRT(DOT_PRODUCT(crossVec,crossVec))
-  END DO ! iSide
-END IF
+DO iSide=firstSide,lastSide
+  BaseVectors0(:,iSide) = (+BezierControlPoints3D(:,Shift,     Shift,iSide)+BezierControlPoints3D(:,NGeo+Shift,     Shift,iSide)   &
+                           +BezierControlPoints3D(:,Shift,NGeo+Shift,iSide)+BezierControlPoints3D(:,NGeo+Shift,NGeo+Shift,iSide) )
+  BaseVectors1(:,iSide) = (-BezierControlPoints3D(:,Shift,     Shift,iSide)+BezierControlPoints3D(:,NGeo+Shift,     Shift,iSide)   &
+                           -BezierControlPoints3D(:,Shift,NGeo+Shift,iSide)+BezierControlPoints3D(:,NGeo+Shift,NGeo+Shift,iSide) )
+  BaseVectors2(:,iSide) = (-BezierControlPoints3D(:,Shift,     Shift,iSide)-BezierControlPoints3D(:,NGeo+Shift,     Shift,iSide)   &
+                           +BezierControlPoints3D(:,Shift,NGeo+Shift,iSide)+BezierControlPoints3D(:,NGeo+Shift,NGeo+Shift,iSide) )
+  BaseVectors3(:,iSide) = (+BezierControlPoints3D(:,Shift,     Shift,iSide)-BezierControlPoints3D(:,NGeo+Shift,     Shift,iSide)   &
+                           -BezierControlPoints3D(:,Shift,NGeo+Shift,iSide)+BezierControlPoints3D(:,NGeo+Shift,NGeo+Shift,iSide) )
+  crossVec = CROSS(BaseVectors1(:,iSide),BaseVectors2(:,iSide)) !vector with length of approx. 4x area (BV12 have double length)
+  BaseVectorsScale(iSide) = 0.25*SQRT(DOT_PRODUCT(crossVec,crossVec))
+END DO ! iSide
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(BaseVectors0_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(BaseVectors1_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(BaseVectors2_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(BaseVectors3_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(BaseVectorsScale_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /* USE_MPI */
 
 SWRITE(UNIT_stdOut,'(A)')' GET LINEAR SIDE BASEVECTORS DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')

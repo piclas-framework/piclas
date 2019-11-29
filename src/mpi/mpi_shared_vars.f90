@@ -118,5 +118,16 @@ INTEGER         :: SideDistance_Shared_Win
 REAL,POINTER    :: SideNormVec_Shared(:,:)
 INTEGER         :: SideNormVec_Shared_Win
 
+REAL,POINTER    :: BaseVectors0_Shared(:,:)
+INTEGER         :: BaseVectors0_Shared_Win
+REAL,POINTER    :: BaseVectors1_Shared(:,:)
+INTEGER         :: BaseVectors1_Shared_Win
+REAL,POINTER    :: BaseVectors2_Shared(:,:)
+INTEGER         :: BaseVectors2_Shared_Win
+REAL,POINTER    :: BaseVectors3_Shared(:,:)
+INTEGER         :: BaseVectors3_Shared_Win
+REAL,POINTER    :: BaseVectorsScale_Shared(:)
+INTEGER         :: BaseVectorsScale_Shared_Win
+
 #endif /* USE_MPI */
 END MODULE
