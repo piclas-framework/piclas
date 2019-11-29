@@ -4065,462 +4065,462 @@ END SUBROUTINE IdentifyElemAndSideType
 !END SUBROUTINE GetBCElemMap
 
 
-SUBROUTINE GetShapeFunctionBCElems()
-!===================================================================================================================================
-! Identify all elements that are close to boundaries, where the deposition via shape function would cause the shape function sphere
-! to be truncated by the boundary. In this case, a local deposition is used in that cell for "inner" parts, i.e., shape functions
-! that extend into the element by exterior particle shape functions are still deposited via the shape function.
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo,NGeo,nElems,BC
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,IsLocalDepositionBCElem,nTotalElems
-USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide,PartSideToElem,PartBCSideList,SidePeriodicType
-USE MOD_Particle_Surfaces_Vars ,ONLY: sVdm_Bezier
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
-USE MOD_PICDepo_Vars           ,ONLY: r_sf,DepositionType,sf1d_dir
-USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
-USE MOD_Mesh_Vars              ,ONLY: BoundaryType
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                                  :: iElem,firstBezierPoint,lastBezierPoint
-INTEGER                                  :: iSide,p,q,SideID,ilocSide,BCSideID2,BCSideID
-INTEGER                                  :: s,r
-INTEGER,ALLOCATABLE                      :: SideIndex(:)
-REAL,DIMENSION(1:3)                      :: NodeX
-REAL,DIMENSION(1:3,0:NGeo,0:NGeo)        :: xNodes
-REAL                                     :: dx,dy,dz
-LOGICAL                                  :: leave,BCElemSF
-!===================================================================================================================================
-! allocate for local elements + halo elements
-ALLOCATE(IsLocalDepositionBCElem(nTotalElems))
-IsLocalDepositionBCElem=.FALSE.
-! Only add local elements to element list
-CALL AddToElemData(ElementOut,'IsLocalDepositionBCElem',LogArray=IsLocalDepositionBCElem(1:nElems))
+!SUBROUTINE GetShapeFunctionBCElems()
+!!===================================================================================================================================
+!! Identify all elements that are close to boundaries, where the deposition via shape function would cause the shape function sphere
+!! to be truncated by the boundary. In this case, a local deposition is used in that cell for "inner" parts, i.e., shape functions
+!! that extend into the element by exterior particle shape functions are still deposited via the shape function.
+!!===================================================================================================================================
+!! MODULES                                                                                                                          !
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!USE MOD_Globals
+!USE MOD_Preproc
+!USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+!USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo,NGeo,nElems,BC
+!USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+!USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,IsLocalDepositionBCElem,nTotalElems
+!USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide,PartSideToElem,PartBCSideList,SidePeriodicType
+!USE MOD_Particle_Surfaces_Vars ,ONLY: sVdm_Bezier
+!USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
+!USE MOD_PICDepo_Vars           ,ONLY: r_sf,DepositionType,sf1d_dir
+!USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
+!USE MOD_Mesh_Vars              ,ONLY: BoundaryType
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!IMPLICIT NONE
+!! INPUT VARIABLES
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER                                  :: iElem,firstBezierPoint,lastBezierPoint
+!INTEGER                                  :: iSide,p,q,SideID,ilocSide,BCSideID2,BCSideID
+!INTEGER                                  :: s,r
+!INTEGER,ALLOCATABLE                      :: SideIndex(:)
+!REAL,DIMENSION(1:3)                      :: NodeX
+!REAL,DIMENSION(1:3,0:NGeo,0:NGeo)        :: xNodes
+!REAL                                     :: dx,dy,dz
+!LOGICAL                                  :: leave,BCElemSF
+!!===================================================================================================================================
+!! allocate for local elements + halo elements
+!ALLOCATE(IsLocalDepositionBCElem(nTotalElems))
+!IsLocalDepositionBCElem=.FALSE.
+!! Only add local elements to element list
+!CALL AddToElemData(ElementOut,'IsLocalDepositionBCElem',LogArray=IsLocalDepositionBCElem(1:nElems))
 
-! Auxiliary integer array for marking sides (set equal to 1 if the side is within shape function radius of considered local side)
-ALLOCATE(SideIndex(1:nTotalSides))
+!! Auxiliary integer array for marking sides (set equal to 1 if the side is within shape function radius of considered local side)
+!ALLOCATE(SideIndex(1:nTotalSides))
 
-! =============================
-! Workflow:
-!  0.  Sanity Check: halo distance must be equal to or larger than the shape function radius
-!  1.  Loop over all elements (including halo elements)
-!  1.1  Mark rank-local elements with BC sides without calculating the distance between the nodes (more efficient
-!  1.2  Check distance (loop all local sides and measure the distance to all nTotalSides)
-!  1.3  Loop over all sides (including halo sides) and compare distance to the current iLocSide of the element
-!==============================
+!! =============================
+!! Workflow:
+!!  0.  Sanity Check: halo distance must be equal to or larger than the shape function radius
+!!  1.  Loop over all elements (including halo elements)
+!!  1.1  Mark rank-local elements with BC sides without calculating the distance between the nodes (more efficient
+!!  1.2  Check distance (loop all local sides and measure the distance to all nTotalSides)
+!!  1.3  Loop over all sides (including halo sides) and compare distance to the current iLocSide of the element
+!!==============================
 
-! 0.   Check halo distance vs. shape function radius, because the halo region is used for checking the shape function deposition
-IF(halo_eps.LT.r_sf)THEN
-  SWRITE(UNIT_StdOut,'(132("*"))')
-  SWRITE(UNIT_StdOut,'(A)') ' Warning in GetShapeFunctionBCElems: halo_eps is less than r_sh, which may result in wrong '//&
-                            'deposition elements.\n Check IsLocalDepositionBCElem in state file!'
-  SWRITE(UNIT_StdOut,'(A,ES25.14E3)') '  halo_eps : ',halo_eps
-  SWRITE(UNIT_StdOut,'(A,ES25.14E3)') '  r_sf     : ',r_sf
-  SWRITE(UNIT_StdOut,'(A)') ' Consider increasing the halo velocity to remove this warning.'
-  SWRITE(UNIT_StdOut,'(132("*"))')
-END IF
-
-
-
-! 1.  Loop over all elements (including halo elements)
-DO iElem=1,nTotalElems
-  BCElemSF=.FALSE.
-  ! 1.1  Mark rank-local elements with BC sides without calculating the distance between the nodes (more efficient)
-  DO ilocSide=1,6
-    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF(SideID.LE.0)                             CYCLE ! Skip sides?
-    IF(PartBCSideList(SideID).EQ.-1)            CYCLE ! Skip non-BC sides
-    IF(SidePeriodicType(SideID).NE.0)           CYCLE ! Skip periodic-BC sides
-    IF(BoundaryType(BC(SideID),BC_TYPE).EQ.100) CYCLE ! Skip inner-BC sides (must be labelled with 100)
-
-
-    ! Skip BC sides for shape_function_2d
-    IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
-      ASSOCIATE ( &
-            x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , PartBCSideList(SideID))   , &
-            x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , PartBCSideList(SideID))   , &
-            x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , PartBCSideList(SideID))   , &
-            x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , PartBCSideList(SideID)) )
-        ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
-        IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
-            ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
-            ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
-      END ASSOCIATE
-    END IF
-    IsLocalDepositionBCElem(iElem)=.TRUE.
-    EXIT
-  END DO ! ilocSide=1,6
-
-  IF(IsLocalDepositionBCElem(iElem)) CYCLE ! finished: next element
+!! 0.   Check halo distance vs. shape function radius, because the halo region is used for checking the shape function deposition
+!IF(halo_eps.LT.r_sf)THEN
+!  SWRITE(UNIT_StdOut,'(132("*"))')
+!  SWRITE(UNIT_StdOut,'(A)') ' Warning in GetShapeFunctionBCElems: halo_eps is less than r_sh, which may result in wrong '//&
+!                            'deposition elements.\n Check IsLocalDepositionBCElem in state file!'
+!  SWRITE(UNIT_StdOut,'(A,ES25.14E3)') '  halo_eps : ',halo_eps
+!  SWRITE(UNIT_StdOut,'(A,ES25.14E3)') '  r_sf     : ',r_sf
+!  SWRITE(UNIT_StdOut,'(A)') ' Consider increasing the halo velocity to remove this warning.'
+!  SWRITE(UNIT_StdOut,'(132("*"))')
+!END IF
 
 
 
-  ! 1.2  Check distance (loop all local sides and measure the distance to all nTotalSides)
-  ! loop over all sides, to reduce required storage, if a side is marked once, it does not have to be checked for further sides
-  SideIndex=0
-  DO ilocSide=1,6
-    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF(SideID.GT.0)THEN
-      BCSideID2=PartBCSideList(SideID)
-    ELSE
-      BCSideID2=SideID
-    END IF
-
-    IF(BCSideID2.GT.0) THEN
-      xNodes(:,:,:)=BezierControlPoints3D(:,:,:,PartBCSideList(SideID))
-      SELECT CASE(ilocSide)
-      CASE(XI_MINUS,XI_PLUS)
-        firstBezierPoint=0
-        lastBezierPoint=NGeo
-      CASE DEFAULT
-        firstBezierPoint=1
-        lastBezierPoint=NGeo-1
-      END SELECT
-    ELSE
-      SELECT CASE(ilocSide)
-      CASE(XI_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),xNodes(:,:,:))
-        firstBezierPoint=0
-        lastBezierPoint=NGeo
-      CASE(XI_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),xNodes(:,:,:))
-        firstBezierPoint=0
-        lastBezierPoint=NGeo
-      CASE(ETA_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),xNodes(:,:,:))
-        firstBezierPoint=1
-        lastBezierPoint=NGeo-1
-      CASE(ETA_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),xNodes(:,:,:))
-        firstBezierPoint=1
-        lastBezierPoint=NGeo-1
-      CASE(ZETA_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),xNodes(:,:,:))
-        firstBezierPoint=1
-        lastBezierPoint=NGeo-1
-      CASE(ZETA_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),xNodes(:,:,:))
-        firstBezierPoint=1
-        lastBezierPoint=NGeo-1
-      END SELECT
-    END IF
+!! 1.  Loop over all elements (including halo elements)
+!DO iElem=1,nTotalElems
+!  BCElemSF=.FALSE.
+!  ! 1.1  Mark rank-local elements with BC sides without calculating the distance between the nodes (more efficient)
+!  DO ilocSide=1,6
+!    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+!    IF(SideID.LE.0)                             CYCLE ! Skip sides?
+!    IF(PartBCSideList(SideID).EQ.-1)            CYCLE ! Skip non-BC sides
+!    IF(SidePeriodicType(SideID).NE.0)           CYCLE ! Skip periodic-BC sides
+!    IF(BoundaryType(BC(SideID),BC_TYPE).EQ.100) CYCLE ! Skip inner-BC sides (must be labelled with 100)
 
 
-    ! 1.3  Loop over all sides (including halo sides) and compare distance to the current iLocSide of the element
-    DO iSide=1,nTotalSides
-      BCSideID=PartBCSideList(iSide) ! only bc sides
-      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE ! Skip sides of the same element
-      IF(BCSideID.EQ.-1)                             CYCLE ! Skip non-BC sides
-      IF(SidePeriodicType(iSide).NE.0)               CYCLE ! Skip periodic sides. Note that side = iSide and not BCSideID
-      IF(BoundaryType(BC(iSide),BC_TYPE).EQ.100)     CYCLE ! Skip inner-BC sides (must be labelled with 100)
+!    ! Skip BC sides for shape_function_2d
+!    IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
+!      ASSOCIATE ( &
+!            x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , PartBCSideList(SideID))   , &
+!            x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , PartBCSideList(SideID))   , &
+!            x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , PartBCSideList(SideID))   , &
+!            x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , PartBCSideList(SideID)) )
+!        ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
+!        IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
+!            ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
+!            ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
+!      END ASSOCIATE
+!    END IF
+!    IsLocalDepositionBCElem(iElem)=.TRUE.
+!    EXIT
+!  END DO ! ilocSide=1,6
 
-      ! Skip BC sides for shape_function_2d
-      IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
-        ASSOCIATE ( &
-              x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , BCSideID)   , &
-              x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , BCSideID)   , &
-              x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , BCSideID)   , &
-              x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , BCSideID) )
-          ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
-          IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
-              ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
-              ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
-        END ASSOCIATE
-      END IF
-
-      IF(SideIndex(iSide).EQ.0)THEN
-        leave=.FALSE.
-        ! all points of bc side
-        DO q=firstBezierPoint,lastBezierPoint
-          DO p=firstBezierPoint,lastBezierPoint
-            NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
-            !all nodes of current side
-            DO s=firstBezierPoint,lastBezierPoint
-              DO r=firstBezierPoint,lastBezierPoint
-                dX=ABS(xNodes(1,r,s)-NodeX(1))
-                IF(dX.GT.r_sf) CYCLE
-                dY=ABS(xNodes(2,r,s)-NodeX(2))
-                IF(dY.GT.r_sf) CYCLE
-                dZ=ABS(xNodes(3,r,s)-NodeX(3))
-                IF(dZ.GT.r_sf) CYCLE
-                IF(SQRT(dX*dX+dY*dY+dZ*dZ).LE.r_sf)THEN
-                  IF(SideIndex(iSide).EQ.0)THEN
-                    BCElemSF=.TRUE.
-                    SideIndex(iSide)=1 ! mark with number .NE. 0
-                    leave=.TRUE.
-                    EXIT
-                  END IF
-                END IF
-              END DO ! r
-              IF(leave) EXIT
-            END DO ! s
-            IF(leave) EXIT
-          END DO ! p
-          IF(leave) EXIT
-        END DO ! q
-        IF(leave) EXIT
-      END IF ! SideIndex(iSide).EQ.0
-    END DO ! iSide=1,nTotalSides
-  END DO ! ilocSide=1,6
-
-  ! set true, only required for elements without an own bc side
-  IF(BCElemSF) IsLocalDepositionBCElem(iElem)=.TRUE.
-END DO ! iElem=1,nTotalElems
+!  IF(IsLocalDepositionBCElem(iElem)) CYCLE ! finished: next element
 
 
 
+!  ! 1.2  Check distance (loop all local sides and measure the distance to all nTotalSides)
+!  ! loop over all sides, to reduce required storage, if a side is marked once, it does not have to be checked for further sides
+!  SideIndex=0
+!  DO ilocSide=1,6
+!    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+!    IF(SideID.GT.0)THEN
+!      BCSideID2=PartBCSideList(SideID)
+!    ELSE
+!      BCSideID2=SideID
+!    END IF
 
-END SUBROUTINE GetShapeFunctionBCElems
-
-
-SUBROUTINE GetShapeFunctionBCElems_OLD()
-!===================================================================================================================================
-! Identify all elements that are close to boundaries, where the deposition via shape function would cause the shape function sphere
-! to be truncated by the boundary. In this case, a local deposition is used in that cell for "inner" parts, i.e., shape functions
-! that extend into the element by exterior particle shape functions are still deposited via the shape function.
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo,NGeo,nElems
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,IsLocalDepositionBCElem,nTotalElems
-USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide,PartSideToElem,PartBCSideList,SidePeriodicType
-USE MOD_Particle_Surfaces_Vars ,ONLY: sVdm_Bezier
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
-USE MOD_PICDepo_Vars           ,ONLY: r_sf,DepositionType,sf1d_dir
-USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                                  :: iElem,firstBezierPoint,lastBezierPoint
-INTEGER                                  :: iSide,p,q,SideID,ilocSide,BCSideID2,BCSideID
-INTEGER                                  :: s,r
-INTEGER,ALLOCATABLE                      :: SideIndex(:)
-REAL,DIMENSION(1:3)                      :: NodeX,Vec1
-REAL,DIMENSION(1:3,0:NGeo,0:NGeo)        :: xNodes
-REAL                                     :: dx,dy,dz
-LOGICAL                                  :: leave,BCElemSF
-!===================================================================================================================================
-! allocate for local elements + halo elements
-ALLOCATE(IsLocalDepositionBCElem(nTotalElems))
-IsLocalDepositionBCElem=.FALSE.
-! only add local elements to element list
-CALL AddToElemData(ElementOut,'IsLocalDepositionBCElem'    ,LogArray=IsLocalDepositionBCElem(    1:nElems))
-
-! =============================
-! Workflow:
-!
-!  0.  Check halo distance vs. shape function radius
-!  1.  Check local BC sides
-!  2.  Check halo BC sides: each element requires only the sides in its halo region
-!==============================
-
-! 0.   Check halo distance vs. shape function radius, because the halo region is used for checking the shape function deposition
-IF(halo_eps.LT.r_sf)THEN
-  SWRITE(UNIT_StdOut,'(132("*"))')
-  SWRITE(UNIT_StdOut,'(A)') ' Warning in GetShapeFunctionBCElems: halo_eps is less than r_sh, which may result in wrong '//&
-                            'deposition elements.\n Check IsLocalDepositionBCElem in state file!'
-  SWRITE(UNIT_StdOut,'(A,ES25.14E3)') '  halo_eps : ',halo_eps
-  SWRITE(UNIT_StdOut,'(A,ES25.14E3)') '  r_sf     : ',r_sf
-  SWRITE(UNIT_StdOut,'(A)') ' Consider increasing the halo velocity to remove this warning.'
-  SWRITE(UNIT_StdOut,'(132("*"))')
-END IF
-
-!    ! 1.   Check local BC sides:  mark elements as bc element if they have a local-BC side (skip periodic sides)
-!    DO iElem=1,nTotalElems
-!      DO ilocSide=1,6
-!        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-!        IF (SideID.LE.0)                               CYCLE ! Skip ?
-!        IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides)) THEN  ! Don't skip ? and ?
-!          IF(SidePeriodicType(SideID).NE.0)            CYCLE ! skip periodic sides
-!          ! Skip BC sides for shape_function_2d
-!          IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
-!            ASSOCIATE ( &
-!                  x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , PartBCSideList(SideID))   , &
-!                  x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , PartBCSideList(SideID))   , &
-!                  x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , PartBCSideList(SideID))   , &
-!                  x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , PartBCSideList(SideID)) )
-!              ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
-!              IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
-!                  ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
-!                  ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
-!            END ASSOCIATE
-!          END IF
-!          IsLocalDepositionBCElem(iElem)=.TRUE.
-!        END IF
-!      END DO ! ilocSide
-!    END DO ! iElem
-
-! 2.   Check halo BC sides: each element requires only the sides in its halo region
-ALLOCATE( SideIndex(1:nTotalSides) )
-DO iElem=1,nTotalElems
-
-  !   IF(IsLocalDepositionBCElem(iElem)) CYCLE ! identified in previous step
-
-  ! mark my sides
-  BCElemSF=.FALSE.
-  DO ilocSide=1,6
-    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF(SideID.LE.0)                   CYCLE ! Skip ?
-    IF(PartBCSideList(SideID).EQ.-1)  CYCLE ! Skip non-BC sides
-    IF(SidePeriodicType(SideID).NE.0) CYCLE ! Skip periodic-BC sides
-    !IF(SideID.GT.nBCSides)            CYCLE ! Skip non-BC sides -> already done in PartBCSideList(SideID).EQ.-1 ?
-
-    ! Skip BC sides for shape_function_2d
-    IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
-      ASSOCIATE ( &
-            x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , PartBCSideList(SideID))   , &
-            x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , PartBCSideList(SideID))   , &
-            x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , PartBCSideList(SideID))   , &
-            x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , PartBCSideList(SideID)) )
-        ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
-        IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
-            ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
-            ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
-      END ASSOCIATE
-    END IF
-    IsLocalDepositionBCElem(iElem)=.TRUE.
-    EXIT
-  END DO ! ilocSide=1,6
-
-  IF(IsLocalDepositionBCElem(iElem)) CYCLE ! finished: next element
+!    IF(BCSideID2.GT.0) THEN
+!      xNodes(:,:,:)=BezierControlPoints3D(:,:,:,PartBCSideList(SideID))
+!      SELECT CASE(ilocSide)
+!      CASE(XI_MINUS,XI_PLUS)
+!        firstBezierPoint=0
+!        lastBezierPoint=NGeo
+!      CASE DEFAULT
+!        firstBezierPoint=1
+!        lastBezierPoint=NGeo-1
+!      END SELECT
+!    ELSE
+!      SELECT CASE(ilocSide)
+!      CASE(XI_MINUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),xNodes(:,:,:))
+!        firstBezierPoint=0
+!        lastBezierPoint=NGeo
+!      CASE(XI_PLUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),xNodes(:,:,:))
+!        firstBezierPoint=0
+!        lastBezierPoint=NGeo
+!      CASE(ETA_MINUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),xNodes(:,:,:))
+!        firstBezierPoint=1
+!        lastBezierPoint=NGeo-1
+!      CASE(ETA_PLUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),xNodes(:,:,:))
+!        firstBezierPoint=1
+!        lastBezierPoint=NGeo-1
+!      CASE(ZETA_MINUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),xNodes(:,:,:))
+!        firstBezierPoint=1
+!        lastBezierPoint=NGeo-1
+!      CASE(ZETA_PLUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),xNodes(:,:,:))
+!        firstBezierPoint=1
+!        lastBezierPoint=NGeo-1
+!      END SELECT
+!    END IF
 
 
+!    ! 1.3  Loop over all sides (including halo sides) and compare distance to the current iLocSide of the element
+!    DO iSide=1,nTotalSides
+!      BCSideID=PartBCSideList(iSide) ! only bc sides
+!      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE ! Skip sides of the same element
+!      IF(BCSideID.EQ.-1)                             CYCLE ! Skip non-BC sides
+!      IF(SidePeriodicType(iSide).NE.0)               CYCLE ! Skip periodic sides. Note that side = iSide and not BCSideID
+!      IF(BoundaryType(BC(iSide),BC_TYPE).EQ.100)     CYCLE ! Skip inner-BC sides (must be labelled with 100)
 
-  ! 3.  Check distance
-  ! loop over all sides, to reduce required storage, if a side is marked once,
-  ! it does not have to be checked for further sides
-  SideIndex=0
-  DO ilocSide=1,6
-    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    !BCSideID2=SideID
-    !IF(SideID.GT.0) BCSideID2=PartBCSideList(SideID)
-    IF(SideID.GT.0)THEN
-      BCSideID2=PartBCSideList(SideID)
-    ELSE
-      BCSideID2=SideID
-    END IF
+!      ! Skip BC sides for shape_function_2d
+!      IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
+!        ASSOCIATE ( &
+!              x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , BCSideID)   , &
+!              x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , BCSideID)   , &
+!              x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , BCSideID)   , &
+!              x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , BCSideID) )
+!          ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
+!          IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
+!              ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
+!              ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
+!        END ASSOCIATE
+!      END IF
 
-    IF(BCSideID2.GT.0) THEN
-      xNodes(:,:,:)=BezierControlPoints3D(:,:,:,PartBCSideList(SideID))
-      SELECT CASE(ilocSide)
-      CASE(XI_MINUS,XI_PLUS)
-        firstBezierPoint=0
-        lastBezierPoint=NGeo
-      CASE DEFAULT
-        firstBezierPoint=1
-        lastBezierPoint=NGeo-1
-      END SELECT
-    ELSE
-      SELECT CASE(ilocSide)
-      CASE(XI_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),xNodes(:,:,:))
-        firstBezierPoint=0
-        lastBezierPoint=NGeo
-      CASE(XI_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),xNodes(:,:,:))
-        firstBezierPoint=0
-        lastBezierPoint=NGeo
-      CASE(ETA_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),xNodes(:,:,:))
-        firstBezierPoint=1
-        lastBezierPoint=NGeo-1
-      CASE(ETA_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),xNodes(:,:,:))
-        firstBezierPoint=1
-        lastBezierPoint=NGeo-1
-      CASE(ZETA_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),xNodes(:,:,:))
-        firstBezierPoint=1
-        lastBezierPoint=NGeo-1
-      CASE(ZETA_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),xNodes(:,:,:))
-        firstBezierPoint=1
-        lastBezierPoint=NGeo-1
-      END SELECT
-    END IF
-    DO iSide=1,nTotalSides
-      BCSideID=PartBCSideList(iSide) ! only bc sides
-      IF(BCSideID.EQ.-1)                             CYCLE ! Skip non-BC sides
-      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE ! Ignore sides of the same element
-      IF(SidePeriodicType(iSide).NE.0)               CYCLE ! Skip periodic sides. Note that side = iSide and not BCSideID
+!      IF(SideIndex(iSide).EQ.0)THEN
+!        leave=.FALSE.
+!        ! all points of bc side
+!        DO q=firstBezierPoint,lastBezierPoint
+!          DO p=firstBezierPoint,lastBezierPoint
+!            NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
+!            !all nodes of current side
+!            DO s=firstBezierPoint,lastBezierPoint
+!              DO r=firstBezierPoint,lastBezierPoint
+!                dX=ABS(xNodes(1,r,s)-NodeX(1))
+!                IF(dX.GT.r_sf) CYCLE
+!                dY=ABS(xNodes(2,r,s)-NodeX(2))
+!                IF(dY.GT.r_sf) CYCLE
+!                dZ=ABS(xNodes(3,r,s)-NodeX(3))
+!                IF(dZ.GT.r_sf) CYCLE
+!                IF(SQRT(dX*dX+dY*dY+dZ*dZ).LE.r_sf)THEN
+!                  IF(SideIndex(iSide).EQ.0)THEN
+!                    BCElemSF=.TRUE.
+!                    SideIndex(iSide)=1 ! mark with number .NE. 0
+!                    leave=.TRUE.
+!                    EXIT
+!                  END IF
+!                END IF
+!              END DO ! r
+!              IF(leave) EXIT
+!            END DO ! s
+!            IF(leave) EXIT
+!          END DO ! p
+!          IF(leave) EXIT
+!        END DO ! q
+!        IF(leave) EXIT
+!      END IF ! SideIndex(iSide).EQ.0
+!    END DO ! iSide=1,nTotalSides
+!  END DO ! ilocSide=1,6
 
-      ! Skip BC sides for shape_function_2d
-      IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
-        ASSOCIATE ( &
-              x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , BCSideID)   , &
-              x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , BCSideID)   , &
-              x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , BCSideID)   , &
-              x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , BCSideID) )
-          ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
-          IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
-              ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
-              ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
-        END ASSOCIATE
-      END IF
-
-      IF(SideIndex(iSide).EQ.0)THEN
-        leave=.FALSE.
-        Vec1=0.
-
-        ! all points of bc side
-        DO q=firstBezierPoint,lastBezierPoint
-          DO p=firstBezierPoint,lastBezierPoint
-            NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)+Vec1
-            !all nodes of current side
-            DO s=firstBezierPoint,lastBezierPoint
-              DO r=firstBezierPoint,lastBezierPoint
-                dX=ABS(xNodes(1,r,s)-NodeX(1))
-                IF(dX.GT.r_sf) CYCLE
-                dY=ABS(xNodes(2,r,s)-NodeX(2))
-                IF(dY.GT.r_sf) CYCLE
-                dZ=ABS(xNodes(3,r,s)-NodeX(3))
-                IF(dZ.GT.r_sf) CYCLE
-                IF(SQRT(dX*dX+dY*dY+dZ*dZ).LE.r_sf)THEN
-                  IF(SideIndex(iSide).EQ.0)THEN
-                    BCElemSF=.TRUE.
-                    SideIndex(iSide)=1 ! mark with number .NE. 0
-                    leave=.TRUE.
-                    EXIT
-                  END IF
-                END IF
-              END DO ! r
-              IF(leave) EXIT
-            END DO ! s
-            IF(leave) EXIT
-          END DO ! p
-          IF(leave) EXIT
-        END DO ! q
-        IF(leave) EXIT
-      END IF ! SideIndex(iSide).EQ.0
-    END DO ! iSide=1,nTotalSides
-  END DO ! ilocSide=1,6
-
-  ! set true, only required for elements without an own bc side
-  IF(BCElemSF) IsLocalDepositionBCElem(iElem)=.TRUE.
-END DO ! iElem=1,nTotalElems
+!  ! set true, only required for elements without an own bc side
+!  IF(BCElemSF) IsLocalDepositionBCElem(iElem)=.TRUE.
+!END DO ! iElem=1,nTotalElems
 
 
 
 
-END SUBROUTINE GetShapeFunctionBCElems_OLD
+!END SUBROUTINE GetShapeFunctionBCElems
+
+
+!SUBROUTINE GetShapeFunctionBCElems_OLD()
+!!===================================================================================================================================
+!! Identify all elements that are close to boundaries, where the deposition via shape function would cause the shape function sphere
+!! to be truncated by the boundary. In this case, a local deposition is used in that cell for "inner" parts, i.e., shape functions
+!! that extend into the element by exterior particle shape functions are still deposited via the shape function.
+!!===================================================================================================================================
+!! MODULES                                                                                                                          !
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!USE MOD_Globals
+!USE MOD_Preproc
+!USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+!USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo,NGeo,nElems
+!USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+!USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,IsLocalDepositionBCElem,nTotalElems
+!USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide,PartSideToElem,PartBCSideList,SidePeriodicType
+!USE MOD_Particle_Surfaces_Vars ,ONLY: sVdm_Bezier
+!USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
+!USE MOD_PICDepo_Vars           ,ONLY: r_sf,DepositionType,sf1d_dir
+!USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!IMPLICIT NONE
+!! INPUT VARIABLES
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER                                  :: iElem,firstBezierPoint,lastBezierPoint
+!INTEGER                                  :: iSide,p,q,SideID,ilocSide,BCSideID2,BCSideID
+!INTEGER                                  :: s,r
+!INTEGER,ALLOCATABLE                      :: SideIndex(:)
+!REAL,DIMENSION(1:3)                      :: NodeX,Vec1
+!REAL,DIMENSION(1:3,0:NGeo,0:NGeo)        :: xNodes
+!REAL                                     :: dx,dy,dz
+!LOGICAL                                  :: leave,BCElemSF
+!!===================================================================================================================================
+!! allocate for local elements + halo elements
+!ALLOCATE(IsLocalDepositionBCElem(nTotalElems))
+!IsLocalDepositionBCElem=.FALSE.
+!! only add local elements to element list
+!CALL AddToElemData(ElementOut,'IsLocalDepositionBCElem'    ,LogArray=IsLocalDepositionBCElem(    1:nElems))
+
+!! =============================
+!! Workflow:
+!!
+!!  0.  Check halo distance vs. shape function radius
+!!  1.  Check local BC sides
+!!  2.  Check halo BC sides: each element requires only the sides in its halo region
+!!==============================
+
+!! 0.   Check halo distance vs. shape function radius, because the halo region is used for checking the shape function deposition
+!IF(halo_eps.LT.r_sf)THEN
+!  SWRITE(UNIT_StdOut,'(132("*"))')
+!  SWRITE(UNIT_StdOut,'(A)') ' Warning in GetShapeFunctionBCElems: halo_eps is less than r_sh, which may result in wrong '//&
+!                            'deposition elements.\n Check IsLocalDepositionBCElem in state file!'
+!  SWRITE(UNIT_StdOut,'(A,ES25.14E3)') '  halo_eps : ',halo_eps
+!  SWRITE(UNIT_StdOut,'(A,ES25.14E3)') '  r_sf     : ',r_sf
+!  SWRITE(UNIT_StdOut,'(A)') ' Consider increasing the halo velocity to remove this warning.'
+!  SWRITE(UNIT_StdOut,'(132("*"))')
+!END IF
+
+!!    ! 1.   Check local BC sides:  mark elements as bc element if they have a local-BC side (skip periodic sides)
+!!    DO iElem=1,nTotalElems
+!!      DO ilocSide=1,6
+!!        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+!!        IF (SideID.LE.0)                               CYCLE ! Skip ?
+!!        IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides)) THEN  ! Don't skip ? and ?
+!!          IF(SidePeriodicType(SideID).NE.0)            CYCLE ! skip periodic sides
+!!          ! Skip BC sides for shape_function_2d
+!!          IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
+!!            ASSOCIATE ( &
+!!                  x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , PartBCSideList(SideID))   , &
+!!                  x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , PartBCSideList(SideID))   , &
+!!                  x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , PartBCSideList(SideID))   , &
+!!                  x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , PartBCSideList(SideID)) )
+!!              ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
+!!              IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
+!!                  ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
+!!                  ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
+!!            END ASSOCIATE
+!!          END IF
+!!          IsLocalDepositionBCElem(iElem)=.TRUE.
+!!        END IF
+!!      END DO ! ilocSide
+!!    END DO ! iElem
+
+!! 2.   Check halo BC sides: each element requires only the sides in its halo region
+!ALLOCATE( SideIndex(1:nTotalSides) )
+!DO iElem=1,nTotalElems
+
+!  !   IF(IsLocalDepositionBCElem(iElem)) CYCLE ! identified in previous step
+
+!  ! mark my sides
+!  BCElemSF=.FALSE.
+!  DO ilocSide=1,6
+!    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+!    IF(SideID.LE.0)                   CYCLE ! Skip ?
+!    IF(PartBCSideList(SideID).EQ.-1)  CYCLE ! Skip non-BC sides
+!    IF(SidePeriodicType(SideID).NE.0) CYCLE ! Skip periodic-BC sides
+!    !IF(SideID.GT.nBCSides)            CYCLE ! Skip non-BC sides -> already done in PartBCSideList(SideID).EQ.-1 ?
+
+!    ! Skip BC sides for shape_function_2d
+!    IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
+!      ASSOCIATE ( &
+!            x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , PartBCSideList(SideID))   , &
+!            x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , PartBCSideList(SideID))   , &
+!            x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , PartBCSideList(SideID))   , &
+!            x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , PartBCSideList(SideID)) )
+!        ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
+!        IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
+!            ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
+!            ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
+!      END ASSOCIATE
+!    END IF
+!    IsLocalDepositionBCElem(iElem)=.TRUE.
+!    EXIT
+!  END DO ! ilocSide=1,6
+
+!  IF(IsLocalDepositionBCElem(iElem)) CYCLE ! finished: next element
+
+
+
+!  ! 3.  Check distance
+!  ! loop over all sides, to reduce required storage, if a side is marked once,
+!  ! it does not have to be checked for further sides
+!  SideIndex=0
+!  DO ilocSide=1,6
+!    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+!    !BCSideID2=SideID
+!    !IF(SideID.GT.0) BCSideID2=PartBCSideList(SideID)
+!    IF(SideID.GT.0)THEN
+!      BCSideID2=PartBCSideList(SideID)
+!    ELSE
+!      BCSideID2=SideID
+!    END IF
+
+!    IF(BCSideID2.GT.0) THEN
+!      xNodes(:,:,:)=BezierControlPoints3D(:,:,:,PartBCSideList(SideID))
+!      SELECT CASE(ilocSide)
+!      CASE(XI_MINUS,XI_PLUS)
+!        firstBezierPoint=0
+!        lastBezierPoint=NGeo
+!      CASE DEFAULT
+!        firstBezierPoint=1
+!        lastBezierPoint=NGeo-1
+!      END SELECT
+!    ELSE
+!      SELECT CASE(ilocSide)
+!      CASE(XI_MINUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),xNodes(:,:,:))
+!        firstBezierPoint=0
+!        lastBezierPoint=NGeo
+!      CASE(XI_PLUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),xNodes(:,:,:))
+!        firstBezierPoint=0
+!        lastBezierPoint=NGeo
+!      CASE(ETA_MINUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),xNodes(:,:,:))
+!        firstBezierPoint=1
+!        lastBezierPoint=NGeo-1
+!      CASE(ETA_PLUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),xNodes(:,:,:))
+!        firstBezierPoint=1
+!        lastBezierPoint=NGeo-1
+!      CASE(ZETA_MINUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),xNodes(:,:,:))
+!        firstBezierPoint=1
+!        lastBezierPoint=NGeo-1
+!      CASE(ZETA_PLUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),xNodes(:,:,:))
+!        firstBezierPoint=1
+!        lastBezierPoint=NGeo-1
+!      END SELECT
+!    END IF
+!    DO iSide=1,nTotalSides
+!      BCSideID=PartBCSideList(iSide) ! only bc sides
+!      IF(BCSideID.EQ.-1)                             CYCLE ! Skip non-BC sides
+!      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE ! Ignore sides of the same element
+!      IF(SidePeriodicType(iSide).NE.0)               CYCLE ! Skip periodic sides. Note that side = iSide and not BCSideID
+
+!      ! Skip BC sides for shape_function_2d
+!      IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
+!        ASSOCIATE ( &
+!              x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , BCSideID)   , &
+!              x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , BCSideID)   , &
+!              x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , BCSideID)   , &
+!              x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , BCSideID) )
+!          ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
+!          IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
+!              ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
+!              ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
+!        END ASSOCIATE
+!      END IF
+
+!      IF(SideIndex(iSide).EQ.0)THEN
+!        leave=.FALSE.
+!        Vec1=0.
+
+!        ! all points of bc side
+!        DO q=firstBezierPoint,lastBezierPoint
+!          DO p=firstBezierPoint,lastBezierPoint
+!            NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)+Vec1
+!            !all nodes of current side
+!            DO s=firstBezierPoint,lastBezierPoint
+!              DO r=firstBezierPoint,lastBezierPoint
+!                dX=ABS(xNodes(1,r,s)-NodeX(1))
+!                IF(dX.GT.r_sf) CYCLE
+!                dY=ABS(xNodes(2,r,s)-NodeX(2))
+!                IF(dY.GT.r_sf) CYCLE
+!                dZ=ABS(xNodes(3,r,s)-NodeX(3))
+!                IF(dZ.GT.r_sf) CYCLE
+!                IF(SQRT(dX*dX+dY*dY+dZ*dZ).LE.r_sf)THEN
+!                  IF(SideIndex(iSide).EQ.0)THEN
+!                    BCElemSF=.TRUE.
+!                    SideIndex(iSide)=1 ! mark with number .NE. 0
+!                    leave=.TRUE.
+!                    EXIT
+!                  END IF
+!                END IF
+!              END DO ! r
+!              IF(leave) EXIT
+!            END DO ! s
+!            IF(leave) EXIT
+!          END DO ! p
+!          IF(leave) EXIT
+!        END DO ! q
+!        IF(leave) EXIT
+!      END IF ! SideIndex(iSide).EQ.0
+!    END DO ! iSide=1,nTotalSides
+!  END DO ! ilocSide=1,6
+
+!  ! set true, only required for elements without an own bc side
+!  IF(BCElemSF) IsLocalDepositionBCElem(iElem)=.TRUE.
+!END DO ! iElem=1,nTotalElems
+
+
+
+
+!END SUBROUTINE GetShapeFunctionBCElems_OLD
 
 
 SUBROUTINE CalcElemAndSideNum()
