@@ -282,7 +282,7 @@ USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PEM, PDM, nSpecies
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartStateIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC,RadialWeighting
 USE MOD_Eval_XYZ               ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Mesh          ,ONLY: SingleParticleToExactElement,SingleParticleToExactElementNoMap
+USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars     ,ONLY: epsOneCell
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
@@ -851,8 +851,7 @@ IF(DoRestart)THEN
           END IF
           IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
             COUNTER = COUNTER + 1
-            !CALL SingleParticleToExactElement(i)
-            CALL SingleParticleToExactElement(i,doHALO=.FALSE.,initFix=.FALSE.,doRelocate=.FALSE.)
+            CALL LocateParticleInElement(i,doHALO=.FALSE.)
             IF (.NOT.PDM%ParticleInside(i)) THEN
               COUNTER2 = COUNTER2 + 1
               IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
@@ -873,7 +872,7 @@ IF(DoRestart)THEN
             CALL ParticleInsideQuad3D(PartState(i,1:3),PEM%Element(i),InElementCheck,det)
             IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
               COUNTER = COUNTER + 1
-              CALL SingleParticleToExactElement(i,doHALO=.FALSE.,initFix=.FALSE.,doRelocate=.FALSE.)
+              CALL LocateParticleInElement(i,doHALO=.FALSE.)
               IF (.NOT.PDM%ParticleInside(i)) THEN
                 COUNTER2 = COUNTER2 + 1
                 IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
@@ -898,8 +897,7 @@ IF(DoRestart)THEN
             END IF
             IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
               COUNTER = COUNTER + 1
-              !CALL SingleParticleToExactElement(i)
-              CALL SingleParticleToExactElementNoMap(i,doHALO=.FALSE.,doRelocate=.FALSE.)
+              CALL LocateParticleInElement(i,doHALO=.FALSE.)
               IF (.NOT.PDM%ParticleInside(i)) THEN
                 COUNTER2 = COUNTER2 + 1
                 IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
@@ -995,11 +993,7 @@ IF(DoRestart)THEN
         DO i = 1, SUM(LostParts)
           PartState(CurrentPartNum,1:6) = RecBuff(COUNTER+1:COUNTER+6)
           PDM%ParticleInside(CurrentPartNum) = .true.
-          IF(DoRefMapping.OR.TriaTracking)THEN
-            CALL SingleParticleToExactElement(CurrentPartNum,doHALO=.FALSE.,initFix=.FALSE.,doRelocate=.FALSE.)
-          ELSE
-            CALL SingleParticleToExactElementNoMap(CurrentPartNum,doHALO=.FALSE.,doRelocate=.FALSE.)
-          END IF
+          CALL LocateParticleInElement(CurrentPartNum,doHALO=.FALSE.)
           IF (PDM%ParticleInside(CurrentPartNum)) THEN
             PEM%LastElement(CurrentPartNum) = PEM%Element(CurrentPartNum)
             NbrOfFoundParts = NbrOfFoundParts + 1

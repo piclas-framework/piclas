@@ -339,8 +339,8 @@ CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
 #endif
 
-! compute elem bary and elem radius
-ALLOCATE(ElemBaryNGeo(1:3,1:nElems) )
+! Compute element bary and element radius for processor-local elements (without halo region)
+ALLOCATE(ElemBaryNGeo(1:3,1:nElems))
 CALL BuildElementOrigin()
 
 #ifndef PARTICLES

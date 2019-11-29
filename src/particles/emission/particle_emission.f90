@@ -667,11 +667,11 @@ SUBROUTINE ParticleInsertingCellPressure(iSpec,iInit,NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars
-USE MOD_Mesh_Vars,              ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
-USE MOD_Particle_Mesh,          ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
-USE MOD_Eval_xyz,               ONLY:TensorProductInterpolation
+USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
+USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -721,12 +721,8 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
                            XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(ParticleIndexNbr,1:3))
         !PartState(ParticleIndexNbr, 1:3) = MapToGeo(RandVal3,P)
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-        IF (.NOT. DoRefMapping) THEN
-          IF (TriaTracking) THEN
-            CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFIX=.FALSE.,doRelocate=.FALSE.)
-          ELSE
-            CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.,doRelocate=.FALSE.)
-          END IF
+        IF(.NOT.DoRefMapping)THEN
+          CALL LocateParticleInElement(ParticleIndexNbr,doHALO=.FALSE.)
         ELSE
           PartPosRef(1:3,ParticleIndexNbr)=RandVal3
         END IF
@@ -768,11 +764,11 @@ SUBROUTINE ParticleInsertingPressureOut(iSpec,iInit,NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars
-USE MOD_Mesh_Vars,              ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_Particle_Mesh,          ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
-USE MOD_Eval_xyz,               ONLY:TensorProductInterpolation
-USE MOD_DSMC_Vars,              ONLY:CollisMode
+USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation
+USE MOD_DSMC_Vars              ,ONLY: CollisMode
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -833,11 +829,7 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
                            XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(ParticleIndexNbr,1:3))
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
         IF (.NOT. DoRefMapping) THEN
-          IF (TriaTracking) THEN
-            CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFIX=.FALSE.,doRelocate=.FALSE.)
-          ELSE
-            CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.,doRelocate=.FALSE.)
-          END IF
+          CALL LocateParticleInElement(ParticleIndexNbr,doHALO=.FALSE.)
         ELSE
           PartPosRef(1:3,ParticleIndexNbr)=RandVal3
         END IF

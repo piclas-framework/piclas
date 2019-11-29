@@ -87,7 +87,6 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
-USE MOD_Particle_Mesh               ,ONLY: SingleParticleToExactElement
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars          ,ONLY: PartElemToSide, PartSideToElem, PartSideToElem, PartElemToElemAndSide
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts, TrackInfo
@@ -466,7 +465,8 @@ USE MOD_Particle_Mesh_Vars          ,ONLY: PartElemToSide,ElemRadiusNGeo,ElemHas
 USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
-USE MOD_Particle_Mesh               ,ONLY: SingleParticleToExactElementNoMap,PartInElemCheck
+USE MOD_Particle_Mesh               ,ONLY: PartInElemCheck
+USE MOD_Particle_Localization       ,ONLY: LocateParticleInElement
 USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
@@ -1067,7 +1067,7 @@ __STAMP__ &
       PEM%Element(iPart)=ElemID
       IF(.NOT.foundHit) THEN
         IPWRITE(UNIT_stdOut,'(I0,A)') '     | Relocating particle ...'
-        CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.FALSE.)
+        CALL LocateParticleInElement(iPart,doHALO=.TRUE.)
         IF(PDM%ParticleInside(iPart))THEN
           IPWRITE(UNIT_stdOut,'(I0,A)') '     | Particle found again:'
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartPos: ',LastPartPos(ipart,1:3)
@@ -1268,7 +1268,8 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: Geo,IsTracingBCElem,BCElem,epsOneCell
 USE MOD_Utils                  ,ONLY: BubbleSortID,InsertionSort
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps2
-USE MOD_Particle_Mesh          ,ONLY: SingleParticleToExactElement,PartInElemCheck
+USE MOD_Particle_Mesh          ,ONLY: PartInElemCheck
+USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 #if USE_MPI
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
@@ -1618,7 +1619,7 @@ DO iPart=1,PDM%ParticleVecLength
           ! false, reallocate particle
           IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell(TestElem))THEN
             IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with BC element, relocating!! '
-            CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.FALSE.)
+            CALL LocateParticleInElement(iPart,doHALO=.TRUE.)
             IF(.NOT.PDM%ParticleInside(iPart)) THEN
               IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with BC element '
               IPWRITE(UNIT_stdOut,'(I0,A,3(X,I0))')    ' iPart                  ', ipart

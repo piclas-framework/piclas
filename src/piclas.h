@@ -72,6 +72,14 @@
 #define LOGWRITE_BARRIER  IF(Logging) CALL ReOpenLogFile()
 #define SDEALLOCATE(A) IF(ALLOCATED(A)) DEALLOCATE(A)
 
+#if USE_MPI
+#define ALLOCPOINT POINTER
+#define ADEALLOCATE(A) IF(ASSOCIATED(A)) NULLIFY(A)
+#else
+#define ALLOCPOINT ALLOCATABLE
+#define ADEALLOCATE(A) IF(ALLOCATED(A)) DEALLOCATE(A)
+#endif
+
 #ifdef OPTIMIZED
 #define PP_IJK     i,0,0
 #define PP_ij      i,0

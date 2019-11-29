@@ -52,6 +52,10 @@ INTEGER            :: offsetComputeNodeElem           !> elem offset of compute-
 INTEGER            :: offsetComputeNodeSide           !> side offset of compute-node root
 INTEGER            :: offsetComputeNodeNode           !> node offset of compute-node root
 
+INTEGER, ALLOCATABLE :: CNTotalElem2GlobalElem(:) !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
+INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:) !> Reverse Mapping
+
+
 INTEGER,POINTER :: ElemInfo_Shared(:,:)
 INTEGER         :: ElemInfo_Shared_Win
 
@@ -70,14 +74,14 @@ INTEGER         :: TreeCoords_Shared_Win
 INTEGER,POINTER :: ElemToTree_Shared(:)
 INTEGER         :: ElemToTree_Shared_Win
 
-INTEGER,POINTER :: FIBGM_nElem_Shared(:,:,:)               ! FastInitBackgroundMesh of compute node
-INTEGER         :: FIBGM_nElem_Shared_Win
-INTEGER,POINTER :: FIBGM_Element_Shared(:)                 ! FastInitBackgroundMesh of compute node
+INTEGER,POINTER :: FIBGM_nElems_Shared(:,:,:)           !> FastInitBackgroundMesh of compute node
+INTEGER         :: FIBGM_nElems_Shared_Win
+INTEGER,POINTER :: FIBGM_Element_Shared(:)             !> FastInitBackgroundMesh of compute node
 INTEGER         :: FIBGM_Element_Shared_Win
 
-REAL,POINTER    :: BoundsOfElem_Shared(:,:,:)              ! Cartesian bouding box around element
+REAL,POINTER    :: BoundsOfElem_Shared(:,:,:)          !> Cartesian bounding box around element
 INTEGER         :: BoundsOfElem_Shared_Win
-INTEGER,POINTER :: ElemToBGM_Shared(:,:)               ! BGM Bounding box around element (respective BGM indeces) of compute node
+INTEGER,POINTER :: ElemToBGM_Shared(:,:)               !> BGM Bounding box around element (respective BGM indices) of compute node
 INTEGER         :: ElemToBGM_Shared_Win
 INTEGER,POINTER :: FIBGM_offsetElem_Shared(:,:,:)
 INTEGER         :: FIBGM_offsetElem_Shared_Win
@@ -88,12 +92,31 @@ REAL,POINTER    :: dXCL_NGeo_Shared(:,:,:,:,:,:)
 INTEGER         :: dXCL_NGeo_Shared_Win
 REAL,POINTER    :: BezierControlPoints3D_Shared(:,:,:,:)
 INTEGER         :: BezierControlPoints3D_Shared_Win
+
+REAL,POINTER    :: ElemBaryNGeo_Shared(:,:)
+INTEGER         :: ElemBaryNGeo_Shared_Win
+REAL,POINTER    :: ElemRadiusNGeo_Shared(:)
+INTEGER         :: ElemRadiusNGeo_Shared_Win
+REAL,POINTER    :: ElemRadius2NGeo_Shared(:)
+INTEGER         :: ElemRadius2NGeo_Shared_Win
+REAL,POINTER    :: XiEtaZetaBasis_Shared(:,:,:)
+INTEGER         :: XiEtaZetaBasis_Shared_Win
+REAL,POINTER    :: slenXiEtaZetaBasis_Shared(:,:)
+INTEGER         :: slenXiEtaZetaBasis_Shared_Win
+
 REAL,POINTER    :: SideSlabNormals_Shared(:,:,:)
 INTEGER         :: SideSlabNormals_Shared_Win
 REAL,POINTER    :: SideSlabIntervals_Shared(:,:)
 INTEGER         :: SideSlabIntervals_Shared_Win
 LOGICAL,POINTER :: BoundingBoxIsEmpty_Shared(:)
 INTEGER         :: BoundingBoxIsEmpty_Shared_Win
+
+INTEGER,POINTER :: SideType_Shared(:)
+INTEGER         :: SideType_Shared_Win
+REAL,POINTER    :: SideDistance_Shared(:)
+INTEGER         :: SideDistance_Shared_Win
+REAL,POINTER    :: SideNormVec_Shared(:,:)
+INTEGER         :: SideNormVec_Shared_Win
 
 #endif /* USE_MPI */
 END MODULE

@@ -61,7 +61,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Globals_Vars           ,ONLY: PI, TwoepsMach
 USE MOD_Timedisc_Vars          ,ONLY: dt
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac
-USE MOD_Particle_Mesh          ,ONLY: SingleParticleToExactElement,SingleParticleToExactElementNoMap
+USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR
 USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
@@ -1003,12 +1003,7 @@ __STAMP__&
          ParticleIndexNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
          IF (ParticleIndexNbr .ne. 0) THEN
             PartState(ParticleIndexNbr,1:3) = PartState(j,1:3)
-            PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-            IF(DoRefMapping.OR.TriaTracking)THEN
-              CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFix=.TRUE.,doRelocate=.FALSE.)
-            ELSE
-              CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.,doRelocate=.FALSE.)
-            END IF
+            CALL LocateParticleInElement(ParticleIndexNbr,doHALO=.FALSE.)
             IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
                mySumOfMatchedParticles = mySumOfMatchedParticles + 1
             ELSE
@@ -1444,11 +1439,7 @@ __STAMP__,&
     IF (ParticleIndexNbr .ne. 0) THEN
        PartState(ParticleIndexNbr,1:DimSend) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
        PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-       IF(DoRefMapping.OR.TriaTracking)THEN
-         CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,InitFix=.TRUE.,doRelocate=.FALSE.)
-       ELSE
-         CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.,doRelocate=.FALSE.)
-       END IF
+       CALL LocateParticleInElement(ParticleIndexNbr,doHALO=.FALSE.)
        IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
           mySumOfMatchedParticles = mySumOfMatchedParticles + 1
           ! IF (VarTimeStep%UseVariableTimeStep) THEN

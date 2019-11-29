@@ -37,6 +37,46 @@ INTERFACE ParticleInsideQuad3D_MortarMPI
   MODULE PROCEDURE ParticleInsideQuad3D_MortarMPI
 END INTERFACE
 
+INTERFACE GetGlobalElemID
+  PROCEDURE GetGlobalElemID
+END INTERFACE
+
+INTERFACE GetCNElemID
+  PROCEDURE GetCNElemID
+END INTERFACE
+
+!----------------------------------------------------------------------------------------------------------------------------------
+PUBLIC :: GetGlobalElemID
+PUBLIC :: GetCNElemID
+!----------------------------------------------------------------------------------------------------------------------------------
+
+ABSTRACT INTERFACE
+  PURE INTEGER FUNCTION GetGlobalElemIDInterface(iElem)
+    INTEGER,INTENT(IN) :: iElem
+  END FUNCTION
+END INTERFACE
+
+PROCEDURE(GetGlobalElemIDInterface),POINTER :: GetGlobalElemID    !< pointer defining the mapping: compute-node element ID -> global element ID
+
+ABSTRACT INTERFACE
+  PURE INTEGER FUNCTION GetCNElemIDInterface(iElem)
+    INTEGER,INTENT(IN) :: iElem
+  END FUNCTION
+END INTERFACE
+
+PROCEDURE(GetCNElemIDInterface),POINTER :: GetCNElemID    !< pointer defining the mapping: global element ID -> compute-node element ID
+
+! Initialization routines
+INTERFACE InitGetGlobalElemID
+  MODULE PROCEDURE InitGetGlobalElemID
+END INTERFACE
+
+INTERFACE InitGetCNElemID
+  MODULE PROCEDURE InitGetCNElemID
+END INTERFACE
+
+PUBLIC::InitGetGlobalElemID
+PUBLIC::InitGetCNElemID
 PUBLIC::BoundsOfElement, ParticleInsideQuad3D, ParticleInsideQuad3D_MortarMPI
 !===================================================================================================================================
 CONTAINS
@@ -131,7 +171,7 @@ Bounds(:,3)=(/zmin,zmax/)
 END SUBROUTINE BoundsOfElement
 
 
-SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
+PURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 !===================================================================================================================================
 !> Checks if particle is inside of a linear element with triangulated faces, compatible with mortars
 !> Regular element: The determinant of a 3x3 matrix, where the three vectors point from the particle to the nodes of a triangle, is
@@ -273,7 +313,7 @@ RETURN
 END SUBROUTINE ParticleInsideQuad3D
 
 
-SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
+PURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
 !===================================================================================================================================
 !> Routines checks if the particle is inside the neighbouring mortar element. Used for the regular ParticleInsideQuad3D routine
 !> after it was determined that the particle is not in the concave part but in the convex part of the element.
@@ -373,7 +413,7 @@ END DO  ! iLocSide = 1,6
 END SUBROUTINE ParticleInsideNbMortar
 
 
-FUNCTION CalcDetOfTrias(A,bending)
+PURE FUNCTION CalcDetOfTrias(A,bending)
 !================================================================================================================================
 !> Calculates the determinant A*(B x C) for both triangles of a side. bending = 1 gives the determinant considering the actual
 !> orientation of the side (concave/convex), 2 gives the opposite of the saved form (e.g. a concave side gets the convex analog)
@@ -510,5 +550,148 @@ DO iLocSide = 1,6
 END DO ! iLocSide = 1,6
 
 END SUBROUTINE ParticleInsideQuad3D_MortarMPI
+
+
+!==================================================================================================================================!
+!> Initialize GetGlobalElemID function (mapping of compute-node element ID to global element ID)
+!==================================================================================================================================!
+SUBROUTINE InitGetGlobalElemID()
+! MODULES
+#if USE_MPI
+USE MOD_MPI_Shared_Vars, ONLY:nComputeNodeProcessors,nProcessors_Global
+#endif /*USE_MPI*/
+!----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER  :: dummy
+!==================================================================================================================================
+#if USE_MPI
+IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
+  GetGlobalElemID => GetGlobalElemID_iElem
+ELSE
+  GetGlobalElemID => GetGlobalElemID_fromTotalElem
+END IF
+#else
+GetGlobalElemID => GetGlobalElemID_iElem
+#endif
+
+! Suppress compiler warning
+RETURN
+#if USE_MPI
+dummy=GetGlobalElemID_fromTotalElem(1)
+#endif
+dummy=GetGlobalElemID_iElem(1)
+END SUBROUTINE InitGetGlobalElemID
+
+
+!==================================================================================================================================!
+!> Get the compute-node element ID in case of MPI=OFF or single compute node (CN)
+!==================================================================================================================================!
+PURE FUNCTION GetGlobalElemID_iElem(iElem)
+! MODULES
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)              :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: GetGlobalElemID_iElem
+!===================================================================================================================================
+GetGlobalElemID_iElem = iElem
+END FUNCTION GetGlobalElemID_iElem
+
+
+#if USE_MPI
+!==================================================================================================================================!
+!> Get the global element ID in case of MPI=ON for single or multiple compute nodes (CN)
+!==================================================================================================================================!
+PURE FUNCTION GetGlobalElemID_fromTotalElem(iElem)
+! MODULES
+USE MOD_MPI_Shared_Vars, ONLY:CNTotalElem2GlobalElem
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)              :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER :: GetGlobalElemID_fromTotalElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+GetGlobalElemID_fromTotalElem = CNTotalElem2GlobalElem(iElem)
+END FUNCTION GetGlobalElemID_fromTotalElem
+#endif /*USE_MPI*/
+
+
+!==================================================================================================================================!
+!> Initialize GetCNElemID function (mapping of global element ID to compute-node element ID)
+!==================================================================================================================================!
+SUBROUTINE InitGetCNElemID()
+! MODULES
+#if USE_MPI
+USE MOD_MPI_Shared_Vars, ONLY:nComputeNodeProcessors,nProcessors_Global
+#endif /*USE_MPI*/
+!----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER  :: dummy
+!==================================================================================================================================
+#if USE_MPI
+IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
+  GetCNElemID => GetCNElemID_iElem
+ELSE
+  GetCNElemID => GetCNElemID_fromTotalElem
+END IF
+#else
+GetCNElemID => GetCNElemID_iElem
+#endif
+
+! Suppress compiler warning
+RETURN
+#if USE_MPI
+dummy=GetCNElemID_fromTotalElem(1)
+#endif
+dummy=GetCNElemID_iElem(1)
+END SUBROUTINE InitGetCNElemID
+
+
+!==================================================================================================================================!
+!> Get the CN element ID in case of MPI=OFF or single compute node (CN)
+!==================================================================================================================================!
+PURE FUNCTION GetCNElemID_iElem(iElem)
+! MODULES
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)              :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: GetCNElemID_iElem
+!===================================================================================================================================
+GetCNElemID_iElem = iElem
+END FUNCTION GetCNElemID_iElem
+
+
+#if USE_MPI
+!==================================================================================================================================!
+!> Get the CN element ID in case of MPI=ON for single or multiple compute nodes (CN)
+!==================================================================================================================================!
+PURE FUNCTION GetCNElemID_fromTotalElem(iElem)
+! MODULES
+USE MOD_MPI_Shared_Vars, ONLY:GlobalElem2CNTotalElem
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)              :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER :: GetCNElemID_fromTotalElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+GetCNElemID_fromTotalElem = GlobalElem2CNTotalElem(iElem)
+END FUNCTION GetCNElemID_fromTotalElem
+#endif /*USE_MPI*/
+
 
 END MODULE MOD_Particle_Mesh_Tools

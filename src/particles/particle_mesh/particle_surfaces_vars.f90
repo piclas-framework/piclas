@@ -24,8 +24,9 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:)     :: BezierControlPoints3D        ! Bezier basis control points of degree equal to NGeo
+
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: BiLinearCoeff                ! contains the bi-linear coefficients for each side
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: BezierControlPoints3D        ! Bezier basis control points of degree equal to NGeo
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors0                 ! vectors for building intersectionsurfaces for particle
                                                                         ! from Bezierpoints (1:3,1:nBCSurfaces)
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors1                 ! vectors for building intersectionsurfaces for particle
@@ -47,18 +48,22 @@ REAL,ALLOCATABLE,DIMENSION(:,:)         :: BaseVectors3flip             ! additi
 ! INTEGER,ALLOCATABLE,DIMENSION(:)        :: SideID2PlanarSideID
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: BezierControlPoints3DElevated! Bezier basis control points of degree equal to NGeo
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElevationMatrix              ! array for binomial coefficients used for Bezier Elevation
-REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: SideSlabNormals              ! normal vectors of bounding slab box (Sides)
-REAL,ALLOCATABLE,DIMENSION(:,:)         :: SideSlabIntervals            ! intervalls beta1, beta2, beta3 (Sides)
-REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: ElemSlabNormals              ! normal vectors of bounding slab box (Elements)
-REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemSlabIntervals            ! intervalls beta1, beta2, beta3 (Elements)
+
+REAL,ALLOCPOINT,DIMENSION(:,:,:)       :: SideSlabNormals              ! normal vectors of bounding slab box (Sides)
+REAL,ALLOCPOINT,DIMENSION(:,:)         :: SideSlabIntervals            ! intervalls beta1, beta2, beta3 (Sides)
+REAL,ALLOCPOINT,DIMENSION(:,:,:)       :: ElemSlabNormals              ! normal vectors of bounding slab box (Elements)
+REAL,ALLOCPOINT,DIMENSION(:,:)         :: ElemSlabIntervals            ! intervalls beta1, beta2, beta3 (Elements)
+LOGICAL,ALLOCPOINT,DIMENSION(:)        :: BoundingBoxIsEmpty           ! logical if Side bounding box is empty
+
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: Vdm_Bezier,sVdm_Bezier       ! Vdm from/to Bezier Polynomial from BC representation
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: D_Bezier                     ! D-Matrix of Bezier Polynomial from BC representation
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: arrayNchooseK                ! array for binomial coefficients
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: FacNchooseK                  ! array for binomial coefficients times prefactor
-INTEGER,ALLOCATABLE,DIMENSION(:)        :: SideType                     ! integer array with side type - planar - bilinear - curved
-LOGICAL,ALLOCATABLE,DIMENSION(:)        :: BoundingBoxIsEmpty           ! logical if Side bounding box is empty
-REAL,ALLOCATABLE,DIMENSION(:,:)         :: SideNormVec                  ! normal Vector of planar sides
-REAL,ALLOCATABLE,DIMENSION(:)           :: SideDistance                 ! distance of planar base from origin
+
+INTEGER,ALLOCPOINT,DIMENSION(:)        :: SideType                     ! integer array with side type - planar - bilinear - curved
+REAL,ALLOCPOINT,DIMENSION(:,:)         :: SideNormVec                  ! normal Vector of planar sides
+REAL,ALLOCPOINT,DIMENSION(:)           :: SideDistance                 ! distance of planar base from origin
+
 INTEGER,ALLOCATABLE,DIMENSION(:)        :: gElemBCSides                 ! number of BC-Sides of element
 REAL                                    :: BezierHitEpsBi               ! epsilon tolerance for bi-linear faces
 REAL                                    :: epsilontol                   ! epsilon for setting the tolerance
