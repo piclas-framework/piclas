@@ -38,14 +38,10 @@ IF (HOMERUN GREATER -1)
   ENDIF()
   SET (HDF5DOWNLOAD ${PICLAS_DLPATH}libs/hdf5.git )
 ELSE()
-  IF(USESSH EQUAL 0)
-    SET(PICLAS_DLPATH "git@github.com:piclas-framework")
-  ELSE()
-    SET(PICLAS_DLPATH "https://github.com/piclas-framework")
-  ENDIF()
   SET (HDF5DOWNLOAD https://bitbucket.hdfgroup.org/scm/hdffv/hdf5.git )
 ENDIF()
-SET (HDF5TAG "hdf5-1_10_0-patch1" CACHE STRING "HDF5 version tag")
+#SET (HDF5TAG "hdf5-1_10_0-patch1" CACHE STRING "HDF5 version tag")
+SET (HDF5TAG "hdf5-1_10_5" CACHE STRING "HDF5 version tag")
 
 # =========================================================================
 # Detect machine environements
