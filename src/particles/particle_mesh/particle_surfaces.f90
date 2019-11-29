@@ -538,7 +538,7 @@ END SUBROUTINE CalcNormAndTangTriangle
 
 SUBROUTINE CalcNormAndTangBilinear(nVec,tang1,tang2,xi,eta,SideID)
 !================================================================================================================================
-! function to compute the normal vector of a bi-linear surface
+! function to compute the normal vector of a bi-linear surface described by 4 corner nodes
 !================================================================================================================================
 USE MOD_Globals,                              ONLY:CROSSNORM,UNITVECTOR
 USE MOD_Mesh_Vars,                            ONLY:NGeo
@@ -571,14 +571,14 @@ a=eta*0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NG
 
 nVec=CROSSNORM(a,b)
 IF(PRESENT(tang1)) tang1=UNITVECTOR(a)
-IF(PRESENT(tang2)) tang2=UNITVECTOR(b)
+IF(PRESENT(tang2)) tang2=CROSSNORM(nVec,a)
 
 END SUBROUTINE CalcNormAndTangBilinear
 
 
 SUBROUTINE CalcNormAndTangBezier(nVec,tang1,tang2,xi,eta,SideID)
 !================================================================================================================================
-! function to compute the normal vector of a bi-linear surface
+! function to compute the normal vector of a bi-linear surface described by a Bezier polynomial
 !================================================================================================================================
 USE MOD_Mesh_Vars,                            ONLY:NGeo
 USE MOD_Globals,                              ONLY:CROSSNORM,UNITVECTOR
@@ -601,9 +601,8 @@ REAL,DIMENSION(2,3)                    :: gradXiEta
 ! caution we require the formula in [0;1]
 CALL EvaluateBezierPolynomialAndGradient((/xi,eta/),NGeo,3,BezierControlPoints3D(:,:,:,SideID),Gradient=gradXiEta)
 nVec =CROSSNORM(gradXiEta(1,:),gradXiEta(2,:))
-gradXiEta(2,:)=CROSSNORM(nVec,gradXiEta(1,:))
 IF(PRESENT(tang1)) tang1=UNITVECTOR(gradXiEta(1,:))
-IF(PRESENT(tang2)) tang2=gradXiEta(2,:)
+IF(PRESENT(tang2)) tang2=CROSSNORM(nVec,gradXiEta(1,:))
 
 END SUBROUTINE CalcNormAndTangBezier
 

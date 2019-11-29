@@ -38,10 +38,6 @@ INTERFACE CalcShapeEfficiencyR
   MODULE PROCEDURE CalcShapeEfficiencyR
 END INTERFACE
 
-INTERFACE CalcEkinPart
-  MODULE PROCEDURE CalcEkinPart
-END INTERFACE
-
 INTERFACE RemoveParticle
   MODULE PROCEDURE RemoveParticle
 END INTERFACE
@@ -73,7 +69,7 @@ END INTERFACE
 #endif /*CODE_ANALYZE*/
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
-PUBLIC:: CalcEkinPart, AnalyzeParticles, PartIsElectron, RemoveParticle
+PUBLIC:: AnalyzeParticles, PartIsElectron, RemoveParticle
 PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
@@ -660,7 +656,7 @@ USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #if ( PP_TimeDiscMethod ==42)
 #endif
-USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
+! USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC, PorousBC
 USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber, FPInitDone
@@ -684,7 +680,7 @@ REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: EkinMax(nSpecies)
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
-REAL                :: ETotal, totalChemEnergySum
+REAL                :: ETotal!, totalChemEnergySum
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
@@ -1059,19 +1055,19 @@ INTEGER             :: dir
     CALL CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
     IF(CalcEint.AND.(CollisMode.GT.1)) THEN
       ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
-      IF(CollisMode.EQ.3) THEN
-        totalChemEnergySum = 0.
-#if USE_MPI
-        IF(PartMPI%MPIRoot) THEN
-          CALL MPI_REDUCE(ChemEnergySum,totalChemEnergySum,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        ELSE
-          CALL MPI_REDUCE(ChemEnergySum,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        END IF
-#else
-        totalChemEnergySum = ChemEnergySum
-#endif
-        ETotal = ETotal - totalChemEnergySum
-      END IF
+!       IF(CollisMode.EQ.3) THEN
+!         totalChemEnergySum = 0.
+! #if USE_MPI
+!         IF(PartMPI%MPIRoot) THEN
+!           CALL MPI_REDUCE(ChemEnergySum,totalChemEnergySum,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+!         ELSE
+!           CALL MPI_REDUCE(ChemEnergySum,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+!         END IF
+! #else
+!         totalChemEnergySum = ChemEnergySum
+! #endif
+!         ETotal = ETotal + totalChemEnergySum
+!       END IF
     END IF
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2174,9 +2170,11 @@ SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: nSpecies
-USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 USE MOD_DSMC_Vars             ,ONLY: DSMC, VarVibRelaxProb, CollisMode
 USE MOD_Mesh_Vars             ,ONLY: nElems, nGlobalElems
+#if USE_MPI
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3397,13 +3395,14 @@ SUBROUTINE CalculateElectronTemperatureCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass,ElementaryCharge
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO,NbrOfRegions
-USE MOD_Preproc               ,ONLY: PP_nElems
-USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell
-USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartState,RegionElectronRef
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
-USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElectronMass,ElementaryCharge
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,NbrOfRegions
+USE MOD_Preproc                ,ONLY: PP_nElems
+USE MOD_Particle_Analyze_Vars  ,ONLY: ElectronTemperatureCell
+USE MOD_Particle_Vars          ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartState,RegionElectronRef
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_part_tools             ,ONLY: GetParticleWeight
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -4096,12 +4095,13 @@ SUBROUTINE RemoveParticle(PartID,alpha,crossedBC)
 !>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Particle_Vars         ,ONLY: PDM, PartSpecies
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
+USE MOD_Particle_Vars          ,ONLY: PDM, PartSpecies
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
 #if defined(IMPA)
-USE MOD_Particle_Vars         ,ONLY: PartIsImplicit
-USE MOD_Particle_Vars         ,ONLY: DoPartInNewton
+USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
+USE MOD_Particle_Vars          ,ONLY: DoPartInNewton
 #endif /*IMPA*/
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES

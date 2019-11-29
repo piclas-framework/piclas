@@ -481,7 +481,7 @@ DO iElem=FirstElemInd,LastElemInd
 
     IF(aSide%MortarType.LE.0)THEN
       aSide%Elem=>aElem
-      oriented=(Sideinfo(SIDE_ID,iSide).GT.0)
+      oriented=(SideInfo(SIDE_ID,iSide).GT.0)
       aSide%Ind=ABS(SideInfo(SIDE_ID,iSide))
       IF(oriented)THEN !oriented side
         aSide%flip=0

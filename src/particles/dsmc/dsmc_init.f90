@@ -1610,7 +1610,7 @@ SUBROUTINE SetVarVibProb2Elems()
 ! Set initial vibrational relaxation probability to all elements
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals                ,ONLY: abort, IK, MPI_COMM_WORLD, MPIRoot
+USE MOD_Globals                ,ONLY: abort,UNIT_stdOut, IK, MPI_COMM_WORLD
 USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, Species
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
 USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSpecies
@@ -1623,6 +1623,9 @@ USE MOD_DSMC_Analyze           ,ONLY: CalcInstantTransTemp
 USE MOD_Particle_Vars          ,ONLY: PEM
 USE MOD_DSMC_Collis            ,ONLY: DSMC_calc_var_P_vib
 USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
+#if USE_MPI
+USE MOD_Globals                ,ONLY: MPIRoot
+#endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES

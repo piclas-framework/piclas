@@ -768,6 +768,10 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-Dielectric' , 'Define if particl
                               'dielectric interface, i.e. an interface between a dielectric and a non-dielectric or a between two'//&
                               ' different dielectrics [.TRUE.] or not [.FALSE.] (requires reflective BC and species swap for nSpecies)'&
                               , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Define if the properties of particles impacting on '//&
+                              'boundary [$] are to be stored in an additional .h5 file for post-processing analysis [.TRUE.] '//&
+                              'or not [.FALSE.].'&
+                              , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Adaptive'  &
   , 'Define if particle boundary [$] is adaptive [.TRUE.] or not [.FALSE.]', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-AdaptiveType'  &
@@ -1061,6 +1065,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
+USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary,PartStateBoundarySpec
 USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
@@ -2189,10 +2194,14 @@ IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
   ALLOCATE(PartBound%ProbOfSpeciesSwaps(1:nPartBound))
   ALLOCATE(PartBound%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nPartBound))
 END IF
-!--
+! Dielectric Surfaces
 ALLOCATE(PartBound%Dielectric(1:nPartBound))
 PartBound%Dielectric=.FALSE.
 DoDielectricSurfaceCharge=.FALSE.
+! Surface particle output to .h5
+ALLOCATE(PartBound%BoundaryParticleOutput(1:nPartBound))
+PartBound%BoundaryParticleOutput=.FALSE.
+DoBoundaryParticleOutput=.FALSE.
 
 PartMeshHasPeriodicBCs=.FALSE.
 #if defined(IMPA) || defined(ROS)
@@ -2285,6 +2294,7 @@ DO iPartBound=1,nPartBound
             GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
       END DO
     END IF
+    ! Dielectric Surfaces
     PartBound%Dielectric(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
     ! Sanity check: PartBound%Dielectric=T requires supplying species swap for every species
     IF(PartBound%Dielectric(iPartBound))THEN
@@ -2331,7 +2341,15 @@ DO iPartBound=1,nPartBound
   END SELECT
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
   PartBound%UseForQCrit(iPartBound)     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseForQCrit','.TRUE.')
-  SWRITE(*,*)"PartBound",iPartBound,"is used for the Q-Criterion"
+  IF(PartBound%UseForQCrit(iPartBound))THEN
+    SWRITE(*,*)"PartBound",iPartBound,"is used for the Q-Criterion"
+  END IF ! PartBound%UseForQCrit(iPartBound)
+
+  ! Surface particle output to .h5
+  PartBound%BoundaryParticleOutput(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
+  IF(PartBound%BoundaryParticleOutput(iPartBound))THEN
+    DoBoundaryParticleOutput=.TRUE.
+  END IF ! PartBound%BoundaryParticleOutput(iPartBound)
 END DO
 
 IF (nMacroRestartFiles.GT.0) THEN
@@ -2343,6 +2361,24 @@ IF (nMacroRestartFiles.GT.0) THEN
       SWRITE(*,*) "WARNING: MacroRestartFile: ",FileID," not used for any Init"
     END IF
   END DO
+END IF
+
+! Surface particle output to .h5
+IF(DoBoundaryParticleOutput)THEN
+  ALLOCATE(PartStateBoundary(1:9,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+        __STAMP__&
+        ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
+  END IF
+  PartStateBoundary=0.
+  ALLOCATE(PartStateBoundarySpec(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+        __STAMP__&
+        ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundarySpec array!')
+  END IF
+  PartStateBoundarySpec=0
 END IF
 
 ! Set mapping from field boundary to particle boundary index
@@ -3314,6 +3350,9 @@ SDEALLOCATE(PartBound%SolidAreaIncrease)
 SDEALLOCATE(PartBound%SolidStructure)
 SDEALLOCATE(PartBound%SolidCrystalIndx)
 SDEALLOCATE(PartBound%Dielectric)
+SDEALLOCATE(PartBound%BoundaryParticleOutput)
+SDEALLOCATE(PartStateBoundary)
+SDEALLOCATE(PartStateBoundarySpec)
 SDEALLOCATE(PEM%Element)
 SDEALLOCATE(PEM%lastElement)
 SDEALLOCATE(PEM%pStart)

@@ -242,7 +242,11 @@ ElemToSide  = 0
 SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
 BC          = 0
 AnalyzeSide = 0
-
+! fill output definition for InnerBCs
+#ifdef PARTICLES
+ALLOCATE(GlobalUniqueSideID(1:nSides))
+GlobalUniqueSideID(:)=-1
+#endif
 !NOTE: nMortarSides=nMortarInnerSides+nMortarMPISides
 ALLOCATE(MortarType(2,1:nSides))              ! 1: Type, 2: Index in MortarInfo
 ALLOCATE(MortarInfo(MI_FLIP,4,nMortarSides)) ! [1]: 1: Neighbour sides, 2: Flip, [2]: small sides
@@ -949,6 +953,7 @@ SDEALLOCATE(ElemToSide)
 SDEALLOCATE(AnalyzeSide)
 SDEALLOCATE(SideToElem)
 SDEALLOCATE(BC)
+SDEALLOCATE(GlobalUniqueSideID)
 ! elem-xgp and metrics
 SDEALLOCATE(Elem_xGP)
 SDEALLOCATE(Metrics_fTilde)

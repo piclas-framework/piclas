@@ -228,7 +228,7 @@ REAL                :: WallCoverage(nSpecies)
 #endif
 !===================================================================================================================================
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
-IF (SurfMesh%nMasterSides.EQ.0) RETURN
+IF (SurfMesh%nOutputSides.EQ.0) RETURN
   isRestart = .FALSE.
   IF ( DoRestart ) THEN
     isRestart = .TRUE.
@@ -980,7 +980,7 @@ WallNumSpec_tmp = 0.
 SubWallNumSpec = 0.
 
 DO iSpec=1,nSpecies
-DO iSurfSide=1,SurfMesh%nMasterSides
+DO iSurfSide=1,SurfMesh%nOutputSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%Reactive(PartboundID)) THEN
@@ -1017,8 +1017,8 @@ DO iSurfSide=1,SurfMesh%nMasterSides
   END IF
 END DO
 END DO
-IF (CalcSurfCoverage .AND. SurfMesh%nMasterSides.GT.0) THEN
-  WallCoverage(:) = Coverage(:) / (SurfMesh%nMasterSides*nSurfSample*nSurfSample)
+IF (CalcSurfCoverage .AND. SurfMesh%nOutputSides.GT.0) THEN
+  WallCoverage(:) = Coverage(:) / (SurfMesh%nOutputSides*nSurfSample*nSurfSample)
 END IF
 
 #if USE_MPI

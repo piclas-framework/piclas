@@ -386,7 +386,9 @@ IF (NOT CMAKE_BUILD_TYPE)
 ENDIF (NOT CMAKE_BUILD_TYPE)
 
 IF (CMAKE_BUILD_TYPE MATCHES "Debug")
-  ADD_DEFINITIONS("-DDEBUG")
+  ADD_DEFINITIONS(-DUSE_DEBUG=1)
+ELSE()
+  ADD_DEFINITIONS(-DUSE_DEBUG=0)
 ENDIF()
 
 # =========================================================================
