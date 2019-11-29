@@ -52,7 +52,8 @@ INTEGER                       :: SelectionProc              ! Mode of Selection 
 INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for energy redistribution
                                                             ! 2: partical with minimal MPF of this Pair
 LOGICAL                       :: useDSMC
-REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! (npartmax,1:3) with 2nd index: Evib, Erot, Eel
+REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! 1st index: 1:npartmax 
+!                                                           ! 2nd index: Evib, Erot, Eel
 
 LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
 
@@ -71,9 +72,11 @@ TYPE tRadialWeighting
   REAL                        :: PartScaleFactor
   INTEGER                     :: NextClone
   INTEGER                     :: CloneDelayDiff
-  LOGICAL                     :: DoRadialWeighting              ! Enables radial weighting in the axisymmetric simulations
-  INTEGER                     :: CloneMode                      ! 1 = Clone Delay
-                                                                ! 2 = Clone Random Delay
+  LOGICAL                     :: DoRadialWeighting          ! Enables radial weighting in the axisymmetric simulations
+  LOGICAL                     :: PerformCloning             ! Flag whether the cloning/deletion routine should be performed,
+                                                            ! when using radial weighting (e.g. no cloning for the BGK/FP methods)
+  INTEGER                     :: CloneMode                  ! 1 = Clone Delay
+                                                            ! 2 = Clone Random Delay
   INTEGER, ALLOCATABLE        :: ClonePartNum(:)
   INTEGER                     :: CloneInputDelay
   LOGICAL                     :: CellLocalWeighting
@@ -170,6 +173,15 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
   INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
 !                                                           ! ionization)
+  ! Collision cross-sections for MCC
+  LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
+                                                            ! treated with read-in collision cross-section (currently only with BGG)
+  REAL,ALLOCATABLE                  :: CollXSec(:,:)        ! Collision cross-section as read-in from the database
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: Cross-section at the respective energy level [m^2]
+  REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
+                                                            ! null collision method of MCC
+  REAL                              :: MaxCollFreq          ! Maximal collision frequency at certain energy level and cross-section
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
@@ -274,6 +286,10 @@ TYPE tBGGas
 END TYPE tBGGas
 
 TYPE(tBGGas)                        :: BGGas
+
+LOGICAL                             :: UseMCC
+CHARACTER(LEN=256)                  :: MCC_Database
+INTEGER                             :: MCC_TotalPairNum
 
 TYPE tPairData
   REAL              :: CRela2                               ! squared relative velo of the particles in a pair

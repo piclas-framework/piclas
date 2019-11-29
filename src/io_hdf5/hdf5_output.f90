@@ -343,7 +343,7 @@ CALL WriteMacroParticleToHDF5(FileName)
 IF(UseAdaptive.OR.(nAdaptiveBC.GT.0).OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
-IF(RadialWeighting%DoRadialWeighting) CALL WriteClonesToHDF5(FileName)
+IF(RadialWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
@@ -902,9 +902,9 @@ DO iElem_loc=1,PP_nElems
     PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + INT(PEM%pNumber(iElem_loc),IK)
     pcount = PEM%pStart(iElem_loc)
     DO iPart=PartInt(iElem_glob,1)+1_IK,PartInt(iElem_glob,2)
-      PartData(iPart,1)=PartState(pcount,1)
-      PartData(iPart,2)=PartState(pcount,2)
-      PartData(iPart,3)=PartState(pcount,3)
+      PartData(iPart,1)=PartState(1,pcount)
+      PartData(iPart,2)=PartState(2,pcount)
+      PartData(iPart,3)=PartState(3,pcount)
 #if (PP_TimeDiscMethod==509)
       IF (velocityOutputAtTime) THEN
         PartData(iPart,4)=velocityAtTime(pcount,1)
@@ -912,9 +912,9 @@ DO iElem_loc=1,PP_nElems
         PartData(iPart,6)=velocityAtTime(pcount,3)
       ELSE
 #endif /*(PP_TimeDiscMethod==509)*/
-      PartData(iPart,4)=PartState(pcount,4)
-      PartData(iPart,5)=PartState(pcount,5)
-      PartData(iPart,6)=PartState(pcount,6)
+      PartData(iPart,4)=PartState(4,pcount)
+      PartData(iPart,5)=PartState(5,pcount)
+      PartData(iPart,6)=PartState(6,pcount)
 #if (PP_TimeDiscMethod==509)
       END IF
 #endif /*(PP_TimeDiscMethod==509)*/
@@ -929,21 +929,21 @@ DO iElem_loc=1,PP_nElems
       IF (withDSMC) THEN
       !IF (withDSMC) THEN
         IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
-          PartData(iPart,10)=PartStateIntEn(pcount,3)
+          PartData(iPart,8)=PartStateIntEn(1,pcount)
+          PartData(iPart,9)=PartStateIntEn(2,pcount)
+          PartData(iPart,10)=PartStateIntEn(3,pcount)
           PartData(iPart,11)=PartMPF(pcount)
         ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
+          PartData(iPart,8)=PartStateIntEn(1,pcount)
+          PartData(iPart,9)=PartStateIntEn(2,pcount)
           PartData(iPart,10)=PartMPF(pcount)
         ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
-          PartData(iPart,10)=PartStateIntEn(pcount,3)
+          PartData(iPart,8)=PartStateIntEn(1,pcount)
+          PartData(iPart,9)=PartStateIntEn(2,pcount)
+          PartData(iPart,10)=PartStateIntEn(3,pcount)
         ELSE IF (CollisMode.GT.1) THEN
-          PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)
+          PartData(iPart,8)=PartStateIntEn(1,pcount)
+          PartData(iPart,9)=PartStateIntEn(2,pcount)
         ELSE IF (usevMPF) THEN
           PartData(iPart,8)=PartMPF(pcount)
         END IF
@@ -2227,7 +2227,6 @@ SUBROUTINE GenerateNextFileInfo(TypeString,OutputTime,PreviousTime)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY: ProjectName
-USE MOD_Interpolation_Vars ,ONLY: NodeType
 #ifdef INTEL
 USE IFPORT                 ,ONLY: SYSTEM
 #endif
@@ -2859,7 +2858,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: NodeSourceExtGlobal
 USE MOD_Mesh_Vars          ,ONLY: MeshFile,nGlobalElems,offsetElem,Vdm_EQ_N
-USE MOD_Globals_Vars       ,ONLY: ProgramName,FileVersion,ProjectName
+USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,CellLocNodes_Volumes,NodeSourceExtTmp
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D

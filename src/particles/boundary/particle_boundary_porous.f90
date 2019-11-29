@@ -328,7 +328,7 @@ IF(PorousBCID.GT.0) THEN
       PorousReflection = .TRUE.
     ELSE IF(PorousBC(PorousBCID)%RegionSideType(pBCSideID).EQ.2) THEN
       ! Side is partially inside the porous region (check if its within bounds)
-      intersectionPoint(1:3) = LastPartPos(iPart,1:3) + alpha*PartTrajectory(1:3)
+      intersectionPoint(1:3) = LastPartPos(1:3,iPart) + alpha*PartTrajectory(1:3)
       point(1)=intersectionPoint(PorousBC(PorousBCID)%dir(2))-PorousBC(PorousBCID)%origin(1)
       point(2)=intersectionPoint(PorousBC(PorousBCID)%dir(3))-PorousBC(PorousBCID)%origin(2)
       radius=SQRT( (point(1))**2+(point(2))**2 )
@@ -375,7 +375,6 @@ SUBROUTINE PorousBoundaryRemovalProb_Pressure()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY:BoltzmannConst
 USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal, usevMPF, VarTimeStep
 USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, nPorousBC, PorousBC, SampWall
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO

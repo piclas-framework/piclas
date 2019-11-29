@@ -746,37 +746,37 @@ IF(DoRestart)THEN
         DO iLoop = 1_IK,locnPart
           IF(SpecReset(INT(PartData(offsetnPart+iLoop,7),4))) CYCLE
           iPart = iPart + 1
-          PartState(iPart,1)   = PartData(offsetnPart+iLoop,1)
-          PartState(iPart,2)   = PartData(offsetnPart+iLoop,2)
-          PartState(iPart,3)   = PartData(offsetnPart+iLoop,3)
-          PartState(iPart,4)   = PartData(offsetnPart+iLoop,4)
-          PartState(iPart,5)   = PartData(offsetnPart+iLoop,5)
-          PartState(iPart,6)   = PartData(offsetnPart+iLoop,6)
+          PartState(1,iPart)   = PartData(offsetnPart+iLoop,1)
+          PartState(2,iPart)   = PartData(offsetnPart+iLoop,2)
+          PartState(3,iPart)   = PartData(offsetnPart+iLoop,3)
+          PartState(4,iPart)   = PartData(offsetnPart+iLoop,4)
+          PartState(5,iPart)   = PartData(offsetnPart+iLoop,5)
+          PartState(6,iPart)   = PartData(offsetnPart+iLoop,6)
           PartSpecies(iPart)= INT(PartData(offsetnPart+iLoop,7),4)
           IF (useDSMC) THEN
             IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
-              PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
-              PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
-              PartStateIntEn(iPart,3)=PartData(offsetnPart+iLoop,10)
+              PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
+              PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
+              PartStateIntEn(3,iPart)=PartData(offsetnPart+iLoop,10)
               PartMPF(iPart)=PartData(offsetnPart+iLoop,11)
             ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-              PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
-              PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+              PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
+              PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
               PartMPF(iPart)=PartData(offsetnPart+iLoop,10)
             ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
-              PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
-              PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
-              PartStateIntEn(iPart,3)=PartData(offsetnPart+iLoop,10)
+              PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
+              PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
+              PartStateIntEn(3,iPart)=PartData(offsetnPart+iLoop,10)
             ELSE IF (CollisMode.GT.1) THEN
               IF (readVarFromState(8).AND.readVarFromState(9)) THEN
-                PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
-                PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+                PartStateIntEn(1,iPart)=PartData(offsetnPart+iLoop,8)
+                PartStateIntEn(2,iPart)=PartData(offsetnPart+iLoop,9)
               ELSE IF ((SpecDSMC(PartSpecies(iPart))%InterID.EQ.1).OR.&
                        (SpecDSMC(PartSpecies(iPart))%InterID.EQ.10).OR.&
                        (SpecDSMC(PartSpecies(iPart))%InterID.EQ.15)) THEN
                 !- setting inner DOF to 0 for atoms
-                PartStateIntEn(iPart,1)=0.
-                PartStateIntEn(iPart,2)=0.
+                PartStateIntEn(1,iPart)=0.
+                PartStateIntEn(2,iPart)=0.
               ELSE
                 CALL Abort(&
                     __STAMP__&
@@ -842,7 +842,7 @@ IF(DoRestart)THEN
 
       IF(DoRefMapping) THEN
         DO i = 1,PDM%ParticleVecLength
-          CALL GetPositionInRefElem(PartState(i,1:3),Xi,PEM%Element(i))
+          CALL GetPositionInRefElem(PartState(1:3,i),Xi,PEM%Element(i))
           IF(ALL(ABS(Xi).LE.EpsOneCell(PEM%Element(i)))) THEN ! particle inside
             InElementCheck=.TRUE.
             PartPosRef(1:3,i)=Xi
@@ -869,7 +869,7 @@ IF(DoRestart)THEN
       ELSE ! no Ref Mapping
         IF (TriaTracking) THEN
           DO i = 1,PDM%ParticleVecLength
-            CALL ParticleInsideQuad3D(PartState(i,1:3),PEM%Element(i),InElementCheck,det)
+            CALL ParticleInsideQuad3D(PartState(1:3,i),PEM%Element(i),InElementCheck,det)
             IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
               COUNTER = COUNTER + 1
               CALL LocateParticleInElement(i,doHALO=.FALSE.)
@@ -888,7 +888,7 @@ IF(DoRestart)THEN
           END DO ! i = 1,PDM%ParticleVecLength
         ELSE ! not TriaTracking
           DO i = 1,PDM%ParticleVecLength
-            CALL GetPositionInRefElem(PartState(i,1:3),Xi,PEM%Element(i))
+            CALL GetPositionInRefElem(PartState(1:3,i),Xi,PEM%Element(i))
             IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
               InElementCheck=.TRUE.
               IF(ALLOCATED(PartPosRef)) PartPosRef(1:3,i)=Xi
@@ -931,25 +931,25 @@ IF(DoRestart)THEN
         CounterPoly = 0
         DO i = 1, PDM%ParticleVecLength
           IF (.NOT.PDM%ParticleInside(i)) THEN
-            SendBuff(COUNTER+1:COUNTER+6) = PartState(i,1:6)
+            SendBuff(COUNTER+1:COUNTER+6) = PartState(1:6,i)
             SendBuff(COUNTER+7)           = REAL(PartSpecies(i))
             IF (useDSMC) THEN
               IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
-                SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
-                SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
+                SendBuff(COUNTER+8)  = PartStateIntEn(1,i)
+                SendBuff(COUNTER+9)  = PartStateIntEn(2,i)
                 SendBuff(COUNTER+10) = PartMPF(i)
-                SendBuff(COUNTER+11) = PartStateIntEn(i,3)
+                SendBuff(COUNTER+11) = PartStateIntEn(3,i)
               ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-                SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
-                SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
+                SendBuff(COUNTER+8)  = PartStateIntEn(1,i)
+                SendBuff(COUNTER+9)  = PartStateIntEn(2,i)
                 SendBuff(COUNTER+10) = PartMPF(i)
               ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
-                SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
-                SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
-                SendBuff(COUNTER+10) = PartStateIntEn(i,3)
+                SendBuff(COUNTER+8)  = PartStateIntEn(1,i)
+                SendBuff(COUNTER+9)  = PartStateIntEn(2,i)
+                SendBuff(COUNTER+10) = PartStateIntEn(3,i)
               ELSE IF (CollisMode.GT.1) THEN
-                SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
-                SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
+                SendBuff(COUNTER+8)  = PartStateIntEn(1,i)
+                SendBuff(COUNTER+9)  = PartStateIntEn(2,i)
               ELSE IF (usevMPF) THEN
                 SendBuff(COUNTER+8) = PartMPF(i)
               END IF
@@ -991,7 +991,7 @@ IF(DoRestart)THEN
         COUNTER = 0
         CounterPoly = 0
         DO i = 1, SUM(LostParts)
-          PartState(CurrentPartNum,1:6) = RecBuff(COUNTER+1:COUNTER+6)
+          PartState(1:6,CurrentPartNum) = RecBuff(COUNTER+1:COUNTER+6)
           PDM%ParticleInside(CurrentPartNum) = .true.
           CALL LocateParticleInElement(CurrentPartNum,doHALO=.FALSE.)
           IF (PDM%ParticleInside(CurrentPartNum)) THEN
@@ -1000,21 +1000,21 @@ IF(DoRestart)THEN
             PartSpecies(CurrentPartNum) = INT(RecBuff(COUNTER+7))
             IF (useDSMC) THEN
               IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
-                PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-                PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
-                PartStateIntEn(CurrentPartNum,3) = RecBuff(COUNTER+11)
+                PartStateIntEn(1,CurrentPartNum) = RecBuff(COUNTER+8)
+                PartStateIntEn(2,CurrentPartNum) = RecBuff(COUNTER+9)
+                PartStateIntEn(3,CurrentPartNum) = RecBuff(COUNTER+11)
                 PartMPF(CurrentPartNum)          = RecBuff(COUNTER+10)
               ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-                PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-                PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
+                PartStateIntEn(1,CurrentPartNum) = RecBuff(COUNTER+8)
+                PartStateIntEn(2,CurrentPartNum) = RecBuff(COUNTER+9)
                 PartMPF(CurrentPartNum)          = RecBuff(COUNTER+10)
               ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
-                PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-                PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
-                PartStateIntEn(CurrentPartNum,3) = RecBuff(COUNTER+10)
+                PartStateIntEn(1,CurrentPartNum) = RecBuff(COUNTER+8)
+                PartStateIntEn(2,CurrentPartNum) = RecBuff(COUNTER+9)
+                PartStateIntEn(3,CurrentPartNum) = RecBuff(COUNTER+10)
               ELSE IF (CollisMode.GT.1) THEN
-                PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-                PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
+                PartStateIntEn(1,CurrentPartNum) = RecBuff(COUNTER+8)
+                PartStateIntEn(2,CurrentPartNum) = RecBuff(COUNTER+9)
               ELSE IF (usevMPF) THEN
                 PartMPF(CurrentPartNum)          = RecBuff(COUNTER+8)
               END IF
@@ -1049,7 +1049,7 @@ IF(DoRestart)THEN
 
       CALL UpdateNextFreePosition()
 
-      IF (RadialWeighting%DoRadialWeighting) THEN
+      IF (RadialWeighting%PerformCloning) THEN
         CALL DatasetExists(File_ID,'CloneData',CloneExists)
         IF(CloneExists) THEN
           CALL RestartClones()
@@ -1061,7 +1061,7 @@ IF(DoRestart)THEN
             RadialWeighting%CloneDelayDiff = 0
           END IF ! RadialWeighting%CloneMode.EQ.1
         END IF ! CloneExists
-      END IF ! RadialWeighting%DoRadialWeighting
+      END IF ! RadialWeighting%PerformCloning
     ELSE ! not PartIntExists
       SWRITE(UNIT_stdOut,*)'PartInt does not exists in restart file'
     END IF ! PartIntExists

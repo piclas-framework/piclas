@@ -257,7 +257,7 @@ TYPE (tGeometry)                         :: GEO
 INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded
                                                                               ! into themselves)
 LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! Flag defining if mapping for neighbour elements
-                                                                              ! is build via nodes
+                                                                              ! is built via nodes
 
 TYPE tBCElem
   INTEGER                                :: nInnerSides                       ! Number of BC-Sides of Element

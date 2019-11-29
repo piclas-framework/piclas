@@ -108,15 +108,16 @@ WRITE(index_unit,'(A)')'VARIABLES = "x[m]" ,"y[m]" ,"z[m]" ,"v_x[m/s]" ,"v_y[m/s
 WRITE(index_unit,*)'ZONE T= "',TRIM(TIMESTAMP('Particles',OutputTime)),'"'
 WRITE(index_unit,*)'I=',nParts,' J=1, K=1, F=POINT'
 DO i=1,nParts
-  WRITE(index_unit,'(8(1X,e19.12),1X,i0)')PartState(i,1),&
-                                 PartState(i,2),&
-                                 PartState(i,3),&
-                                 PartState(i,4),&
-                                 PartState(i,5),&
-                                 PartState(i,6),&
-                                 Species(PartSpecies(i))%ChargeIC,&
-                                 Species(PartSpecies(i))%MassIC,&
-                                 i
+  WRITE(index_unit,'(8(1X,e19.12),1X,i0)')&
+      PartState(1,i),&
+      PartState(2,i),&
+      PartState(3,i),&
+      PartState(4,i),&
+      PartState(5,i),&
+      PartState(6,i),&
+      Species(PartSpecies(i))%ChargeIC,&
+      Species(PartSpecies(i))%MassIC,&
+      i
 END DO
 CLOSE(index_unit)
 SWRITE(UNIT_stdOut,'(A)')"DONE!"

@@ -355,6 +355,14 @@ CALL prms%CreateStringOption(     'DSMC-Reaction[$]-TLU_FileName'  &
                                 , 'with DoScat=F: No TLU-File needed '//&
                                 '(def.: )', '0' , numberedmulti=.TRUE.)
 
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
+                                           ,'Utilize collision cross sections for the determination of collision probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
+                                                               'should be named with species pair (e.g. "Ar-electron"). The '//&
+                                                               'first column shall contain the energy in eV and the second '//&
+                                                               'column the cross-section in m^2', 'none')
+
 END SUBROUTINE DefineParametersDSMC
 
 SUBROUTINE InitDSMC()
@@ -377,6 +385,7 @@ USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, PartBound
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
+USE MOD_DSMC_SpecXSec          ,ONLY: MCC_Init
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -503,13 +512,13 @@ IF(DSMC%CalcQualityFactors) THEN
   VarNum = 4
   ! VarNum + 1: Number of cloned particles per cell
   ! VarNum + 2: Number of identical particles (no relative velocity)
-  IF(RadialWeighting%DoRadialWeighting) VarNum = VarNum + 2
+  IF(RadialWeighting%PerformCloning) VarNum = VarNum + 2
   ALLOCATE(DSMC%QualityFacSamp(nElems,VarNum))
   DSMC%QualityFacSamp(1:nElems,1:VarNum) = 0.0
 END IF
 
 ! definition of DSMC particle values
-ALLOCATE(DSMC_RHS(PDM%maxParticleNumber,3))
+ALLOCATE(DSMC_RHS(1:3,1:PDM%maxParticleNumber))
 DSMC_RHS = 0
 
 IF (nSpecies.LE.0) THEN
@@ -545,9 +554,9 @@ END IF
 
 ! allocate internal energy arrays
 IF ( DSMC%ElectronicModel ) THEN
-  ALLOCATE(PartStateIntEn(PDM%maxParticleNumber,3))
+  ALLOCATE(PartStateIntEn(1:3,PDM%maxParticleNumber))
 ELSE
-  ALLOCATE(PartStateIntEn(PDM%maxParticleNumber,2))
+  ALLOCATE(PartStateIntEn(1:2,PDM%maxParticleNumber))
 ENDIF
 PartStateIntEn = 0. ! nullify
 
@@ -635,12 +644,19 @@ ELSE !CollisMode.GT.0
       !the omega should be the same for both in vhs!!!
     END DO
   END DO
-
   !-----------------------------------------------------------------------------------------------------------------------------------
-  ! reading BG Gas stuff (required for the temperature definition in iInit=0)
+  ! Collision cross-sections (required for MCC treatment of particles)
   !-----------------------------------------------------------------------------------------------------------------------------------
-  !...moved to InitializeVariables!!!
-
+  DO iSpec = 1, nSpecies
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
+  END DO
+  IF(ANY(SpecDSMC(:)%UseCollXSec)) THEN
+    UseMCC = .TRUE.
+    CALL MCC_Init()
+  ELSE
+    UseMCC = .FALSE.
+  END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! reading/writing molecular stuff
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1566,14 +1582,14 @@ __STAMP__&
       iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)
     END DO
     !evtl muss partstateinten nochmal geändert werden, mpi, resize etc..
-    PartStateIntEn(iPart, 1) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpecies)%CharaTVib*BoltzmannConst
+    PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpecies)%CharaTVib*BoltzmannConst
     ! Set rotational energy
     CALL RANDOM_NUMBER(iRan)
-    PartStateIntEn(iPart, 2) = -BoltzmannConst*TRot*LOG(iRan)
+    PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
   ELSE
     ! Nullify energy for atomic species
-    PartStateIntEn(iPart, 1) = 0
-    PartStateIntEn(iPart, 2) = 0
+    PartStateIntEn( 1,iPart) = 0
+    PartStateIntEn( 2,iPart) = 0
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set electronic energy
@@ -1582,7 +1598,7 @@ __STAMP__&
     IF((SpecDSMC(iSpecies)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpecies)%FullyIonized)) THEN
       CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
     ELSE
-      PartStateIntEn(iPart, 3) = 0.
+      PartStateIntEn( 3,iPart) = 0.
     END IF
   ENDIF
 
@@ -1594,7 +1610,7 @@ SUBROUTINE SetVarVibProb2Elems()
 ! Set initial vibrational relaxation probability to all elements
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals                ,ONLY: abort,UNIT_stdOut, IK, MPI_COMM_WORLD, MPIRoot
+USE MOD_Globals                ,ONLY: abort, IK, MPI_COMM_WORLD, MPIRoot
 USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, Species
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
 USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSpecies
@@ -1605,7 +1621,6 @@ USE MOD_DSMC_Vars              ,ONLY: VarVibRelaxProb, CollInf, SpecDSMC, Coll_p
 USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
 USE MOD_DSMC_Analyze           ,ONLY: CalcInstantTransTemp
 USE MOD_Particle_Vars          ,ONLY: PEM
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Collis            ,ONLY: DSMC_calc_var_P_vib
 USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
 IMPLICIT NONE

@@ -14,7 +14,7 @@
 
 MODULE MOD_part_tools
 !===================================================================================================================================
-! Contains tools for particles
+! Contains tools for particle related operations. This routine is uses MOD_Particle_Boundary_Tools, but not vice versa!
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -25,12 +25,28 @@ INTERFACE UpdateNextFreePosition
   MODULE PROCEDURE UpdateNextFreePosition
 END INTERFACE
 
-INTERFACE VELOFROMDISTRIBUTION
-  MODULE PROCEDURE VELOFROMDISTRIBUTION
+INTERFACE VeloFromDistribution
+  MODULE PROCEDURE VeloFromDistribution
 END INTERFACE
 
 INTERFACE CreateParticle
   MODULE PROCEDURE CreateParticle
+END INTERFACE
+
+INTERFACE isChargedParticle
+  MODULE PROCEDURE isChargedParticle
+END INTERFACE
+
+INTERFACE isPushParticle
+  MODULE PROCEDURE isPushParticle
+END INTERFACE
+
+INTERFACE isDepositParticle
+  MODULE PROCEDURE isDepositParticle
+END INTERFACE
+
+INTERFACE isInterpolateParticle
+  MODULE PROCEDURE isInterpolateParticle
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -38,7 +54,8 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CreateParticle, isChargedParticle
+PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle
 !===================================================================================================================================
 
 CONTAINS
@@ -99,7 +116,7 @@ IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
       PEM%pNumber(PEM%Element(i)) = &                      ! Number of Particles in Element
           PEM%pNumber(PEM%Element(i)) + 1
       IF (VarTimeStep%UseVariableTimeStep) THEN
-        VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(i,1),PartState(i,2),PEM%Element(i))
+        VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),PEM%Element(i))
       END IF
       IF (KeepWallParticles) THEN
         IF (PDM%ParticleAtWall(i)) THEN
@@ -166,7 +183,7 @@ DiceUnitVector(2) = aVec * SIN(bVec)
 END FUNCTION DiceUnitVector
 
 
-FUNCTION VELOFROMDISTRIBUTION(distribution,specID,Tempergy)
+FUNCTION VeloFromDistribution(distribution,specID,Tempergy)
 !===================================================================================================================================
 !> calculation of velocityvector (Vx,Vy,Vz) sampled from given distribution function
 !>  liquid_evap: normal direction to surface with ARM from shifted evaporation rayleigh, tangential from normal distribution
@@ -189,7 +206,7 @@ REAL,INTENT(IN)             :: Tempergy         !< input temperature [K] or ener
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL, PARAMETER :: xmin=0., xmax=5.
-REAL            :: veloFromDistribution(1:3)
+REAL            :: VeloFromDistribution(1:3)
 REAL            :: alpha, beta
 REAL            :: y1, f, ymax, i, binsize
 REAL            :: sigma, val(1:2)
@@ -206,17 +223,17 @@ CASE('deltadistribution')
     !Velo2 = 2.*RandVal(2) - 1.
     !Velosq = Velo1**2 + Velo2**2
   !END DO
-  !veloFromDistribution(1) = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
-  !veloFromDistribution(2) = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
+  !VeloFromDistribution(1) = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
+  !VeloFromDistribution(2) = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
   !CALL RANDOM_NUMBER(RandVal)
-  !veloFromDistribution(3) = SQRT(-2*LOG(RandVal(1)))
+  !VeloFromDistribution(3) = SQRT(-2*LOG(RandVal(1)))
 
   ! Get random vector
-  veloFromDistribution = DiceUnitVector()
+  VeloFromDistribution = DiceUnitVector()
   ! Mirror z-component of velocity (particles are emitted from surface!)
-  veloFromDistribution(3) = ABS(veloFromDistribution(3))
+  VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
   ! Set magnitude
-  veloFromDistribution = Tempergy*veloFromDistribution
+  VeloFromDistribution = Tempergy*VeloFromDistribution
 
 CASE('liquid_evap','liquid_refl')
   ! sample normal direction with ARM from given, shifted rayleigh distribution function
@@ -259,7 +276,7 @@ CASE('liquid_evap','liquid_refl')
     END SELECT
     y1=ymax*RandVal(2)
   END DO
-  veloFromDistribution(3) = sigma*Velo1
+  VeloFromDistribution(3) = sigma*Velo1
   ! build tangential velocities from gauss (normal) distribution
   Velosq = 2
   DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
@@ -268,8 +285,8 @@ CASE('liquid_evap','liquid_refl')
     Velo2 = 2.*RandVal(2) - 1.
     Velosq = Velo1**2 + Velo2**2
   END DO
-  veloFromDistribution(1) = Velo1*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
-  veloFromDistribution(2) = Velo2*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
+  VeloFromDistribution(1) = Velo1*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
+  VeloFromDistribution(2) = Velo2*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
 CASE DEFAULT
   WRITE (UNIT_stdOut,'(A)') "distribution =", distribution
   CALL abort(&
@@ -277,7 +294,7 @@ __STAMP__&
 ,'wrong velo-distri!')
 END SELECT
 
-END FUNCTION VELOFROMDISTRIBUTION
+END FUNCTION VeloFromDistribution
 
 
 PURE REAL FUNCTION GetParticleWeight(iPart)
@@ -358,15 +375,15 @@ END IF
 !PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
 
 PartSpecies(newParticleID) = Species
-LastPartPos(newParticleID,1:3)=Pos(1:3)
-PartState(newParticleID,1:3) = Pos(1:3)
-PartState(newParticleID,4:6) = Velocity(1:3)
+LastPartPos(1:3,newParticleID)=Pos(1:3)
+PartState(1:3,newParticleID) = Pos(1:3)
+PartState(4:6,newParticleID) = Velocity(1:3)
 
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-  PartStateIntEn(newParticleID, 1) = VibEnergy
-  PartStateIntEn(newParticleID, 2) = RotEnergy
+  PartStateIntEn(1,newParticleID) = VibEnergy
+  PartStateIntEn(2,newParticleID) = RotEnergy
   IF (DSMC%ElectronicModel) THEN
-    PartStateIntEn(newParticleID, 3) = ElecEnergy
+    PartStateIntEn(3,newParticleID) = ElecEnergy
   ENDIF
 END IF
 
@@ -379,14 +396,125 @@ PEM%lastElement(newParticleID)    = ElemID
 ! ?????? necessary?
 ! IF (VarTimeStep%UseVariableTimeStep) THEN
 !   VarTimeStep%ParticleTimeStep(newParticleID) &
-!     = CalcVarTimeStep(PartState(newParticleID,1),PartState(newParticleID,2),PEM%Element(newParticleID))
+!     = CalcVarTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%Element(newParticleID))
 ! END IF
 ! IF (RadialWeighting%DoRadialWeighting) THEN
-!   PartMPF(newParticleID) = CalcRadWeightMPF(PartState(newParticleID,2), 1,newParticleID)
+!   PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID), 1,newParticleID)
 ! END IF
 IF (PRESENT(NewPartID)) NewPartID=newParticleID
 
 END SUBROUTINE CreateParticle
+
+
+PURE FUNCTION isChargedParticle(iPart)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Check if particle has charge unequal to zero and return T/F logical.
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)  :: iPart
+LOGICAL             :: isChargedParticle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+  isChargedParticle = .TRUE.
+ELSE
+  isChargedParticle = .FALSE.
+END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
+END FUNCTION isChargedParticle
+
+
+PURE FUNCTION isPushParticle(iPart)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Check if particle is to be evolved in time by the particle pusher (time integration).
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+#if (PP_TimeDiscMethod==300) /*FP-Flow*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
+#elif (PP_TimeDiscMethod==400) /*BGK*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
+#else /*all other methods, mainly PIC*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
+#endif
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)  :: iPart
+LOGICAL             :: isPushParticle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+  isPushParticle = .TRUE.
+ELSE
+  isPushParticle = .FALSE.
+END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
+END FUNCTION isPushParticle
+
+
+PURE FUNCTION isDepositParticle(iPart)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Check if particle is to be deposited on the grid (particle-to-grid coupling).
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+#if (PP_TimeDiscMethod==300) /*FP-Flow*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
+#elif (PP_TimeDiscMethod==400) /*BGK*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
+#else /*all other methods, mainly PIC*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
+#endif
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)  :: iPart
+LOGICAL             :: isDepositParticle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+  isDepositParticle = .TRUE.
+ELSE
+  isDepositParticle = .FALSE.
+END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
+END FUNCTION isDepositParticle
+
+
+PURE FUNCTION isInterpolateParticle(iPart)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Check if particle is to be interpolated (field-to-particle coupling), which is required for calculating the acceleration, e.g.,
+! due to Lorentz forces at the position of the particle.
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+#if (PP_TimeDiscMethod==300) /*FP-Flow*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
+#elif (PP_TimeDiscMethod==400) /*BGK*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
+#else /*all other methods, mainly PIC*/
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
+#endif
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)  :: iPart
+LOGICAL             :: isInterpolateParticle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+  isInterpolateParticle = .TRUE.
+ELSE
+  isInterpolateParticle = .FALSE.
+END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
+END FUNCTION isInterpolateParticle
 
 
 END MODULE MOD_part_tools
