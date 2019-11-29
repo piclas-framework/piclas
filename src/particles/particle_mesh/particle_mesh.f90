@@ -117,15 +117,6 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection('Tracking')
 
-!CALL prms%CreateLogicalOption( 'DoRefMapping'&
-  !, 'Refmapping [T] or Tracing [F] algorithms are used for tracking of particles.'&
-  !, '.TRUE.')
-
-!CALL prms%CreateLogicalOption( 'TriaTracking'&
-  !, 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for tracing algorithms.'//&
-  !' Currently flag is only used in DSMC timediscs. Requires DoRefMapping=F.'&
-  !,'.FALSE.')
-
 CALL prms%CreateIntFromStringOption('TrackingMethod', "Define Method that is used for tracking of particles:\n"//&
                                                       "refmapping (1): reference mapping of particle position"//&
                                                       " with (bi-)linear and bezier (curved) description of sides.\n"//&
@@ -263,6 +254,15 @@ IF(ParticleMeshInitIsDone) CALL abort(&
 __STAMP__&
 , ' Particle-Mesh is already initialized.')
 
+! Build BGM to Element mapping and identify which of the elements, sides and nodes are in the compute-node local and halo region
+CALL BuildBGMAndIdentifyHaloRegion()
+
+! Initialize mapping function: GetGlobalElemID()
+CALL InitGetGlobalElemID()
+
+! Initialize mapping function: GetCNElemID()
+CALL InitGetCNElemID()
+
 TrackingMethod = GETINTFROMSTR('TrackingMethod')
 SELECT CASE(TrackingMethod)
 CASE(REFMAPPING)
@@ -275,17 +275,6 @@ CASE(TRIATRACKING)
   DoRefMapping=.FALSE.
   TriaTracking=.TRUE.
 END SELECT
-! Build BGM to Element mapping and identify which of the elements, sides and nodes are in the compute-node local and halo region
-CALL BuildBGMAndIdentifyHaloRegion()
-
-! Initialize mapping function: GetGlobalElemID()
-CALL InitGetGlobalElemID()
-
-! Initialize mapping function: GetCNElemID()
-CALL InitGetCNElemID()
-
-DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
-TriaTracking       = GETLOGICAL('TriaTracking','.FALSE.')
 
 IF ((DoRefMapping.OR.UseCurveds.OR.(NGeo.GT.1)).AND.(TriaTracking)) THEN
   CALL abort(&
