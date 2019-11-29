@@ -37,30 +37,31 @@ SUBROUTINE InitializeParticleSurfaceflux()
 !===================================================================================================================================
 ! Modules
 #if USE_MPI
-USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Globals
-USE MOD_Globals_Vars,          ONLY: PI, BoltzmannConst
+USE MOD_Globals_Vars           ,ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
-USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC, nPorousBC
-USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges, DoTimeDepInflow, &
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound, nAdaptiveBC, nPorousBC
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges, DoTimeDepInflow, &
                                      Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac, VarTimeStep
-USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptive, UseCircularInflow
-USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
-USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
-USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
-USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
-USE MOD_Particle_Surfaces_Vars,ONLY: SurfFluxSideSize, TriaSurfaceFlux, WriteTriaSurfaceFluxDebugMesh, SideType
-USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas, GetSideBoundingBox, CalcNormAndTangTriangle
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide, GEO
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking, DoRefMapping
+USE MOD_PARTICLE_Vars          ,ONLY: nMacroRestartFiles, UseAdaptive, UseCircularInflow
+USE MOD_Particle_Vars          ,ONLY: DoForceFreeSurfaceFlux
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
+USE MOD_Mesh_Vars              ,ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
+USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, WriteTriaSurfaceFluxDebugMesh, SideType
+USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas, GetSideBoundingBox, CalcNormAndTangTriangle
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Mesh          ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, DoRefMapping
 USE MOD_IO_HDF5
 USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray,GetDataSize
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
-USE MOD_Particle_Vars           ,ONLY: Symmetry2D, Symmetry2DAxisymmetric
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D         ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
-USE MOD_Restart_Vars            ,ONLY: DoRestart, RestartTime
+USE MOD_Particle_Vars          ,ONLY: Symmetry2D, Symmetry2DAxisymmetric
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
+USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -149,7 +150,7 @@ DO BCSideID=1,nBCSides
   ELSE
     iLocSide = SideToElem(3,BCSideID)
   END IF
-  SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+  SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
   IF (TriaSurfaceFlux) THEN
     IF (SurfFluxSideSize(1).NE.1 .OR. SurfFluxSideSize(2).NE.2) CALL abort(&
 __STAMP__&
@@ -583,7 +584,7 @@ DO iBC=1,nDataBC
       ELSE
         iLocSide = SideToElem(3,BCSideID)
       END IF
-      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+      SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
       !----- symmetry specific area calculation start
       IF(Symmetry2D) THEN
         IF(Symmetry2DAxisymmetric) THEN
@@ -754,7 +755,7 @@ DO iSpec=1,nSpecies
         ELSE
           iLocSide = SideToElem(3,BCSideID)
         END IF
-        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+        SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
         IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
           CALL GetBezierSampledAreas(SideID=SideID &
             ,BezierSampleN=BezierSampleN &
@@ -1168,9 +1169,10 @@ USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance
 USE MOD_Particle_Analyze_Vars   ,ONLY: nPartIn,PartEkinIn
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze        ,ONLY: CalcEkinPart
-USE MOD_Mesh_Vars               ,ONLY: SideToElem!, ElemBaryNGeo
+USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem!, ElemBaryNGeo
 USE MOD_Mesh_Vars               ,ONLY: NGeo!,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_Particle_Mesh_Vars      ,ONLY: PartElemToSide, GEO
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Particle_Mesh           ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfMeshSubSideData
 USE MOD_Timedisc_Vars           ,ONLY: dt
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
@@ -1360,7 +1362,7 @@ __STAMP__&
       ELSE
         iLocSide = SideToElem(3,BCSideID)
       END IF
-      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+      SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
       IF (TriaSurfaceFlux) THEN
         xNod = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%xyzNod(1)
         yNod = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%xyzNod(2)
@@ -2191,16 +2193,16 @@ SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
 !> Routine calculates the weights of the triangles for AdaptiveType=4 to scale up the number of particles to be inserted
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
+!----------------------------------------------------------------------------------------------------------------------------------!                                                                                              ! ----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Globals_Vars                ,ONLY:BoltzmannConst, Pi
-USE MOD_Particle_Vars               ,ONLY:Species, Adaptive_MacroVal
-USE MOD_Particle_Surfaces_Vars      ,ONLY:SurfMeshSubSideData, BCdata_auxSF, SurfFluxSideSize
-USE MOD_TimeDisc_Vars               ,ONLY:dt, RKdtFrac
-USE MOD_Mesh_Vars                   ,ONLY:SideToElem
-USE MOD_Particle_Mesh_Vars,         ONLY:PartElemToSide
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
+USE MOD_Particle_Vars          ,ONLY: Species, Adaptive_MacroVal
+USE MOD_Particle_Surfaces_Vars ,ONLY: SurfMeshSubSideData, BCdata_auxSF, SurfFluxSideSize
+USE MOD_TimeDisc_Vars          ,ONLY: dt, RKdtFrac
+USE MOD_Mesh_Vars              ,ONLY: SideToElem, offsetElem
+USE MOD_Particle_Mesh          ,ONLY: GetGlobalNonUniqueSideID
 #if USE_MPI
-USE MOD_Particle_MPI_Vars,           ONLY:PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -2237,7 +2239,7 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
   ELSE
     iLocSide = SideToElem(3,BCSideID)
   END IF
-  SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+  SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
   DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
     VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
