@@ -44,7 +44,7 @@ USE MOD_Mesh,                ONLY: FinalizeMesh
 USE MOD_Particle_Mesh       ,ONLY: FinalizeParticleMesh
 #endif
 USE MOD_Mesh_Vars,           ONLY: useCurveds,NGeo,nElems,NodeCoords,offsetElem
-USE MOD_Interpolation_Vars,  ONLY: NodeTypeCL,NodeTypeVisu
+USE MOD_Interpolation_Vars,  ONLY: NodeTypeVisu
 USE MOD_Interpolation,       ONLY: GetVandermonde
 USE MOD_ChangeBasis,         ONLY: ChangeBasis3D
 USE MOD_VTK,                 ONLY: WriteDataToVTK,WriteVTKMultiBlockDataSet

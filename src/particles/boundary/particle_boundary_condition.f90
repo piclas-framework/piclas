@@ -71,9 +71,6 @@ USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType,epsilontol
 USE MOD_SurfaceModel             ,ONLY: ReactiveSurfaceTreatment
 USE MOD_Particle_Analyze         ,ONLY: RemoveParticle
 USE MOD_Mesh_Vars                ,ONLY: BC,nElems
-#if defined(LSERK)
-USE MOD_TimeDisc_Vars            ,ONLY: RK_a
-#endif
 #if defined(IMPA)
 USE MOD_Particle_Vars            ,ONLY: PartIsImplicit
 USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
@@ -432,9 +429,6 @@ USE MOD_Particle_Boundary_Vars, ONLY:PartAuxBC
 !USE MOD_Particle_Surfaces_vars, ONLY:epsilontol
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
-#if defined(LSERK)
-USE MOD_TimeDisc_Vars,          ONLY:RK_a
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
