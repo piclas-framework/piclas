@@ -54,14 +54,14 @@ LOGICAL,INTENT(IN) :: doHalo
 ! LOCAL VARIABLES
 INTEGER           :: ElemID
 !===================================================================================================================================
-ElemID = SinglePointToElement(PartState(PartID,1:3),doHALO=doHALO)
+ElemID = SinglePointToElement(PartState(1:3,PartID),doHALO=doHALO)
 PEM%Element(PartID) = ElemID
 IF(ElemID.EQ.-1)THEN
   PDM%ParticleInside(PartID)=.FALSE.
 ELSE
   PDM%ParticleInside(PartID)=.TRUE.
   IF(DoRefMapping)THEN
-    CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
+    CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),ElemID)
   END IF ! DoRefMapping
 END IF ! ElemID.EQ.-1
 END SUBROUTINE LocateParticleInElement
