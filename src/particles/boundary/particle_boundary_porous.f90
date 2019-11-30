@@ -110,7 +110,6 @@ SUBROUTINE InitPorousBoundaryCondition()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Globals_Vars                ,ONLY: BoltzmannConst
 USE MOD_Mesh_Vars                   ,ONLY: BC,nElems, SideToElem
 USE MOD_Particle_Vars               ,ONLY: nSpecies, Adaptive_MacroVal, Symmetry2D, Symmetry2DAxisymmetric
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound, nPorousBC, PorousBC, SurfMesh, nPorousBCVars, PorousBCMacroVal

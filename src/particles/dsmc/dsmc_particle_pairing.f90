@@ -880,7 +880,7 @@ SUBROUTINE DSMC_pairing_quadtree(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, CollInf, VarVibRelaxProb
+USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, VarVibRelaxProb
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_part_tools              ,ONLY: GetParticleWeight
