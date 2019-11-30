@@ -157,7 +157,7 @@ A linear temperature gradient across a boundary can be defined by supplying a se
     Part-Boundary2-TemperatureGradientStart=(/0.,0.,0./)
     Part-Boundary2-TemperatureGradientEnd=(/0.,0.,1./)
 
-Between these two points the temperature will be interpolated while the start vector corresponds to the first wall temperature, while the end vector to the second wall temperature. Beyond these position values, the first and second temperature will be used as the constant wall temperature, respectively.
+Between these two points the temperature will be interpolated, where the start vector corresponds to the first wall temperature, while the end vector to the second wall temperature. Beyond these position values, the first and second temperature will be used as the constant wall temperature, respectively.
 
 ### Porous Wall / Pump
 
