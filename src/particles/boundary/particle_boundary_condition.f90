@@ -95,7 +95,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
 INTEGER                              :: ReflectionIndex, iSpec, iSF,NewPartID
-LOGICAL                              :: isSpeciesSwap, PorousReflection
+LOGICAL                              :: isSpeciesSwap, ElasticReflectionAtPorousBC
 !===================================================================================================================================
 
 IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
@@ -138,9 +138,9 @@ CASE(1) !PartBound%OpenBC)
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   !---- Treatment of adaptive and porous boundary conditions (deletion of particles in case of circular inflow or porous BC)
-  PorousReflection = .FALSE.
+  ElasticReflectionAtPorousBC = .FALSE.
   IF(UseCircularInflow) CALL SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,lengthPartTrajectory,flip,xi,eta)
-  IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PorousReflection)
+  IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,ElasticReflectionAtPorousBC)
 
   !---- Dielectric particle-surface interaction
   IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(PartBound%MapToPartBC(BC(SideID))))THEN ! deposit charge on surface
@@ -192,7 +192,7 @@ CASE(2) !PartBound%ReflectiveBC)
       ! simple reflection (Maxwellian scattering)
       ReflectionIndex=2 ! diffuse reflection
       CALL RANDOM_NUMBER(RanNum)
-      IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID))).OR.PorousReflection) ReflectionIndex=1 ! perfect reflection
+      IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID))).OR.ElasticReflectionAtPorousBC) ReflectionIndex=1 ! perfect reflection
     END IF
     ! assign right treatment
     SELECT CASE (ReflectionIndex)
@@ -859,7 +859,7 @@ USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking, TrackInfo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample,CalcSurfaceImpact
-USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact
+USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact, GetWallTemperature
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry2D
 USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric, VarTimeStep, usevMPF
@@ -1008,7 +1008,7 @@ ELSE
   locBCID=PartBound%MapToPartBC(BC(SideID))
   ! get BC values
   WallVelo   = PartBound%WallVelo(1:3,locBCID)
-  WallTemp   = PartBound%WallTemp(locBCID)
+  WallTemp   = GetWallTemperature(PartID,locBCID,PartTrajectory,alpha)
   TransACC   = PartBound%TransACC(locBCID)
   VibACC     = PartBound%VibACC(locBCID)
   RotACC     = PartBound%RotACC(locBCID)

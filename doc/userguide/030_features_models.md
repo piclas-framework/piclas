@@ -151,6 +151,14 @@ Additionally, a wall velocity [m/s] and voltage [V] can be given
     Part-Boundary2-WallVelo=(/0,0,100/)
     Part-Boundary2-Voltage=100
 
+A linear temperature gradient across a boundary can be defined by supplying a second wall temperature and the start and end vector
+
+    Part-Boundary2-WallTemp2=500.
+    Part-Boundary2-TemperatureGradientStart=(/0.,0.,0./)
+    Part-Boundary2-TemperatureGradientEnd=(/0.,0.,1./)
+
+Between these two points the temperature will be interpolated, where the start vector corresponds to the first wall temperature, while the end vector to the second wall temperature. Beyond these position values, the first and second temperature will be used as the constant wall temperature, respectively.
+
 ### Porous Wall / Pump
 
 The porous boundary condition uses a removal probability to determine whether a particle is deleted or reflected at the boundary. The main application of the implemented condition is to model a pump, according to [@Lei2017]. It is defined by giving the number of porous boundaries and the respective boundary number (`BC=2` corresponds to the `BC_WALL` boundary defined in the previous section) on which the porous condition is.
@@ -159,6 +167,7 @@ The porous boundary condition uses a removal probability to determine whether a 
     Part-PorousBC1-BC=2
     Part-PorousBC1-Pressure=5.
     Part-PorousBC1-Temperature=300.
+    Part-PorousBC1-Type=pump
     Part-PorousBC1-PumpingSpeed=2e-9
     Part-PorousBC1-DeltaPumpingSpeed-Kp=0.1
     Part-PorousBC1-DeltaPumpingSpeed-Ki=0.0
@@ -192,7 +201,14 @@ The absolute coordinates are defined as follows for the respective normal direct
 |      y (=2)      |    (z,x)    |
 |      z (=3)      |    (x,y)    |
 
-Using the regions, multiple pumps can be defined on a single boundary.
+Using the regions, multiple pumps can be defined on a single boundary. Additionally, the BC can be used as a sensor by defining the respective type:
+
+    Part-PorousBC1-BC=3
+    Part-PorousBC1-Pressure=5.
+    Part-PorousBC1-Temperature=300.
+    Part-PorousBC1-Type=sensor
+
+Together with a region definition, a pump as well as a sensor can be defined on a single and/or multiple boundaries, allowing e.g. to determine the pressure difference between the pump and a remote area of interest.
 
 ### Surface Chemistry \label{sec:chem_reac}
 

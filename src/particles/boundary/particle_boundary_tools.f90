@@ -75,6 +75,7 @@ PUBLIC :: ALPHALIQUID
 PUBLIC :: BETALIQUID
 PUBLIC :: TSURUTACONDENSCOEFF
 PUBLIC :: CountSurfaceImpact
+PUBLIC :: GetWallTemperature
 !===================================================================================================================================
 
 CONTAINS
@@ -556,5 +557,42 @@ SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) = SampWall(SurfSideID)%ImpactNumbe
 
 END SUBROUTINE CountSurfaceImpact
 
+
+REAL FUNCTION GetWallTemperature(PartID,locBCID,PartTrajectory,alpha)
+!===================================================================================================================================
+!> Determine the wall temperature, current options: determine a temperature based on an imposed gradient or use a fixed temperature
+!===================================================================================================================================
+USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Vars           ,ONLY: LastPartPos
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: locBCID, PartID
+REAL, INTENT(IN)                :: PartTrajectory(3), alpha
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: TempGradLength, POI(3), POI_projected(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+IF(PartBound%WallTemp2(locBCID).GT.0.0) THEN
+  POI(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+  POI_projected(1:3) = PartBound%TempGradStart(1:3,locBCID) &
+                      + DOT_PRODUCT((POI(1:3) - PartBound%TempGradStart(1:3,locBCID)),PartBound%TempGradVec(1:3,locBCID)) &
+                        / DOTPRODUCT(PartBound%TempGradVec(1:3,locBCID)) * PartBound%TempGradVec(1:3,locBCID)
+  TempGradLength = VECNORM(POI_projected(1:3))/VECNORM(PartBound%TempGradVec(1:3,locBCID))
+  IF(TempGradLength.LT.0.0) THEN
+    GetWallTemperature = PartBound%WallTemp(locBCID)
+  ELSE IF(TempGradLength.GT.1.0) THEN
+    GetWallTemperature = PartBound%WallTemp2(locBCID)
+  ELSE
+    GetWallTemperature = PartBound%WallTemp(locBCID) + TempGradLength * PartBound%WallTempDelta(locBCID)
+  END IF
+ELSE
+  GetWallTemperature = PartBound%WallTemp(locBCID)
+END IF
+
+END FUNCTION GetWallTemperature
 
 END MODULE MOD_Particle_Boundary_Tools
