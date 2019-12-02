@@ -461,11 +461,12 @@ USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
-USE MOD_Particle_Mesh_Vars          ,ONLY: PartElemToSide,ElemRadiusNGeo,ElemHasAuxBCs,ElemToGlobalElemID!,ElemType
+USE MOD_Particle_Mesh_Vars          ,ONLY: ElemRadiusNGeo,ElemHasAuxBCs!,PartElemToSide
 USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
-USE MOD_Particle_Mesh               ,ONLY: PartInElemCheck
+USE MOD_Particle_Mesh               ,ONLY: PartInElemCheck, GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_tools         ,ONLY: GetGlobalElemID
 USE MOD_Particle_Localization       ,ONLY: LocateParticleInElement
 USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
@@ -491,6 +492,9 @@ USE MOD_Mesh_Vars                   ,ONLY: ElemBaryNGeo
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBElemPauseTime,LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_MPI_Shared_Vars             ,ONLY: SideInfo_Shared
+#endif /* USE_MPI */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -596,7 +600,7 @@ DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.foundHit)THEN  ! particle not inside
      IPWRITE(UNIT_stdOut,'(I0,A)') ' PartPos not inside of element! '
      IPWRITE(UNIT_stdOut,'(I0,A,I0)')  ' PartID         ', iPart
-     IPWRITE(UNIT_stdOut,'(I0,A,I0)')  ' global ElemID  ', ElemToGlobalElemID(ElemID)
+     IPWRITE(UNIT_stdOut,'(I0,A,I0)')  ' global ElemID  ', GetGlobalElemID(ElemID)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' ElemBaryNGeo:      ', ElemBaryNGeo(1:3,ElemID)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' LastPartPos:       ', LastPartPos(1:3,iPart)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartPos:           ', PartState(1:3,iPart)
@@ -643,7 +647,7 @@ DO iPart=1,PDM%ParticleVecLength
       WRITE(UNIT_stdout,'(A32)')  ' ---------------------------------------------------------------'
       WRITE(UNIT_stdout,'(A)')    '     | Output of Particle information '
       CALL OutputTrajectory(iPart,PartState(1:3,iPart),PartTrajectory,lengthPartTrajectory)
-      WRITE(UNIT_stdOut,'(A,I0)') '     | global ElemID       ', ElemToGlobalElemID(PEM%LastElement(iPart))
+      WRITE(UNIT_stdOut,'(A,I0)') '     | global ElemID       ', GetGlobalElemID(PEM%LastElement(iPart))
     END IF ; END IF
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
@@ -672,7 +676,9 @@ DO iPart=1,PDM%ParticleVecLength
         currentIntersect => lastIntersect%prev
         IF (currentIntersect%IntersectCase.EQ.1) THEN
           iLocSide=currentIntersect%Side
-          SideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+          !SideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+          SideID = GetGlobalNonUniqueSideID(GetGlobalElemID(ElemID),iLocSide)
+          ! missing!!! : mapping from GlobalNonUnique to CNtotalsides 
           CALL ComputeBiLinearIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID &
               ,alpha2=currentIntersect%alpha)
           currentIntersect%alpha=HUGE(1.)
@@ -736,8 +742,15 @@ DO iPart=1,PDM%ParticleVecLength
             IF (OnlyMacroPart) CYCLE
           END IF
           IF(.NOT.dolocSide(ilocSide)) CYCLE
-          SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-          flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
+          SideID = GetGlobalNonUniqueSideID(GetGlobalElemID(ElemID),iLocSide)
+          ! If the side is positive, then the element has the actual side
+          ! and neighbour element has the negative one which has to be flipped
+          IF (SideInfo_Shared(SIDE_ID,SideID).GT.0) THEN
+            flip=0
+          ELSE
+            flip = MOD(Sideinfo_Shared(SIDE_FLIP,SideID),10)
+          END IF
+          ! missing!!! : mapping from GlobalNonUnique to CNtotalsides 
           isCriticalParallelInFace=.FALSE.
           SELECT CASE(SideType(SideID))
           CASE(PLANAR_RECT)
@@ -899,8 +912,13 @@ __STAMP__ &
           !------------------------------------
           CASE(1) ! intersection with cell side
           !------------------------------------
-            SideID=PartElemToSide(E2S_SIDE_ID,currentIntersect%Side,ElemID)
-            flip  =PartElemToSide(E2S_FLIP,currentIntersect%Side,ElemID)
+            SideID = GetGlobalNonUniqueSideID(GetGlobalElemID(ElemID),currentIntersect%Side)
+            IF (Sideinfo_Shared(SIDE_ID,SideID).GT.0) THEN
+              flip=0
+            ELSE
+              flip = MOD(Sideinfo_Shared(SIDE_FLIP,SideID),10)
+            END IF
+            ! missing!!! : mapping from GlobalNonUnique to CNtotalsides 
             CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,currentIntersect%Side,currentIntersect%Side &
                 ,PartTrajectory,lengthPartTrajectory,currentIntersect%xi,currentIntersect%eta,currentIntersect%alpha,iPart &
                 ,SideID,SideType(SideID),ElemID)
@@ -978,7 +996,8 @@ __STAMP__ &
           moveList=.FALSE.
           SELECT CASE (currentIntersect%intersectCase)
           CASE(1)
-            SideID=PartElemToSide(E2S_SIDE_ID,currentIntersect%Side,OldElemID)
+            SideID = GetGlobalNonUniqueSideID(GetGlobalElemID(OldElemID),currentIntersect%Side)
+            ! missing!!! : mapping from GlobalNonUnique to CNtotalsides 
             SELECT CASE(SideType(SideID))
             CASE(BILINEAR,PLANAR_NONRECT)
               moveList=.TRUE.
@@ -1024,8 +1043,8 @@ __STAMP__ &
           ' Particle tracking done: ',PartisDone,' Particle is double checked: ',PartDoubleCheck
         IF(SwitchedElement) THEN
           WRITE(UNIT_stdout,'(A,I0,A,I0)') '     | First_ElemID: ',PEM%LastElement(iPart),' | new Element: ',ElemID
-          WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID       ', ElemToGlobalElemID(PEM%LastElement(iPart))
-          WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID       ', ElemToGlobalElemID(ElemID)
+          WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID       ', GetGlobalElemID(PEM%LastElement(iPart))
+          WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID       ', GetGlobalElemID(ElemID)
         END IF
         IF( crossedBC) THEN
           WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Last    PartPos:       ',lastPartPos(1:3,iPart)
@@ -1054,53 +1073,53 @@ __STAMP__ &
       END IF
     END DO ! PartisDone=.FALSE.
 
-! -- 9. If tolerance was marked, check if particle is inside of proc volume and try to find it in case it was lost
-    IF(markTol)THEN
-      IF(.NOT.PDM%ParticleInside(iPart))THEN
-#ifdef IMPA
-        DoParticle=.FALSE.
-#endif /*IMPA*/
-        CYCLE !particle is outside cell
-      END IF
-      CALL GetPositionInRefElem(PartState(1:3,iPart),RefPos,ElemID)
-      IF (MAXVAL(ABS(RefPos)).LE.1.0) foundHit=.TRUE.
-      PEM%Element(iPart)=ElemID
-      IF(.NOT.foundHit) THEN
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Relocating particle ...'
-        CALL LocateParticleInElement(iPart,doHALO=.TRUE.)
-        IF(PDM%ParticleInside(iPart))THEN
-          IPWRITE(UNIT_stdOut,'(I0,A)') '     | Particle found again:'
-          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartPos: ',LastPartPos(1:3,ipart)
-          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartPos: ',PartState(1:3,ipart)
-          IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | found in global element       ', ElemToGlobalElemID(PEM%Element(iPart))
-        END IF
-      END IF
-      PartIsDone=.TRUE.
-      IF(.NOT.PDM%ParticleInside(iPart))THEN
-        !WRITE(UNIT_stdOut,'(20(=))')
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Tolerance issue during tracing! Unable to locate particle inside computational domain'
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Maybe particle intersected two or three sides exactly at connection (corner, edge)'
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | of which at least one was a boundary.'
-        IPWRITE(UNIT_stdOut,'(I0,2(A,I0))') '     | Proc: ',MyRank,' lost particle with ID: ', iPart
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartPos: ',LastPartPos(1:3,ipart)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartPos: ',PartState(1:3,ipart)
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in latest Element ... '
-        IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | ElemID       ', ElemToGlobalElemID(PEM%Element(iPart))
-        CALL GetPositionInRefElem(LastPartPos(1:3,iPart),refpos(1:3),PEM%Element(ipart))
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartRefPos: ',refpos
-        CALL GetPositionInRefElem(PartState(1:3,iPart),refpos(1:3),PEM%Element(ipart))
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartRefPos: ',refpos
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in last Element ... '
-        IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | Last-ElemID  ', ElemToGlobalElemID(PEM%LastElement(iPart))
-        CALL GetPositionInRefElem(LastPartPos(1:3,iPart),refpos(1:3),PEM%lastElement(ipart))
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartRefPos: ',refpos
-        CALL GetPositionInRefElem(PartState(1:3,iPart),refpos(1:3),PEM%lastElement(ipart))
-        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartRefPos: ',refpos
-        !WRITE(UNIT_stdOut,'(20(=))')
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Particle is removed from computation! '
-        IF(CountNbOfLostParts) nLostParts=nLostParts+1
-      END IF
-    END IF ! markTol
+!! -- 9. If tolerance was marked, check if particle is inside of proc volume and try to find it in case it was lost
+!    IF(markTol)THEN
+!      IF(.NOT.PDM%ParticleInside(iPart))THEN
+!#ifdef IMPA
+!        DoParticle=.FALSE.
+!#endif /*IMPA*/
+!        CYCLE !particle is outside cell
+!      END IF
+!      CALL GetPositionInRefElem(PartState(1:3,iPart),RefPos,ElemID)
+!      IF (MAXVAL(ABS(RefPos)).LE.1.0) foundHit=.TRUE.
+!      PEM%Element(iPart)=ElemID
+!      IF(.NOT.foundHit) THEN
+!        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Relocating particle ...'
+!        CALL LocateParticleInElement(iPart,doHALO=.TRUE.)
+!        IF(PDM%ParticleInside(iPart))THEN
+!          IPWRITE(UNIT_stdOut,'(I0,A)') '     | Particle found again:'
+!          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartPos: ',LastPartPos(1:3,ipart)
+!          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartPos: ',PartState(1:3,ipart)
+!          IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | found in global element       ', GetGlobalElemID(PEM%Element(iPart))
+!        END IF
+!      END IF
+!      PartIsDone=.TRUE.
+!      IF(.NOT.PDM%ParticleInside(iPart))THEN
+!        !WRITE(UNIT_stdOut,'(20(=))')
+!        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Tolerance issue during tracing! Unable to locate particle inside computational domain'
+!        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Maybe particle intersected two or three sides exactly at connection (corner, edge)'
+!        IPWRITE(UNIT_stdOut,'(I0,A)') '     | of which at least one was a boundary.'
+!        IPWRITE(UNIT_stdOut,'(I0,2(A,I0))') '     | Proc: ',MyRank,' lost particle with ID: ', iPart
+!        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartPos: ',LastPartPos(1:3,ipart)
+!        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartPos: ',PartState(1:3,ipart)
+!        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in latest Element ... '
+!        IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | ElemID       ', GetGlobalElemID(PEM%Element(iPart))
+!        CALL GetPositionInRefElem(LastPartPos(1:3,iPart),refpos(1:3),PEM%Element(ipart))
+!        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartRefPos: ',refpos
+!        CALL GetPositionInRefElem(PartState(1:3,iPart),refpos(1:3),PEM%Element(ipart))
+!        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartRefPos: ',refpos
+!        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in last Element ... '
+!        IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | Last-ElemID  ', GetGlobalElemID(PEM%LastElement(iPart))
+!        CALL GetPositionInRefElem(LastPartPos(1:3,iPart),refpos(1:3),PEM%lastElement(ipart))
+!        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartRefPos: ',refpos
+!        CALL GetPositionInRefElem(PartState(1:3,iPart),refpos(1:3),PEM%lastElement(ipart))
+!        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartRefPos: ',refpos
+!        WRITE(UNIT_stdOut,'(20(=))')
+!        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Particle is removed from computation! '
+!        IF(CountNbOfLostParts) nLostParts=nLostParts+1
+!      END IF
+!    END IF ! markTol
 #if USE_LOADBALANCE
     IF (PEM%Element(iPart).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(iPart),tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1160,7 +1179,7 @@ DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.foundHit)THEN  ! particle not inside
      IPWRITE(UNIT_stdOut,'(I0,A)') ' PartPos not inside of element! '
      IPWRITE(UNIT_stdOut,'(I0,A,I0)')  ' PartID         ', iPart
-     IPWRITE(UNIT_stdOut,'(I0,A,I0)')  ' gloabal ElemID ', ElemToGlobalElemID(ElemID)
+     IPWRITE(UNIT_stdOut,'(I0,A,I0)')  ' gloabal ElemID ', GetGlobalElemID(ElemID)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' ElemBaryNGeo:      ', ElemBaryNGeo(1:3,ElemID)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' LastPartPos:       ', LastPartPos(1:3,iPart)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartPos:           ', PartState(1:3,iPart)
@@ -1956,11 +1975,13 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Tracking_Vars      ,ONLY: TrackInfo
 USE MOD_Particle_Surfaces_Vars      ,ONLY: SideNormVec
-USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction,PARTSWITCHELEMENT
-USE MOD_Particle_Intersection       ,ONLY: IntersectionWithWall
+USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction!,PARTSWITCHELEMENT
 USE MOD_Particle_Vars               ,ONLY: PDM
 USE MOD_Particle_Surfaces           ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Mesh_Vars                   ,ONLY: BC
+USE MOD_Particle_Mesh_Tools         ,ONLY: GetCNElemID
+#if USE_MPI
+USE MOD_MPI_Shared_Vars             ,ONLY: SideInfo_Shared,ElemInfo_Shared
+#endif /* USE_MPI */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1984,25 +2005,17 @@ REAL,INTENT(INOUT),DIMENSION(1:3) :: PartTrajectory           !< normalized part
 REAL,INTENT(INOUT)                :: lengthPartTrajectory     !< length of particle trajectory
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: Moved(2)
+INTEGER                           :: Moved(2),iLocalSide
 REAL                              :: n_loc(3)
 !===================================================================================================================================
 
-IF(BC(SideID).GT.0)THEN
+IF(SideInfo_Shared(SIDE_BCID,SideID).GT.0)THEN
   CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,ElemID,crossedBC&
                                                                  ,locSideID=hitLocSide)
   TrackInfo%CurrElem=ElemID
   IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
   dolocSide=.TRUE.
-  !dolocSide(hitlocSide)=.FALSE.
 ELSE
-  ! DO NOT move particle on edge
-  ! issues with periodic grids
-  !! move particle ON cell-edge
-  !LastPartPos(1:3,PartID)=LastPartPos(1:3,PartID)+alpha*PartTrajectory(1:3)
-  !! recompute remaining particle trajectory
-  !lengthPartTrajectory=lengthPartTrajectory-alpha
-  ! check if particle leaves element
   SELECT CASE(SideType)
   CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
     n_loc=SideNormVec(1:3,SideID)
@@ -2014,14 +2027,24 @@ ELSE
   IF(flip.NE.0) n_loc=-n_loc
   IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0) RETURN
   ! update particle element
-  dolocSide=.TRUE.
-  Moved = PARTSWITCHELEMENT(xi,eta,hitlocSide,SideID,ElemID)
-  IF (Moved(1).LT.1 .OR. Moved(2).LT.1) CALL abort(&
+  !Moved = PARTSWITCHELEMENT(xi,eta,hitlocSide,SideID,ElemID)
+  !IF (Moved(1).LT.1 .OR. Moved(2).LT.1) CALL abort(&
+  !  __STAMP__ &
+  !  ,'ERROR in SelectInterSectionType. No Neighbour Elem or Neighbour Side found --> increase haloregion')
+  !ElemID=Moved(1)
+  ElemID = GetCNElemID(SideInfo_Shared(SIDE_NBELEMID,SideID))
+  IF (ElemID.LT.1) CALL abort(&
     __STAMP__ &
     ,'ERROR in SelectInterSectionType. No Neighbour Elem or Neighbour Side found --> increase haloregion')
-  ElemID=Moved(1)
   TrackInfo%CurrElem=ElemID
-  dolocSide(Moved(2))=.FALSE.
+  dolocSide=.TRUE.
+  DO iLocalSide = 1, 6
+    IF (ABS(SideInfo_Shared(SIDE_ID,SideID)).EQ. &
+      (ABS(SideInfo_Shared(SIDE_ID,ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+iLocalSide))) ) THEN
+      dolocSide(iLocalSide)=.FALSE.
+      EXIT
+    END IF
+  END DO
 END IF
 
 IF(1.EQ.2)THEN

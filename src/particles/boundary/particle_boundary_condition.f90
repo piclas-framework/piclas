@@ -67,7 +67,6 @@ USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
 USE MOD_SurfaceModel             ,ONLY: ReactiveSurfaceTreatment
 USE MOD_Particle_Analyze         ,ONLY: RemoveParticle
-USE MOD_Mesh_Vars                ,ONLY: BC,nElems
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars            ,ONLY: RK_a
 #endif
@@ -78,6 +77,9 @@ USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_Particle_Boundary_Tools  ,ONLY: BoundaryParticleOutput,DielectricSurfaceCharge
+#if USE_MPI
+USE MOD_MPI_Shared_Vars          ,ONLY: SideInfo_Shared
+#endif /* USE_MPI */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -136,7 +138,7 @@ IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
   ,' ERROR: PartBound not allocated!.')
 END IF
 
-ASSOCIATE( iBC => PartBound%MapToPartBC(BC(SideID)) )
+ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   ! Surface particle output to .h5
   IF(DoBoundaryParticleOutput.AND.PartBound%BoundaryParticleOutput(iBC))THEN
     CALL BoundaryParticleOutput(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc)
@@ -387,7 +389,6 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues,PartLorentzType
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
-USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC,RadialWeighting,PartStateIntEn
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues, usevMPF
 USE MOD_TImeDisc_Vars           ,ONLY: tend,time
@@ -403,6 +404,9 @@ USE MOD_Particle_Vars           ,ONLY: PEM
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact
 USE MOD_part_tools              ,ONLY: GetParticleWeight
+#if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: SideInfo_Shared
+#endif /* USE_MPI */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -442,8 +446,8 @@ END IF
 IF (IsAuxBC) THEN
   WallVelo=PartAuxBC%WallVelo(1:3,AuxBCIdx)
 ELSE
-  WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
-  locBCID=PartBound%MapToPartBC(BC(SideID))
+  WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+  locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 
   IF(PRESENT(opt_Symmetry)) THEN
     Symmetry = opt_Symmetry
@@ -639,7 +643,6 @@ USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric, VarTimeStep, usev
 #if defined(LSERK) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
-USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC,CollisMode
 USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn,DSMC, useDSMC, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar
@@ -651,6 +654,9 @@ USE MOD_BGK_Vars                ,ONLY: BGKDoVibRelaxation
 USE MOD_FPFlow_Vars             ,ONLY: FPDoVibRelaxation
 #endif
 USE MOD_part_tools              ,ONLY: GetParticleWeight
+#if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: SideInfo_Shared
+#endif /* USE_MPI */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -708,7 +714,7 @@ IF (IsAuxBC) THEN
   RotACC     = PartAuxBC%RotACC(AuxBCIdx)
 ELSE
   ! additional states
-  locBCID=PartBound%MapToPartBC(BC(SideID))
+  locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
   ! get BC values
   WallVelo   = PartBound%WallVelo(1:3,locBCID)
   WallTemp   = PartBound%WallTemp(locBCID)
@@ -1057,7 +1063,6 @@ USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,PDM,use
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
-USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC, RadialWeighting
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd,Time
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
@@ -1067,6 +1072,9 @@ USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn
 USE MOD_Particle_Vars           ,ONLY: PartIsImplicit,DoPartInNewton
 #endif /*IMPA*/
 USE MOD_part_tools              ,ONLY: GetParticleWeight
+#if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: SideInfo_Shared
+#endif /* USE_MPI */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1127,16 +1135,16 @@ ELSE
 
   DoSample = (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
 
-  locBCID = PartBound%MapToPartBC(BC(SideID))
+  locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
   CALL RANDOM_NUMBER(RanNum)
-  IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) THEN
+  IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
     targetSpecies=-1 ! Dummy initialization value
     IF(PRESENT(targetSpecies_IN))THEN
       targetSpecies = targetSpecies_IN
     ELSE ! Normal swap routine
-      DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))
-        IF (PartSpecies(PartID).eq.PartBound%SpeciesSwaps(1,iSwaps,PartBound%MapToPartBC(BC(SideID)))) &
-            targetSpecies = PartBound%SpeciesSwaps(2,iSwaps,PartBound%MapToPartBC(BC(SideID)))
+      DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+        IF (PartSpecies(PartID).eq.PartBound%SpeciesSwaps(1,iSwaps,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) &
+            targetSpecies = PartBound%SpeciesSwaps(2,iSwaps,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
       END DO
     END IF ! PRESENT(targetSpecies_IN)
     !swap species
@@ -1180,7 +1188,7 @@ ELSE
       MacroParticleFactor = GetParticleWeight(PartID)*Species(PartSpecies(PartID))%MacroParticleFactor
       END IF
       DO iCC=1,nCollectChargesBCs !-chargeCollect
-        IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
+        IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))) THEN
           CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
               + Species(PartSpecies(PartID))%ChargeIC * MacroParticleFactor
           EXIT
@@ -1228,7 +1236,7 @@ ELSE
 #endif /*IMPA*/
     ELSEIF (targetSpecies.gt.0) THEN !swap species
       DO iCC=1,nCollectChargesBCs !-chargeCollect
-        IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
+        IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))) THEN
           CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
               + (Species(PartSpecies(PartID))%ChargeIC-Species(targetSpecies)%ChargeIC) * MacroParticleFactor
           EXIT
@@ -1342,9 +1350,11 @@ SUBROUTINE SideAnalysis(PartTrajectory,alpha,xi,eta,PartID,SideID,locSideID,Elem
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,CalcSurfCollis,AnalyzeSurfCollis
 USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,nSpecies,PartSpecies,WriteMacroSurfaceValues
-USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_TImeDisc_Vars          ,ONLY: tend,time
+#if USE_MPI
+USE MOD_MPI_Shared_Vars        ,ONLY: SideInfo_Shared
+#endif /* USE_MPI */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1363,8 +1373,8 @@ INTEGER                              :: locBCID
 INTEGER                              :: moved(2)
 !===================================================================================================================================
 
-WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
-locBCID=PartBound%MapToPartBC(BC(SideID))
+WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 
 ! Wall sampling Macrovalues
 !IF(.NOT.Symmetry) THEN !surface mesh is not build for the symmetry BC!?!
@@ -1492,9 +1502,11 @@ USE MOD_Globals
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars          ,ONLY: PDM, Species, LastPartPos, PartSpecies
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
+#if USE_MPI
+USE MOD_MPI_Shared_Vars        ,ONLY: SideInfo_Shared
+#endif /* USE_MPI */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1512,7 +1524,7 @@ INTEGER                             :: iSpec, iSF
 
 iSpec = PartSpecies(iPart)
 DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-  IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.PartBound%MapToPartBC(BC(SideID))) THEN
+  IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))) THEN
     IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
       intersectionPoint(1:3) = LastPartPos(1:3,iPart)+ alpha*PartTrajectory(1:3)
       point(1)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(2))-Species(iSpec)%Surfaceflux(iSF)%origin(1)
