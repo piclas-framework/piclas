@@ -1170,7 +1170,7 @@ USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance
 USE MOD_Particle_Analyze_Vars   ,ONLY: nPartIn,PartEkinIn
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac,RKdtFracTotal,Time
-USE MOD_Particle_Analyze        ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars               ,ONLY: SideToElem!, ElemBaryNGeo
 USE MOD_Mesh_Vars               ,ONLY: NGeo!,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh_Vars      ,ONLY: PartElemToSide, GEO
@@ -2350,8 +2350,6 @@ USE MOD_Part_Tools,             ONLY : VeloFromDistribution
 USE MOD_Particle_Surfaces_Vars, ONLY : SurfMeshSubSideData, TriaSurfaceFlux
 USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBezier
 USE MOD_Particle_Boundary_Vars, ONLY : PartBound
-USE MOD_Particle_Boundary_Tools,ONLY : BETALIQUID,LIQUIDEVAP
-!USE Ziggurat,                   ONLY : rnor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -319,11 +319,11 @@ SUBROUTINE PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,ElasticRefl
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: PDM, LastPartPos, PartSpecies
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMesh, MapSurfSideToPorousBC, PorousBC, MapSurfSideToPorousSide
-USE MOD_Particle_Analyze        ,ONLY: CalcEkinPart
-USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
-USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_Particle_Vars          ,ONLY: PDM, LastPartPos, PartSpecies
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, MapSurfSideToPorousBC, PorousBC, MapSurfSideToPorousSide
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
+USE MOD_part_tools             ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

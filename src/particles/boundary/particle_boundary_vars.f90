@@ -81,7 +81,10 @@ TYPE tSurfaceMesh
   INTEGER                               :: nSides                        ! Number of Sides on Surface (reflective)
   INTEGER                               :: nBCSides                      ! Number of OuterSides with Surface (reflective) properties
   INTEGER                               :: nInnerSides                   ! Number of InnerSides with Surface (reflective) properties
-  INTEGER                               :: nMasterSides                  ! Number of maser surfaces (bcsides+maser_innersides)
+  INTEGER                               :: nOutputSides                  ! Number of surfaces that are assigned to an MPI rank for
+                                                                         ! surface sampling (MacroSurfaceVal and MacroSurfaceSpecVal) 
+                                                                         ! and output to .h5 (SurfData) purposes:
+                                                                         ! nOutputSides = bcsides + maser_innersides
   INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
   INTEGER                               :: nGlobalSides                  ! Global number of Sides on Surfaces (reflective)
   INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping of side ID to surface side ID (reflective)
@@ -255,6 +258,8 @@ TYPE tPartBoundary
 !                                                                         ! a non-dielectric or a between to different dielectrics 
 !                                                                         ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
 !                                                                         ! (Default=FALSE.)
+  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutput(:)     ! Save particle position, velocity and species to 
+!                                                                         ! PartDataBoundary container for writing to .h5 later
 END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries
@@ -309,23 +314,31 @@ END TYPE tAuxBC_parabol
 TYPE(tAuxBC_parabol), ALLOCATABLE       :: AuxBC_parabol(:)
 
 TYPE tPartAuxBC
-  INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
-  INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)
-  REAL    , ALLOCATABLE                  :: MomentumACC(:)
-  REAL    , ALLOCATABLE                  :: WallTemp(:)
-  REAL    , ALLOCATABLE                  :: TransACC(:)
-  REAL    , ALLOCATABLE                  :: VibACC(:)
-  REAL    , ALLOCATABLE                  :: RotACC(:)
-  REAL    , ALLOCATABLE                  :: ElecACC(:)
-  REAL    , ALLOCATABLE                  :: WallVelo(:,:)
-  INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
-  REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
-  INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
-  LOGICAL , ALLOCATABLE                  :: Resample(:)                      !Resample Equilibirum Distribution with reflection
+  INTEGER               :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
+  INTEGER               :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
+  INTEGER , ALLOCATABLE :: TargetBoundCond(:)
+  REAL    , ALLOCATABLE :: MomentumACC(:)
+  REAL    , ALLOCATABLE :: WallTemp(:)
+  REAL    , ALLOCATABLE :: TransACC(:)
+  REAL    , ALLOCATABLE :: VibACC(:)
+  REAL    , ALLOCATABLE :: RotACC(:)
+  REAL    , ALLOCATABLE :: ElecACC(:)
+  REAL    , ALLOCATABLE :: WallVelo(:,:)
+  INTEGER , ALLOCATABLE :: NbrOfSpeciesSwaps(:)  !Number of Species to be changed at wall
+  REAL    , ALLOCATABLE :: ProbOfSpeciesSwaps(:) !Probability of SpeciesSwaps at wall
+  INTEGER , ALLOCATABLE :: SpeciesSwaps(:,:,:)   !Species to be changed at wall (in, out), out=0: delete
+  LOGICAL , ALLOCATABLE :: Resample(:)           !Resample Equilibirum Distribution with reflection
 END TYPE
-TYPE(tPartAuxBC)                         :: PartAuxBC                         ! auxBC Data for Particles
+TYPE(tPartAuxBC)        :: PartAuxBC             ! auxBC Data for Particles
 
+! Boundary particle output
+LOGICAL              :: DoBoundaryParticleOutput   ! Flag set automatically if particles crossing specific 
+!                                                  ! boundaries are to be saved to .h5 (position of intersection, 
+!                                                  ! velocity, species, internal energies)
+REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:9,1:NParts) 1st index: x,y,z,vx,vy,vz,MPF,time,impact angle
+!                                                  !                2nd index: 1 to number of boundary-crossed particles
+INTEGER, ALLOCATABLE :: PartStateBoundarySpec(:)   ! Species ID of boundary-crossed particles
+INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed particles
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Boundary_Vars

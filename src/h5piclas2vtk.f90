@@ -789,7 +789,9 @@ ElemToSide  = 0
 SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
 BC          = 0
 AnalyzeSide = 0
-
+SDEALLOCATE(GlobalUniqueSideID)
+ALLOCATE(GlobalUniqueSideID(1:nSides))
+GlobalUniqueSideID(:)=-1
 SDEALLOCATE(MortarType)
 SDEALLOCATE(MortarInfo)
 SDEALLOCATE(MortarSlave2MasterInfo)
