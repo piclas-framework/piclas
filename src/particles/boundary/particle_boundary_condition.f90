@@ -68,9 +68,6 @@ USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
 USE MOD_SurfaceModel             ,ONLY: ReactiveSurfaceTreatment
 USE MOD_Particle_Analyze         ,ONLY: RemoveParticle
 USE MOD_Mesh_Vars                ,ONLY: BC
-#if defined(LSERK)
-USE MOD_TimeDisc_Vars            ,ONLY: RK_a
-#endif
 #if defined(IMPA)
 USE MOD_Particle_Vars            ,ONLY: PartIsImplicit
 USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
@@ -251,9 +248,6 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
-#if defined(LSERK)
-USE MOD_TimeDisc_Vars          ,ONLY: RK_a
-#endif
 USE MOD_Particle_Vars          ,ONLY: LastPartPos
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

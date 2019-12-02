@@ -1641,7 +1641,7 @@ SUBROUTINE SMCR_Diffusion()
 !> Calculation of diffusion on reconstructed surface with assumption of Quasi Chemical Approximation (QCA)
 !>   diffusion into equilibrium (Quasi Chemical Approximation - QCA) is performed for particles on surface
 !===================================================================================================================================
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, PlanckConst
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Vars          ,ONLY: Species, WriteMacroSurfaceValues
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo

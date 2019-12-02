@@ -375,7 +375,6 @@ SUBROUTINE PorousBoundaryRemovalProb_Pressure()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY:BoltzmannConst
 USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal, usevMPF, VarTimeStep
 USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, nPorousBC, PorousBC, SampWall
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO

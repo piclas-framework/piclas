@@ -2464,7 +2464,6 @@ SUBROUTINE GenerateNextFileInfo(TypeString,OutputTime,PreviousTime)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY: ProjectName
-USE MOD_Interpolation_Vars ,ONLY: NodeType
 #ifdef INTEL
 USE IFPORT                 ,ONLY: SYSTEM
 #endif
@@ -3096,7 +3095,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: NodeSourceExtGlobal
 USE MOD_Mesh_Vars          ,ONLY: MeshFile,nGlobalElems,offsetElem,Vdm_EQ_N
-USE MOD_Globals_Vars       ,ONLY: ProgramName,FileVersion,ProjectName
+USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,CellLocNodes_Volumes,NodeSourceExtTmp
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D

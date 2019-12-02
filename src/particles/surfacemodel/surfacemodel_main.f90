@@ -80,7 +80,6 @@ SUBROUTINE UpdateSurfModelVars()
 !>    and need coverage info for adsorption calculation (mpi routines know which sides to communicate)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles, Species, nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall, PartBound

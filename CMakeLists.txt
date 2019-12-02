@@ -38,14 +38,10 @@ IF (HOMERUN GREATER -1)
   ENDIF()
   SET (HDF5DOWNLOAD ${PICLAS_DLPATH}libs/hdf5.git )
 ELSE()
-  IF(USESSH EQUAL 0)
-    SET(PICLAS_DLPATH "git@github.com:piclas-framework")
-  ELSE()
-    SET(PICLAS_DLPATH "https://github.com/piclas-framework")
-  ENDIF()
   SET (HDF5DOWNLOAD https://bitbucket.hdfgroup.org/scm/hdffv/hdf5.git )
 ENDIF()
-SET (HDF5TAG "hdf5-1_10_0-patch1" CACHE STRING "HDF5 version tag")
+#SET (HDF5TAG "hdf5-1_10_0-patch1" CACHE STRING "HDF5 version tag")
+SET (HDF5TAG "hdf5-1_10_5" CACHE STRING "HDF5 version tag")
 
 # =========================================================================
 # Detect machine environements
@@ -423,8 +419,8 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -fdefault-double-8 -fbackslash -ffree-line-length-0 -DGNU")
   SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS}     -O3 ${PICLAS_INSTRUCTION} -finline-functions -fstack-arrays -finit-character=0")
   SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -pg -O0 ${PICLAS_INSTRUCTION} -finline-functions -fstack-arrays -finit-character=0")
-  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -fcheck=bounds,do,mem,pointer -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace  -Wall")
-  SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -fcheck=all -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace  -Wall -fsanitize=address,undefined,leak -fno-omit-frame-pointer -Wc-binding-type -Wuninitialized")
+  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -Wunused-parameter -fcheck=bounds,do,mem,pointer -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace -Wall")
+  SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -Wunused-parameter -fcheck=all -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace -Wall -fsanitize=address,undefined,leak -fno-omit-frame-pointer -Wc-binding-type -Wuninitialized")
   # add flags only for compiling not linking!
   SET (PICLAS_COMPILE_FLAGS "-xf95-cpp-input")
 
