@@ -3442,31 +3442,24 @@ CurvedElem=.FALSE.
 !END IF
 
 ! sides
-IF(DoRefMapping)THEN
-  ALLOCATE( SideType(nTotalBCSides)        &
-          , SideDistance(nTotalBCSides)    &
-          , SideIsDone(nTotalSides)        &
-          , SideNormVec(1:3,nTotalBCSides) )
-ELSE
 #if USE_MPI
-  MPISharedSize = INT((nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),SideType_Shared_Win,SideType_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,SideType_Shared_Win,IERROR)
-  SideType => SideType_Shared
-  CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),SideDistance_Shared_Win,SideDistance_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,SideDistance_Shared_Win,IERROR)
-  SideDistance => SideDistance_Shared
-  MPISharedSize = INT((3*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalSides/),SideNormVec_Shared_Win,SideNormVec_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,SideNormVec_Shared_Win,IERROR)
-  SideNormVec => SideNormVec_Shared
+MPISharedSize = INT((nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),SideType_Shared_Win,SideType_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideType_Shared_Win,IERROR)
+SideType => SideType_Shared
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),SideDistance_Shared_Win,SideDistance_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideDistance_Shared_Win,IERROR)
+SideDistance => SideDistance_Shared
+MPISharedSize = INT((3*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalSides/),SideNormVec_Shared_Win,SideNormVec_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideNormVec_Shared_Win,IERROR)
+SideNormVec => SideNormVec_Shared
 #else
-  ALLOCATE(SideType(nComputeNodeTotalSides))
-  ALLOCATE(SideDistance(nComputeNodeTotalSides))
-  ALLOCATE(SideNormVec(1:3,nComputeNodeTotalSides))
+ALLOCATE(SideType(nComputeNodeTotalSides))
+ALLOCATE(SideDistance(nComputeNodeTotalSides))
+ALLOCATE(SideNormVec(1:3,nComputeNodeTotalSides))
 #endif /*USE_MPI*/
-  ALLOCATE(SideIsDone(nComputeNodeTotalSides))
-END IF
+ALLOCATE(SideIsDone(nComputeNodeTotalSides))
 SideIsDone=.FALSE.
 
 SideType=-1
@@ -3514,17 +3507,11 @@ DO iElem=firstElem,lastElem
   DO ilocSide=1,6
     SideID = GetGlobalNonUniqueSideID(GetGlobalElemID(iElem),iLocSide)
     TrueSideID=SideID
-    flip = SideInfo_Shared(SIDE_FLIP,SideID)
-    !SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    !flip  =PartElemToSide(E2S_FLIP,ilocSide,iElem)
-    !IF (SideID.LE.0) CYCLE
-    !IF (SideIsDone(SideID)) CYCLE
-    !IF(DoRefMapping)THEN
-    !  TrueSideID=PartBCSideList(SideID)
-    !  IF(TrueSideID.EQ.-1)CYCLE
-    !ELSE
-    !  TrueSideID=SideID
-    !END IF
+    IF (SideInfo_Shared(SIDE_ID,SideID).GT.0) THEN
+      flip=0
+    ELSE
+      flip = MOD(Sideinfo_Shared(SIDE_FLIP,SideID),10)
+    END IF
     IF(.NOT.CurvedElem(iElem))THEN
       BezierControlPoints_loc(1:3,0:NGeo,0:NGeo) = BezierControlPoints3D(1:3,1:NGeo+1,1:NGeo+1,SideID)
       ! linear element
@@ -6846,7 +6833,6 @@ FUNCTION GetGlobalNonUniqueSideID(ElemID,localSideID)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Mesh_Vars       ,ONLY: offsetElem
 USE MOD_MPI_Shared_Vars ,ONLY: ElemInfo_Shared, SideInfo_Shared
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
