@@ -816,6 +816,15 @@ CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Resample'  &
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
                                 , 'Velocity (global x,y,z in [m/s]) of reflective particle boundary [$].' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp2'  &
+                                , 'Second wall temperature (in [K]) of reflective particle boundary for a temperature gradient.' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Boundary[$]-TemperatureGradientStart'  &
+                                , 'Impose a temperature gradient by supplying a start/end vector and a second wall temperature.' &
+                                , '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Boundary[$]-TemperatureGradientEnd'  &
+                                , 'Impose a temperature gradient by supplying a start/end vector and a second wall temperature.' &
+                                , '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 , 'Defining surface to be treated reactively by defining Model used '//&
                                 'for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
@@ -2146,12 +2155,17 @@ ALLOCATE(PartBound%SourceBoundName(1:nPartBound))
 ALLOCATE(PartBound%TargetBoundCond(1:nPartBound))
 ALLOCATE(PartBound%MomentumACC(1:nPartBound))
 ALLOCATE(PartBound%WallTemp(1:nPartBound))
+ALLOCATE(PartBound%WallTemp2(1:nPartBound))
+ALLOCATE(PartBound%WallTempDelta(1:nPartBound))
 ALLOCATE(PartBound%TransACC(1:nPartBound))
 ALLOCATE(PartBound%VibACC(1:nPartBound))
 ALLOCATE(PartBound%RotACC(1:nPartBound))
 ALLOCATE(PartBound%ElecACC(1:nPartBound))
 ALLOCATE(PartBound%Resample(1:nPartBound))
 ALLOCATE(PartBound%WallVelo(1:3,1:nPartBound))
+ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
+ALLOCATE(PartBound%TempGradEnd(1:3,1:nPartBound))
+ALLOCATE(PartBound%TempGradVec(1:3,1:nPartBound))
 ALLOCATE(PartBound%SurfaceModel(1:nPartBound))
 ALLOCATE(PartBound%Reactive(1:nPartBound))
 ALLOCATE(PartBound%SolidState(1:nPartBound))
@@ -2254,6 +2268,13 @@ DO iPartBound=1,nPartBound
     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
+    PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
+    IF(PartBound%WallTemp2(iPartBound).GT.0.) THEN
+      PartBound%TempGradStart(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TemperatureGradientStart',3)
+      PartBound%TempGradEnd(1:3,iPartBound)   = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TemperatureGradientEnd',3)
+      PartBound%WallTempDelta(iPartBound)   = PartBound%WallTemp2(iPartBound) - PartBound%WallTemp(iPartBound)
+      PartBound%TempGradVec(1:3,iPartBound) = PartBound%TempGradEnd(1:3,iPartBound) - PartBound%TempGradStart(1:3,iPartBound)
+    END IF
     ! check for correct surfacemodel input
     IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
       IF (.NOT.useDSMC) CALL abort(&
@@ -3320,6 +3341,11 @@ SDEALLOCATE(PartBound%SourceBoundName)
 SDEALLOCATE(PartBound%TargetBoundCond)
 SDEALLOCATE(PartBound%MomentumACC)
 SDEALLOCATE(PartBound%WallTemp)
+SDEALLOCATE(PartBound%WallTemp2)
+SDEALLOCATE(PartBound%WallTempDelta)
+SDEALLOCATE(PartBound%TempGradStart)
+SDEALLOCATE(PartBound%TempGradEnd)
+SDEALLOCATE(PartBound%TempGradVec)
 SDEALLOCATE(PartBound%TransACC)
 SDEALLOCATE(PartBound%VibACC)
 SDEALLOCATE(PartBound%RotACC)

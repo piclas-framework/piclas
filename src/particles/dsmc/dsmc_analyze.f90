@@ -246,6 +246,7 @@ USE MOD_Timedisc_Vars              ,ONLY: time,dt
 USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal, DSMC ,MacroSurfaceSpecVal
 USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis,nPorousBC, PartBound, CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars     ,ONLY: MapSurfSideToPorousBC
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 #if USE_MPI
 USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData,MapInnerSurfData
@@ -391,8 +392,10 @@ DO iSurfSide=1,SurfMesh%nSides
       END IF
       IF(nPorousBC.GT.0) THEN
         DO iPBC=1, nPorousBC
-          ! Pump capacity is already in cubic meter per second (diving by the number of iterations)
-          MacroSurfaceVal(nVarCount+iPBC,p,q,OutputCounter) = SampWall(iSurfSide)%PumpCapacity * dt / TimeSample
+          IF(MapSurfSideToPorousBC(iSurfSide).EQ.iPBC) THEN
+            ! Pump capacity is already in cubic meter per second (diving by the number of iterations)
+            MacroSurfaceVal(nVarCount+iPBC,p,q,OutputCounter) = SampWall(iSurfSide)%PumpCapacity * dt / TimeSample
+          END IF
         END DO
       END IF
       DO iSpec=1,nSpecies
