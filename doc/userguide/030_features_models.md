@@ -153,10 +153,12 @@ used, e.g.,
 
     DielectricTestCase = FishEyeLens
 
-where the following pre-defined cases are available:
+where the following pre-defined cases are available as given in table \ref{tab:dielectric_test_cases}.
+
+Table: Dielectric Test Cases \label{tab:dielectric_test_cases}
 
 | Option                       | Additional Parameters                           | Notes                                                                                                               |
-| :-------------------------:  | :----------------------:                        | :-------------------------------------------------------:                                                           |
+| :-------------------------:  | :------------------------:                        | :-------------------------------------------------------:                                                           |
 | `FishEyeLens`                | none                                            | function with radial dependence: $\varepsilon_{r}=n_{0}^{2}/(1 + (r/r_{max})^{2})^{2}$                              |
 | `Circle`                     | `DielectricRadiusValue, DielectricRadiusValueB` | Circular dielectric in x-y-direction (constant in z-direction)  with optional cut-out radius DielectricRadiusValueB |
 | `DielectricResonatorAntenna` | `DielectricRadiusValue`                         | Circular dielectric in x-y-direction (only elements with $z>0$)                                                     |
