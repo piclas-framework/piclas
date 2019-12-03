@@ -78,7 +78,7 @@ Following parameters can be used for both schemes.
 |                       |          |     construct a tighter bounding box for each side.      |
 |     BezierSampleN     |   NGeo   |  Polynomial degree to sample sides for SurfaceFlux and   |
 |                       |          |              Sampling of DSMC surface data.              |
-|   BezierNewtonAngle   |  <PI/2   | Angle to switch between Clipping and a Newton algorithm. |
+|   BezierNewtonAngle   |  $<PI/2$   | Angle to switch between Clipping and a Newton algorithm. |
 |  BezierClipTolerance  |   1e-8   |      Tolerance of Bezier-Clipping and Bezier-Newton      |
 |     BezierClipHit     |   1e-6   | Tolerance to increase sides and path during Bezier-Algo. |
 |   BezierSplitLimit    |   0.6    |    Minimum degrees of side during clipping. A larger     |
@@ -106,6 +106,66 @@ Dielectric -> type 100?
 ### Poisson's Equation
 
 To-do
+
+### Dielectric Materials
+
+Dielectric material properties can be considered by defining regions (or specific elements)
+in the computational domain, where permittivity and permeability constants for linear isotropic 
+non-lossy dielectrics are used. The interfaces between dielectrics and vacuum regions must be separated 
+by element-element interfaces due to the DGSEM (Maxwell) and HDG (Poisson) solver requirements, but
+can vary spatially within these elements.
+
+The dielectric module is activated by setting
+
+    DoDielectric = T
+
+and specifying values for the permittivity and permeability constants
+
+    DielectricEpsR = X
+    DielectricMuR = X
+
+Furthermore, the corresponding regions in which the dielectric materials are found must be defined, 
+e.g., simple boxes via
+
+    xyzDielectricMinMax  = (/0.0 , 1.0 , 0.0 , 1.0 , 0.0 , 1.0/)
+
+for the actual dielectric region (vector with 6 entries yielding $x$-min/max, $y$-min/max and 
+$z$-min/max) or the inverse (vacuum, define all elements which are NOT dielectric) by
+
+    xyzPhysicalMinMaxDielectric = (/0.0 , 1.0 , 0.0 , 1.0 , 0.0 , 1.0/)
+
+Spherical regions can be defined by setting a radius value
+
+    DielectricRadiusValue = X
+
+and special pre-defined regions (which also consider spatially varying material properties) may also be 
+used, e.g., 
+
+    DielectricTestCase = FishEyeLens
+
+where the following pre-defined cases are available:
+
+| Option                       | Additional Parameters                           | Notes                                                                                                               |
+| :-------------------------:  | :----------------------:                        | :-------------------------------------------------------:                                                           |
+| `FishEyeLens`                | none                                            | function with radial dependence: $\varepsilon_{r}=n_{0}^{2}/(1 + (r/r_{max})^{2})^{2}$                              |
+| `Circle`                     | `DielectricRadiusValue, DielectricRadiusValueB` | Circular dielectric in x-y-direction (constant in z-direction)  with optional cut-out radius DielectricRadiusValueB |
+| `DielectricResonatorAntenna` | `DielectricRadiusValue`                         | Circular dielectric in x-y-direction (only elements with $z>0$)                                                     |
+| `FH_lens`                    | none                                            | specific geometry (see `SUBROUTINE SetGeometry` for more information)                                               |
+
+For the Maxwell solver (DGSEM), the interface fluxes between vacuum and dielectric regions can
+either be conserving or non-conserving, which is selected by
+
+    DielectricFluxNonConserving = T
+
+which uses non-conserving fluxes. This is recommended for improved simulation results, as described in [@Copplestone2019b].
+When particles are to be considered in a simulation, these are generally removed from dielectric
+materials during the emission (inserting) stage, but may be allowed to exist within dielectrics by
+setting
+
+    DielectricNoParticles = F
+
+which is set true by default, hence, removing the particles.
+
 
 ## Boundary Conditions - Particle Solver
 
