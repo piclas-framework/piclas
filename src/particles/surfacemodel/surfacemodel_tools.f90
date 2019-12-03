@@ -101,7 +101,7 @@ SUBROUTINE CalcEvapPartNum()
 USE MOD_Globals_Vars           ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, surfmodel, SpecSurf
-USE MOD_Particle_Boundary_Tools,ONLY: TSURUTACONDENSCOEFF
+USE MOD_Part_Tools             ,ONLY: TSURUTACONDENSCOEFF
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_TimeDisc_Vars          ,ONLY: dt
@@ -126,7 +126,7 @@ INTEGER                          :: ElemID
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 
 DO iSpec = 1,nSpecies
-  DO iSurfSide = 1,SurfMesh%nMasterSides
+  DO iSurfSide = 1,SurfMesh%nOutputSides
 
 #if USE_LOADBALANCE
     IF(PerformLBSample) THEN
@@ -237,7 +237,7 @@ REAL                             :: Theta_req, Kfactor, S_0
 INTEGER                          :: PartBoundID
 !===================================================================================================================================
 DO iSpec=1,nSpecies
-  DO SurfSide=1,SurfMesh%nMasterSides
+  DO SurfSide=1,SurfMesh%nOutputSides
     PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
     IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
     DO q = 1,nSurfSample
@@ -281,7 +281,6 @@ SUBROUTINE CalcDesorbProb()
 !===================================================================================================================================
 !> Calculcation of desorption probability for different model (wallmodel 1 and 2)
 !===================================================================================================================================
-USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
@@ -299,7 +298,7 @@ REAL                             :: Theta, nu_des, rate, WallTemp
 REAL                             :: E_des
 INTEGER                          :: PartBoundID, iReactNum, RecombReactID, jSpec, kSpec
 !===================================================================================================================================
-DO SurfSide=1,SurfMesh%nMasterSides
+DO SurfSide=1,SurfMesh%nOutputSides
   PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
   IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
 ! special TPD (temperature programmed desorption) temperature adjustment routine
@@ -378,7 +377,6 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Species,Surfpos,I
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Boundary_vars ,ONLY: PartBound, SurfMesh
 USE MOD_Particle_Vars          ,ONLY: nSpecies
@@ -1157,7 +1155,7 @@ SUBROUTINE SMCR_AdjustMapNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,Spec
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh, SampWall

@@ -147,7 +147,6 @@ SUBROUTINE CalcXiVibPart(TVib, iSpec, XiVibPart)
 ! Calculation of the vibrational degrees of freedom for each characteristic vibrational temperature, used for chemical reactions
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PolyatomMolDSMC
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

@@ -10,7 +10,8 @@ if [ "${WHICHMPI}" == "openmpi" ]; then
   #MPIVERSION=2.1.6
   #MPIVERSION=3.1.3
   #MPIVERSION=3.1.4
-  MPIVERSION=4.0.1
+  #MPIVERSION=4.0.1
+  MPIVERSION=4.0.2
 elif [ "${WHICHMPI}" == "mpich" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
   MPIVERSION=3.2

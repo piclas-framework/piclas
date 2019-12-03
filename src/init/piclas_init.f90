@@ -292,6 +292,7 @@ USE MOD_ParticleInit,              ONLY:FinalizeParticles
 USE MOD_MacroBody_Init,            ONLY:FinalizeMacroBody
 USE MOD_TTMInit,                   ONLY:FinalizeTTM
 USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
+USE MOD_Particle_Boundary_Porous  ,ONLY:FinalizePorousBoundaryCondition
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init,               ONLY:FinalizeFPFlow
 #endif
@@ -344,6 +345,7 @@ CALL FinalizeFilter()
 #ifdef PARTICLES
 CALL FinalizeSurfaceModel()
 CALL FinalizeParticleBoundarySampling()
+CALL FinalizePorousBoundaryCondition()
 CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()

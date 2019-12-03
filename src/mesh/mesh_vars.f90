@@ -120,7 +120,8 @@ INTEGER,ALLOCATABLE :: ElemToSide(:,:,:) !< SideID    = ElemToSide(E2S_SIDE_ID,Z
 INTEGER,ALLOCATABLE :: SideToElem(:,:)   !< ElemID    = SideToElem(S2E_ELEM_ID,SideID)
                                          !< NB_ElemID = SideToElem(S2E_NB_ELEM_ID,SideID)
                                          !< locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
-INTEGER,ALLOCATABLE :: BC(:)             !< BCIndex   = BC(SideID), 1:nCSides
+INTEGER,ALLOCATABLE :: BC(:)             !< BCIndex   = BC(SideID), 1:nBCSides
+INTEGER,ALLOCATABLE :: GlobalUniqueSideID(:) !< SideInfo(SIDE_ID,iSide) = GlobalUniqueSideIDC(SideID), 1:nSides
 INTEGER,ALLOCATABLE :: BoundaryType(:,:) !< BCType    = BoundaryType(BC(SideID),BC_TYPE)
                                          !< BCState   = BoundaryType(BC(SideID),BC_STATE)
 INTEGER,ALLOCATABLE :: AnalyzeSide(:)    !< Marks, wheter a side belongs to a group of analyze sides (e.g. to a BC group)
@@ -248,6 +249,7 @@ TYPE tSide
   INTEGER                      :: BCindex         !< index in BoundaryType array!
   INTEGER                      :: flip
 #ifdef PARTICLES
+  LOGICAL                      :: InnerBCOutput   !< Logical if proc writes InnerBC information
   INTEGER                      :: BC_Alpha        !< inital value for periodic displacement before mapping in pos. bc-index range
 #endif /*PARTICLES*/
   INTEGER                      :: nMortars        !< number of slave mortar sides associated with master mortar

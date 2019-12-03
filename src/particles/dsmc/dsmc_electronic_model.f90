@@ -312,7 +312,6 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
 ! use module
   USE MOD_io_hdf5
   USE MOD_Globals
-  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,            ONLY: DSMC, SpecDSMC
   USE MOD_HDF5_Input,           ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
