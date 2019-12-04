@@ -44,7 +44,7 @@ USE MOD_Mesh,                ONLY: FinalizeMesh
 USE MOD_Particle_Mesh       ,ONLY: FinalizeParticleMesh
 #endif
 USE MOD_Mesh_Vars,           ONLY: useCurveds,NGeo,nElems,NodeCoords,offsetElem
-USE MOD_Interpolation_Vars,  ONLY: NodeTypeCL,NodeTypeVisu
+USE MOD_Interpolation_Vars,  ONLY: NodeTypeVisu
 USE MOD_Interpolation,       ONLY: GetVandermonde
 USE MOD_ChangeBasis,         ONLY: ChangeBasis3D
 USE MOD_VTK,                 ONLY: WriteDataToVTK,WriteVTKMultiBlockDataSet
@@ -789,7 +789,9 @@ ElemToSide  = 0
 SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
 BC          = 0
 AnalyzeSide = 0
-
+SDEALLOCATE(GlobalUniqueSideID)
+ALLOCATE(GlobalUniqueSideID(1:nSides))
+GlobalUniqueSideID(:)=-1
 SDEALLOCATE(MortarType)
 SDEALLOCATE(MortarInfo)
 SDEALLOCATE(MortarSlave2MasterInfo)
@@ -867,7 +869,7 @@ END ASSOCIATE
 
 DO iPart=1,nParts
   PartData(1:nPartsVar+3,iPart) = tmpPartData(iPart,1:nPartsVar+3)
-  ConnectInfo(1,iPart)=iPart-1
+  ConnectInfo(1,iPart)=iPart
 END DO
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuPart',OutputTime))//'.vtu'

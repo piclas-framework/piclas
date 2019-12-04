@@ -86,7 +86,7 @@ REAL FUNCTION QPartRot(iSpec, Temp)
 !> Calculation of rotational partition function for particle species at given temperature
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars ,ONLY: Pi, PlanckConst, BoltzmannConst
+USE MOD_Globals_Vars ,ONLY: Pi
 USE MOD_DSMC_Vars    ,ONLY: SpecDSMC, PolyatomMolDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

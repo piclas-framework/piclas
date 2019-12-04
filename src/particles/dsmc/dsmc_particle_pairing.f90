@@ -117,6 +117,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   INTEGER                       :: nPair, iPart, iLoop, nPart
   INTEGER, ALLOCATABLE          :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
 !===================================================================================================================================
+  
   IF (KeepWallParticles) THEN
     nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
   ELSE
@@ -565,61 +566,59 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
 
-IF (nPart.GT.1) THEN
-  NULLIFY(TreeNode)
+NULLIFY(TreeNode)
 
-  ALLOCATE(TreeNode)
-  ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
-  TreeNode%iPartIndx_Node(1:nPart) = 0
+ALLOCATE(TreeNode)
+ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
+TreeNode%iPartIndx_Node(1:nPart) = 0
 
-  iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-  DO iLoop = 1, nPart
-    TreeNode%iPartIndx_Node(iLoop) = iPart
-    iPart = PEM%pNext(iPart)
-    ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
-    SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) = &
-              SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + GetParticleWeight(TreeNode%iPartIndx_Node(iLoop))
-  END DO
+iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+DO iLoop = 1, nPart
+  TreeNode%iPartIndx_Node(iLoop) = iPart
+  iPart = PEM%pNext(iPart)
+  ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
+  SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) = &
+            SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + GetParticleWeight(TreeNode%iPartIndx_Node(iLoop))
+END DO
 
-  IF (ConsiderVolumePortions) THEN
-    elemVolume=GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem))
+IF (ConsiderVolumePortions) THEN
+  elemVolume=GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem))
+ELSE
+  elemVolume=GEO%Volume(iElem)
+END IF
+DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
+! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
+IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
+  ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
+  ! the side length of a cube (approximation) with same volume as the actual cell -> octree
+  IF((DSMC%MeanFreePath.LT.(GEO%CharLength(iElem))) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+    ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
+    TreeNode%PNum_Node = nPart
+    iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+    IF (DoRefMapping) THEN
+      DO iLoop = 1, nPart
+        TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,iPart)
+        iPart = PEM%pNext(iPart)
+      END DO
+    ELSE ! position in reference space [-1,1] has to be computed
+      DO iLoop = 1, nPart
+        CALL GetPositionInRefElem(PartState(1:3,iPart),TreeNode%MappedPartStates(1:3,iLoop),iElem)
+        iPart = PEM%pNext(iPart)
+      END DO
+    END IF ! DoRefMapping
+    TreeNode%NodeDepth = 1
+    TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
+    CALL AddOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
+    DEALLOCATE(TreeNode%MappedPartStates)
   ELSE
-    elemVolume=GEO%Volume(iElem)
-  END IF
-  DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
-  ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
-  IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
-    ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
-    ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-    IF((DSMC%MeanFreePath.LT.(GEO%CharLength(iElem))) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
-      ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
-      TreeNode%PNum_Node = nPart
-      iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-      IF (DoRefMapping) THEN
-        DO iLoop = 1, nPart
-          TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,iPart)
-          iPart = PEM%pNext(iPart)
-        END DO
-      ELSE ! position in reference space [-1,1] has to be computed
-        DO iLoop = 1, nPart
-          CALL GetPositionInRefElem(PartState(1:3,iPart),TreeNode%MappedPartStates(1:3,iLoop),iElem)
-          iPart = PEM%pNext(iPart)
-        END DO
-      END IF ! DoRefMapping
-      TreeNode%NodeDepth = 1
-      TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
-      CALL AddOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
-      DEALLOCATE(TreeNode%MappedPartStates)
-    ELSE
-      CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
-    END IF
-  ELSE  IF (nPart.GT.1) THEN
     CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
   END IF
+ELSE
+  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
+END IF
 
-  DEALLOCATE(TreeNode%iPartIndx_Node)
-  DEALLOCATE(TreeNode)
-END IF !nPart > 0
+DEALLOCATE(TreeNode%iPartIndx_Node)
+DEALLOCATE(TreeNode)
 
 END SUBROUTINE DSMC_pairing_octree
 
@@ -765,7 +764,7 @@ SUBROUTINE DSMC_pairing_quadtree(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, CollInf
+USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -783,55 +782,52 @@ REAL                          :: SpecPartNum(nSpecies), Volume
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
-  Volume = GEO%Volume(iElem)
-  SpecPartNum = 0.
+Volume = GEO%Volume(iElem)
+SpecPartNum = 0.
 
-  NULLIFY(TreeNode)
-  nPart = PEM%pNumber(iElem)
-  IF(nPart.GT.0) THEN
-    ALLOCATE(TreeNode)
-    ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
-    TreeNode%iPartIndx_Node(1:nPart) = 0
+NULLIFY(TreeNode)
+nPart = PEM%pNumber(iElem)
 
+ALLOCATE(TreeNode)
+ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
+TreeNode%iPartIndx_Node(1:nPart) = 0
+
+iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+
+DO iLoop = 1, nPart
+  TreeNode%iPartIndx_Node(iLoop) = iPart
+  ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
+  SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
+  iPart = PEM%pNext(iPart)
+END DO
+
+DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), Volume)
+
+! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
+IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
+  ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
+  ! the side length of a cube (approximation) with same volume as the actual cell -> octree
+  IF((DSMC%MeanFreePath.LT.GEO%CharLength(iElem)).OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+    ALLOCATE(TreeNode%MappedPartStates(1:2,1:nPart))
+    TreeNode%PNum_Node = nPart
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-
     DO iLoop = 1, nPart
-      TreeNode%iPartIndx_Node(iLoop) = iPart
-      ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
-      SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
+      CALL GeoCoordToMap2D(PartState(1:2,iPart), TreeNode%MappedPartStates(1:2,iLoop), iElem)
       iPart = PEM%pNext(iPart)
     END DO
-
-    DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), Volume)
-
-    ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
-    IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
-      ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
-      ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-      IF((DSMC%MeanFreePath.LT.GEO%CharLength(iElem)).OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
-        ALLOCATE(TreeNode%MappedPartStates(1:2,1:nPart))
-        TreeNode%PNum_Node = nPart
-        iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-        DO iLoop = 1, nPart
-          CALL GeoCoordToMap2D(PartState(1:2,iPart), TreeNode%MappedPartStates(1:2,iLoop), iElem)
-          iPart = PEM%pNext(iPart)
-        END DO
-        TreeNode%NodeDepth = 1
-        TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
-        CALL AddQuadTreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
-        DEALLOCATE(TreeNode%MappedPartStates)
-      ELSE
-        CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem), (/0.0,0.0,0.0/), 1)
-      END IF
-    ELSE IF (nPart.GT.1) THEN
-      CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem), (/0.0,0.0,0.0/), 1)
-    ELSE IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) THEN
-      CollInf%OldCollPartner(TreeNode%iPartIndx_Node(1)) = 0
-    END IF
-
-    DEALLOCATE(TreeNode%iPartIndx_Node)
-    DEALLOCATE(TreeNode)
+    TreeNode%NodeDepth = 1
+    TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
+    CALL AddQuadTreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
+    DEALLOCATE(TreeNode%MappedPartStates)
+  ELSE
+    CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem), (/0.0,0.0,0.0/), 1)
   END IF
+ELSE 
+  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem), (/0.0,0.0,0.0/), 1)
+END IF
+
+DEALLOCATE(TreeNode%iPartIndx_Node)
+DEALLOCATE(TreeNode)
 
 END SUBROUTINE DSMC_pairing_quadtree
 

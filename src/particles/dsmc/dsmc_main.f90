@@ -41,14 +41,13 @@ SUBROUTINE DSMC_main(DoElement)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, MCC_pairing_bggas, DSMC_FinalizeBGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, DSMCSumOfFormedParticles, BGGas, CollisMode
-USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC
+USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC, CollInf
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Collis           ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
-USE MOD_Particle_Vars         ,ONLY: PDM, WriteMacroVolumeValues, Symmetry2D
+USE MOD_Particle_Vars         ,ONLY: PDM, WriteMacroVolumeValues, Symmetry2D, PEM
 USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
 USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
@@ -67,7 +66,7 @@ LOGICAL,OPTIONAL  :: DoElement(nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem
+INTEGER           :: iElem, nPart
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -88,6 +87,8 @@ DO iElem = 1, nElems ! element/cell main loop
   IF(PRESENT(DoElement)) THEN
     IF (.NOT.DoElement(iElem)) CYCLE
   END IF
+  nPart = PEM%pNumber(iElem)
+  IF (nPart.LT.1) CYCLE
   IF(DSMC%CalcQualityFactors) THEN
     DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
     DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
@@ -105,14 +106,19 @@ DO iElem = 1, nElems ! element/cell main loop
       CALL MCC_pairing_bggas(iElem)
     ELSE IF(BGGas%BGGasSpecies.NE.0) THEN
       CALL DSMC_pairing_bggas(iElem)
-    ELSE IF (DSMC%UseOctree) THEN
-      IF(Symmetry2D) THEN
-        CALL DSMC_pairing_quadtree(iElem)
+    ELSE IF (nPart.GT.1) THEN
+      IF (DSMC%UseOctree) THEN
+        IF(Symmetry2D) THEN
+          CALL DSMC_pairing_quadtree(iElem)
+        ELSE
+          CALL DSMC_pairing_octree(iElem)
+        END IF
       ELSE
-        CALL DSMC_pairing_octree(iElem)
+        CALL DSMC_pairing_statistical(iElem)  ! pairing of particles per cell
       END IF
-    ELSE
-      CALL DSMC_pairing_statistical(iElem)  ! pairing of particles per cell
+    ELSE ! less than 2 particles
+      IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(PEM%pStart(iElem)) = 0
+      CYCLE ! next element
     END IF
     CALL FinalizeCalcVibRelaxProb(iElem)
     IF(DSMC%CalcQualityFactors) CALL SummarizeQualityFactors(iElem)
