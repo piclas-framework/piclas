@@ -8,26 +8,37 @@ $$ \frac{\partial f}{\partial t} + \mathbf{v}\cdot\frac{\partial f}{\partial \ma
 
 ## Particle Tracking
 
-Three different particle tracking methods are implemented in PICLas. For conventional computations on linear meshes, the following tracking algorithm is recommended:
+Three different particle tracking methods are implemented in PICLas and are selected via
 
-    TriaTracking = T
-    DoRefMapping = F
+    TrackingMethod = triatracking ! Define Method that is used for tracking of
+                                  ! particles:
+                                  ! refmapping (1): reference mapping of particle
+                                  ! position with (bi-)linear and bezier (curved)
+                                  ! description of sides. 
+                                  ! tracing (2): tracing of particle path with
+                                  ! (bi-)linear and bezier (curved) description of
+                                  ! sides.
+                                  ! triatracking (3): tracing of particle path with
+                                  ! triangle-aproximation of (bi-)linear sides.
 
-The option DoRefMapping should be disabled. The two alternative tracking routines and their options are described in the following.
+For conventional computations on (bi-, tri-) linear meshes, the following tracking algorithm is recommended:
 
-### DoRefMapping (NEEDS UPDATING)
+    TrackingMethod = triatracking
 
-    TriaTracking = F
-    DoRefMapping = T
+The two alternative tracking routines and their options are described in the following.
 
-This method is the slowest implemented method for linear grids and large particle movements. A particle is mapped into
-a element to compute the particle position
-in the reference space. This test determines in which element a particle is located. Each element has a slightly larger
+### DoRefMapping
+
+    TrackingMethod = refmapping
+
+This method is the slowest implemented method for linear grids and large particle displacements.
+A particle is mapped into a element to compute the particle position in the reference space. 
+This test determines in which element a particle is located. Each element has a slightly larger
 reference space due to tolerance. Starting from reference values >=1. the best element is found and used for the
 hosting element. In order to take boundary interactions into account, all BC faces in the halo vicinity of the element
-are checked for boundary interactions and a boundary condition is performed accordingly. This algorithm has a
-inherent self check. If a boundary condition is not detected, the particle position is located outside of all elements.
-A fall-back algorithm is used to recompute the position and boundary interaction. Periodic domains are only possible
+are checked for boundary interactions and a boundary condition is performed accordingly. This algorithm has an
+inherent self-check. If a boundary condition is not detected, the particle position is located outside of all elements.
+A fall-back algorithm is then used to recompute the position and boundary interaction. Periodic domains are only possible
 for Cartesian meshes. The particle position is used for periodic displacements.
 
 |      Option       | Values |                          Notes                          |
@@ -39,19 +50,18 @@ for Cartesian meshes. The particle position is used for periodic displacements.
 |                   |        |  can be several times the mesh size in this direction.  |
 
 
-### Tracing  (NEEDS UPDATING)
+### Tracing
 
-    TriaTracking = F
-    DoRefMapping = F
+    TrackingMethod = tracing
 
-This method traces the particles throughout the domain. The initial element is determined by computing the intersection
-between the particle-element-origin vector and each element face. If non of the six element faces are hit, the particle is
+This method traces the particle trajectory throughout the domain. The initial element is determined by computing the intersection
+between the particle-element-origin vector and each element face. If none of the six element faces are hit, the particle is
 located inside of this element. Next, the particle trajectory is traced throughout the domain. Hence, each face is checked
-for an intersection and a particle mapped accordingly into the neighbor element or perform a boundary condition. This
-algorithm has no inherent self-consistency check. For critical intersections (beginning,end of particle path or close to
-edges of faces) an additional safety check is performed by recomputing the element check and if it fails a re-localization of
-the particle. Particles traveling parallel to faces are in a undefined state and a currently removed. This prints a warning
-message. Note, the tracing on periodic meshes works only for non-mpi computations. Periodic displacement requires
+for an intersection and a particle assigned accordingly to neighbor elements or the interaction with boundary conditions occur. This
+algorithm has no inherent self-consistency check. For critical intersections (beginning or end of a particle path or if a particle is located close to
+the edges of element faces) an additional safety check is performed by recomputing the element check and if it fails a re-localization of
+the particle is required. Particles traveling parallel to element faces are in an undefined state and are currently removed from the computation. 
+This leads to a warning message. Note that tracing on periodic meshes works only for non-mpi computations. Periodic displacement requires
 additional coding.
 
 
@@ -151,6 +161,14 @@ Additionally, a wall velocity [m/s] and voltage [V] can be given
     Part-Boundary2-WallVelo=(/0,0,100/)
     Part-Boundary2-Voltage=100
 
+A linear temperature gradient across a boundary can be defined by supplying a second wall temperature and the start and end vector
+
+    Part-Boundary2-WallTemp2=500.
+    Part-Boundary2-TemperatureGradientStart=(/0.,0.,0./)
+    Part-Boundary2-TemperatureGradientEnd=(/0.,0.,1./)
+
+Between these two points the temperature will be interpolated, where the start vector corresponds to the first wall temperature, while the end vector to the second wall temperature. Beyond these position values, the first and second temperature will be used as the constant wall temperature, respectively.
+
 ### Porous Wall / Pump
 
 The porous boundary condition uses a removal probability to determine whether a particle is deleted or reflected at the boundary. The main application of the implemented condition is to model a pump, according to [@Lei2017]. It is defined by giving the number of porous boundaries and the respective boundary number (`BC=2` corresponds to the `BC_WALL` boundary defined in the previous section) on which the porous condition is.
@@ -159,6 +177,7 @@ The porous boundary condition uses a removal probability to determine whether a 
     Part-PorousBC1-BC=2
     Part-PorousBC1-Pressure=5.
     Part-PorousBC1-Temperature=300.
+    Part-PorousBC1-Type=pump
     Part-PorousBC1-PumpingSpeed=2e-9
     Part-PorousBC1-DeltaPumpingSpeed-Kp=0.1
     Part-PorousBC1-DeltaPumpingSpeed-Ki=0.0
@@ -192,7 +211,14 @@ The absolute coordinates are defined as follows for the respective normal direct
 |      y (=2)      |    (z,x)    |
 |      z (=3)      |    (x,y)    |
 
-Using the regions, multiple pumps can be defined on a single boundary.
+Using the regions, multiple pumps can be defined on a single boundary. Additionally, the BC can be used as a sensor by defining the respective type:
+
+    Part-PorousBC1-BC=3
+    Part-PorousBC1-Pressure=5.
+    Part-PorousBC1-Temperature=300.
+    Part-PorousBC1-Type=sensor
+
+Together with a region definition, a pump as well as a sensor can be defined on a single and/or multiple boundaries, allowing e.g. to determine the pressure difference between the pump and a remote area of interest.
 
 ### Surface Chemistry \label{sec:chem_reac}
 
