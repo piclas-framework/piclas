@@ -1,4 +1,15 @@
 #!/bin/bash
+
+#==============================================================================
+# title       : InstallGCC.sh
+# description : This script installs the gcc compiler with a specified version 
+#               as given below via GCCVERSION='X.X.X'
+# date        : Nov 27, 2019
+# version     : 1.0   
+# usage       : bash InstallGCC.sh
+# notes       : 
+#==============================================================================
+
 INSTALLDIR=/opt
 SOURCESDIR=/opt/Installsources
 MODULETEMPLATEDIR=/opt/Installsources/moduletemplates

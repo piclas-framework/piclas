@@ -1,0 +1,123 @@
+\documentclass[fontsize=9pt,a5paper,class=scrbook, DIV=calc]{standalone}
+
+\input{packages}
+%\input{definitions}
+\input{tikz_settings}
+
+
+
+\begin{document}
+% ----------- END OF HEADER -------------
+
+
+\def\NodeSize{6pt}
+
+
+\newcommand{\mypath}{(0.0,0.0) -- (p) -- (q) -- (r) -- (s) -- 
+  (t) -- (u) -- (v) -- (w) -- (x) -- 
+(50.0,0.0) -- (58.0,0.0) -- (66.0, 0.0)}
+
+\begin{tikzpicture}[scale=0.1,rotate=90]
+  \begin{scope}
+
+    \coordinate (a) at (6.2  , 18.5) ;
+    \coordinate (b) at (11.2 , 18.8) ;
+    \coordinate (c) at (14.6 , 19.0) ;
+    \coordinate (d) at (21.9 , 19.9) ;
+    \coordinate (e) at (28.4 , 22.5) ;
+
+    \coordinate (f) at (6.2  , 18.5+6) ;
+    \coordinate (g) at (11.2 , 18.8+6) ;
+    \coordinate (h) at (14.6 , 19.0+6) ;
+    \coordinate (i) at (21.9 , 19.9+6) ;
+    \coordinate (j) at (28.4 , 22.5+4) ;
+
+    \coordinate (k) at (8.0  , 8.80) ;
+    \coordinate (l) at (14.2 , 9.10) ;
+    \coordinate (m) at (17.9 , 10.0) ;
+    \coordinate (n) at (22.5 , 12.0) ;
+    \coordinate (o) at (27.6 , 17.6) ;
+
+    \coordinate (p) at (8.0  , 0.0) ;
+    \coordinate (q) at (16.0 , 0.0) ;
+    \coordinate (r) at (22.0 , 4.0) ;
+    \coordinate (s) at (26.5 , 6.5) ;
+    \coordinate (t) at (30.0 , 12.5) ;
+
+    \coordinate (u) at (33.1,17.2) ; % peak
+    \coordinate (v) at (36.0,12.5) ;
+    \coordinate (w) at (39.5,6.5) ;
+    \coordinate (x) at (44.0,4.0) ;
+
+    \draw[very thick,red!50!black,fill=red!25!white] (q)--(l)--(b)--(c)--(d)--(n)--(s)--(r)--(q);
+    \draw[very thick,blue!50!black,fill=blue!25!white] (q)--(p)--(k)--(a)--(f)--(g)--(h)--(i)--(j)--(e)--(o)--(t)--(s)--(n)--(d)--(c)--(b)--(l)--cycle;
+
+    \draw[circle] \mypath;
+    \draw[black] (0.0,8.5) -- (k) -- (l) -- (m) -- (n) -- (o) -- (32.2,19.7) -- (38.4,17.6) -- (43.5,12.0) -- (48.1,10.0) -- (51.8, 9.1) -- (58.0, 8.8) -- (66.0,8.5);
+    \draw[black]  (0.0 , 17.3)   -- (a) -- (b) -- (c) -- (d) -- (e) -- (35.0 , 25.0) -- (37.6   , 22.5) -- (44.1 , 19.9) -- (51.4 , 19.0) -- (54.8 , 18.8) -- (59.8 , 18.5) -- (66.0 , 17.3);
+    \draw[black] (0.0 , 17.3+7) -- (f) -- (g) -- (h) -- (i) -- (j) -- (28.4 , 22.5+4) -- (35.0 , 25.0+2.5) ;
+    \draw (0.0,30.0) -- (6.2,30.0) -- (11.2,30.0) -- (14.6,30.0) -- (21.9,30.0) -- (28.4,30.0) -- (35.0,30.0) -- (37.6,30.0) -- (44.1,30.0) -- (51.4,30.0) -- (54.8,30.0) -- (59.8,30.0) -- (66.0,30.0);
+    \draw ( 0.0, 0.0) -- ( 0.0, 8.5) -- ( 0.0,17.3) -- ( 0.0,30.0);
+    \draw[black] ( 8.0, 0.0) -- ( 8.0, 8.8) -- (a) -- ( 6.2,30.0);
+    \draw (16.0, 0.0) -- (14.2, 9.1) -- (11.2,18.8) -- (11.2,30.0);
+    \draw[black] (r) -- (17.9,10.0) -- (14.6,19.0) -- (14.6,30.0);
+    \draw (26.5, 6.5) -- (22.5,12.0) -- (21.9,19.9) -- (21.9,30.0);
+    \draw (t) -- (27.6,17.6) -- (28.4,22.5) -- (28.4,30.0);
+    \draw (u) -- (32.2,19.7) -- (35.0,25.0) -- (35.0,30.0);
+    \draw (v) -- (38.4,17.6) -- (37.6,22.5) -- (37.6,30.0);
+    \draw (w) -- (43.5,12.0) -- (44.1,19.9) -- (44.1,30.0);
+    \draw (x) -- (48.1,10.0) -- (51.4,19.0) -- (51.4,30.0);
+    \draw (50.0, 0.0) -- (51.8, 9.1) -- (54.8,18.8) -- (54.8,30.0);
+    \draw[black] (58.0, 0.0) -- (58.0, 8.8) -- (59.8,18.5) -- (59.8,30.0);
+    \draw (66.0, 0.0) -- (66.0, 8.5) -- (66.0,17.3) -- (66.0,30.0);
+  \end{scope}
+
+  \begin{scope}
+    \clip \mypath |- (0,-2) -- cycle;
+    \draw[line width=1.5mm,dashed] \mypath;
+  \end{scope}
+
+  \node[circle , white , fill=red , inner sep=0pt , minimum size=\NodeSize]  at (14.5 , 14.) {\textbf{0}};
+  \node[circle , white , fill=red , inner sep=0pt , minimum size=\NodeSize]  at (17.5 , 5) {\textbf{1}};
+  \node[circle , white , fill=red , inner sep=0pt , minimum size=\NodeSize]  at (19   , 15.5) {\textbf{2}};
+  \node[circle , white , fill=red , inner sep=0pt , minimum size=\NodeSize]  at (22   , 7.5) {\textbf{3}};
+
+
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (a) {a};
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (b) {b};
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (c) {c};
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (d) {d};
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (e) {e};
+%
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (f) {f};
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (g) {g};
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (h) {h};
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (i) {i};
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (j) {j};
+%
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (k) {k};
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (l) {l};
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (m) {m};
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (n) {n};
+%  \node[circle , white , fill=black , inner sep=0pt , minimum size=\NodeSize] at (o) {o};
+%
+%  \node[circle , white , fill=red   , inner sep=0pt , minimum size=\NodeSize] at (p) {p};
+%  \node[circle , white , fill=red   , inner sep=0pt , minimum size=\NodeSize] at (q) {q};
+%  \node[circle , white , fill=red   , inner sep=0pt , minimum size=\NodeSize] at (r) {r};
+%  \node[circle , white , fill=red   , inner sep=0pt , minimum size=\NodeSize] at (s) {s};
+%  \node[circle , white , fill=red   , inner sep=0pt , minimum size=\NodeSize] at (t) {t};
+
+
+%  \begin{scope}[yshift=3cm]
+%    \draw[very thick,red!50!black,fill=red!25!white] (q)--(l)--(m)--(r)--(q);
+%    %\draw[very thick,blue!50!black,fill=blue!25!white] (q)--(p)--(k)--(a)--(f)--(g)--(h)--(i)--(j)--(e)--(o)--(t)--(s)--(n)--(d)--(c)--(b)--(l)--cycle;
+%  \end{scope}
+
+\end{tikzpicture}
+
+
+
+
+
+% ----------- FOOTER -------------
+\end{document}

@@ -30,7 +30,17 @@ system. In a second step, the *gitlab-runner* program is installed and the setup
 described.
 
 ### Required Installation of Software on Clean Ubuntu Setup (18.04)
-Latest test: on ubuntu (18.04), 3 Jul 2019
+Latest tests on 
+
+  * Ubuntu (18.04), 3 Jul 2019
+  * Ubuntu server (18.04.3 LTS), 19 Nov 2019
+
+The following packages can be installed automatically by using the script located at `./tools/Setup_ModuleEnv/InstallPackagesReggie.sh`.
+The system inquiries can be skipped by forcing `yes` as input via
+
+    yes | ./InstallPackagesRe
+
+The script contains the following packages
 
 ```
 # Check for updates
@@ -60,7 +70,7 @@ sudo apt-get install libstdc++5
 sudo apt-get install gzip gimp htop meld gnuplot gnuplot-x11 vlc okular ddd gmsh unzip
 sudo apt-get install openvpn openssl openssh-client
 
-# for FLEXI
+# for FLEXI/PICLas
 sudo apt-get install liblapack3 liblapack-dev zlib1g-dev exuberant-ctags
 
 # for documentation
@@ -73,6 +83,11 @@ sudo apt-get install hdfview
 # Install libs for reggie
 sudo apt-get install python-h5py
 
+```
+
+When no module environment is to be used on the server, the following packages are also required
+
+```
 # Further libs
 sudo apt-get install hdf5-tools libhdf5-dev # this is maybe not required (do not install them if it works without these packages)
 
@@ -104,6 +119,9 @@ cd ../..
 rm hdf5-1.10.5.tar.bz2
 ```
 
+otherwise a module environment can be installed at this point, see
+`~/Flexi/piclas/tools/Setup_ModuleEnv/README.txt`, which is explained in detail in Chapter \ref{chap:tools} under Section \ref{sec:tools_module_env}.
+
 When no module environment is to be used on the server, the following commands must be places in the
 *.gitlab-ci.yml* file:
 
@@ -122,11 +140,20 @@ before_script:
   - export CMAKE_LIBRARY_PATH=/opt/hdf5/1.10.5/lib:$CMAKE_LIBRARY_PAT
 ```
 
+otherwise, the correct environment must be loaded by adding the following in `/etc/profile`
+```
+# Default modules
+module load gcc/9.2.0  cmake/3.15.3-d  openmpi/4.0.1/gcc/9.2.0  hdf5/1.10.5/gcc/9.2.0/openmpi/4.0.1
+```
+
 NOTE: The stack size limit has been removed here by `ulimit -s unlimited`, which might be required
 by memory consuming programs
 
 ### Installation Steps for Gitlab Runners 
-Latest test: on ubuntu (18.04), 3 Jul 2019
+Latest tests on 
+
+  * Ubuntu (18.04) with gitlab-runner 10.5.0 (10.5.0), 3 Jul 2019
+  * Ubuntu server (18.04.3 LTS) with gitlab-runner 10.5.0 (10.5.0), 19 Nov 2019
 
 1. Install gitlab-runner from ubuntu packages (choose old version to avoid problems https://gitlab.com/gitlab-org/gitlab-runner/issues/1379)
    This creates the user gitlab-runner and a home directory (for 10.5 in /var/lib/gitlab-runner/)
@@ -140,7 +167,9 @@ Latest test: on ubuntu (18.04), 3 Jul 2019
     ```
     sudo gitlab-runner start
     ```
-3. Register a runner using a shell executor (follow information in official guideline, varies slightly from version to version), on gitlab see `Settings` -> `CI / CD Settings` -> `Runners` (registration token during setup)
+3. Register a runner using a shell executor (follow the information in the official guideline as it 
+   can vary slightly from version to version), on gitlab see `Settings` $\rightarrow$ `CI / CD Settings` 
+   $\rightarrow$ `Runners` (registration token during setup)
     ```
     sudo gitlab-runner register
     ```
