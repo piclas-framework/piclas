@@ -83,12 +83,6 @@ externalField      = externalField*ScaleExternalField
 DoInterpolation    = GETLOGICAL('PIC-DoInterpolation')
 useBGField         = GETLOGICAL('PIC-BG-Field')
 
-IF (useBGField) THEN
-  CalcBField = GETLOGICAL('PIC-CalcBField')
-ELSE
-  CalcBField = .FALSE.
-END IF
-
 ! Variable external field
 useVariableExternalField = .FALSE.
 FileNameVariableExternalField=GETSTR('PIC-curvedexternalField')     ! old variable name (for backward compatibility)
@@ -187,7 +181,7 @@ USE MOD_PICInterpolation_Vars  ,ONLY: CalcBField
 USE MOD_Interpolation_Vars     ,ONLY: BGField
 USE MOD_SuperB_Vars            ,ONLY: TimeDepCoil, nTimePoints, BGFieldTDep
 USE MOD_TimeDisc_Vars          ,ONLY: Time, TEnd
-USE MOD_HDF5_Output_Tools      ,ONLY: WriteBFieldToHDF5
+USE MOD_HDF5_Output_Tools      ,ONLY: WriteBGFieldToHDF5
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -219,7 +213,7 @@ IF (CalcBField) THEN
     ! Interpolate the Background field linear between two timesteps
     BGField(:,:,:,:,:) = BGFieldTDep(:,:,:,:,:,iTime) + (BGFieldTDep(:,:,:,:,:,iTime) - BGFieldTDep(:,:,:,:,:,iTime+1)) &
                          / timestep * (Time - iTime * timestep)
-    ! CALL WriteBFieldToHDF5(Time)
+    ! CALL WriteBGFieldToHDF5(Time)
   ENDIF
 END IF
 

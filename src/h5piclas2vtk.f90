@@ -102,7 +102,7 @@ LOGICAL                        :: VisuSource, DGSourceExists, skip, DGSolutionEx
 CHARACTER(LEN=40)              :: DefStr
 INTEGER                        :: iArgsStart
 LOGICAL                        :: MeshInitFinished, ReadMeshFinished
-LOGICAL                        :: VisuParticles, PartDataExists, BFieldExists
+LOGICAL                        :: VisuParticles, PartDataExists, BGFieldExists
 INTEGER                        :: TimeStampLength
 !===================================================================================================================================
 CALL SetStackSizeUnlimited()
@@ -281,22 +281,22 @@ MeshInitFinished = .FALSE.
 DO iArgs = iArgsStart,nArgs
   InputStateFile = Args(iArgs)
   ! Check if the argument is a valid .h5 file
-  IF(.NOT.ISVALIDHDF5FILE(InputStateFile)) THEN
-    CALL CollectiveStop(__STAMP__,&
-      'ERROR - Please supply only .h5 files after parameter file.')
-  END IF
+  ! IF(.NOT.ISVALIDHDF5FILE(InputStateFile)) THEN
+  !   CALL CollectiveStop(__STAMP__,&
+  !     'ERROR - Please supply only .h5 files after parameter file.')
+  ! END IF
 
   SWRITE(UNIT_stdOut,'(132("="))')
   SWRITE(UNIT_stdOut,'(A,I3,A,I3,A)') 'Processing state ',iArgs-iArgsStart+1,' of ',nArgs-iArgsStart+1,'...'
 
   ! Open .h5 file
-  DGSolutionExists = .FALSE.; ElemDataExists = .FALSE.; SurfaceDataExists = .FALSE.; BFieldExists = .FALSE.
+  DGSolutionExists = .FALSE.; ElemDataExists = .FALSE.; SurfaceDataExists = .FALSE.; BGFieldExists = .FALSE.
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL DatasetExists(File_ID,'DG_Solution',DGSolutionExists)
   CALL DatasetExists(File_ID,'ElemData',ElemDataExists)
   CALL DatasetExists(File_ID,'SurfaceData',SurfaceDataExists)
   CALL DatasetExists(File_ID,'PartData',PartDataExists)
-  CALL DatasetExists(File_ID,'BField',BFieldExists)
+  CALL DatasetExists(File_ID,'BGField',BGFieldExists)
 
   ! === DG_Solution ================================================================================================================
   ! Read in parameters from the State file
@@ -518,8 +518,8 @@ DO iArgs = iArgsStart,nArgs
     END IF
   END IF
   ! === BField =====================================================================================================================
-  IF(BFieldExists) THEN
-    CALL ConvertBField(InputStateFile,ReadMeshFinished,NVisu,NodeTypeVisuOut)
+  IF(BGFieldExists) THEN
+    CALL ConvertBGField(InputStateFile,ReadMeshFinished,NVisu,NodeTypeVisuOut)
   END IF
 END DO ! iArgs = 2, nArgs
 
@@ -1173,7 +1173,7 @@ SDEALLOCATE(SideToSurfSide)
 END SUBROUTINE BuildSurfMeshConnectivity
 
 
-SUBROUTINE ConvertBField(InputStateFile,ReadMeshFinished,NVisu,NodeTypeVisuOut)
+SUBROUTINE ConvertBGField(InputStateFile,ReadMeshFinished,NVisu,NodeTypeVisuOut)
 !===================================================================================================================================
 ! Subroutine to write 3D point data to VTK format
 !===================================================================================================================================
@@ -1214,7 +1214,7 @@ CHARACTER(LEN=255)              :: FileString_BField, MeshFile
 !===================================================================================================================================
 ! 1.) Open given file to get the number of elements, the order and the name of the mesh file
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-CALL GetDataProps('BField',nVar_State,N_State,nElems_State,NodeType_State)
+CALL GetDataProps('BGField',nVar_State,N_State,nElems_State,NodeType_State)
 CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 
@@ -1259,7 +1259,7 @@ ASSOCIATE (&
       offsetElem => INT(offsetElem,IK),&
       N_State    => INT(N_State,IK),&
       nElems     => INT(nElems,IK)    )
-  CALL ReadArray('BField',5,(/nVar_State,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5,RealArray=U)
+  CALL ReadArray('BGField',5,(/nVar_State,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5,RealArray=U)
 END ASSOCIATE
 
 CALL CloseDataFile()
@@ -1280,9 +1280,9 @@ DO iElem = 1,nElems
 END DO
 
 ! Write solution to vtk
-FileString_BField=TRIM(ProjectName)//'_BField.vtu'
+FileString_BField=TRIM(ProjectName)//'_BGField.vtu'
 Coords_BField_p => Coords_BField(:,:,:,:,1:iDG)
 U_Visu_p => U_Visu(:,:,:,:,1:iDG)
 CALL WriteDataToVTK(nVar_State,NVisu,iDG,StrVarNames,Coords_BField_p,U_Visu_p,TRIM(FileString_BField),dim=3,DGFV=0)
 
-END SUBROUTINE ConvertBField
+END SUBROUTINE ConvertBGField

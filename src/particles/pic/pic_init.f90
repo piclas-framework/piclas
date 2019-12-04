@@ -72,16 +72,6 @@ CALL prms%CreateRealArrayOption('PIC-externalField'           , 'TODO-DEFINE-PAR
                                                                 'maxwell-solver-field', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
 CALL prms%CreateRealOption(     'PIC-scaleexternalField'      , 'TODO-DEFINE-PARAMETER', '1.0')
 
-CALL prms%CreateLogicalOption(  'PIC-BG-Field'                , 'Activates the usage of a background field, read-in from file '//&
-                                                                '(PIC-BGFileName=BField.h5) or calculated from parameters '//&
-                                                                '(PIC-CalcBField = T)', '.FALSE.')
-CALL prms%CreateStringOption(   'PIC-BGFileName'              , 'File name for the background field ([character].h5)')
-CALL prms%CreateIntOption(      'PIC-NBG'                     , 'Polynomial degree that shall be used for the background field '//&
-                                                                'during simulation (can be different to the read-in file)', '1')
-CALL prms%CreateRealOption(     'PIC-BGFieldScaling'          , 'Scaling of the read-in background field','1.')
-CALL prms%CreateLogicalOption(  'PIC-CalcBField'              , 'Calculates the background field from parameters supplied by '//&
-                                                                'the user (coil and magnet geometries)','.FALSE.')
-
 CALL prms%CreateStringOption(   'PIC-curvedexternalField'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'File to curved external field data.','none')
 CALL prms%CreateStringOption(   'PIC-variableexternalField'   , 'TODO-DEFINE-PARAMETER\n'//&
