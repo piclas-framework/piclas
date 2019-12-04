@@ -186,7 +186,7 @@ SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,Dis
 USE MOD_PreProc
 USE MOD_Globals,              ONLY:abort,UNIT_stdOut
 #if USE_MPI
-USE MOD_Globals,              ONLY:MPI_COMM_WORLD,mpiroot
+USE MOD_Globals,              ONLY:mpiroot
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars,            ONLY:Elem_xGP
 ! IMPLICIT VARIABLE HANDLING

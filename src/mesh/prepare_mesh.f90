@@ -844,7 +844,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
 USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nBCSides,nSides
 USE MOD_Mesh_Vars        ,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
-USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
+USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob,GlobalUniqueSideID
 USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
 #if USE_MPI
 USE MOD_MPI_vars
@@ -896,6 +896,9 @@ DO iElem=1,nElems
       SideToElem(S2E_FLIP,aSide%SideID)            = aSide%Flip
     END IF
     BC(aSide%sideID)=aSide%BCIndex
+#ifdef PARTICLES
+    GlobalUniqueSideID(aSide%sideID)=aSide%Ind
+#endif /*PARTICLES*/
   END DO ! LocSideID
 END DO ! iElem
 

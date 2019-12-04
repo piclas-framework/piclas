@@ -41,7 +41,7 @@ USE MOD_Globals           ,ONLY: abort
 USE MOD_Equation_vars     ,ONLY: c
 USE MOD_Particle_Vars     ,ONLY: PartState,Species,PartSpecies
 USE MOD_Particle_Analyze  ,ONLY: PartIsElectron
-USE MOD_Globals_Vars      ,ONLY: BoltzmannConst,ElementaryCharge,ElectronMass
+USE MOD_Globals_Vars      ,ONLY: ElementaryCharge,ElectronMass
 USE MOD_SurfaceModel_Vars ,ONLY: Adsorption
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
