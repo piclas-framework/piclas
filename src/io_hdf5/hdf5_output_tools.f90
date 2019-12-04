@@ -57,7 +57,7 @@ USE MOD_PreProc
 USE MOD_Dielectric_Vars ,ONLY: DielectricGlobal,DielectricEps
 USE MOD_Dielectric_Vars ,ONLY: DielectricMu,isDielectricElem,ElemToDielectric
 USE MOD_Mesh_Vars       ,ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars    ,ONLY: ProgramName,FileVersion,ProjectName
+USE MOD_Globals_Vars    ,ONLY: ProjectName
 USE MOD_io_HDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -144,7 +144,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_PML_Vars     ,ONLY: PMLzetaGlobal,PMLzeta0,PMLzeta,isPMLElem,ElemToPML
 USE MOD_Mesh_Vars    ,ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars ,ONLY: ProgramName,FileVersion,ProjectName
+USE MOD_Globals_Vars ,ONLY: ProjectName
 USE MOD_io_HDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -235,7 +235,7 @@ SUBROUTINE WriteQDSToHDF5(OutputTime,PreviousTime)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars    ,ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars ,ONLY: ProgramName,FileVersion,ProjectName
+USE MOD_Globals_Vars ,ONLY: ProjectName
 USE MOD_io_HDF5
 USE MOD_QDS_DG_Vars  ,ONLY: nQDSElems,QDSSpeciesMass,QDSMacroValues
 ! IMPLICIT VARIABLE HANDLING

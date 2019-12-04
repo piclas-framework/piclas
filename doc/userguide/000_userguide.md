@@ -28,7 +28,7 @@ link-citations: true
 
 # Introduction
 
- [**PICLas**](http://https://github.com/piclas-framework/piclas)  is a three-dimensional simulation
+ [**PICLas**](https://github.com/piclas-framework/piclas)  is a three-dimensional simulation
  framework for Particle-in-Cell, Direct Simulation Monte Carlo and other particle methods that can be coupled for
  the simulation of collisional plasma flows.
  It features a high-order discontinuous 

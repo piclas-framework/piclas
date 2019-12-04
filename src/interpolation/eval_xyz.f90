@@ -82,7 +82,6 @@ REAL,INTENT(OUT)    :: U_Out(1:NVar)                         !< Interpolated sta
 ! LOCAL VARIABLES
 INTEGER             :: i,j,k
 REAL                :: xi(3)
-REAL, PARAMETER     :: EPSONE=1.00000001
 REAL                :: L_xi(3,0:PP_N), L_eta_zeta
 REAL                :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)

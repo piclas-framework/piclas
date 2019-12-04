@@ -756,7 +756,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   SurfDistRecvBuf(iProc)%content_int = 0
 END DO ! iProc
 
-IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner BCs on SlaveSide
+IF(SurfMesh%nSides.GT.SurfMesh%nOutputSides) THEN ! There are reflective inner BCs on SlaveSide
   DO iSide=nBCSides+1,nSides
     IF(BC(iSide).EQ.0) CYCLE
     IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
@@ -784,7 +784,7 @@ IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner B
 END IF
 
 ! assign bond order to surface atoms in the surfacelattice for halo sides
-DO iSurfSide = SurfMesh%nMasterSides+1,SurfMesh%nTotalSides
+DO iSurfSide = SurfMesh%nOutputSides+1,SurfMesh%nTotalSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%SurfaceModel(PartboundID).NE.3) CYCLE
@@ -823,7 +823,6 @@ SUBROUTINE MapHaloInnerToOriginInnerSurf(IntDataIN,RealDataIN,AddFlag,Reverse)
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh,nSurfSample,PartBound
 USE MOD_Mesh_Vars              ,ONLY: nBCSides,nSides,BC
-USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -851,14 +850,14 @@ ELSE
   locReverse = .FALSE.
 END IF
 
-IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner BCs on SlaveSide
+IF(SurfMesh%nSides.GT.SurfMesh%nOutputSides) THEN ! There are reflective inner BCs on SlaveSide
   DO iSide=nBCSides+1,nSides
     IF(BC(iSide).EQ.0) CYCLE
     IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
-      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1) THEN ! SlaveSide
+      TargetHaloSide = SurfMesh%innerBCSideToHaloMap(iSide)
+      IF(TargetHaloSide.NE.-1) THEN ! SlaveSide
         DO q=1,nSurfSample
           DO p=1,nSurfSample
-            TargetHaloSide = SurfMesh%innerBCSideToHaloMap(iSide)
             SurfSideID=SurfMesh%SideIDToSurfID(iSide)
             SurfSideHaloID=SurfMesh%SideIDToSurfID(TargetHaloSide)
             IF (locReverse) THEN
