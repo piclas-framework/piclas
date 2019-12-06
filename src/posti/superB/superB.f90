@@ -31,9 +31,9 @@ USE MOD_Output                ,ONLY: InitOutput
 USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation
 USE MOD_IO_HDF5               ,ONLY: DefineParametersIO
 USE MOD_Output                ,ONLY: DefineParametersOutput
-USE MOD_Mesh                  ,ONLY: DefineParametersMesh
+USE MOD_Mesh                  ,ONLY: DefineParametersMesh,FinalizeMesh
 USE MOD_Equation              ,ONLY: DefineParametersEquation
-USE MOD_Interpolation_Vars    ,ONLY: BGField
+USE MOD_Interpolation_Vars    ,ONLY: BGField,BGFieldAnalytic
 USE MOD_Mesh                  ,ONLY: InitMesh
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType
@@ -115,19 +115,24 @@ CALL InitGlobals()
 CALL InitInterpolation()
 CALL InitEquation()
 
-CALL InitMesh(0)
+CALL InitMesh(3) ! 0: only read and build Elem_xGP,
+                 ! 1: as 0 + build connectivity
+                 ! 2: as 1 + calc metrics
+                 ! 3: as 2 but skip InitParticleMesh
 #ifdef PARTICLES
 InterpolationType = 'particle_position'
 #endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the background B-field via SuperB
 !-----------------------------------------------------------------------------------------------------------------------------------
-CALL SuperB()
+CALL SuperB(1) ! 1: Standalone, 2: Called from PICLas
 
 ! Deallocation of BGField
 SDEALLOCATE(BGField)
+SDEALLOCATE(BGFieldAnalytic)
 ! Finalize SuperB
 CALL FinalizeSuperB()
+CALL FinalizeMesh()
 
 SystemTime=PICLASTIME()
 SWRITE(UNIT_stdOut,'(132("="))')

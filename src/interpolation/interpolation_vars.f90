@@ -52,15 +52,16 @@ CHARACTER(LEN=255),PARAMETER :: NodeTypeVISU = 'VISU'                     !< equ
 !==================================================================================================================================
 ! (Magnetic) background field
 !==================================================================================================================================
-INTEGER          :: NBG                !< Polynomial degree of BG-Field
-INTEGER          :: BGType             !< Type of BG-Field (Electric,Magnetic,Both)
-INTEGER          :: BGDataSize         !< Type of BG-Field (Electric,Magnetic,Both)
-REAL,ALLOCATABLE :: BGField(:,:,:,:,:) !< BGField data (1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems)
-REAL,ALLOCATABLE :: BGField_xGP(:)     !< Gauss point coordinates
-REAL,ALLOCATABLE :: BGField_wGP(:)     !< GP integration weights
-REAL,ALLOCATABLE :: BGField_wBary(:)   !< barycentric weights
-LOGICAL          :: BGFieldVTKOutput   !< Output the background field in VTK data format
-REAL,ALLOCATABLE :: PsiMag(:,:,:,:)    !< Magnetic potential [1:PP_N,1:PP_N,1:PP_N,1:nElems]
+INTEGER          :: NBG                        !< Polynomial degree of BG-Field
+INTEGER          :: BGType                     !< Type of BG-Field (Electric,Magnetic,Both)
+INTEGER          :: BGDataSize                 !< Type of BG-Field (Electric,Magnetic,Both)
+REAL,ALLOCATABLE :: BGField(:,:,:,:,:)         !< BGField numerical solution (1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems)
+REAL,ALLOCATABLE :: BGFieldAnalytic(:,:,:,:,:) !< BGField analytic solution (1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems)
+REAL,ALLOCATABLE :: BGField_xGP(:)             !< Gauss point coordinates
+REAL,ALLOCATABLE :: BGField_wGP(:)             !< GP integration weights
+REAL,ALLOCATABLE :: BGField_wBary(:)           !< barycentric weights
+LOGICAL          :: BGFieldVTKOutput           !< Output the background field in VTK data format
+REAL,ALLOCATABLE :: PsiMag(:,:,:,:)            !< Magnetic potential [1:PP_N,1:PP_N,1:PP_N,1:nElems]
 !===================================================================================================================================
 
 LOGICAL           :: InterpolationInitIsDone = .FALSE. !< Flag whether the initialization has been completed or not

@@ -26,7 +26,7 @@ PUBLIC :: SuperB
 
 CONTAINS
 
-SUBROUTINE SuperB()
+SUBROUTINE SuperB(mode)
 !===================================================================================================================================
 !> Routines for the calculation of magnetic fields of different permanent magnets and coils. Possibility to output the geometry
 !> of the coil/magnet as a separate VTK file for visualization. Background field is stored in separate HDF5 file and can be utilized
@@ -40,8 +40,8 @@ USE MOD_SuperB_Vars
 USE MOD_Preproc               ,ONLY: PP_N
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Interpolation_Vars    ,ONLY: NBG, BGType, BGField, BGFieldVTKOutput, BGDataSize, PsiMag
-USE MOD_HDF5_Output_Tools     ,ONLY: WriteBFieldToHDF5
+USE MOD_Interpolation_Vars    ,ONLY: NBG, BGType, BGField, BGFieldAnalytic, BGFieldVTKOutput, BGDataSize, PsiMag
+USE MOD_HDF5_Output_Tools     ,ONLY: WriteBFieldToHDF5,WriteBFieldAnalyticToHDF5
 USE MOD_SuperB_Init           ,ONLY: InitializeSuperB
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType
@@ -52,6 +52,8 @@ USE MOD_Interpolation_Vars    ,ONLY: xGP, wBary
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN) :: mode ! 1: Standalone
+                           ! 2: Called from PICLas
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -61,20 +63,25 @@ INTEGER                       :: iMagnet, iCoil, iTimePoint
 REAL                          :: timestep
 !===================================================================================================================================
 ! Initialization of SuperB
-CALL InitializeSuperB()
+CALL InitializeSuperB(mode)
 
 ! Allocate and nullify the B-Field and the magnetic potential
-ALLOCATE(BGField(1:3       , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
-ALLOCATE(BFieldPermMag(1:3 , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
-ALLOCATE(PsiMag(0:PP_N     , 0:PP_N , 0:PP_N , 1:nElems))
-ALLOCATE(MagnetFlag(0:PP_N , 0:PP_N , 0:PP_N , 1:nElems))
-PsiMag = 0
-BGField = 0
-MagnetFlag = 0
+ALLOCATE(BGField(        1:3    , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
+ALLOCATE(BGFieldAnalytic(1:3    , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
+ALLOCATE(BFieldPermMag(  1:3    , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
+ALLOCATE(PsiMag(         0:PP_N , 0:PP_N , 0:PP_N , 1:nElems))
+ALLOCATE(MagnetFlag(     0:PP_N , 0:PP_N , 0:PP_N , 1:nElems))
+PsiMag          = 0
+BGField         = 0
+BGFieldAnalytic = 0
+MagnetFlag      = 0
+
 ! Setting the background field type, used in pic_interpolation.f90
 BGType = 2
+
 ! Datasize not utilized so far but might be required for other interpolation types (e.g. particle_position)
 BGDataSize = 3
+
 ! Background field order same as rest
 NBG = PP_N
 
@@ -196,6 +203,9 @@ ELSE
   END IF
   BGField = BGField + BFieldPermMag
   CALL WriteBFieldToHDF5()
+  IF(DoCalcErrorNormsSuperB)THEN
+    CALL WriteBFieldAnalyticToHDF5()
+  END IF ! DoCalcErrorNormsSuperB
 END IF
 
 SDEALLOCATE(PsiMag)

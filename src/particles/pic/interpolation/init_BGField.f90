@@ -79,7 +79,7 @@ SWRITE(UNIT_stdOut,'(A)')' INIT BackGround-Field'
 ! Check whether the background field is to be calculated or directly supplied in a .h5 file
 IF (CalcBField) THEN
   ! Calculate the background B-field via SuperB
-  CALL SuperB()
+  CALL SuperB(2) ! 1: Standalone, 2: Called from PICLas
 ELSE
   ! Load background field from file
   BGFileName = GETSTR('PIC-BGFileName')
@@ -232,7 +232,7 @@ SUBROUTINE FinalizeBackgroundField
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Interpolation_Vars, ONLY:BGField_xGP,BGField_wGP,BGField_wBary,BGField
+USE MOD_Interpolation_Vars, ONLY:BGField_xGP,BGField_wGP,BGField_wBary,BGField,BGFieldAnalytic
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -243,6 +243,7 @@ USE MOD_Interpolation_Vars, ONLY:BGField_xGP,BGField_wGP,BGField_wBary,BGField
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(BGField)
+SDEALLOCATE(BGFieldAnalytic)
 SDEALLOCATE(BGField_xGP)
 SDEALLOCATE(BGField_wGP)
 SDEALLOCATE(BGField_wBary)
