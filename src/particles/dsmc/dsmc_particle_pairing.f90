@@ -481,7 +481,8 @@ DO iPair = 1, nPair
         PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
         Coll_pData(iPair)%CRela2 = (PartState(6,Coll_pData(iPair)%iPart_p1) - PartState(6,Coll_pData(iPair)%iPart_p2))**2
         PartMPF(Coll_pData(iPair)%iPart_p1) = &
-                            CalcRadWeightMPF(PartState(2,Coll_pData(iPair)%iPart_p1),cSpec1,Coll_pData(iPair)%iPart_p1)
+                            CalcRadWeightMPF(PartState(2,Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p1) &
+                            ,Coll_pData(iPair)%iPart_p1)
       END IF
     END IF
   END IF
