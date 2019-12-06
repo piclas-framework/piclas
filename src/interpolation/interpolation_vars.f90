@@ -58,7 +58,6 @@ INTEGER          :: BGDataSize                 !< Type of BG-Field (Electric,Mag
 REAL,ALLOCATABLE :: BGField(:,:,:,:,:)         !< BGField numerical solution (1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems)
 REAL,ALLOCATABLE :: BGFieldAnalytic(:,:,:,:,:) !< BGField analytic solution (1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems)
 REAL,ALLOCATABLE :: BGField_xGP(:)             !< Gauss point coordinates
-REAL,ALLOCATABLE :: BGField_wGP(:)             !< GP integration weights
 REAL,ALLOCATABLE :: BGField_wBary(:)           !< barycentric weights
 LOGICAL          :: BGFieldVTKOutput           !< Output the background field in VTK data format
 REAL,ALLOCATABLE :: PsiMag(:,:,:,:)            !< Magnetic potential [1:PP_N,1:PP_N,1:PP_N,1:nElems]

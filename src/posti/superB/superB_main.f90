@@ -40,8 +40,13 @@ USE MOD_SuperB_Vars
 USE MOD_Preproc               ,ONLY: PP_N
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_Mesh_Vars             ,ONLY: nElems
+<<<<<<< HEAD
 USE MOD_Interpolation_Vars    ,ONLY: NBG, BGType, BGField, BGFieldAnalytic, BGFieldVTKOutput, BGDataSize, PsiMag
 USE MOD_HDF5_Output_Tools     ,ONLY: WriteBFieldToHDF5,WriteBFieldAnalyticToHDF5
+=======
+USE MOD_Interpolation_Vars    ,ONLY: BGType, BGField, BGFieldVTKOutput, BGDataSize, PsiMag
+USE MOD_HDF5_Output_Tools     ,ONLY: WriteBGFieldToHDF5
+>>>>>>> 863d39738289aedf85616b8eec0f848cd0bab06d
 USE MOD_SuperB_Init           ,ONLY: InitializeSuperB
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType
@@ -64,36 +69,27 @@ REAL                          :: timestep
 !===================================================================================================================================
 ! Initialization of SuperB
 CALL InitializeSuperB(mode)
-
-! Allocate and nullify the B-Field and the magnetic potential
-ALLOCATE(BGField(        1:3    , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
-ALLOCATE(BGFieldAnalytic(1:3    , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
-ALLOCATE(BFieldPermMag(  1:3    , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
-ALLOCATE(PsiMag(         0:PP_N , 0:PP_N , 0:PP_N , 1:nElems))
-ALLOCATE(MagnetFlag(     0:PP_N , 0:PP_N , 0:PP_N , 1:nElems))
-PsiMag          = 0
-BGField         = 0
-BGFieldAnalytic = 0
-MagnetFlag      = 0
-
 ! Setting the background field type, used in pic_interpolation.f90
 BGType = 2
-
-! Datasize not utilized so far but might be required for other interpolation types (e.g. particle_position)
+! Datasize not utilized so far but might be required
 BGDataSize = 3
 
-! Background field order same as rest
-NBG = PP_N
+! Allocate and nullify the B-Field and the magnetic potential
+ALLOCATE(BGField(       1:BGDataSize, 0:PP_N, 0:PP_N, 0:PP_N, 1:nElems))
+ALLOCATE(BFieldPermMag( 1:BGDataSize, 0:PP_N, 0:PP_N, 0:PP_N, 1:nElems))
+ALLOCATE(PsiMag(    0:PP_N, 0:PP_N, 0:PP_N, 1:nElems))
+ALLOCATE(MagnetFlag(0:PP_N, 0:PP_N, 0:PP_N, 1:nElems))
+PsiMag = 0
+BGField = 0
+MagnetFlag = 0
+
+IF(DoCalcErrorNormsSuperB)THEN
+  ALLOCATE(BGFieldAnalytic(1:BGDataSize    , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
+  BGFieldAnalytic = 0
+END IF ! DoCalcErrorNormsSuperB
 
 #ifdef PARTICLES
-IF((TRIM(InterpolationType).NE.'particle_position').AND.(TRIM(InterpolationType).NE.'nearest_blurrycenter') &
-    .AND.(TRIM(InterpolationType).NE.'nearest_gausspoint')) THEN
-  CALL abort(__STAMP__,&
-    'ERROR: Magnetic DSMC only supports particle_position, nearest_blurrycenter and nearest_gausspoint!')
-END IF
-
 IF(TRIM(InterpolationType).EQ.'particle_position') THEN
-  ALLOCATE(BGField_xGP(0:NBG), BGField_wBary(0:NBG))
   BGField_xGP = xGP
   BGField_wBary = wBary
 END IF
@@ -101,9 +97,9 @@ END IF
 
 IF(NumOfPermanentMagnets.GT.0) THEN
   SWRITE(UNIT_stdOut,'(132("-"))')
-  SWRITE(UNIT_stdOUT,'(A)') ' Calculation of the magnetic Potential of Permanent Magnets'
+  SWRITE(UNIT_stdOUT,'(A)') ' Calculation of the magnetic field from permanent magnets. Total number:', NumOfPermanentMagnets
   DO iMagnet=1,NumOfPermanentMagnets
-    SWRITE(UNIT_stdOUT,'(A,I2)') ' Magnet: ', iMagnet
+    SWRITE(UNIT_stdOUT,'(A,I2)',ADVANCE='NO') ' Magnet: ', iMagnet
     SELECT CASE(TRIM(PermanentMagnetInfo(iMagnet)%Type))
     CASE('cuboid')
       CALL CalculateCuboidMagneticPotential(iMagnet)
@@ -114,15 +110,14 @@ IF(NumOfPermanentMagnets.GT.0) THEN
     CASE('conic')
       CALL CalculateConicMagneticPotential(iMagnet)
     END SELECT
-    SWRITE(UNIT_stdOUT,'(A,I2)') ' ... Done magnet #', iMagnet
+    SWRITE(UNIT_stdOUT,'(A,I2,A)') '...Magnetic potential of', iMagnet, ' done!'
   END DO
 END IF
 
 IF (NumOfPermanentMagnets.GT.0) THEN
-  SWRITE(UNIT_stdOut,'(132("-"))')
-  SWRITE(UNIT_stdOUT,'(A)') ' Calculate the gradient of the magnetic potentail'
+  SWRITE(UNIT_stdOut,'(A)') 'Calculation of the B-Field'
   CALL CalculateGradient()
-  SWRITE(UNIT_stdOut,'(A)') ' Done calculating B-Field'
+  SWRITE(UNIT_stdOut,'(A)') '...Done!'
 END IF
 
 BFieldPermMag = BGField
@@ -133,7 +128,7 @@ IF(ANY(TimeDepCoil)) THEN
   timestep = tEnd / (nTimePoints-1)
   DO iTimePoint=0,(nTimePoints-1)
     SWRITE(UNIT_stdOut,'(A)')''
-    SWRITE(UNIT_stdOut,'(A33,F10.5)')' Calculating Time #', timestep*iTimePoint
+    SWRITE(UNIT_stdOut,'(A33,F10.5)')' Calculating time #', timestep*iTimePoint
     IF (NumOfCoils.GT.0) THEN
       SWRITE(UNIT_stdOut,'(132("-"))')
       SWRITE(UNIT_stdOUT,'(A)') ' Calculation of coils'
@@ -155,7 +150,7 @@ IF(ANY(TimeDepCoil)) THEN
         END SELECT
         IF(BGFieldVTKOutput) THEN
           IF(iTimePoint.EQ.0) THEN
-            SWRITE(UNIT_stdOut,'(A)') ' Write Coil to VTK File'
+            SWRITE(UNIT_stdOut,'(A)') ' Write coil to VTK file'
             CALL WriteCoilVTK(iCoil)
           END IF
         END IF
@@ -165,7 +160,7 @@ IF(ANY(TimeDepCoil)) THEN
         ELSE
           CALL BiotSavart(iCoil)
         END IF
-        SWRITE(UNIT_stdOut,'(A,I2)') '...Done Coil #', iCoil
+        SWRITE(UNIT_stdOut,'(A,I2)') '...Done coil #', iCoil
       END DO
     END IF
     BGField = BGField + BFieldPermMag
@@ -175,9 +170,9 @@ IF(ANY(TimeDepCoil)) THEN
 ELSE
   IF (NumOfCoils.GT.0) THEN
     SWRITE(UNIT_stdOut,'(132("-"))')
-    SWRITE(UNIT_stdOUT,'(A)') ' Calculation of coils'
+    SWRITE(UNIT_stdOUT,'(A,I2)') 'Calculation of the magnetic field from coils. Total number: ', NumOfCoils
     DO iCoil=1,NumOfCoils
-      SWRITE(UNIT_stdOut,'(A,I2)') ' Set up coil: ', iCoil
+      SWRITE(UNIT_stdOut,'(A,I2)',ADVANCE='NO') ' Set up coil: ', iCoil
       SELECT CASE(TRIM(CoilInfo(iCoil)%Type))
       CASE('custom')
         CALL SetUpCoil(iCoil)
@@ -193,18 +188,18 @@ ELSE
         ,'Unknown coil type ['//TRIM(CoilInfo(iCoil)%Type)//']')
       END SELECT
       IF(BGFieldVTKOutput) THEN
-        SWRITE(UNIT_stdOut,'(A)') ' Write Coil to VTK File'
+        SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '...Write coil to VTK file'
         CALL WriteCoilVTK(iCoil)
       END IF
-      SWRITE(UNIT_stdOut,'(A)') ' Calculation of the B-Field'
+      SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '...Calculation of the B-Field'
       CALL BiotSavart(iCoil)
       SWRITE(UNIT_stdOut,'(A,I2)') '...Done coil #', iCoil
     END DO
   END IF
   BGField = BGField + BFieldPermMag
-  CALL WriteBFieldToHDF5()
+  CALL WriteBGFieldToHDF5()
   IF(DoCalcErrorNormsSuperB)THEN
-    CALL WriteBFieldAnalyticToHDF5()
+    CALL WriteBGFieldAnalyticToHDF5()
   END IF ! DoCalcErrorNormsSuperB
 END IF
 
