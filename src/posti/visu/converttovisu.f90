@@ -52,7 +52,7 @@ USE MOD_Visu_Vars          ,ONLY: mapAllVarsToVisuVars,mapDepToCalc
 USE MOD_Visu_Vars          ,ONLY: nElems_DG,UCalc_DG,UVisu_DG
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVisu
+USE MOD_Interpolation_Vars ,ONLY: NodeType
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -105,7 +105,7 @@ USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem
 USE MOD_StringTools        ,ONLY: STRICMP,split_string
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D,ChangeBasis2D
-USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVisu
+USE MOD_Interpolation_Vars ,ONLY: NodeType
 !USE MOD_ProlongToFace      ,ONLY: EvalElemFace
 !USE MOD_Mappings           ,ONLY: buildMappings
 IMPLICIT NONE

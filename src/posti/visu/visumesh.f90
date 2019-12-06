@@ -47,7 +47,7 @@ USE MOD_PreProc
 USE MOD_Visu_Vars          ,ONLY: CoordsVisu_DG
 USE MOD_Visu_Vars          ,ONLY: NodeTypeVisuPosti
 USE MOD_Visu_Vars          ,ONLY: NVisu,nElems_DG,mapDGElemsToAllElems
-USE MOD_Interpolation_Vars ,ONLY: NodeTypeVisu,NodeType
+USE MOD_Interpolation_Vars ,ONLY: NodeType
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D

@@ -329,7 +329,6 @@ USE MOD_ReadInTools         ,ONLY: prms,ExtractParameterFile,FinalizeParameters
 USE MOD_StringTools         ,ONLY: STRICMP
 USE MOD_Posti_VisuMesh      ,ONLY: BuildVisuCoords
 USE MOD_Posti_Mappings      ,ONLY: Build_mapBCSides
-USE MOD_Interpolation_Vars  ,ONLY: NodeType
 USE MOD_IO_HDF5             ,ONLY: InitMPIInfo
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
