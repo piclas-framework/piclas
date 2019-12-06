@@ -228,13 +228,12 @@ USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision, SumVibRelaxProb
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
-USE MOD_DSMC_Vars             ,ONLY: SamplingActive, SelectionProc, SpecDSMC, tTreeNode, useRelaxProbCorrFactor
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, PartMPF, Symmetry2D
+USE MOD_DSMC_Vars             ,ONLY: SelectionProc, SpecDSMC, useRelaxProbCorrFactor
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, Symmetry2D
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcEkin
-USE MOD_DSMC_Symmetry2D,        ONLY: CalcRadWeightMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -248,10 +247,9 @@ INTEGER, INTENT(IN), OPTIONAL           :: Depth
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: nPair, iPair, iPart, nPart, tempPart
+INTEGER                       :: nPair, iPair, iPart, nPart
 INTEGER                       :: cSpec1, cSpec2, iCase
 REAL                          :: iRan
-REAL                          :: iRanVec(2), NodeLength
 !===================================================================================================================================
 
 nPart = PartNum
@@ -343,154 +341,12 @@ IF (CollisMode.EQ.3) THEN
 END IF
 
 IF(RadialWeighting%DoRadialWeighting) THEN
-  DO iPair = 1, nPair
-    IF(DSMC%UseOctree) THEN
-      IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-        ! Two particles with the exact same velocities at the same positions -> sick clones
-        IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
-          IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
-            IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
-          END IF
-          IF (iPair.LT.nPair) THEN
-            ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
-            ! are swapped but first, changing z-direction
-            PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
-            ! Removing the pairs from the weighting factor and the case num sums
-            CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-              -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
-            CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
-              - (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))*0.5
-            CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
-            CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
-            ! Breaking up the next pair and swapping partners
-            tempPart = Coll_pData(iPair)%iPart_p1
-            Coll_pData(iPair)%iPart_p1 = Coll_pData(iPair + 1)%iPart_p1
-            Coll_pData(iPair + 1)%iPart_p1 = tempPart
-            ! Calculation of the relative velocity for the new first pair
-            cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
-            cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
-            iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-            ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-            CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
-            CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-            Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
-                                      -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
-                                      + (PartState(5,Coll_pData(iPair)%iPart_p1) &
-                                      -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
-                                      + (PartState(6,Coll_pData(iPair)%iPart_p1) &
-                                      -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
-            Coll_pData(iPair)%PairType = iCase
-            ! Calculation of the relative velocity for the new follow-up pair
-            cSpec1 = PartSpecies(Coll_pData(iPair+1)%iPart_p1)
-            cSpec2 = PartSpecies(Coll_pData(iPair+1)%iPart_p2)
-            iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-            ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-            CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
-            CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-            Coll_pData(iPair+1)%CRela2 = (PartState(4,Coll_pData(iPair+1)%iPart_p1) &
-                                        -  PartState(4,Coll_pData(iPair+1)%iPart_p2))**2 &
-                                        + (PartState(5,Coll_pData(iPair+1)%iPart_p1) &
-                                        -  PartState(5,Coll_pData(iPair+1)%iPart_p2))**2 &
-                                        + (PartState(6,Coll_pData(iPair+1)%iPart_p1) &
-                                        -  PartState(6,Coll_pData(iPair+1)%iPart_p2))**2
-            Coll_pData(iPair+1)%PairType = iCase
-          ELSE
-            ! For the last pair, the z-direction is changed and a random position for the first particle is chosen (last resort)
-            CALL RANDOM_NUMBER(iRanVec)
-            NodeLength = 2./2.**(Depth)
-            PartState(1,Coll_pData(iPair)%iPart_p1) = MidPoint(1) - NodeLength + 2.*NodeLength*iRanVec(1)
-            PartState(2,Coll_pData(iPair)%iPart_p1) = MidPoint(2) - NodeLength + 2.*NodeLength*iRanVec(2)
-            PartState(1:2,Coll_pData(iPair)%iPart_p1) = MapToGeo2D(PartState(1:2,Coll_pData(iPair)%iPart_p1),iElem)
-            PartState(3,Coll_pData(iPair)%iPart_p1) = 0.0
-            ! creating relative velocity
-            PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
-            Coll_pData(iPair)%CRela2 = (PartState(6,Coll_pData(iPair)%iPart_p1) - PartState(6,Coll_pData(iPair)%iPart_p2))**2
-            PartMPF(Coll_pData(iPair)%iPart_p1) = &
-                                CalcRadWeightMPF(PartState(2,Coll_pData(iPair)%iPart_p1),cSpec1,Coll_pData(iPair)%iPart_p1)
-          END IF
-        END IF
-      END IF
-    ELSE
-      ! Two particles with the exact same velocities at the same positions -> clones that did not interact with other particles/walls
-      IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
-        IF(DSMC%CalcQualityFactors.AND.(SamplingActive.OR.WriteMacroVolumeValues)) THEN
-          DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
-        END IF
-        ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
-        ! are swapped but first, changing z-direction
-        IF (nPart.EQ.1) THEN
-          ! Uneven number of particles in the cell, a single particle is left without a pair
-          PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
-          ! Removing the pairs from the weighting factor and the case num sums
-          CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-            -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
-          CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
-          ! Swapping particle without a pair with the first particle of the current pair
-          tempPart = Coll_pData(iPair)%iPart_p1
-          Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(1)
-          iPartIndx_Node(1) = tempPart
-          IF (CollisMode.EQ.3) ChemReac%RecombParticle = iPartIndx_Node(1)
-          IF (CollInf%ProhibitDoubleColl)  CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
-          ! Calculation of the relative velocity for the new first pair
-          cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
-          cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
-          iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-          ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-          CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
-          CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-          Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
-                                    -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
-                                    + (PartState(5,Coll_pData(iPair)%iPart_p1) &
-                                    -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
-                                    + (PartState(6,Coll_pData(iPair)%iPart_p1) &
-                                    -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
-          Coll_pData(iPair)%PairType = iCase
-        ELSE IF (iPair.LT.nPair) THEN
-          PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
-          ! Removing the pairs from the weighting factor and the case num sums
-          CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-            -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
-          CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
-            - (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))*0.5
-          CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
-          CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
-          ! Breaking up the next pair and swapping partners
-          tempPart = Coll_pData(iPair)%iPart_p1
-          Coll_pData(iPair)%iPart_p1 = Coll_pData(iPair + 1)%iPart_p1
-          Coll_pData(iPair + 1)%iPart_p1 = tempPart
-          ! Calculation of the relative velocity for the new first pair
-          cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
-          cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
-          iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-          ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-          CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
-          CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-          Coll_pData(iPair)%CRela2 =  (PartState(4,Coll_pData(iPair)%iPart_p1) &
-                                    -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
-                                    + (PartState(5,Coll_pData(iPair)%iPart_p1) &
-                                    -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
-                                    + (PartState(6,Coll_pData(iPair)%iPart_p1) &
-                                    -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
-          Coll_pData(iPair)%PairType = iCase
-          ! Calculation of the relative velocity for the new follow-up pair
-          cSpec1 = PartSpecies(Coll_pData(iPair+1)%iPart_p1)
-          cSpec2 = PartSpecies(Coll_pData(iPair+1)%iPart_p2)
-          iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-          ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-          CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
-          CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-          Coll_pData(iPair+1)%CRela2 =  (PartState(4,Coll_pData(iPair+1)%iPart_p1) &
-                                      -  PartState(4,Coll_pData(iPair+1)%iPart_p2))**2 &
-                                      + (PartState(5,Coll_pData(iPair+1)%iPart_p1) &
-                                      -  PartState(5,Coll_pData(iPair+1)%iPart_p2))**2 &
-                                      + (PartState(6,Coll_pData(iPair+1)%iPart_p1) &
-                                      -  PartState(6,Coll_pData(iPair+1)%iPart_p2))**2
-          Coll_pData(iPair+1)%PairType = iCase
-        END IF
-      END IF  ! Coll_pData(iPair)%CRela2.EQ.0.0
-    END IF    ! UseOctree
-  END DO      ! DO iPair=1, nPair
-END IF        ! DoRadialWeighting
+  IF(DSMC%UseOctree) THEN
+    CALL DoRadialWeightingOctree(nPair, iElem, MidPoint, Depth)
+  ELSE
+    CALL DoRadialWeighting(nPair, nPart, iElem, iPartIndx_Node)
+  END IF
+END IF
 
 DO iPair = 1, nPair
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
@@ -534,6 +390,212 @@ END IF
 DEALLOCATE(Coll_pData)
 
 END SUBROUTINE PerformPairingAndCollision
+
+
+SUBROUTINE DoRadialWeightingOctree(nPair, iElem, MidPoint, Depth)
+!===================================================================================================================================
+! Do radial weighting for octree routine. Used for axis symmetric 2D simulations
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData,DSMC
+USE MOD_DSMC_Vars             ,ONLY: SamplingActive,CollInf
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, WriteMacroVolumeValues, PartMPF
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_DSMC_Symmetry2D,        ONLY: CalcRadWeightMPF
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)                     :: nPair
+INTEGER, INTENT(IN)                     :: iElem
+REAL, INTENT(IN)                        :: MidPoint(3)
+INTEGER, INTENT(IN)                     :: Depth
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iPair, tempPart
+INTEGER                       :: cSpec1, cSpec2, iCase
+REAL                          :: iRanVec(2), NodeLength
+!===================================================================================================================================
+DO iPair = 1, nPair
+  IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
+    ! Two particles with the exact same velocities at the same positions -> sick clones
+    IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
+      IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
+        IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
+      END IF
+      IF (iPair.LT.nPair) THEN
+        ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
+        ! are swapped but first, changing z-direction
+        PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
+        ! Removing the pairs from the weighting factor and the case num sums
+        CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
+          -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
+        CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
+          - (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))*0.5
+        CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
+        CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
+        ! Breaking up the next pair and swapping partners
+        tempPart = Coll_pData(iPair)%iPart_p1
+        Coll_pData(iPair)%iPart_p1 = Coll_pData(iPair + 1)%iPart_p1
+        Coll_pData(iPair + 1)%iPart_p1 = tempPart
+        ! Calculation of the relative velocity for the new first pair
+        cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
+        cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
+        iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+        ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
+        CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
+        CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
+        Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
+                                  -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                                  + (PartState(5,Coll_pData(iPair)%iPart_p1) &
+                                  -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                                  + (PartState(6,Coll_pData(iPair)%iPart_p1) &
+                                  -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
+        Coll_pData(iPair)%PairType = iCase
+        ! Calculation of the relative velocity for the new follow-up pair
+        cSpec1 = PartSpecies(Coll_pData(iPair+1)%iPart_p1)
+        cSpec2 = PartSpecies(Coll_pData(iPair+1)%iPart_p2)
+        iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+        ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
+        CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
+        CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
+        Coll_pData(iPair+1)%CRela2 = (PartState(4,Coll_pData(iPair+1)%iPart_p1) &
+                                    -  PartState(4,Coll_pData(iPair+1)%iPart_p2))**2 &
+                                    + (PartState(5,Coll_pData(iPair+1)%iPart_p1) &
+                                    -  PartState(5,Coll_pData(iPair+1)%iPart_p2))**2 &
+                                    + (PartState(6,Coll_pData(iPair+1)%iPart_p1) &
+                                    -  PartState(6,Coll_pData(iPair+1)%iPart_p2))**2
+        Coll_pData(iPair+1)%PairType = iCase
+      ELSE
+        ! For the last pair, the z-direction is changed and a random position for the first particle is chosen (last resort)
+        CALL RANDOM_NUMBER(iRanVec)
+        NodeLength = 2./2.**(Depth)
+        PartState(1,Coll_pData(iPair)%iPart_p1) = MidPoint(1) - NodeLength + 2.*NodeLength*iRanVec(1)
+        PartState(2,Coll_pData(iPair)%iPart_p1) = MidPoint(2) - NodeLength + 2.*NodeLength*iRanVec(2)
+        PartState(1:2,Coll_pData(iPair)%iPart_p1) = MapToGeo2D(PartState(1:2,Coll_pData(iPair)%iPart_p1),iElem)
+        PartState(3,Coll_pData(iPair)%iPart_p1) = 0.0
+        ! creating relative velocity
+        PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
+        Coll_pData(iPair)%CRela2 = (PartState(6,Coll_pData(iPair)%iPart_p1) - PartState(6,Coll_pData(iPair)%iPart_p2))**2
+        PartMPF(Coll_pData(iPair)%iPart_p1) = &
+                            CalcRadWeightMPF(PartState(2,Coll_pData(iPair)%iPart_p1),cSpec1,Coll_pData(iPair)%iPart_p1)
+      END IF
+    END IF
+  END IF
+END DO      ! DO iPair=1, nPair
+
+END SUBROUTINE DoRadialWeightingOctree
+
+
+SUBROUTINE DoRadialWeighting(nPair, nPart, iElem, iPartIndx_Node)
+!===================================================================================================================================
+! Do radial weighting not for octree routine. Used for axis symmetric 2D simulations
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,ChemReac,DSMC
+USE MOD_DSMC_Vars             ,ONLY: SamplingActive
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, WriteMacroVolumeValues
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)                     :: nPair
+INTEGER, INTENT(IN)                     :: nPart
+INTEGER, INTENT(IN)                     :: iElem
+INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iPair, tempPart
+INTEGER                       :: cSpec1, cSpec2, iCase
+!===================================================================================================================================
+DO iPair = 1, nPair
+  ! Two particles with the exact same velocities at the same positions -> clones that did not interact with other particles/walls
+  IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
+    IF(DSMC%CalcQualityFactors.AND.(SamplingActive.OR.WriteMacroVolumeValues)) THEN
+      DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
+    END IF
+    ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
+    ! are swapped but first, changing z-direction
+    IF (nPart.EQ.1) THEN
+      ! Uneven number of particles in the cell, a single particle is left without a pair
+      PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
+      ! Removing the pairs from the weighting factor and the case num sums
+      CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
+        -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
+      CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
+      ! Swapping particle without a pair with the first particle of the current pair
+      tempPart = Coll_pData(iPair)%iPart_p1
+      Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(1)
+      iPartIndx_Node(1) = tempPart
+      IF (CollisMode.EQ.3) ChemReac%RecombParticle = iPartIndx_Node(1)
+      IF (CollInf%ProhibitDoubleColl)  CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
+      ! Calculation of the relative velocity for the new first pair
+      cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
+      cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
+      iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+      ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
+      CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
+      Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
+                                -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                                + (PartState(5,Coll_pData(iPair)%iPart_p1) &
+                                -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                                + (PartState(6,Coll_pData(iPair)%iPart_p1) &
+                                -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
+      Coll_pData(iPair)%PairType = iCase
+    ELSE IF (iPair.LT.nPair) THEN
+      PartState(6,Coll_pData(iPair)%iPart_p1) = - PartState(6,Coll_pData(iPair)%iPart_p1)
+      ! Removing the pairs from the weighting factor and the case num sums
+      CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
+        -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
+      CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
+        - (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))*0.5
+      CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
+      CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
+      ! Breaking up the next pair and swapping partners
+      tempPart = Coll_pData(iPair)%iPart_p1
+      Coll_pData(iPair)%iPart_p1 = Coll_pData(iPair + 1)%iPart_p1
+      Coll_pData(iPair + 1)%iPart_p1 = tempPart
+      ! Calculation of the relative velocity for the new first pair
+      cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
+      cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
+      iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+      ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
+      CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
+      Coll_pData(iPair)%CRela2 =  (PartState(4,Coll_pData(iPair)%iPart_p1) &
+                                -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                                + (PartState(5,Coll_pData(iPair)%iPart_p1) &
+                                -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                                + (PartState(6,Coll_pData(iPair)%iPart_p1) &
+                                -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
+      Coll_pData(iPair)%PairType = iCase
+      ! Calculation of the relative velocity for the new follow-up pair
+      cSpec1 = PartSpecies(Coll_pData(iPair+1)%iPart_p1)
+      cSpec2 = PartSpecies(Coll_pData(iPair+1)%iPart_p2)
+      iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+      ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
+      CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
+      Coll_pData(iPair+1)%CRela2 =  (PartState(4,Coll_pData(iPair+1)%iPart_p1) &
+                                  -  PartState(4,Coll_pData(iPair+1)%iPart_p2))**2 &
+                                  + (PartState(5,Coll_pData(iPair+1)%iPart_p1) &
+                                  -  PartState(5,Coll_pData(iPair+1)%iPart_p2))**2 &
+                                  + (PartState(6,Coll_pData(iPair+1)%iPart_p1) &
+                                  -  PartState(6,Coll_pData(iPair+1)%iPart_p2))**2
+      Coll_pData(iPair+1)%PairType = iCase
+    END IF
+  END IF  ! Coll_pData(iPair)%CRela2.EQ.0.0
+END DO      ! DO iPair=1, nPair
+
+END SUBROUTINE DoRadialWeighting
 
 
 SUBROUTINE DSMC_pairing_octree(iElem)
