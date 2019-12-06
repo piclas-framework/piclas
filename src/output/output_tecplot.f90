@@ -24,7 +24,7 @@ MODULE MOD_Tecplot
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -59,8 +59,8 @@ INTEGER,INTENT(IN)            :: nElems                  ! Number of Elements
 INTEGER,INTENT(IN)            :: nVal                    ! Number of nodal output variables
 INTEGER,INTENT(IN)            :: nValMean                ! Number of element mean output variables
 CHARACTER(LEN=32),INTENT(IN)  :: VarNames(nVal+nValMean) ! Names of all variables that will be written out
-REAL,INTENT(IN)               :: Coord(3,0:NPlot,0:NPlot,0:NPlot,nElems)      ! CoordsVector 
-REAL,INTENT(IN)               :: Value(1:nVal,0:NPlot,0:NPlot,0:NPlot,nElems) ! Statevector 
+REAL,INTENT(IN)               :: Coord(3,0:NPlot,0:NPlot,0:NPlot,nElems)      ! CoordsVector
+REAL,INTENT(IN)               :: Value(1:nVal,0:NPlot,0:NPlot,0:NPlot,nElems) ! Statevector
 REAL,INTENT(IN),OPTIONAL      :: MeanValue(1:nValMean,nElems) ! Vector of indicator values
 CHARACTER(LEN=*),INTENT(IN)   :: FileString              ! Output file name
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -103,10 +103,10 @@ IF(nValMean.GT.0)THEN
         DO i=0,NPlot
           WRITE(44,Format_nVal)&
           Coord(:,i,j,k,iElem),Value(:,i,j,k,iElem),MeanValue(:,iElem)
-        END DO 
-      END DO 
-    END DO 
-  END DO 
+        END DO
+      END DO
+    END DO
+  END DO
 ELSE
   DO iElem=1,nElems
     DO k=0,NPlot
@@ -114,10 +114,10 @@ ELSE
         DO i=0,NPlot
           WRITE(44,Format_nVal)&
           Coord(:,i,j,k,iElem),Value(:,i,j,k,iElem)
-        END DO 
-      END DO 
-    END DO 
-  END DO 
+        END DO
+      END DO
+    END DO
+  END DO
 END IF !meanVal>0
 !element connectivity
 NodeIDElem=0
@@ -125,21 +125,21 @@ DO iElem=1,nElems
   DO k=1,NPlot
     DO j=1,NPlot
       DO i=1,NPlot
-        !visuHexaElem  
+        !visuHexaElem
         WRITE(44,'(8(I8,1X))')&
           NodeIDElem+i+  (j-1)*(NPlot+1)+(k-1)*NPlot_p1_2,      & !P1(CGNS=tecplot standard)
           NodeIDElem+i+1+(j-1)*(NPlot+1)+(k-1)*NPlot_p1_2,      & !P2
-          NodeIDElem+i+1+ j   *(NPlot+1)+(k-1)*NPlot_p1_2,      & !P3     
+          NodeIDElem+i+1+ j   *(NPlot+1)+(k-1)*NPlot_p1_2,      & !P3
           NodeIDElem+i+   j   *(NPlot+1)+(k-1)*NPlot_p1_2,      & !P4
           NodeIDElem+i+  (j-1)*(NPlot+1)+ k   *NPlot_p1_2,      & !P5
           NodeIDElem+i+1+(j-1)*(NPlot+1)+ k   *NPlot_p1_2,      & !P6
-          NodeIDElem+i+1+ j   *(NPlot+1)+ k   *NPlot_p1_2,      & !P7     
+          NodeIDElem+i+1+ j   *(NPlot+1)+ k   *NPlot_p1_2,      & !P7
           NodeIDElem+i+   j   *(NPlot+1)+ k   *NPlot_p1_2         !P8
-      END DO 
-    END DO 
-  END DO 
+      END DO
+    END DO
+  END DO
   NodeIDElem=NodeIDElem+NPlot_p1_3
-END DO 
+END DO
 
 CLOSE(44)
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
@@ -164,8 +164,8 @@ INTEGER,INTENT(IN)            :: nElems                  ! Number of Elements
 INTEGER,INTENT(IN)            :: nVal                    ! Number of nodal output variables
 INTEGER,INTENT(IN)            :: nValMean                ! Number of element mean output variables
 CHARACTER(LEN=32),INTENT(IN)  :: VarNames(nVal+nValMean) ! Names of all variables that will be written out
-REAL,INTENT(IN)               :: Coord(3,0:NPlot,0:NPlot,0:NPlot,nElems)      ! CoordsVector 
-REAL,INTENT(IN)               :: Value(1:nVal,0:NPlot,0:NPlot,0:NPlot,nElems) ! Statevector 
+REAL,INTENT(IN)               :: Coord(3,0:NPlot,0:NPlot,0:NPlot,nElems)      ! CoordsVector
+REAL,INTENT(IN)               :: Value(1:nVal,0:NPlot,0:NPlot,0:NPlot,nElems) ! Statevector
 REAL,INTENT(IN),OPTIONAL      :: MeanValue(1:nValMean,nElems) ! Vector of indicator values
 CHARACTER(LEN=*),INTENT(IN)   :: FileString              ! Output file name
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -292,12 +292,12 @@ DO iElem=1,nElems
           NodeIDElem+i+1+(j-1)*(NPlot+1)+ k   *NPlot_p1_2,      & !P6
           NodeIDElem+i+1+ j   *(NPlot+1)+ k   *NPlot_p1_2,      & !P7
           NodeIDElem+i+   j   *(NPlot+1)+ k   *NPlot_p1_2       /) !P8
-      END DO 
-    END DO 
-  END DO 
+      END DO
+    END DO
+  END DO
   !
   NodeIDElem=NodeIDElem+NPlot_p1_3
-END DO 
+END DO
 
 iStat = TECNOD112(Vertex)
 iStat = TECEND112()

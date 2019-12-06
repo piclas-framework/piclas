@@ -38,6 +38,11 @@ INTEGER,ALLOCATABLE :: PartHaloSideToProc(:,:)                               ! c
                                                                              ! LOCAL_PROC_ID =3 - local neighbor id
                                                                              ! LOCAL_SEND_ID =4 - ?
 
+INTEGER,ALLOCATABLE :: PartHaloNodeToProc(:,:)                               ! containing native sideid and native proc id
+                                                                             ! 1 - Native_Side_ID
+                                                                             ! 2 - Rank of Proc
+                                                                             ! 3 - local neighbor id
+
 
 INTEGER             :: myRealKind
 LOGICAL                                  :: ParticleMPIInitIsDone=.FALSE.
@@ -58,7 +63,7 @@ TYPE tPeriodicPtr
   INTEGER                  , ALLOCATABLE  :: BGMPeriodicBorder(:,:)          ! indices of periodic border nodes
 END TYPE
 
-#ifdef MPI
+#if USE_MPI
 TYPE tPartMPIConnect
   TYPE(tPeriodicPtr)       , ALLOCATABLE :: Periodic(:)                     ! data for different periodic borders for process
   LOGICAL                                :: isBGMNeighbor                    ! Flag: which process is neighber wrt. bckgrnd mesh
@@ -66,13 +71,18 @@ TYPE tPartMPIConnect
   INTEGER                  , ALLOCATABLE :: BGMBorder(:,:)            ! indices of border nodes (1=min 2=max,xyz)
   INTEGER                                :: BGMPeriodicBorderCount            ! Number(#) of overlapping areas due to periodic bc
 END TYPE
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
+TYPE tNodeSendList
+  INTEGER                               :: COMMProcID
+  INTEGER,ALLOCATABLE                   :: SendList(:)                   ! list containing surfsideid of sides to send to proc
+  INTEGER,ALLOCATABLE                   :: RecvList(:)                   ! list containing surfsideid of sides to recv from proc
+END TYPE
 
 TYPE tPartMPIVAR
-#ifdef MPI
+#if USE_MPI
   TYPE(tPartMPIConnect)        , ALLOCATABLE :: DepoBGMConnect(:)            ! MPI connect for each process
-#endif /*MPI*/
+#endif /*USE_MPI*/
   TYPE(tPartMPIGROUP),ALLOCATABLE        :: InitGroup(:)                     ! small communicator for initialization
   INTEGER                                :: COMM                             ! MPI communicator for PIC GTS region
   INTEGER                                :: nProcs                           ! number of MPI processes for particles
@@ -81,6 +91,9 @@ TYPE tPartMPIVAR
   INTEGER                                :: nMPINeighbors                    ! number of MPI-Neighbors with HALO
   LOGICAL,ALLOCATABLE                    :: isMPINeighbor(:)                 ! list of possible neighbors
   INTEGER,ALLOCATABLE                    :: MPINeighbor(:)                   ! list containing the rank of MPI-neighbors
+  INTEGER                                :: nMPINodeNeighbors                ! number of MPI-Neighbors with HALO
+  LOGICAL,ALLOCATABLE                    :: isMPINodeNeighbor(:)             ! list of possible neighbors
+  TYPE(tNodeSendList),ALLOCATABLE        :: MPINodeNeighbor(:)               ! list containing rank of MPI-neighbors and mappings
   INTEGER,ALLOCATABLE                    :: GlobalToLocal(:)                 ! map from global proc id to local
 END TYPE
 
@@ -91,7 +104,7 @@ REAL                                     :: halo_eps_velo                    ! h
 REAL                                     :: halo_eps                         ! length of halo-region
 REAL                                     :: halo_eps2                        ! length of halo-region^2
 
-#ifdef MPI
+#if USE_MPI
 INTEGER                                  :: PartCommSize                     ! Number of REAL entries for particle communication
 INTEGER                                  :: PartCommSize0                    ! Number of REAL entries for particle communication
                                                                              ! should think about own MPI-Data-Typ
@@ -107,6 +120,9 @@ TYPE(tMPIMessage),ALLOCATABLE  :: PartSendBuf(:)                             ! P
 
 TYPE(tMPIMessage),ALLOCATABLE  :: SurfRecvBuf(:)                             ! SurfRecvBuf with all required types
 TYPE(tMPIMessage),ALLOCATABLE  :: SurfSendBuf(:)                             ! SurfSendBuf with all requried types
+
+TYPE(tMPIMessage),ALLOCATABLE  :: NodeRecvBuf(:)                             ! NodeRecvBuf with all required types
+TYPE(tMPIMessage),ALLOCATABLE  :: NodeSendBuf(:)                             ! NodeSendBuf with all requried types
 
 TYPE(tMPIMessage),ALLOCATABLE  :: PorousBCRecvBuf(:)                         ! SurfRecvBuf with all required types
 TYPE(tMPIMessage),ALLOCATABLE  :: PorousBCSendBuf(:)                         ! SurfSendBuf with all requried types
@@ -129,7 +145,7 @@ TYPE tParticleMPIExchange2
   INTEGER,ALLOCATABLE            :: RecvRequest(:,:)  ! Receive request message handle,  1 - Number, 2-Message
   TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)   ! Message, required for particle emission
 END TYPE
-TYPE (tParticleMPIExchange2)     :: PartMPIInsert 
+TYPE (tParticleMPIExchange2)     :: PartMPIInsert
 
 TYPE tSurfMPIExchange
   INTEGER,ALLOCATABLE            :: nSidesSend(:)     ! Only MPI neighbors
@@ -139,14 +155,22 @@ TYPE tSurfMPIExchange
 END TYPE
 TYPE (tSurfMPIExchange)          :: SurfExchange
 
+TYPE tNodeMPIExchange
+  INTEGER,ALLOCATABLE            :: nNodesSend(:)     ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: nNodesRecv(:)     ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: SendRequest(:)   ! send requirest message handle 1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: RecvRequest(:)   ! recv request message handle,  1 - Number, 2-Message
+END TYPE
+TYPE (tNodeMPIExchange)          :: NodeExchange
+
 
 INTEGER,ALLOCATABLE                      :: PartTargetProc(:)                ! local rank id for communication
 LOGICAL,ALLOCATABLE                      :: PartMPIDepoSend(:)               ! index of part number, if particle has to be sent
                                                                              ! for deposition, e.g. shape-function
-LOGICAL                                  :: DoExternalParts                  ! external particles, required for 
+LOGICAL                                  :: DoExternalParts                  ! external particles, required for
                                                                              ! shape-function or b-spline or volume weighting
 INTEGER                                  :: NbrOfExtParticles                ! number of external particles
-LOGICAL                                  :: ExtPartsAllocated                ! logical,if exp parts are allocated 
+LOGICAL                                  :: ExtPartsAllocated                ! logical,if exp parts are allocated
 REAL, ALLOCATABLE                        :: ExtPartState(:,:)                ! external particle state
 INTEGER, ALLOCATABLE                     :: ExtPartSpecies(:)                ! species of external particles
 INTEGER, ALLOCATABLE                     :: ExtPartToFIBGM(:,:)              ! mapping form particle to bounding box in FIBGM
@@ -154,7 +178,7 @@ REAL, ALLOCATABLE                        :: ExtPartMPF(:)                    ! m
 INTEGER                                  :: ExtPartCommSize                  ! number of entries for ExtParticles
 
 REAL, ALLOCATABLE                        :: PartShiftVector(:,:)             ! store particle periodic map
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 END MODULE MOD_Particle_MPI_Vars

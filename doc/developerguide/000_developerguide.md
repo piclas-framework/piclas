@@ -2,7 +2,7 @@
 title: PICLas
 logo: ../logo.png
 subtitle: Developer Guide
-version: version 1
+version: Version 1
 author: 
   - University of Stuttgart, Germany
   - Institute for Aerodynamics and Gas Dynamics (IAG)
@@ -12,6 +12,8 @@ date: \today
 documentclass: scrreprt
 lang: en-US
 papersize: a4
+fontsize: 11pt
+geometry: "left=2.0cm,right=2.0cm,top=3.5cm,bottom=2.5cm"
 colorlinks: yes
 toc: yes
 header-includes:

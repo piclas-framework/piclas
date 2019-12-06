@@ -34,7 +34,7 @@ LOGICAL                  :: gatheredWrite       !< flag whether every process sh
 INTEGER(HID_T)           :: File_ID             !< file which is currently opened
 INTEGER(HID_T)           :: Plist_File_ID       !< property list of file which is currently opened
 INTEGER(HSIZE_T),POINTER :: HSize(:)            !< HDF5 array size (temporary variable)
-INTEGER                  :: nDims               !< 
+INTEGER                  :: nDims               !<
 INTEGER                  :: MPIInfo             !< hardware / storage specific / file system MPI parameters to pass to HDF5
                                                 !< for optimized performance on specific systems
 
@@ -83,7 +83,7 @@ PUBLIC::AddToElemData
 CONTAINS
 
 !==================================================================================================================================
-!> Define parameters 
+!> Define parameters
 !==================================================================================================================================
 SUBROUTINE DefineParametersIO()
 ! MODULES
@@ -118,7 +118,7 @@ IMPLICIT NONE
 
 gatheredWrite=.FALSE.
 IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE.')
-#ifdef MPI
+#if USE_MPI
   CALL MPI_Info_Create(MPIInfo, iError)
 
   !normal case:
@@ -129,14 +129,14 @@ IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE
 #ifdef LUSTRE
   CALL MPI_Info_Create(MPIInfo, iError)
   ! For lustre file system:
-  ! Disables ROMIO's data-sieving 
+  ! Disables ROMIO's data-sieving
   CALL MPI_Info_set(MPIInfo, "romio_ds_read", "disable",iError)
   CALL MPI_Info_set(MPIInfo, "romio_ds_write","disable",iError)
-  ! Enable ROMIO's collective buffering 
+  ! Enable ROMIO's collective buffering
   CALL MPI_Info_set(MPIInfo, "romio_cb_read", "enable", iError)
   CALL MPI_Info_set(MPIInfo, "romio_cb_write","enable", iError)
 #endif
-#endif /* MPI */
+#endif /*USE_MPI*/
 END SUBROUTINE InitIO_HDF5
 
 
@@ -179,7 +179,7 @@ ELSE
     'ERROR: Could not open file '//TRIM(FileString))
 END IF
 
-#ifdef MPI
+#if USE_MPI
 IF(.NOT.single)THEN
   IF(.NOT.PRESENT(communicatorOpt))CALL abort(__STAMP__,&
     'ERROR: communicatorOpt must be supplied in OpenDataFile when single=.FALSE.')
@@ -187,7 +187,7 @@ IF(.NOT.single)THEN
 END IF
   IF(iError.NE.0) CALL abort(__STAMP__,&
     'ERROR: H5PSET_FAPL_MPIO_F failed in OpenDataFile')
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 ! Open the file collectively.
 IF(create)THEN
@@ -203,7 +203,7 @@ ELSE !read-only ! and write (added later)
     'ERROR: Specified file '//TRIM(FileString)//' does not exist.')
   IF (readOnly) THEN
     CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDONLY_F,  File_ID, iError, access_prp = Plist_File_ID)
-  ELSE 
+  ELSE
     CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDWR_F,  File_ID, iError, access_prp = Plist_File_ID)
   END IF
 END IF
@@ -251,7 +251,7 @@ IMPLICIT NONE
 TYPE(tElementOut),POINTER,INTENT(INOUT)    :: ElementOut_In        !< Pointer list of element-wise data that
                                                                    !< is written to the state file
 CHARACTER(LEN=*),INTENT(IN)                :: VarName              !< Name of the current array/scalar
-REAL,INTENT(IN),TARGET,OPTIONAL            :: RealArray(nElems)    !< Data is an array containing reals 
+REAL,INTENT(IN),TARGET,OPTIONAL            :: RealArray(nElems)    !< Data is an array containing reals
 REAL,INTENT(IN),TARGET,OPTIONAL            :: RealScalar           !< Data is a real scalar
 INTEGER,INTENT(IN),TARGET,OPTIONAL         :: IntArray(nElems)     !< Data is an array containing integers
 INTEGER,INTENT(IN),TARGET,OPTIONAL         :: IntScalar            !< Data is a integer scalar

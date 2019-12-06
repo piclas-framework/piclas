@@ -15,7 +15,7 @@
 
 MODULE MOD_PML
 !===================================================================================================================================
-!  
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_io_HDF5
@@ -23,7 +23,7 @@ USE MOD_io_HDF5
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -94,10 +94,10 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_PML_Vars
-USE MOD_HDF5_output,     ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
-USE MOD_HDF5_output,     ONLY: WritePMLzetaGlobalToHDF5
-USE MOD_Interfaces,      ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
-USE MOD_IO_HDF5,         ONLY:AddToElemData,ElementOut
+USE MOD_HDF5_output       ,ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
+USE MOD_HDF5_Output_Tools ,ONLY: WritePMLzetaGlobalToHDF5
+USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
+USE MOD_IO_HDF5           ,ONLY: AddToElemData,ElementOut
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -150,7 +150,7 @@ ELSE
   IF(ALMOSTEQUALRELATIVE(PMLTimeRamptStart,PMLTimeRamptEnd,1E-3))THEN
     SWRITE(UNIT_stdOut,'(A)') ' WARNING: PML time ramp uses the same times for tStart and tEnd. Relative difference is < 1E-3'
     PMLsDeltaT         = 1e12 ! set no a very high value
-  ELSE  
+  ELSE
     IF(PMLTimeRamptStart.GT.PMLTimeRamptEnd)THEN
       CALL abort(&
       __STAMP__,&
@@ -166,8 +166,8 @@ PMLTimeRamp            = 1.0 ! init
 xyzPhysicalMinMax(1:6)     = GETREALARRAY('xyzPhysicalMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
 xyzPMLzetaShapeOrigin(1:3) = GETREALARRAY('xyzPMLzetaShapeOrigin',3,'0.0,0.0,0.0')
 xyzPMLMinMax(1:6)          = GETREALARRAY('xyzPMLMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
-! use xyzPhysicalMinMax before xyzPMLMinMax: 
-! 1.) check for xyzPhysicalMinMax 
+! use xyzPhysicalMinMax before xyzPMLMinMax:
+! 1.) check for xyzPhysicalMinMax
 ! 2.) check for xyzPMLMinMax
 CALL SelectMinMaxRegion('PML',usePMLMinMax,&
                         'xyzPhysicalMinMax',xyzPhysicalMinMax,&
@@ -186,7 +186,7 @@ ELSE ! find all elements located outside of 'xyzPhysicalMinMax'
 END IF
 
 ! find all faces in the PML region
-CALL FindInterfacesInRegion(isPMLFace,isPMLInterFace,isPMLElem)
+CALL FindInterfacesInRegion(isPMLFace,isPMLInterFace,isPMLElem,info_opt='find all faces in the PML region')
 
 ! Get number of PML Elems, Faces and Interfaces. Create Mappngs PML <-> physical region
 CALL CountAndCreateMappings('PML',&
@@ -198,7 +198,7 @@ CALL CountAndCreateMappings('PML',&
                             DisplayInfo=.TRUE.)
 
 ! nPMLElems is determined, now allocate the PML field correnspondingly
-ALLOCATE(U2       (1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))        
+ALLOCATE(U2       (1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 ALLOCATE(U2t      (1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 U2 =0.
 U2t=0.
@@ -249,7 +249,7 @@ END SUBROUTINE PMLTimeRamping
 
 SUBROUTINE CalcPMLSource()
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -282,7 +282,7 @@ END SUBROUTINE CalcPMLSource
 
 SUBROUTINE PMLTimeDerivative()
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -313,7 +313,7 @@ END DO; END DO; END DO; END DO !nPMLElems,k,j,i
 
 ! Add Source Terms
 DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  U2t(1 : 3,i,j,k,iPMLElem) = U2t(1 : 3,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(1 : 3,i,j,k,iPMLElem) * PMLTimeRamp 
+  U2t(1 : 3,i,j,k,iPMLElem) = U2t(1 : 3,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(1 : 3,i,j,k,iPMLElem) * PMLTimeRamp
   U2t(4 : 6,i,j,k,iPMLElem) = U2t(4 : 6,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(4 : 6,i,j,k,iPMLElem) * PMLTimeRamp
   U2t(7 : 9,i,j,k,iPMLElem) = U2t(7 : 9,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(7 : 9,i,j,k,iPMLElem) * PMLTimeRamp
   U2t(10:12,i,j,k,iPMLElem) = U2t(10:12,i,j,k,iPMLElem) - PMLzetaEff(1:3,i,j,k,iPMLElem) * U2(10:12,i,j,k,iPMLElem) * PMLTimeRamp
@@ -330,7 +330,7 @@ END DO; END DO; END DO; END DO !nPMLElems,k,j,i
 
 ! 2.) DEBUGPML: apply the damping factor only to PML variables for Phi_E and Phi_B
 !               to prevent charge-related instabilities (accumulation of divergence compensation over time)
-U2(19:24,:,:,:,:) = fDamping* U2(19:24,:,:,:,:) 
+U2(19:24,:,:,:,:) = fDamping* U2(19:24,:,:,:,:)
 
 END SUBROUTINE PMLTimeDerivative
 
@@ -378,7 +378,7 @@ IF(usePMLMinMax)THEN ! use xyPMLMinMax -> define the PML region
   ! --------------------------------------------------------------------------------------------------------------------------------
   ! CURRENTLY ONLY SUPPORTS ONE DIRECTION, EITHER X- Y- or Z-DIRECTION
   ! --------------------------------------------------------------------------------------------------------------------------------
-  ! the PML ramp is oriented via "xyzPMLzetaShapeOrigin" which is used as the origin for defining a rising of declining slope 
+  ! the PML ramp is oriented via "xyzPMLzetaShapeOrigin" which is used as the origin for defining a rising of declining slope
   ! of the PML ramping profile: below are two examples with a linear profile where the PML region is defined by the same values
   ! the only differens is that the origin "xyzPMLzetaShapeOrigin" located at "P(x_PML)" in the two examples is moved in the domain
   ! to a larger x-value (in this example)
@@ -409,7 +409,7 @@ IF(usePMLMinMax)THEN ! use xyPMLMinMax -> define the PML region
     __STAMP__&
     ,'The origin reference point "xyzPMLzetaShapeOrigin" cannot lie within the PML region defined by "xyzPMLMinMax"')
   END DO
-    
+
   ! set new values for minimum and maximum to the domain boundary values
   xyzPMLMinMax(2*PMLDir-1) = MAX(xyzPMLMinMax(2*PMLDir-1),xyzMinMax(2*PMLDir-1)) ! minimum
   xyzPMLMinMax(2*PMLDir  ) = MIN(xyzPMLMinMax(2*PMLDir  ),xyzMinMax(2*PMLDir  )) ! maximum
@@ -526,7 +526,7 @@ DEALLOCATE(PMLalpha)
 !           y = Elem_xGP(2,i,j,k,PMLToElem(iPMLElem))
 !           z = Elem_xGP(3,i,j,k,PMLToElem(iPMLElem))
 !           delta=0.
-!         
+!
 !           ! x-PML region
 !           IF (x .LT. xyzPhysicalMinMax(1)) THEN
 !             xi                  = ABS(x)-ABS(xyzPhysicalMinMax(1))
@@ -566,7 +566,7 @@ DEALLOCATE(PMLalpha)
 !           ! set the ramp value from 1 down to 0
 !           !PMLRamp(p,q,iPMLFace)=1.-( MAXVAL(delta)-SIN(2*ACOS(-1.)*MAXVAL(delta))/(2*ACOS(-1.)) )
 !           PMLRamp(i,j,k,iPMLElem) = 1. - fLinear(MAXVAL(delta))
-!         
+!
 !           ! set the ramp value from 1 down to 0.82 (measured power loss)
 !           ! add ramp from 0 to 0.82 (power drain 30GHz Gyrotron over 2mm PML)
 !           !PMLRamp(i,j,k,iPMLElem) = PMLRamp(i,j,k,iPMLElem) + 0.82*fLinear(MAXVAL(delta))
@@ -578,7 +578,7 @@ END SUBROUTINE SetPMLdampingProfile
 
 SUBROUTINE FinalizePML()
 !===================================================================================================================================
-!  
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_PML_Vars,            ONLY: PMLzeta,U2,U2t
@@ -642,11 +642,11 @@ END MODULE MOD_PML
 
 REAL FUNCTION function_type(x,PMLzetaShape)
 !===================================================================================================================================
-! switch between different types of ramping functions for the calculation of the local zeta damping value field 
+! switch between different types of ramping functions for the calculation of the local zeta damping value field
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,       ONLY: abort
-! IMPLICIT VARIABLE HANDLING 
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -678,11 +678,11 @@ END FUNCTION function_type
 
 REAL FUNCTION fLinear(x)
 !===================================================================================================================================
-!  
+!
 !===================================================================================================================================
 ! MODULES
-USE MOD_PML_Vars,            ONLY: PMLRampLength 
-! IMPLICIT VARIABLE HANDLING 
+USE MOD_PML_Vars,            ONLY: PMLRampLength
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -704,11 +704,11 @@ END FUNCTION fLinear
 
 REAL FUNCTION fSinus(x)
 !===================================================================================================================================
-!  
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_PML_Vars,            ONLY: PMLRampLength
-! IMPLICIT VARIABLE HANDLING 
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -731,11 +731,11 @@ END FUNCTION fSinus
 
 REAL FUNCTION fPolynomial(x)
 !===================================================================================================================================
-!  
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_PML_Vars,            ONLY: PMLRampLength
-! IMPLICIT VARIABLE HANDLING 
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES

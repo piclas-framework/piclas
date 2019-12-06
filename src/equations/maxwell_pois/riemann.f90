@@ -19,7 +19,7 @@ MODULE MOD_Riemann
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -52,10 +52,10 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL                                             :: n_loc(3),A_p(8,8),A_n(8,8)
 INTEGER                                          :: Count_1,Count_2
-!REAL                                             :: D(3,3)                  ! auxiliary matrices used 
+!REAL                                             :: D(3,3)                  ! auxiliary matrices used
 !REAL                                             :: E(3,3), E_trans(3,3)    ! auxiliary matrices used
 !===================================================================================================================================
 ! Gauss point i,j
@@ -69,10 +69,10 @@ DO Count_2=0,PP_N
     A_p(1:3,7)=0.
     A_p(8,4:7)=0.
     A_p(4:7,8)=0.
-  
+
     !D-Teilmatrix: Since chi and gamma is equal we
     ! consider D(chi,gamma) = D(gamma,chi)
-    ! ATTENTION: if chi .ne. gamma this have to be changed. 
+    ! ATTENTION: if chi .ne. gamma this have to be changed.
     ! Then we need D_1 and D_2 (see commented section below)
     A_p(1,1) = c + n_loc(1)*n_loc(1)*eta_c   !  D(1,1)=(1.+n_loc(1)*n_loc(1)*(eta-1.))*c
     A_p(1,2) = n_loc(1)*n_loc(2)*eta_c            !  D(1,2)=n_loc(1)*n_loc(2)*(eta-1)*c
@@ -81,7 +81,7 @@ DO Count_2=0,PP_N
     A_p(2,2) = c + n_loc(2)*n_loc(2)*eta_c   !  D(2,2)=(1.+n_loc(2)*n_loc(2)*(eta-1.))*c
     A_p(2,3) = n_loc(2)*n_loc(3)*eta_c            !  D(2,3)=n_loc(2)*n_loc(3)*(eta-1)*c
     A_p(3,1) = A_p(1,3)                          !  D(3,1)=n_loc(1)*n_loc(3)*(eta-1)*c
-    A_p(3,2) = A_p(2,3)                          !  D(3,2)=n_loc(2)*n_loc(3)*(eta-1)*c     
+    A_p(3,2) = A_p(2,3)                          !  D(3,2)=n_loc(2)*n_loc(3)*(eta-1)*c
     A_p(3,3) = c+n_loc(3)*n_loc(3)*eta_c     !  D(3,3)=(1.+n_loc(3)*n_loc(3)*(mu-1.))*c
     ! epsilon-Teilmatrix
     !E_trans=transpose(E)
@@ -99,7 +99,7 @@ DO Count_2=0,PP_N
     A_n(1:3,4:6)= A_p(1:3,4:6)   ! c*c*E(:,:)
     A_n(4:6,1:3)= A_p(4:6,1:3)
     A_n(4:6,4:6)=-A_p(1:3,1:3)
-  
+
    ! !positive A-Matrix-Divergence-Correction-Term
     A_p(1,8) = c_corr_c2*n_loc(1)
     A_p(2,8) = c_corr_c2*n_loc(2)
@@ -128,10 +128,10 @@ DO Count_2=0,PP_N
 
 !    A_p=0.
 !    A_n=0.
-!  
+!
 !    !D-Teilmatrix: Since chi and gamma is equal we
 !    ! consider D(chi,gamma) = D(gamma,chi)
-!    ! ATTENTION: if chi .ne. gamma this have to be changed. 
+!    ! ATTENTION: if chi .ne. gamma this have to be changed.
 !    ! Then we need D_1 and D_2
 !    D(1,1) = c + n_loc(1)*n_loc(1)*eta_c   !  D(1,1)=(1.+n_loc(1)*n_loc(1)*(eta-1.))*c
 !    D(1,2) = n_loc(1)*n_loc(2)*eta_c            !  D(1,2)=n_loc(1)*n_loc(2)*(eta-1)*c
@@ -140,7 +140,7 @@ DO Count_2=0,PP_N
 !    D(2,2) = c + n_loc(2)*n_loc(2)*eta_c   !  D(2,2)=(1.+n_loc(2)*n_loc(2)*(eta-1.))*c
 !    D(2,3) = n_loc(2)*n_loc(3)*eta_c            !  D(2,3)=n_loc(2)*n_loc(3)*(eta-1)*c
 !    D(3,1) = D(1,3)                          !  D(3,1)=n_loc(1)*n_loc(3)*(eta-1)*c
-!    D(3,2) = D(2,3)                          !  D(3,2)=n_loc(2)*n_loc(3)*(eta-1)*c     
+!    D(3,2) = D(2,3)                          !  D(3,2)=n_loc(2)*n_loc(3)*(eta-1)*c
 !    D(3,3) = c+n_loc(3)*n_loc(3)*eta_c     !  D(3,3)=(1.+n_loc(3)*n_loc(3)*(mu-1.))*c
 !    ! epsilon-Teilmatrix
 !    !E_trans=transpose(E)
@@ -161,7 +161,7 @@ DO Count_2=0,PP_N
 !    A_n(1:3,4:6)= A_p(1:3,4:6)   ! c*c*E(:,:)
 !    A_n(4:6,1:3)= E_trans(:,:)
 !    A_n(4:6,4:6)=-D(:,:)
-!  
+!
 !   ! !positive A-Matrix-Divergence-Correction-Term
 !    A_p(1,8) = c_corr_c2*n_loc(1)
 !    A_p(2,8) = c_corr_c2*n_loc(2)
@@ -191,7 +191,7 @@ DO Count_2=0,PP_N
 !    A_n(8,1:7)= A_p(8,1:7)
 !    A_n(8,8)  =-A_p(8,8)
 !    ! Warum 0.5 -> Antwort im Taube/Dumbser-Paper. Im Munz/Schneider Paper fehlt das 0.5 lustigerweise.
-    
+
     F(:,Count_1,Count_2)=0.5*(MATMUL(A_n,U_R(:,Count_1,Count_2))+MATMUL(A_p,U_L(:,Count_1,Count_2)))
   END DO
 END DO

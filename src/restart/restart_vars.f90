@@ -20,7 +20,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE   :: Vdm_GaussNRestart_GaussN(:,:)! for interpolation from restart grid to computation grid
 INTEGER            :: nVar_Restart
@@ -39,5 +39,9 @@ CHARACTER(LEN=255) :: NodeType_Restart
 REAL               :: RestartTime
 REAL               :: RestartWallTime ! wall time at the beginning of a simulation OR when a restart is performed via Load Balance
 LOGICAL            :: RestartNullifySolution ! set the DG solution to zero (ignore the DG solution in the state file)
+! Restart from sampled macroscopic variables
+LOGICAL            :: DoMacroscopicRestart
+CHARACTER(LEN=300) :: MacroRestartFileName
+REAL, ALLOCATABLE  :: MacroRestartValues(:,:,:)
 !===================================================================================================================================
 END MODULE MOD_Restart_Vars

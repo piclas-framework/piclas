@@ -122,7 +122,7 @@ DO iElem=1,PP_nElems
 ! VERSION 2: quadratic superposition
 !  locTimeStepConv=MIN(locTimeStepConv,CFLScale*2./SQRT(Max_Lambda1**2+Max_Lambda2**2+Max_Lambda3**2))
 ! --------------------------------------------
-! VERSION 1: linear superposition 
+! VERSION 1: linear superposition
   locTimeStepConv=MIN(locTimeStepConv,CFLScale*2./(Max_Lambda1+Max_Lambda2+Max_Lambda3))
 ! --------------------------------------------
   IF(locTimeStepConv.NE.locTimeStepConv)THEN
@@ -133,21 +133,21 @@ DO iElem=1,PP_nElems
         ,'Convective timestep NaN!',999,999.)
   END IF
 END DO ! iElem
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(locTimeStepConv,TimeStepConv,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
 #else
 TimeStepConv=locTimeStepConv
-#endif /*MPI*/
+#endif /*USE_MPI*/
 CalcTimeStep=TimeStepConv
 
 
 #if USE_QDS_DG
 IF(DoQDS)THEN
-#ifdef MPI
+#if USE_MPI
   CALL MPI_ALLREDUCE(locTimeStepQDS,TimeStepConv,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
 #else
 TimeStepConv=locTimeStepQDS
-#endif /*MPI*/
+#endif /*USE_MPI*/
   CalcTimeStep=TimeStepConv
 END IF
 #endif /*USE_QDS_DG*/

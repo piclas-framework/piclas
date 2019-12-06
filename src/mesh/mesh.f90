@@ -65,7 +65,7 @@ CALL prms%CreateLogicalOption( 'DoSwapMesh',                    "TODO-DEFINE-PAR
 CALL prms%CreateStringOption(  'SwapMeshExePath',         "(relative) path to swap-meshfile (mandatory).")
 CALL prms%CreateIntOption(     'SwapMeshLevel',           "TODO-DEFINE-PARAMETER\n"//&
                                                           "0: initial grid\n"//&
-                                                          "1: first swap mesh\n"//&        
+                                                          "1: first swap mesh\n"//&
                                                           "2: second swap mesh\n",'0')
 
 CALL prms%CreateStringOption(  'MeshFile',            "(relative) path to meshfile (mandatory)\n"//&
@@ -82,7 +82,7 @@ CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this fa
                                                       '1.0')
 CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
                                                       '.FALSE.')
-CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"TODO-DEFINE-PARAMETER\nCalculate pointing vector integral "//&        
+CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"TODO-DEFINE-PARAMETER\nCalculate pointing vector integral "//&
                                                          "| only perpendicular to z axis",&
                                                       '.FALSE.')
 CALL prms%CreateLogicalOption( 'CalcMeshInfo',        'Calculate and output elem data for myrank, ElemID and tracking info to '//&
@@ -102,7 +102,7 @@ END SUBROUTINE DefineParametersMesh
 
 SUBROUTINE InitMesh()
 !===================================================================================================================================
-! Read Parameter from inputfile 
+! Read Parameter from inputfile
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -112,7 +112,7 @@ USE MOD_HDF5_Input
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------                                                                                             ! -----------------------------------------------------------------------------------------------------------------------------------
-USE MOD_Mesh_ReadIn            ,ONLY: readMesh
+USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
@@ -125,16 +125,16 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideSlabNormals,SideSlabIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty,ElemSlabNormals,ElemSlabIntervals
 #endif
-#ifdef MPI
+#if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
 #endif /*CODE_ANALYZE*/
-#if USE_LOADBALANCE 
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
-#endif /*USE_LOADBALANCE*/ 
+#endif /*USE_LOADBALANCE*/
 USE MOD_ReadInTools            ,ONLY: PrintOption
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -150,10 +150,6 @@ INTEGER             :: iElem,i,j,k,nElemsLoc
 !CHARACTER(32)       :: hilf2
 CHARACTER(LEN=255)  :: FileName
 LOGICAL             :: validMesh,ExistFile
-INTEGER             :: firstMasterSide     ! lower side ID of array U_master/gradUx_master...
-INTEGER             :: lastMasterSide      ! upper side ID of array U_master/gradUx_master...
-INTEGER             :: firstSlaveSide      ! lower side ID of array U_slave/gradUx_slave...
-INTEGER             :: lastSlaveSide       ! upper side ID of array U_slave/gradUx_slave...
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(&
@@ -162,6 +158,9 @@ IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MESH...'
+
+! Output of myrank, ElemID and tracking info
+CalcMeshInfo = GETLOGICAL('CalcMeshInfo')
 
 ! SwapMesh: either supply the path to the swapmesh binary or place the binary into the current working directory
 DoSwapMesh=GETLOGICAL('DoSwapMesh','.FALSE.')
@@ -197,12 +196,12 @@ IF(.NOT.validMesh) &
 
 useCurveds=GETLOGICAL('useCurveds','.TRUE.')
 DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5','.TRUE.')
-#if USE_LOADBALANCE 
+#if USE_LOADBALANCE
 IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
   DoWriteStateToHDF5=.TRUE.
   CALL PrintOption('Loadbalancing or InitialAutoRestart enabled: DoWriteStateToHDF5','INFO',LogOpt=DoWriteStateToHDF5)
 END IF
-#endif /*USE_LOADBALANCE*/ 
+#endif /*USE_LOADBALANCE*/
 CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
 SWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
@@ -227,71 +226,21 @@ PP_nElems=nElems
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
 CALL setLocalSideIDs()
 
-#ifdef MPI
+#if USE_MPI
 ! for MPI, we need to exchange flips, so that MINE MPISides have flip>0, YOUR MpiSides flip=0
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
 CALL exchangeFlip()
 #endif
 
-!RANGES
-!-----------------|-----------------|-------------------|
-!    U_master     | U_slave         |    FLUX           |
-!-----------------|-----------------|-------------------|
-!  BCsides        |                 |    BCSides        |
-!  InnerMortars   |                 |    InnerMortars   |
-!  InnerSides     | InnerSides      |    InnerSides     |
-!  MPI_MINE sides | MPI_MINE sides  |    MPI_MINE sides |
-!                 | MPI_YOUR sides  |    MPI_YOUR sides |
-!  MPIMortars     |                 |    MPIMortars     |
-!-----------------|-----------------|-------------------|
-
-firstBCSide          = 1
-firstMortarInnerSide = firstBCSide         +nBCSides
-firstInnerSide       = firstMortarInnerSide+nMortarInnerSides
-firstMPISide_MINE    = firstInnerSide      +nInnerSides
-firstMPISide_YOUR    = firstMPISide_MINE   +nMPISides_MINE
-firstMortarMPISide   = firstMPISide_YOUR   +nMPISides_YOUR
-
-lastBCSide           = firstMortarInnerSide-1
-lastMortarInnerSide  = firstInnerSide    -1
-lastInnerSide        = firstMPISide_MINE -1
-lastMPISide_MINE     = firstMPISide_YOUR -1
-lastMPISide_YOUR     = firstMortarMPISide-1
-lastMortarMPISide    = nSides
-
-
-firstMasterSide = 1
-lastMasterSide  = nSides
-firstSlaveSide  = firstInnerSide
-lastSlaveSide   = lastMPISide_YOUR
-nSidesMaster    = lastMasterSide-firstMasterSide+1
-nSidesSlave     = lastSlaveSide -firstSlaveSide+1
-
-LOGWRITE(*,*)'-------------------------------------------------------'
-LOGWRITE(*,'(A25,I8)')   'first/lastMasterSide     ', firstMasterSide,lastMasterSide
-LOGWRITE(*,'(A25,I8)')   'first/lastSlaveSide      ', firstSlaveSide, lastSlaveSide
-LOGWRITE(*,*)'-------------------------------------------------------'
-LOGWRITE(*,'(A25,I8,I8)')'first/lastBCSide         ', firstBCSide         ,lastBCSide
-LOGWRITE(*,'(A25,I8,I8)')'first/lastMortarInnerSide', firstMortarInnerSide,lastMortarInnerSide
-LOGWRITE(*,'(A25,I8,I8)')'first/lastInnerSide      ', firstInnerSide      ,lastInnerSide
-LOGWRITE(*,'(A25,I8,I8)')'first/lastMPISide_MINE   ', firstMPISide_MINE   ,lastMPISide_MINE
-LOGWRITE(*,'(A25,I8,I8)')'first/lastMPISide_YOUR   ', firstMPISide_YOUR   ,lastMPISide_YOUR
-LOGWRITE(*,'(A30,I8,I8)')'first/lastMortarMPISide  ', firstMortarMPISide  ,lastMortarMPISide
-LOGWRITE(*,*)'-------------------------------------------------------'
-
-
-! check with mortars
-nUniqueSides       = lastMPISide_MINE ! MY_MORTAR_MPI_SIDES are missing
-#ifdef PP_HDG
-IF(nMortarInnerSides.GT.0) CALL abort(&
-      __STAMP__&
-      ,' Mortars not implemented for HDG. Fix nUniqueSides, as well!')
-#ifdef MPI
-CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
-#else
-nGlobalUniqueSides=nSides
-#endif
-#endif
+! Set the side ranges here (because by now nMortarInnerSides, nMPISides_MINE and nMPISides_YOUR have been determined)
+! and calculate nGlobalUniqueSides (also required are nBCSides and nInnerSides, which have been determined in ReadMesh())
+! Requires:
+!   nBCSides          is set in ReadMesh()
+!   nMortarInnerSides is set in setLocalSideIDs()
+!   nInnerSides       is set in ReadMesh()
+!   nMPISides_MINE    is set in setLocalSideIDs()
+!   nMPISides_YOUR    is set in setLocalSideIDs()
+CALL setSideRanges()
 
 ! fill ElemToSide, SideToElem,BC
 ALLOCATE(ElemToSide(2,6,nElems))
@@ -302,7 +251,11 @@ ElemToSide  = 0
 SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
 BC          = 0
 AnalyzeSide = 0
-
+! fill output definition for InnerBCs
+#ifdef PARTICLES
+ALLOCATE(GlobalUniqueSideID(1:nSides))
+GlobalUniqueSideID(:)=-1
+#endif
 !NOTE: nMortarSides=nMortarInnerSides+nMortarMPISides
 ALLOCATE(MortarType(2,1:nSides))              ! 1: Type, 2: Index in MortarInfo
 ALLOCATE(MortarInfo(MI_FLIP,4,nMortarSides)) ! [1]: 1: Neighbour sides, 2: Flip, [2]: small sides
@@ -348,7 +301,7 @@ IF(ABS(meshScale-1.).GT.1e-14)&
   Coords =Coords*meshScale
 
 IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
-  Pi = ACOS(-1.) 
+  Pi = ACOS(-1.)
   DO iElem=1,nElems
     DO k=0,NGeo; DO j=0,NGeo; DO i=0,NGeo
       x(:)=Coords(:,i,j,k,iElem)
@@ -370,10 +323,10 @@ ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
 
 ! surface data
 ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides)) 
-ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides)) 
-ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))  
-ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))  
+ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))
 ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,             1:nSides)) ! temp
 Face_xGP=0.
 NormVec=0.
@@ -396,7 +349,7 @@ CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral')
 ! assign 1/detJ (sJ)
 ! assign normal and tangential vectors and surfElems on faces
 #ifdef PARTICLES
-ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) ) 
+ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) )
 BezierControlPoints3D=0.
 
 ALLOCATE(SideSlabNormals(1:3,1:3,1:nSides),SideSlabIntervals(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
@@ -439,9 +392,6 @@ DEALLOCATE(dXCL_N)
 DEALLOCATE(Ja_Face)
 
 
-! Output of myrank, ElemID and tracking info
-CalcMeshInfo = GETLOGICAL('CalcMeshInfo')
-
 IF(CalcMeshInfo)THEN
   CALL AddToElemData(ElementOut,'myRank',IntScalar=myRank)
   !#ifdef PARTICLES
@@ -461,7 +411,7 @@ END SUBROUTINE InitMesh
 
 SUBROUTINE InitMeshBasis(NGeo_in,N_in,xGP)
 !===================================================================================================================================
-! Read Parameter from inputfile 
+! Read Parameter from inputfile
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars,               ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm_CLNGeo_GaussN,Vdm_NGeo_CLNGeo,DCL_NGeo,DCL_N&
@@ -507,7 +457,7 @@ CALL PolynomialDerivativeMatrix(N_in,XiCL_N,DCL_N)
 CALL InitializeVandermonde(N_in,N_in,wBaryCL_N,XiCL_N,xGP,Vdm_CLN_GaussN)
 !equidistant-Lobatto NGeo
 DO i=0,NGeo_in
-  Xi_NGeo(i) = 2./REAL(NGeo_in) * REAL(i) - 1. 
+  Xi_NGeo(i) = 2./REAL(NGeo_in) * REAL(i) - 1.
 END DO
 DeltaXi_NGeo=2./NGeo_in
 CALL BarycentricWeights(NGeo_in,Xi_NGeo,wBary_NGeo)
@@ -532,7 +482,7 @@ CALL InitializeVandermonde(1, NGeo_in,wBaryCL_NGeo1,XiCL_NGeo1,XiCL_NGeo ,Vdm_CL
 ALLOCATE(Vdm_Bezier(0:NGeo_in,0:NGeo_in),sVdm_Bezier(0:NGeo_in,0:NGeo_in))
 ! initialize vandermonde for super-sampled surfaces (particle tracking with curved elements)
 !DO i=0,NGeo_in
-!  XiEquiPartCurved(i) = 2./REAL(NGeo_in) * REAL(i) - 1. 
+!  XiEquiPartCurved(i) = 2./REAL(NGeo_in) * REAL(i) - 1.
 !END DO
 ! initialize vandermonde for bezier basis surface representation (particle tracking with curved elements)
 CALL BuildBezierVdm(NGeo_in,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
@@ -545,7 +495,7 @@ END SUBROUTINE InitMeshBasis
 
 SUBROUTINE SwapMesh()
 !============================================================================================================================
-! use the posti tool swapmesh in order to map the DG solution as well as particles into a new state file with a different 
+! use the posti tool swapmesh in order to map the DG solution as well as particles into a new state file with a different
 ! mesh file
 !============================================================================================================================
 ! MODULES
@@ -571,7 +521,7 @@ LOGICAL             :: LogSwapMesh                 ! create log file for swapmes
 LOGICAL             :: CleanUp                     ! rm old state and mesh file in swapmesh folder
 LOGICAL             :: KeepSwapFile                ! if true, do not remove created swap file, e.g., "PlasmaPlume_NewMesh_State...."
 CHARACTER(LEN=22)   :: ParameterFile               ! swapmesh parameter file containing all conversion information
-CHARACTER(LEN=3)    :: hilf,hilf2                  ! auxiliary variable for INTEGER -> CHARACTER conversion 
+CHARACTER(LEN=3)    :: hilf,hilf2                  ! auxiliary variable for INTEGER -> CHARACTER conversion
 CHARACTER(LEN=255)  :: SYSCOMMAND,SWITCHFOLDER     ! string to fit the system command
 INTEGER             :: iSTATUS                     ! error status return code
 INTEGER             :: StartIndex                  ! get string index (position) of certain substring
@@ -641,7 +591,7 @@ ELSE
                TRIM(LocalName)//'_'//TRIM(NewFolderName(5:6))//'_mesh.h5/" '//ParameterFile
     print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
     CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-    
+
     ! print current polynomial degree to parameter_swapmesh.ini
     WRITE(UNIT=hilf,FMT='(I3)') PP_N
     ! cd ../meshXX && sed -i -e "s/.*NNew.*/NNew=2/" parameter_swapmesh.ini
@@ -649,8 +599,8 @@ ELSE
                TRIM(ADJUSTL(hilf))//'/" '//ParameterFile
     print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
     CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-    
-    ! create symbolic link to old mesh file and restart file 
+
+    ! create symbolic link to old mesh file and restart file
     ! (delete the old links if they exist, they might point to the wrong file)
     ! cd ../meshXX && rm PlasmaPlume_State_000.000000000000100.h5 > /dev/null 2>&1
     SYSCOMMAND=' rm '//TRIM(RestartFile)//' > /dev/null 2>&1'
@@ -678,14 +628,14 @@ ELSE
     SYSCOMMAND=' echo "#!/bin/bash" > swapmesh.sh'
     print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
     CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
- 
+
     ! run swapmesh executable
     ! =======================================================================================================================
     ! CAUTION: CURRENTLY ONLY WORKS IN SINGLE EXECUTION!!!! WHEN STARTED WITH MPIRUN AND PERFORMED BY MPIROOT NOTHING OCCURS!
     ! =======================================================================================================================
     CreateSwapScript=.FALSE.
     IF(CreateSwapScript)THEN
-      ! cd ../mesh01 && echo "/home/stephen/Flexi/ParaViewPlugin_newest_version/build_hdf16/bin/swapmesh parameter_swapmesh.ini 
+      ! cd ../mesh01 && echo "/home/stephen/Flexi/ParaViewPlugin_newest_version/build_hdf16/bin/swapmesh parameter_swapmesh.ini
       !                       PlasmaPlume_State_000.000000000000100.h5" >> swapmesh.sh && chmod +x swapmesh.sh
       SYSCOMMAND=' '//ParameterFile//' '//TRIM(RestartFile)//'" >> swapmesh.sh && chmod +x swapmesh.sh'
       print*,                   TRIM(SWITCHFOLDER)//' echo "'//TRIM(SwapMeshExePath)//TRIM(SYSCOMMAND)
@@ -733,7 +683,7 @@ ELSE
       __STAMP__&
       ,'new swapmesh state file could not be created.',999,999.)
     END IF
-      
+
 
     CleanUp=.TRUE.
     IF(CleanUp)THEN
@@ -749,12 +699,12 @@ ELSE
     END IF
 
 !PlasmaPlume_State_
-    
-    
-    
-    
-    
-    
+
+
+
+
+
+
   END IF
 END IF
 
@@ -786,7 +736,7 @@ xyzMinMaxloc(:) = (/MINVAL(Face_xGP(1,:,:,1:nBCSides)),MAXVAL(Face_xGP(1,:,:,1:n
                     MINVAL(Face_xGP(2,:,:,1:nBCSides)),MAXVAL(Face_xGP(2,:,:,1:nBCSides)),&
                     MINVAL(Face_xGP(3,:,:,1:nBCSides)),MAXVAL(Face_xGP(3,:,:,1:nBCSides))/)
 ! get global bounding box of faces for damping value ramp
-#ifdef MPI
+#if USE_MPI
    CALL MPI_ALLREDUCE(xyzMinMaxloc(1),xyzMinMax(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
    CALL MPI_ALLREDUCE(xyzMinMaxloc(2),xyzMinMax(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
    CALL MPI_ALLREDUCE(xyzMinMaxloc(3),xyzMinMax(3), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
@@ -795,7 +745,7 @@ xyzMinMaxloc(:) = (/MINVAL(Face_xGP(1,:,:,1:nBCSides)),MAXVAL(Face_xGP(1,:,:,1:n
    CALL MPI_ALLREDUCE(xyzMinMaxloc(6),xyzMinMax(6), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
 #else
    xyzMinMax=xyzMinMaxloc
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! don't call twice
 GetMeshMinMaxBoundariesIsDone=.TRUE.
@@ -851,15 +801,19 @@ SUBROUTINE InitElemVolumes()
 ! Calculate Element volumes for later use in particle routines
 !===================================================================================================================================
 ! MODULES                                               ! MODULES
-#ifdef MPI
+#if USE_MPI
 USE mpi
-#endif /*MPI*/
+USE MOD_Globals            ,ONLY: IERROR,MPIRoot
+#endif /*USE_MPI*/
 USE MOD_PreProc
-USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,IERROR,mpiroot,abort
+USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,abort
 USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Interpolation_Vars ,ONLY: wGP
+#ifdef PARTICLES
 USE MOD_Particle_Vars      ,ONLY: usevMPF
+USE MOD_DSMC_Vars          ,ONLY: RadialWeighting
+#endif
 USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -876,12 +830,14 @@ REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
-ALLOCATE(GEO%Volume(nElems),STAT=ALLOCSTAT)
+ALLOCATE(GEO%Volume(nElems),&
+         GEO%MPVolumePortion(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
       __STAMP__&
       ,'ERROR in InitElemGeometry: Cannot allocate GEO%Volume!')
 END IF
+GEO%MPVolumePortion(:)=0.
 ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
@@ -890,16 +846,12 @@ IF (ALLOCSTAT.NE.0) THEN
 END IF
 
 #ifdef PARTICLES
-usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
-IF(usevMPF) THEN
-  ALLOCATE(GEO%DeltaEvMPF(nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-,'ERROR in InitParticleGeometry: Cannot allocate GEO%DeltaEvMPF!')
-  END IF
-  GEO%DeltaEvMPF(:) = 0.0
+IF(RadialWeighting%DoRadialWeighting) THEN
+  usevMPF = .TRUE.
+ELSE
+  usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
 END IF
+
 #endif /* PARTICLES */
 
 ! Calculate element volumes and characteristic lengths
@@ -914,17 +866,107 @@ DO iElem=1,nElems
 END DO
 
 GEO%LocalVolume=SUM(GEO%Volume)
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
 #else
 GEO%MeshVolume=GEO%LocalVolume
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_StdOut,'(A,E18.8)') ' |              Total MESH Volume |                ', GEO%MeshVolume
 
 SWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT GEOMETRY INFORMATION DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes
+
+
+SUBROUTINE setSideRanges()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Set the ranges in the different side lists
+!
+!-----------------|-----------------|-------------------|
+!    U_master     | U_slave         |    FLUX           |
+!-----------------|-----------------|-------------------|
+!  BCsides        |                 |    BCSides        |
+!  InnerMortars   |                 |    InnerMortars   |
+!  InnerSides     | InnerSides      |    InnerSides     |
+!  MPI_MINE sides | MPI_MINE sides  |    MPI_MINE sides |
+!                 | MPI_YOUR sides  |    MPI_YOUR sides |
+!  MPIMortars     |                 |    MPIMortars     |
+!-----------------|-----------------|-------------------|
+!
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals   ,ONLY: abort
+USE MOD_Mesh_Vars ,ONLY: firstBCSide,firstMortarInnerSide,firstInnerSide,firstMPISide_MINE,firstMPISide_YOUR
+USE MOD_Mesh_Vars ,ONLY: nMPISides_MINE,nMPISides_YOUR,nInnerSides,nMortarInnerSides,nBCSides
+USE MOD_Mesh_Vars ,ONLY: lastBCSide,lastMortarInnerSide,lastInnerSide,lastMPISide_MINE,lastMPISide_YOUR,lastMortarMPISide
+USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,nSides,nSidesMaster,nSidesSlave
+#if USE_HDG
+USE MOD_Globals   ,ONLY: UNIT_StdOut
+USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
+#if USE_MPI
+USE MOD_Globals   ,ONLY: myrank
+USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD
+USE mpi
+#endif /*USE_MPI*/
+#endif /*USE_HDG*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: firstMasterSide     ! lower side ID of array U_master/gradUx_master...
+INTEGER             :: lastMasterSide      ! upper side ID of array U_master/gradUx_master...
+INTEGER             :: firstSlaveSide      ! lower side ID of array U_slave/gradUx_slave...
+INTEGER             :: lastSlaveSide       ! upper side ID of array U_slave/gradUx_slave...
+!===================================================================================================================================
+
+firstBCSide          = 1
+firstMortarInnerSide = firstBCSide         +nBCSides          ! nBCSides is set in ReadMesh()
+firstInnerSide       = firstMortarInnerSide+nMortarInnerSides ! nMortarInnerSides is set in setLocalSideIDs()
+firstMPISide_MINE    = firstInnerSide      +nInnerSides       ! nInnerSides is set in ReadMesh()
+firstMPISide_YOUR    = firstMPISide_MINE   +nMPISides_MINE    ! nMPISides_MINE is set in setLocalSideIDs()
+firstMortarMPISide   = firstMPISide_YOUR   +nMPISides_YOUR    ! nMPISides_YOUR is set in setLocalSideIDs()
+
+lastBCSide           = firstMortarInnerSide-1
+lastMortarInnerSide  = firstInnerSide    -1
+lastInnerSide        = firstMPISide_MINE -1
+lastMPISide_MINE     = firstMPISide_YOUR -1
+lastMPISide_YOUR     = firstMortarMPISide-1
+lastMortarMPISide    = nSides
+
+firstMasterSide = 1
+lastMasterSide  = nSides
+firstSlaveSide  = firstInnerSide
+lastSlaveSide   = lastMPISide_YOUR
+nSidesMaster    = lastMasterSide-firstMasterSide+1
+nSidesSlave     = lastSlaveSide -firstSlaveSide+1
+
+! Set nGlobalUniqueSides: Note that big mortar sides are appended to the end of the list
+#if USE_HDG
+nUniqueSides = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list!
+#if USE_MPI
+CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+#else
+nGlobalUniqueSides=nSides
+#endif /*USE_MPI*/
+! Sanity check: Compare the number of global unique sides with the value that is read from the mesh file
+IF(nGlobalUniqueSidesFromMesh.NE.nGlobalUniqueSides)THEN!.AND.ChangedPeriodicBC) THEN ! FUTURE: use this variable when
+                                                          ! nGlobalUniqueSides is calculated from mesh info
+  IPWRITE(UNIT_StdOut,*) "nUniqueSides              =",nUniqueSides
+  IPWRITE(UNIT_StdOut,*) "nGlobalUniqueSidesFromMesh=",nGlobalUniqueSidesFromMesh
+  IPWRITE(UNIT_StdOut,*) "nGlobalUniqueSides        =",nGlobalUniqueSides
+  CALL abort( &
+      __STAMP__, &
+      "nGlobalUniqueSides for HDG not equal the one from meshfile.")
+      !"nGlobalUniqueSides for HDG not equal the one from meshfile even though no periodic sides have been changed to non-periodic.")
+END IF
+#endif /*HDG*/
+
+END SUBROUTINE setSideRanges
 
 
 SUBROUTINE FinalizeMesh()
@@ -934,9 +976,6 @@ SUBROUTINE FinalizeMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
-#ifdef PARTICLES
-!USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
-#endif
 #ifdef CODE_ANALYZE
 #ifndef PARTICLES
 USE MOD_Particle_Surfaces_Vars, ONLY: SideBoundingBoxVolume
@@ -960,6 +999,8 @@ SDEALLOCATE(VdM_CLN_GaussN)
 SDEALLOCATE(VdM_CLNGeo_GaussN)
 SDEALLOCATE(Vdm_CLNGeo_CLN)
 SDEALLOCATE(Vdm_NGeo_CLNgeo)
+SDEALLOCATE(Vdm_N_EQ)
+SDEALLOCATE(Vdm_EQ_N)
 ! BCS
 SDEALLOCATE(BoundaryName)
 SDEALLOCATE(BoundaryType)
@@ -968,16 +1009,17 @@ SDEALLOCATE(ElemToSide)
 SDEALLOCATE(AnalyzeSide)
 SDEALLOCATE(SideToElem)
 SDEALLOCATE(BC)
+SDEALLOCATE(GlobalUniqueSideID)
 ! elem-xgp and metrics
 SDEALLOCATE(Elem_xGP)
 SDEALLOCATE(Metrics_fTilde)
 SDEALLOCATE(Metrics_gTilde)
 SDEALLOCATE(Metrics_hTilde)
 SDEALLOCATE(sJ)
-SDEALLOCATE(NormVec) 
-SDEALLOCATE(TangVec1) 
-SDEALLOCATE(TangVec2)  
-SDEALLOCATE(SurfElem)  
+SDEALLOCATE(NormVec)
+SDEALLOCATE(TangVec1)
+SDEALLOCATE(TangVec2)
+SDEALLOCATE(SurfElem)
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
 SDEALLOCATE(nVecLoc)
@@ -993,7 +1035,6 @@ SDEALLOCATE(Face_xGP)
 SDEALLOCATE(ElemToElemGlob)
 SDEALLOCATE(XCL_NGeo)
 SDEALLOCATE(dXCL_NGeo)
-SDEALLOCATE(Face_xGP)
 SDEALLOCATE(wbaryCL_NGeo)
 SDEALLOCATE(XiCL_NGeo)
 ! mortars

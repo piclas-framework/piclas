@@ -14,15 +14,18 @@
 
 MODULE  MOD_PICInterpolation
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 IMPLICIT NONE
 PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InterpolateFieldToParticle,InitializeInterpolation,InterpolateFieldToSingleParticle,InterpolateVariableExternalField
+PUBLIC :: InterpolateFieldToParticle
+PUBLIC :: InitializeParticleInterpolation
+PUBLIC :: InterpolateFieldToSingleParticle
+PUBLIC :: InterpolateVariableExternalField
 !===================================================================================================================================
-INTERFACE InitializeInterpolation
-  MODULE PROCEDURE InitializeInterpolation
+INTERFACE InitializeParticleInterpolation
+  MODULE PROCEDURE InitializeParticleInterpolation
 END INTERFACE
 
 INTERFACE InterpolateFieldToParticle
@@ -40,7 +43,7 @@ END INTERFACE
 
 CONTAINS
 
-SUBROUTINE InitializeInterpolation
+SUBROUTINE InitializeParticleInterpolation
 !===================================================================================================================================
 ! Initialize the interpolation variables first
 !===================================================================================================================================
@@ -64,6 +67,8 @@ REAL                      :: scaleExternalField
 CHARACTER(LEN=20)         :: tempStr
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
+SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
+
 InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
 InterpolationElemLoop = GETLOGICAL('PIC-InterpolationElemLoop','.TRUE.')
 IF (InterpolationElemLoop) THEN !If user-defined F: F for all procs
@@ -78,7 +83,7 @@ externalField=externalField*ScaleExternalField
 DoInterpolation   = GETLOGICAL('PIC-DoInterpolation','.TRUE.')
 useBGField        = GETLOGICAL('PIC-BG-Field','.FALSE.')
 
-! Variable external field 
+! Variable external field
 useVariableExternalField = .FALSE.
 FileNameVariableExternalField=GETSTR('PIC-curvedexternalField','none')     ! old variable name (for backward compatibility)
 IF (FileNameVariableExternalField.EQ.'none') THEN                          ! if not supplied, check the new variable name
@@ -101,14 +106,14 @@ IF(DoInterpolationAnalytic)THEN
     WRITE(TempStr,'(I5)') AnalyticInterpolationType
     CALL abort(&
         __STAMP__ &
-        ,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_init.f90')
+        ,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_interpolation.f90')
   END SELECT
 END IF
 #endif /*CODE_ANALYZE*/
 
 !--- Allocate arrays for interpolation of fields to particles
 SDEALLOCATE(FieldAtParticle)
-ALLOCATE(FieldAtParticle(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT) 
+ALLOCATE(FieldAtParticle(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
   __STAMP__ &
@@ -125,9 +130,11 @@ CASE('nearest_gausspoint')
 CASE DEFAULT
   CALL abort(&
   __STAMP__ &
-  ,'Unknown InterpolationType in pic_init.f90')
+  ,'Unknown InterpolationType in pic_interpolation.f90')
 END SELECT
-END SUBROUTINE InitializeInterpolation
+
+SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
+END SUBROUTINE InitializeParticleInterpolation
 
 
 SUBROUTINE InterpolateFieldToParticle(doInnerParts)
@@ -137,9 +144,10 @@ SUBROUTINE InterpolateFieldToParticle(doInnerParts)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM,PartPosGauss,PartSpecies,Species,DoFieldIonization
+USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM,PartPosGauss,DoFieldIonization
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
-#ifndef PP_HDG
+USE MOD_Part_Tools             ,ONLY: isInterpolateParticle
+#if !(USE_HDG)
 USE MOD_DG_Vars                ,ONLY: U
 #endif
 USE MOD_PIC_Vars
@@ -150,7 +158,7 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem,EvaluateFieldAtPhysPo
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: E
 #endif
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==1
 USE MOD_Equation_Vars          ,ONLY: E
 #elif PP_nVar==3
@@ -158,14 +166,14 @@ USE MOD_Equation_Vars          ,ONLY: B
 #else
 USE MOD_Equation_Vars          ,ONLY: B,E
 #endif /*PP_nVar==1*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
-#ifdef MPI
+#if USE_MPI
 ! only required for shape function??  only required for shape function??
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-#endif 
+#endif
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
 #endif /* CODE_ANALYZE */
@@ -178,16 +186,16 @@ LOGICAL                          :: doInnerParts
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES                                                                    
+! LOCAL VARIABLES
 INTEGER                          :: firstPart,lastPart
-REAL                             :: Pos(3)                                                      
-REAL                             :: field(6)                                                    
+REAL                             :: Pos(3)
+REAL                             :: field(6)
 INTEGER                          :: iPart,iElem
 ! for Nearest GaussPoint
 INTEGER                          :: a,b,k,ii,l,m
-#if defined PP_POIS || (defined PP_HDG && PP_nVar==4)
+#if defined PP_POIS || (USE_HDG && PP_nVar==4)
 REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
-#endif /*(PP_POIS||PP_HDG)*/
+#endif /*(PP_POIS||USE_HDG)*/
 LOGICAL                          :: NotMappedSurfFluxParts
 !===================================================================================================================================
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
@@ -202,13 +210,13 @@ IF(doInnerParts)THEN
   firstPart=1
   lastPart =PDM%ParticleVecLength
 ELSE
-#ifdef MPI
+#if USE_MPI
   firstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
   lastPart =PDM%ParticleVecLength
 #else
   firstPart=2
   LastPart =1
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END IF
 ! thats wrong
 IF(firstPart.GT.lastPart) RETURN
@@ -218,15 +226,15 @@ IF (.NOT.InterpolationElemLoop) THEN
   DO iPart = firstPart, LastPart
     IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     ! Don't interpolate the field at neutral particles (only when considering field ionization)
-    IF(DoFieldIonization.OR.ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
-      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+    IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
+      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(1:6,iPart))
     END IF
   END DO
   RETURN
 END IF
 
 ! If PP_nElems.LE.10 (so far arbitrary threshold...) do NOT use InterpolateFieldToSingleParticle routine
-FieldAtParticle(firstPart:lastPart,:) = 0. ! initialize
+FieldAtParticle(:,firstPart:lastPart) = 0. ! initialize
 #ifdef CODE_ANALYZE
 IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
   SELECT CASE(AnalyticInterpolationType)
@@ -235,7 +243,7 @@ IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field
                l   => 1.0  )
                !l   => 0.2e-3  )
       DO iPart = firstPart, LastPart
-        FieldAtParticle(iPart,6) = B_0 * EXP(PartState(iPart,1) / l)
+        FieldAtParticle(6,iPart) = B_0 * EXP(PartState(1,iPart) / l)
       END DO
     END ASSOCIATE
   END SELECT
@@ -244,27 +252,27 @@ IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field
 ELSE ! use variable or fixed external field
 #endif /*CODE_ANALYZE*/
   IF(useVariableExternalField) THEN ! used curved external Bz
-    FieldAtParticle(firstPart:lastPart,1) = externalField(1)
-    FieldAtParticle(firstPart:lastPart,2) = externalField(2)
-    FieldAtParticle(firstPart:lastPart,3) = externalField(3)
-#if (PP_nVar==8)
-    FieldAtParticle(firstPart:lastPart,4) = externalField(4)
-    FieldAtParticle(firstPart:lastPart,5) = externalField(5)
+    FieldAtParticle(1,firstPart:lastPart) = externalField(1)
+    FieldAtParticle(2,firstPart:lastPart) = externalField(2)
+    FieldAtParticle(3,firstPart:lastPart) = externalField(3)
+#if (PP_nVar==8)                       
+    FieldAtParticle(4,firstPart:lastPart) = externalField(4)
+    FieldAtParticle(5,firstPart:lastPart) = externalField(5)
 #endif
     ! Bz field strength at particle position
     DO iPart = firstPart, LastPart
-      IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
-        FieldAtParticle(iPart,6) = InterpolateVariableExternalField(PartState(iPart,3))
+      IF(isInterpolateParticle(iPart))THEN
+        FieldAtParticle(6,iPart) = InterpolateVariableExternalField(PartState(3,iPart))
       END IF
     END DO
   ELSE ! useVariableExternalField
-    FieldAtParticle(firstPart:lastPart,1) = externalField(1)
-    FieldAtParticle(firstPart:lastPart,2) = externalField(2)
-    FieldAtParticle(firstPart:lastPart,3) = externalField(3)
+    FieldAtParticle(1,firstPart:lastPart) = externalField(1)
+    FieldAtParticle(2,firstPart:lastPart) = externalField(2)
+    FieldAtParticle(3,firstPart:lastPart) = externalField(3)
 !#if (PP_nVar==8)
-    FieldAtParticle(firstPart:lastPart,4) = externalField(4)
-    FieldAtParticle(firstPart:lastPart,5) = externalField(5)
-    FieldAtParticle(firstPart:lastPart,6) = externalField(6)
+    FieldAtParticle(4,firstPart:lastPart) = externalField(4)
+    FieldAtParticle(5,firstPart:lastPart) = externalField(5)
+    FieldAtParticle(6,firstPart:lastPart) = externalField(6)
 !#endif
   END IF ! use constant external field
 #ifdef CODE_ANALYZE
@@ -294,7 +302,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 !
 #ifdef PP_POIS
       CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
       CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif PP_nVar==3
@@ -312,9 +320,9 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       DO iPart=firstPart,LastPart
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
         ! Don't interpolate the field at neutral particles (only when considering field ionization)
-        IF(DoFieldIonization.OR.ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+        IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
-            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
           END IF! Element(iPart).EQ.iElem
         END IF
       END DO ! iPart
@@ -324,9 +332,9 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       DO iPart = firstPart, LastPart
         IF(.NOT.PDM%ParticleInside(iPart))CYCLE
         ! Don't interpolate the field at neutral particles (only when considering field ionization)
-        IF(DoFieldIonization.OR.ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+        IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
-            Pos = PartState(iPart,1:3)
+            Pos = PartState(1:3,iPart)
             !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -339,7 +347,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
             CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
             CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif PP_nVar==3
@@ -353,9 +361,9 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
             CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
 #endif /*PP_POIS*/
 #endif /*(PP_nVar==8)*/
-            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
           END IF ! Element(iPart).EQ.iElem
-        END IF ! DoFieldIonization.OR.ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
+        END IF ! DoFieldIonization.OR.isInterpolateParticle(iPart)
       END DO ! iPart
     END DO ! iElem=1,PP_nElems
   CASE('particle_position')
@@ -365,10 +373,10 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         DO iPart=firstPart,LastPart
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           ! Don't interpolate the field at neutral particles (only when considering field ionization)
-          IF(DoFieldIonization.OR.ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+          IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
             IF(PEM%Element(iPart).EQ.iElem)THEN
               IF(.NOT.DoRefMapping)THEN
-                CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
+                CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem)
               END IF
               !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -381,12 +389,12 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
 #else
 #ifdef PP_POIS
-              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)     
-#elif defined PP_HDG
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+#elif USE_HDG
 #if PP_nVar==1
-              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)     
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif PP_nVar==3
-              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)     
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
 #else
               HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
               HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
@@ -396,9 +404,9 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
               CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
 #endif
 #endif
-              FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+              FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
             END IF ! Element(iPart).EQ.iElem
-          END IF ! DoFieldIonization.OR.ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
+          END IF ! DoFieldIonization.OR.isInterpolateParticle(iPart)
         END DO ! iPart
       END DO ! iElem=1,PP_nElems
     ELSE IF(NotMappedSurfFluxParts .AND.(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint'))THEN
@@ -407,10 +415,10 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         DO iPart=firstPart,LastPart
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           ! Don't interpolate the field at neutral particles (only when considering field ionization)
-          IF(DoFieldIonization.OR.ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+          IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
             IF(PEM%Element(iPart).EQ.iElem)THEN
               IF(PDM%dtFracPush(iPart))THEN ! same as in "particles are not yet mapped"
-                Pos = PartState(iPart,1:3)
+                Pos = PartState(1:3,iPart)
                 !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -423,7 +431,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
                 CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
                 CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
 #elif PP_nVar==3
@@ -439,7 +447,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
               ELSE !.NOT.PDM%dtFracPush(iPart): same as in "particles have already been mapped in deposition, other eval routine used"
                 IF(.NOT.DoRefMapping)THEN
-                  CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
+                  CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem)
                 END IF
                 !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -453,7 +461,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
                 CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
                 CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif PP_nVar==3
@@ -468,9 +476,9 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
 #endif
               END IF !PDM%dtFracPush(iPart)
-              FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+              FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
             END IF ! Element(iPart).EQ.iElem
-          END IF ! DoFieldIonization.OR.ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
+          END IF ! DoFieldIonization.OR.isInterpolateParticle(iPart)
         END DO ! iPart
       END DO ! iElem=1,PP_nElems
     ELSE ! particles are not yet mapped
@@ -478,9 +486,9 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         DO iPart=firstPart,LastPart
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           ! Don't interpolate the field at neutral particles (only when considering field ionization)
-          IF(DoFieldIonization.OR.ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+          IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
             IF(PEM%Element(iPart).EQ.iElem)THEN
-              Pos = PartState(iPart,1:3)
+              Pos = PartState(1:3,iPart)
               !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -489,11 +497,11 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
               CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
 #else
               CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem,iPart)
-#endif  
+#endif
 #else
 #ifdef PP_POIS
               CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
               CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
 #elif PP_nVar==3
@@ -505,11 +513,11 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
 #else
               CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
-#endif           
 #endif
-              FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+#endif
+              FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
             END IF ! Element(iPart).EQ.iElem
-          END IF ! DoFieldIonization.OR.ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
+          END IF ! DoFieldIonization.OR.isInterpolateParticle(iPart)
         END DO ! iPart
       END DO ! iElem=1,PP_nElems
     END IF ! DoRefMapping .or. Depositiontype=nearest_gausspoint
@@ -526,10 +534,10 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       DO iPart=firstPart,LastPart
         IF(.NOT.PDM%ParticleInside(iPart))CYCLE
         ! Don't interpolate the field at neutral particles (only when considering field ionization)
-        IF(DoFieldIonization.OR.ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+        IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
             IF(.NOT.DoRefMapping .OR. (NotMappedSurfFluxParts .AND. PDM%dtFracPush(iPart)))THEN
-              CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
+              CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem)
             END IF
             ! compute exact k,l,m
             !! x-direction
@@ -567,34 +575,34 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
             field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
             field(4:6) = U(4:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
 #else
             field = U(1:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
 #endif
 #else
 #ifdef PP_POIS
             field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
-#elif defined PP_HDG
+            FieldAtParticle(1:3,iPart) = FieldAtParticle(1:3,iPart) + field(1:3)
+#elif USE_HDG
 #if PP_nVar==1
             field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
+            FieldAtParticle(1:3,iPart) = FieldAtParticle(1:3,iPart) + field(1:3)
 #elif PP_nVar==3
             field(4:6) = B(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(iPart,4:6) = FieldAtParticle(iPart,4:6) + field(4:6)
+            FieldAtParticle(4:6,iPart) = FieldAtParticle(4:6,iPart) + field(4:6)
 #else
             field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
             field(4:6) = B(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
 #endif
 #else
             field(1:3) = U(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
+            FieldAtParticle(1:3,iPart) = FieldAtParticle(1:3,iPart) + field(1:3)
 #endif
 #endif
           END IF ! Element(iPart).EQ.iElem
-        END IF ! DoFieldIonization.OR.ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
+        END IF ! DoFieldIonization.OR.isInterpolateParticle(iPart)
       END DO ! iPart
     END DO ! iElem=1,PP_nElems
   CASE DEFAULT
@@ -603,7 +611,7 @@ __STAMP__&
        , 'ERROR: Unknown InterpolationType!')
   END SELECT
 END IF
-    
+
 RETURN
 END SUBROUTINE InterpolateFieldToParticle
 
@@ -617,17 +625,17 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Particle_Vars,           ONLY:PartPosRef,PDM,PartState,PEM,PartPosGauss
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_DG_Vars,                 ONLY:U
 #endif
-USE MOD_PIC_Vars!,      ONLY: 
+USE MOD_PIC_Vars!,      ONLY:
 USE MOD_PICInterpolation_Vars,   ONLY:useVariableExternalField,externalField,DoInterpolation,InterpolationType
 USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
 USE MOD_Eval_xyz,                ONLY:GetPositionInRefElem,EvaluateFieldAtPhysPos,EvaluateFieldAtRefPos
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:E
 #endif
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==1
 USE MOD_Equation_Vars,        ONLY:E
 #elif PP_nVar==3
@@ -635,7 +643,7 @@ USE MOD_Equation_Vars,        ONLY:B
 #else
 USE MOD_Equation_Vars,        ONLY:B,E
 #endif /*PP_nVar==1*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
@@ -652,14 +660,14 @@ INTEGER,INTENT(IN)            :: PartID
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)             :: FieldAtParticle(1:6)
 !----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES                                                                    
+! LOCAL VARIABLES
 REAL                         :: Pos(3),Field(1:6)
 INTEGER                      :: ElemID
 ! for Nearest GaussPoint
 INTEGER                          :: a,b,k,ii,l,m
-#if defined PP_POIS || (defined PP_HDG && PP_nVar==4)
+#if defined PP_POIS || (USE_HDG && PP_nVar==4)
 REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
-#endif /*(PP_POIS||PP_HDG)*/
+#endif /*(PP_POIS||USE_HDG)*/
 LOGICAL                          :: NotMappedSurfFluxParts
 !===================================================================================================================================
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
@@ -672,7 +680,7 @@ FieldAtParticle=0.
 IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
   SELECT CASE(AnalyticInterpolationType)
   CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
-    FieldAtParticle(6) = EXP(PartState(PartID,1)) ! "B_0" and "l" are dropped here
+    FieldAtParticle(6) = EXP(PartState(1,PartID)) ! "B_0" and "l" are dropped here
   END SELECT
   ! exit the subroutine after field determination
   RETURN
@@ -688,7 +696,7 @@ ELSE ! use variable or fixed external field
     FieldAtParticle(5) = externalField(5)
 #endif
     ! Bz field strength at particle position
-    FieldAtParticle(6) = InterpolateVariableExternalField(PartState(PartID,3))
+    FieldAtParticle(6) = InterpolateVariableExternalField(PartState(3,PartID))
   ELSE ! useVariableExternalField
     FieldAtParticle(:) = 0.
     FieldAtParticle(1) = externalField(1)
@@ -708,7 +716,7 @@ END IF
 IF (DoInterpolation) THEN                 ! skip if no self fields are calculated
   field(1:6)=0.
   ElemID=PEM%Element(PartID)
-#ifdef MPI
+#if USE_MPI
   IF(ElemID.GT.PP_nElems) RETURN
 #endif
   SELECT CASE(TRIM(InterpolationType))
@@ -729,7 +737,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
     CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
     CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif PP_nVar==3
@@ -745,7 +753,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif /*(PP_nVar==8)*/
     FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
   CASE('particle_position_slow')
-    Pos = PartState(PartID,1:3)
+    Pos = PartState(1:3,PartID)
     !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -758,7 +766,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
     CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
     CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif PP_nVar==3
@@ -777,7 +785,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
     IF(.NOT.NotMappedSurfFluxParts .AND.(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint'))THEN
       ! particles have already been mapped in deposition, other eval routine used
       IF(.NOT.DoRefMapping)THEN
-        CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
+        CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),ElemID)
       END IF
       !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -791,7 +799,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
       CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
       CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif PP_nVar==3
@@ -809,7 +817,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
     ELSE IF(NotMappedSurfFluxParts .AND.(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint'))THEN
       !some particle are mapped, surfaceflux particles (dtFracPush) are not
       IF(PDM%dtFracPush(PartID))THEN ! same as in "particles are not yet mapped"
-        Pos = PartState(PartID,1:3)
+        Pos = PartState(1:3,PartID)
         !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -822,7 +830,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
         CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
         CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
 #elif PP_nVar==3
@@ -838,7 +846,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
       ELSE !.NOT.PDM%dtFracPush(PartID): same as in "particles have already been mapped in deposition, other eval routine used"
         IF(.NOT.DoRefMapping)THEN
-          CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
+          CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),ElemID)
         END IF
         !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -852,7 +860,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
         CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
         CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif PP_nVar==3
@@ -869,7 +877,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       END IF !PDM%dtFracPush(PartID)
       FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
     ELSE ! particles are not yet mapped
-      Pos = PartState(PartID,1:3)
+      Pos = PartState(1:3,PartID)
       !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -882,7 +890,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
 #ifdef PP_POIS
       CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
       CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
 #elif PP_nVar==3
@@ -908,7 +916,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       b = a-1
     END IF
     IF(.NOT.DoRefMapping .OR. (NotMappedSurfFluxParts .AND. PDM%dtFracPush(PartID)))THEN
-      CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
+      CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),ElemID)
     END IF
     ! compute exact k,l,m
     !! x-direction
@@ -955,7 +963,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
     field(1:3) = E(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
     FieldAtParticle(1:3) = FieldAtParticle(1:3) + field(1:3)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
     field(1:3) = E(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
     FieldAtParticle(1:3) = FieldAtParticle(1:3) + field(1:3)
@@ -978,7 +986,7 @@ __STAMP__&
     , 'ERROR: Unknown InterpolationType!')
   END SELECT
 END IF
-    
+
 END SUBROUTINE InterpolateFieldToSingleParticle
 
 
@@ -1012,9 +1020,9 @@ DO WHILE (err.EQ.0)
   READ(ioUnit,*,IOSTAT = err) dummy
   IF (err.EQ.-1) THEN
     EXIT
-  END IF 
+  END IF
   ERR = 0
-  ncounts = ncounts + 1 
+  ncounts = ncounts + 1
 END DO
 REWIND(ioUnit)
 nIntPoints = ncounts
@@ -1026,13 +1034,13 @@ DO ii = 1, ncounts
     diff_comp  = VariableExternalField(1,2)  - VariableExternalField(1,1)
     diff_check = VariableExternalField(1,ii) - VariableExternalField(1,ii-1)
     IF( (.NOT.ALMOSTEQUALRELATIVE(diff_comp,diff_check,1E-5)) .AND. ((diff_comp.GT.0.0).AND.(diff_check.GT.0.0)) )THEN
-      SWRITE(UNIT_stdOut,'(A)') "ReadVariableExternalField: Non-equidistant OR non-increasing points for variable external field." 
+      SWRITE(UNIT_stdOut,'(A)') "ReadVariableExternalField: Non-equidistant OR non-increasing points for variable external field."
       SWRITE(UNIT_stdOut,WRITEFORMAT) diff_comp
       SWRITE(UNIT_stdOut,WRITEFORMAT) diff_check
       CALL abort(&
 __STAMP__&
         ,' Error in dataset!')
-    END IF  
+    END IF
   END IF
 END DO
 CLOSE (ioUnit)
@@ -1049,7 +1057,7 @@ IF(ncounts.GT.1) THEN
   IF(DeltaExternalField.LE.0) THEN
     SWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
   END IF
-ELSE 
+ELSE
   CALL abort(&
 __STAMP__&
 , &
@@ -1077,7 +1085,7 @@ REAL,INTENT(IN)          :: Pos                               !< particle z-posi
 ! OUTPUT VARIABLES
 REAL                     :: InterpolateVariableExternalField  !< Bz (magnetic field in z-direction)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                  :: iPos                              !< index in array (equidistant subdivision assumed)
 !===================================================================================================================================
 iPos = INT((Pos-VariableExternalField(1,1))/DeltaExternalField) + 1
@@ -1090,6 +1098,6 @@ ELSE ! Linear Interpolation between iPos and iPos+1 B point
                                    / (VariableExternalField(1,iPos+1) - VariableExternalField(1,iPos)) & ! /dx
                              * (Pos - VariableExternalField(1,iPos) ) + VariableExternalField(2,iPos)    ! *(z - z_i) + z_i
 END IF
-END FUNCTION InterpolateVariableExternalField 
+END FUNCTION InterpolateVariableExternalField
 
 END MODULE MOD_PICInterpolation

@@ -19,11 +19,11 @@ MODULE MOD_Flux
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTERFACE EvalFlux3D
   MODULE PROCEDURE EvalFlux3D
 END INTERFACE
@@ -34,7 +34,7 @@ PUBLIC::EvalFlux3D
 
 CONTAINS
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 SUBROUTINE EvalFlux3D(iElem,f,g,h)
 !===================================================================================================================================
 ! Compute linear scalar advection fluxes with velocity AdvVel(3) using the conservative variables for every volume Gauss point.
@@ -51,7 +51,7 @@ INTEGER,INTENT(IN)                                 :: iElem ! Determines the act
 ! OUTPUT VARIABLES
 REAL,DIMENSION(1,0:PP_N,0:PP_N,0:PP_N),INTENT(OUT) :: f,g,h    ! Cartesian fluxes (iVar,i,j,k)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 
 END SUBROUTINE EvalFlux3D

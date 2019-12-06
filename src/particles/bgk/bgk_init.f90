@@ -30,7 +30,7 @@ INTERFACE FinalizeBGK
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -98,8 +98,8 @@ USE MOD_ReadInTools
 USE MOD_BGK_Vars
 USE MOD_Preproc               ,ONLY: PP_N
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
-USE MOD_Particle_Vars         ,ONLY: nSpecies, Species
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC
+USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, VarTimeStep
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
@@ -151,7 +151,11 @@ __STAMP__&
 END IF
 ! Coupled BGK with DSMC, use a number density as limit above which BGK is used, and below which DSMC is used
 CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
-IF(CoupledBGKDSMC) BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
+IF(CoupledBGKDSMC) THEN
+  BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
+ELSE
+  IF(RadialWeighting%DoRadialWeighting) RadialWeighting%PerformCloning = .FALSE.
+END IF
 ! Octree-based cell refinement, up to a certain number of particles
 DoBGKCellAdaptation = GETLOGICAL('Particles-BGK-DoCellAdaptation')
 IF(DoBGKCellAdaptation) THEN
@@ -160,7 +164,7 @@ IF(DoBGKCellAdaptation) THEN
     DSMC%UseOctree = .TRUE.
     IF(NGeo.GT.PP_N) CALL abort(&
 __STAMP__&
-,' Set PP_N to NGeo, else, the volume is not computed correctly.')
+,' Set PP_N to NGeo, otherwise the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
 END IF
@@ -170,6 +174,11 @@ BGKMovingAverage = GETLOGICAL('Particles-BGK-MovingAverage')
 IF(BGKMovingAverage) THEN
   BGKMovingAverageLength = GETINT('Particles-BGK-MovingAverageLength')
   CALL BGK_init_MovingAverage()
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    CALL abort(&
+__STAMP__&
+,' ERROR BGK Init: Moving average is neither implemented with radial weighting nor variable time step!')
+  END IF
 END IF
 ! Vibrational modelling
 BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')

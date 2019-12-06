@@ -20,7 +20,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! sparse test for calculation
 INTEGER,ALLOCATABLE,DIMENSION(:,:)    :: nNonZeros
@@ -28,7 +28,7 @@ INTEGER,ALLOCATABLE,DIMENSION(:,:)    :: nNonZeros
 TYPE tSparse
  REAL,ALLOCATABLE,DIMENSION(:)        :: Entry
  INTEGER,ALLOCATABLE,DIMENSION(:)     :: IEntry,JEntry
-END TYPE                                                                     
+END TYPE
 REAL,ALLOCATABLE                      :: DebugMat(:,:)
 TYPE(tSparse), ALLOCATABLE            :: SparseMatrix(:,:)
 REAL,ALLOCATABLE                      :: L_HatPlusMinus(:,:)
@@ -43,13 +43,13 @@ REAL,ALLOCATABLE,DIMENSION(:,:)       :: DE
 TYPE tIL                                                                     ! ILU for each element
  REAL,ALLOCATABLE,DIMENSION(:)        :: Entry
  INTEGER,ALLOCATABLE,DIMENSION(:)     :: IEntry,JEntry
-END TYPE                                                                     
-TYPE(tIL), ALLOCATABLE                :: IL(:)             
-TYPE(tIL), ALLOCATABLE                :: IU(:)             
+END TYPE
+TYPE(tIL), ALLOCATABLE                :: IL(:)
+TYPE(tIL), ALLOCATABLE                :: IU(:)
 !TYPE tAA                                                                     ! ILU for each element
 ! REAL,ALLOCATABLE,DIMENSION(:)        :: AA
 ! INTEGER,ALLOCATABLE,DIMENSION(:)     :: IA,JA,Diag
-!END TYPE                                                                     
+!END TYPE
 !TYPE(taa),ALLOCATABLE,DIMENSION(:)    :: EILU
 !===================================================================================================================================
 END MODULE MOD_CSR_Vars

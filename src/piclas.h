@@ -13,7 +13,7 @@
 #elif PGI
 #  define NO_ISNAN
 #endif
-#ifndef __FILENAME__ 
+#ifndef __FILENAME__
 #define __FILENAME__ __FILE__
 #endif
 #define __STAMP__ __FILENAME__,__LINE__,__DATE__,__TIME__
@@ -28,8 +28,8 @@
 #define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  k).OR.x<-HUGE(1_  k))       CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
 #define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ k).OR.x<-HUGE(1._ k))       CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
 #elif CRAY
-#define CHECKSAFEINT(x,k)  
-#define CHECKSAFEREAL(x,k) 
+#define CHECKSAFEINT(x,k)
+#define CHECKSAFEREAL(x,k)
 #else
 #define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  ## k).OR.x<-HUGE(1_  ## k)) CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
 #define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ ## k).OR.x<-HUGE(1._ ## k)) CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
@@ -42,7 +42,7 @@
 #define ALMOSTEQUAL(x,y)  (ABS((x)-(y)).LE.MAX(ABS(x),ABS(y))*(4.441E-16))
 #define ALMOSTZERO(x) (ABS(x).LE.(2.22e-16))
 
-#ifdef MPI
+#if USE_MPI
 #  define SWRITE IF(MPIRoot) WRITE
 #  define IPWRITE(a,b) WRITE(a,b)myRank,
 #else
@@ -50,7 +50,8 @@
 #  define IPWRITE(a,b) WRITE(a,b)0,
 #endif
 #define ERRWRITE(a,b) WRITE(UNIT_errOut,b)
-#define LOGWRITE(a,b) IF(Logging) WRITE(UNIT_logOut,b)
+#define LOGWRITE(a,b)  IF(Logging) WRITE(UNIT_logOut,b)
+#define LOGWRITE_BARRIER  IF(Logging) CALL ReOpenLogFile()
 #define SDEALLOCATE(A) IF(ALLOCATED(A)) DEALLOCATE(A)
 
 #ifdef OPTIMIZED
@@ -132,9 +133,11 @@
 
 ! formats
 ! print to std out like  "    1.41421356237310E+000   -1.41421356237310E+000   -1.41421356237310E+000"
+! (looks good and prevents the first digit of being a zero)
 #define WRITEFORMAT '(ES25.14E3)'
 ! print to csv file like "0.1414213562373095E+001,-.1414213562373095E+001,-.1414213562373095E+001"
-#define CSVFORMAT '(A1,E23.16E3))'
+! (does not look that good but it saves disk space)
+#define CSVFORMAT '(A1,E23.16E3)'
 
 ! Load Balance (LB) position in array for measuring the time that is spent on specific operations
 #define LB_DG            1
@@ -175,3 +178,24 @@
 #define DSMC_TEMPMEAN    12
 
 #define DSMC_NVARS       12
+
+! Sampwall_analyze indeces used in arrays
+#define SAMPWALL_ETRANSOLD        1
+#define SAMPWALL_ETRANSWALL       2
+#define SAMPWALL_ETRANSNEW        3
+#define SAMPWALL_EROTOLD          4
+#define SAMPWALL_EROTWALL         5
+#define SAMPWALL_EROTNEW          6
+#define SAMPWALL_EVIBOLD          7
+#define SAMPWALL_EVIBWALL         8
+#define SAMPWALL_EVIBNEW          9
+#define SAMPWALL_DELTA_MOMENTUMX  10
+#define SAMPWALL_DELTA_MOMENTUMY  11
+#define SAMPWALL_DELTA_MOMENTUMZ  12
+
+#define SAMPWALL_NVARS            12
+
+! Tracking method
+#define REFMAPPING    1
+#define TRACING       2
+#define TRIATRACKING  3

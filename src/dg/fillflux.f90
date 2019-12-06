@@ -21,11 +21,11 @@ MODULE MOD_FillFlux
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTERFACE FillFlux
   MODULE PROCEDURE FillFlux
 END INTERFACE
@@ -58,7 +58,7 @@ USE MOD_Interfaces_Vars ,ONLY: InterfaceRiemann
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only MINE MPISides are filled, =.FALSE. InnerSides  
+LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only MINE MPISides are filled, =.FALSE. InnerSides
 REAL,INTENT(IN)    :: t           ! time
 INTEGER,INTENT(IN) :: tDeriv      ! deriv
 REAL,INTENT(IN)    :: U_master(PP_nVar,0:PP_N,0:PP_N,1:nSides)
@@ -74,8 +74,8 @@ INTEGER            :: SideID,p,q,firstSideID_wo_BC,firstSideID ,lastSideID
 
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
 ! Set the side range according to MPI or no MPI
-IF(doMPISides)THEN 
-  ! fill only flux for MINE MPISides (where the local proc is master) 
+IF(doMPISides)THEN
+  ! fill only flux for MINE MPISides (where the local proc is master)
   firstSideID_wo_BC = firstMPISide_MINE
   firstSideID = firstMPISide_MINE
   lastSideID =  lastMPISide_MINE
@@ -157,7 +157,7 @@ IF(DoExactFlux) THEN
                     , SideID)
     END IF ! isExactFluxFace(SideID)
   END DO ! SideID
-END IF                                           
+END IF
 #endif /*maxwell*/
 
 END SUBROUTINE FillFlux

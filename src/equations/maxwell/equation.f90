@@ -21,7 +21,7 @@ MODULE MOD_Equation
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -29,7 +29,7 @@ INTERFACE InitEquation
   MODULE PROCEDURE InitEquation
 END INTERFACE
 INTERFACE ExactFunc
-  MODULE PROCEDURE ExactFunc 
+  MODULE PROCEDURE ExactFunc
 END INTERFACE
 INTERFACE CalcSource
   MODULE PROCEDURE CalcSource
@@ -141,7 +141,7 @@ END SUBROUTINE DefineParametersEquation
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================
-! Get the constant advection velocity vector from the ini file 
+! Get the constant advection velocity vector from the ini file
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -150,7 +150,7 @@ USE MOD_ReadInTools
 #ifdef PARTICLES
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 #endif
-USE MOD_Equation_Vars 
+USE MOD_Equation_Vars
 USE MOD_TimeDisc_Vars      ,ONLY: TEnd
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCs,BC
 USE MOD_Globals_Vars       ,ONLY: EpsMach
@@ -191,7 +191,7 @@ IF(EquationInitIsDone)THEN
 END IF
 
 SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...' 
+SWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...'
 
 ! Read correction velocity
 c_corr             = GETREAL('c_corr','1.')
@@ -217,12 +217,12 @@ IF(.NOT.ALMOSTEQUALRELATIVE(c_test,c,10E-8))THEN
       ,' Speed of light coefficients does not match!')
 END IF
 
-c2     = c*c 
+c2     = c*c
 c_inv  = 1./c
 c2_inv = 1./c2
 
 c_corr2   = c_corr*c_corr
-c_corr_c  = c_corr*c 
+c_corr_c  = c_corr*c
 c_corr_c2 = c_corr*c2
 eta_c     = (c_corr-1.)*c
 
@@ -258,10 +258,10 @@ DO iRefState=1,nTmp
     DipoleOmega        = GETREAL('omega','6.28318E08')        ! f=100 MHz default
     tPulse             = GETREAL('tPulse','30e-9')            ! half length of pulse
   CASE(5)
-    TEFrequency        = GETREAL('TEFrequency','35e9') 
-    TEScale            = GETREAL('TEScale','1.') 
-    TEPolarization     = GETLOGICAL('TEPolarization','.TRUE.') 
-    TERotation         = GETINT('TERotation','1') 
+    TEFrequency        = GETREAL('TEFrequency','35e9')
+    TEScale            = GETREAL('TEScale','1.')
+    TEPolarization     = GETLOGICAL('TEPolarization','.TRUE.')
+    TERotation         = GETINT('TERotation','1')
     TEPulse            = GETLOGICAL('TEPulse','.FALSE.')
     TEMode             = GETINTARRAY('TEMode',2,'1,1')
     ! compute required roots
@@ -459,12 +459,12 @@ DO iRefState=1,nTmp
         ! beam spot area
         BeamArea_loc    = PI*(Beam_w0**2)
         CALL PrintOption('beam spot area (from waist radius) [m^2]','CALCUL.',RealOpt=BeamArea_loc)
-        
+
         ! beam fluency
         BeamFluency_loc = BeamEnergy_loc / BeamArea_loc
         CALL PrintOption(' beam fluency [J/m^2]','CALCUL.',RealOpt=BeamFluency_loc)
         CALL PrintOption('beam fluency [J/cm^2]','CALCUL.',RealOpt=BeamFluency_loc/1.e4)
-      END SELECT 
+      END SELECT
     END IF
   END SELECT
 END DO
@@ -490,7 +490,7 @@ rCutoff     = GETREAL('r_cutoff','1.')
 ! Compute factor for shape function
 ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
                 * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
-            
+
 EquationInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT MAXWELL DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -498,7 +498,7 @@ END SUBROUTINE InitEquation
 
 
 
-SUBROUTINE ExactFunc(ExactFunction,t_IN,tDeriv,x,resu) 
+SUBROUTINE ExactFunc(ExactFunction,t_IN,tDeriv,x,resu)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -518,13 +518,13 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)                 :: t_IN
 INTEGER,INTENT(IN)              :: tDeriv           ! determines the time derivative of the function
-REAL,INTENT(IN)                 :: x(3)              
+REAL,INTENT(IN)                 :: x(3)
 INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL                            :: Resu_t(PP_nVar),Resu_tt(PP_nVar) ! state in conservative variables
 REAL                            :: Frequency,Amplitude,Omega
 REAL                            :: Cent(3),r,r2,zlen
@@ -552,7 +552,7 @@ Cent=x
 SELECT CASE (ExactFunction)
 CASE(0) ! Particles
   Resu=0.
-CASE(1) ! Constant 
+CASE(1) ! Constant
   Resu(1:3)=1.
   resu(4:6)=c_inv*resu(1:3)
   Resu(7:8)=0.
@@ -569,18 +569,18 @@ CASE(2) ! Coaxial Waveguide
   resu(1)=( x(1))*sin(omega*(x(3)-c*t))/r2
   resu(2)=( x(2))*sin(omega*(x(3)-c*t))/r2
   resu(4)=(-x(2))*sin(omega*(x(3)-c*t))/(r2*c)
-  resu(5)=( x(1))*sin(omega*(x(3)-c*t))/(r2*c) 
+  resu(5)=( x(1))*sin(omega*(x(3)-c*t))/(r2*c)
 
   Resu_t=0.
   resu_t(1)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/r2
   resu_t(2)=-omega*c*( x(2))*cos(omega*(x(3)-c*t))/r2
   resu_t(4)=-omega*c*(-x(2))*cos(omega*(x(3)-c*t))/(r2*c)
-  resu_t(5)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/(r2*c) 
+  resu_t(5)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/(r2*c)
   Resu_tt=0.
   resu_tt(1)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/r2
   resu_tt(2)=-(omega*c)**2*( x(2))*sin(omega*(x(3)-c*t))/r2
   resu_tt(4)=-(omega*c)**2*(-x(2))*sin(omega*(x(3)-c*t))/(r2*c)
-  resu_tt(5)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/(r2*c) 
+  resu_tt(5)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/(r2*c)
 CASE(3) ! Resonator
   !special initial values
   !geometric perameters
@@ -637,7 +637,7 @@ CASE(4) ! Dipole
     theta = 0.5*pi
   END IF
   phi = ATAN2(xrel(2),xrel(1))
-  !IF (xrel(1).GT.eps)      THEN  ! <-------------- OLD stuff, simply replaced with ATAN2() ... but not validated 
+  !IF (xrel(1).GT.eps)      THEN  ! <-------------- OLD stuff, simply replaced with ATAN2() ... but not validated
   !  phi = ATAN(xrel(2)/xrel(1))
   !ELSE IF (xrel(1).LT.eps) THEN ! THIS DIVIDES BY ZERO ?!
   !  phi = ATAN(xrel(2)/xrel(1)) + pi
@@ -651,27 +651,27 @@ CASE(4) ! Dipole
 
   Er = 2.*cos(theta)*Q*dD/(4.*pi*eps0) * ( 1./r**3*sin(omegaD*t-omegaD*r/c) + (omegaD/(c*r**2)*cos(omegaD*t-omegaD*r/c) ) )
   Etheta = sin(theta)*Q*dD/(4.*pi*eps0) * ( (1./r**3-omegaD**2/(c**2*r))*sin(omegaD*t-omegaD*r/c) &
-          + (omegaD/(c*r**2)*cos(omegaD*t-omegaD* r/c) ) ) 
+          + (omegaD/(c*r**2)*cos(omegaD*t-omegaD* r/c) ) )
   Bphi = 1/(c2*eps0)*omegaD*sin(theta)*Q*dD/(4.*pi) &
        * ( - omegaD/(c*r)*sin(omegaD*t-omegaD*r/c) + 1./r**2*cos(omegaD*t-omegaD*r/c) )
-  IF (ABS(phi).GT.eps) THEN 
-    resu(1)= sin(theta)*cos(phi)*Er + cos(theta)*cos(phi)*Etheta 
+  IF (ABS(phi).GT.eps) THEN
+    resu(1)= sin(theta)*cos(phi)*Er + cos(theta)*cos(phi)*Etheta
     resu(2)= sin(theta)*sin(phi)*Er + cos(theta)*sin(phi)*Etheta
     resu(3)= cos(theta)         *Er - sin(theta)         *Etheta
     resu(4)=-sin(phi)*Bphi
     resu(5)= cos(phi)*Bphi
-    resu(6)= 0.0 
+    resu(6)= 0.0
   ELSE
     resu(3)= cos(theta)         *Er - sin(theta)         *Etheta
   END IF
-  
+
 CASE(40) ! Dipole without initial condition
   resu(1:8) = 0.
 CASE(5) ! Initialization of TE waves in a circular waveguide
   ! Book: Springer
   ! Elektromagnetische Feldtheorie fuer Ingenieure und Physicker
   ! p. 500ff
-  ! polarization: 
+  ! polarization:
   ! false - linear polarization
   ! true  - cirular polarization
   r=SQRT(x(1)**2+x(2)**2)
@@ -828,13 +828,13 @@ CASE(121) ! like CASE(12), but with pulsed wave: boundary condition (BC)
                k => BeamWaveNumber, & ! k: wave number
                w => BeamOmega)        ! w: angular frequency
       resu(1:3)=E_0*E_0_vec*COS(k*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-w*t)*EXP(-0.25*(t/sigma_t)**2)
-      resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3)) 
+      resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3))
       resu(7:8)=0.
     END ASSOCIATE
   END IF
 
 CASE(14) ! 1 of 3: Gauss-shape with perfect focus (w(z)=w_0): initial condition (IC)
-         ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filter are defined according to 
+         ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filter are defined according to
          ! Thiele 2016: "Modelling laser matter interaction with tightly focused laser pules in electromagnetic codes"
          ! beam insert is done by a paraxial assumption focus is at basepoint
          ! intensity * Gaussian filter in transversal and longitudinal direction
@@ -844,29 +844,29 @@ CASE(14) ! 1 of 3: Gauss-shape with perfect focus (w(z)=w_0): initial condition 
                     timeFac        => COS(  BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmega*&
                                             (t-ABS(WaveBasePoint(BeamMainDir))/c)  )                                    )
            resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac
-           resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3)) 
+           resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3))
            resu(7:8)=0.
          END ASSOCIATE
 CASE(15) ! 2 of 3: Gauss-shape with perfect focus (w(z)=w_0): boundary condition (BC)
-         ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filter are defined according to 
+         ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filter are defined according to
          ! Thiele 2016: "Modelling laser matter interaction with tightly focused laser pules in electromagnetic codes"
          ! beam insert is done by a paraxial assumption focus is at base point and should be on BC
   IF(t.GT.tActive)THEN ! Pulse has passed -> return
     resu(1:8)=0.
   ELSE
-    ASSOCIATE( t => t - 4*sigma_t ) ! t: add (arbitrary) time shift 
+    ASSOCIATE( t => t - 4*sigma_t ) ! t: add (arbitrary) time shift
       ASSOCIATE( spatialWindow  => EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&
                                    (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*sBeam_w0_2) , & ! spatial window in (x^2+y^2)/(w_0^2)
                  timeFac        => COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmega*t) , & ! COS() function
                  temporalWindow => EXP(-0.25*(t/sigma_t)**2) ) ! temporal Gaussian window
         resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac*temporalWindow
-        resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3)) 
+        resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3))
         resu(7:8)=0.
       END ASSOCIATE
     END ASSOCIATE
   END IF
 CASE(16) ! 3 of 3: Gauss-shape with perfect focus (w(z)=w_0): initial & boundary condition (BC)
-         ! spatial Gauss beam, still planar wave scaled by intensity spatial and temporal filter are defined according to 
+         ! spatial Gauss beam, still planar wave scaled by intensity spatial and temporal filter are defined according to
          ! Thiele 2016: "Modelling laser matter interaction with tightly focused laser pules in electromagnetic codes"
          ! beam insert is done by a paraxial assumption focus is at base point and should be on BC
   IF(t.GT.tActive)THEN ! Pulse has passed -> return
@@ -875,7 +875,7 @@ CASE(16) ! 3 of 3: Gauss-shape with perfect focus (w(z)=w_0): initial & boundary
     ASSOCIATE( tShift   => t-ABS(WaveBasePoint(BeamMainDir))/c             , & ! substitution: shift to wave base point position
                tShiftBC => t+(WaveBasePoint(BeamMainDir)-x(BeamMainDir))/c   ) ! shift to wave base point position
       IF(t.LT.dt)THEN ! Initial condition: IC
-        ASSOCIATE( spatialWindow => EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+              & 
+        ASSOCIATE( spatialWindow => EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+              &
                                           (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*sBeam_w0_2   & ! (x^2+y^2)/(w_0^2)
                                     -((x(BeamMainDir)-WaveBasePoint(BeamMainDir))**2)/((2*sigma_t*c)**2))  , &
                    timeFac       => COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmega*tShift) ) ! COS() function
@@ -910,7 +910,7 @@ CASE(16) ! 3 of 3: Gauss-shape with perfect focus (w(z)=w_0): initial & boundary
           resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac*temporalWindow
         END ASSOCIATE
       END IF
-      resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3)) 
+      resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3))
       resu(7:8)=0.
     END ASSOCIATE
   END IF
@@ -1018,15 +1018,15 @@ USE MOD_PreProc
 USE MOD_Equation_Vars     ,ONLY: eps0,c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars      ,ONLY: PartSource,DoDeposition
-USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric 
+USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric
 #if IMPA
 USE MOD_LinearSolver_Vars ,ONLY: ExplicitPartSource
 #endif
 #endif /*PARTICLES*/
-USE MOD_Mesh_Vars         ,ONLY: Elem_xGP                                                                      
+USE MOD_Mesh_Vars         ,ONLY: Elem_xGP
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
 USE MOD_Equation_Vars     ,ONLY: DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars     ,ONLY: sdtCFLOne                                                                     
+USE MOD_TimeDisc_Vars     ,ONLY: sdtCFLOne
 USE MOD_DG_Vars           ,ONLY: U
 #endif /*LSERK*/
 ! IMPLICIT VARIABLE HANDLING
@@ -1038,7 +1038,7 @@ REAL,INTENT(IN)                 :: t,coeff
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem
 REAL                            :: eps0inv, x(1:3)
 REAL                            :: r           ! for Dipole
@@ -1054,7 +1054,7 @@ IF(DoDeposition)THEN
   IF(DoDielectric)THEN
     DO iElem=1,PP_nElems
       IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
-        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if IMPA
           PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
 #else
@@ -1069,7 +1069,7 @@ IF(DoDeposition)THEN
                                                       / DielectricEps(i,j,k,ElemToDielectric(iElem)) ! only use x
         END DO; END DO; END DO
       ELSE
-        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if IMPA
           PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
 #else
@@ -1077,13 +1077,13 @@ IF(DoDeposition)THEN
 #endif
           !  Get PartSource from Particles
           Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSourceloc(1:3)
-          Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr 
+          Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr
         END DO; END DO; END DO
       END IF
     END DO
   ELSE
     DO iElem=1,PP_nElems
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if IMPA
         PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
 #else
@@ -1091,7 +1091,7 @@ IF(DoDeposition)THEN
 #endif
         !  Get PartSource from Particles
         Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSourceloc(1:3)
-        Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr 
+        Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr
       END DO; END DO; END DO
     END DO
   END IF
@@ -1105,7 +1105,7 @@ CASE(2) ! Coaxial Waveguide - no sources
 CASE(3) ! Resonator         - no sources
 CASE(4) ! Dipole
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
         Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) *coeff* Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
@@ -1117,7 +1117,7 @@ CASE(4) ! Dipole
 CASE(40) ! Dipole without initial condition
   coeff_loc = 1.0e-11 ! amplitude scaling
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
         Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) *coeff_loc* Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
@@ -1129,14 +1129,14 @@ CASE(40) ! Dipole without initial condition
 CASE(5) ! TE_34,19 Mode     - no sources
 CASE(7) ! Manufactured Solution
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * eps0inv
       Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * c_corr * eps0inv
     END DO; END DO; END DO
   END DO
 CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), domain [0;1]^3!!!
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N  
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       x(:)=Elem_xGP(:,i,j,k,iElem)
       Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(1)*SIN(Pi*x(2))*SIN(Pi*x(3))
       Ut(2,i,j,k,iElem) =Ut(2,i,j,k,iElem) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(2)*SIN(Pi*x(3))*SIN(Pi*x(1))
@@ -1160,13 +1160,13 @@ CASE(41) ! Dipole via temporal Gausspuls
 !TEnd=30.E-9 -> short pulse for 100ns runtime
 IF(1.EQ.2)THEN ! new formulation with divergence correction considered
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * eps0inv
       Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * c_corr * eps0inv
     END DO; END DO; END DO
   END DO
 ELSE ! old/original formulation
-  DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+  DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     IF (t.LE.2*tPulse) THEN
       r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
@@ -1211,12 +1211,12 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
 IF(DoParabolicDamping) RETURN
 DO iElem=1,PP_nElems
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     !  Get source from Particles
     U(7:8,i,j,k,iElem) = U(7:8,i,j,k,iElem) * fDamping
   END DO; END DO; END DO
@@ -1225,7 +1225,7 @@ END SUBROUTINE DivCleaningDamping
 
 FUNCTION shapefunc(r)
 !===================================================================================================================================
-! Implementation of (possibly several different) shapefunctions 
+! Implementation of (possibly several different) shapefunctions
 !===================================================================================================================================
 ! MODULES
   USE MOD_Equation_Vars, ONLY : shapeFuncPrefix, alpha_shape, rCutoff
@@ -1238,7 +1238,7 @@ FUNCTION shapefunc(r)
 ! OUTPUT VARIABLES
     REAL                 :: shapefunc ! sort of a weight for the source
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
    IF (r.GE.rCutoff) THEN
      shapefunc = 0.0
@@ -1247,18 +1247,18 @@ FUNCTION shapefunc(r)
    END IF
 END FUNCTION shapefunc
 
-FUNCTION beta(z,w)                                                                                                
+FUNCTION beta(z,w)
    IMPLICIT NONE
-   REAL beta, w, z                                                                                                  
-   beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)                                                                    
-END FUNCTION beta 
+   REAL beta, w, z
+   beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)
+END FUNCTION beta
 
 
-SUBROUTINE GetWaveGuideRadius(DoSide) 
+SUBROUTINE GetWaveGuideRadius(DoSide)
 !===================================================================================================================================
 ! routine to find the maximum radius of a  wave-guide at a given BC plane
 ! radius computation requires interpolation points on the surface, hence
-! an additional change-basis is required to map Gauss to Gauss-Lobatto points 
+! an additional change-basis is required to map Gauss to Gauss-Lobatto points
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1275,7 +1275,7 @@ USE MOD_Interpolation_Vars, ONLY:xGP,wBary
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 LOGICAL,INTENT(IN)      :: DoSide(1:nSides)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -1316,9 +1316,9 @@ DO iSide=1,nSides
   END DO ! q
 END DO
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,TERadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_StdOut,*) ' Found waveguide radius of ', TERadius
 
@@ -1327,13 +1327,13 @@ END SUBROUTINE GetWaveGuideRadius
 
 SUBROUTINE InitExactFlux()
 !===================================================================================================================================
-! Get the constant advection velocity vector from the ini file 
+! Get the constant advection velocity vector from the ini file
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot,iError
-#ifdef MPI
-USE MOD_Globals,         ONLY:MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER
+USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot
+#if USE_MPI
+USE MOD_Globals,         ONLY:MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER,IERROR
 #endif
 USE MOD_Mesh_Vars,       ONLY:nElems,ElemToSide,SideToElem,lastMPISide_MINE
 USE MOD_Interfaces,      ONLY:FindElementInRegion,FindInterfacesInRegion,CountAndCreateMappings
@@ -1380,7 +1380,7 @@ END SELECT
 CALL FindElementInRegion(isExactFluxElem,InterFaceRegion,ElementIsInside=.FALSE.,DoRadius=.FALSE.,Radius=-1.,DisplayInfo=.FALSE.)
 
 ! find all faces in the ExactFlux region
-CALL FindInterfacesInRegion(isExactFluxFace,isExactFluxInterFace,isExactFluxElem)
+CALL FindInterfacesInRegion(isExactFluxFace,isExactFluxInterFace,isExactFluxElem,info_opt='find all faces in the ExactFlux region')
 
 nExactFluxMasterInterFaces=0
 DO iElem=1,nElems ! loop over all local elems
@@ -1394,12 +1394,12 @@ DO iElem=1,nElems ! loop over all local elems
   END DO
 END DO
 
-#ifdef MPI
+#if USE_MPI
   sumExactFluxMasterInterFaces=0
   CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
 #else
   sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
-#endif /* MPI */
+#endif /*USE_MPI*/
 SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux.'
 
 IF(mpiroot)THEN
@@ -1419,12 +1419,12 @@ DO iSide=1,lastMPISide_MINE ! nSides
   END IF
 END DO
 
-#ifdef MPI
+#if USE_MPI
   sumExactFluxMasterInterFaces=0
   CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
 #else
   sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
-#endif /* MPI */
+#endif /*USE_MPI*/
 SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux. <<<<<< DEBUG this'
 
 

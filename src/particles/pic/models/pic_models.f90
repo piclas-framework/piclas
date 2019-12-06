@@ -21,7 +21,7 @@ MODULE MOD_PICModels
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -94,7 +94,7 @@ SumOfFormedParticles = 0
 
 DO iPart = 1, PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
-    ASSOCIATE (& 
+    ASSOCIATE (&
           oldSpec => PartSpecies(iPart) ,&
           newSpec => SpecDSMC(PartSpecies(iPart))%NextIonizationSpecies )
       IF(newSpec.EQ.0) CYCLE ! skip species that cannot be ionized (e.g. electrons or fully ionized species)
@@ -103,7 +103,7 @@ DO iPart = 1, PDM%ParticleVecLength
           DO jj = 1, KK
             E_GV = b(jj)*a(ii) / 1E9  ! [GV/m] for analyis
 #else
-            E_GV = SQRT(FieldAtParticle(iPart,1)**2 + FieldAtParticle(iPart,2)**2 + FieldAtParticle(iPart,3)**2) / 1E9 ! [GV/m]
+            E_GV = SQRT(FieldAtParticle(1,iPart)**2 + FieldAtParticle(2,iPart)**2 + FieldAtParticle(3,iPart)**2) / 1E9 ! [GV/m]
 #endif /* CODE_ANALYZE */
             ! Ionization energy (same as in QK model)
             MaxElecQua=SpecDSMC(oldSpec)%MaxElecQuant - 1
@@ -113,10 +113,10 @@ DO iPart = 1, PDM%ParticleVecLength
             CriticalValue_GV = (SQRT(2.) - 1.) * (IonizationEnergy_eV / 27.2)**(1.5) * 5.14E+2
             IF(E_GV.GT.CriticalValue_GV) THEN
               WRITE(UNIT_stdOut,'(A,ES25.14E3)') "IonizationEnergy_eV =", IonizationEnergy_eV
-              WRITE(UNIT_stdOut,'(A,ES25.14E3)') "CriticalValue_GV    =", CriticalValue_GV   
-              WRITE(UNIT_stdOut,'(A,ES25.14E3)') "E_GV    =", E_GV   
+              WRITE(UNIT_stdOut,'(A,ES25.14E3)') "CriticalValue_GV    =", CriticalValue_GV
+              WRITE(UNIT_stdOut,'(A,ES25.14E3)') "E_GV    =", E_GV
 #ifdef CODE_ANALYZE
-              WRITE(UNIT_stdOut,'(A)') "ERROR FieldIonization: ADK model is not applicable for electric fields > critical value!" 
+              WRITE(UNIT_stdOut,'(A)') "ERROR FieldIonization: ADK model is not applicable for electric fields > critical value!"
 #else
               CALL abort(&
                   __STAMP__&
@@ -148,15 +148,15 @@ DO iPart = 1, PDM%ParticleVecLength
         !Set new Species of new particle
         PDM%ParticleInside(ElectronIndex) = .TRUE.
         PartSpecies(ElectronIndex)        = DSMC%ElectronSpecies
-        PartState(ElectronIndex,1:3)      = PartState(iPart,1:3)
-        PartState(ElectronIndex,4:6)      = Species(DSMC%ElectronSpecies)%MassIC / Species(oldSpec)%MassIC * PartState(iPart,4:6)
-        PartState(iPart,4:6)              = Species(newSpec)%MassIC              / Species(oldSpec)%MassIC * PartState(iPart,4:6)
+        PartState(1:3,ElectronIndex)      = PartState(1:3,iPart)
+        PartState(4:6,ElectronIndex)      = Species(DSMC%ElectronSpecies)%MassIC / Species(oldSpec)%MassIC * PartState(4:6,iPart)
+        PartState(4:6,iPart)              = Species(newSpec)%MassIC              / Species(oldSpec)%MassIC * PartState(4:6,iPart)
         PEM%Element(ElectronIndex)        = PEM%Element(iPart)
         ! Setting the species of the ionized particle
         oldSpec = newSpec
         IF(usevMPF) PartMPF(ElectronIndex) = PartMPF(iPart)
         ! Setting the field for the new particle for the following integration
-        FieldAtParticle(ElectronIndex,1:6) = FieldAtParticle(iPart,1:6)
+        FieldAtParticle(1:6,ElectronIndex) = FieldAtParticle(1:6,iPart)
       END IF
     END ASSOCIATE
   END IF
@@ -219,7 +219,7 @@ DO iPart = 1, PDM%ParticleVecLength
           DO jj = 1, KK
             E = b(jj)*a(ii) ! [V/m] for analyis
 #else
-           ,E        => SQRT(FieldAtParticle(iPart,1)**2 + FieldAtParticle(iPart,2)**2 + FieldAtParticle(iPart,3)**2) ) ! [V/m]
+           ,E        => SQRT(FieldAtParticle(1,iPart)**2 + FieldAtParticle(2,iPart)**2 + FieldAtParticle(3,iPart)**2) ) ! [V/m]
 #endif /* CODE_ANALYZE */
             ! Ionization energy (same as in QK model)
             MaxElecQua=SpecDSMC(oldSpec)%MaxElecQuant - 1
@@ -249,15 +249,15 @@ DO iPart = 1, PDM%ParticleVecLength
         !Set new Species of new particle
         PDM%ParticleInside(ElectronIndex) = .TRUE.
         PartSpecies(ElectronIndex)        = DSMC%ElectronSpecies
-        PartState(ElectronIndex,1:3)      = PartState(iPart,1:3)
-        PartState(ElectronIndex,4:6)      = Species(DSMC%ElectronSpecies)%MassIC / Species(oldSpec)%MassIC * PartState(iPart,4:6)
-        PartState(iPart,4:6)              = Species(newSpec)%MassIC              / Species(oldSpec)%MassIC * PartState(iPart,4:6)
+        PartState(1:3,ElectronIndex)      = PartState(1:3,iPart)
+        PartState(4:6,ElectronIndex)      = Species(DSMC%ElectronSpecies)%MassIC / Species(oldSpec)%MassIC * PartState(4:6,iPart)
+        PartState(4:6,iPart)              = Species(newSpec)%MassIC              / Species(oldSpec)%MassIC * PartState(4:6,iPart)
         PEM%Element(ElectronIndex)        = PEM%Element(iPart)
         ! Setting the species of the ionized particle
         oldSpec = newSpec
         IF(usevMPF) PartMPF(ElectronIndex) = PartMPF(iPart)
         ! Setting the field for the new particle for the following integration
-        FieldAtParticle(ElectronIndex,1:6) = FieldAtParticle(iPart,1:6)
+        FieldAtParticle(1:6,ElectronIndex) = FieldAtParticle(1:6,iPart)
       END IF
     END ASSOCIATE
   END IF
@@ -280,11 +280,10 @@ SUBROUTINE WriteFieldIonizationRate(E,W)
 USE MOD_Globals               ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 USE MOD_Globals               ,ONLY: abort
-USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part
 USE MOD_TimeDisc_Vars         ,ONLY: iter
 !----------------------------------------------------------------------------------------------------------------------------------!                                                                    ! ----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                  :: E ! Electric Field Strength [V/m]
 REAL,INTENT(IN)                  :: W ! Ionization Rate [1/s]
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -298,8 +297,8 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'W[1/s]'      &
     /)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
-CHARACTER(LEN=1000)                      :: tmpStr2 
-CHARACTER(LEN=1),PARAMETER               :: delimiter="," 
+CHARACTER(LEN=1000)                      :: tmpStr2
+CHARACTER(LEN=1),PARAMETER               :: delimiter=","
 LOGICAL                                  :: FileExist,CreateFile
 !===================================================================================================================================
 ! only the root shall write this file
@@ -319,7 +318,7 @@ INQUIRE(FILE = outfile, EXIST=FileExist)
 IF(.NOT.FileExist)CreateFile=.TRUE.                         ! if no file exists, create one
 
 ! create file with header
-IF(CreateFile) THEN 
+IF(CreateFile) THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
   tmpStr=""
   DO I=1,nOutputVar
@@ -339,19 +338,19 @@ IF(CreateFile) THEN
   tmpStr2(1:1) = " "                           ! remove possible relimiter at the beginning (e.g. a comma)
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
 
-  CLOSE(ioUnit) 
+  CLOSE(ioUnit)
   iter=iter+1
 END IF
 
 ! Print info to file
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-      WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,CSVFORMAT
+      WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
   WRITE(tmpStr2,formatStr)&
       " ",E, &           ! Electric field strength
       delimiter,W        ! Ionization rate
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
-  CLOSE(ioUnit) 
+  CLOSE(ioUnit)
 ELSE
   SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write particle tracking info!"
 END IF

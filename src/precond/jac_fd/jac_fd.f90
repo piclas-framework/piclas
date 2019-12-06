@@ -15,7 +15,7 @@
 MODULE MOD_Jac_FD
 !===================================================================================================================================
 ! Contains the initialization of the DG global variables
-! Computes the different DG spatial operators/residuals(Ut) using U 
+! Computes the different DG spatial operators/residuals(Ut) using U
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -77,7 +77,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 IF(PrecondFDInitisDone)THEN
   SWRITE(*,*) "Init Jacobian FD already called."
@@ -106,7 +106,7 @@ END SUBROUTINE InitJac_FD
 
 SUBROUTINE Jac_FD_slow(t,tStage,tDeriv,iElem,dRdU)
 !===================================================================================================================================
-! Coputes the Finite Difference-Derivative dRdU for the Calculation of Preconditioner P 
+! Coputes the Finite Difference-Derivative dRdU for the Calculation of Preconditioner P
 ! Attention: dRdU = 0 (in precond.f90)
 !===================================================================================================================================
 ! MODULES
@@ -116,7 +116,7 @@ USE MOD_Jac_FD_Vars,   ONLY: Xk,sreps0,reps0,Rxk
 USE MOD_LinearSolver_Vars, ONLY: nDOFelem
 USE MOD_DG,            ONLY: DGTimeDerivative_WeakForm
 USE MOD_DG_Vars,       ONLY: U,Ut
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -129,9 +129,9 @@ INTEGER,INTENT(IN)                   :: iElem,tDeriv
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)                   :: dRdU(1:nDOFelem,1:nDOFelem)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                              :: iVar,r,s,ii,jj,kk,iiVar,i,j,k
-#ifdef MPI
+#if USE_MPI
 INTEGER                              :: iProc
 #endif
 !===================================================================================================================================
@@ -143,7 +143,7 @@ Rxk=Ut(:,:,:,:,iElem) !linearization Ut of Xk for FD
 ! nullify
 dRdU = 0.
 
-#ifdef MPI
+#if USE_MPI
 DO iProc=0,nProcessors-1
   s=1
   DO k=0,PP_N
@@ -156,7 +156,7 @@ DO iProc=0,nProcessors-1
           END IF
           CALL DGTimeDerivative_WeakForm(t,tStage,tDeriv,doSource=.FALSE.)
           IF (iProc.EQ.myRank) THEN
-            U(iVar,i,j,k,iElem) = Xk(iVar,i,j,k) 
+            U(iVar,i,j,k,iElem) = Xk(iVar,i,j,k)
           END IF
           IF (iProc.EQ.myRank) THEN
             r=1
@@ -185,7 +185,7 @@ END DO !iProc
         DO iVar=1,PP_nVar
             U(iVar,i,j,k,iElem) = Xk(iVar,i,j,k) + reps0
             CALL DGTimeDerivative_WeakForm(t,tStage,tDeriv,doSource=.FALSE.)
-            U(iVar,i,j,k,iElem) = Xk(iVar,i,j,k) 
+            U(iVar,i,j,k,iElem) = Xk(iVar,i,j,k)
             r=1
             DO kk=0,PP_N
               DO jj=0,PP_N

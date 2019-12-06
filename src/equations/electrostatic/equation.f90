@@ -21,7 +21,7 @@ MODULE MOD_Equation
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -29,7 +29,7 @@ INTERFACE InitEquation
   MODULE PROCEDURE InitEquation
 END INTERFACE
 INTERFACE ExactFunc
-  MODULE PROCEDURE ExactFunc 
+  MODULE PROCEDURE ExactFunc
 END INTERFACE
 INTERFACE CalcSource
   MODULE PROCEDURE CalcSource
@@ -84,7 +84,7 @@ END SUBROUTINE DefineParametersEquation
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================
-! Get the constant advection velocity vector from the ini file 
+! Get the constant advection velocity vector from the ini file
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -93,7 +93,7 @@ USE MOD_ReadInTools
 #ifdef PARTICLES
 USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
 #endif
-USE MOD_Equation_Vars 
+USE MOD_Equation_Vars
 USE MOD_TimeDisc_Vars, ONLY: TEnd
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -104,7 +104,7 @@ USE MOD_TimeDisc_Vars, ONLY: TEnd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                             :: c_test
-#ifdef MPI
+#if USE_MPI
 #endif
 !===================================================================================================================================
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
@@ -136,12 +136,12 @@ IF ( ABS(c-c_test)/c.GT.10E-8) THEN
       ,' Speed of light coefficients does not match!')
 END IF
 
-c2     = c*c 
+c2     = c*c
 c_inv  = 1./c
 c2_inv = 1./c2
 
 c_corr2   = c_corr*c_corr
-c_corr_c  = c_corr*c 
+c_corr_c  = c_corr*c
 c_corr_c2 = c_corr*c2
 eta_c     = (c_corr-1.)*c
 
@@ -165,7 +165,7 @@ rCutoff     = GETREAL('r_cutoff','1.')
 ! Compute factor for shape function
 ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
                 * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
-            
+
 EquationInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT ELECTROSTATIC DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -173,7 +173,7 @@ END SUBROUTINE InitEquation
 
 
 
-SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu) 
+SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -188,13 +188,13 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)                 :: t
 INTEGER,INTENT(IN)              :: tDeriv           ! determines the time derivative of the function
-REAL,INTENT(IN)                 :: x(3)              
+REAL,INTENT(IN)                 :: x(3)
 INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL                            :: Resu_t(PP_nVar),Resu_tt(PP_nVar) ! state in conservative variables
 REAL                            :: Frequency,Amplitude,Omega
 REAL                            :: Cent(3),r,r2,zlen
@@ -215,9 +215,9 @@ SELECT CASE (ExactFunction)
 #ifdef PARTICLES
 CASE(0) ! Particles
   Resu=0.
-  !resu(1:3)= x(1:3)!*x(1) 
+  !resu(1:3)= x(1:3)!*x(1)
 #endif
-CASE(1) ! Constant 
+CASE(1) ! Constant
   Resu=1.
   Resu_t=0.
   Resu_tt=0.
@@ -260,7 +260,7 @@ USE MOD_PICDepo_Vars,  ONLY : PartSource,DoDeposition
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 #ifdef LSERK
 USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars, ONLY : dt, sdtCFLOne!, RK_B, iStage  
+USE MOD_TimeDisc_Vars, ONLY : dt, sdtCFLOne!, RK_B, iStage
 USE MOD_DG_Vars,       ONLY : U
 #endif /*LSERK*/
 ! IMPLICIT VARIABLE HANDLING
@@ -273,7 +273,7 @@ REAL,INTENT(IN)                 :: coeff
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem
 REAL                            :: eps0inv
 !===================================================================================================================================
@@ -282,10 +282,10 @@ eps0inv = 1./eps0
 #ifdef PARTICLES
 IF(DoDeposition)THEN
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       !  Get source from Particles
       Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - coeff*eps0inv * PartSource(1:3,i,j,k,iElem)
-      Ut(  4,i,j,k,iElem) = Ut(  4,i,j,k,iElem) + coeff*eps0inv * PartSource(  4,i,j,k,iElem) * c_corr 
+      Ut(  4,i,j,k,iElem) = Ut(  4,i,j,k,iElem) + coeff*eps0inv * PartSource(  4,i,j,k,iElem) * c_corr
     END DO; END DO; END DO
   END DO
 END IF
@@ -325,12 +325,12 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
   IF(DoParabolicDamping) RETURN
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       !  Get source from Particles
       U(4,i,j,k,iElem) = U(4,i,j,k,iElem) * fDamping
     END DO; END DO; END DO
@@ -339,7 +339,7 @@ END SUBROUTINE DivCleaningDamping
 
 FUNCTION shapefunc(r)
 !===================================================================================================================================
-! Implementation of (possibly several different) shapefunctions 
+! Implementation of (possibly several different) shapefunctions
 !===================================================================================================================================
 ! MODULES
   USE MOD_Equation_Vars, ONLY : shapeFuncPrefix, alpha_shape, rCutoff
@@ -352,7 +352,7 @@ FUNCTION shapefunc(r)
 ! OUTPUT VARIABLES
     REAL                 :: shapefunc ! sort of a weight for the source
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
    IF (r.GE.rCutoff) THEN
      shapefunc = 0.0
@@ -361,11 +361,11 @@ FUNCTION shapefunc(r)
    END IF
 END FUNCTION shapefunc
 
-FUNCTION beta(z,w)                                                                                                
+FUNCTION beta(z,w)
    IMPLICIT NONE
-   REAL beta, w, z                                                                                                  
-   beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)                                                                    
-END FUNCTION beta 
+   REAL beta, w, z
+   beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)
+END FUNCTION beta
 
 SUBROUTINE FinalizeEquation()
 !===================================================================================================================================

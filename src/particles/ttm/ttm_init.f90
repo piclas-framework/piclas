@@ -22,7 +22,7 @@ MODULE MOD_TTMInit
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -57,11 +57,11 @@ CALL prms%SetSection("TTM")
 
 CALL prms%CreateLogicalOption(  'DoImportTTMFile'      , 'Read IMD Two-Temperature Model (TTM) data (FD grid data with\n electron'&
                                                           //'temperature and other field data)','.FALSE.')
-                                                         
+
 CALL prms%CreateStringOption(   'TTMLogFile'           , 'TTM Log file path','no file specified')
 CALL prms%CreateStringOption(   'TTMFile'              , 'TTM Data file path','no file found')
 CALL prms%CreateIntArrayOption( 'TTMGridFDdim'         , 'Number of FD grid cells in each direction (/x,y,z/)','0 , 0 , 0')
-                                                     
+
 CALL prms%CreateRealOption(     'TTMElemBaryTolerance' , 'TTM FD bary center tolerance to DG bary center. The tolerance is used '//&
                                                          'for finding the corresponding DG element to which the FD data is saved.'&
                                                        , '1e-6')
@@ -80,7 +80,7 @@ SUBROUTINE InitTTM()
 ! #x y z natoms temp md_temp xi source v_com.x v_com.y v_com.z fd_k fd_g Z  proc
 ! -------------------------------------------------------------------------------------------------------------------------------
 ! read the following fields ...
-! 
+!
 ! 1.)  x:         0 to Nx-1 FD cells in x-direction                          [-]                not stored
 ! 2.)  y:         0 to Ny-1 FD cells in y-direction                          [-]                not stored
 ! 3.)  z:         0 to Nz-1 FD cells in z-direction                          [-]                not stored
@@ -104,7 +104,7 @@ SUBROUTINE InitTTM()
 ! dt_PICcold(TimeStep)          = dtPICTM=0.2./w_peTTM                          -> TTM_Cell_15
 ! dt_PICwarm(TimeStep)'         = dtPICTMwarm=0.2./w_peTTMwarm                  -> TTM_Cell_16
 ! T_e(ElectronTempInKelvin)      = T[eV]/8.621738E-5 (eV -> K)                    -> TTM_Cell_17
-! lambda_D(DebyeLength)          = sqrt(eps0*kB*TeTTM      ./(K_to_eV*neTTM*e^2)) 
+! lambda_D(DebyeLength)          = sqrt(eps0*kB*TeTTM      ./(K_to_eV*neTTM*e^2))
 !                                = sqrt(eps0*kB*TeTTM_in_K./(         neTTM*e^2)) -> TTM_Cell_18
 !===================================================================================================================================
 ! MODULES
@@ -114,9 +114,9 @@ USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_TTM_Vars
 USE MOD_Restart_Vars      ,ONLY: DoRestart
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
-#endif /* MPI*/
+#endif /*USE_MPI*/
 USE MOD_Mesh_Vars         ,ONLY: ElemBaryNGeo
 USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
 USE MOD_Equation_Vars     ,ONLY: eps0
@@ -193,13 +193,13 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         ALLOCATE( ElemIsDone(FD_nElems) )
         ElemIsDone=.FALSE.
         SWRITE(UNIT_stdOut,'(A,A)') " Reading TTM data from file (TTMFile): ",TRIM(TTMFile)
-#ifdef MPI
+#if USE_MPI
         IF(.NOT.PartMPI%MPIROOT)THEN
           CALL abort(&
               __STAMP__&
               ,'ERROR: Cannot SetParticlePosition in multi-core environment for SpaceIC=IMD!')
         END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
         OPEN(NEWUNIT=ioUnit,FILE=TRIM(TTMFile),STATUS='OLD',ACTION='READ',IOSTAT=io_error)
         IF(io_error.NE.0)THEN
           CALL abort(&
@@ -248,7 +248,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
           END IF
           iLineTTM=iLineTTM+1 ! *.ttm data file: line counter
 
-          ! FD index values go from 0 to N_ijk-1 
+          ! FD index values go from 0 to N_ijk-1
           ix=INT(tmp_array(1),4)+1 ! FD grid index in x
           iy=INT(tmp_array(2),4)+1 ! FD grid index in y
           iz=INT(tmp_array(3),4)+1 ! FD grid index in z
@@ -258,9 +258,9 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
             ElemIndexFD(1,iLineTTM)=ix
             ElemIndexFD(2,iLineTTM)=iy
             ElemIndexFD(3,iLineTTM)=iz
-            ElemBaryFD(1,iLineTTM)=(REAL(ix)-0.5)*fd_hx 
-            ElemBaryFD(2,iLineTTM)=(REAL(iy)-0.5)*fd_hy 
-            ElemBaryFD(3,iLineTTM)=(REAL(iz)-0.5)*fd_hz 
+            ElemBaryFD(1,iLineTTM)=(REAL(ix)-0.5)*fd_hx
+            ElemBaryFD(2,iLineTTM)=(REAL(iy)-0.5)*fd_hy
+            ElemBaryFD(3,iLineTTM)=(REAL(iz)-0.5)*fd_hz
           ELSE
             SWRITE(UNIT_stdOut,'(A,I10)') " A problem reading the TTM file occured in line: ",iLineTTM+1
             DoImportTTMFile=.FALSE.
@@ -406,7 +406,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
               IF(TTM_Cell_14(iElem).LE.0.0)THEN
                 TTM_Cell_16(iElem) = 0.0
               ELSE
-                TTM_Cell_16(iElem) = 0.2 / TTM_Cell_14(iElem) 
+                TTM_Cell_16(iElem) = 0.2 / TTM_Cell_14(iElem)
               END IF
 
               ! 'T_e(ElectronTempInKelvin)'
@@ -646,7 +646,7 @@ SUBROUTINE GetFDGridCellSize(fd_hx,fd_hy,fd_hz)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! search for the following line and extract the values for fd_hx, fd_hy and fd_hz
 ! the info is extracted from the IMD+TTM output- or log-file
-! fd_h.x:24.107143, fd_h.y:22.509134,fd_h.z:22.509134\nnVolume of one FD cell: 1.221415e+04 [cubic Angstroms] 
+! fd_h.x:24.107143, fd_h.y:22.509134,fd_h.z:22.509134\nnVolume of one FD cell: 1.221415e+04 [cubic Angstroms]
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -656,7 +656,7 @@ USE MOD_Particle_Vars ,ONLY: IMDLengthScale
 USE MOD_ReadInTools   ,ONLY: PrintOption
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)   :: fd_hx,fd_hy,fd_hz
@@ -758,27 +758,27 @@ CLOSE(ioUnit)
 END SUBROUTINE GetFDGridCellSize
 
 
-SUBROUTINE InitIMD_TTM_Coupling() 
+SUBROUTINE InitIMD_TTM_Coupling()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! 1.) assign charges to each atom using the averaged FD cell charge within each FD cell and sum the charge for step 2.)
-! 2.) reconstruct the electron phase space using MD and TTM data and the summed charged per FD cell for which an electron is 
+! 2.) reconstruct the electron phase space using MD and TTM data and the summed charged per FD cell for which an electron is
 !     created to achieve an ionization degree of unity (fully ionized plasma)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, ElementaryCharge
+USE MOD_Globals_Vars        ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_PreProc
 USE MOD_TTM_Vars
-USE MOD_Particle_Vars ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
-USE MOD_Mesh_Vars     ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_DSMC_Vars     ,ONLY: CollisMode,DSMC,PartStateIntEn
-USE MOD_part_emission ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_Vars     ,ONLY: useDSMC
-USE MOD_Eval_xyz      ,ONLY: TensorProductInterpolation
+USE MOD_Particle_Vars       ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
+USE MOD_Mesh_Vars           ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
+USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_DSMC_Vars           ,ONLY: useDSMC
+USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -806,9 +806,9 @@ DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
 
     ! If the current particle is part of the IMD species list, then a charge can be assigned
-    IF(ANY(PartSpecies(iPart).EQ.IMDSpeciesID(:)))THEN ! 
+    IF(ANY(PartSpecies(iPart).EQ.IMDSpeciesID(:)))THEN !
 
-      ! Check if the average charge (TTM data) for the current cell is zero 
+      ! Check if the average charge (TTM data) for the current cell is zero
       ! (if yes: add a charge to force at least singly charged ions)
       IF(TTM_Cell_11(PEM%Element(iPart)).EQ.0)THEN ! this would create uncharged atoms -> force singly charged ions
         ElemCharge(PEM%Element(iPart))=ElemCharge(PEM%Element(iPart))+1
@@ -816,7 +816,7 @@ DO iPart=1,PDM%ParticleVecLength
       ELSE
         ! Get the TTM cell charge avergae value and select and upper and lower charge number
         ChargeLower       = INT(TTM_Cell_11(PEM%Element(iPart))) ! FLOOR(): use first DOF (0,0,0) because the data is const. in each cell
-        ChargeUpper       = ChargeLower+1                        ! CEILING(): floor + 1 
+        ChargeUpper       = ChargeLower+1                        ! CEILING(): floor + 1
         ChargeProbability = REAL(ChargeUpper)-TTM_Cell_11(PEM%Element(iPart)) ! 2-1,4=0.6 -> 60% probability to get lower charge
 
         ! Distribute the charge using random numbers
@@ -831,13 +831,13 @@ DO iPart=1,PDM%ParticleVecLength
         ELSE ! Select the upper charge number
           ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
           ! species
-          location                       = MINLOC(ABS(IMDSpeciesCharge-ChargeUpper),1) 
+          location                       = MINLOC(ABS(IMDSpeciesCharge-ChargeUpper),1)
           ElemCharge(PEM%Element(iPart)) = ElemCharge(PEM%Element(iPart))+ChargeUpper
         END IF
       END IF
 
       ! Set the species ID to atom/singly charged ion/doubly charged ... and so on
-      PartSpecies(iPart)=IMDSpeciesID(location) 
+      PartSpecies(iPart)=IMDSpeciesID(location)
     END IF
   END IF
 END DO
@@ -877,18 +877,18 @@ DO iElem=1,PP_nElems
     !Set new SpeciesID of new particle (electron)
     PDM%ParticleInside(ParticleIndexNbr) = .true.
     PartSpecies(ParticleIndexNbr)        = ElecSpecIndx
-     
+
     ! Place the electron randomly in the reference cell
     CALL RANDOM_NUMBER(PartPosRef(1:3)) ! get random reference space
     PartPosRef(1:3)=PartPosRef(1:3)*2. - 1. ! map (0,1) -> (-1,1)
     CALL TensorProductInterpolation(PartPosRef(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) &
-                      ,PartState(ParticleIndexNbr,1:3)) !Map into phys. space
+                      ,PartState(1:3,ParticleIndexNbr)) !Map into phys. space
 
     ! Set the internal energies (vb, rot and electronic) to zero if needed
     IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
-      PartStateIntEn(ParticleIndexNbr, 1) = 0.
-      PartStateIntEn(ParticleIndexNbr, 2) = 0.
-      IF ( DSMC%ElectronicModel )  PartStateIntEn(ParticleIndexNbr, 3) = 0.
+      PartStateIntEn( 1,ParticleIndexNbr) = 0.
+      PartStateIntEn( 2,ParticleIndexNbr) = 0.
+      IF ( DSMC%ElectronicModel )  PartStateIntEn( 3,ParticleIndexNbr) = 0.
     END IF
 
     ! Set the element ID of the electron to the current element ID
@@ -902,7 +902,7 @@ DO iElem=1,PP_nElems
     END IF
 
     ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
-    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(ParticleIndexNbr,4:6),&
+    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(4:6,ParticleIndexNbr),&
                                   Temperature=CellElectronTemperature)
   END DO
 END DO
@@ -927,7 +927,7 @@ USE MOD_TTM_Vars  ,ONLY: TTM_Cell_9,TTM_Cell_10,TTM_Cell_11,TTM_Cell_12,TTM_Cell
 USE MOD_TTM_Vars  ,ONLY: TTM_Cell_16,TTM_Cell_17,TTM_Cell_18
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !LOGICAL,INTENT(IN)                  :: WriteHeader
 !REAL,INTENT(IN),OPTIONAL            :: time
 !INTEGER(KIND=8),INTENT(IN),OPTIONAL :: iter
@@ -962,9 +962,9 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
            'z' /)
 
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called mutiple times at the beginning
-CHARACTER(LEN=1000)                      :: tmpStr2 
+CHARACTER(LEN=1000)                      :: tmpStr2
 INTEGER                                  :: iElem
-CHARACTER(LEN=1),PARAMETER               :: delimiter="," 
+CHARACTER(LEN=1),PARAMETER               :: delimiter=","
 !===================================================================================================================================
 IF(.NOT.MPIRoot)RETURN
 
@@ -986,13 +986,13 @@ WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
 WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
 tmpStr2(1:1) = " "
 WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
-CLOSE(ioUnit) 
+CLOSE(ioUnit)
 
 ! write the data lines for each element
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
 
-  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,CSVFORMAT
+  WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
   DO iElem=1,PP_nElems
     WRITE(tmpStr2,formatStr)&
         " ",TTM_Cell_1(iElem),&
@@ -1018,7 +1018,7 @@ IF(FILEEXISTS(outfile))THEN
         delimiter,ElemBaryNGeo(3,iElem)
     WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
   END DO
-  CLOSE(ioUnit) 
+  CLOSE(ioUnit)
 ELSE
   SWRITE(UNIT_StdOut,'(A)')"InitialTTMdata.csv does not exist. Cannot write TTM info!"
 END IF
@@ -1026,7 +1026,7 @@ END IF
 END SUBROUTINE WriteTTMdataToCSV
 
 
-SUBROUTINE FinalizeTTM() 
+SUBROUTINE FinalizeTTM()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! finalize TTM variables
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1036,7 +1036,7 @@ USE MOD_Globals
 USE MOD_TTM_Vars
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

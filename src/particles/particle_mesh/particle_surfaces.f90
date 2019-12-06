@@ -119,7 +119,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: tmp,iSide!,iBCSide
-CHARACTER(LEN=2)                :: dummy                         
+CHARACTER(LEN=2)                :: dummy
 !===================================================================================================================================
 
 IF(ParticleSurfaceInitIsDone) RETURN
@@ -168,7 +168,7 @@ IF(DoRefMapping)THEN
   PartBCSideList(:) = -1
   DO iSide=1,nBCSides
     PartBCSideList(iSide)=iSide
-  END DO 
+  END DO
   !nTotalBCSides=nBCSides
  ! iBCSide=nBCSides
  ! DO iSide=nBCSides+1,nSides
@@ -176,7 +176,7 @@ IF(DoRefMapping)THEN
  !     iBCSide=iBCSide+1
  !     PartBCSideList(iSide)=iBCSide
  !   END IF
- ! END DO 
+ ! END DO
  ! nTotalBCSides=iBCSide
 END IF
 
@@ -531,7 +531,7 @@ END SUBROUTINE CalcNormAndTangTriangle
 
 SUBROUTINE CalcNormAndTangBilinear(nVec,tang1,tang2,xi,eta,SideID)
 !================================================================================================================================
-! function to compute the normal vector of a bi-linear surface
+! function to compute the normal vector of a bi-linear surface described by 4 corner nodes
 !================================================================================================================================
 USE MOD_Globals,                              ONLY:CROSSNORM,UNITVECTOR
 USE MOD_Mesh_Vars,                            ONLY:NGeo
@@ -552,7 +552,7 @@ REAL,DIMENSION(3)                      :: a,b
 !================================================================================================================================
 
 
-b=xi*0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NGeo,0  ,SideID)  & 
+b=xi*0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NGeo,0  ,SideID)  &
           +BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID) ) &
    +0.25*(-BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NGeo,0  ,SideID)   &
           +BezierControlPoints3D(:,NGeo,NGeo,SideID)+BezierControlPoints3D(:,0   ,NGeo,SideID) )
@@ -564,14 +564,14 @@ a=eta*0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NG
 
 nVec=CROSSNORM(a,b)
 IF(PRESENT(tang1)) tang1=UNITVECTOR(a)
-IF(PRESENT(tang2)) tang2=UNITVECTOR(b)
+IF(PRESENT(tang2)) tang2=CROSSNORM(nVec,a)
 
 END SUBROUTINE CalcNormAndTangBilinear
 
 
 SUBROUTINE CalcNormAndTangBezier(nVec,tang1,tang2,xi,eta,SideID)
 !================================================================================================================================
-! function to compute the normal vector of a bi-linear surface
+! function to compute the normal vector of a bi-linear surface described by a Bezier polynomial
 !================================================================================================================================
 USE MOD_Mesh_Vars,                            ONLY:NGeo
 USE MOD_Globals,                              ONLY:CROSSNORM,UNITVECTOR
@@ -594,14 +594,13 @@ REAL,DIMENSION(2,3)                    :: gradXiEta
 ! caution we require the formula in [0;1]
 CALL EvaluateBezierPolynomialAndGradient((/xi,eta/),NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Gradient=gradXiEta)
 nVec =CROSSNORM(gradXiEta(1,:),gradXiEta(2,:))
-gradXiEta(2,:)=CROSSNORM(nVec,gradXiEta(1,:))
 IF(PRESENT(tang1)) tang1=UNITVECTOR(gradXiEta(1,:))
-IF(PRESENT(tang2)) tang2=gradXiEta(2,:)
+IF(PRESENT(tang2)) tang2=CROSSNORM(nVec,gradXiEta(1,:))
 
 END SUBROUTINE CalcNormAndTangBezier
 
 
-SUBROUTINE EvaluateBezierPolynomialAndGradient(Xi,N_in,iSize,BezierControlPoints,dBezierControlPoints,Point,Gradient) 
+SUBROUTINE EvaluateBezierPolynomialAndGradient(Xi,N_in,iSize,BezierControlPoints,dBezierControlPoints,Point,Gradient)
 !===================================================================================================================================
 ! evaluate the BezierPolynomial and/or gradient by means of direct evaluation and help of a pseudo-horner scheme
 ! faster for the evaluation of gradients
@@ -617,7 +616,7 @@ SUBROUTINE EvaluateBezierPolynomialAndGradient(Xi,N_in,iSize,BezierControlPoints
 ! title = {Curves and Surfaces for CAGD: A Practical Guide},
 ! year = {2002},
 ! 1) computation of Bezier Polynomial is from Farin, Chap. 5, p. 57, EQ. 1
-!    precompute t^i (1-t)^(n-i) by means of Horner Schema and store values direcly sorted 
+!    precompute t^i (1-t)^(n-i) by means of Horner Schema and store values direcly sorted
 ! 2) point value
 ! 3) evaluate gradients
 ! optimized in terms of floating point operations
@@ -630,7 +629,7 @@ USE MOD_Particle_Surfaces_Vars,               ONLY:facNchooseK
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 REAL,INTENT(IN)              :: Xi(2)                 ! value of the plane (u,v)
 INTEGER,INTENT(IN)           :: N_in
 INTEGER,INTENT(IN)           :: iSize                 ! depending if two or three dimensional
@@ -716,7 +715,7 @@ IF(Mode.GE.2)THEN ! gradient
         ! derivative in eta: d/deta = v ! caution - exchange indicies
         gradient(2,:)=gradient(2,:)+(BezierControlPoints(:,q,p+1)-BezierControlPoints(:,q,p)) &
                                    *facNchooseK(N_in,q)*xitild(q)                             &
-                                   *facNchooseK(M,p)*etaup(p)*etadown(p+1) 
+                                   *facNchooseK(M,p)*etaup(p)*etadown(p+1)
       END DO ! p
     END DO ! q
     ! caution, maybe one 1/(b-a) missing??
@@ -725,7 +724,7 @@ IF(Mode.GE.2)THEN ! gradient
   ! apply gradient
   !dBezierControlPoints=0.
   !DO nn=1,iSize
-  !  DO dd=1,2 
+  !  DO dd=1,2
   !    DO q=0,N_In
   !      CycPQ(2)=q
   !      DO p=0,N_In
@@ -749,8 +748,8 @@ END SUBROUTINE EvaluateBezierPolynomialAndGradient
 SUBROUTINE GetBezierControlPoints3D(XCL_NGeo,ElemID,ilocSide_In,SideID_In)
 !===================================================================================================================================
 ! computes the nodes for Bezier Control Points for [P][I][C] [A]daptive [S]uper [S]ampled Surfaces [O]perations
-! the control points (coeffs for bezier basis) are calculated using the change basis subroutine that interpolates the points 
-! from the curved lagrange basis geometry (pre-computed inverse of vandermonde is required)
+! the control points (coeffs for Bezier basis) are calculated using the change basis subroutine that interpolates the points
+! from the curved Lagrange basis geometry (pre-computed inverse of Vandermonde is required)
 ! This version uses mapping, hence simplified to one loop
 !===================================================================================================================================
 ! MODULES
@@ -775,8 +774,8 @@ INTEGER,INTENT(IN),OPTIONAL :: SideID_In
 ! LOCAL VARIABLES
 INTEGER                           :: SideID,ilocSide,flip
 INTEGER                           :: p,q,pq(2)
-REAL                              :: tmp(3,0:NGeo,0:NGeo)  
-REAL                              :: tmp2(3,0:NGeo,0:NGeo)  
+REAL                              :: tmp(3,0:NGeo,0:NGeo)
+REAL                              :: tmp2(3,0:NGeo,0:NGeo)
 LOGICAL                           :: DoSide
 !===================================================================================================================================
 
@@ -792,28 +791,28 @@ __STAMP__&
 ,' Error in Input! SideID_In required! ')
   END IF
   !if flip=0, master side or Mortar side
-  IF(flip.EQ.0.OR.MortarType(1,SideID).GE.0.OR.MortarSlave2MasterInfo(SideID).NE.-1.OR.DoSide)THEN 
+  IF(flip.EQ.0.OR.MortarType(1,SideID).GE.0.OR.MortarSlave2MasterInfo(SideID).NE.-1.OR.DoSide)THEN
     IF(PRESENT(SideID_In)) SideID=SideID_In
     SELECT CASE(iLocSide)
     CASE(XI_MINUS)
-      tmp=XCL_NGeo(1:3,0   ,:   ,:   )
+      tmp=XCL_NGeo(1:3 , 0    , :    , :   )
     CASE(XI_PLUS)
-      tmp=XCL_NGeo(1:3,NGeo,:   ,:   )
+      tmp=XCL_NGeo(1:3 , NGeo , :    , :   )
     CASE(ETA_MINUS)
-      tmp=XCL_NGeo(1:3,:   ,0   ,:   )
+      tmp=XCL_NGeo(1:3 , :    , 0    , :   )
     CASE(ETA_PLUS)
-      tmp=XCL_NGeo(1:3,:   ,NGeo,:   )
+      tmp=XCL_NGeo(1:3 , :    , NGeo , :   )
     CASE(ZETA_MINUS)
-      tmp=XCL_NGeo(1:3,:   ,:   ,0   )
+      tmp=XCL_NGeo(1:3 , :    , :    , 0   )
     CASE(ZETA_PLUS)
-      tmp=XCL_NGeo(1:3,:   ,:   ,NGeo)
+      tmp=XCL_NGeo(1:3 , :    , :    , NGeo)
     END SELECT
     CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,tmp,tmp2)
     ! turn into right hand system of side
     DO q=0,NGeo; DO p=0,NGeo
       pq=CGNS_SideToVol2(NGeo,p,q,iLocSide)
       ! Compute BezierControlPoints3D for sides in MASTER system
-      BezierControlPoints3D(1:3,p,q,sideID)=tmp2(1:3,pq(1),pq(2))
+      BezierControlPoints3D(1:3,p,q,SideID)=tmp2(1:3,pq(1),pq(2))
     END DO; END DO ! p,q
   END IF
 END DO ! ilocSide=1,6
@@ -826,13 +825,13 @@ SUBROUTINE GetSideSlabNormalsAndIntervals(BezierControlPoints3D,BezierControlPoi
                                          ,SideSlabNormals,SideSlabInterVals,BoundingBoxIsEmpty )
 !===================================================================================================================================
 ! computes the oriented-slab box for each bezier basis surface (i.e. 3 slab normals + 3 intervalls)
-! see article:  
-!    author = {Shyue-wu Wang and Zen-chung Shih and Ruei-chuan Chang},                    
-!    title = {An Efficient and Stable Ray Tracing Algorithm for Parametric Surfaces},     
+! see article:
+!    author = {Shyue-wu Wang and Zen-chung Shih and Ruei-chuan Chang},
+!    title = {An Efficient and Stable Ray Tracing Algorithm for Parametric Surfaces},
 !    year = {2001},
 ! original article: oriented-slab box (cartesian bounding box)
-!   author = {Yen, Jonathan and Spach, Susan and Smith, Mark and Pulleyblank, Ron},       
-!   title = {Parallel Boxing in B-Spline Intersection},                                   
+!   author = {Yen, Jonathan and Spach, Susan and Smith, Mark and Pulleyblank, Ron},
+!   title = {Parallel Boxing in B-Spline Intersection},
 !   issue_date = {January 1991},
 !===================================================================================================================================
 ! MODULES
@@ -843,7 +842,6 @@ USE MOD_Mesh_Vars,                ONLY: NGeo,NGeoElevated
 !USE MOD_Particle_Surfaces_Vars,   ONLY: SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 !USE MOD_Particle_Surfaces_Vars,   ONLY: BezierControlPoints3D,BezierControlPoints3DElevated,BezierElevation
 USE MOD_Particle_Surfaces_Vars,   ONLY: BezierElevation
-USE MOD_Particle_Surfaces_Vars,   ONLY: BezierEpsilonBilinear
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars,   ONLY: SideBoundingBoxVolume
 #endif /*CODE_ANALYZE*/
@@ -863,8 +861,8 @@ LOGICAL,INTENT(OUT) :: BoundingBoxIsEmpty
 ! LOCAL VARIABLES
 !INTEGER                           :: lastSideID,flip,SideID
 INTEGER            :: p,q, i
-!REAL                              :: tmp(3,0:NGeo,0:NGeo)  
-REAL               :: skalprod(3),dx,dy,dz,dMax,dMin,w,h,l
+!REAL                              :: tmp(3,0:NGeo,0:NGeo)
+REAL               :: skalprod(3),dx,dy,dz,dMax,w,h,l
 LOGICAL            :: SideIsCritical
 !===================================================================================================================================
 
@@ -973,9 +971,9 @@ END DO
 ! 2-c.) bounding box extension
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-dx=ABS(ABS(SideSlabIntervals(2))-ABS(SideSlabIntervals(1)))
-dy=ABS(ABS(SideSlabIntervals(4))-ABS(SideSlabIntervals(3)))
-dz=ABS(ABS(SideSlabIntervals(6))-ABS(SideSlabIntervals(5)))
+dx=ABS(SideSlabIntervals(2)-SideSlabIntervals(1))
+dy=ABS(SideSlabIntervals(4)-SideSlabIntervals(3))
+dz=ABS(SideSlabIntervals(6)-SideSlabIntervals(5))
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 3.) Is Side critical? (particle path parallel to the larger surface, therefore numerous intersections are possilbe)
@@ -999,41 +997,43 @@ END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 4.) determine is side is planar -> "BoundingBoxIsEmpty(SideID)"
-!     this results also in the decision whether a side is also considered flat or bilinear! 
+!     this results also in the decision whether a side is also considered flat or bilinear!
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-dMax=MAX(dx,dy,dz)
-dMin=MIN(dx,dy,dz)
-IF(dx/dMax.LT.BezierEpsilonBilinear)THEN
+! check dimensions of sideslabs in x, y and z direction where the slab area (w)x(l) is defined by x-z and the height of the side-slab is y
+dMax=MAX(h,l,w)
+IF(l/dMax.LT.1.0e-6)THEN
+  ! side is almost a line
   CALL Abort(&
 __STAMP__&
-,'Bezier side length is degenerated. dx/dMax.LT.BezierEpsilonBilinear ->',0,dx/dMax)
+,'ERROR: found degenerated side. length/dMax of a side slab is ->',0,l/dMax)
 END IF
-IF(dy/dMax.LT.BezierEpsilonBilinear)THEN
+IF(w/dMax.LT.1.0e-6)THEN
+  ! side is almost a line
+  CALL Abort(&
+__STAMP__&
+,'ERROR: found degenerated side. width/dMax of a side slab is ->',0,w/dMax)
+END IF
+IF(h/dMax.LT.1.0e-6)THEN
+  ! the height of the sideslab is almost zero --> flat in regards to machine precision
   SideSlabIntervals(3:4)=0.
-  dy=0.
+  h=0.
 END IF
-IF(dz/dMax.LT.BezierEpsilonBilinear)THEN
+
+IF(l*w*h.LT.0.) THEN
   CALL Abort(&
 __STAMP__&
-,'Bezier side length is degenerated. dz/dMax.LT.BezierEpsilonBilinear ->',0,dz/dMax)
+,'A bounding box (for sides) is negative!?. length*width*height.LT.0 ->',0,(l*w*h))
 END IF
 
-IF(dx*dy*dz.LT.0) THEN
-  IPWRITE(UNIT_stdOut,*) ' Warning, no bounding box'
-  IF(dx*dy*dz.LT.0) CALL Abort(&
-__STAMP__&
-,'A bounding box (for sides) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
-END IF
-
-IF(ALMOSTZERO(dy/SQRT(dx*dx+dy*dy+dz*dz)))THEN ! bounding box volume is approx zeros
+IF(ALMOSTZERO(h/SQRT(l*l+w*w+h*h)))THEN ! bounding box volume is approx zeros
   BoundingBoxIsEmpty=.TRUE.
 ELSE
   BoundingBoxIsEmpty=.FALSE.
 END IF
 
 #ifdef CODE_ANALYZE
-SideBoundingBoxVolume=dx*dy*dz
+SideBoundingBoxVolume=h*l*w
 #endif /*CODE_ANALYZE*/
 END SUBROUTINE GetSideSlabNormalsAndIntervals
 
@@ -1078,19 +1078,19 @@ SUBROUTINE GetElemSlabNormalsAndIntervals(NGeo,ElemID)
 !===================================================================================================================================
 ! computes the oriented-slab box for each bezier basis surface (i.e. 3 slab normals + 3 intervalls)
 ! of each element. This routine must be called after GetSideSlabNormalsAndIntervals(...), because the elevation takes place there
-! see article:  
-!    author = {Shyue-wu Wang and Zen-chung Shih and Ruei-chuan Chang},                                                              
-!    title = {An Efficient and Stable Ray Tracing Algorithm for Parametric Surfaces},                                               
+! see article:
+!    author = {Shyue-wu Wang and Zen-chung Shih and Ruei-chuan Chang},
+!    title = {An Efficient and Stable Ray Tracing Algorithm for Parametric Surfaces},
 !    year = {2001},
 ! original article: oriented-slab box (cartesian bounding box)
-!   author = {Yen, Jonathan and Spach, Susan and Smith, Mark and Pulleyblank, Ron},                                                 
-!   title = {Parallel Boxing in B-Spline Intersection},                                                                             
+!   author = {Yen, Jonathan and Spach, Susan and Smith, Mark and Pulleyblank, Ron},
+!   title = {Parallel Boxing in B-Spline Intersection},
 !   issue_date = {January 1991},
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide,GEO,RefMappingEps 
+USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide,GEO,RefMappingEps
 USE MOD_Particle_Surfaces_Vars,   ONLY:ElemSlabNormals,ElemSlabIntervals,BezierControlPoints3DElevated,BezierElevation
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1113,7 +1113,7 @@ IF(GEO%nPeriodicVectors.GT.0)THEN
     CALL  Abort(&
   __STAMP__&
   ,' computation of wrong bounding box!')
-  SWRITE(*,*) ' Computation of wrong bounding box in peridodic' 
+  SWRITE(*,*) ' Computation of wrong bounding box in peridodic'
 END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1203,12 +1203,12 @@ END DO !iLocSide=1:6
 dx=ABS(ABS(ElemSlabIntervals(2, ElemID))-ABS(ElemSlabIntervals(1, ElemID)))
 dy=ABS(ABS(ElemSlabIntervals(4, ElemID))-ABS(ElemSlabIntervals(3, ElemID)))
 dz=ABS(ABS(ElemSlabIntervals(6, ElemID))-ABS(ElemSlabIntervals(5, ElemID)))
-ElemSlabIntervals(1,ElemID)=ElemSlabInterVals(1,ElemID)-RefMappingEps 
-ElemSlabIntervals(2,ElemID)=ElemSlabInterVals(2,ElemID)+RefMappingEps 
-ElemSlabIntervals(3,ElemID)=ElemSlabInterVals(3,ElemID)-RefMappingEps 
-ElemSlabIntervals(4,ElemID)=ElemSlabInterVals(4,ElemID)+RefMappingEps 
-ElemSlabIntervals(5,ElemID)=ElemSlabInterVals(5,ElemID)-RefMappingEps 
-ElemSlabIntervals(6,ElemID)=ElemSlabInterVals(6,ElemID)+RefMappingEps 
+ElemSlabIntervals(1,ElemID)=ElemSlabInterVals(1,ElemID)-RefMappingEps
+ElemSlabIntervals(2,ElemID)=ElemSlabInterVals(2,ElemID)+RefMappingEps
+ElemSlabIntervals(3,ElemID)=ElemSlabInterVals(3,ElemID)-RefMappingEps
+ElemSlabIntervals(4,ElemID)=ElemSlabInterVals(4,ElemID)+RefMappingEps
+ElemSlabIntervals(5,ElemID)=ElemSlabInterVals(5,ElemID)-RefMappingEps
+ElemSlabIntervals(6,ElemID)=ElemSlabInterVals(6,ElemID)+RefMappingEps
 IF(dx*dy*dz.LT.0) CALL Abort(&
 __STAMP__&
 ,'A bounding box (for elements) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
@@ -1458,7 +1458,7 @@ __STAMP__&
   !!!IPWRITE(*,*)"areaTotal",areaTotal
   !!!IPWRITE(*,*)"areaTotalAbs",areaTotalAbs
 END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN: loop through Sub-Elements
-  
+
 DEALLOCATE(Xi_NGeo,wGP_NGeo)
 
 IF (PRESENT(SurfMeshSideArea_opt)) SurfMeshSideArea_opt=areaTotal
@@ -1486,12 +1486,12 @@ END SUBROUTINE GetBezierSampledAreas
 
 FUNCTION ElevateBezierPolynomial(NGeo,BezierPolynomial)
 !===================================================================================================================================
-! this function creates a new equidistantly distributed set of control points (bézier polynomial basis coefficients) based on the 
-! control points "BezierPolynomial" with order "N" and elevates them to "ElevateBezierPolynomial" on "Xi_NGeo_elevated" with order 
+! this function creates a new equidistantly distributed set of control points (bézier polynomial basis coefficients) based on the
+! control points "BezierPolynomial" with order "N" and elevates them to "ElevateBezierPolynomial" on "Xi_NGeo_elevated" with order
 ! "p+BezierElevation"
 ! book: single step procedure (1D)
-!   author = {Piegl, Les and Tiller, Wayne},                                                                       
-!   title = {The NURBS Book (2Nd Ed.)},                                                                            
+!   author = {Piegl, Les and Tiller, Wayne},
+!   title = {The NURBS Book (2Nd Ed.)},
 !   year = {1997},
 ! book: see also for general remarks
 ! author = {Farin, Gerald},
@@ -1510,7 +1510,7 @@ REAL,INTENT(IN)    :: BezierPolynomial(1:3,0:NGeo)
 ! OUTPUT VARIABLES
 REAL               :: ElevateBezierPolynomial(1:3,0:NGeo+BezierElevation)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !REAL            :: length
 INTEGER            :: i,j,jStart,jEnd
 !===================================================================================================================================
@@ -1524,7 +1524,7 @@ ElevateBezierPolynomial(:,NGeo+BezierElevation) = BezierPolynomial(:,NGeo)
 DO i=1,NGeo+BezierElevation-1
   jStart = MAX(0,i-BezierElevation)
   jEnd   = MIN(NGeo,i)
-  DO j=jStart,jEnd 
+  DO j=jStart,jEnd
     ElevateBezierPolynomial(:,i)=ElevateBezierPolynomial(:,i)+ElevationMatrix(i,j)*BezierPolynomial(:,j)
   END DO
 END DO
@@ -1544,8 +1544,8 @@ USE MOD_Mappings,       ONLY:Flip_M2S
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
-INTEGER,INTENT(IN)            :: flip 
+! INPUT VARIABLES
+INTEGER,INTENT(IN)            :: flip
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)            :: BezierControlPoints3D(1:3,0:NGeo,0:NGeo)
@@ -1558,14 +1558,14 @@ INTEGER                       :: p,q,pq(2)
 BezierControlPoints3D_tmp=BezierControlPoints3D
 
 DO q=0,NGeo; DO p=0,NGeo
-  pq = Flip_M2S(NGeo,p,q,flip) 
+  pq = Flip_M2S(NGeo,p,q,flip)
   BezierControlPoints3D(:,pq(1),pq(2))=BezierControlPoints3d_tmp(:,p,q)
 END DO; END DO ! p,q
 
 END SUBROUTINE RotateMasterToSlave
 
 #ifdef CODE_ANALYZE
-SUBROUTINE OutputBezierControlPoints(BezierControlPoints3D_in,BezierControlPoints2D_in) 
+SUBROUTINE OutputBezierControlPoints(BezierControlPoints3D_in,BezierControlPoints2D_in)
 !===================================================================================================================================
 ! dump the BezierControlPoints
 !===================================================================================================================================
@@ -1576,7 +1576,7 @@ USE MOD_Mesh_Vars, ONLY: NGeo
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 REAL,INTENT(IN),OPTIONAL  :: BezierControlPoints3d_in(1:3,0:NGeo,0:NGeo)
 REAL,INTENT(IN),OPTIONAL  :: BezierControlPoints2d_in(1:2,0:NGeo,0:NGeo)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1584,25 +1584,25 @@ REAL,INTENT(IN),OPTIONAL  :: BezierControlPoints2d_in(1:2,0:NGeo,0:NGeo)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER          :: k,i,j
-REAL             :: BezierControlPoints3d(1:3,0:NGeo,0:NGeo)
+REAL             :: BezierControlPoints3D(1:3,0:NGeo,0:NGeo)
 !===================================================================================================================================
 
-BezierControlPoints3d=0.
+BezierControlPoints3D=0.
 IF(PRESENT(BezierControlPoints3d_in))THEN
-  BezierControlPoints3d=BezierControlPoints3d_in
+  BezierControlPoints3D=BezierControlPoints3d_in
 ELSE IF(PRESENT(BezierControlPoints2d_in))THEN
-  BezierControlPoints3d(1:2,:,:)=BezierControlPoints2d_in(:,:,:)
+  BezierControlPoints3D(1:2,:,:)=BezierControlPoints2d_in(:,:,:)
 ELSE
   CALL abort(&
 __STAMP__&
-,' Tilman hat nicht aufgepasst.!')
+,' OutputBezierControlPoints(): Something went wrong.!')
 END IF
 
 DO K=1,3
   WRITE(UNIT_stdout,'(A,I1,A)',ADVANCE='NO')' P(:,:,',K,') = [ '
   DO I=0,NGeo ! output for MATLAB
     DO J=0,NGeo
-      WRITE(UNIT_stdout,'(E24.12)',ADVANCE='NO') BezierControlPoints3d(K,J,I)
+      WRITE(UNIT_stdout,'(E24.12)',ADVANCE='NO') BezierControlPoints3D(K,J,I)
       IF(J.EQ.NGeo)THEN
         IF(I.EQ.NGeo)THEN
           WRITE(UNIT_stdout,'(A)')' ];'

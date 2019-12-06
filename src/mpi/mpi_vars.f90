@@ -11,7 +11,7 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 MODULE MOD_MPI_Vars
-#ifdef MPI
+#if USE_MPI
 !===================================================================================================================================
 ! Add comments please!
 !===================================================================================================================================
@@ -21,17 +21,17 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,ALLOCATABLE :: SendRequest_U(:),SendRequest_Flux(:),SendRequest_gradUx(:),SendRequest_gradUy(:),SendRequest_gradUz(:)
 INTEGER,ALLOCATABLE :: SendRequest_U2(:),RecRequest_U2(:)
 INTEGER,ALLOCATABLE :: RecRequest_U(:),RecRequest_Flux(:),RecRequest_gradUx(:),RecRequest_gradUy(:),RecRequest_gradUz(:)
-INTEGER,ALLOCATABLE :: SendRequest_Geo(:),RecRequest_Geo(:) 
+INTEGER,ALLOCATABLE :: SendRequest_Geo(:),RecRequest_Geo(:)
 INTEGER             :: iNbProc
 INTEGER             :: nSendVal,nRecVal,DataSizeSide
 INTEGER             :: SideID_start,SideID_end
 LOGICAL             :: MPIInitIsDone=.FALSE.
-#ifdef MPI
+#if USE_MPI
 INTEGER               :: nNbProcs         ! number of neighbor procs
 INTEGER,ALLOCATABLE   :: NbProc(:)        ! iProc list of neighbor procs; allocated from 1:nNbProcs
 INTEGER,ALLOCATABLE   :: nMPISides_Proc(:)
@@ -42,7 +42,7 @@ INTEGER,ALLOCATABLE   :: offsetMPISides_YOUR(:)! gives position of send/recv blo
 INTEGER,ALLOCATABLE   :: offsetElemMPI(:)      ! gives offsetposotion of elements of all procs
 INTEGER,ALLOCATABLE   :: nMPISides_send(:,:),nMPISides_rec(:,:)
 INTEGER,ALLOCATABLE   :: OffsetMPISides_send(:,:),OffsetMPISides_rec(:,:)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 #endif
 END MODULE MOD_MPI_Vars

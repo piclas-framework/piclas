@@ -25,15 +25,16 @@ SAVE
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
+INTEGER                                 :: TrackingMethod                ! Method that is used for tracking of particles
 LOGICAL                                 :: DoRefMapping                  ! tracking by mapping particle into reference element
 LOGICAL                                 :: TriaTracking                  ! tracking by using surface representation by triangles
-LOGICAL                                 :: WriteTriaDebugMesh            ! 
+LOGICAL                                 :: WriteTriaDebugMesh            !
 REAL                                    :: tTracking                     ! Tracking time
 REAL                                    :: tLocalization                 ! localization time
 INTEGER                                 :: nTracks                       ! number of tracked particles
 INTEGER                                 :: nCurrentParts                 ! current number of particles
 LOGICAL                                 :: MeasureTrackTime              ! switch, if tracking time is measure
-LOGICAL                                 :: FastPeriodic                  ! moves the particle along whole periodic vector, 
+LOGICAL                                 :: FastPeriodic                  ! moves the particle along whole periodic vector,
                                                                          ! neglecting possible reflexions
 LOGICAL                                 :: CountNbOfLostParts            ! logical, to count the lost particles
 LOGICAL                                 :: CartesianPeriodic             ! old periodic for refmapping and ALL bcs periocic
@@ -56,7 +57,7 @@ TYPE tTrackingInfo
 END TYPE
 
 TYPE(tTrackingInfo)                     :: TrackInfo
-  
+
 #ifdef CODE_ANALYZE
 INTEGER                                 :: PartOut
 INTEGER                                 :: MPIRankOut

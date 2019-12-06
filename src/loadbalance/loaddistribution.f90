@@ -26,12 +26,12 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#ifdef MPI
+#if USE_MPI
 INTERFACE ApplyWeightDistributionMethod
   MODULE PROCEDURE ApplyWeightDistributionMethod
 END INTERFACE
 PUBLIC::ApplyWeightDistributionMethod
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 INTERFACE WriteElemTimeStatistics
   MODULE PROCEDURE WriteElemTimeStatistics
@@ -41,8 +41,8 @@ PUBLIC::WriteElemTimeStatistics
 
 CONTAINS
 
-#ifdef MPI
-SUBROUTINE SingleStepOptimalPartition(OldElems,NewElems,ElemTime) 
+#if USE_MPI
+SUBROUTINE SingleStepOptimalPartition(OldElems,NewElems,ElemTime)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Calculate the optimal load partition, subroutine taken from sparta.f90 of HALO
 ! Modification for performance on root
@@ -57,12 +57,12 @@ USE MOD_Preproc
 USE MOD_LoadBalance_Vars,   ONLY:TargetWeight
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
-INTEGER,INTENT(IN)                :: OldElems
-REAL,INTENT(IN)                   :: ElemTime(1:OldElems)
+! INPUT VARIABLES
+INTEGER,INTENT(IN)             :: OldElems
+REAL,INTENT(IN)                :: ElemTime(1:OldElems)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-INTEGER,INTENT(OUT)               :: NewElems
+INTEGER,INTENT(OUT)            :: NewElems
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE               :: preSum(:)
@@ -72,7 +72,7 @@ INTEGER                        :: iElem, iRank
 INTEGER                        :: minRank, maxRank, leftOff, lb, ub,mid
 ! MPI-Stuff
 REAL                           :: LoadSend, opt_split, WeightSplit
-INTEGER, ALLOCATABLE           ::  split(:), sEND_count(:), recv_count(:)
+INTEGER, ALLOCATABLE           :: split(:), sEND_count(:), recv_count(:)
 !===================================================================================================================================
 
 ALLOCATE(PreSum(1:OldElems)           &
@@ -120,12 +120,12 @@ DO iRank=minRank,maxRank
     END DO
     IF(ABS(WeightSplit - Opt_Split) .GT. ABS(WeightSplit-Opt_Split-ElemTime(mid)))THEN
       ! return 0 IF the splitter is left of the lower boundary
-      mid = mid - 1 
+      mid = mid - 1
     ELSE
       IF (mid+1 .LE. OldElems) THEN
         IF (ABS(WeightSplit - opt_split) .GT. ABS(WeightSplit - opt_split + ElemTime(mid+1))) THEN
           ! return myElems at most
-          mid = mid + 1 
+          mid = mid + 1
         END IF
       ELSE
         IF (opt_split .GT. UpperBoundary) mid = OldElems
@@ -167,13 +167,14 @@ USE MOD_LoadBalance_Vars ,ONLY: LoadDistri,ParticleMPIWeight,WeightSum
 USE MOD_LoadBalance_Vars ,ONLY: PartDistri
 USE MOD_HDF5_Input       ,ONLY: File_ID,ReadArray,DatasetExists,OpenDataFile,CloseDataFile
 USE MOD_Restart_Vars     ,ONLY: RestartFile
+USE MOD_Particle_Vars     ,ONLY: VarTimeStep
 #endif /*PARTICLES*/
 USE MOD_ReadInTools      ,ONLY: GETINT,GETREAL
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 LOGICAL,INTENT(IN)             :: ElemTimeExists
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -200,6 +201,7 @@ INTEGER(KIND=IK)               :: locnPart
 LOGICAL                        :: PartIntExists
 INTEGER,PARAMETER              :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER              :: ELEM_LastPartInd=2
+REAL                           :: timeWeight(1:nGlobalElems)
 #endif /*PARTICLES*/
 REAL                           :: TargetWeight_loc
 !===================================================================================================================================
@@ -216,17 +218,26 @@ IF(PartIntExists)THEN
   ! Check integer KIND=8 possibility
   CALL ReadArray('PartInt',2,(/INT(nGlobalElems,IK),2_IK/),0_IK,1,IntegerArray=PartInt)
 END IF
-CALL CloseDataFile() 
+CALL CloseDataFile()
 #endif /*PARTICLES*/
 ALLOCATE(PartsInElem(1:nGlobalElems))
 PartsInElem=0
 
 #ifdef PARTICLES
+timeWeight = 1.0
+IF(VarTimeStep%UseDistribution) THEN
+  ! If the time step distribution was adapted, the elements should be weighted with the new time step factor
+  ! If the distribution is only read-in and not changed, the particle numbers should already fit the time step distribution
+  IF(VarTimeStep%AdaptDistribution) THEN
+    timeWeight(1:nGlobalelems) = VarTimeStep%ElemWeight(1:nGlobalelems)
+  END IF
+END IF
+
 IF (PartIntExists) THEN
   DO iElem = 1, nGlobalElems
     locnPart=PartInt(iElem,ELEM_LastPartInd)-PartInt(iElem,ELEM_FirstPartInd)
     PartsInElem(iElem)=INT(locnPart,4) ! switch to KIND=4
-    IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight + 1.0
+    IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight*timeWeight(iElem) + 1.0
   END DO
 END IF
 #endif /*PARTICLES*/
@@ -345,19 +356,13 @@ CASE(1)
             __STAMP__&
             ,' Process received zero elements during load distribution',iProc)
       END DO ! iPRoc
-      IF(ElemTimeExists)THEN
-        IF(ElemDistri(nProcessors-1).EQ.1)THEN
-          LoadDistri(nProcessors-1)=ElemGlobalTime(nGlobalElems)
-          LastLoadDiff = LoadDistri(nProcessors-1)-TargetWeight_loc
-        ELSE
-          LoadDistri(nProcessors-1)=SUM(ElemGlobalTime(offSetElemMPI(nProcessors-1)+1:nGlobalElems))
-          LastLoadDiff = LoadDistri(nProcessors-1)-TargetWeight_loc
-        END IF
+      ! Determine the remaining load on the last proc
+      IF(ElemDistri(nProcessors-1).EQ.1)THEN
+        LoadDistri(nProcessors-1)=ElemGlobalTime(nGlobalElems)
       ELSE
-        LoadDistri(nProcessors-1)=ElemDistri(nProcessors-1) +&
-            SUM(PartsInElem(offSetElemMPI(nProcessors-1)+1:nGlobalElems))*ParticleMPIWeight
-        LastLoadDiff = LoadDistri(nProcessors-1)-TargetWeight_loc
+        LoadDistri(nProcessors-1)=SUM(ElemGlobalTime(offSetElemMPI(nProcessors-1)+1:nGlobalElems))
       END IF
+      LastLoadDiff = LoadDistri(nProcessors-1)-TargetWeight_loc
       LoadDiff(nProcessors-1)=LastLoadDiff
       MaxLoadDiff=MAXVAL(LoadDiff(0:nProcessors-2))
       LastProcDiff=LastLoadDiff-MaxLoadDiff
@@ -374,8 +379,8 @@ CASE(1)
             __STAMP__&
             ,' Lost Elements and/or Particles during load distribution!')
       END IF
-    END DO
-  END IF
+    END DO  ! .NOT.FoundDistribution
+  END IF    ! MPIRoot
   ! Send the load distribution to all other procs
   CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
   !------------------------------------------------------------------------------------------------------------------------------!
@@ -577,14 +582,14 @@ CASE(4)
   SWRITE(*,*) 'TargetWeight', TargetWeight_loc !,ParticleMPIWeight
   offsetElemMPI(nProcessors)=nGlobalElems
   DO iProc=0, nProcessors-1
-    offsetElemMPI(iProc)=curiElem - 1 
-    DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc  
-      CurWeight=CurWeight+ElemGlobalTime(iElem)  
+    offsetElemMPI(iProc)=curiElem - 1
+    DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc
+      CurWeight=CurWeight+ElemGlobalTime(iElem)
       IF (CurWeight.GE.TargetWeight_loc*(iProc+1)) THEN
-        curiElem = iElem + 1 
+        curiElem = iElem + 1
         EXIT
       END IF
-    END DO   
+    END DO
   END DO
   ElemDistri=0
   DO iProc=0,nProcessors-1
@@ -778,7 +783,7 @@ CASE(5,6)
 #ifdef CODE_ANALYZE
           SWRITE(*,*)'MaxLoadIdx.GE.MinLoadIdx...'
 #endif /*CODE_ANALYZE*/
-        END IF    
+        END IF
         !-- save optimal distri
         IF (MaxLoadVal.LT.MaxLoadVal_opt) THEN
           MaxLoadVal_opt=MaxLoadVal
@@ -1003,7 +1008,7 @@ END SUBROUTINE CalcDistriFromOffsets
 
 SUBROUTINE checkList(offSetElemMPI,identical,numOfCalls)
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_LoadBalance_Vars
@@ -1063,7 +1068,7 @@ END SUBROUTINE checkList
 
 SUBROUTINE freeList()
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_LoadBalance_Vars
@@ -1085,7 +1090,7 @@ END DO
 END SUBROUTINE freeList
 
 
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1105,7 +1110,7 @@ USE MOD_Globals          ,ONLY: abort
 USE MOD_Globals          ,ONLY: nProcessors
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 LOGICAL,INTENT(IN)                  :: WriteHeader
 REAL,INTENT(IN),OPTIONAL            :: time
 INTEGER(KIND=8),INTENT(IN),OPTIONAL :: iter
@@ -1130,8 +1135,8 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'SimulationWallTime',&
     'InitializationWallTime'/)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called mutiple times at the beginning
-CHARACTER(LEN=1000)                      :: tmpStr2 
-CHARACTER(LEN=1),PARAMETER               :: delimiter="," 
+CHARACTER(LEN=1000)                      :: tmpStr2
+CHARACTER(LEN=1),PARAMETER               :: delimiter=","
 !===================================================================================================================================
 IF(.NOT.MPIRoot)RETURN
 
@@ -1163,8 +1168,8 @@ IF(WriteHeader)THEN ! create new file
   tmpStr2(1:1) = " "                           ! remove possible relimiter at the beginning (e.g. a comma)
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
 
-  CLOSE(ioUnit) 
-ELSE ! 
+  CLOSE(ioUnit)
+ELSE !
   IF(.NOT.PRESENT(time))THEN
     time_loc=-1.
   ELSE
@@ -1172,7 +1177,7 @@ ELSE !
   END IF
   IF(FILEEXISTS(outfile))THEN
     OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-    WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,CSVFORMAT
+    WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
     WRITE(tmpStr2,formatStr)&
               " ",time_loc, &
         delimiter,REAL(nProcessors), &
@@ -1187,7 +1192,7 @@ ELSE !
         delimiter,WallTime,&
         delimiter,InitializationWallTime
     WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
-    CLOSE(ioUnit) 
+    CLOSE(ioUnit)
   ELSE
     SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
   END IF

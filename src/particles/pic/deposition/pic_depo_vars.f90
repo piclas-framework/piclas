@@ -10,7 +10,7 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
-MODULE MOD_PICDepo_Vars 
+MODULE MOD_PICDepo_Vars
 !===================================================================================================================================
 ! Contains the variables for the particle deposition
 !===================================================================================================================================
@@ -20,7 +20,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                               :: DoDeposition       ! flag to switch deposition on/off
 LOGICAL                               :: RelaxDeposition    ! relaxation of current PartSource with RelaxFac into PartSourceOld
@@ -37,6 +37,10 @@ CHARACTER(LEN=256)                    :: DepositionType     ! Type of Deposition
 INTEGER,ALLOCATABLE                   :: PartToFIBGM(:,:)   ! Mapping form Particle to FIBGM
 REAL,ALLOCATABLE                      :: ElemRadius2_sf(:)  ! elem radius plus radius_sf
 REAL, ALLOCATABLE                     :: BGMSource(:,:,:,:)
+REAL, ALLOCATABLE                     :: NodeSourceExt(:)   ! Additional source for cell_volweight_mean (external or surface charge)
+!                                                           ! accumulates over time
+REAL, ALLOCATABLE                     :: NodeSourceExtTmp(:)! Additional source for cell_volweight_mean (external or surface charge)
+!                                                           ! temporary variable, which is nullified repeatedly
 REAL                                  :: r_sf               ! cutoff radius of shape function
 REAL                                  :: r2_sf              ! cutoff radius of shape function * cutoff radius of shape function
 REAL                                  :: r2_sf_inv          ! 1/cutoff radius of shape function * cutoff radius of shape function
@@ -44,7 +48,7 @@ REAL                                  :: w_sf               ! shapefuntion weigh
 REAL                                  :: r_sf0              ! minimal shape function radius
 REAL                                  :: r_sf_scale         ! scaling of shape function radius
 REAL                                  :: BetaFac            ! betafactor of shape-function || integral =1
-INTEGER                               :: sf1d_dir           ! direction of 1D shape function 
+INTEGER                               :: sf1d_dir           ! direction of 1D shape function
 LOGICAL                               :: sfDepo3D           ! when using 1D or 2D deposition, the charge can be deposited over the
 !                                                           ! volume (3D) or line (1D) / area (2D)
 INTEGER                               :: NDepo              ! polynomial degree of delta distri
@@ -58,12 +62,12 @@ REAL,ALLOCATABLE                      :: DDMassinv(:,:,:,:) ! inverse mass-matri
 LOGICAL                               :: DeltaDistriChangeBasis   ! Change polynomial degree
 LOGICAL                               :: DoSFEqui           ! use equidistant points for SF
 LOGICAL                               :: DoSFLocalDepoAtBounds ! Do not use shape function deposition in elements where a boundary
-!                                                              ! would truncate the shape function. Use a local deposition in these 
+!                                                              ! would truncate the shape function. Use a local deposition in these
 !                                                              ! elements instead of the shape function
 INTEGER                               :: SfRadiusInt        ! radius integer for cylindrical and spherical shape function
-REAL,ALLOCATABLE                      :: ElemDepo_xGP(:,:,:,:,:)  ! element xGPs for deposition 
+REAL,ALLOCATABLE                      :: ElemDepo_xGP(:,:,:,:,:)  ! element xGPs for deposition
 REAL,ALLOCATABLE                      :: Vdm_EquiN_GaussN(:,:)  ! Vdm from equidistant points to Gauss Points
-INTEGER                               :: alpha_sf           ! shapefuntion exponent 
+INTEGER                               :: alpha_sf           ! shapefuntion exponent
 REAL                                  :: BGMdeltas(3)       ! Backgroundmesh size in x,y,z
 REAL                                  :: FactorBGM(3)       ! Divider for BGM (to allow real numbers)
 REAL                                  :: BGMVolume          ! Volume of a BGM Cell
@@ -83,6 +87,7 @@ INTEGER                               :: VolIntOrder
 REAL,ALLOCATABLE                      :: VolInt_X(:)
 REAL,ALLOCATABLE                      :: VolInt_W(:)
 REAL,ALLOCATABLE                      :: CellVolWeight_Volumes(:,:,:,:)
+REAL,ALLOCATABLE                      :: CellLocNodes_Volumes(:)
 INTEGER                               :: NbrOfSFdepoFixes                  !Number of fixes for shape func depo at planar BCs
 REAL    , ALLOCATABLE                 :: SFdepoFixesGeo(:,:,:)             !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
 REAL    , ALLOCATABLE                 :: SFdepoFixesBounds(:,:,:)          !1:nFixes;1:2(min,max);1:3(x,y,z)

@@ -31,7 +31,7 @@ IMPLICIT NONE
 !>  Named parameters for ElemInfo array in mesh file
 !> @{
 INTEGER,PARAMETER    :: ElemInfoSize=6        !< number of entry in each line of ElemInfo
-INTEGER,PARAMETER    :: ELEM_Type=1           !< entry position, 
+INTEGER,PARAMETER    :: ELEM_Type=1           !< entry position,
 INTEGER,PARAMETER    :: ELEM_Zone=2
 INTEGER,PARAMETER    :: ELEM_FirstSideInd=3
 INTEGER,PARAMETER    :: ELEM_LastSideInd=4
@@ -80,8 +80,11 @@ SUBROUTINE ReadBCs()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,  ONLY:BoundaryName,BoundaryType,nBCs,nUserBCs
-USE MOD_ReadInTools,ONLY:GETINTARRAY,CNTSTR,GETSTR
+USE MOD_Mesh_Vars   ,ONLY: BoundaryName,BoundaryType,nBCs,nUserBCs
+#if USE_HDG
+USE MOD_Mesh_Vars   ,ONLY: ChangedPeriodicBC
+#endif /*USE_HDG*/
+USE MOD_ReadInTools ,ONLY: GETINTARRAY,CNTSTR,GETSTR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -154,13 +157,28 @@ ASSOCIATE ( nBCs   => INT(nBCs,IK)   ,&
   CALL ReadArray('BCType',2,(/4_IK,nBCs/),Offset,1,IntegerArray_i4=BCType)
 END ASSOCIATE
 ! Now apply boundary mappings
+#if USE_HDG
+ChangedPeriodicBC=.FALSE. ! set true if BCs are changed from periodic to non-periodic
+#endif /*USE_HDG*/
 IF(nUserBCs .GT. 0)THEN
   DO iBC=1,nBCs
     IF(BCMapping(iBC) .NE. 0)THEN
-      IF((BoundaryType(BCMapping(iBC),1).EQ.1).AND.(BCType(1,iBC).NE.1)) &
+      ! non-periodic to periodic
+      IF((BoundaryType(BCMapping(iBC),1).EQ.1).AND.(BCType(1,iBC).NE.1)) CALL abort(&
+          __STAMP__&
+          ,'Remapping non-periodic to periodic BCs is not possible!')
+#if USE_HDG
+      ! periodic to non-periodic
+      IF((BCType(1,iBC).EQ.1).AND.(BoundaryType(BCMapping(iBC),1).NE.1))THEN
+        ChangedPeriodicBC=.TRUE.
+        ! Currently, remapping periodic to non-periodic BCs is not allowed. In the future, implement nGlobalUniqueSides
+        ! determination.
         CALL abort(&
-__STAMP__&
-,'Remapping non-periodic to periodic BCs is not possible!')
+        __STAMP__&
+        ,'Remapping periodic to non-periodic BCs is currently not possible for HDG because this changes nGlobalUniqueSides!')
+      END IF
+#endif /*USE_HDG*/
+      ! Output
       SWRITE(Unit_StdOut,'(A,A)')    ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC))
       SWRITE(Unit_StdOut,'(A,I8,I8)')' |                            was | ',BCType(1,iBC),BCType(3,iBC)
       SWRITE(Unit_StdOut,'(A,I8,I8)')' |                      is set to | ',BoundaryType(BCMapping(iBC),1:2)
@@ -200,38 +218,36 @@ SUBROUTINE ReadMesh(FileString)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,          ONLY:tElem,tSide
-USE MOD_Mesh_Vars,          ONLY:NGeo,NGeoTree
-USE MOD_Mesh_Vars,          ONLY:NodeCoords,TreeCoords
-USE MOD_Mesh_Vars,          ONLY:offsetElem,offsetTree,nElems,nGlobalElems,nTrees,nGlobalTrees,nNodes
-USE MOD_Mesh_Vars,          ONLY:xiMinMax,ElemToTree
-USE MOD_Mesh_Vars,          ONLY:nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides
-USE MOD_Mesh_Vars,          ONLY:nMortarSides,isMortarMesh
-USE MOD_Mesh_Vars,          ONLY:useCurveds
-USE MOD_Mesh_Vars,          ONLY:BoundaryType
-USE MOD_Mesh_Vars,          ONLY:MeshInitIsDone
-USE MOD_Mesh_Vars,          ONLY:Elems,Nodes
-USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE,createSides
-#ifdef MPI
-USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight
-USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
-#endif
-USE MOD_LoadBalance_Vars,   ONLY:ElemGlobalTime
+USE MOD_Mesh_Vars            ,ONLY: tElem,tSide
+USE MOD_Mesh_Vars            ,ONLY: NGeo,NGeoTree
+USE MOD_Mesh_Vars            ,ONLY: NodeCoords,TreeCoords
+USE MOD_Mesh_Vars            ,ONLY: offsetElem,offsetTree,nElems,nGlobalElems,nTrees,nGlobalTrees,nNodes
+USE MOD_Mesh_Vars            ,ONLY: xiMinMax,ElemToTree
+USE MOD_Mesh_Vars            ,ONLY: nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides,nGlobalMortarSides
+USE MOD_Mesh_Vars            ,ONLY: nMortarSides,isMortarMesh
+USE MOD_Mesh_Vars            ,ONLY: nGlobalUniqueSidesFromMesh
+USE MOD_Mesh_Vars            ,ONLY: useCurveds
+USE MOD_Mesh_Vars            ,ONLY: BoundaryType
+USE MOD_Mesh_Vars            ,ONLY: MeshInitIsDone
+USE MOD_Mesh_Vars            ,ONLY: Elems,Nodes
+USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE,createSides
 USE MOD_IO_HDF5
-#ifdef MPI
-USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,TargetWeight
-USE MOD_LoadBalance_Vars,   ONLY:ElemTime
+#if USE_MPI
+USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc
+USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
 #ifdef PARTICLES
-USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem,nSurfacefluxPerElem,nDeposPerElem
-USE MOD_LoadBalance_Vars,   ONLY:nTracksPerElem,nPartsPerBCElem,nSurfacePartsPerElem
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
-USE MOD_LoadDistribution,   ONLY:ApplyWeightDistributionMethod
-USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 USE MOD_PreProc
 USE MOD_ReadInTools
-USE MOD_Restart_Vars,       ONLY:DoRestart,RestartFile
-USE MOD_StringTools,        ONLY:STRICMP
-#endif
+USE MOD_StringTools          ,ONLY: STRICMP
+#endif /*USE_MPI*/
+#ifdef PARTICLES
+USE MOD_LoadBalance_Vars     ,ONLY: nTracksPerElem,nPartsPerBCElem,nPartsPerElem,nSurfacefluxPerElem
+USE MOD_Particle_Vars        ,ONLY: VarTimeStep
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -254,24 +270,22 @@ INTEGER                        :: CornerNodeIDswitch(8)
 INTEGER                        :: iLocSide,nbLocSide
 INTEGER                        :: iSide
 INTEGER                        :: FirstNodeInd,LastNodeInd,FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
-INTEGER                        :: nPeriodicSides,nMPIPeriodics 
+INTEGER                        :: nPeriodicSides,nMPIPeriodics
 INTEGER                        :: ReduceData(11)
 INTEGER                        :: nSideIDs,offsetSideID
 INTEGER                        :: iMortar,jMortar,nMortars
-#ifdef MPI
-INTEGER                        :: ReduceData_glob(11)
+#if USE_MPI
 INTEGER                        :: iNbProc
 INTEGER                        :: iProc
 INTEGER,ALLOCATABLE            :: MPISideCount(:)
 ! new weight distribution method
-#endif
+#endif /*USE_MPI*/
 LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
-LOGICAL                        :: isMortarMeshExists,ElemTimeExists
-INTEGER                        :: nVal(15),iVar
-REAL,ALLOCATABLE               :: ElemTime_local(:),WeightSum_proc(:)
-REAL,ALLOCATABLE               :: ElemData_loc(:,:),tmp(:)
-CHARACTER(LEN=255),ALLOCATABLE :: VarNamesElemData_loc(:)
+LOGICAL                        :: isMortarMeshExists
+#ifdef PARTICLES
+REAL, ALLOCATABLE              :: GlobVarTimeStep(:)
+#endif
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
 IF(MPIRoot)THEN
@@ -286,6 +300,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 ! Get ElemInfo from Mesh file
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
+CALL ReadAttribute(File_ID,'nUniqueSides',1,IntegerScalar=nGlobalUniqueSidesFromMesh)
 CALL CloseDataFile()
 CHECKSAFEINT(HSize(2),4)
 nGlobalElems=INT(HSize(2),4) !global number of elements
@@ -293,126 +308,19 @@ DEALLOCATE(HSize)
 IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
     ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
 
-#ifdef MPI
-!simple partition: nGlobalelems/nprocs, do this on proc 0
-SDEALLOCATE(offsetElemMPI)
-ALLOCATE(offsetElemMPI(0:nProcessors))
-offsetElemMPI=0
-SDEALLOCATE(LoadDistri)
-ALLOCATE(LoadDistri(0:nProcessors-1))
-LoadDistri(:)=0.
-SDEALLOCATE(PartDistri)
-ALLOCATE(PartDistri(0:nProcessors-1))
-PartDistri(:)=0
-ElemTimeExists=.FALSE.
+!----------------------------------------------------------------------------------------------------------------------------
+!                              DOMAIN DECOMPOSITION
+!----------------------------------------------------------------------------------------------------------------------------
+#if USE_MPI
+CALL DomainDecomposition()
+#else /*USE_MPI*/
+nElems=nGlobalElems   ! Local number of Elements
+offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
+#endif /*USE_MPI*/
 
-IF (DoRestart) THEN 
-  !--------------------------------------------------------------------------------------------------------------------------------!
-  ! Readin of ElemTime: Read in only by MPIRoot in single mode, only communicate logical ElemTimeExists
-  ! 1) Only MPIRoot does readin of ElemTime
-  SDEALLOCATE(ElemGlobalTime)
-  ALLOCATE(ElemGlobalTime(1:nGlobalElems))
-  ElemGlobalTime=0.
-  IF(MPIRoot)THEN
-    ALLOCATE(ElemTime_local(1:nGlobalElems))
-    ElemTime_local=0.0
-    nElems = nGlobalElems ! Temporary set nElems as nGlobalElems for GetArrayAndName
-    offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
-    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
-    IPWRITE(UNIT_stdOut,*)"DONE"
-    CALL GetArrayAndName('ElemData','VarNamesAdd',nVal,tmp,VarNamesElemData_loc)
-    CALL CloseDataFile()
-    IF (ALLOCATED(VarNamesElemData_loc)) THEN
-      ALLOCATE(ElemData_loc(nVal(1),nVal(2)))
-      ElemData_loc = RESHAPE(tmp,(/nVal(1),nVal(2)/))
-      DO iVar=1,nVal(1) ! Search for ElemTime
-        IF (STRICMP(VarNamesElemData_loc(iVar),"ElemTime")) THEN
-          ElemTime_local = REAL(ElemData_loc(iVar,:))
-          ElemTimeExists = .TRUE.
-        END IF
-      END DO
-      DEALLOCATE(ElemData_loc,VarNamesElemData_loc,tmp)
-    END IF
-    ElemGlobalTime = ElemTime_local
-    DEALLOCATE(ElemTime_local)
-    ! if the elemtime is 0.0, the value must be changed in order to prevent a division by zero
-    IF(MAXVAL(ElemGlobalTime).LE.0.0) THEN
-      ElemGlobalTime = 1.0
-      ElemTimeExists = .FALSE.
-    END IF
-  END IF
-
-  ! 2) Distribute logical information ElemTimeExists
-  CALL MPI_BCAST (ElemTimeExists,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
-
-  ! Distribute the elements according to the selected distribution method
-  CALL ApplyWeightDistributionMethod(ElemTimeExists)
-ELSE
-  nElems=nGlobalElems/nProcessors
-  iElem=nGlobalElems-nElems*nProcessors
-  DO iProc=0,nProcessors-1
-    offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
-  END DO
-  offsetElemMPI(nProcessors)=nGlobalElems
-END IF ! IF(DoRestart)
-
-
-
-
-
-
-! Set local number of elements
-nElems=offsetElemMPI(myRank+1)-offsetElemMPI(myRank)
-
-! Sanity check: local nElems and offset
-IF(nElems.LE.0) CALL abort(__STAMP__,&
-    ' Process did not receive any elements/load! ')
-
-! Set element offset for every processor and write info to log file
-offsetElem=offsetElemMPI(myRank)
-LOGWRITE(*,*)'offset,nElems',offsetElem,nElems
-
-
-
-! Set new ElemTime depending on new load distribution
-SDEALLOCATE(ElemTime)
-ALLOCATE(ElemTime(1:nElems))
-ElemTime = 0.
-CALL AddToElemData(ElementOut,'ElemTime',RealArray=ElemTime(1:nElems))
-
-! Calculate new (theoretical) imbalance with offsetElemMPI information
-IF(ElemTimeExists.AND.MPIRoot)THEN
-  ALLOCATE(WeightSum_proc(0:nProcessors-1))
-  DO iProc=0,nProcessors-1
-    WeightSum_proc(iProc) = SUM(ElemGlobalTime(1+offsetElemMPI(iProc):offsetElemMPI(iProc+1)))
-  END DO
-  MaxWeight = MAXVAL(WeightSum_proc)
-  MinWeight = MINVAL(WeightSum_proc)
-  ! WeightSum (Mesh global value) is already set in BalanceMethod scheme
-
-  ! new computation of current imbalance
-  TargetWeight=SUM(WeightSum_proc)/nProcessors
-  NewImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
-
-  IF(TargetWeight.LE.0.0) CALL abort(&
-      __STAMP__, &
-      ' LoadBalance: TargetWeight = ',RealInfoOpt=TargetWeight)
-  SWRITE(UNIT_stdOut,'(A)') ' Calculated new (theoretical) imbalance with offsetElemMPI information'
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MaxWeight:        ', MaxWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:        ', MinWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' TargetWeight:     ', TargetWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' NewImbalance:     ', NewImbalance
-ELSE
-  SWRITE(UNIT_stdOut,'(A)') ' No ElemTime found in restart file'
-  NewImbalance = -1.
-  MaxWeight = -1.
-  MinWeight = -1.
-END IF
-
-SDEALLOCATE(ElemGlobalTime)
-
-
-
+!----------------------------------------------------------------------------------------------------------------------------
+!                              ALLOCATE element counters
+!----------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
 ! Re-allocate nPartsPerElem depending on new number of elements
 IF(.NOT.ALLOCATED(nPartsPerElem))THEN
@@ -423,9 +331,11 @@ ELSE
 END IF
 nPartsPerElem=0
 CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
+#if USE_LOADBALANCE
 SDEALLOCATE(nDeposPerElem)
 ALLOCATE(nDeposPerElem(1:nElems))
 nDeposPerElem=0
+#endif /*USE_LOADBALANCE*/
 SDEALLOCATE(nTracksPerElem)
 ALLOCATE(nTracksPerElem(1:nElems))
 nTracksPerElem=0
@@ -441,20 +351,34 @@ ALLOCATE(nSurfacePartsPerElem(1:nElems))
 nSurfacePartsPerElem=0
 #endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
-! --
-#else /* MPI */
-nElems=nGlobalElems   ! Local number of Elements 
-offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1 
-#endif /* MPI */
 
-
-
-
-
-!IPWRITE (*,*) "MPI_BARRIER"
-!#ifdef MPI
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-!#endif /* MPI */
+!----------------------------------------------------------------------------------------------------------------------------
+!                              VARIABLE TIME STEP
+!----------------------------------------------------------------------------------------------------------------------------
+#ifdef PARTICLES
+IF(VarTimeStep%UseDistribution) THEN
+  IF(ALLOCATED(VarTimeStep%ElemFac)) THEN
+    ALLOCATE(GlobVarTimeStep(nGlobalElems))
+    GlobVarTimeStep(1:nGlobalelems) = VarTimeStep%ElemFac(1:nGlobalelems)
+    ! Allocate new array for the time step distribution (going from global time step distribution to proc local with nElems)
+    DEALLOCATE(VarTimeStep%ElemFac)
+    ALLOCATE(VarTimeStep%ElemFac(nElems))
+    ! And now get the new variable time steps for the respective elements
+    VarTimeStep%ElemFac(1:nElems) = GlobVarTimeStep(offsetElem+1:offsetElem+nElems)
+    ! Global distribution is not required anymore
+    DEALLOCATE(GlobVarTimeStep)
+  ELSE
+    ! Allocate the array for the element-wise time step factor
+    ALLOCATE(VarTimeStep%ElemFac(nElems))
+    VarTimeStep%ElemFac = 1.0
+#if USE_MPI
+    ! Allocate the array for the element-wise weighting factor
+    ALLOCATE(VarTimeStep%ElemWeight(nElems))
+    VarTimeStep%ElemWeight = 1.0
+#endif
+  END IF
+END IF
+#endif
 
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL readBCs()
@@ -490,12 +414,12 @@ END DO
 !                              SIDES
 !----------------------------------------------------------------------------------------------------------------------------
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-#endif /* MPI */
-offsetSideID=ElemInfo(ELEM_FirstSideInd,FirstElemInd) ! hdf5 array starts at 0-> -1  
+#endif /*USE_MPI*/
+offsetSideID=ElemInfo(ELEM_FirstSideInd,FirstElemInd) ! hdf5 array starts at 0-> -1
 nSideIDs=ElemInfo(ELEM_LastSideInd,LastElemInd)-ElemInfo(ELEM_FirstSideInd,FirstElemInd)
-!read local SideInfo from data file 
+!read local SideInfo from data file
 FirstSideInd=offsetSideID+1
 LastSideInd=offsetSideID+nSideIDs
 ALLOCATE(SideInfo(SideInfoSize,FirstSideInd:LastSideInd))
@@ -529,16 +453,16 @@ DO iElem=FirstElemInd,LastElemInd
       END SELECT
       ALLOCATE(aSide%MortarSide(aSide%nMortars))
       DO iMortar=1,aSide%nMortars
-        aSide%MortarSide(iMortar)%sp=>GETNEWSIDE()
+        aSide%MortarSide(iMortar)%sp=>GETNEWSIDE()  !mortarType=0
       END DO
     ELSE
       aSide%nMortars=0
     END IF
-    IF(SideInfo(SIDE_Type,iSide).LT.0) aSide%MortarType=-1 !marks side as belonging to a mortar
+    IF(SideInfo(SIDE_Type,iSide).LT.0) aSide%MortarType=-10 !marks small neighbor  side as belonging to a mortar
 
     IF(aSide%MortarType.LE.0)THEN
       aSide%Elem=>aElem
-      oriented=(Sideinfo(SIDE_ID,iSide).GT.0)
+      oriented=(SideInfo(SIDE_ID,iSide).GT.0)
       aSide%Ind=ABS(SideInfo(SIDE_ID,iSide))
       IF(oriented)THEN !oriented side
         aSide%flip=0
@@ -626,7 +550,7 @@ DO iElem=FirstElemInd,LastElemInd
             END DO !jMortar
           END DO !nbLocSide
         ELSE !MPI connection
-#ifdef MPI
+#if USE_MPI
           aSide%connection=>GETNEWSIDE()
           aSide%connection%flip=aSide%flip
           aSide%connection%Elem=>GETNEWELEM()
@@ -646,7 +570,7 @@ END DO !iElem
 !                              NODES
 !----------------------------------------------------------------------------------------------------------------------------
 
-!read local Node Info from data file 
+!read local Node Info from data file
 offsetNodeID=ElemInfo(ELEM_FirstNodeInd,FirstElemInd) ! hdf5 array starts at 0-> -1
 nNodeIDs=ElemInfo(ELEM_LastNodeInd,LastElemInd)-ElemInfo(ELEM_FirstNodeInd,FirstElemind)
 FirstNodeInd=offsetNodeID+1
@@ -787,7 +711,7 @@ nSides=0
 nPeriodicSides=0
 nMPIPeriodics=0
 nMPISides=0
-#ifdef MPI
+#if USE_MPI
 ALLOCATE(MPISideCount(0:nProcessors-1))
 MPISideCount=0
 #endif
@@ -820,7 +744,7 @@ DO iElem=FirstElemInd,LastElemInd
           IF(ASSOCIATED(aSide%connection))THEN
             IF(BoundaryType(aSide%BCindex,BC_TYPE).EQ.1)THEN
               nPeriodicSides=nPeriodicSides+1
-#ifdef MPI
+#if USE_MPI
               IF(aSide%NbProc.NE.-1) nMPIPeriodics=nMPIPeriodics+1
 #endif
             END IF
@@ -831,7 +755,7 @@ DO iElem=FirstElemInd,LastElemInd
           END IF
         END IF
         IF(aSide%MortarType.GT.0) nMortarSides=nMortarSides+1
-#ifdef MPI
+#if USE_MPI
         IF(aSide%NbProc.NE.-1) THEN
           nMPISides=nMPISides+1
           MPISideCount(aSide%NbProc)=MPISideCount(aSide%NbProc)+1
@@ -851,7 +775,7 @@ LOGWRITE(*,'(A22,I8)')'nInnerSides:',nInnerSides
 LOGWRITE(*,'(A22,I8)')'nMPISides:',nMPISides
 LOGWRITE(*,*)'-------------------------------------------------------'
  !now MPI sides
-#ifdef MPI
+#if USE_MPI
 nNBProcs=0
 DO iProc=0,nProcessors-1
   IF(iProc.EQ.myRank) CYCLE
@@ -876,7 +800,7 @@ ELSE
   END DO
 END IF
 DEALLOCATE(MPISideCount)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ReduceData(1)=nElems
 ReduceData(2)=nSides
@@ -890,10 +814,11 @@ ReduceData(8)=nAnalyzeSides
 ReduceData(9)=nMortarSides
 ReduceData(10)=nMPIPeriodics
 
-#ifdef MPI
-CALL MPI_REDUCE(ReduceData,ReduceData_glob,11,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-ReduceData=ReduceData_glob
-#endif /*MPI*/
+#if USE_MPI
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,ReduceData,11,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+#endif /*USE_MPI*/
+
+nGlobalMortarSides=ReduceData(9)
 
 IF(MPIRoot)THEN
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nElems | ',ReduceData(1) !nElems
@@ -903,7 +828,7 @@ IF(MPIRoot)THEN
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,    BC  | ',ReduceData(6) !nBCSides
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,   MPI  | ',ReduceData(7)/2 !nMPISides
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides, Inner  | ',ReduceData(4) !nInnerSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar  | ',ReduceData(9) !nMortarSides
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar  | ',nGlobalMortarSides
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Total | ',ReduceData(5)-ReduceData(10)/2
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Inner | ',ReduceData(5)-ReduceData(10)
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,  MPI | ',ReduceData(10)/2 !nPeriodicSides
@@ -913,13 +838,14 @@ IF(MPIRoot)THEN
   WRITE(UNIT_stdOut,'(132("."))')
 END IF
 
+LOGWRITE_BARRIER
 SWRITE(UNIT_stdOut,'(132("."))')
 END SUBROUTINE ReadMesh
 
 
 SUBROUTINE GetNodeMap()
 !===================================================================================================================================
-! take NodeInfo array, sort it, eliminate mulitple IDs and return the Mapping 1->NodeID1, 2->NodeID2, ... 
+! take NodeInfo array, sort it, eliminate mulitple IDs and return the Mapping 1->NodeID1, 2->NodeID2, ...
 ! this is useful if the NodeID list of the mesh are not contiguous, essentially occuring when using domain decomposition (MPI)
 !===================================================================================================================================
 ! MODULES
@@ -959,7 +885,7 @@ END SUBROUTINE GetNodeMap
 
 FUNCTION INVMAP(ID,nIDs,ArrID)
 !===================================================================================================================================
-! find the inverse Mapping p.e. NodeID-> entry in NodeMap (a sorted array of unique NodeIDs), using bisection 
+! find the inverse Mapping p.e. NodeID-> entry in NodeMap (a sorted array of unique NodeIDs), using bisection
 ! if Index is not in the range, -1 will be returned, if it is in the range, but is not found, 0 will be returned!!
 !===================================================================================================================================
 ! MODULES
@@ -985,7 +911,7 @@ IF((ID.LT.ArrID(low)).OR.(ID.GT.ArrID(up))) THEN
   !WRITE(*,*)'WARNING, Node Index Not in local range -> set to -1'
   INVMAP=-1  ! not in the range!
   RETURN
-END IF 
+END IF
 IF(ID.EQ.ArrID(low))THEN
   INVMAP=low
 ELSEIF(ID.EQ.ArrID(up))THEN
@@ -1007,7 +933,7 @@ END IF
 END FUNCTION INVMAP
 
 
-#ifdef MPI
+#if USE_MPI
 FUNCTION ELEMIPROC(ElemID)
 !===================================================================================================================================
 !> Find the id of a processor on which an element with a given ElemID lies, based on the MPI element offsets defined earlier.
@@ -1050,8 +976,8 @@ ELSE
     END IF
   END DO
 END IF
-END FUNCTION ELEMIPROC 
-#endif /* MPI */
+END FUNCTION ELEMIPROC
+#endif /*USE_MPI*/
 
 RECURSIVE SUBROUTINE Qsort1Int(A)
 !===================================================================================================================================

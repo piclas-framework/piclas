@@ -14,7 +14,7 @@
 
 !==================================================================================================================================
 !> The PICLAS2VTK tool takes state files written during runtime by PICLAS in the .h5 format and converts them to .vtu files,
-!> readable by ParaView. Supports parallel readin. 
+!> readable by ParaView. Supports parallel readin.
 !> The state files can come from different calculations with different mesh files, equation systems, polynomial degrees and so on.
 !> Two modes of usage: command line mode and parameter file mode.
 !> In parameter file mode the usage is: h5piclas2vtk parameter.ini State1.h5 State2.h5 State3.h5 ...
@@ -44,14 +44,14 @@ USE MOD_Mesh,                ONLY: FinalizeMesh
 USE MOD_Particle_Mesh       ,ONLY: FinalizeParticleMesh
 #endif
 USE MOD_Mesh_Vars,           ONLY: useCurveds,NGeo,nElems,NodeCoords,offsetElem
-USE MOD_Interpolation_Vars,  ONLY: NodeTypeCL,NodeTypeVisu
+USE MOD_Interpolation_Vars,  ONLY: NodeTypeVisu
 USE MOD_Interpolation,       ONLY: GetVandermonde
 USE MOD_ChangeBasis,         ONLY: ChangeBasis3D
 USE MOD_VTK,                 ONLY: WriteDataToVTK,WriteVTKMultiBlockDataSet
 USE MOD_Prepare_Mesh,        ONLY: fillMeshInfo
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars,            ONLY: NbProc,nMPISides_Proc
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_Analyze,             ONLY: CalcErrorStateFiles, CalcErrorStateFileSigma
 USE MOD_Analyze_Vars,        ONLY: NAnalyze
 USE MOD_Mesh_Vars,           ONLY: sJ,NGeoRef
@@ -60,10 +60,10 @@ USE MOD_Metrics,             ONLY: CalcMetricsErrorDiff
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                           :: Time                              ! Used to track computation time  
+REAL                           :: Time                              ! Used to track computation time
 CHARACTER(LEN=255)             :: NodeTypeVisuOut                   ! Stores user selected type of visualization nodes
 INTEGER                        :: NVisu                             ! Polynomial degree of visualization
-INTEGER                        :: iArgs,iElem                       ! Loop counters 
+INTEGER                        :: iArgs,iElem                       ! Loop counters
 INTEGER                        :: iExt                              ! Stores position where the filename extension begins
 CHARACTER(LEN=255)             :: InputStateFile,MeshFile
 INTEGER                        :: nVar_State,N_State,nElems_State   ! Properties read from state file
@@ -74,7 +74,7 @@ REAL,ALLOCATABLE               :: U_average(:,:,:,:,:)              ! Solution f
 INTEGER                        :: N_average
 REAL,ALLOCATABLE,TARGET        :: U_Visu(:,:,:,:,:)                 ! Solution on visualiation nodes
 REAL,POINTER                   :: U_Visu_p(:,:,:,:,:)               ! Solution on visualiation nodes
-REAL,ALLOCATABLE               :: Coords_NVisu(:,:,:,:,:)           ! Coordinates of visualisation nodes 
+REAL,ALLOCATABLE               :: Coords_NVisu(:,:,:,:,:)           ! Coordinates of visualisation nodes
 REAL,ALLOCATABLE,TARGET        :: Coords_DG(:,:,:,:,:)
 REAL,POINTER                   :: Coords_DG_p(:,:,:,:,:)
 REAL,ALLOCATABLE               :: Vdm_EQNgeo_NVisu(:,:)             ! Vandermonde from equidistand mesh to visualisation nodes
@@ -93,7 +93,7 @@ LOGICAL                        :: CmdLineMode, NVisuDefault         ! In command
                                                                     ! otherwise a parameter file is needed
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
-LOGICAL                        :: CalcDiffError                     ! Use first state file as reference state for L2 error 
+LOGICAL                        :: CalcDiffError                     ! Use first state file as reference state for L2 error
                                                                     ! calculation with the following state files
 LOGICAL                        :: AllowChangedMesh
 LOGICAL                        :: CalcDiffSigma                     ! Use last state file as state for L2 sigma calculation
@@ -104,14 +104,15 @@ INTEGER                        :: iArgsStart
 LOGICAL                        :: MeshInitFinished, ReadMeshFinished
 ! PartData
 LOGICAL                        :: VisuParticles, PartDataExists
-!==================================================================================================================================
+INTEGER                        :: TimeStampLength
+!===================================================================================================================================
 CALL InitMPI()
 CALL ParseCommandlineArguments()
 !CALL DefineParametersMPI()
 !CALL DefineParametersIO_HDF5()
 ! Define parameters for H5PICLAS2VTK
 CALL prms%SetSection("H5PICLAS2VTK")
-CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization basis: "//& 
+CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization basis: "//&
                                              "VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO", 'VISU')
 CALL prms%CreateIntOption(    'NVisu',       "Number of points at which solution is sampled for visualization.")
 CALL prms%CreateLogicalOption('useCurveds',  "Controls usage of high-order information in mesh. Turn off to discard "//&
@@ -126,6 +127,7 @@ CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which a
                                                    'Default: 2*N. (needed for CalcDiffError)')
 CALL prms%CreateLogicalOption('VisuParticles',  "Visualize particles (velocity, species, internal energy).", '.FALSE.')
 CALL prms%CreateLogicalOption('writePartitionInfo',  "Write information about MPI partitions into a file.",'.FALSE.')
+CALL prms%CreateIntOption(    'TimeStampLength', 'Length of the floating number time stamp', '14')
 CALL DefineParametersIO()
 
 NVisuDefault = .FALSE.
@@ -191,7 +193,7 @@ SWRITE(UNIT_stdOut,'(A)') &
 "                                |__|/ \\|__|                                                        "
 SWRITE(UNIT_stdOut,'(A)')
 SWRITE(UNIT_stdOut,'(132("="))')
-                                                                                                  
+
 ! Set and read in parameters differently depending if H5PICLAS2VTK is invoked with a parameter file or not
 IF(NVisuDefault.OR.CmdLineMode) THEN
   IF(NVisuDefault) THEN
@@ -244,6 +246,13 @@ VisuSource    = GETLOGICAL('VisuSource','.FALSE.')
 VisuParticles    = GETLOGICAL('VisuParticles','.FALSE.')
 ! Initialization of I/O routines
 CALL InitIO()
+! Get length of the floating number time stamp
+TimeStampLength = GETINT('TimeStampLength')
+IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(&
+    __STAMP__&
+    ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
+WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
+WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
 
 ! Measure init duration
 Time=PICLASTIME()
@@ -276,7 +285,7 @@ DO iArgs = iArgsStart,nArgs
     CALL CollectiveStop(__STAMP__,&
       'ERROR - Please supply only .h5 files after parameter file.')
   END IF
-  
+
   SWRITE(UNIT_stdOut,'(132("="))')
   SWRITE(UNIT_stdOut,'(A,I3,A,I3,A)') 'Processing state ',iArgs-iArgsStart+1,' of ',nArgs-iArgsStart+1,'...'
 
@@ -338,17 +347,17 @@ DO iArgs = iArgsStart,nArgs
       END IF
       ! Deallocate and finalize mesh vars
       SDEALLOCATE(NodeCoords)
-#ifdef MPI
+#if USE_MPI
       SDEALLOCATE(NbProc)
       SDEALLOCATE(nMPISides_Proc)
-#endif /*MPI*/
+#endif /*USE_MPI*/
       CALL FinalizeMesh()
 
       ! Read in parameters from mesh file
       CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
       CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
       CALL CloseDataFile()
-    
+
       ! Read the mesh itself
       CALL readMesh(MeshFile)
       ReadMeshFinished = .TRUE.
@@ -407,9 +416,9 @@ DO iArgs = iArgsStart,nArgs
 
     IF(CalcDiffError)THEN
       IF(iArgs .EQ. 2)THEN
-        ! Set the default analyze polynomial degree NAnalyze to 2*(N+1) 
+        ! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
         WRITE(DefStr,'(i4)') 2*(N_State+1)
-        NAnalyze=GETINT('NAnalyze',DefStr) 
+        NAnalyze=GETINT('NAnalyze',DefStr)
         !CALL InitAnalyzeBasis(N_State,NAnalyze,xGP,wBary)
         ! Copy state to 'first'
         ALLOCATE(U_first(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
@@ -429,7 +438,7 @@ DO iArgs = iArgsStart,nArgs
         IF(NAnalyze.LT.2*(N_State+1))CALL abort(__STAMP__,&
       'CalcDiffError: NAnalyze.LT.2*(N_State+1)! The polynomial degree is too small!',iError)
         CALL CalcErrorStateFiles(nVar_State,N_State_first,N_State,U_first,U)
-      END IF 
+      END IF
     END IF
     IF(CalcAverage)THEN
       IF(iArgs .EQ. 2)THEN
@@ -524,7 +533,7 @@ CALL FinalizeParticleMesh()
 #endif
 ! Measure processing duration
 Time=PICLASTIME()
-#ifdef MPI
+#if USE_MPI
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) THEN
   CALL abort(__STAMP__,&
@@ -550,7 +559,7 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)            :: nVar,nElems,nNodes,data_size                                 ! Number of nodal output variables
 REAL,INTENT(IN)               :: Coords(1:3,nNodes), Value(nVar,nElems)
 CHARACTER(LEN=*),INTENT(IN)   :: FileString, VarNameVisu(nVar)   ! Output file name
-INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nNodes)      ! Statevector 
+INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nElems)      ! Statevector
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -732,21 +741,24 @@ SUBROUTINE InitMesh_Connected()
 USE MOD_Globals
 USE MOD_Mesh_Vars
 USE MOD_PreProc
-USE MOD_Prepare_Mesh            ,ONLY: setLocalSideIDs,exchangeFlip,fillMeshInfo
+USE MOD_Prepare_Mesh            ,ONLY: setLocalSideIDs,fillMeshInfo
+#if USE_MPI
+USE MOD_Prepare_Mesh            ,ONLY: exchangeFlip
+#endif
 #ifdef PARTICLES
 USE MOD_Particle_Mesh           ,ONLY: InitParticleGeometry
 #endif
 !--------------------------------------------------------------------------------------------------!
 ! perform Mapping for Surface Output
 !--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE 
+   IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 PP_nElems=nElems
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
 CALL setLocalSideIDs()
 
-#ifdef MPI
+#if USE_MPI
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
 CALL exchangeFlip()
 #endif
@@ -777,7 +789,9 @@ ElemToSide  = 0
 SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
 BC          = 0
 AnalyzeSide = 0
-
+SDEALLOCATE(GlobalUniqueSideID)
+ALLOCATE(GlobalUniqueSideID(1:nSides))
+GlobalUniqueSideID(:)=-1
 SDEALLOCATE(MortarType)
 SDEALLOCATE(MortarInfo)
 SDEALLOCATE(MortarSlave2MasterInfo)
@@ -855,7 +869,7 @@ END ASSOCIATE
 
 DO iPart=1,nParts
   PartData(1:nPartsVar+3,iPart) = tmpPartData(iPart,1:nPartsVar+3)
-  ConnectInfo(1,iPart)=iPart-1
+  ConnectInfo(1,iPart)=iPart
 END DO
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuPart',OutputTime))//'.vtu'
@@ -955,7 +969,7 @@ END SUBROUTINE ConvertElemData
 
 SUBROUTINE ConvertSurfaceData(InputStateFile,ReadMeshFinished,MeshInitFinished)
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1030,7 +1044,7 @@ IF(nSurfSample.EQ.1) THEN
   END DO
 
   FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
-  CALL WriteDataToVTK_PICLas(4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceNode,Coords(1:3,:),& 
+  CALL WriteDataToVTK_PICLas(4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceNode,Coords(1:3,:),&
       SurfConnect%nSurfaceBCSides,SurfData,SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides))
 ELSE IF(nSurfSample.GT.1) THEN
   CALL abort(__STAMP__,&
@@ -1050,7 +1064,7 @@ END SUBROUTINE ConvertSurfaceData
 
 SUBROUTINE BuildSurfMeshConnectivity()
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1118,11 +1132,11 @@ DO iSide=1, nSides
       iLocSide = SideToElem(3,iSide)
     END IF
     DO iNode2 = 1, 4
-    IsSortedSurfNode = .false.
+      IsSortedSurfNode = .FALSE.
       DO iNode = 1, SurfConnect%nSurfaceNode
         IF (GEO%ElemSideNodeID(iNode2, iLocSide, iElem).EQ.TempBCSurfNodes(iNode)) THEN
           TempSideSurfNodeMap(iNode2,SurfConnect%nSurfaceBCSides) = iNode
-          IsSortedSurfNode = .true.
+          IsSortedSurfNode = .TRUE.
           EXIT
         END IF
       END DO

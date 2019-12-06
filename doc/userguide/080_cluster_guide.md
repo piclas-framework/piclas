@@ -23,6 +23,7 @@ and login with `ssh hlrs`. Now you can clone the repository when logged onto the
 
     git clone ssh://git@localhost:7777/piclas/piclas.git
 
+
 ### Cloning with the HTTPS protocol
 
 The HLRS provides a tutorial for this case in their [https://wickie.hlrs.de](https://wickie.hlrs.de/platforms/index.php/Secure_Shell_ssh#Git). However, this method has not been verified.
@@ -99,3 +100,19 @@ Example submit script:
 More information about the cluster and the batch system can be found at the [ForHLR wiki](https://wiki.scc.kit.edu/hpc/index.php/Category:ForHLR).
 
 Section last updated: 27.03.2019
+
+## Simulating at the bwUniCluster \label{sec:bwuni}
+
+For building with *CMake* on the bwUniCluster cluster, the following modules (Intel compiler) should be loaded and included in the .bashrc or .profile:
+  
+    module load devel/cmake
+    module load compiler/intel/17.0
+    module load mpi/openmpi/3.1-intel-17.0
+
+During the configuration of PICLas with CMake, the option to build the HDF5 module has to be activated
+
+    PICLAS_BUILD_HDF5 = ON
+
+More information about the cluster and the batch system can be found at the [bwUniCluster wiki](https://www.scc.kit.edu/dienste/bwUniCluster.php).
+
+Section last updated: 05.06.2019
