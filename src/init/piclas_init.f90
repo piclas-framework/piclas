@@ -205,6 +205,7 @@ CALL InitLinearSolver()
 !#if defined(IMEX)
 !CALL InitCSR()
 !#endif /*IMEX*/
+CALL InitAnalyze()
 #ifdef PARTICLES
 CALL InitParticles()
 #if defined(IMPA) || defined(ROS)
@@ -212,7 +213,6 @@ CALL InitPartSolver()
 #endif
 !CALL GetSideType
 #endif
-CALL InitAnalyze()
 CALL InitRecordPoints()
 #ifdef PARTICLES
 CALL InitParticleAnalyze()
