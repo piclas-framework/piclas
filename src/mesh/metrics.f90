@@ -153,7 +153,7 @@ END IF
 END SUBROUTINE BuildCoords
 
 
-SUBROUTINE CalcMetrics(XCL_NGeo_Out,dXCL_NGeo_out)
+SUBROUTINE CalcMetrics(XCL_NGeo_Out,dXCL_NGeo_out,meshMode)
 !===================================================================================================================================
 !> This routine computes the geometries volume metric terms.
 !===================================================================================================================================
@@ -193,6 +193,10 @@ USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMortarInnerSides
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN) :: meshMode !< 0: only read and build Elem_xGP,
+                               !< 1: as 0 + build connectivity
+                               !< 2: as 1 + calc metrics
+                               !< 3: as 2 but skip InitParticleMesh
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT),OPTIONAL  :: XCL_Ngeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,nElems)      ! mapping X(xi) P\in Ngeo
@@ -526,59 +530,64 @@ DO iElem=1,nElems
 END DO !iElem=1,nElems
 
 #ifdef PARTICLES
-SWRITE(UNIT_stdOut,'(A)') ' '
-SWRITE(UNIT_stdOut,'(A)') 'BEZIERCONTROLPOINTS ...'
-StartT2=PICLASTIME()
+IF(meshMode.NE.3)THEN
+  SWRITE(UNIT_stdOut,'(A)') ' '
+  SWRITE(UNIT_stdOut,'(A)') 'BEZIERCONTROLPOINTS ...'
+  StartT2=PICLASTIME()
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
 #endif /*USE_MPI*/
 
 #if USE_MPI
-lowerLimit=nSides ! all incl. my mortar sides
+  lowerLimit=nSides ! all incl. my mortar sides
 #else
-lowerLimit=nBCSides+nMortarInnerSides+nInnerSides
+  lowerLimit=nBCSides+nMortarInnerSides+nInnerSides
 #endif /*USE_MPI*/
 
-! Next, build the BezierControlPoints,SideSlabNormals,SideSlabIntervals and BoundingBoxIsEmpty for
-! nBCSides, nInnerMortarSides, nInnerSides, nMPISides_MINE and MINE mortar sides
-! this requires check for flip and MortarSlave2Master
-DO iSide=1,lowerLimit
-  ! check flip or mortar sideid
-  ElemID  =SideToElem(S2E_ELEM_ID,iSide)
-  NBElemID=SideToElem(S2E_NB_ELEM_ID,iSide)
-  SideID=MortarSlave2MasterInfo(iSide)
-  IF(ElemID.EQ.NBElemID)THEN
-    IF(ElemID.EQ.-1) BezierControlPoints3D(:,:,:,iSide)=BezierControlPoints3D(:,:,:,SideID)
-  END IF
-  ! elevation occurs within this routine
-  IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
-  CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
-                                     ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
-                                     ,SideSlabNormals(1:3,1:3,iSide)                                         &
-                                     ,SideSlabInterVals(1:6,iSide)                                           &
-                                     ,BoundingBoxIsEmpty(iSide)                                              )
-END DO
+  ! Next, build the BezierControlPoints,SideSlabNormals,SideSlabIntervals and BoundingBoxIsEmpty for
+  ! nBCSides, nInnerMortarSides, nInnerSides, nMPISides_MINE and MINE mortar sides
+  ! this requires check for flip and MortarSlave2Master
+  DO iSide=1,lowerLimit
+    ! check flip or mortar sideid
+    ElemID  =SideToElem(S2E_ELEM_ID,iSide)
+    NBElemID=SideToElem(S2E_NB_ELEM_ID,iSide)
+    SideID=MortarSlave2MasterInfo(iSide)
+    IF(ElemID.EQ.NBElemID)THEN
+      IF(ElemID.EQ.-1) BezierControlPoints3D(:,:,:,iSide)=BezierControlPoints3D(:,:,:,SideID)
+    END IF
+    ! elevation occurs within this routine
+    IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
+    CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
+        ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
+        ,SideSlabNormals(1:3,1:3,iSide)                                         &
+        ,SideSlabInterVals(1:6,iSide)                                           &
+        ,BoundingBoxIsEmpty(iSide)                                              )
+  END DO
 
-! here, check the BC-control-points
-DO iSide=1,lowerLimit
-  ElemID=SideToElem(S2E_ELEM_ID,iSide)
-  SideID=MortarSlave2MasterInfo(iSide)
-  ! elevation occurs within this routine
-  IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
-  IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10)THEN
-    IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Warning, BezierControlPoint is zero! SideID:', iSide
-    IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Elem and NBElemID:', ElemID,SideToElem(S2E_NB_ELEM_ID,iSide)
-    IPWRITE(UNIT_stdOut,*) 'Points',BezierControlPoints3D(:,:,:,iSide)
-  END IF
-END DO
+  ! here, check the BC-control-points
+  DO iSide=1,lowerLimit
+    ElemID=SideToElem(S2E_ELEM_ID,iSide)
+    SideID=MortarSlave2MasterInfo(iSide)
+    ! elevation occurs within this routine
+    IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
+    IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10)THEN
+      IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Warning, BezierControlPoint is zero! SideID:', iSide
+      IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Elem and NBElemID:', ElemID,SideToElem(S2E_NB_ELEM_ID,iSide)
+      IPWRITE(UNIT_stdOut,*) 'Points',BezierControlPoints3D(:,:,:,iSide)
+    END IF
+  END DO
 
-endT=PICLASTIME()
-BezierTime=BezierTime+endT-StartT2
+  endT=PICLASTIME()
+  BezierTime=BezierTime+endT-StartT2
 
-SWRITE(UNIT_stdOut,'(A)') ' '
-endt=PICLASTIME()
-SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of Bezier control points took [',BezierTime            ,'s]'
-SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT-BezierTime,'s]'
+  SWRITE(UNIT_stdOut,'(A)') ' '
+  endt=PICLASTIME()
+  SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of Bezier control points took [',BezierTime            ,'s]'
+  SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT-BezierTime,'s]'
+ELSE
+  endt=PICLASTIME()
+  SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT,'s]'
+END IF ! meshMode.NE.3
 #else
 endt=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT,'s]'
