@@ -92,7 +92,7 @@ END IF
 
 IF(NumOfPermanentMagnets.GT.0) THEN
   SWRITE(UNIT_stdOut,'(132("-"))')
-  SWRITE(UNIT_stdOUT,'(A)') ' Calculation of the magnetic field from permanent magnets. Total number:', NumOfPermanentMagnets
+  SWRITE(UNIT_stdOUT,'(A)') ' Calculation of the magnetic field from permanent magnets.'
   DO iMagnet=1,NumOfPermanentMagnets
     SWRITE(UNIT_stdOUT,'(A,I2)',ADVANCE='NO') ' Magnet: ', iMagnet
     SELECT CASE(TRIM(PermanentMagnetInfo(iMagnet)%Type))
@@ -105,12 +105,12 @@ IF(NumOfPermanentMagnets.GT.0) THEN
     CASE('conic')
       CALL CalculateConicMagneticPotential(iMagnet)
     END SELECT
-    SWRITE(UNIT_stdOUT,'(A,I2,A)') '...Magnetic potential of', iMagnet, ' done!'
+    SWRITE(UNIT_stdOUT,'(A,I2,A)') '...Magnetic potential of magnet ', iMagnet, ' done!'
   END DO
 END IF
 
 IF (NumOfPermanentMagnets.GT.0) THEN
-  SWRITE(UNIT_stdOut,'(A)') 'Calculation of the B-Field'
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Calculation of the B-Field'
   CALL CalculateGradient()
   SWRITE(UNIT_stdOut,'(A)') '...Done!'
 END IF
