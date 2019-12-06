@@ -153,7 +153,7 @@ CALL BarycentricWeights(NBG,BGField_xGP,BGField_wBary)
 ! 5) Read-in or calculation of background field
 IF (CalcBField) THEN
   ! Calculate the background B-field via SuperB
-  CALL SuperB()
+  CALL SuperB(2) ! 1: Standalone, 2: Called from PICLas
 ELSE
   IF(TRIM(InterpolationType).NE.'particle_position')  CALL abort(&
     __STAMP__&
@@ -260,7 +260,7 @@ SUBROUTINE FinalizeBackgroundField
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Interpolation_Vars, ONLY:BGField_xGP,BGField_wBary,BGField
+USE MOD_Interpolation_Vars, ONLY:BGField_xGP,BGField_wBary,BGField,BGField,BGFieldAnalytic
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -271,6 +271,7 @@ USE MOD_Interpolation_Vars, ONLY:BGField_xGP,BGField_wBary,BGField
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(BGField)
+SDEALLOCATE(BGFieldAnalytic)
 SDEALLOCATE(BGField_xGP)
 SDEALLOCATE(BGField_wBary)
 END SUBROUTINE FinalizeBackGroundField

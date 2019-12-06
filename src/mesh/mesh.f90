@@ -145,12 +145,18 @@ USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #endif /*USE_LOADBALANCE*/
 USE MOD_ReadInTools            ,ONLY: PrintOption
+#ifdef PARTICLES
+USE MOD_Particle_Vars          ,ONLY: usevMPF
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+#endif
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: meshMode !< 0: only read and build Elem_xGP,
-                               !< 1: as 0 + build connectivity, 2: as 1 + calc metrics
+                               !< 1: as 0 + build connectivity
+                               !< 2: as 1 + calc metrics
+                               !< 3: as 2 but skip InitParticleMesh
 CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: MeshFile_IN !< file name of mesh to be read
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -319,11 +325,13 @@ IF (meshMode.GT.0) THEN
   CALL fillMeshInfo()
 
 #ifdef PARTICLES
-  ! save geometry information for particle tracking
-  CALL InitParticleMesh()
-  IF (TriaTracking) THEN
-    CALL InitParticleGeometry()
-  END IF
+  IF(meshMode.NE.3)THEN
+    ! save geometry information for particle tracking
+    CALL InitParticleMesh()
+    IF (TriaTracking) THEN
+      CALL InitParticleGeometry()
+    END IF
+  END IF ! meshMode.NE.-1
 #endif
 
   ! dealloacte pointers
@@ -403,9 +411,9 @@ IF (meshMode.GT.1) THEN
 #ifdef PARTICLES
   ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
   dXCL_NGeo = 0.
-  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
+  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo,meshMode=meshMode)
 #else
-  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
+  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,meshMode=meshMode)
 #endif
 
   ! compute elem bary and elem radius
@@ -414,6 +422,16 @@ IF (meshMode.GT.1) THEN
 
   ! Initialize element volumes and characteristic lengths
   CALL InitElemVolumes()
+
+  IF(meshMode.NE.3)THEN
+#ifdef PARTICLES
+    IF(RadialWeighting%DoRadialWeighting) THEN
+      usevMPF = .TRUE.
+    ELSE
+      usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
+    END IF
+#endif /* PARTICLES */
+  END IF ! meshMode.NE.3
 END IF
 
 SDEALLOCATE(NodeCoords)
@@ -841,10 +859,6 @@ USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,abort
 USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Interpolation_Vars ,ONLY: wGP
-#ifdef PARTICLES
-USE MOD_Particle_Vars      ,ONLY: usevMPF
-USE MOD_DSMC_Vars          ,ONLY: RadialWeighting
-#endif
 USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -875,15 +889,6 @@ IF (ALLOCSTAT.NE.0) THEN
       __STAMP__&
       ,'ERROR in InitElemGeometry: Cannot allocate GEO%CharLength!')
 END IF
-
-#ifdef PARTICLES
-IF(RadialWeighting%DoRadialWeighting) THEN
-  usevMPF = .TRUE.
-ELSE
-  usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
-END IF
-
-#endif /* PARTICLES */
 
 ! Calculate element volumes and characteristic lengths
 DO iElem=1,nElems
@@ -1030,8 +1035,10 @@ SDEALLOCATE(VdM_CLN_GaussN)
 SDEALLOCATE(VdM_CLNGeo_GaussN)
 SDEALLOCATE(Vdm_CLNGeo_CLN)
 SDEALLOCATE(Vdm_NGeo_CLNgeo)
-SDEALLOCATE(Vdm_N_EQ)
 SDEALLOCATE(Vdm_EQ_N)
+SDEALLOCATE(Vdm_N_EQ)
+SDEALLOCATE(Vdm_GL_N)
+SDEALLOCATE(Vdm_N_GL)
 ! BCS
 SDEALLOCATE(BoundaryName)
 SDEALLOCATE(BoundaryType)

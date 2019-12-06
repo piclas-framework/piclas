@@ -22,6 +22,10 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 
+LOGICAL           :: DoCalcErrorNormsSuperB                     !< perform L2, LInf error calculation
+REAL              :: L_2_ErrorSuperB(4)                         !< L2 error for magnetic field Bx, By, Bz
+REAL              :: L_Inf_ErrorSuperB(4)                       !< LInf error for magnetic field Bx, By, Bz
+
 ! === Coils
 INTEGER :: NumOfCoils                                           !< Total number of coils
 

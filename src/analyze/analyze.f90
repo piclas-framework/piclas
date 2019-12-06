@@ -48,9 +48,14 @@ INTERFACE CalcErrorStateFileSigma
   MODULE PROCEDURE CalcErrorStateFileSigma
 END INTERFACE
 
+INTERFACE InitAnalyzeBasis
+  MODULE PROCEDURE InitAnalyzeBasis
+END INTERFACE
+
 !===================================================================================================================================
 PUBLIC:: DefineParametersAnalyze
 PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze, CalcErrorStateFiles, CalcErrorStateFileSigma
+PUBLIC:: InitAnalyzeBasis
 !===================================================================================================================================
 
 CONTAINS
@@ -68,7 +73,7 @@ CALL prms%SetSection("Analyze")
 CALL prms%CreateLogicalOption('DoCalcErrorNorms'     , 'Set true to compute L2 and LInf error norms at analyze step.','.FALSE.')
 CALL prms%CreateRealOption(   'Analyze_dt'           , 'Specifies time intervall at which analysis routines are called.','0.')
 CALL prms%CreateIntOption(    'NAnalyze'             , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
-                                                       'Default: 2*N.')
+                                                       'Default: 2*(N+1).')
 CALL prms%CreateRealOption(   'OutputTimeFixed'      , 'fixed time for writing state to .h5','-1.0')
 CALL prms%CreateIntOption(    'nSkipAnalyze'         , '(Skip Analyze-Dt)','1')
 CALL prms%CreateLogicalOption('CalcTimeAverage'      , 'Flag if time averaging should be performed','.FALSE.')
@@ -233,26 +238,31 @@ END SUBROUTINE InitAnalyze
 
 SUBROUTINE InitAnalyzeBasis(N_in,Nanalyze_in,xGP,wBary)
 !===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
+! Build analyze nodes (Gauss-Lobatto) and corresponding Vandermonde matrix
 !===================================================================================================================================
 ! MODULES
-USE MOD_Analyze_Vars, ONLY:wAnalyze,Vdm_GaussN_NAnalyze
-USE MOD_Basis,        ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
+USE MOD_Analyze_Vars ,ONLY: wAnalyze ! GL integration weights used for the analyze
+USE MOD_Analyze_Vars ,ONLY: Vdm_GaussN_NAnalyze
+USE MOD_Basis        ,ONLY: LegGaussLobNodesAndWeights,InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                         :: N_in,Nanalyze_in
-REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP,wBary
+INTEGER,INTENT(IN)   :: N_in          !< input polynomial degree
+INTEGER,INTENT(IN)   :: Nanalyze_in   !< polynomial degree of analysis polynomial
+REAL,INTENT(IN)      :: xGP(0:N_in)   !< interpolation points
+REAL,INTENT(IN)      :: wBary(0:N_in) !< barycentric weights
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze
+REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze ! GL nodes
 !===================================================================================================================================
-  ALLOCATE(wAnalyze(0:NAnalyze_in),Vdm_GaussN_NAnalyze(0:NAnalyze_in,0:N_in))
-  CALL LegGaussLobNodesAndWeights(NAnalyze_in,XiAnalyze,wAnalyze)
-  CALL InitializeVandermonde(N_in,NAnalyze_in,wBary,xGP,XiAnalyze,Vdm_GaussN_NAnalyze)
+ALLOCATE(wAnalyze(0:NAnalyze_in),Vdm_GaussN_NAnalyze(0:NAnalyze_in,0:N_in))
+! Build analyze nodes (Gauss-Lobatto)
+CALL LegGaussLobNodesAndWeights(NAnalyze_in,XiAnalyze,wAnalyze)
+! Build analyze Vandermonde matrix which maps from NodeType nodes to Gauss-Lobatto nodes
+CALL InitializeVandermonde(N_in,NAnalyze_in,wBary,xGP,XiAnalyze,Vdm_GaussN_NAnalyze)
 END SUBROUTINE InitAnalyzeBasis
 
 

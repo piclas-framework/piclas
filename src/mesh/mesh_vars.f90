@@ -39,6 +39,8 @@ REAL,ALLOCATABLE :: Xi_NGeo(:)                  !< 1D equidistant point position
 REAL             :: DeltaXi_NGeo
 REAL,ALLOCATABLE :: Vdm_EQ_N(:,:)               !< Vandermonde mapping from equidistant (visu) to NodeType node set
 REAL,ALLOCATABLE :: Vdm_N_EQ(:,:)               !< Vandermonde mapping from NodeType to equidistant (visu) node set
+REAL,ALLOCATABLE :: Vdm_GL_N(:,:)               !< Vandermonde mapping from Gauss-Lobatto (analyze) to NodeType node set
+REAL,ALLOCATABLE :: Vdm_N_GL(:,:)               !< Vandermonde mapping from NodeType to Gauss-Lobatto (analyze) node set
 ! check if these arrays are still used
 REAL,ALLOCATABLE :: Vdm_CLN_GaussN(:,:)
 REAL,ALLOCATABLE :: Vdm_CLNGeo_CLN(:,:)
