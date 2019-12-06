@@ -525,7 +525,7 @@ USE MOD_Mesh_Vars          ,ONLY: offsetElem,nGlobalElems, nElems,MeshFile
 USE MOD_io_HDF5
 USE MOD_HDF5_output        ,ONLY: WriteArrayToHDF5, copy_userblock
 USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
-USE MOD_Interpolation_Vars ,ONLY: BGFieldAnalytic, NodeType
+USE MOD_Interpolation_Vars ,ONLY: BGFieldAnalytic, NodeType, BGDataSize
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -537,7 +537,6 @@ IMPLICIT NONE
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVal
-INTEGER,PARAMETER              :: nOutputDim = 3
 REAL,ALLOCATABLE               :: outputArray(:,:,:,:,:)
 #if USE_MPI
 REAL                           :: StartT,EndT
@@ -548,13 +547,13 @@ SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE BG-FIELD Analytic solution TO HDF5
   StartT=MPI_WTIME()
 #endif /*USE_MPI*/
 
-ALLOCATE(outputArray(1:nOutputDim,0:PP_N,0:PP_N,0:PP_N,1:nElems))
+ALLOCATE(outputArray(1:BGDataSize,0:PP_N,0:PP_N,0:PP_N,1:nElems))
 outputArray(1,:,:,:,:) = BGFieldAnalytic(1,:,:,:,:)
 outputArray(2,:,:,:,:) = BGFieldAnalytic(2,:,:,:,:)
 outputArray(3,:,:,:,:) = BGFieldAnalytic(3,:,:,:,:)
 
 ! Create dataset attribute "VarNames"
-ALLOCATE(StrVarNames(1:nOutputDim))
+ALLOCATE(StrVarNames(1:BGDataSize))
 StrVarNames(1)='BG-MagneticFieldX'
 StrVarNames(2)='BG-MagneticFieldY'
 StrVarNames(3)='BG-MagneticFieldZ'
@@ -569,7 +568,7 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=N)
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFile)/))
   CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
-  CALL WriteAttributeToHDF5(File_ID,'VarNames',nOutputDim,StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID,'VarNames',BGDataSize,StrArray=StrVarNames)
   CALL CloseDataFile()
   ! Add userblock to hdf5-file
   CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
@@ -583,14 +582,14 @@ nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
+  BGDataSize   => INT(BGDataSize,IK)   ,&
   PP_N         => INT(PP_N,IK)         ,&
   PP_nElems    => INT(PP_nElems,IK)    ,&
   offsetElem   => INT(offsetElem,IK)   ,&
-  nGlobalElems => INT(nGlobalElems,IK) ,&
-  nOutputDim   => INT(nOutputDim,IK)   )
+  nGlobalElems => INT(nGlobalElems,IK) )
 CALL WriteArrayToHDF5(DataSetName='BField', rank=5,&
-                      nValGlobal=(/nOutputDim , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
-                      nVal      =(/nOutputDim , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
+                      nValGlobal=(/BGDataSize , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+                      nVal      =(/BGDataSize , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
                       offset    =(/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
                       collective=.false., RealArray=outputArray)
 END ASSOCIATE

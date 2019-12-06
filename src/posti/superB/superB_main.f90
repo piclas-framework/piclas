@@ -40,13 +40,8 @@ USE MOD_SuperB_Vars
 USE MOD_Preproc               ,ONLY: PP_N
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_Mesh_Vars             ,ONLY: nElems
-<<<<<<< HEAD
-USE MOD_Interpolation_Vars    ,ONLY: NBG, BGType, BGField, BGFieldAnalytic, BGFieldVTKOutput, BGDataSize, PsiMag
-USE MOD_HDF5_Output_Tools     ,ONLY: WriteBFieldToHDF5,WriteBFieldAnalyticToHDF5
-=======
-USE MOD_Interpolation_Vars    ,ONLY: BGType, BGField, BGFieldVTKOutput, BGDataSize, PsiMag
-USE MOD_HDF5_Output_Tools     ,ONLY: WriteBGFieldToHDF5
->>>>>>> 863d39738289aedf85616b8eec0f848cd0bab06d
+USE MOD_Interpolation_Vars    ,ONLY: BGType, BGField, BGFieldAnalytic, BGFieldVTKOutput, BGDataSize, PsiMag
+USE MOD_HDF5_Output_Tools     ,ONLY: WriteBGFieldToHDF5,WriteBGFieldAnalyticToHDF5
 USE MOD_SuperB_Init           ,ONLY: InitializeSuperB
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType
@@ -75,12 +70,12 @@ BGType = 2
 BGDataSize = 3
 
 ! Allocate and nullify the B-Field and the magnetic potential
-ALLOCATE(BGField(       1:BGDataSize, 0:PP_N, 0:PP_N, 0:PP_N, 1:nElems))
-ALLOCATE(BFieldPermMag( 1:BGDataSize, 0:PP_N, 0:PP_N, 0:PP_N, 1:nElems))
-ALLOCATE(PsiMag(    0:PP_N, 0:PP_N, 0:PP_N, 1:nElems))
-ALLOCATE(MagnetFlag(0:PP_N, 0:PP_N, 0:PP_N, 1:nElems))
-PsiMag = 0
-BGField = 0
+ALLOCATE(BGField(       1:BGDataSize , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
+ALLOCATE(BFieldPermMag( 1:BGDataSize , 0:PP_N , 0:PP_N , 0:PP_N     , 1:nElems))
+ALLOCATE(PsiMag(        0:PP_N       , 0:PP_N , 0:PP_N , 1:nElems))
+ALLOCATE(MagnetFlag(    0:PP_N       , 0:PP_N , 0:PP_N , 1:nElems))
+PsiMag     = 0
+BGField    = 0
 MagnetFlag = 0
 
 IF(DoCalcErrorNormsSuperB)THEN
@@ -191,7 +186,7 @@ ELSE
         SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '...Write coil to VTK file'
         CALL WriteCoilVTK(iCoil)
       END IF
-      SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '...Calculation of the B-Field'
+      SWRITE(UNIT_stdOut,'(A)') '...Calculation of the B-Field'
       CALL BiotSavart(iCoil)
       SWRITE(UNIT_stdOut,'(A,I2)') '...Done coil #', iCoil
     END DO
