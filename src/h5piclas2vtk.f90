@@ -600,7 +600,7 @@ DO iVar=2,nVar
   IF (TRIM(tmp(:iLen-1)) .EQ. TRIM(tmp2(:iLen-1))) THEN
     ! Although the translational temperature is given in X/Y/Z its not a vector (VisIt/Paraview would produce a magnitude variable)
     IF(INDEX(tmp(:iLen-1),'TempTrans').EQ.0) THEN
-      ! If it is the first occurence, start counting
+      ! If it is the first occurrence, start counting
       IF (VarNameCombine(iVar-1) .EQ. 0) VarNameCombine(iVar-1) = 1
       VarNameCombine(iVar) = VarNameCombine(iVar-1) + 1
     END IF
