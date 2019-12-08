@@ -909,7 +909,7 @@ PURE SUBROUTINE OrthoNormVec(v1,v2,v3)
 !> computes orthonormal basis from a given vector v1 (v1 must be normalized)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,               ONLY:EpsMach
+USE MOD_Globals_Vars, ONLY:EpsMach
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -940,10 +940,10 @@ PURE FUNCTION DOTPRODUCT(v1)
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN) :: v1(3)    !
+REAL,INTENT(IN) :: v1(3)       ! Input 3D vector
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL            :: DOTPRODUCT  !
+REAL            :: DOTPRODUCT  ! Dot product of v1 with itself
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -961,7 +961,7 @@ PURE SUBROUTINE SphericalCoordinates(X,r,theta,phi)
 !>         0 <= phi < 2*Pi
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars, ONLY:EpsMach,Pi
+USE MOD_Globals_Vars, ONLY:Pi
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1012,9 +1012,8 @@ REAL  :: r,theta,phi ! radial distance, polar angle and azimuthal angle
 ! Get spherical coordinates
 CALL SphericalCoordinates(P,r,theta,phi)
 
-X(1:3) = (/SIN(theta)*COS(phi)*XHat(1) + COS(theta)*COS(phi)*XHat(2) - SIN(phi)*XHat(3) ,&
-           SIN(theta)*SIN(phi)*XHat(1) + COS(theta)*SIN(phi)*XHat(2) + COS(phi)*XHat(3) ,&
-                    COS(theta)*XHat(1) -          SIN(theta)*XHat(2)                   /)
+! Apply transformation matrix to vector in spherical coordinates to obtain the vector in Cartesian coordinates
+CALL TransformVectorFromSphericalCoordinates(XHat,theta,phi,X)
 
 END SUBROUTINE TransformVectorfieldSphericalCoordinates
 

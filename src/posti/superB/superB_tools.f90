@@ -231,9 +231,7 @@ REAL,INTENT(IN)      :: x(3)
 REAL,INTENT(OUT)                :: Resu(1:3)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL :: v2(1:3),v3(1:3)
-REAL              :: phi1,theta1,Br,BTheta
-REAL              :: r,theta,phi
+REAL :: r,theta,phi
 !===================================================================================================================================
 SELECT CASE(ExactFunctionNumber)
 CASE(10) ! linear conductor
