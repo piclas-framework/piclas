@@ -127,6 +127,18 @@ INTERFACE GetParameterFromFile
   MODULE PROCEDURE GetParameterFromFile
 END INTERFACE
 
+INTERFACE SphericalCoordinates
+  MODULE PROCEDURE SphericalCoordinates
+END INTERFACE
+
+INTERFACE TransformVectorfieldSphericalCoordinates
+  MODULE PROCEDURE TransformVectorfieldSphericalCoordinates
+END INTERFACE
+
+INTERFACE TransformVectorFromSphericalCoordinates
+  MODULE PROCEDURE TransformVectorFromSphericalCoordinates
+END INTERFACE
+
 PUBLIC :: setstacksizeunlimited
 
 !===================================================================================================================================
@@ -937,6 +949,100 @@ REAL            :: DOTPRODUCT  !
 !===================================================================================================================================
 DOTPRODUCT=v1(1)*v1(1)+v1(2)*v1(2)+v1(3)*v1(3)
 END FUNCTION DOTPRODUCT
+
+
+PURE SUBROUTINE SphericalCoordinates(X,r,theta,phi)
+!===================================================================================================================================
+!> Computes the spherical coordinates of a Cartesian Vector X
+!> r     : radial distance
+!> theta : polar angle
+!> phi   : azimuthal angle
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars, ONLY:EpsMach,Pi
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)  :: X(1:3) ! Vector in Cartesian coordinates
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT) :: r,theta,phi ! radial distance, polar angle and azimuthal angle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+! Radial distance
+r = VECNORM(X(1:3))
+
+! Azimuthal angle
+phi = ATAN2(X(2),X(1))
+! If the angle comes out negative (this requires a negative Y value), add 2*Pi
+IF(phi.LT.0.0) phi=phi+2*Pi
+
+! Polar angle
+IF(ABS(r).GT.0.0)THEN
+  theta = ACOS(X(3)/r)
+ELSE
+  theta = 0.
+END IF ! ABS(r).GT.0.0
+
+END SUBROUTINE SphericalCoordinates
+
+
+PURE SUBROUTINE TransformVectorfieldSphericalCoordinates(P,XHat,X)
+!===================================================================================================================================
+!> Transform a vector field component from spherical coordinates to Cartesian coordinates
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)  :: P(1:3)    ! Position vector
+REAL,INTENT(IN)  :: XHat(1:3) ! Vector in Spherical coordinates
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT) :: X(1:3)    ! Resulting vector in Cartesian coordinates
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL  :: r,theta,phi ! radial distance, polar angle and azimuthal angle
+!===================================================================================================================================
+! Get spherical coordinates
+CALL SphericalCoordinates(P,r,theta,phi)
+
+X(1:3) = (/SIN(theta)*COS(phi)*XHat(1) + COS(theta)*COS(phi)*XHat(2) - SIN(phi)*XHat(3) ,&
+           SIN(theta)*SIN(phi)*XHat(1) + COS(theta)*SIN(phi)*XHat(2) + COS(phi)*XHat(3) ,&
+                    COS(theta)*XHat(1) -          SIN(theta)*XHat(2)                   /)
+
+END SUBROUTINE TransformVectorfieldSphericalCoordinates
+
+
+PURE SUBROUTINE TransformVectorFromSphericalCoordinates(XHat,theta,phi,X)
+!===================================================================================================================================
+!> Transform a vector from spherical coordinates to Cartesian coordinates via supplied vector in spherical coordinates XHat,
+!> azimuthal angle phi and polar angle theta
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)  :: phi       !> azimuthal angle
+REAL,INTENT(IN)  :: theta     !> polar angle
+REAL,INTENT(IN)  :: XHat(1:3) !> Vector in Spherical coordinates
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT) :: X(1:3)    ! Resulting vector in Cartesian coordinates
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+! Transformation matrix x vector in spherical coordinates
+! X = M * XHat
+X(1:3) = (/SIN(theta)*COS(phi)*XHat(1) + COS(theta)*COS(phi)*XHat(2) - SIN(phi)*XHat(3) ,&
+           SIN(theta)*SIN(phi)*XHat(1) + COS(theta)*SIN(phi)*XHat(2) + COS(phi)*XHat(3) ,&
+           COS(theta)*         XHat(1) - SIN(theta)*         XHat(2)                   /)
+
+END SUBROUTINE TransformVectorFromSphericalCoordinates
 
 
 END MODULE MOD_Globals

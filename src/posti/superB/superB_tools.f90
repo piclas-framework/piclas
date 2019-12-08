@@ -216,6 +216,7 @@ SUBROUTINE ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,x,resu,ElemID)
 ! MODULES
 !USE MOD_Globals       ,ONLY: mpiroot
 USE MOD_Globals       ,ONLY: Abort,VECNORM,OrthoNormVec,UNITVECTOR,CROSSNORM,DOTPRODUCT
+USE MOD_Globals       ,ONLY: SphericalCoordinates,TransformVectorFromSphericalCoordinates
 USE MOD_Globals_Vars  ,ONLY: Pi
 USE MOD_SuperB_Vars   ,ONLY: CoilInfo,PermanentMagnetInfo
 USE MOD_Equation_Vars ,ONLY: mu0
@@ -234,7 +235,8 @@ REAL,INTENT(OUT)                :: Resu(1:3)    ! state in conservative variable
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL :: v2(1:3),v3(1:3)
-REAL              :: phi1,theta1
+REAL              :: phi1,theta1,Br,BTheta
+REAL              :: r,theta,phi
 !===================================================================================================================================
 SELECT CASE(ExactFunctionNumber)
 CASE(10) ! linear conductor
@@ -252,43 +254,17 @@ CASE(10) ! linear conductor
       END ASSOCIATE
     END ASSOCIATE
   END ASSOCIATE
-CASE(20) ! spherical hard magnet
+CASE(20) ! Spherical hard magnet
   ! Calculate DOF vector "a" in local coordinate system
-  ASSOCIATE( M => PermanentMagnetInfo(1)%Magnetisation(1:3)      ,&
-             P => x(1:3) - PermanentMagnetInfo(1)%BasePoint(1:3) ,&
-             a => PermanentMagnetInfo(1)%Radius                  )
-    CALL OrthoNormVec(M,v2,v3)
-    ! project DOF vector in local coordinate system onto M and calculate the angle Theta
-    ASSOCIATE( b     => UNITVECTOR(DOT_PRODUCT(P,M)*M)*VECNORM(P)       ,&
-               Theta => ACOS(DOT_PRODUCT(M,P)/(VECNORM(M)*VECNORM(P)))  ,&
-               R     => VECNORM(P)                                      ,&
-               M0    => VECNORM(M)                                       )
-           !WRITE (*,*) "UNITVECTOR(DOT_PRODUCT(P,M)*M) == UNITVECTOR(M) =", UNITVECTOR(DOT_PRODUCT(P,M)*M) == UNITVECTOR(M)
-      ASSOCIATE( c1 => (mu0/3.)*M0*a**3 )
-        ASSOCIATE( Br     => (c1/R**3)*COS(Theta) ,&
-                   BTheta => (c1/R**3)*SIN(Theta) )
-          !  ASSOCIATE( BrVec     => Br*UNITVECTOR(P)                                 ,&
-          !             BThetaVec => BTheta*(SIN(Theta)*UNITVECTOR(M) + COS(Theta)*b) )
-          !    Resu(1:3) = BrVec + BThetaVec
-          !  END ASSOCIATE
-          ASSOCIATE( phi2   => ATAN2(P(2),P(1)) ,&
-                     theta2 => ATAN2(P(1),P(3)) )
-            IF(phi2.LT.0)THEN
-              phi1=phi2+2*Pi
-            ELSE
-              phi1=phi2
-            END IF ! phi2.LT.0
-            IF(theta2.LT.0)THEN
-              theta1=theta2+2*Pi
-            ELSE
-              theta1=theta2
-            END IF ! theta2.LT.0
-            Resu(1:3) = (/SIN(theta1)*COS(phi1)*Br + COS(theta1)*COS(phi1)*BTheta ,&
-                          SIN(theta1)*SIN(phi1)*Br + COS(theta1)*SIN(phi1)*BTheta ,&
-                                    COS(theta1)*Br -           SIN(theta1)*BTheta /)
-          END ASSOCIATE
-        END ASSOCIATE
-      END ASSOCIATE
+  ASSOCIATE( c1 => (mu0/3.)*VECNORM(PermanentMagnetInfo(1)%Magnetisation(1:3))*PermanentMagnetInfo(1)%Radius**3 ,&
+              P => x(1:3) - PermanentMagnetInfo(1)%BasePoint(1:3)                                               )
+    
+    ! Get spherical coordinates
+    CALL SphericalCoordinates(P,r,theta,phi)
+
+    ! Transform vector
+    ASSOCIATE( XHat => (c1/(r**3))*(/ 2*COS(theta) , SIN(theta) , 0.0 /) )
+      CALL TransformVectorFromSphericalCoordinates(XHat,theta,phi,Resu(1:3))
     END ASSOCIATE
   END ASSOCIATE
 CASE DEFAULT
