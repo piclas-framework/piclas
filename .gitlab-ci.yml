@@ -310,6 +310,15 @@ gnu_superB_RectangularCoil:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/RectangularCoil -e ./bin/piclas ; fi
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/RectangularCoil -e ./bin/superB ; fi
 
+gnu_superB_SphericalMagnet:
+  <<: *defaults_gnu
+  stage: reggie_superB_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/SphericalMagnet -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/SphericalMagnet -e ./bin/superB ; fi
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run
 #                         - feature_PIC_single_particle/ : basic PIC test with a single particle in a cart box
