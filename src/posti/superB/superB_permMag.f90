@@ -881,12 +881,16 @@ SUBROUTINE CalculateGradient()
 !> Contains the calculation of the gradient of the magnetic potential to get the B-Field
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars
 USE MOD_Preproc
 USE MOD_Basis
-USE MOD_SuperB_Vars         ,ONLY: PermanentMagnetInfo, MagnetFlag
+USE MOD_SuperB_Vars         ,ONLY: PermanentMagnetInfo, MagnetFlag, DoCalcErrorNormsSuperB, L_2_ErrorSuperB, L_Inf_ErrorSuperB
+USE MOD_SuperB_Vars         ,ONLY: NumOfPermanentMagnets
 USE MOD_Mesh_Vars           ,ONLY: Metrics_fTilde, Metrics_gTilde, Metrics_hTilde, sJ
 USE MOD_Interpolation_Vars  ,ONLY: BGField, xGP, PsiMag
 USE MOD_Equation_Vars       ,ONLY: mu0
+USE MOD_SuperB_Tools        ,ONLY: CalcErrorSuperB
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -899,6 +903,8 @@ REAL, DIMENSION(0:PP_N,0:PP_N,0:PP_N)                 :: gradPsi_xi, gradPsi_eta
 REAL, DIMENSION(0:PP_N,0:PP_N)                        :: D
 REAL, DIMENSION(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) :: HField
 INTEGER                                               :: i, j, k, l, iElem, iMagnet
+CHARACTER(LEN=40)                                     :: formatStr
+INTEGER              :: ExactFunctionNumber    ! Number of exact function to be used for the calculation of the analytical solution
 !===================================================================================================================================
 
 ! Compute the polynomial derivative Matrix
@@ -947,6 +953,39 @@ DO iElem=1,PP_nElems
     END DO !j
   END DO !k
 END DO
+
+IF(DoCalcErrorNormsSuperB)THEN
+
+  ! Check if more than one magnet was supplied
+  IF(NumOfPermanentMagnets.GT.1)THEN
+    CALL abort(&
+        __STAMP__&
+        ,'Cannot calculate the L2 error when more than one magnet is used! Number of magnets = ',IntInfoOpt=NumOfPermanentMagnets)
+  END IF ! NumOfPermanentMagnets.GT.1
+
+  ! Check pre-defined cases
+  SELECT CASE(TRIM(PermanentMagnetInfo(1)%Type))
+  !CASE('cuboid')
+  CASE('sphere')
+    ExactFunctionNumber = 20
+  !CASE('cylinder')
+  !CASE('conic')
+  CASE DEFAULT
+    CALL abort(&
+        __STAMP__&
+        ,'Cannot calculate L2/LInf error for magnetic type ['//TRIM(PermanentMagnetInfo(1)%Type)//']')
+  END SELECT
+
+  ! Get L2 errors
+  CALL CalcErrorSuperB(L_2_ErrorSuperB,L_Inf_ErrorSuperB,ExactFunctionNumber,iMagnet)
+
+  ! Graphical output
+  IF(MPIroot) THEN
+    WRITE(formatStr,'(A5,I1,A7)')'(A25,',4,'ES16.7)'
+    WRITE(UNIT_StdOut,formatStr)' L_2_ErrorSuperB       : ',L_2_ErrorSuperB
+    WRITE(UNIT_StdOut,formatStr)' L_Inf_ErrorSuperB     : ',L_Inf_ErrorSuperB
+  END IF
+END IF ! DoCalcErrorNormsSuperB
 
 END SUBROUTINE CalculateGradient
 

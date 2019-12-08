@@ -117,7 +117,7 @@ Vector3(:) = Vector3(:) / SQRT(Vector3(1)**2 + Vector3(2)**2 + Vector3(3)**2)
 END SUBROUTINE GramSchmidtAlgo
 
 
-SUBROUTINE CalcErrorSuperB(L_2_Error,L_Inf_Error,iCoil)
+SUBROUTINE CalcErrorSuperB(L_2_Error,L_Inf_Error,ExactFunctionNumber,iCoilOrMagnet)
 !===================================================================================================================================
 ! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
 ! The analyze polynomial does NOT use Gauss nodes, because this would artificially reduce the error (because of the nodal
@@ -137,21 +137,22 @@ USE MOD_Interpolation      ,ONLY: GetVandermonde
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)            :: iCoil
+INTEGER,INTENT(IN)   :: ExactFunctionNumber    ! Number of exact function to be used for the calculation of the analytical solution
+INTEGER,INTENT(IN)   :: iCoilOrMagnet          ! Number of Coil or Magnet
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)              :: L_2_Error(4)   !< L2 error of the solution
-REAL,INTENT(OUT)              :: L_Inf_Error(4) !< LInf error of the solution
+REAL,INTENT(OUT)     :: L_2_Error(4)   !< L2 error of the solution
+REAL,INTENT(OUT)     :: L_Inf_Error(4) !< LInf error of the solution
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iElem,k,l,m
-REAL                          :: U_exact(3)
-REAL                          :: U_NAnalyze(1:3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
-REAL                          :: U_NAnalyze_tmp(1:3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
-REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
-REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
-REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-REAL                          :: IntegrationWeight
+INTEGER              :: iElem,k,l,m
+REAL                 :: U_exact(3)
+REAL                 :: U_NAnalyze(1:3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                 :: U_NAnalyze_tmp(1:3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                 :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                 :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                 :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL                 :: IntegrationWeight
 !===================================================================================================================================
 ! Initialize errors
 L_Inf_Error(:)=-1.E10
@@ -169,7 +170,7 @@ DO iElem=1,PP_nElems
    DO m=0,NAnalyze
      DO l=0,NAnalyze
        DO k=0,NAnalyze
-         CALL ExactFuncSuperB(iCoil,Coords_NAnalyze(1:3,k,l,m),U_exact,ElemID=iElem)
+         CALL ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,Coords_NAnalyze(1:3,k,l,m),U_exact,ElemID=iElem)
          L_Inf_Error(1:3) = MAX(L_Inf_Error(1:3),abs(U_NAnalyze(:,k,l,m) - U_exact))
          ASSOCIATE( U_NAnalyze_Abs => VECNORM(U_NAnalyze(1:3,k,l,m)) ,&
                     U_exact_Abs    => VECNORM(U_exact)             )
@@ -204,39 +205,43 @@ L_2_Error = SQRT(L_2_Error/GEO%MeshVolume)
 END SUBROUTINE CalcErrorSuperB
 
 
-SUBROUTINE ExactFuncSuperB(iCoil,x,resu,ElemID)
+SUBROUTINE ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,x,resu,ElemID)
 !===================================================================================================================================
 ! Calculates the (analytical) solution for a given magnetostatic problem (for subsequent initial conditions or error calculation)
+! 
+! ExactFunctionNumber corresponds to
+!   1X : Coils (and linear conductors)
+!   2X : Magnets
 !===================================================================================================================================
 ! MODULES
 !USE MOD_Globals       ,ONLY: mpiroot
 USE MOD_Globals       ,ONLY: Abort,VECNORM,OrthoNormVec,UNITVECTOR,CROSSNORM,DOTPRODUCT
 USE MOD_Globals_Vars  ,ONLY: Pi
-USE MOD_SuperB_Vars   ,ONLY: CoilInfo
+USE MOD_SuperB_Vars   ,ONLY: CoilInfo,PermanentMagnetInfo
 USE MOD_Equation_Vars ,ONLY: mu0
 !USE MOD_Mesh_Vars     ,ONLY: ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)              :: iCoil
-REAL,INTENT(IN)                 :: x(3)
-INTEGER,INTENT(IN),OPTIONAL     :: ElemID           ! ElemID
+INTEGER,INTENT(IN)   :: ExactFunctionNumber    ! Number of exact function to be used for the calculation of the analytical solution
+INTEGER,INTENT(IN)   :: iCoilOrMagnet          ! Number of Coil or Magnet
+REAL,INTENT(IN)      :: x(3)
+INTEGER,INTENT(IN),OPTIONAL     :: ElemID      ! ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(1:3)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL :: v2(1:3),v3(1:3)
+REAL              :: phi1,theta1
 !===================================================================================================================================
-SELECT CASE(TRIM(CoilInfo(iCoil)%Type))
-!CASE('custom')
-!CASE('circle')
-!CASE('rectangle')
-CASE('linear')
+SELECT CASE(ExactFunctionNumber)
+CASE(10) ! linear conductor
   ! Calculate DOF vector "a" in local coordinate system
-  ASSOCIATE( Lvec => CoilInfo(iCoil)%LengthVector(:)         ,&
-             a    => x(1:3) - CoilInfo(iCoil)%BasePoint(1:3) ,&
-             I    => CoilInfo(iCoil)%Current                  )
+  ASSOCIATE( Lvec => CoilInfo(iCoilOrMagnet)%LengthVector(:)         ,&
+             a    => x(1:3) - CoilInfo(iCoilOrMagnet)%BasePoint(1:3) ,&
+             I    => CoilInfo(iCoilOrMagnet)%Current                  )
     ! project DOF vector in local coordinate system onto Lvec
     ASSOCIATE( b => UNITVECTOR(DOT_PRODUCT(a,Lvec)*Lvec)*VECNORM(a),&
                L => VECNORM(Lvec) )
@@ -247,11 +252,52 @@ CASE('linear')
       END ASSOCIATE
     END ASSOCIATE
   END ASSOCIATE
+CASE(20) ! spherical hard magnet
+  ! Calculate DOF vector "a" in local coordinate system
+  ASSOCIATE( M => PermanentMagnetInfo(1)%Magnetisation(1:3)      ,&
+             P => x(1:3) - PermanentMagnetInfo(1)%BasePoint(1:3) ,&
+             a => PermanentMagnetInfo(1)%Radius                  )
+    CALL OrthoNormVec(M,v2,v3)
+    ! project DOF vector in local coordinate system onto M and calculate the angle Theta
+    ASSOCIATE( b     => UNITVECTOR(DOT_PRODUCT(P,M)*M)*VECNORM(P)       ,&
+               Theta => ACOS(DOT_PRODUCT(M,P)/(VECNORM(M)*VECNORM(P)))  ,&
+               R     => VECNORM(P)                                      ,&
+               M0    => VECNORM(M)                                       )
+           !WRITE (*,*) "UNITVECTOR(DOT_PRODUCT(P,M)*M) == UNITVECTOR(M) =", UNITVECTOR(DOT_PRODUCT(P,M)*M) == UNITVECTOR(M)
+      ASSOCIATE( c1 => (mu0/3.)*M0*a**3 )
+        ASSOCIATE( Br     => (c1/R**3)*COS(Theta) ,&
+                   BTheta => (c1/R**3)*SIN(Theta) )
+          !  ASSOCIATE( BrVec     => Br*UNITVECTOR(P)                                 ,&
+          !             BThetaVec => BTheta*(SIN(Theta)*UNITVECTOR(M) + COS(Theta)*b) )
+          !    Resu(1:3) = BrVec + BThetaVec
+          !  END ASSOCIATE
+          ASSOCIATE( phi2   => ATAN2(P(2),P(1)) ,&
+                     theta2 => ATAN2(P(1),P(3)) )
+            IF(phi2.LT.0)THEN
+              phi1=phi2+2*Pi
+            ELSE
+              phi1=phi2
+            END IF ! phi2.LT.0
+            IF(theta2.LT.0)THEN
+              theta1=theta2+2*Pi
+            ELSE
+              theta1=theta2
+            END IF ! theta2.LT.0
+            Resu(1:3) = (/SIN(theta1)*COS(phi1)*Br + COS(theta1)*COS(phi1)*BTheta ,&
+                          SIN(theta1)*SIN(phi1)*Br + COS(theta1)*SIN(phi1)*BTheta ,&
+                                    COS(theta1)*Br -           SIN(theta1)*BTheta /)
+          END ASSOCIATE
+        END ASSOCIATE
+      END ASSOCIATE
+    END ASSOCIATE
+  END ASSOCIATE
 CASE DEFAULT
   CALL abort(&
-      __STAMP__&
-      ,'Cannot calculate L2/LInf error for coil type ['//TRIM(CoilInfo(iCoil)%Type)//']')
+  __STAMP__&
+  ,'ERROR in ExactFuncSuperB(): Cannot calculate L2/LInf error for case',IntInfoOpt=ExactFunctionNumber)
 END SELECT
+
+! Suppress compiler warning
 RETURN
 WRITE (*,*) "ElemID =", ElemID
 END SUBROUTINE ExactFuncSuperB

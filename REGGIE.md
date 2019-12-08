@@ -193,15 +193,15 @@ Testing of different tracking routines with DSMC: [Link to build](regressionchec
 
 #### NIG_SuperB
 
-Testing of different SuperB examples (via piclas or standalone superb binary), which generate a 3D magnetic field distribution to be used in piclas: [Link to build](regressioncheck/checks/NIG_SuperB/builds.ini).
+Testing of different SuperB examples (via piclas or standalone superB binary), which generate a 3D magnetic field distribution to be used in piclas: [Link to build](regressioncheck/checks/NIG_SuperB/builds.ini).
 
 | **No.** | **Case**          | **CMAKE-CONFIG**                             | **Feature**                     | **Execution**                                  | **Comparing**                                                    | **Readme**                                                          |
 | :-----: | :---------------: | :-------------------------:                  | :-----------------------------: | :--------------------------------------------: | :------------------------------:                                 | :--------:                                                          |
-| 1       | LinearConductor   | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | straight conducting line        | piclas, superb binaries (single-core)          | convergence test with number of segments of the linear conductor | [Link](regressioncheck/checks/NIG_SuperB/LinearConductor/readme.md) |
-| 2       | CircularCoil      | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | circular shaped coil            | piclas, superb binaries (single-core)          | reference solution h5diff                                         | [Link](regressioncheck/checks/NIG_SuperB/CircularCoil/readme.md)    |
-| 3       | RectangularCoil   | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | rectangular shaped coil         | piclas, superb binaries (single-core)          | reference solution h5diff                                         | [Link](regressioncheck/checks/NIG_SuperB/RectangularCoil/readme.md) |
-| 4       | SphericalMagnet   | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | spherically shaped hard magnet  | piclas, superb binaries (single-core)          | reference solution h5diff                                         | [Link](regressioncheck/checks/NIG_SuperB/SphericalMagnet/readme.md) |
-| 5       | CubicMagnet       | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | cubic shaped hard magnet        | piclas, superb binaries (single-core)          | reference solution h5diff                                         | [Link](regressioncheck/checks/NIG_SuperB/CubicMagnet/readme.md)     |
+| 1       | LinearConductor   | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | straight conducting line        | piclas, superB binaries (single-core)          | convergence test with number of segments of the linear conductor | [Link](regressioncheck/checks/NIG_SuperB/LinearConductor/readme.md) |
+| 2       | CircularCoil      | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | circular shaped coil            | piclas, superB binaries (single-core)          | reference solution h5diff                                         | [Link](regressioncheck/checks/NIG_SuperB/CircularCoil/readme.md)    |
+| 3       | RectangularCoil   | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | rectangular shaped coil         | piclas, superB binaries (single-core)          | reference solution h5diff                                         | [Link](regressioncheck/checks/NIG_SuperB/RectangularCoil/readme.md) |
+| 4       | SphericalMagnet   | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | spherically shaped hard magnet  | piclas, superB binaries (single-core)          | reference solution h5diff                                         | [Link](regressioncheck/checks/NIG_SuperB/SphericalMagnet/readme.md) |
+| 5       | CubicMagnet       | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | cubic shaped hard magnet        | piclas, superB binaries (single-core)          | reference solution h5diff                                         | [Link](regressioncheck/checks/NIG_SuperB/CubicMagnet/readme.md)     |
 
 #### NIG_PIC_poisson_RK3
 

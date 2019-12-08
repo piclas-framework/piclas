@@ -110,9 +110,9 @@ IF(NumOfPermanentMagnets.GT.0) THEN
 END IF
 
 IF (NumOfPermanentMagnets.GT.0) THEN
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Calculation of the B-Field'
+  SWRITE(UNIT_stdOut,'(A)') ' Calculation of the B-Field'
   CALL CalculateGradient()
-  SWRITE(UNIT_stdOut,'(A)') '...Done!'
+  SWRITE(UNIT_stdOut,'(A)') ' ...Done!'
 END IF
 
 BFieldPermMag = BGField
@@ -155,7 +155,7 @@ IF(ANY(TimeDepCoil)) THEN
         ELSE
           CALL BiotSavart(iCoil)
         END IF
-        SWRITE(UNIT_stdOut,'(A,I2)') '...Done coil #', iCoil
+        SWRITE(UNIT_stdOut,'(A,I2)') ' ...Done coil #', iCoil
       END DO
     END IF
     BGField = BGField + BFieldPermMag

@@ -331,6 +331,7 @@ INTEGER, INTENT(IN) :: iCoil
 INTEGER             :: iElem, i, j, k, iPoint
 REAL                :: segmentLength, segmentToDOFLengthP3, currentDirection(3), segmentPosition(3), segmentToDOF(3), BFieldTemp(3)
 CHARACTER(LEN=40)   :: formatStr
+INTEGER             :: ExactFunctionNumber    ! Number of exact function to be used for the calculation of the analytical solution
 !===================================================================================================================================
 
 ! Iterate over all DOFs
@@ -362,7 +363,23 @@ END DO
 SDEALLOCATE(CoilNodes)
 
 IF(DoCalcErrorNormsSuperB)THEN
-  CALL CalcErrorSuperB(L_2_ErrorSuperB,L_Inf_ErrorSuperB,iCoil)
+
+  ! Check pre-defined cases
+  SELECT CASE(TRIM(CoilInfo(iCoil)%Type))
+  !CASE('custom')
+  !CASE('circle')
+  !CASE('rectangle')
+  CASE('linear')
+    ExactFunctionNumber = 10
+  CASE DEFAULT
+    CALL abort(&
+        __STAMP__&
+        ,'Cannot calculate L2/LInf error for coil type ['//TRIM(CoilInfo(iCoil)%Type)//']')
+  END SELECT
+
+  ! Get L2 errors
+  CALL CalcErrorSuperB(L_2_ErrorSuperB,L_Inf_ErrorSuperB,ExactFunctionNumber,iCoil)
+
   ! Graphical output
   IF(MPIroot) THEN
     WRITE(formatStr,'(A5,I1,A7)')'(A25,',4,'ES16.7)'
