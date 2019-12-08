@@ -170,7 +170,7 @@ DO iElem=1,PP_nElems
    DO m=0,NAnalyze
      DO l=0,NAnalyze
        DO k=0,NAnalyze
-         CALL ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,Coords_NAnalyze(1:3,k,l,m),U_exact,ElemID=iElem)
+         CALL ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,Coords_NAnalyze(1:3,k,l,m),U_exact)
          L_Inf_Error(1:3) = MAX(L_Inf_Error(1:3),abs(U_NAnalyze(:,k,l,m) - U_exact))
          ASSOCIATE( U_NAnalyze_Abs => VECNORM(U_NAnalyze(1:3,k,l,m)) ,&
                     U_exact_Abs    => VECNORM(U_exact)             )
@@ -205,7 +205,7 @@ L_2_Error = SQRT(L_2_Error/GEO%MeshVolume)
 END SUBROUTINE CalcErrorSuperB
 
 
-SUBROUTINE ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,x,resu,ElemID)
+SUBROUTINE ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,x,resu)
 !===================================================================================================================================
 ! Calculates the (analytical) solution for a given magnetostatic problem (for subsequent initial conditions or error calculation)
 ! 
@@ -214,13 +214,11 @@ SUBROUTINE ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,x,resu,ElemID)
 !   2X : Magnets
 !===================================================================================================================================
 ! MODULES
-!USE MOD_Globals       ,ONLY: mpiroot
 USE MOD_Globals       ,ONLY: Abort,VECNORM,OrthoNormVec,UNITVECTOR,CROSSNORM,DOTPRODUCT
 USE MOD_Globals       ,ONLY: SphericalCoordinates,TransformVectorFromSphericalCoordinates
 USE MOD_Globals_Vars  ,ONLY: Pi
 USE MOD_SuperB_Vars   ,ONLY: CoilInfo,PermanentMagnetInfo
 USE MOD_Equation_Vars ,ONLY: mu0
-!USE MOD_Mesh_Vars     ,ONLY: ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -228,7 +226,6 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)   :: ExactFunctionNumber    ! Number of exact function to be used for the calculation of the analytical solution
 INTEGER,INTENT(IN)   :: iCoilOrMagnet          ! Number of Coil or Magnet
 REAL,INTENT(IN)      :: x(3)
-INTEGER,INTENT(IN),OPTIONAL     :: ElemID      ! ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(1:3)    ! state in conservative variables
@@ -273,9 +270,6 @@ CASE DEFAULT
   ,'ERROR in ExactFuncSuperB(): Cannot calculate L2/LInf error for case',IntInfoOpt=ExactFunctionNumber)
 END SELECT
 
-! Suppress compiler warning
-RETURN
-WRITE (*,*) "ElemID =", ElemID
 END SUBROUTINE ExactFuncSuperB
 
 

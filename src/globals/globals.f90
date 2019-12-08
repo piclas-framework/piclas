@@ -954,9 +954,11 @@ END FUNCTION DOTPRODUCT
 PURE SUBROUTINE SphericalCoordinates(X,r,theta,phi)
 !===================================================================================================================================
 !> Computes the spherical coordinates of a Cartesian Vector X
-!> r     : radial distance
-!> theta : polar angle
-!> phi   : azimuthal angle
+!> r     : radial distance (Euclidean norm (length) of vector X)
+!> theta : polar angle (angle between the positive Z-axis and the vector X) 
+!>         0 <= theta <= Pi
+!> phi   : azimuthal angle (angle between the projection of the vector onto the X-Y-plane and the positive X-axis) 
+!>         0 <= phi < 2*Pi
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars, ONLY:EpsMach,Pi
