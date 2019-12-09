@@ -72,8 +72,6 @@ IMPLICIT NONE
 CALL prms%SetSection("Analyze")
 CALL prms%CreateLogicalOption('DoCalcErrorNorms'     , 'Set true to compute L2 and LInf error norms at analyze step.','.FALSE.')
 CALL prms%CreateRealOption(   'Analyze_dt'           , 'Specifies time intervall at which analysis routines are called.','0.')
-CALL prms%CreateIntOption(    'NAnalyze'             , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
-                                                       'Default: 2*(N+1).')
 CALL prms%CreateRealOption(   'OutputTimeFixed'      , 'fixed time for writing state to .h5','-1.0')
 CALL prms%CreateIntOption(    'nSkipAnalyze'         , '(Skip Analyze-Dt)','1')
 CALL prms%CreateLogicalOption('CalcTimeAverage'      , 'Flag if time averaging should be performed','.FALSE.')
@@ -163,9 +161,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
 ! Get logical for calculating the error norms L2 and LInf
 DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms')
 
-! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
-WRITE(DefStr,'(i4)') 2*(PP_N+1)
-NAnalyze = GETINT('NAnalyze',DefStr)
+! Initialize the basis functions for the analyze polynomial
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 
 ! Get the time step for performing analyzes and integer for skipping certain steps

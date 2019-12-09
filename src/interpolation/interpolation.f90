@@ -99,7 +99,9 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !==================================================================================================================================
 CALL prms%SetSection("Interpolation")
-CALL prms%CreateIntOption('N'    , "Polynomial degree of computation to represent to solution")
+CALL prms%CreateIntOption('N'        , "Polynomial degree of computation to represent to solution")
+CALL prms%CreateIntOption('NAnalyze' , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
+                                       'Default: 2*(N+1).')
 END SUBROUTINE DefineParametersInterpolation
 
 
@@ -113,7 +115,8 @@ SUBROUTINE InitInterpolation(NIn)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars
-USE MOD_ReadInTools,ONLY:GETINT
+USE MOD_ReadInTools        ,ONLY: GETINT
+USE MOD_Analyze_Vars       ,ONLY: NAnalyze
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -123,6 +126,7 @@ INTEGER,INTENT(IN),OPTIONAL :: NIn  !< optional polynomial degree
 !output parameters
 !----------------------------------------------------------------------------------------------------------------------------
 !local variables
+CHARACTER(LEN=40)           :: DefStr
 !============================================================================================================================
 IF (InterpolationInitIsDone) THEN
   CALL CollectiveStop(__STAMP__,&
@@ -150,6 +154,11 @@ IF(PP_N.NE.Ntmp) THEN
   'N in ini-file is different from hard-compiled N in Flexi. Ini/Compiled:',Ntmp,REAL(PP_N))
 END IF
 #endif
+
+! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
+WRITE(DefStr,'(i4)') 2*(PP_N+1)
+NAnalyze = GETINT('NAnalyze',DefStr)
+
 SWRITE(UNIT_stdOut,'(A)') ' NodeType: '//NodeType
 !CALL InitInterpolationBasis(PP_N, xGP ,wGP, swGP,wBary ,L_Minus ,L_Plus , L_PlusMinus, wGPSurf, Vdm_Leg ,sVdm_Leg)
 CALL InitInterpolationBasis(PP_N, xGP ,wGP, wBary ,L_Minus ,L_Plus , L_PlusMinus &
