@@ -185,7 +185,7 @@ CALL prms%CreateLogicalOption(   'averagedCollisionParameters'  &
                                             ' T: Part-Species[$]-omega,-Tref,-dref,-alphaVSS\n'//&
                                             '    species-specific parameters(T)\n    can be found in tables e.g. in\n'//&
                                             '    VHS: bird1994 (table A1 and A2)\n    VSS: bird1994 (table A1 and A3)\n'//&
-                                            '         weaver2014\n         (https://doi.org/10.1063/1.4921245)\n'//&
+                                            '         weaver2015\n         (https://doi.org/10.1063/1.4921245)\n'//&
                                             ' F: Part-Collision[$]-omega,-Tref,-dref,-alphaVSS\n'//&
                                             '    collision-specific parameters(F)\n    can be found in tables e.g. in\n'//&
                                             '    VHS/VSS: krishnan2015\n             (https://doi.org/10.2514/6.2015-3373)\n'//&
