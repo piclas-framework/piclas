@@ -1040,6 +1040,18 @@ REAL                            :: tLBStart
 !===================================================================================================================================
 ALLOCATE(Source(1:11,1:nElems,1:nSpecies))
 Source=0.0
+
+! Optional flag for the utilization of the routine for an initial sampling of the density and pressure distribution before simstart
+IF(PRESENT(initSampling_opt)) THEN
+  initSampling = initSampling_opt
+ELSE
+ initSampling = .FALSE.
+END IF
+
+! If no particles are present during the initial sampling for a porous BC, leave the routine, otherwise initial variables for the
+! adaptive inlet surface flux will be overwritten by zero's
+IF ((PDM%ParticleVecLength.LT.1).AND.initSampling) RETURN
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1071,13 +1083,6 @@ END DO
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_ADAPTIVE,tLBStart)
 #endif /*USE_LOADBALANCE*/
-
-! Optional flag for the utilization of the routine for an initial sampling of the density and pressure distribution before simstart
-IF(PRESENT(initSampling_opt)) THEN
-  initSampling = initSampling_opt
-ELSE
- initSampling = .FALSE.
-END IF
 
 IF(initSampling) THEN
   RelaxationFactor = 1

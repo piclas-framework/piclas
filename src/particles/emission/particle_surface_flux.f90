@@ -451,12 +451,6 @@ __STAMP__&
       ELSE
         Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = 0.
       END IF
-      IF (PartBound%TargetBoundCond(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.PartBound%ReflectiveBC) THEN ! iSF on refelctive BC
-        IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-          CALL abort(__STAMP__&
-            ,'ERROR in adaptive surface flux: using a reflective BC without circularInflow is not allowed!')
-        END IF
-      END IF
       Species(iSpec)%Surfaceflux(iSF)%AdaptiveType         = GETINT('Part-Species'//TRIM(hilf2)//'-Adaptive-Type')
       SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType)
       ! Farbar2014 - Case 1: Inlet Type 1, constant pressure and temperature
@@ -477,6 +471,12 @@ __STAMP__&
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity = 0.0
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
       END SELECT
+      IF (PartBound%TargetBoundCond(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.PartBound%ReflectiveBC) THEN ! iSF on reflective BC
+        IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow.AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.NE.4)) THEN
+          CALL abort(__STAMP__&
+            ,'ERROR in adaptive surface flux: using a reflective BC without circularInflow is only allowed for Type 4!')
+        END IF
+      END IF
     ELSE
       Species(iSpec)%Surfaceflux(iSF)%AdaptiveType = 0
     END IF
@@ -2057,45 +2057,15 @@ __STAMP__&
         iPart = iPart + 1
       END DO
     END IF
-!    CALL UpdateNextFreePosition()
 
-    ! compute number of input particles and energy
     IF(CalcPartBalance) THEN
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
-      ! IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
-      !   !print*,'herre' ! TODO: does this need fixing? (see IMPA or Ros)
-      !   nPartInTmp(iSpec)=nPartInTmp(iSpec) + NBrofParticle
-      !   DO iPart=1,NbrOfparticle
-      !     PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-      !     IF (PositionNbr .ne. 0) PartEkinInTmp(PartSpecies(PositionNbr)) = &
-      !                             PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-      !   END DO ! iPart
-      ! ELSE
-        !print*,'or here' ! TODO: does this need fixing? (see IMPA or Ros)
-        nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
-        DO iPart=1,NbrOfparticle
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
-                                  PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-        END DO ! iPart
-      !END IF
-#elif  defined(IMPA) || defined(ROS)
-      !IF(iStage.EQ.nRKStages)THEN
-        nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
-        DO iPart=1,NbrOfparticle
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
-                                  PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-        END DO ! iPart
-      !END IF
-#else
+    ! Compute number of input particles and energy
       nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
       DO iPart=1,NbrOfparticle
         PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
         IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
                                 PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
       END DO ! iPart
-#endif
     END IF ! CalcPartBalance
 
     ! instead of an UpdateNextfreePosition we update the particleVecLength only - enough ?!?
