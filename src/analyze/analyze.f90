@@ -48,14 +48,9 @@ INTERFACE CalcErrorStateFileSigma
   MODULE PROCEDURE CalcErrorStateFileSigma
 END INTERFACE
 
-INTERFACE InitAnalyzeBasis
-  MODULE PROCEDURE InitAnalyzeBasis
-END INTERFACE
-
 !===================================================================================================================================
 PUBLIC:: DefineParametersAnalyze
 PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze, CalcErrorStateFiles, CalcErrorStateFileSigma
-PUBLIC:: InitAnalyzeBasis
 !===================================================================================================================================
 
 CONTAINS
@@ -161,9 +156,6 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
 ! Get logical for calculating the error norms L2 and LInf
 DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms')
 
-! Initialize the basis functions for the analyze polynomial
-CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
-
 ! Get the time step for performing analyzes and integer for skipping certain steps
 WRITE(DefStr,WRITEFORMAT) TEnd
 Analyze_dt        = GETREAL('Analyze_dt',DefStr)
@@ -230,36 +222,6 @@ IF(CalcPointsPerWavelength)THEN
   CALL PrintOption('MAX(PPWCell)','CALCUL.',RealOpt=PPWCellMax)
 END IF
 END SUBROUTINE InitAnalyze
-
-
-SUBROUTINE InitAnalyzeBasis(N_in,Nanalyze_in,xGP,wBary)
-!===================================================================================================================================
-! Build analyze nodes (Gauss-Lobatto) and corresponding Vandermonde matrix
-!===================================================================================================================================
-! MODULES
-USE MOD_Analyze_Vars ,ONLY: wAnalyze ! GL integration weights used for the analyze
-USE MOD_Analyze_Vars ,ONLY: Vdm_GaussN_NAnalyze
-USE MOD_Basis        ,ONLY: LegGaussLobNodesAndWeights,InitializeVandermonde
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)   :: N_in          !< input polynomial degree
-INTEGER,INTENT(IN)   :: Nanalyze_in   !< polynomial degree of analysis polynomial
-REAL,INTENT(IN)      :: xGP(0:N_in)   !< interpolation points
-REAL,INTENT(IN)      :: wBary(0:N_in) !< barycentric weights
-!----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze ! GL nodes
-!===================================================================================================================================
-ALLOCATE(wAnalyze(0:NAnalyze_in),Vdm_GaussN_NAnalyze(0:NAnalyze_in,0:N_in))
-! Build analyze nodes (Gauss-Lobatto)
-CALL LegGaussLobNodesAndWeights(NAnalyze_in,XiAnalyze,wAnalyze)
-! Build analyze Vandermonde matrix which maps from NodeType nodes to Gauss-Lobatto nodes
-CALL InitializeVandermonde(N_in,NAnalyze_in,wBary,xGP,XiAnalyze,Vdm_GaussN_NAnalyze)
-END SUBROUTINE InitAnalyzeBasis
 
 
 #if USE_HDG

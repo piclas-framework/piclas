@@ -120,7 +120,7 @@ CALL prms%CreateIntOption(      'nTimePoints'             , 'Number of points fo
 END SUBROUTINE DefineParametersSuperB
 
 
-SUBROUTINE InitializeSuperB(mode)
+SUBROUTINE InitializeSuperB()
 !===================================================================================================================================
 !> Read-in of SuperB parameters for permanent magnets, coils and time-dependent coils
 !===================================================================================================================================
@@ -129,11 +129,10 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_SuperB_Vars
-USE MOD_Analyze            ,ONLY: InitAnalyzeBasis
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput
 USE MOD_ReadInTools        ,ONLY: PrintOption
-USE MOD_Interpolation_Vars ,ONLY: xGP,wBary,NodeTypeGL,NodeType
+USE MOD_Interpolation_Vars ,ONLY: NodeTypeGL,NodeType
 USE MOD_Mesh_Vars          ,ONLY: Vdm_GL_N
 USE MOD_Analyze_Vars       ,ONLY: NAnalyze
 USE MOD_Interpolation      ,ONLY: GetVandermonde
@@ -141,35 +140,22 @@ USE MOD_Interpolation      ,ONLY: GetVandermonde
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: mode ! 1: standalone
-                           ! 2: from PICLas
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: iMagnet, iCoil, iSegment
 CHARACTER(LEN=32)  :: hilf,hilf2
-CHARACTER(LEN=40)  :: DefStr
 !===================================================================================================================================
 
 ! Get logical for calculating the error norms L2 and LInf of magnetic field
 DoCalcErrorNormsSuperB = GETLOGICAL('DoCalcErrorNormsSuperB')
 
 IF(DoCalcErrorNormsSuperB)THEN
-  ! Initialize the analysis basis only when superB is used as standalone tool
-  IF(mode.EQ.1)THEN
-    ! Set the default analyze polynomial (Gauss-Lobatto nodes) degree NAnalyze to 2*(N+1)
-    WRITE(DefStr,'(i4)') 2*(PP_N+1)
-    NAnalyze = GETINT('NAnalyze',DefStr)
-    CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
-  END IF ! mode.EQ.1
-
   ! Get Vandermonde from Gauss-Lobatto (GL) nodes to Gauss (G)
   ALLOCATE(Vdm_GL_N(0:PP_N,0:NAnalyze))
   CALL GetVandermonde(NAnalyze , NodeTypeGL   , PP_N , NodeType , Vdm_GL_N , modal=.FALSE.)
 END IF ! DoCalcErrorNormsSuperB
-
-
 
 ! Output of the magnets/coils as separate VTK files
 BGFieldVTKOutput     = GETLOGICAL('PIC-CalcBField-OutputVTK')

@@ -420,7 +420,6 @@ DO iArgs = iArgsStart,nArgs
         ! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
         WRITE(DefStr,'(i4)') 2*(N_State+1)
         NAnalyze=GETINT('NAnalyze',DefStr)
-        !CALL InitAnalyzeBasis(N_State,NAnalyze,xGP,wBary)
         ! Copy state to 'first'
         ALLOCATE(U_first(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
         U_first       = U
