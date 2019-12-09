@@ -56,11 +56,13 @@ CALL prms%CreateLogicalOption(  'DielectricFluxNonConserving'  , 'Use non-conser
 CALL prms%CreateRealOption(     'DielectricEpsR'               , 'Relative permittivity' , '1.')
 CALL prms%CreateRealOption(     'DielectricMuR'                , 'Relative permeability' , '1.')
 CALL prms%CreateLogicalOption(  'DielectricNoParticles'        , 'Do not insert/emit particles into dielectric regions' , '.TRUE.')
-CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Test cases, e.g., "FishEyeLens" or "FH_lens"' , 'default')
+CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Specific test cases: "FishEyeLens", "FH_lens", "Circle"' , 'default')
 CALL prms%CreateRealOption(     'DielectricRmax'               , 'Radius parameter for functions' , '1.')
 CALL prms%CreateLogicalOption(  'DielectricCheckRadius'        , 'Use additional parameter "DielectricRadiusValue" for checking'&
                                                                //' if a DOF is within a dielectric region' ,'.FALSE.')
 CALL prms%CreateRealOption(     'DielectricRadiusValue'        , 'Additional parameter radius for checking if a DOF is'&
+                                                               //' within a dielectric region' , '-1.')
+CALL prms%CreateRealOption(     'DielectricRadiusValueB'        , '2nd radius for cutting out circular areas'&
                                                                //' within a dielectric region' , '-1.')
 CALL prms%CreateRealArrayOption('xyzPhysicalMinMaxDielectric'  , '[xmin, xmax, ymin, ymax, zmin, zmax] vector for defining a '&
     //'dielectric region by giving the bounding box coordinates of the PHYSICAL region', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
@@ -118,16 +120,18 @@ IF((DielectricEpsR.LE.0.0).OR.(DielectricMuR.LE.0.0))THEN
   ,'Dielectric: MuR or EpsR cannot be negative or zero.')
 END IF
 DielectricEpsR_inv               = 1./(DielectricEpsR)                   ! 1./EpsR
-!DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)     !             1./(EpsR*MuR)
-DielectricConstant_RootInv       = 1./sqrt(DielectricEpsR*DielectricMuR) !         1./sqrt(EpsR*MuR)
+!DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)    ! 1./(EpsR*MuR)
+DielectricConstant_RootInv       = 1./sqrt(DielectricEpsR*DielectricMuR) ! 1./sqrt(EpsR*MuR)
 #if !(USE_HDG)
-  eta_c_dielectric                 = (c_corr-DielectricConstant_RootInv)*c ! ( chi - 1./sqrt(EpsR*MuR) ) * c
+eta_c_dielectric                 = (c_corr-DielectricConstant_RootInv)*c ! ( chi - 1./sqrt(EpsR*MuR) ) * c
 #endif /*if USE_HDG*/
-  c_dielectric                     = c*DielectricConstant_RootInv          !          c/sqrt(EpsR*MuR)
-  c2_dielectric                    = c*c/(DielectricEpsR*DielectricMuR)            !           c**2/(EpsR*MuR)
+c_dielectric                     = c*DielectricConstant_RootInv          ! c/sqrt(EpsR*MuR)
+c2_dielectric                    = c*c/(DielectricEpsR*DielectricMuR)    ! c**2/(EpsR*MuR)
 DielectricCheckRadius            = GETLOGICAL('DielectricCheckRadius')
+IF(TRIM(DielectricTestCase).EQ.'Circle') DielectricCheckRadius=.TRUE. ! Activate radius check when using 'Circle' test case
 DielectricRadiusValue            = GETREAL('DielectricRadiusValue')
 IF(DielectricRadiusValue.LE.0.0) DielectricCheckRadius=.FALSE.
+DielectricRadiusValueB           = GETREAL('DielectricRadiusValueB')
 ! determine Dielectric elements
 xyzPhysicalMinMaxDielectric(1:6) = GETREALARRAY('xyzPhysicalMinMaxDielectric',6)
 xyzDielectricMinMax(1:6)         = GETREALARRAY('xyzDielectricMinMax',6)

@@ -213,7 +213,7 @@ The concept of the parameter file is described as followed:
 ~~~~~~~
 * The order of defined variables is with one exception irrelevant, except for the special case when redefining boundaries. However, it is preferable to group similar variables together.
 
-The options and underlying models are discussed in Chapter \ref{chap:features_models}. Due to the sheer number of parameters available, it is advisable to build upon an existing parameter file from one of the tutorials in Chapter \ref{chap:tutorials}.
+The options and underlying models are discussed in Chapter \ref{chap:features_models}, while the available output options are given in Chapter \ref{chap:visu_output}. Due to the sheer number of parameters available, it is advisable to build upon an existing parameter file from one of the tutorials in Chapter \ref{chap:tutorials}.
 
 ## Simulation
 
@@ -253,4 +253,4 @@ The grid elements are organized along a space-filling curved, which gives a uniq
 h5piclas2vtk [posti.ini] output.h5
 ~~~~~~~
 
-Multiple HDF5 files can be passed to the h5piclas2vtk tool at once. The (optional) runtime parameters to be set in `posti.ini` are given in Section \ref{sec:tools_posti}.
+Multiple HDF5 files can be passed to the h5piclas2vtk tool at once. The (optional) runtime parameters to be set in `posti.ini` are given in Chapter \ref{chap:visu_output}.
