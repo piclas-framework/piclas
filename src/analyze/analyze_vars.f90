@@ -24,7 +24,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER           :: NAnalyze                    !< number of analyzation points is NAnalyze+1
 REAL,ALLOCATABLE  :: wAnalyze(:)                 !< GL integration weights used for the analyze
-REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze(:,:)    !< for interpolation to Analyze points
+REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze(:,:)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
 REAL              :: Analyze_dt                  !< time difference to trigger analyze output
 INTEGER(KIND=8)   :: iAnalyze                    !> count number of next analyze
 REAL              :: OutputTimeFixed             !< fixed time for writing state to .h5

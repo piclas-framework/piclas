@@ -45,24 +45,34 @@ INTERFACE GetDataSize
   MODULE PROCEDURE GetDataSize
 END INTERFACE
 
+INTERFACE GetAttributeSize
+  MODULE PROCEDURE GetAttributeSize
+END INTERFACE
+
 INTERFACE GetDataProps
   MODULE PROCEDURE GetDataProps
 END INTERFACE
 
+! no interface because one argument is size of another argument-array -> nVal, Array(nVal)
 !INTERFACE ReadArray
-!  MODULE PROCEDURE ReadArrayFromHDF5
+!  MODULE PROCEDURE ReadArray
 !END INTERFACE
 
 INTERFACE ReadAttribute
   MODULE PROCEDURE ReadAttribute
 END INTERFACE
 
-PUBLIC :: ISVALIDHDF5FILE,ISVALIDMESHFILE,GetDataProps,GetHDF5NextFileName
+INTERFACE GetVarnames
+  MODULE PROCEDURE GetVarnames
+END INTERFACE
+
+PUBLIC :: ISVALIDHDF5FILE,ISVALIDMESHFILE,GetDataProps,GetAttributeSize,GetHDF5NextFileName
 PUBLIC :: ReadArray,ReadAttribute
 PUBLIC :: File_ID,HSize,nDims        ! Variables that need to be public
 PUBLIC :: OpenDataFile,CloseDataFile ! Subroutines that need to be public
 PUBLIC :: DatasetExists
 PUBLIC :: GetDataSize
+PUBLIC :: GetVarnames
 PUBLIC :: GetArrayAndName
 !===================================================================================================================================
 
@@ -253,6 +263,38 @@ END SUBROUTINE GetDataSize
 
 
 !==================================================================================================================================
+!> Subroutine to determine HDF5 size of attribute
+!==================================================================================================================================
+SUBROUTINE GetAttributeSize(Loc_ID,AttribName,nDims,Size)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*)                     :: AttribName !< name if attribute to be checked
+INTEGER(HID_T),INTENT(IN)            :: Loc_ID   !< ID of dataset
+INTEGER,INTENT(OUT)                  :: nDims    !< found data size dimensions
+INTEGER(HSIZE_T),POINTER,INTENT(OUT) :: Size(:)  !< found data size
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER(HID_T)                       :: Attr_ID,FileSpace
+INTEGER(HSIZE_T), POINTER            :: SizeMax(:)
+!==================================================================================================================================
+! Open the dataset with default properties.
+CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
+! Get the data space of the dataset.
+CALL H5AGET_SPACE_F(Attr_ID, FileSpace, iError)
+! Get number of dimensions of data space
+CALL H5SGET_SIMPLE_EXTENT_NDIMS_F(FileSpace, nDims, iError)
+! Get size and max size of data space
+ALLOCATE(Size(nDims),SizeMax(nDims))
+CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, Size, SizeMax, iError)
+CALL H5SCLOSE_F(FileSpace, iError)
+CALL H5ACLOSE_F(Attr_ID, iError)
+DEALLOCATE(SizeMax)
+END SUBROUTINE GetAttributeSize
+
+
+!==================================================================================================================================
 !> @brief Subroutine to check whether a dataset in the HDF5 file exists
 !>
 !> We have no "h5dexists_f", so we use the error given by h5dopen_f.
@@ -362,6 +404,30 @@ SWRITE(UNIT_stdOut,'(A)')' DONE!'
 SWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE GetDataProps
 
+SUBROUTINE GetVarnames(AttribName,VarNames,AttribExists)
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)                :: AttribName
+CHARACTER(LEN=255),ALLOCATABLE,INTENT(OUT) :: VarNames(:)
+LOGICAL,INTENT(OUT)                        :: AttribExists
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER  :: dims, nVal
+!===================================================================================================================================
+SDEALLOCATE(VarNames)
+CALL DatasetExists(File_ID,AttribName,AttribExists,attrib=.TRUE.)
+IF (AttribExists) THEN
+  ! get size of array
+  CALL GetAttributeSize(File_ID,AttribName,dims,HSize)
+  nVal=INT(HSize(1))
+  DEALLOCATE(HSize)
+  ALLOCATE(VarNames(nVal))
+
+  ! read variable names
+  CALL ReadAttribute(File_ID,TRIM(AttribName),nVal,StrArray=VarNames)
+END IF
+END SUBROUTINE GetVarnames
+
 !===================================================================================================================================
 !> High level wrapper to ReadArray and ReadAttrib. Check if array exists and directly
 !> allocate, read array and attributes
@@ -443,9 +509,7 @@ CHARACTER(LEN=255),&
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: DSet_ID,Type_ID,MemSpace,FileSpace,PList_ID
 INTEGER(HSIZE_T)               :: Offset(Rank),Dimsf(Rank)
-#ifndef HDF5_F90 /* HDF5 compiled with fortran2003 flag */
 TYPE(C_PTR)                    :: buf
-#endif
 #if USE_MPI
 INTEGER(HID_T)                 :: driver
 #endif /*USE_MPI*/
@@ -475,23 +539,11 @@ IF(driver.EQ.H5FD_MPIO_F) CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE
 CALL H5DGET_TYPE_F(DSet_ID, Type_ID, iError)
 
 ! Read the data
-#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
-IF(PRESENT(RealArray))THEN
-  CALL H5DREAD_F(DSet_ID,Type_ID,RealArray   ,Dimsf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
-END IF
-IF(PRESENT(IntegerArray))THEN
-  CALL H5DREAD_F(DSet_ID,Type_ID,IntegerArray,Dimsf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
-END IF
-IF(PRESENT(StrArray))THEN
-  CALL H5DREAD_F(DSet_ID,Type_ID,StrArray    ,Dimsf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
-END IF
-#else /*HDF5_F90*/
 IF(PRESENT(RealArray))       buf=C_LOC(RealArray)
 IF(PRESENT(IntegerArray))    buf=C_LOC(IntegerArray)
 IF(PRESENT(IntegerArray_i4)) buf=C_LOC(IntegerArray_i4)
 IF(PRESENT(StrArray))        buf=C_LOC(StrArray(1))
 CALL H5DREAD_F(DSet_ID,Type_ID,buf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
-#endif /*HDF5_F90*/
 
 ! Close the datatype, property list, dataspaces and dataset.
 CALL H5TCLOSE_F(Type_ID, iError)
@@ -535,10 +587,8 @@ INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID
 INTEGER(HSIZE_T), DIMENSION(1) :: Dimsf
 INTEGER                        :: i
 INTEGER,TARGET                 :: IntToLog
-#ifndef HDF5_F90 /* HDF5 compiled with fortran2003 flag */
 CHARACTER(LEN=255),TARGET      :: StrTmp(1)
 TYPE(C_PTR)                    :: buf
-#endif
 !===================================================================================================================================
 LOGWRITE(*,*)' READ ATTRIBUTE "',TRIM(AttribName),'" FROM HDF5 FILE...'
 Dimsf(1)=nVal
@@ -566,15 +616,6 @@ IF(PRESENT(StrArray))THEN
 END IF
 
 ! Read the attribute data.
-#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
-IF(PRESENT(RealArray))      CALL H5AREAD_F(Attr_ID, Type_ID, RealArray,     Dimsf, iError)
-IF(PRESENT(RealScalar))     CALL H5AREAD_F(Attr_ID, Type_ID, RealScalar,    Dimsf, iError)
-IF(PRESENT(IntegerArray))   CALL H5AREAD_F(Attr_ID, Type_ID, IntegerArray,  Dimsf, iError)
-IF(PRESENT(IntegerScalar))  CALL H5AREAD_F(Attr_ID, Type_ID, IntegerScalar, Dimsf, iError)
-IF(PRESENT(LogicalScalar))  CALL H5AREAD_F(Attr_ID, Type_ID, IntToLog,      Dimsf, iError)
-IF(PRESENT(StrScalar))      CALL H5AREAD_F(Attr_ID, Type_ID, StrScalar,     Dimsf, iError)
-IF(PRESENT(StrArray))       CALL H5AREAD_F(Attr_ID, Type_ID, StrArray,      Dimsf, iError)
-#else /* HDF5_F90 */
 IF(PRESENT(RealArray))      buf=C_LOC(RealArray)
 IF(PRESENT(RealScalar))     buf=C_LOC(RealScalar)
 IF(PRESENT(IntegerArray))   buf=C_LOC(IntegerArray)
@@ -584,7 +625,6 @@ IF(PRESENT(StrScalar))      buf=C_LOC(StrTmp(1))
 IF(PRESENT(StrArray))       buf=C_LOC(StrArray(1))
 CALL H5AREAD_F(Attr_ID, Type_ID, buf, iError)
 IF(PRESENT(StrScalar))      StrScalar=StrTmp(1)
-#endif /* HDF5_F90 */
 IF(PRESENT(LogicalScalar)) LogicalScalar=(IntToLog.EQ.1)
 
 CALL H5TCLOSE_F(Type_ID, iError)

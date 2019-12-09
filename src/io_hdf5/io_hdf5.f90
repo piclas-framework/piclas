@@ -55,8 +55,12 @@ END TYPE
 
 TYPE(tElementOut),POINTER    :: ElementOut   => NULL() !< linked list of output pointers
 
-INTERFACE InitIO
-  MODULE PROCEDURE InitIO_HDF5
+INTERFACE InitIOHDF5
+  MODULE PROCEDURE InitIOHDF5
+END INTERFACE
+
+INTERFACE InitMPIInfo
+  MODULE PROCEDURE InitMPIInfo
 END INTERFACE
 
 INTERFACE OpenDataFile
@@ -75,8 +79,13 @@ INTERFACE ClearElemData
   MODULE PROCEDURE ClearElemData
 END INTERFACE
 
-PUBLIC::DefineParametersIO,InitIO,OpenDataFile,CloseDataFile
+INTERFACE GetDatasetNamesInGroup
+  MODULE PROCEDURE GetDatasetNamesInGroup
+END INTERFACE
+
+PUBLIC::DefineParametersIO,InitIOHDF5,InitMPIInfo,OpenDataFile,CloseDataFile
 PUBLIC::AddToElemData
+PUBLIC::GetDatasetNamesInGroup
 
 !===================================================================================================================================
 
@@ -96,13 +105,13 @@ CALL prms%CreateLogicalOption('gatheredWrite', "Set true to activate gathered HD
                                                '.FALSE.')
 END SUBROUTINE DefineParametersIO
 
-SUBROUTINE InitIO_HDF5()
+SUBROUTINE InitIOHDF5()
 !===================================================================================================================================
 ! Initialize HDF5 IO
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools,        ONLY:GETLOGICAL
+USE MOD_ReadInTools,ONLY:GETLOGICAL
 #ifdef INTEL
 USE IFPORT
 #endif
@@ -115,29 +124,46 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-
 gatheredWrite=.FALSE.
 IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE.')
+
+CALL InitMPIInfo()
+END SUBROUTINE InitIOHDF5
+
+
+!==================================================================================================================================
+!> Initialize MPIInfo variable
+!==================================================================================================================================
+SUBROUTINE InitMPIInfo()
+! MODULES
+USE MOD_Globals
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!==================================================================================================================================
+
 #if USE_MPI
-  CALL MPI_Info_Create(MPIInfo, iError)
+CALL MPI_Info_Create(MPIInfo, iError)
 
-  !normal case:
-  MPIInfo=MPI_INFO_NULL
+!normal case:
+MPIInfo=MPI_INFO_NULL
 
-  ! Large block IO extremely slow on Juqeen cluster (only available on IBM clusters)
-  !CALL MPI_Info_set(MPIInfo, "IBM_largeblock_io", "true", ierror)
+! Large block IO extremely slow on Juqeen cluster (only available on IBM clusters)
+!CALL MPI_Info_set(MPIInfo, "IBM_largeblock_io", "true", ierror)
 #ifdef LUSTRE
-  CALL MPI_Info_Create(MPIInfo, iError)
-  ! For lustre file system:
-  ! Disables ROMIO's data-sieving
-  CALL MPI_Info_set(MPIInfo, "romio_ds_read", "disable",iError)
-  CALL MPI_Info_set(MPIInfo, "romio_ds_write","disable",iError)
-  ! Enable ROMIO's collective buffering
-  CALL MPI_Info_set(MPIInfo, "romio_cb_read", "enable", iError)
-  CALL MPI_Info_set(MPIInfo, "romio_cb_write","enable", iError)
+CALL MPI_Info_Create(MPIInfo, iError)
+! For lustre file system:
+! Disables ROMIO's data-sieving
+CALL MPI_Info_set(MPIInfo, "romio_ds_read", "disable",iError)
+CALL MPI_Info_set(MPIInfo, "romio_ds_write","disable",iError)
+! Enable ROMIO's collective buffering
+CALL MPI_Info_set(MPIInfo, "romio_cb_read", "enable", iError)
+CALL MPI_Info_set(MPIInfo, "romio_cb_write","enable", iError)
 #endif
 #endif /*USE_MPI*/
-END SUBROUTINE InitIO_HDF5
+END SUBROUTINE InitMPIInfo
 
 
 !==================================================================================================================================
@@ -355,5 +381,26 @@ END DO
 NULLIFY(ElementOut)
 
 END SUBROUTINE ClearElemData
+
+!==================================================================================================================================
+!> Takes a group and reads the names of the datasets
+!==================================================================================================================================
+SUBROUTINE GetDatasetNamesInGroup(group,names)
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+CHARACTER(LEN=*)               :: group    !< name of group
+CHARACTER(LEN=255),ALLOCATABLE :: names(:) !< names of datasets
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: nMembers,i,type
+!===================================================================================================================================
+CALL H5GN_MEMBERS_F(File_ID, TRIM(group), nMembers, ierror)
+ALLOCATE(names(nMembers))
+DO i=1,nMembers
+  CALL h5gget_obj_info_idx_f(File_ID, TRIM(group), i-1, names(i), type, ierror)
+  IF (type.NE.H5G_DATASET_F) names(i) = ''
+END DO
+END SUBROUTINE GetDatasetNamesInGroup
+
 
 END MODULE MOD_io_HDF5

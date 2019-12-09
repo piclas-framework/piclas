@@ -56,12 +56,12 @@ After mesh generation, and before naming the boundaries in the *Property Setter*
 
     TITLE
     Converted from GridPro v4.1
-    CTAB 1 FLUI 
-    CTNA 1 ZONE_VOL 
-    RDEF 1 WALL $ $ $ $ $ $ $ $ 
-    RNAM 1 BC_WALL 
-    RDEF 2 CYCL $ $ $ $ $ $ $ $ 
-    RNAM 2 BC_CYCL 
+    CTAB 1 FLUI
+    CTNA 1 ZONE_VOL
+    RDEF 1 WALL $ $ $ $ $ $ $ $
+    RNAM 1 BC_WALL
+    RDEF 2 CYCL $ $ $ $ $ $ $ $
+    RNAM 2 BC_CYCL
     VREAD,/home/user/mesh/test.vrt,,1,43770,CODE
     CREAD,/home/user/mesh/test.cel,,1,21504,MODI,CODE
     BREAD,/home/user/mesh/test.bnd,,1,43768,MODI,CODE
@@ -77,10 +77,10 @@ More recent versions of GridPro also support a CGNS output. Here, the option *Ex
 
 ### Mesh generation with CENTAUR
 
-A conventional tetrahedral mesh can be generated with CENTAUR. Boundaries have to be set in CENTAUR and accordingly in the HOPR parameter file. During the export as CGNS the following options are required: 
+A conventional tetrahedral mesh can be generated with CENTAUR. Boundaries have to be set in CENTAUR and accordingly in the HOPR parameter file. During the export as CGNS the following options are required:
 
-* Check "Only write out boundary faces" 
-* Check "Write out boundary faces grouped by panels" 
+* Check "Only write out boundary faces"
+* Check "Write out boundary faces grouped by panels"
 
 Read-in and convert with HOPR and the following options:
 
@@ -99,30 +99,30 @@ Should problems occur try to set SpaceQuandt to a higher value, e.g. 100. During
 * Import geometry as STEP or IGS
 * Create groups in Geometry module for the boundary conditions
   * Right-click on the imported file in Object Browser -> "Create Group"
-  * Select faces as "Share Type" (2D object) 
-  * Choose appropriate name for the BC 
-  * Select one or many surfaces by (shift-) clicking on the surfaces 
-  * Click "Add" when finished for a single BC 
-  * "Apply" to save the BC and repeat the process (or "Apply and Close" at the end) 
+  * Select faces as "Share Type" (2D object)
+  * Choose appropriate name for the BC
+  * Select one or many surfaces by (shift-) clicking on the surfaces
+  * Click "Add" when finished for a single BC
+  * "Apply" to save the BC and repeat the process (or "Apply and Close" at the end)
 * Create mesh in Mesh module: "Mesh" -> "Create mesh"
-    * Choose the imported geometry in "Geometry" (if not already chosen, when geometry was highlighted previously) 
-    * Choose MG-Hexa for the 3D algorithm 
-    * Choose MG-CADsurf for the 2D algorithm 
-* Assign boundary conditions to mesh 
-    * Right-click on created mesh 
-    * "Create groups from Geometry" 
-      * Click on the BC in "Object Browser" in the "Geometry"-tree 
-      * "Apply" and repeat with the next BC 
-      * "Apply and close" with the last BC 
-* Export mesh as CGNS 
-    * Right-click on mesh, choose "Export" -> "CGNS file" 
-    * Import the exported CGNS file 
-    * Check the names of boundary conditions 
-      * Activate the BC by clicking on the visibility icon next to the name 
-      * Change the name to correspond to the entry in the preproc.ini 
-    * Export the modified mesh again as CGNS 
-* Convert CGNS mesh from hdf to adf format 
-        Install cgns-tools ("sudo apt-get install cgns-tools") 
+    * Choose the imported geometry in "Geometry" (if not already chosen, when geometry was highlighted previously)
+    * Choose MG-Hexa for the 3D algorithm
+    * Choose MG-CADsurf for the 2D algorithm
+* Assign boundary conditions to mesh
+    * Right-click on created mesh
+    * "Create groups from Geometry"
+      * Click on the BC in "Object Browser" in the "Geometry"-tree
+      * "Apply" and repeat with the next BC
+      * "Apply and close" with the last BC
+* Export mesh as CGNS
+    * Right-click on mesh, choose "Export" -> "CGNS file"
+    * Import the exported CGNS file
+    * Check the names of boundary conditions
+      * Activate the BC by clicking on the visibility icon next to the name
+      * Change the name to correspond to the entry in the preproc.ini
+    * Export the modified mesh again as CGNS
+* Convert CGNS mesh from hdf to adf format
+        Install cgns-tools ("sudo apt-get install cgns-tools")
         "hdf2adf filename"
 
 Read-in and convert with HOPR and the following options:
@@ -131,8 +131,8 @@ Read-in and convert with HOPR and the following options:
     BugFix_ANSA_CGNS = TRUE
 
 ## Compiler options \label{sec:compileroptions}
-This section describes the main configuration options which can be set when building **PICLas** using CMake. 
-Some options are dependent on others being enabled (or disabled), so the available ones may change. 
+This section describes the main configuration options which can be set when building **PICLas** using CMake.
+Some options are dependent on others being enabled (or disabled), so the available ones may change.
 
 The first set of options describe general CMake behaviour:
 
@@ -141,7 +141,7 @@ The first set of options describe general CMake behaviour:
     * Profile: Performance profiling using gprof.
     * Debug: Debug compiler for detailed error messages during code development.
     * SANI: Sanitizer compiler for even more detailed error messages during code development.
-    
+
 * ``CMAKE_HOSTNAME``: This will display the host name of the machine you are compiling on.
 
 * ``CMAKE_INSTALL_PREFIX``: If “make install” is invoked or INSTALL is built, this directory is prepended onto all install directories. This variable defaults to /usr/local on UNIX.
@@ -153,6 +153,11 @@ For some external libraries and programs that **PICLas** uses, the following opt
 * ``PICLAS_BUILD_HDF5``: This will be set to ON if no prebuilt HDF5 installation was found on your machine. In this case a HDF5 version will be build and used instead. For a detailed description of the installation of HDF5, please refer to Section \ref{sec:install_hdf5}.
 
 * ``HDF5_DIR``: If you want to use a prebuilt HDF5 library that has been build using the CMake system, this directory should contain the CMake configuration file for HDF5 (optional).
+
+* ``PICLAS_BUILD_POSTI``: Enables the compilation of additional tools and activates the following options:
+  * ``POSTI_BUILD_SUPERB``: Enables the compilation of **superB**, which is allows the computation of magnetic fields based on an input of coils and permanent magnets (Section \ref{sec:superB})
+  * ``POSTI_BUILD_VISU``: Enables the compilation of the post-processing tool **h5piclas2vtk**, which enables the conversion of output files into the VTK format (Section \ref{sec:tools_posti_visu})
+  * ``POSTI_USE_PARAVIEW``: Enables the compilation of the ParaView plugin, which enables the direct read-in of output files within ParaView
 
 ## Solver settings
 
@@ -242,7 +247,7 @@ where the floating format with length of *F21.14* is used as default value.
 The simulation code is specifically designed for (massively) parallel execution using the MPI library. For parallel runs, the code must be compiled with `PICLAS_MPI=ON`. Parallel execution is then controlled using `mpirun`
 
     mpirun -np [no. processors] piclas parameter.ini [DSMCSpecies.ini] [restart_file.h5]
-    
+
 The grid elements are organized along a space-filling curved, which gives a unique one-dimensional element list. In a parallel run, the mesh is simply divided into parts along the space filling curve. Thus, domain decomposition is done *fully automatic* and is not limited by e.g. an integer factor between the number of cores and elements. The only limitation is that the number of cores may not exceed the number of elements.
 
 ## Post-processing \label{sec:postiVisu}

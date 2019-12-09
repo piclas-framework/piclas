@@ -233,25 +233,25 @@ concurrent = 2
 check_interval = 0
 
 [[runners]]
-  name = "flexirunner"
-  url = "https://gitlabext.iag.uni-stuttgart.de/"
-  token = "-yi9ffuLr_-mhjut32gp"
+  name = "myrunner1"
+  url = "https://gitlab.com/"
+  token = "XXXXXXXXXX"
   executor = "shell"
   limit = 1
   [runners.cache]
 
 [[runners]]
-  name = "mphase-runner"
-  url = "https://gitlabext.iag.uni-stuttgart.de/"
-  token = "wuwa9NKx4uUxCm8_sRqi"
+  name = "myrunner2"
+  url = "https://gitlab.com/"
+  token = "XXXXXXXXXX"
   executor = "shell"
   limit = 1
   [runners.cache]
 
 [[runners]]
-  name = "eosrunner"
-  url = "https://gitlabext.iag.uni-stuttgart.de/"
-  token = "jPwzkCzEzcZz5WeGrdPC"
+  name = "myrunner3"
+  url = "https://gitlab.com/"
+  token = "XXXXXXXXXX"
   executor = "shell"
   limit = 1
   [runners.cache]
