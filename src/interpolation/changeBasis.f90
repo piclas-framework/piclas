@@ -26,17 +26,19 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE ChangeBasis3D
-  MODULE PROCEDURE ChangeBasis3D
-END INTERFACE
+! no interface because dim on one input argument is one -> Arg(:,:) INPUT: Array(:,:,1)
+!INTERFACE ChangeBasis3D
+  !MODULE PROCEDURE ChangeBasis3D
+!END INTERFACE
 
 INTERFACE ChangeBasis3D_XYZ
   MODULE PROCEDURE ChangeBasis3D_XYZ
 END INTERFACE
 
-INTERFACE ChangeBasis2D
-  MODULE PROCEDURE ChangeBasis2D
-END INTERFACE
+! no interface because dim on one input argument is one -> Arg(:,:) INPUT: Array(:,:,1)
+!INTERFACE ChangeBasis2D
+  !MODULE PROCEDURE ChangeBasis2D
+!END INTERFACE
 
 PUBLIC :: ChangeBasis3D
 PUBLIC :: ChangeBasis2D
