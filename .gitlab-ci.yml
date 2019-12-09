@@ -290,7 +290,7 @@ gnu_superB_CircularCoil:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/CircularCoil -e ./bin/piclas ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/CircularCoil -e ./bin/superB ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/CircularCoil -e ./bin/superB ; fi
 
 gnu_superB_LinearConductor:
   <<: *defaults_gnu
@@ -299,7 +299,7 @@ gnu_superB_LinearConductor:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/LinearConductor -e ./bin/piclas ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/LinearConductor -e ./bin/superB ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/LinearConductor -e ./bin/superB ; fi
 
 gnu_superB_RectangularCoil:
   <<: *defaults_gnu
@@ -308,7 +308,7 @@ gnu_superB_RectangularCoil:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/RectangularCoil -e ./bin/piclas ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/RectangularCoil -e ./bin/superB ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/RectangularCoil -e ./bin/superB ; fi
 
 gnu_superB_SphericalMagnet:
   <<: *defaults_gnu
@@ -317,7 +317,7 @@ gnu_superB_SphericalMagnet:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/SphericalMagnet -e ./bin/piclas ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/SphericalMagnet -e ./bin/superB ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/SphericalMagnet -e ./bin/superB ; fi
 
 gnu_superB_CuboidMagnet:
   <<: *defaults_gnu
@@ -326,7 +326,7 @@ gnu_superB_CuboidMagnet:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/CuboidMagnet -e ./bin/piclas ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/CuboidMagnet -e ./bin/superB ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/CuboidMagnet -e ./bin/superB ; fi
 
 gnu_superB_CylindricalMagnet:
   <<: *defaults_gnu
@@ -335,7 +335,7 @@ gnu_superB_CylindricalMagnet:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/CylindricalMagnet -e ./bin/piclas ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/CylindricalMagnet -e ./bin/superB ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB/CylindricalMagnet -e ./bin/superB ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run
