@@ -457,19 +457,17 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, &
-                                         SpecDSMC, PartStateIntEn, RadialWeighting
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, Species, VarTimeStep, PEM
-  USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
-  USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
-  USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
-  USE MOD_part_tools,             ONLY : DiceDeflectedVelocityVector
-USE MOD_part_tools                ,ONLY: GetParticleWeight
+USE MOD_DSMC_Vars            ,ONLY: Coll_pData, CollInf, DSMC_RHS, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting
+USE MOD_Particle_Vars        ,ONLY: PartSpecies, PartState, Species, VarTimeStep, PEM
+USE MOD_DSMC_ElectronicModel ,ONLY: ElectronicEnergyExchange, TVEEnergyExchange
+USE MOD_DSMC_PolyAtomicModel ,ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
+USE MOD_DSMC_Relaxation      ,ONLY: DSMC_VibRelaxDiatomic
+USE MOD_part_tools           ,ONLY: DiceDeflectedVelocityVector
+USE MOD_part_tools           ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
-  USE MOD_Globals                ,ONLY: Abort
-  USE MOD_Globals                ,ONLY: unit_stdout,myrank
-  USE MOD_Particle_Vars          ,ONLY: Symmetry2D
+USE MOD_Globals              ,ONLY: Abort
+USE MOD_Globals              ,ONLY: unit_stdout,myrank
+USE MOD_Particle_Vars        ,ONLY: Symmetry2D
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -799,7 +797,6 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,                ONLY : Abort
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, PolyatomMolDSMC, SpecDSMC, PartStateIntEn
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, PEM
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly, DSMC_VibRelaxPolySingle
@@ -1150,7 +1147,6 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, RadialWeighting
   USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep
   USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb
-  USE MOD_Globals,                ONLY : Unit_stdOut
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_QK_PROCEDURES,     ONLY : QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization, QK_IonRecombination
 ! IMPLICIT VARIABLE HANDLING
@@ -2922,7 +2918,6 @@ SUBROUTINE DSMC_calc_P_vib(iSpec, Xi_rel, iElem, ProbVib)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals            ,ONLY : Abort
-  USE MOD_Globals_Vars       ,ONLY : BoltzmannConst
   USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, DSMC, VarVibRelaxProb, useRelaxProbCorrFactor
   USE MOD_DSMC_Vars          ,ONLY : PolyatomMolDSMC
 

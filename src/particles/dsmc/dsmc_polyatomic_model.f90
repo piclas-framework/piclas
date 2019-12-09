@@ -46,7 +46,7 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst, ElementaryCharge
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PolyatomMolDSMC
   USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
@@ -117,7 +117,6 @@ SUBROUTINE DSMC_FindFirstVibPick(iInitTmp, iSpec, init_or_sf)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
   USE MOD_Particle_Vars,        ONLY : Species
 ! IMPLICIT VARIABLE HANDLING
@@ -1006,7 +1005,6 @@ SUBROUTINE DSMC_RotRelaxPoly(iPair, iPart,FakXi)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, Coll_pData
-  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

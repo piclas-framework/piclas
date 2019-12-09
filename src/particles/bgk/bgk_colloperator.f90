@@ -769,7 +769,6 @@ SUBROUTINE ARShakhov(nPart, iRanPart, Vtherm, HeatVec, Prandtl)
 !===================================================================================================================================
 ! MODULES
 USE Ziggurat
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -920,7 +919,6 @@ SUBROUTINE CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, Vi
 ! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,           ONLY: BoltzmannConst
 USE MOD_DSMC_Vars,              ONLY: SpecDSMC
 USE MOD_BGK_Vars,               ONLY: BGKDoVibRelaxation
 ! IMPLICIT VARIABLE HANDLING
@@ -1026,7 +1024,6 @@ SUBROUTINE CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_Vib_DOF, Xi_Vib_old, Ro
 ! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,           ONLY: BoltzmannConst
 USE MOD_DSMC_Vars,              ONLY: SpecDSMC, PolyatomMolDSMC
 USE MOD_BGK_Vars,               ONLY: BGKDoVibRelaxation
 ! IMPLICIT VARIABLE HANDLING

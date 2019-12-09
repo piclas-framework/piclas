@@ -1169,8 +1169,8 @@ IMPLICIT NONE
 
 !-- parameters
 INTEGER,PARAMETER             :: unit1=20
-DOUBLE PRECISION, PARAMETER   :: mass_ion=2.180d-25 !Xenon
-DOUBLE PRECISION, PARAMETER   :: mass_neutral=2.180d-25 !Xenon
+!DOUBLE PRECISION, PARAMETER   :: mass_ion=2.180d-25 !Xenon
+!DOUBLE PRECISION, PARAMETER   :: mass_neutral=2.180d-25 !Xenon
 
 !-- local variables
 INTEGER                       :: io_error1,read_error,iLine
