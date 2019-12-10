@@ -115,8 +115,8 @@ SUBROUTINE InitAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary,InterpolationInitIsDone
-USE MOD_Analyze_Vars          ,ONLY: Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
+USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone
+USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
 USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed,FieldAnalyzeStep
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL
@@ -421,7 +421,7 @@ REAL                          :: Volume2
 #endif
 CHARACTER(LEN=40)             :: formatStr
 REAL                          :: xGP1(0:N1),xGP2(0:N2),wGP1(0:N1),wGP2(0:N2),wBary1(0:N1),wBary2(0:N2)
-REAL ,DIMENSION(0:Nanalyze)   :: XiAnalyze
+REAL ,DIMENSION(0:NAnalyze)   :: XiAnalyze
 !===================================================================================================================================
 L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
@@ -533,7 +533,7 @@ REAL                          :: Volume2
 #endif
 CHARACTER(LEN=40)             :: formatStr
 REAL                          :: xGP1(0:N1),wGP1(0:N1),wBary1(0:N1)
-REAL ,DIMENSION(0:Nanalyze)   :: XiAnalyze
+REAL ,DIMENSION(0:NAnalyze)   :: XiAnalyze
 !===================================================================================================================================
 L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
