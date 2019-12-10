@@ -153,7 +153,9 @@ CALL prms%CreateRealOption(     'printDiffTime'           , 'TODO-DEFINE-PARAMET
 CALL prms%CreateRealArrayOption('printDiffVec'            , 'TODO-DEFINE-PARAMETER','0. , 0. , 0. , 0. , 0. , 0.')
 CALL prms%CreateLogicalOption(  'CalcNumSpec'             , 'Calculate the number of simulation particles per species for the '//&
                                                             'complete domain','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcNumDens'             , 'Calculate the number density per species for the complete domain' &
+CALL prms%CreateLogicalOption(  'CalcNumDens'             , 'Calculate the number density [1/m3] per species for the complete '//&
+                                                            'domain','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcMassflowRate'        , 'Calculate the massflow rate [kg/s] per species and surface flux' &
                                                           ,'.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCollRates'           , 'TODO-DEFINE-PARAMETER\n'//&
                                                             'Calculate the collision rates per '//&
@@ -540,6 +542,11 @@ IF(TrackParticlePosition)THEN
 END IF
 CalcNumSpec   = GETLOGICAL('CalcNumSpec','.FALSE.')
 CalcNumDens   = GETLOGICAL('CalcNumDens','.FALSE.')
+CalcMassflowRate = GETLOGICAL('CalcMassflowRate')
+IF(CalcMassflowRate) THEN
+  ALLOCATE(MassflowRate(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
+  MassflowRate = 0.
+END IF
 CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
 CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
 CalcRelaxProb = GETLOGICAL('CalcRelaxProb','.FALSE.')
@@ -674,7 +681,7 @@ REAL,INTENT(IN)                 :: Time
 ! LOCAL VARIABLES
 LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, iSpec, OutputCounter, iPBC
+INTEGER             :: unit_index, iSpec, OutputCounter, iPBC, iSF, MaxSurfaceFluxBCs
 INTEGER(KIND=8)     :: SimNumSpec(nSpecAnalyze)
 REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
@@ -764,8 +771,17 @@ INTEGER             :: dir
         IF (CalcNumDens) THEN
           DO iSpec = 1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A12,I3.3,A5)',ADVANCE='NO') OutputCounter,'-NumDens-Spec-', iSpec,' '
+            WRITE(unit_index,'(I3.3,A14,I3.3,A5)',ADVANCE='NO') OutputCounter,'-NumDens-Spec-', iSpec,' '
             OutputCounter = OutputCounter + 1
+          END DO
+        END IF
+        IF(CalcMassflowRate) THEN
+          DO iSpec = 1, nSpecAnalyze
+            DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Massflow-Spec-',iSpec,'-SF-',iSF
+              OutputCounter = OutputCounter + 1
+            END DO
           END DO
         END IF
         IF (CalcCharge) THEN
@@ -1042,6 +1058,14 @@ INTEGER             :: dir
   ! computes the real and simulated number of particles
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec)
   IF(CalcNumDens) CALL CalcNumberDensity(NumSpec,NumDens)
+  IF(CalcMassflowRate) THEN
+    DO iSpec = 1, nSpecies
+      DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+        MassflowRate(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow * Species(iSpec)%MassIC &
+                                  * Species(iSpec)%MacroParticleFactor / dt
+      END DO
+    END DO
+  END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
   IF(CalcEkin.OR.CalcEint)THEN
@@ -1116,6 +1140,11 @@ INTEGER             :: dir
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(1:nSpecAnalyze) ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(1:nSpecAnalyze),nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
+    IF(CalcMassflowRate) THEN
+      MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
+      CALL MPI_REDUCE(MPI_IN_PLACE,MassflowRate(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
+                      MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+    END IF
     IF(CalcCoupledPower) THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PCouplAverage,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -1158,6 +1187,10 @@ INTEGER             :: dir
       CALL MPI_REDUCE(nPartOut,RECBIM  ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PartEkinIn,RECBR ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PartEkinOut,RECBR,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+    END IF
+    IF(CalcMassflowRate) THEN
+      MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
+      CALL MPI_REDUCE(MassflowRate,MassflowRate,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
     IF(CalcCoupledPower) THEN
       CALL MPI_REDUCE(PCoupl,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -1269,6 +1302,14 @@ IF (PartMPI%MPIROOT) THEN
       DO iSpec=1, nSpecAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(NumDens(iSpec))
+      END DO
+    END IF
+    IF(CalcMassflowRate) THEN
+      DO iSpec = 1, nSpecAnalyze
+        DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') MassflowRate(iSpec,iSF)
+        END DO
       END DO
     END IF
     IF (CalcCharge) THEN
@@ -4082,35 +4123,55 @@ IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartS
 END SUBROUTINE AnalyticParticleMovement
 #endif /*CODE_ANALYZE*/
 
-SUBROUTINE RemoveParticle(PartID,alpha,crossedBC)
+SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !===================================================================================================================================
-!> removes a single particle "PartID" and analyzes nPartOut
+!> Removes a single particle "PartID" by setting the required variables.
+!> If CalcPartBalance/UseAdaptive/CalcMassflowRate = T: adds/substracts the particle to/from the respective counter
 !>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
-! MODULES                                                                                                                          !
-USE MOD_Particle_Vars          ,ONLY: PDM, PartSpecies
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
+! MODULES
+USE MOD_Particle_Vars          ,ONLY: PDM, PartSpecies, Species, UseAdaptive
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcMassflowRate
 #if defined(IMPA)
 USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 USE MOD_Particle_Vars          ,ONLY: DoPartInNewton
 #endif /*IMPA*/
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
+USE MOD_part_tools             ,ONLY: GetParticleWeight
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER, INTENT(IN)           :: PartID
+INTEGER, INTENT(IN),OPTIONAL  :: BCID                    !< ID of the boundary the particle crossed
 REAL, INTENT(OUT),OPTIONAL    :: alpha                   !< if removed during tracking optional alpha can be set to -1
 LOGICAL, INTENT(OUT),OPTIONAL :: crossedBC               !< optional flag is needed if particle removed on BC interaction
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
+INTEGER                       :: iSpec, iSF
 !===================================================================================================================================
 
 PDM%ParticleInside(PartID) = .FALSE.
 
+iSpec = PartSpecies(PartID)
+
 IF(CalcPartBalance) THEN
-  nPartOut(PartSpecies(PartID))=nPartOut(PartSpecies(PartID)) + 1
-  PartEkinOut(PartSpecies(PartID))=PartEkinOut(PartSpecies(PartID))+CalcEkinPart(PartID)
+  nPartOut(iSpec)=nPartOut(iSpec) + 1
+  PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
 END IF ! CalcPartBalance
+
+IF(PRESENT(BCID)) THEN
+  IF(UseAdaptive.OR.CalcMassflowRate) THEN
+    DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+      IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.BCID) THEN
+        Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow &
+                                                          - GetParticleWeight(PartID)
+        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = &
+            Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
+      END IF
+    END DO
+  END IF ! UseAdaptive.OR.CalcMassflowRate
+END IF ! PRESENT(BCID)
+
 #ifdef IMPA
 PartIsImplicit(PartID) = .FALSE.
 DoPartInNewton(PartID) = .FALSE.
@@ -4276,6 +4337,7 @@ SDEALLOCATE(nPartIn)
 SDEALLOCATE(nPartOut)
 SDEALLOCATE(PartEkinIn)
 SDEALLOCATE(PartEkinOut)
+SDEALLOCATE(MassflowRate)
 END SUBROUTINE FinalizeParticleAnalyze
 #endif /*PARTICLES*/
 

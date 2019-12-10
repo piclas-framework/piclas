@@ -59,7 +59,7 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars            ,ONLY: PDM,PartSpecies, UseCircularInflow, UseAdaptive, Species
+USE MOD_Particle_Vars            ,ONLY: PDM, UseCircularInflow
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars       ,ONLY: PartBCSideList
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC,DoBoundaryParticleOutput
@@ -91,7 +91,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
-INTEGER                              :: ReflectionIndex, iSpec, iSF, BCSideID
+INTEGER                              :: ReflectionIndex, BCSideID
 LOGICAL                              :: isSpeciesSwap, ElasticReflectionAtPorousBC
 !===================================================================================================================================
 
@@ -144,16 +144,7 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(BC(SideID)) )
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(1) !PartBound%OpenBC)
   !----------------------------------------------------------------------------------------------------------------------------------
-  IF(UseAdaptive) THEN
-    iSpec = PartSpecies(iPart)
-    DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-      IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.iBC) THEN
-        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = &
-            Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
-      END IF
-    END DO
-  END IF
-  CALL RemoveParticle(iPart,alpha=alpha)
+  CALL RemoveParticle(iPart,BCID=iBC,alpha=alpha)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(2) !PartBound%ReflectiveBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1483,12 +1474,10 @@ SUBROUTINE SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars          ,ONLY: PDM, Species, LastPartPos, PartSpecies
+USE MOD_Particle_Vars          ,ONLY: Species, LastPartPos, PartSpecies
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
+USE MOD_Particle_Analyze       ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1513,15 +1502,7 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       point(2)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(3))-Species(iSpec)%Surfaceflux(iSF)%origin(2)
       radius=SQRT( (point(1))**2+(point(2))**2 )
       IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
-        PDM%ParticleInside(iPart)=.FALSE.
-        alpha=-1.
-        IF(CalcPartBalance) THEN
-          nPartOut(iSpec)=nPartOut(iSpec) + 1
-          PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(iPart)
-        END IF ! CalcPartBalance
-        ! Counting the particles leaving the domain through the constant mass flow boundary (circular inflow on reflective)
-        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = &
-                                                                Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
+        CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(BC(SideID)),alpha=alpha)
       END IF
     END IF
   END IF

@@ -447,7 +447,11 @@ $$\dot{m} = \frac{QM}{1000RT},$$
 
 where $R=8.314$ J mol$^{-1}$K$^{-1}$ is the gas constant, $M$ the molar mass in [g mol$^{-1}$] and $T$ is the gas temperature [K].
 
-It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
+To verify the resulting mass flow rate of an adaptive surface flux, the following option can be enabled
+
+    CalcMassflowRate = T
+
+This will output a species-specific mass flow rate [kg s^$-1$] for each surface flux condition in the `PartAnalyze.csv`, which gives the current mass flow for the time step. It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 
 #### Missing descriptions
 

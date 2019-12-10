@@ -1049,8 +1049,8 @@ ELSE
 END IF
 
 ! If no particles are present during the initial sampling for a porous BC, leave the routine, otherwise initial variables for the
-! adaptive inlet surface flux will be overwritten by zero's
-IF ((PDM%ParticleVecLength.LT.1).AND.initSampling) RETURN
+! adaptive inlet surface flux will be overwritten by zero's.
+IF (PDM%ParticleVecLength.LT.1) RETURN
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
