@@ -153,7 +153,7 @@ CALL BarycentricWeights(NBG,BGField_xGP,BGField_wBary)
 ! 5) Read-in or calculation of background field
 IF (CalcBField) THEN
   ! Calculate the background B-field via SuperB
-  CALL SuperB(2) ! 1: Standalone, 2: Called from PICLas
+  CALL SuperB()
 ELSE
   IF(TRIM(InterpolationType).NE.'particle_position')  CALL abort(&
     __STAMP__&

@@ -116,7 +116,6 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars
 USE MOD_ReadInTools        ,ONLY: GETINT
-USE MOD_Analyze_Vars       ,ONLY: NAnalyze
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -155,14 +154,17 @@ IF(PP_N.NE.Ntmp) THEN
 END IF
 #endif
 
-! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
-WRITE(DefStr,'(i4)') 2*(PP_N+1)
-NAnalyze = GETINT('NAnalyze',DefStr)
-
 SWRITE(UNIT_stdOut,'(A)') ' NodeType: '//NodeType
 !CALL InitInterpolationBasis(PP_N, xGP ,wGP, swGP,wBary ,L_Minus ,L_Plus , L_PlusMinus, wGPSurf, Vdm_Leg ,sVdm_Leg)
 CALL InitInterpolationBasis(PP_N, xGP ,wGP, wBary ,L_Minus ,L_Plus , L_PlusMinus &
                            ,swGP=swGP,wGPSurf=wGPSurf)
+
+! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
+WRITE(DefStr,'(i4)') 2*(PP_N+1)
+NAnalyze = GETINT('NAnalyze',DefStr)
+
+! Initialize the basis functions for the analyze polynomial
+CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 
 InterpolationInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT INTERPOLATION DONE!'
@@ -384,6 +386,7 @@ ELSE
 END IF
 END SUBROUTINE GetVandermonde
 
+
 SUBROUTINE GetDerivativeMatrix(N_in,NodeType_in,D)
 !==================================================================================================================================
 !> Compute polynomial derivative matrix. D(i,j) = Derivative of basis function j evaluated at node point i.
@@ -507,6 +510,37 @@ END IF
 END SUBROUTINE ApplyJacobianQDS
 #endif /*USE_QDS_DG*/
 
+
+SUBROUTINE InitAnalyzeBasis(N_in,Nanalyze_in,xGP,wBary)
+!===================================================================================================================================
+! Build analyze nodes (Gauss-Lobatto) and corresponding Vandermonde matrix
+!===================================================================================================================================
+! MODULES
+USE MOD_Interpolation_Vars ,ONLY: wAnalyze ! GL integration weights used for the analyze
+USE MOD_Interpolation_Vars ,ONLY: Vdm_GaussN_NAnalyze
+USE MOD_Basis              ,ONLY: LegGaussLobNodesAndWeights,InitializeVandermonde
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)   :: N_in          !< input polynomial degree
+INTEGER,INTENT(IN)   :: Nanalyze_in   !< polynomial degree of analysis polynomial
+REAL,INTENT(IN)      :: xGP(0:N_in)   !< interpolation points
+REAL,INTENT(IN)      :: wBary(0:N_in) !< barycentric weights
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze ! GL nodes
+!===================================================================================================================================
+ALLOCATE(wAnalyze(0:NAnalyze_in),Vdm_GaussN_NAnalyze(0:NAnalyze_in,0:N_in))
+! Build analyze nodes (Gauss-Lobatto)
+CALL LegGaussLobNodesAndWeights(NAnalyze_in,XiAnalyze,wAnalyze)
+! Build analyze Vandermonde matrix which maps from NodeType nodes to Gauss-Lobatto nodes
+CALL InitializeVandermonde(N_in,NAnalyze_in,wBary,xGP,XiAnalyze,Vdm_GaussN_NAnalyze)
+END SUBROUTINE InitAnalyzeBasis
+
+
 SUBROUTINE FinalizeInterpolation()
 !============================================================================================================================
 ! Deallocate all global interpolation variables.
@@ -532,6 +566,8 @@ SDEALLOCATE(wBary)
 SDEALLOCATE(NChooseK)
 SDEALLOCATE(L_Minus)
 SDEALLOCATE(L_Plus)
+SDEALLOCATE(Vdm_GaussN_NAnalyze)
+SDEALLOCATE(wAnalyze)
 
 InterpolationInitIsDone = .FALSE.
 END SUBROUTINE FinalizeInterpolation

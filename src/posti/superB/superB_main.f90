@@ -26,7 +26,7 @@ PUBLIC :: SuperB
 
 CONTAINS
 
-SUBROUTINE SuperB(mode)
+SUBROUTINE SuperB()
 !===================================================================================================================================
 !> Routines for the calculation of magnetic fields of different permanent magnets and coils. Possibility to output the geometry
 !> of the coil/magnet as a separate VTK file for visualization. Background field is stored in separate HDF5 file and can be utilized
@@ -52,8 +52,6 @@ USE MOD_Interpolation_Vars    ,ONLY: xGP, wBary
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: mode ! 1: Standalone
-                           ! 2: Called from PICLas
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -63,7 +61,7 @@ INTEGER                       :: iMagnet, iCoil, iTimePoint
 REAL                          :: timestep
 !===================================================================================================================================
 ! Initialization of SuperB
-CALL InitializeSuperB(mode)
+CALL InitializeSuperB()
 ! Setting the background field type, used in pic_interpolation.f90
 BGType = 2
 ! Datasize not utilized so far but might be required
