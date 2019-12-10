@@ -134,7 +134,7 @@ USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput
 USE MOD_ReadInTools        ,ONLY: PrintOption
 USE MOD_Interpolation_Vars ,ONLY: NodeTypeGL,NodeType
 USE MOD_Mesh_Vars          ,ONLY: Vdm_GL_N
-USE MOD_Analyze_Vars       ,ONLY: NAnalyze
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE

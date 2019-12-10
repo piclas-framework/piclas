@@ -116,7 +116,6 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars
 USE MOD_ReadInTools        ,ONLY: GETINT
-USE MOD_Analyze_Vars       ,ONLY: NAnalyze
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -517,9 +516,9 @@ SUBROUTINE InitAnalyzeBasis(N_in,Nanalyze_in,xGP,wBary)
 ! Build analyze nodes (Gauss-Lobatto) and corresponding Vandermonde matrix
 !===================================================================================================================================
 ! MODULES
-USE MOD_Analyze_Vars ,ONLY: wAnalyze ! GL integration weights used for the analyze
-USE MOD_Analyze_Vars ,ONLY: Vdm_GaussN_NAnalyze
-USE MOD_Basis        ,ONLY: LegGaussLobNodesAndWeights,InitializeVandermonde
+USE MOD_Interpolation_Vars ,ONLY: wAnalyze ! GL integration weights used for the analyze
+USE MOD_Interpolation_Vars ,ONLY: Vdm_GaussN_NAnalyze
+USE MOD_Basis              ,ONLY: LegGaussLobNodesAndWeights,InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -567,6 +566,8 @@ SDEALLOCATE(wBary)
 SDEALLOCATE(NChooseK)
 SDEALLOCATE(L_Minus)
 SDEALLOCATE(L_Plus)
+SDEALLOCATE(Vdm_GaussN_NAnalyze)
+SDEALLOCATE(wAnalyze)
 
 InterpolationInitIsDone = .FALSE.
 END SUBROUTINE FinalizeInterpolation

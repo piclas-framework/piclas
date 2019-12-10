@@ -237,7 +237,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
-USE MOD_Analyze_Vars       ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_DG_Vars            ,ONLY: U
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
@@ -317,7 +317,7 @@ SUBROUTINE CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: sJ
-USE MOD_Analyze_Vars       ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
@@ -391,11 +391,11 @@ SUBROUTINE CalcErrorStateFiles(nVar,N1,N2,U1,U2)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars     ,ONLY: sJ
-USE MOD_Analyze_Vars  ,ONLY: NAnalyze,wAnalyze
-USE MOD_Mesh_Vars     ,ONLY: nElems
-USE MOD_ChangeBasis   ,ONLY: ChangeBasis3D
-USE MOD_Basis         ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
+USE MOD_Mesh_Vars          ,ONLY: sJ
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,wAnalyze
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
 INTEGER,INTENT(IN)           :: nVar
 INTEGER,INTENT(IN)           :: N1
@@ -503,12 +503,12 @@ SUBROUTINE CalcErrorStateFileSigma(nVar,N1,U1)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars     ,ONLY: sJ
-USE MOD_Analyze_Vars  ,ONLY: NAnalyze,wAnalyze
-USE MOD_Equation      ,ONLY: ExactFunc
-USE MOD_Mesh_Vars     ,ONLY: nElems
-USE MOD_ChangeBasis   ,ONLY: ChangeBasis3D
-USE MOD_Basis         ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
+USE MOD_Mesh_Vars          ,ONLY: sJ
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,wAnalyze
+USE MOD_Equation           ,ONLY: ExactFunc
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -521,7 +521,7 @@ REAL,INTENT(IN)              :: U1(1:nVar,0:N1,0:N1,0:N1,nElems)
 REAL                          :: L_2_Error(nVar)   !< L2 error of the solution
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze1(:,:)    ! for interpolation to Analyze points
+REAL,ALLOCATABLE              :: Vdm_GaussN_NAnalyze1(:,:)    ! for interpolation to Analyze points
 INTEGER                       :: iElem,k,l,m
 REAL                          :: L_Inf_Error(nVar),L_2_Error2(nVar),L_Inf_Error2(nVar)
 REAL                          :: U1_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
@@ -695,7 +695,7 @@ SUBROUTINE FinalizeAnalyze()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Analyze_Vars,     ONLY: Vdm_GaussN_NAnalyze,wAnalyze,CalcPoyntingInt,PPWCell,AnalyzeInitIsDone
+USE MOD_Analyze_Vars,     ONLY: CalcPoyntingInt,PPWCell,AnalyzeInitIsDone
 USE MOD_AnalyzeField,     ONLY: FinalizePoyntingInt
 USE MOD_TimeAverage_Vars, ONLY: doCalcTimeAverage
 USE MOD_TimeAverage,      ONLY: FinalizeTimeAverage
@@ -706,8 +706,6 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SDEALLOCATE(Vdm_GaussN_NAnalyze)
-SDEALLOCATE(wAnalyze)
 IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
 IF(doCalcTimeAverage) CALL FinalizeTimeAverage
 SDEALLOCATE(PPWCell)
