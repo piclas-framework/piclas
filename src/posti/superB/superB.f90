@@ -125,7 +125,7 @@ InterpolationType = 'particle_position'
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the background B-field via SuperB
 !-----------------------------------------------------------------------------------------------------------------------------------
-CALL SuperB(1) ! 1: Standalone, 2: Called from PICLas
+CALL SuperB()
 
 ! Deallocation of BGField
 SDEALLOCATE(BGField)
