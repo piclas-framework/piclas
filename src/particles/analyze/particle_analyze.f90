@@ -657,12 +657,10 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter, dt, IterDisplayStep
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, BGGas
-USE MOD_Particle_Vars          ,ONLY: Species
 #endif
+USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#if ( PP_TimeDiscMethod ==42)
-#endif
 ! USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC, PorousBC
 USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
