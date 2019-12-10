@@ -570,7 +570,7 @@ IF(CalcReacRates) THEN
   END IF
 END IF
 
-IF(CalcNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates) DoPartAnalyze = .TRUE.
+IF(CalcNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcMassflowRate) DoPartAnalyze = .TRUE.
 ! compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
 IF (CalcVelos) THEN
@@ -1057,12 +1057,14 @@ INTEGER             :: dir
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec)
   IF(CalcNumDens) CALL CalcNumberDensity(NumSpec,NumDens)
   IF(CalcMassflowRate) THEN
-    DO iSpec = 1, nSpecies
-      DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
-        MassflowRate(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow * Species(iSpec)%MassIC &
-                                  * Species(iSpec)%MacroParticleFactor / dt
+    IF(iter.GT.0) THEN
+      DO iSpec = 1, nSpecies
+        DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+          MassflowRate(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow * Species(iSpec)%MassIC &
+                                    * Species(iSpec)%MacroParticleFactor / dt
+        END DO
       END DO
-    END DO
+    END IF
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
