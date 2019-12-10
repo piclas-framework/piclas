@@ -451,7 +451,7 @@ To verify the resulting mass flow rate of an adaptive surface flux, the followin
 
     CalcMassflowRate = T
 
-This will output a species-specific mass flow rate [kg s^$-1$] for each surface flux condition in the `PartAnalyze.csv`, which gives the current mass flow for the time step. It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
+This will output a species-specific mass flow rate [kg s^$-1$] for each surface flux condition in the `PartAnalyze.csv`, which gives the current mass flow for the time step. Positive values correspond to a net mass flux into the domain and negative values vice versa. It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 
 #### Missing descriptions
 

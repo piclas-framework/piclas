@@ -647,8 +647,8 @@ SUBROUTINE AnalyzeParticles(Time)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars
-USE MOD_PARTICLE_Vars          ,ONLY: nSpecies
-USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
+USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, usevMPF
+USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac, RadialWeighting
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Analyze_Vars           ,ONLY: CalcEpot,Wel,Wmag,Wphi,Wpsi
 USE MOD_DSMC_Vars              ,ONLY: DSMC
@@ -685,7 +685,7 @@ REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: EkinMax(nSpecies)
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
-REAL                :: ETotal!, totalChemEnergySum
+REAL                :: ETotal, MacroParticleFactor
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
@@ -1056,12 +1056,19 @@ INTEGER             :: dir
   ! computes the real and simulated number of particles
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec)
   IF(CalcNumDens) CALL CalcNumberDensity(NumSpec,NumDens)
+  ! Determine the mass flux per species and surface flux [kg/s]
   IF(CalcMassflowRate) THEN
+    ! If usevMPF or DoRadialWeighting then the MacroParticleFactor is already included in the GetParticleWeight
     IF(iter.GT.0) THEN
       DO iSpec = 1, nSpecies
+        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+          MacroParticleFactor = 1.
+        ELSE
+          MacroParticleFactor = Species(iSpec)%MacroParticleFactor
+        END IF
         DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
-          MassflowRate(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow * Species(iSpec)%MassIC &
-                                    * Species(iSpec)%MacroParticleFactor / dt
+          ! SampledMassFlow contains the weighted particle number balance (in - out)
+          MassflowRate(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow*Species(iSpec)%MassIC*MacroParticleFactor/dt
         END DO
       END DO
     END IF
