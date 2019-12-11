@@ -183,6 +183,7 @@ END IF
 ! Automatically do a load balance step at the beginning of a new simulation or a user-restarted simulation
 #if USE_LOADBALANCE
 DoInitialAutoRestart = GETLOGICAL('DoInitialAutoRestart')
+IF(nProcessors.LT.2) DoInitialAutoRestart = .FALSE.
 WRITE(UNIT=hilf,FMT='(I0)') LoadBalanceSample
 InitialAutoRestartSample = GETINT('InitialAutoRestartSample',TRIM(hilf))
 IAR_PerformPartWeightLB = GETLOGICAL('InitialAutoRestart-PartWeightLoadBalance','F')
