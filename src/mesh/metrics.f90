@@ -55,6 +55,10 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+INTERFACE BuildCoords
+  MODULE PROCEDURE BuildCoords
+END INTERFACE
+
 INTERFACE CalcMetrics
   MODULE PROCEDURE CalcMetrics
 END INTERFACE
@@ -71,6 +75,7 @@ INTERFACE CalcMetricsErrorDiff
   MODULE PROCEDURE CalcMetricsErrorDiff
 END INTERFACE
 
+PUBLIC::BuildCoords
 PUBLIC::CalcMetrics
 PUBLIC::CalcSurfMetrics
 PUBLIC::SurfMetricsFromJa
@@ -78,6 +83,75 @@ PUBLIC::CalcMetricsErrorDiff
 !==================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> This routine takes the equidistant node coordinats of the mesh (on NGeo+1 points) and uses them to build the coordinates
+!> of solution/interpolation points of type NodeType on polynomial degree Nloc (Nloc+1 points per direction).
+!> The coordinates (for a non-conforming mesh) can also be built from an octree if the mesh is based on a conforming baseline mesh.
+!==================================================================================================================================
+SUBROUTINE BuildCoords(NodeCoords,Nloc,VolumeCoords,TreeCoords)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars          ,ONLY: NGeo,nElems
+USE MOD_Mesh_Vars          ,ONLY: ElemToTree,xiMinMax,nTrees,NGeoTree
+USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType
+USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D_XYZ, ChangeBasis3D
+USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
+!----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+REAL,INTENT(INOUT)            :: NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems)         !< Equidistant mesh coordinates
+INTEGER,INTENT(IN)            :: Nloc                                                  !< Convert to Nloc+1 points per direction
+REAL,INTENT(OUT)              :: VolumeCoords(3,0:Nloc,0:Nloc,0:Nloc,nElems)       !< OUT: Coordinates of solution/interpolation
+                                                                                       !< points
+REAL,INTENT(INOUT),OPTIONAL   :: TreeCoords(3,0:NGeoTree,0:NGeoTree,0:NGeoTree,nTrees) !< coordinates of nodes of tree-elements
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: i,iElem
+REAL                          :: XCL_Nloc(3,0:Nloc,0:Nloc,0:Nloc)
+REAL,DIMENSION(0:Nloc,0:Nloc) :: Vdm_xi_N,Vdm_eta_N
+REAL,DIMENSION(0:Nloc,0:Nloc) :: Vdm_zeta_N
+REAL                          :: Vdm_EQNGeo_CLNloc(0:Nloc ,0:Ngeo)
+REAL                          :: Vdm_CLNloc_Nloc  (0:Nloc ,0:Nloc)
+REAL                          :: xi0(3),dxi(3),length(3)
+REAL                          :: xiCL_Nloc(0:Nloc),wBaryCL_Nloc(0:Nloc)
+REAL                          :: xiNloc(0:Nloc)
+!==================================================================================================================================
+
+CALL GetVandermonde(    NGeo, NodeTypeVISU, NLoc, NodeTypeCL, Vdm_EQNGeo_CLNloc,  modal=.FALSE.)
+CALL GetVandermonde(    Nloc, NodeTypeCL  , Nloc, NodeType  , Vdm_CLNloc_Nloc,     modal=.FALSE.)
+
+! NOTE: Transform intermediately to CL points, to be consistent with metrics being built with CL
+!       Important for curved meshes if NGeo<N, no effect for N>=NGeo
+
+!1.a) Transform from EQUI_NGeo to solution points on Nloc
+IF(PRESENT(TreeCoords))THEN
+  CALL GetNodesAndWeights(Nloc, NodeTypeCL  , xiCL_Nloc  , wIPBary=wBaryCL_Nloc)
+  CALL GetNodesAndWeights(Nloc, NodeType  ,   xiNloc)
+  DO iElem=1,nElems
+    xi0   =xiMinMax(:,1,iElem)
+    length=xiMinMax(:,2,iElem)-xi0
+    CALL ChangeBasis3D(3,NGeo,Nloc,Vdm_EQNGeo_CLNloc,TreeCoords(:,:,:,:,ElemToTree(iElem)),XCL_Nloc)
+    DO i=0,Nloc
+      dxi=0.5*(xiNloc(i)+1.)*length
+      CALL LagrangeInterpolationPolys(xi0(1) + dxi(1),Nloc,xiCL_Nloc,wBaryCL_Nloc,Vdm_xi_N(  i,:))
+      CALL LagrangeInterpolationPolys(xi0(2) + dxi(2),Nloc,xiCL_Nloc,wBaryCL_Nloc,Vdm_eta_N( i,:))
+      CALL LagrangeInterpolationPolys(xi0(3) + dxi(3),Nloc,xiCL_Nloc,wBaryCL_Nloc,Vdm_zeta_N(i,:))
+    END DO
+    CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,XCL_Nloc,VolumeCoords(:,:,:,:,iElem))
+  END DO
+ELSE
+  Vdm_EQNGeo_CLNloc=MATMUL(Vdm_CLNloc_Nloc,Vdm_EQNGeo_CLNloc)
+  DO iElem=1,nElems
+    CALL ChangeBasis3D(3,NGeo,Nloc,Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),VolumeCoords(:,:,:,:,iElem))
+  END DO
+END IF
+
+END SUBROUTINE BuildCoords
+
 
 SUBROUTINE CalcMetrics(XCL_NGeo_Out,dXCL_NGeo_out)
 !===================================================================================================================================
@@ -343,7 +417,6 @@ DO iElem=1,nElems
       CALL LagrangeInterpolationPolys(xi0(2) + dxi(2),PP_N,xiCL_N,wBaryCL_N,Vdm_eta_N( i,:))
       CALL LagrangeInterpolationPolys(xi0(3) + dxi(3),PP_N,xiCL_N,wBaryCL_N,Vdm_zeta_N(i,:))
     END DO
-    CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,XCL_N            ,Elem_xGP(      :,:,:,:,iElem))
     CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,JaCL_N(1,:,:,:,:),Metrics_fTilde(:,:,:,:,iElem))
     CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,JaCL_N(2,:,:,:,:),Metrics_gTilde(:,:,:,:,iElem))
     CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,JaCL_N(3,:,:,:,:),Metrics_hTilde(:,:,:,:,iElem))
@@ -377,7 +450,6 @@ DO iElem=1,nElems
 #endif /*maxwell*/
   ELSE
     ! interpolate Metrics from Cheb-Lobatto N onto GaussPoints N
-    CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,XCL_N            ,Elem_xGP(      :,:,:,:,iElem))
     CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,JaCL_N(1,:,:,:,:),Metrics_fTilde(:,:,:,:,iElem))
     CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,JaCL_N(2,:,:,:,:),Metrics_gTilde(:,:,:,:,iElem))
     CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,JaCL_N(3,:,:,:,:),Metrics_hTilde(:,:,:,:,iElem))
@@ -423,6 +495,7 @@ endt=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT,'s]'
 
 END SUBROUTINE CalcMetrics
+
 
 SUBROUTINE CalcSurfMetrics(Nloc,JaCL_N,XCL_N,Vdm_CLN_N,iElem,NormVec,TangVec1,TangVec2,SurfElem,Face_xGP,Ja_Face)
 !===================================================================================================================================

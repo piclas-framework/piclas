@@ -37,11 +37,12 @@ LOGICAL,ALLOCATABLE :: isDielectricInterFace(:)       ! True if iFace is a Face 
 !                                                     ! region. This vector is allocated to (1:nSides)
 LOGICAL             :: DielectricCheckRadius          ! Instead of a bounding box region for setting a dielectric area, use radius
 REAL                :: DielectricRadiusValue          ! Radius for setting dielectric element ON/OFF
+REAL                :: DielectricRadiusValueB         ! 2nd radius for cutting out circular areas
 INTEGER             :: Dielectricspread               ! If true Eps_x=Eps_y=Eps_z for all Dielectric cells
 REAL,DIMENSION(6)   :: xyzPhysicalMinMaxDielectric    ! Physical   boundary coordinates, outside = Dielectric region
 REAL,DIMENSION(6)   :: xyzDielectricMinMax            ! Dielectric boundary coordinates, outside = physical region
 LOGICAL             :: useDielectricMinMax            ! Switch between 'xyzPhysicalMinMax' and 'xyzDielectricMinMax'
-CHARACTER(255)      :: DielectricTestCase             ! Special test cases, e.g., "fish eye lens" Maxwell 1860
+CHARACTER(255)      :: DielectricTestCase             ! Specific test cases: "FishEyeLens" (Maxwell 1860), "FH_lens", "Circle"'
 REAL                :: DielectricEpsR                 ! For Dielectric region shift
 REAL                :: DielectricEpsR_inv             ! 1./EpsR
 #if USE_HDG

@@ -140,11 +140,19 @@ before_script:
   - export CMAKE_LIBRARY_PATH=/opt/hdf5/1.10.5/lib:$CMAKE_LIBRARY_PAT
 ```
 
+
 otherwise, the correct environment must be loaded by adding the following in `/etc/profile`
-```
-# Default modules
-module load gcc/9.2.0  cmake/3.15.3-d  openmpi/4.0.1/gcc/9.2.0  hdf5/1.10.5/gcc/9.2.0/openmpi/4.0.1
-```
+
+    ```
+    # Default modules
+    module load gcc/9.2.0  cmake/3.15.3-d  openmpi/4.0.1/gcc/9.2.0  hdf5/1.10.5/gcc/9.2.0/openmpi/4.0.1
+    ```
+
+or by loading the modules directly in the gilab script file, e.g.,
+
+    ```
+    module load XX/XX
+    ```
 
 NOTE: The stack size limit has been removed here by `ulimit -s unlimited`, which might be required
 by memory consuming programs
@@ -237,25 +245,25 @@ concurrent = 2
 check_interval = 0
 
 [[runners]]
-  name = "flexirunner"
-  url = "https://gitlabext.iag.uni-stuttgart.de/"
-  token = "-yi9ffuLr_-mhjut32gp"
+  name = "myrunner1"
+  url = "https://gitlab.com/"
+  token = "XXXXXXXXXX"
   executor = "shell"
   limit = 1
   [runners.cache]
 
 [[runners]]
-  name = "mphase-runner"
-  url = "https://gitlabext.iag.uni-stuttgart.de/"
-  token = "wuwa9NKx4uUxCm8_sRqi"
+  name = "myrunner2"
+  url = "https://gitlab.com/"
+  token = "XXXXXXXXXX"
   executor = "shell"
   limit = 1
   [runners.cache]
 
 [[runners]]
-  name = "eosrunner"
-  url = "https://gitlabext.iag.uni-stuttgart.de/"
-  token = "jPwzkCzEzcZz5WeGrdPC"
+  name = "myrunner3"
+  url = "https://gitlab.com/"
+  token = "XXXXXXXXXX"
   executor = "shell"
   limit = 1
   [runners.cache]

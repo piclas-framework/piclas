@@ -70,24 +70,24 @@ CHARACTER(LEN=20)         :: tempStr
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
 
 InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
-InterpolationElemLoop = GETLOGICAL('PIC-InterpolationElemLoop','.TRUE.')
+InterpolationElemLoop = GETLOGICAL('PIC-InterpolationElemLoop')
 IF (InterpolationElemLoop) THEN !If user-defined F: F for all procs
   IF (PP_nElems.GT.10) THEN !so far arbitrary threshold...
     InterpolationElemLoop=.FALSE. !switch off for procs with high number of Elems
   END IF
 END IF
-externalField(1:6)= GETREALARRAY('PIC-externalField',6,'0.,0.,0.,0.,0.,0.')
-scaleexternalField= GETREAL('PIC-scaleexternalField','1.0')
-externalField=externalField*ScaleExternalField
-!SWRITE(*,*) " External fied", externalfield
-DoInterpolation   = GETLOGICAL('PIC-DoInterpolation','.TRUE.')
-useBGField        = GETLOGICAL('PIC-BG-Field','.FALSE.')
+externalField(1:6) = GETREALARRAY('PIC-externalField',6)
+scaleexternalField = GETREAL('PIC-scaleexternalField')
+externalField      = externalField*ScaleExternalField
+
+DoInterpolation    = GETLOGICAL('PIC-DoInterpolation')
+useBGField         = GETLOGICAL('PIC-BG-Field')
 
 ! Variable external field
 useVariableExternalField = .FALSE.
-FileNameVariableExternalField=GETSTR('PIC-curvedexternalField','none')     ! old variable name (for backward compatibility)
+FileNameVariableExternalField=GETSTR('PIC-curvedexternalField')     ! old variable name (for backward compatibility)
 IF (FileNameVariableExternalField.EQ.'none') THEN                          ! if not supplied, check the new variable name
-  FileNameVariableExternalField=GETSTR('PIC-variableexternalField','none') ! new variable name (overwrites the old)
+  FileNameVariableExternalField=GETSTR('PIC-variableexternalField') ! new variable name (overwrites the old)
 END IF
 IF (FileNameVariableExternalField.NE.'none') THEN ! if supplied, read the data file
   useVariableExternalField = .TRUE.
@@ -95,13 +95,13 @@ IF (FileNameVariableExternalField.NE.'none') THEN ! if supplied, read the data f
 END IF
 
 #ifdef CODE_ANALYZE
-DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic','.FALSE.')
+DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
 IF(DoInterpolationAnalytic)THEN
-  AnalyticInterpolationType = GETINT('PIC-AnalyticInterpolation-Type','0')
+  AnalyticInterpolationType = GETINT('PIC-AnalyticInterpolation-Type')
   SELECT CASE(AnalyticInterpolationType)
   CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
-    AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType','0')
-    AnalyticInterpolationP       = GETREAL('PIC-AnalyticInterpolationP','1.0')
+    AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
+    AnalyticInterpolationP       = GETREAL('PIC-AnalyticInterpolationP')
   CASE DEFAULT
     WRITE(TempStr,'(I5)') AnalyticInterpolationType
     CALL abort(&
@@ -168,7 +168,7 @@ USE MOD_Equation_Vars          ,ONLY: B,E
 #endif /*PP_nVar==1*/
 #endif /*USE_HDG*/
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
-USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
+USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
 #if USE_MPI
 ! only required for shape function??  only required for shape function??
@@ -177,6 +177,11 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
 #endif /* CODE_ANALYZE */
+USE MOD_PICInterpolation_Vars  ,ONLY: CalcBField
+USE MOD_Interpolation_Vars     ,ONLY: BGField
+USE MOD_SuperB_Vars            ,ONLY: TimeDepCoil, nTimePoints, BGFieldTDep
+USE MOD_TimeDisc_Vars          ,ONLY: Time, TEnd
+USE MOD_HDF5_Output_Tools      ,ONLY: WriteBGFieldToHDF5
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -188,9 +193,9 @@ LOGICAL                          :: doInnerParts
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: firstPart,lastPart
-REAL                             :: Pos(3)
+REAL                             :: Pos(3), timestep
 REAL                             :: field(6)
-INTEGER                          :: iPart,iElem
+INTEGER                          :: iPart,iElem,iTime
 ! for Nearest GaussPoint
 INTEGER                          :: a,b,k,ii,l,m
 #if defined PP_POIS || (USE_HDG && PP_nVar==4)
@@ -198,6 +203,20 @@ REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
 #endif /*(PP_POIS||USE_HDG)*/
 LOGICAL                          :: NotMappedSurfFluxParts
 !===================================================================================================================================
+
+! Calculate the time step of the discretization of the Current
+IF (CalcBField) THEN
+  IF (ANY(TimeDepCoil)) THEN
+    timestep = tEnd / (nTimePoints - 1)
+    iTime = FLOOR(Time / timestep)
+
+    ! Interpolate the Background field linear between two timesteps
+    BGField(:,:,:,:,:) = BGFieldTDep(:,:,:,:,:,iTime) + (BGFieldTDep(:,:,:,:,:,iTime) - BGFieldTDep(:,:,:,:,:,iTime+1)) &
+                         / timestep * (Time - iTime * timestep)
+    ! CALL WriteBGFieldToHDF5(Time)
+  ENDIF
+END IF
+
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 NotMappedSurfFluxParts=DoSurfaceFlux !Surfaceflux particles inserted before interpolation and tracking. Field at wall is needed!
 #else

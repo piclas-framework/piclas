@@ -1460,7 +1460,7 @@ PartPressAddParts = GETLOGICAL('Part-ConstPressAddParts','.TRUE.')
 PartPressRemParts = GETLOGICAL('Part-ConstPressRemParts','.FALSE.')
 
 ! Read particle species data
-!nSpecies = CNTSTR('Part-Species-SpaceIC')
+!nSpecies = CountOption('Part-Species-SpaceIC')
 
 IF (nSpecies.LE.0) THEN
   CALL abort(&
@@ -2146,7 +2146,7 @@ END DO
 CALL InitPartRHS()
 
 ! Read in boundary parameters
-dummy_int = CNTSTR('Part-nBounds')       ! check if Part-nBounds is present in .ini file
+dummy_int = CountOption('Part-nBounds')       ! check if Part-nBounds is present in .ini file
 nPartBound = GETINT('Part-nBounds','1.') ! get number of particle boundaries
 IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
   CALL abort(&
