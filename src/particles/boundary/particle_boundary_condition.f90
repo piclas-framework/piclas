@@ -66,7 +66,7 @@ USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC,DoBoundaryParticleOu
 USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
 USE MOD_SurfaceModel             ,ONLY: ReactiveSurfaceTreatment
-USE MOD_Particle_Analyze         ,ONLY: RemoveParticle
+USE MOD_part_operations          ,ONLY: RemoveParticle
 USE MOD_Mesh_Vars                ,ONLY: BC
 #if defined(IMPA)
 USE MOD_Particle_Vars            ,ONLY: PartIsImplicit
@@ -240,6 +240,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylin
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Particle_Vars          ,ONLY: LastPartPos
+USE MOD_part_operations        ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -304,13 +305,7 @@ SELECT CASE(PartAuxBC%TargetBoundCond(AuxBCIdx))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartAuxBC%OpenBC
 !-----------------------------------------------------------------------------------------------------------------------------------
-  IF(CalcPartBalance) THEN
-      nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
-      PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
-  END IF ! CalcPartBalance
-  PDM%ParticleInside(iPart) = .FALSE.
-  alpha=-1.
-
+  CALL RemoveParticle(iPart,alpha=alpha)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartAuxBC%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1052,6 +1047,7 @@ USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn
 USE MOD_Particle_Vars           ,ONLY: PartIsImplicit,DoPartInNewton
 #endif /*IMPA*/
 USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_part_operations         ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1082,6 +1078,7 @@ IF (PRESENT(AuxBCIdx)) THEN
 ELSE
   IsAuxBC=.FALSE.
 END IF
+
 IF (IsAuxBC) THEN
   CALL RANDOM_NUMBER(RanNum)
   IF(RanNum.LE.PartAuxBC%ProbOfSpeciesSwaps(AuxBCIdx)) THEN
@@ -1097,21 +1094,13 @@ IF (IsAuxBC) THEN
     !swap species
     IF (targetSpecies.ge.0) IsSpeciesSwap=.TRUE.
     IF (targetSpecies.eq.0) THEN !delete particle -> same as PartAuxBC%OpenBC
-      IF(CalcPartBalance) THEN
-        nPartOut(PartSpecies(PartID))=nPartOut(PartSpecies(PartID)) + 1
-        PartEkinOut(PartSpecies(PartID))=PartEkinOut(PartSpecies(PartID))+CalcEkinPart(PartID)
-      END IF ! CalcPartBalance
-      !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
-      PDM%ParticleInside(PartID) = .FALSE.
-      alpha=-1.
+      CALL RemoveParticle(PartID,alpha=alpha)
     ELSEIF (targetSpecies.gt.0) THEN !swap species
       PartSpecies(PartID)=targetSpecies
     END IF
   END IF !RanNum.LE.PartAuxBC%ProbOfSpeciesSwaps
 ELSE
-
   DoSample = (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
-
   locBCID = PartBound%MapToPartBC(BC(SideID))
   CALL RANDOM_NUMBER(RanNum)
   IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) THEN
@@ -1156,13 +1145,13 @@ ELSE
           AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) = PartSpecies(PartID)
           AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) = locBCID
         END IF
-    END IF ! DoSample
-  END IF
-  IF (targetSpecies.eq.0) THEN !delete particle -> same as PartBound%OpenBC
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-      MacroParticleFactor = GetParticleWeight(PartID)
-    ELSE
-      MacroParticleFactor = GetParticleWeight(PartID)*Species(PartSpecies(PartID))%MacroParticleFactor
+      END IF ! DoSample
+    END IF
+    IF (targetSpecies.eq.0) THEN !delete particle -> same as PartBound%OpenBC
+      IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        MacroParticleFactor = GetParticleWeight(PartID)
+      ELSE
+        MacroParticleFactor = GetParticleWeight(PartID)*Species(PartSpecies(PartID))%MacroParticleFactor
       END IF
       DO iCC=1,nCollectChargesBCs !-chargeCollect
         IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
@@ -1171,10 +1160,6 @@ ELSE
           EXIT
         END IF
       END DO
-      IF(CalcPartBalance) THEN
-        nPartOut(PartSpecies(PartID))=nPartOut(PartSpecies(PartID)) + 1
-        PartEkinOut(PartSpecies(PartID))=PartEkinOut(PartSpecies(PartID))+CalcEkinPart(PartID)
-      END IF ! CalcPartBalance
       ! sample values of deleted species
       IF (DoSample) THEN
         SurfSideID=SurfMesh%SideIDToSurfID(SideID)
@@ -1203,15 +1188,8 @@ ELSE
         END IF ! ALLOCATED(PartStateIntEn)
         CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,EtraOld,EvibOld,ErotOld,PartTrajectory,n_loc,p,q)
       END IF ! CalcSurfaceImpact
-
-      !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
-      PDM%ParticleInside(PartID) = .FALSE.
-      alpha=-1.
-#ifdef IMPA
-      DoPartInNewton(PartID) = .FALSE.
-      PartIsImplicit(PartID) = .FALSE.
-#endif /*IMPA*/
-    ELSEIF (targetSpecies.gt.0) THEN !swap species
+      CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(BC(SideID)),alpha=alpha)
+    ELSE IF (targetSpecies.gt.0) THEN !swap species
       DO iCC=1,nCollectChargesBCs !-chargeCollect
         IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
           CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
@@ -1220,9 +1198,10 @@ ELSE
         END IF
       END DO
       PartSpecies(PartID)=targetSpecies
-    END IF
-  END IF !RanNum.LE.PartBound%ProbOfSpeciesSwaps
-END IF !IsAuxBC
+    END IF ! targetSpecies.eq.0
+  END IF ! RanNum.LE.PartBound%ProbOfSpeciesSwaps
+END IF ! IsAuxBC
+
 END SUBROUTINE SpeciesSwap
 
 
@@ -1477,7 +1456,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species, LastPartPos, PartSpecies
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_Particle_Analyze       ,ONLY: RemoveParticle
+USE MOD_part_operations        ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

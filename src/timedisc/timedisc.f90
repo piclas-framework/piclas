@@ -432,7 +432,7 @@ IF (DoInitialAutoRestart) THEN
   IF (IAR_PerformPartWeightLB) InitialAutoRestartSample=1
   ! correction for first analyzetime due to auto initial restart
   IF (MIN(RestartTime+iAnalyze*Analyze_dt,tEnd,RestartTime+InitialAutoRestartSample*dt).LT.tAnalyze) THEN
-    tAnalyze     = MIN(RestartTime+iAnalyze*Analyze_dt,tEnd,RestartTime+LoadBalanceSample*dt)
+    tAnalyze     = MIN(RestartTime+iAnalyze*Analyze_dt,tEnd,RestartTime+InitialAutoRestartSample*dt)
     tAnalyzeDiff = tAnalyze-time
     dt           = MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
   END IF

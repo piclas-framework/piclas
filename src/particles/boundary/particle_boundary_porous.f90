@@ -324,7 +324,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, MapSurfSideToPorousBC, PorousBC,
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_Particle_Analyze       ,ONLY: RemoveParticle
+USE MOD_part_operations        ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -61,10 +61,8 @@ LOGICAL                       :: DoPartAnalyze                       !< perform 
 INTEGER                       :: PartAnalyzeStep                     !< Analyze is performed each Nth time step
 INTEGER,ALLOCATABLE           :: nPartIn(:)                          !< Number of entry and leaving particles
 INTEGER,ALLOCATABLE           :: nPartOut(:)                         !< Number of entry and leaving particles
-INTEGER,ALLOCATABLE           :: nPartInTmp(:)                       !< Number of entry and leaving particles
 REAL,ALLOCATABLE              :: PartEkinIn(:)                       !< Energy and temperature of input particle
 REAL,ALLOCATABLE              :: PartEkinOut(:)                      !< Energy and temperature of input particle
-REAL,ALLOCATABLE              :: PartEKinInTmp(:)                    !< Energy and temperature of input particle
 
 ! get derived particle properties (for IMD/TTM initialization these values are calculated from the TTM grid values)
 LOGICAL                       :: CalcDebyeLength                     !< Compute the Debye length (min and max) in each cell

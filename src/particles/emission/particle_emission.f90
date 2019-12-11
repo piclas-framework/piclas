@@ -412,14 +412,6 @@ INTEGER                          :: mode
 INTEGER                          :: InitGroup
 #endif
 !===================================================================================================================================
-
-!----------------------------------------------------------------------------------------------------------------------------------
-!!! VORSICHT: FUNKTIONIERT SO MOMENTAN NUR MIT 1 SPEZIES!!!!
-! --- fuer mehr als eine Spezies gibt es bei der Benutzung des
-!     mode_opt Flags Probleme mit den non-blocking communications.
-!     Es koennte dann passieren, dass Nachrichten falsch zugeordnet werden.
-!     Sicherheitshalber sollte man kein mode_opt Argument bei mehrern
-!     Spezies uebergeben.
 #if USE_MPI
 IF (PRESENT(mode_opt)) THEN
   mode=mode_opt
@@ -621,41 +613,18 @@ __STAMP__&
       ! alter history, dirty hack for balance calculation
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition - NbrOfParticle
       IF(NbrOfParticle.GT.0)THEN
-#if defined(LSERK) || defined(ROS) || defined(IMPA)
-        ! IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
-        !   nPartInTmp(i)=nPartInTmp(i) + NBrofParticle
-        !   DO iPart=1,NbrOfparticle
-        !     PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-        !     IF (PositionNbr .ne. 0) PartEkinInTmp(PartSpecies(PositionNbr)) = &
-        !                             PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-        !   END DO ! iPart
-        ! ELSE
-          nPartIn(i)=nPartIn(i) + NBrofParticle
-          DO iPart=1,NbrOfparticle
-            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-            IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr)) = &
-                                    PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-          END DO ! iPart
-        ! END IF
-#else
         nPartIn(i)=nPartIn(i) + NBrofParticle
         DO iPart=1,NbrOfparticle
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr)) = &
                                   PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
-#endif
       END IF
       ! alter history, dirty hack for balance calculation
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
     END IF ! CalcPartBalance
-    ! instead of UpdateNextfreePosition we update the
-    ! particleVecLength only.
-    !PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-    !PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-    !CALL UpdateNextFreePosition()
-  END DO
-END DO
+  END DO  ! iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+END DO  ! i=1,nSpecies
 
 END SUBROUTINE ParticleInserting
 

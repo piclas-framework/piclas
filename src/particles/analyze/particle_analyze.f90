@@ -38,10 +38,6 @@ INTERFACE CalcShapeEfficiencyR
   MODULE PROCEDURE CalcShapeEfficiencyR
 END INTERFACE
 
-INTERFACE RemoveParticle
-  MODULE PROCEDURE RemoveParticle
-END INTERFACE
-
 INTERFACE CalcPowerDensity
   MODULE PROCEDURE CalcPowerDensity
 END INTERFACE
@@ -69,7 +65,7 @@ END INTERFACE
 #endif /*CODE_ANALYZE*/
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
-PUBLIC:: AnalyzeParticles, PartIsElectron, RemoveParticle
+PUBLIC:: AnalyzeParticles, PartIsElectron
 PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
@@ -512,14 +508,6 @@ IF (CalcPartBalance) THEN
   nPartOut=0
   PartEkinOut=0.
   PartEkinIn=0.
-#if defined(LSERK) || defined(ROS) || defined(IMPA)
-  SDEALLOCATE( nPartInTmp)
-  SDEALLOCATE( PartEkinInTmp)
-  ALLOCATE( nPartInTmp(1:nSpecAnalyze)     &
-          , PartEkinInTmp(1:nSpecAnalyze)  )
-  PartEkinInTmp=0.
-  nPartInTmp=0
-#endif
 END IF
 TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
 IF(TrackParticlePosition)THEN
@@ -1518,14 +1506,16 @@ IF (PartMPI%MPIROOT) THEN
 #if USE_MPI
   END IF
 #endif /*USE_MPI*/
-
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! Reset coupled power to particles if output of coupled power is active
 IF (CalcCoupledPower) THEN
   PCouplAverage = PCouplAverage * (Time-RestartTime) ! PCouplAverage is reseted
 END IF
-
 !-----------------------------------------------------------------------------------------------------------------------------------
-IF(CalcPartBalance) CALL CalcParticleBalance()
+! Reset the particle counter
+IF(CalcPartBalance) THEN
+  nPartIn=0; nPartOut=0; PartEkinIn=0.; PartEkinOut=0.
+END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if ( PP_TimeDiscMethod==42 )
 #ifdef CODE_ANALYZE
@@ -1712,46 +1702,6 @@ IF(NbrOfComps.GT.0)THEN
 END IF
 END SELECT
 END SUBROUTINE CalcShapeEfficiencyR
-
-
-SUBROUTINE CalcParticleBalance()
-!===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars,      ONLY : nPartIn,nPartOut,PartEkinIn,PartEkinOut
-#if defined(LSERK) || defined(ROS) || defined(IMPA)
-!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-USE MOD_Particle_Analyze_Vars ,ONLY: nPartInTmp,PartEkinInTmp
-#endif
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-#if defined(LSERK) || defined(ROS) || defined(IMPA)
-!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-nPartIn=nPartInTmp
-nPartOut=0
-PartEkinIn=PartEkinInTmp
-PartEkinOut=0.
-nPartInTmp=0
-PartEkinInTmp=0.
-#else
-nPartIn=0
-nPartOut=0
-PartEkinIn=0.
-PartEkinOut=0.
-#endif
-
-END SUBROUTINE CalcParticleBalance
 
 
 SUBROUTINE CalcKineticEnergy(Ekin)
@@ -3143,56 +3093,6 @@ END SUBROUTINE WriteParticleTrackingDataAnalytic
 #endif /* CODE_ANALYZE */
 
 
-PURE FUNCTION CalcEkinPart(iPart)
-!===================================================================================================================================
-! computes the kinetic energy of one particle
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Equation_Vars ,ONLY: c2, c2_inv
-USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species
-USE MOD_PARTICLE_Vars ,ONLY: usevMPF
-USE MOD_Particle_Vars ,ONLY: PartLorentzType
-USE MOD_DSMC_Vars     ,ONLY: RadialWeighting
-USE MOD_part_tools    ,ONLY: GetParticleWeight
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER,INTENT(IN)                 :: iPart
-REAL                               :: CalcEkinPart
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                               :: partV2, gamma1, WeightingFactor
-!===================================================================================================================================
-
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-  WeightingFactor = GetParticleWeight(iPart)
-ELSE
-  WeightingFactor = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
-END IF
-
-IF (PartLorentzType.EQ.5)THEN
-  ! gamma v is pushed instead of gamma, therefore, only the relativistic kinetic energy is computed
-  ! compute gamma
-  gamma1=SQRT(1.0+DOTPRODUCT(PartState(4:6,iPart))*c2_inv)
-  CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
-ELSE
-  partV2 = DOTPRODUCT(PartState(4:6,iPart))
-  IF (partV2.LT.1E12)THEN
-    CalcEkinPart= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * WeightingFactor
-  ELSE
-    gamma1=partV2*c2_inv
-    gamma1=1.0/SQRT(1.-gamma1)
-    CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
-  END IF ! ipartV2
-END IF
-END FUNCTION CalcEkinPart
-
-
 SUBROUTINE CalcPowerDensity()
 !===================================================================================================================================
 ! Used to average the source terms per species
@@ -4130,75 +4030,17 @@ IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartS
 END SUBROUTINE AnalyticParticleMovement
 #endif /*CODE_ANALYZE*/
 
-SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
-!===================================================================================================================================
-!> Removes a single particle "PartID" by setting the required variables.
-!> If CalcPartBalance/UseAdaptive/CalcMassflowRate = T: adds/substracts the particle to/from the respective counter
-!>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
-!===================================================================================================================================
-! MODULES
-USE MOD_Particle_Vars          ,ONLY: PDM, PartSpecies, Species, UseAdaptive
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcMassflowRate
-#if defined(IMPA)
-USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
-USE MOD_Particle_Vars          ,ONLY: DoPartInNewton
-#endif /*IMPA*/
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
-USE MOD_part_tools             ,ONLY: GetParticleWeight
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-INTEGER, INTENT(IN)           :: PartID
-INTEGER, INTENT(IN),OPTIONAL  :: BCID                    !< ID of the boundary the particle crossed
-REAL, INTENT(OUT),OPTIONAL    :: alpha                   !< if removed during tracking optional alpha can be set to -1
-LOGICAL, INTENT(OUT),OPTIONAL :: crossedBC               !< optional flag is needed if particle removed on BC interaction
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-INTEGER                       :: iSpec, iSF
-!===================================================================================================================================
-
-PDM%ParticleInside(PartID) = .FALSE.
-
-iSpec = PartSpecies(PartID)
-
-IF(CalcPartBalance) THEN
-  nPartOut(iSpec)=nPartOut(iSpec) + 1
-  PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
-END IF ! CalcPartBalance
-
-IF(PRESENT(BCID)) THEN
-  IF(UseAdaptive.OR.CalcMassflowRate) THEN
-    DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-      IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.BCID) THEN
-        Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow &
-                                                          - GetParticleWeight(PartID)
-        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = &
-            Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
-      END IF
-    END DO
-  END IF ! UseAdaptive.OR.CalcMassflowRate
-END IF ! PRESENT(BCID)
-
-#ifdef IMPA
-PartIsImplicit(PartID) = .FALSE.
-DoPartInNewton(PartID) = .FALSE.
-#endif /*IMPA*/
-
-IF (PRESENT(alpha)) alpha=-1.
-IF (PRESENT(crossedBC)) crossedBC=.TRUE.
-
-END SUBROUTINE RemoveParticle
-
 
 !===================================================================================================================================
 !> Determines the kinetic energy of a (charged) particle before and after the push, the difference is stored as the coupled power
 !===================================================================================================================================
 SUBROUTINE CalcCoupledPowerPart(iPart,mode,EDiff)
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, PEM
-USE MOD_Particle_Analyze_Vars ,ONLY: PCoupl, PCouplAverage, PCouplSpec
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
-USE MOD_Part_Tools            ,ONLY: isChargedParticle
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, PEM
+USE MOD_Particle_Analyze_Vars   ,ONLY: PCoupl, PCouplAverage, PCouplSpec
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Part_Tools              ,ONLY: isChargedParticle
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
