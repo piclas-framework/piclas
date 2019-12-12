@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_PICDepo_Shapefunction_Tools
+MODULE MOD_PICDepo_Shapefunction
 !===================================================================================================================================
 ! MOD PIC Depo
 !===================================================================================================================================
@@ -534,4 +534,4 @@ END DO !k
 END SUBROUTINE DepoSFParticleLocally
 
 
-END MODULE MOD_PICDepo_Shapefunction_Tools
+END MODULE MOD_PICDepo_shapefunction

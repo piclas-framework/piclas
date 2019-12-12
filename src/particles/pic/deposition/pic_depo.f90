@@ -1355,40 +1355,41 @@ SUBROUTINE Deposition(doInnerParts,doParticle_In)
 !============================================================================================================================
 ! use MODULES
 USE MOD_PICDepo_Vars
-USE MOD_PICDepo_Shapefunction  ,ONLY: calcSfSource,DepoSFParticleLocally
-USE MOD_PICDepo_Tools          ,ONLY: DeBoorRef,DeBoor
+USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource,DepoSFParticleLocally
+USE MOD_PICDepo_Tools               ,ONLY: DeBoorRef,DeBoor
 USE MOD_Particle_Vars
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: PI
-USE MOD_Mesh_Vars              ,ONLY: nElems, Elem_xGP, sJ, nNodes
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_Interpolation_Vars     ,ONLY: wGP
-USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_Basis                  ,ONLY: LagrangeInterpolationPolys,BernSteinPolynomial
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,casematrix, NbrOfCases
-USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
-USE MOD_Part_Tools             ,ONLY: isDepositParticle
+USE MOD_Globals_Vars                ,ONLY: PI
+USE MOD_Mesh_Vars                   ,ONLY: nElems, Elem_xGP, sJ, nNodes
+USE MOD_ChangeBasis                 ,ONLY: ChangeBasis3D
+USE MOD_Interpolation_Vars          ,ONLY: wGP
+USE MOD_PICInterpolation_Vars       ,ONLY: InterpolationType
+USE MOD_Eval_xyz                    ,ONLY: GetPositionInRefElem
+USE MOD_Basis                       ,ONLY: LagrangeInterpolationPolys,BernSteinPolynomial
+USE MOD_Particle_Tracking_Vars      ,ONLY: DoRefMapping
+USE MOD_Particle_Mesh_Vars          ,ONLY: GEO,casematrix, NbrOfCases
+USE MOD_TimeDisc_Vars               ,ONLY: dtWeight
+USE MOD_Part_Tools                  ,ONLY: isDepositParticle
 #if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-USE MOD_Particle_MPI           ,ONLY: AddHaloNodeData
+USE MOD_Particle_MPI_Vars           ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
+USE MOD_Particle_MPI_Vars           ,ONLY: PartMPIExchange
+USE MOD_Particle_MPI                ,ONLY: AddHaloNodeData
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: nDeposPerElem
-USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg,LBElemSplitTime_avg
+USE MOD_LoadBalance_Vars            ,ONLY: nDeposPerElem
+USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
+USE MOD_LoadBalance_Timers          ,ONLY: LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
 #if ((USE_HDG) && (PP_nVar==1))
-USE MOD_TimeDisc_Vars          ,ONLY: dt,tAnalyzeDiff,tEndDiff
+USE MOD_TimeDisc_Vars               ,ONLY: dt,tAnalyzeDiff,tEndDiff
 #endif
 #if USE_MPI
-USE MOD_PICDepo_MPI            ,ONLY: MPISourceExchangeBGM
+USE MOD_PICDepo_MPI                 ,ONLY: MPISourceExchangeBGM
 #else /*NOT USE_MPI*/
-USE MOD_PICDepo_MPI            ,ONLY: PeriodicSourceExchange
+USE MOD_PICDepo_MPI                 ,ONLY: PeriodicSourceExchange
 #endif /*USE_MPI*/
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+USE MOD_Dielectric_Vars             ,ONLY: DoDielectricSurfaceCharge
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
