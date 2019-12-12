@@ -2138,7 +2138,6 @@ CASE('shape_function_1d')
                 nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
 #endif /*USE_LOADBALANCE*/
                 !--- go through all gauss points
-                !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                 DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                   !-- calculate distance between gauss and particle
                   radius2 = (ShiftedPart(sf1d_dir) - ElemDepo_xGP(sf1d_dir,k,l,m,ElemID)) &
@@ -2242,7 +2241,6 @@ CASE('shape_function_1d')
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
 #endif /*USE_LOADBALANCE*/
                   !--- go through all gauss points
-                  !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                     !-- calculate distance between gauss and particle
                       radius2 = (ShiftedPart(sf1d_dir) - ElemDepo_xGP(sf1d_dir,k,l,m,ElemID)) &
@@ -2399,7 +2397,6 @@ CASE('shape_function_2d')
                 ! Shape function deposition
                 IF(.NOT.DepoLoc)THEN
                   !--- go through all gauss points
-                  !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                     !-- calculate distance between gauss and particle
                     dX = ABS(ShiftedPart(I) - ElemDepo_xGP(I,k,l,m,ElemID))
@@ -2533,7 +2530,6 @@ CASE('shape_function_2d')
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
 #endif /*USE_LOADBALANCE*/
                   !--- go through all gauss points
-                  !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                       !-- calculate distance between gauss and particle
                       dX = ABS(ShiftedPart(I) - ElemDepo_xGP(I,k,l,m,ElemID))
@@ -2651,7 +2647,6 @@ CASE('shape_function_cylindrical','shape_function_spherical')
                 nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
 #endif /*USE_LOADBALANCE*/
                 !--- go through all gauss points
-                !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                 DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                   !-- calculate distance between gauss and particle
                   dX = ABS(ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID))
@@ -2747,7 +2742,6 @@ CASE('shape_function_cylindrical','shape_function_spherical')
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
 #endif /*USE_LOADBALANCE*/
                   !--- go through all gauss points
-                  !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                     !-- calculate distance between gauss and particle
                       dX = ABS(ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID))
@@ -3205,51 +3199,6 @@ END IF ! TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'
 
 RETURN
 END SUBROUTINE Deposition
-
-
-#ifdef donotcompilethis
-SUBROUTINE ComputeGaussDistance(N_In,scaleR,X_in,Elem_xGP,GaussDistance)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! compute all distance between X_in and given array
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES
-INTEGER,INTENT(IN)      :: N_In
-REAL,INTENT(IN)         :: X_in(1:3)
-REAL,INTENT(IN)         :: scaleR
-!REAL,INTENT(IN)         :: Elem_xGP(1:3,1:N_In)
-REAL,INTENT(IN)         :: Elem_xGP(1:3,0:N_in,0:N_in,0:N_in)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!REAL,INTENT(OUT)        :: GaussDistance(1:N_In)
-REAL,INTENT(OUT)        :: GaussDistance(0:N_in,0:N_in,0:N_in)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                 :: i,j,k
-!===================================================================================================================================
-
-DO k=0,N_in
-  DO j=0,N_in
-    DO i=0,N_in
-      !tmp=X_in-Elem_xGP(:,i,j,k)
-      GaussDistance(i,j,k) =((X_in(1)-Elem_xGP(1,i,j,k))*(X_in(1)-Elem_xGP(1,i,j,k)) &
-                            +(X_in(2)-Elem_xGP(2,i,j,k))*(X_in(2)-Elem_xGP(2,i,j,k)) &
-                            +(X_in(3)-Elem_xGP(3,i,j,k))*(X_in(3)-Elem_xGP(3,i,j,k)))*scaleR
-    END DO ! i=0,N_in
-  END DO !  j=0,N_in
-END DO ! k=0,N_in
-
-
-!DO i=1,N_in
-!  tmp=X_in-Elem_xGP(:,i)
-!  GaussDistance(i) = DOT_PRODUCT(tmp,tmp)*scaleR
-!END DO ! i = 1,N_in
-
-END SUBROUTINE ComputeGaussDistance
-#endif
 
 
 SUBROUTINE FinalizeDeposition()
