@@ -1,4 +1,17 @@
 #!/bin/bash
+
+#==============================================================================
+# title       : InstallModules.sh
+# description : This script installs  either for all compilers/mpi versions 
+# description : This script installs the module env software package with a 
+#               specified version as given below via MODULEVERSION='X.X.XX' 
+#               from https://downloads.sourceforge.net/
+# date        : Nov 27, 2019
+# version     : 1.0   
+# usage       : bash InstallModules.sh
+# notes       : 
+#==============================================================================
+
 INSTALLDIR=/opt
 SOURCESDIR=/opt/Installsources
 MODULEVERSION='3.2.10'
@@ -76,9 +89,9 @@ if [ ! -d "${MODULESHOME}" ]; then
     if [ -e "${INSTALLDIR}/modules/${MODULEVERSION}/Modules/${MODULEVERSION}/init/.modulespath" ]; then
       if [ -e "${INSTALLDIR}/modules/${MODULEVERSION}/Modules/${MODULEVERSION}/init/bash" ]; then
         echo "Modules correctly installed. System restart required."
-      fi
       else
         echo "bash was not created correctly."
+      fi
     else
       echo ".modulespath was not created correctly."
     fi
