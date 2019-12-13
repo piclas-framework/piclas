@@ -27,7 +27,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_2D_RadialWeighting, DSMC_2D_SetInClones, DSMC_2D_CalcSymmetryArea
-PUBLIC :: CalcRadWeightMPF, DSMC_2D_CalcSymmetryAreaSubSides, DefineParametersParticleSymmetry
+PUBLIC :: CalcRadWeightMPF, DSMC_2D_CalcSymmetryAreaSubSides, DefineParametersParticleSymmetry, Init_Symmetry
 !===================================================================================================================================
 
 CONTAINS
@@ -49,6 +49,8 @@ CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an
                               'requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
 CALL prms%CreateLogicalOption('Particles-Symmetry1DSphericalsymmetric', 'Activating an sphrical symmetric simulation with the'//&
                               ' same mesh requirements as for the 1D case and x ranging from 0 to the domain boundary', '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-SphericalWeighting', 'Activates a sphrical weighting in y for the spherical '//&
+                              'symmetric simulation based on the particle position.', '.FALSE.')
 CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial weighting in y for the axisymmetric '//&
                               'simulation based on the particle position.', '.FALSE.')
 CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Axisymmetric radial weighting factor, defining '//&
@@ -609,5 +611,65 @@ CalcRadWeightMPF = (1. + yPosIn/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.
 RETURN
 
 END FUNCTION CalcRadWeightMPF
+
+
+SUBROUTINE Init_Symmetry()
+!===================================================================================================================================
+!> Initialize if a 2D/1D Simulation is performed and which type
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars           ,ONLY: Symmetry
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_ReadInTools             ,ONLY: GETLOGICAL,GETINT
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL                 :: Symmetry2D
+!===================================================================================================================================
+Symmetry%Order = GETINT('Particles-Symmetry-Order')
+Symmetry2D = GETLOGICAL('Particles-Symmetry2D')
+IF(Symmetry2D.AND.(Symmetry%Order.EQ.3)) THEN
+  Symmetry%Order = 2
+  SWRITE(*,*) 'WARNING: Particles-Symmetry-Order is set to 2 because of Particles-Symmetry2D=.TRUE. .'
+  SWRITE(*,*) 'Set Particles-Symmetry-Order=2 and remove Particles-Symmetry2D to avoid this warning'
+ELSE
+  CALL ABORT(__STAMP__&
+    ,'ERROR: 2D Simulations either with Particles-Symmetry-Order=2 or (but not recommended) with Symmetry2D=.TRUE.')
+END IF
+
+Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
+IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
+    ,'ERROR: Axissymmetric Simulations only for 1D or 2D')
+IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.1))CALL ABORT(__STAMP__&
+,'ERROR: Axissymmetric Simulations are only implemented for 2D yet')
+IF(Symmetry%Axisymmetric) THEN
+  RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
+ELSE
+  RadialWeighting%DoRadialWeighting = .FALSE.
+  RadialWeighting%PerformCloning = .FALSE.
+  RadialWeighting%DoSphericalWeighting = .FALSE.
+END IF
+
+Symmetry%SphericalSymmetric = GETLOGICAL('Particles-Symmetry1DSphericalsymmetric')
+IF(Symmetry%SphericalSymmetric.AND.(Symmetry%Order.NE.1)) CALL ABORT(__STAMP__&
+,'ERROR: Spherical Simulation only for 1D')
+IF(Symmetry%SphericalSymmetric) THEN
+  CALL ABORT(__STAMP__&
+    ,'ERROR: Spherical Simulations are not implemented yet')
+  RadialWeighting%DoSphericalWeighting = GETLOGICAL('Particles-SphericalWeighting')
+ELSE
+  RadialWeighting%DoSphericalWeighting = .FALSE.
+  RadialWeighting%DoRadialWeighting = .FALSE.
+  RadialWeighting%PerformCloning = .FALSE.
+END IF
+
+END SUBROUTINE Init_Symmetry
 
 END MODULE MOD_DSMC_Symmetry
