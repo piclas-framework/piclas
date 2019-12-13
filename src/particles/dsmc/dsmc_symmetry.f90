@@ -644,6 +644,9 @@ ELSE
     ,'ERROR: 2D Simulations either with Particles-Symmetry-Order=2 or (but not recommended) with Symmetry2D=.TRUE.')
 END IF
 
+IF((Symmety%Order.GT.0).AND.(Symmety%Order.LT.4)) CALL ABORT(__STAMP__&
+,'Particles-Symmetry-Order (space dimension) has to be in the range of 1 to 3')
+
 Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
 IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
     ,'ERROR: Axissymmetric Simulations only for 1D or 2D')
