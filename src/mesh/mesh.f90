@@ -251,7 +251,11 @@ ElemToSide  = 0
 SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
 BC          = 0
 AnalyzeSide = 0
-
+! fill output definition for InnerBCs
+#ifdef PARTICLES
+ALLOCATE(GlobalUniqueSideID(1:nSides))
+GlobalUniqueSideID(:)=-1
+#endif
 !NOTE: nMortarSides=nMortarInnerSides+nMortarMPISides
 ALLOCATE(MortarType(2,1:nSides))              ! 1: Type, 2: Index in MortarInfo
 ALLOCATE(MortarInfo(MI_FLIP,4,nMortarSides)) ! [1]: 1: Neighbour sides, 2: Flip, [2]: small sides
@@ -826,12 +830,14 @@ REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
-ALLOCATE(GEO%Volume(nElems),STAT=ALLOCSTAT)
+ALLOCATE(GEO%Volume(nElems),&
+         GEO%MPVolumePortion(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
       __STAMP__&
       ,'ERROR in InitElemGeometry: Cannot allocate GEO%Volume!')
 END IF
+GEO%MPVolumePortion(:)=0.
 ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
@@ -890,12 +896,13 @@ SUBROUTINE setSideRanges()
 !
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals   ,ONLY: UNIT_logOut,UNIT_StdOut,abort
+USE MOD_Globals   ,ONLY: abort
 USE MOD_Mesh_Vars ,ONLY: firstBCSide,firstMortarInnerSide,firstInnerSide,firstMPISide_MINE,firstMPISide_YOUR
 USE MOD_Mesh_Vars ,ONLY: nMPISides_MINE,nMPISides_YOUR,nInnerSides,nMortarInnerSides,nBCSides
 USE MOD_Mesh_Vars ,ONLY: lastBCSide,lastMortarInnerSide,lastInnerSide,lastMPISide_MINE,lastMPISide_YOUR,lastMortarMPISide
 USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,nSides,nSidesMaster,nSidesSlave
 #if USE_HDG
+USE MOD_Globals   ,ONLY: UNIT_StdOut
 USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
 #if USE_MPI
 USE MOD_Globals   ,ONLY: myrank
@@ -1002,6 +1009,7 @@ SDEALLOCATE(ElemToSide)
 SDEALLOCATE(AnalyzeSide)
 SDEALLOCATE(SideToElem)
 SDEALLOCATE(BC)
+SDEALLOCATE(GlobalUniqueSideID)
 ! elem-xgp and metrics
 SDEALLOCATE(Elem_xGP)
 SDEALLOCATE(Metrics_fTilde)

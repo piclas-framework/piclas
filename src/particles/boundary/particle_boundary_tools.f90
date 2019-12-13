@@ -41,40 +41,27 @@ INTERFACE SurfaceToPartEnergyInternal
   MODULE PROCEDURE SurfaceToPartEnergyInternal
 END INTERFACE
 
-INTERFACE LIQUIDEVAP
-  MODULE PROCEDURE LIQUIDEVAP
-END INTERFACE
-
-INTERFACE LIQUIDREFL
-  MODULE PROCEDURE LIQUIDREFL
-END INTERFACE
-
-INTERFACE ALPHALIQUID
-  MODULE PROCEDURE ALPHALIQUID
-END INTERFACE
-
-INTERFACE BETALIQUID
-  MODULE PROCEDURE BETALIQUID
-END INTERFACE
-
-INTERFACE TSURUTACONDENSCOEFF
-  MODULE PROCEDURE TSURUTACONDENSCOEFF
-END INTERFACE
-
 INTERFACE CountSurfaceImpact
   MODULE PROCEDURE CountSurfaceImpact
+END INTERFACE
+
+INTERFACE BoundaryParticleOutput
+  MODULE PROCEDURE BoundaryParticleOutput
+END INTERFACE
+
+INTERFACE DielectricSurfaceCharge
+  MODULE PROCEDURE DielectricSurfaceCharge
 END INTERFACE
 
 PUBLIC :: AddPartInfoToSample
 PUBLIC :: CalcWallSample
 PUBLIC :: AnalyzeSurfaceCollisions
 PUBLIC :: SurfaceToPartEnergyInternal
-PUBLIC :: LIQUIDEVAP
-PUBLIC :: LIQUIDREFL
-PUBLIC :: ALPHALIQUID
-PUBLIC :: BETALIQUID
-PUBLIC :: TSURUTACONDENSCOEFF
 PUBLIC :: CountSurfaceImpact
+PUBLIC :: BoundaryParticleOutput
+PUBLIC :: SortArray
+PUBLIC :: DielectricSurfaceCharge
+PUBLIC :: GetWallTemperature
 !===================================================================================================================================
 
 CONTAINS
@@ -85,7 +72,7 @@ SUBROUTINE AddPartInfoToSample(PartID,Transarray,IntArray,SampleType)
 !> Adds the velocities and particle energy of a particle to the correct position of transarray and intarray
 !>   only performed if sampling is enabled
 !===================================================================================================================================
-USE MOD_Globals       ,ONLY: abort
+USE MOD_Globals       ,ONLY: abort,VECNORM
 USE MOD_Particle_Vars ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
 USE MOD_DSMC_Vars     ,ONLY: CollisMode, useDSMC, SpecDSMC
@@ -108,18 +95,18 @@ INTEGER :: ETransID, ERotID, EVibID
 IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
   TransArray(:)=0.
   IntArray(:)=0.
-  VeloReal = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))
+  VeloReal = VECNORM(PartState(4:6,PartID))
   ETrans = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
   SELECT CASE (TRIM(SampleType))
   CASE ('old')
     ! must be old_velocity-new_velocity
-    TransArray(4:6) = PartState(PartID,4:6)
+    TransArray(4:6) = PartState(4:6,PartID)
     ETransID = 1
     ERotID = 1
     EVibID = 4
   CASE ('new')
     ! must be old_velocity-new_velocity
-    TransArray(4:6) = -PartState(PartID,4:6)
+    TransArray(4:6) = -PartState(4:6,PartID)
     ETransID = 3
     ERotID = 3
     EVibID = 6
@@ -131,8 +118,8 @@ __STAMP__&
   TransArray(ETransID) = ETrans
   IF (useDSMC .AND. CollisMode.GT.1) THEN
     IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.SpecDSMC(PartSpecies(PartID))%InterID.EQ.20) THEN
-      IntArray(ERotID) = PartStateIntEn(PartID,2)
-      IntArray(EVibID) = PartStateIntEn(PartID,1)
+      IntArray(ERotID) = PartStateIntEn(2,PartID)
+      IntArray(EVibID) = PartStateIntEn(1,PartID)
     END IF
   END IF
 END IF
@@ -276,13 +263,13 @@ IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
 __STAMP__&
 ,'maxSurfCollisNumber reached!')
     END IF
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) = PartState(PartID,4)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) = PartState(PartID,5)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) = PartState(PartID,6)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) = LastPartPos(PartID,1)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) = LastPartPos(PartID,2)
-    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) = LastPartPos(PartID,3)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(1:3,PartID) + alpha * PartTrajectory(1:3)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) = PartState(4,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) = PartState(5,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) = PartState(6,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) = LastPartPos(1,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) = LastPartPos(2,PartID)
+    AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) = LastPartPos(3,PartID)
     AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1))   = PartSpecies(PartID)
     AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1))   = locBCID
   END IF
@@ -320,7 +307,7 @@ IF (useDSMC .AND. CollisMode.GT.1) THEN
       iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
       IF(ALLOCATED(VibQuantsPar(PartID)%Quants)) DEALLOCATE(VibQuantsPar(PartID)%Quants)
       ALLOCATE(VibQuantsPar(PartID)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-      PartStateIntEn(PartID, 1) = 0.0
+      PartStateIntEn( 1,PartID) = 0.0
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
         CALL RANDOM_NUMBER(RanNum)
         VibQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
@@ -328,25 +315,25 @@ IF (useDSMC .AND. CollisMode.GT.1) THEN
           CALL RANDOM_NUMBER(RanNum)
           VibQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
         END DO
-        PartStateIntEn(PartID, 1) = PartStateIntEn(PartID, 1) &
+        PartStateIntEn( 1,PartID) = PartStateIntEn( 1,PartID) &
                                    + (VibQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
         VibQuantsPar(PartID)%Quants(iDOF)=VibQuant
       END DO
       IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.2) THEN
         CALL RANDOM_NUMBER(RanNum)
-        PartStateIntEn(PartID, 2) = -BoltzmannConst*WallTemp*LOG(RanNum)
+        PartStateIntEn( 2,PartID) = -BoltzmannConst*WallTemp*LOG(RanNum)
       ELSE IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.3) THEN
         CALL RANDOM_NUMBER(RanNum)
-        PartStateIntEn(PartID, 2) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-        NormProb = SQRT(PartStateIntEn(PartID, 2))*EXP(-PartStateIntEn(PartID, 2))/(SQRT(0.5)*EXP(-0.5))
+        PartStateIntEn( 2,PartID) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+        NormProb = SQRT(PartStateIntEn( 2,PartID))*EXP(-PartStateIntEn( 2,PartID))/(SQRT(0.5)*EXP(-0.5))
         CALL RANDOM_NUMBER(RanNum)
         DO WHILE (RanNum.GE.NormProb)
           CALL RANDOM_NUMBER(RanNum)
-          PartStateIntEn(PartID, 2) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
-          NormProb = SQRT(PartStateIntEn(PartID, 2))*EXP(-PartStateIntEn(PartID, 2))/(SQRT(0.5)*EXP(-0.5))
+          PartStateIntEn( 2,PartID) = RanNum*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+          NormProb = SQRT(PartStateIntEn( 2,PartID))*EXP(-PartStateIntEn( 2,PartID))/(SQRT(0.5)*EXP(-0.5))
           CALL RANDOM_NUMBER(RanNum)
         END DO
-        PartStateIntEn(PartID, 2) = PartStateIntEn(PartID, 2)*BoltzmannConst*WallTemp
+        PartStateIntEn( 2,PartID) = PartStateIntEn( 2,PartID)*BoltzmannConst*WallTemp
       END IF
     ELSE
       ! Set vibrational energy
@@ -356,158 +343,20 @@ IF (useDSMC .AND. CollisMode.GT.1) THEN
         CALL RANDOM_NUMBER(RanNum)
         VibQuant = INT(-LOG(RanNum)*WallTemp/SpecDSMC(PartSpecies(PartID))%CharaTVib)
       END DO
-      PartStateIntEn(PartID, 1) = (VibQuant + DSMC%GammaQuant)*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst
+      PartStateIntEn( 1,PartID) = (VibQuant + DSMC%GammaQuant)*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst
       ! Set rotational energy
       CALL RANDOM_NUMBER(RanNum)
-      PartStateIntEn(PartID, 2) = -BoltzmannConst*WallTemp*LOG(RanNum)
+      PartStateIntEn( 2,PartID) = -BoltzmannConst*WallTemp*LOG(RanNum)
     END IF
   ELSE
     ! Nullify energy for atomic species
-    PartStateIntEn(PartID, 1) = 0.0
-    PartStateIntEn(PartID, 2) = 0.0
+    PartStateIntEn( 1,PartID) = 0.0
+    PartStateIntEn( 2,PartID) = 0.0
   END IF
 END IF
 !End internal energy accomodation
 END SUBROUTINE SurfaceToPartEnergyInternal
 
-
-PURE REAL FUNCTION LIQUIDEVAP(beta,x,sigma)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN) :: beta,x,sigma
-REAL            :: betaLoc
-!===================================================================================================================================
-betaLoc = beta
-IF (betaLoc.GE.2.) betaLoc = 2. - 1e-10
-IF (betaLoc.LT.0.) betaLoc = 0.
-
-liquidEvap=(1-betaLoc*exp(-0.5*(x/sigma)**2))/(1-betaLoc/2)  *   x/sigma**2  *  exp(-0.5*(x/sigma)**2)
-IF (liquidEvap.LT.0.) liquidEvap = 0.
-END FUNCTION
-
-REAL FUNCTION LIQUIDREFL(alpha,beta,x,sigma)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN) :: alpha,beta,x,sigma
-REAL            :: betaLoc, alphaLoc
-!===================================================================================================================================
-betaLoc = beta
-IF (betaLoc.GE.2.) betaLoc = 2. - 1e-10
-IF (betaLoc.LT.0.) betaLoc = 0.
-alphaLoc = alpha
-IF (alphaLoc.GT.1.) alphaLoc = 1.
-IF (alphaLoc.LT.0.) alphaLoc = 0.
-
-if (alphaLoc.GE.1.) then
-  if (betaLoc.LE.0) then
-    liquidRefl = x/sigma**2  *  exp(-0.5*(x/sigma)**2)
-  else
-    liquidRefl = (betaLoc*exp(-0.5*(x/sigma)**2))/(1.-(1.-betaLoc/2.))  *   x/sigma**2  *  exp(-0.5*(x/sigma)**2)
-  end if
-else
-  liquidRefl = (1.-alphaLoc+alphaLoc*betaLoc*exp(-0.5*(x/sigma)**2))/(1.-alphaLoc*(1.-betaLoc/2.)) &
-             * x/sigma**2 * exp(-0.5*(x/sigma)**2)
-end if
-
-IF (liquidRefl.LT.0.) liquidRefl = 0.
-END FUNCTION
-
-PURE FUNCTION ALPHALIQUID(specID,temp) RESULT(alpha)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-USE MOD_SurfaceModel_Vars ,ONLY: SpecSurf
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: specID
-REAL,INTENT(IN)    :: temp
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL :: alpha
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-SELECT CASE (SpecSurf(specID)%condensCase)
-CASE (1)
-  alpha = SpecSurf(specID)%liquidAlpha
-CASE (2)
-  alpha = exp(-((4-BETALIQUID(specID,temp))/(2*(2-BETALIQUID(specID,temp)))-1))
-END SELECT
-IF (alpha.GT.1.) alpha = 1.
-IF (alpha.LT.0.) alpha = 0.
-END FUNCTION
-
-PURE FUNCTION BETALIQUID(specID,temp) RESULT(beta)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-USE MOD_SurfaceModel_Vars ,ONLY: SpecSurf
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: specID
-REAL,INTENT(IN)    :: temp
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL :: beta
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-SELECT CASE (SpecSurf(specID)%condensCase)
-CASE (1)
-  beta = SpecSurf(specID)%liquidBeta
-CASE (2)
-  beta = SpecSurf(specID)%liquidBetaCoeff(1)*temp**5 &
-       + SpecSurf(specID)%liquidBetaCoeff(2)*temp**4 &
-       + SpecSurf(specID)%liquidBetaCoeff(3)*temp**3 &
-       + SpecSurf(specID)%liquidBetaCoeff(4)*temp**2 &
-       + SpecSurf(specID)%liquidBetaCoeff(5)*temp    &
-       + SpecSurf(specID)%liquidBetaCoeff(6)
-END SELECT
-IF (beta.GE.2.) beta = 2. - 1e-10
-IF (beta.LT.0.) beta=0.
-END FUNCTION
-
-FUNCTION TSURUTACONDENSCOEFF(SpecID,normalVelo,temp) RESULT(sigma)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars ,ONLY: Species
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: specID
-REAL,INTENT(IN)    :: normalVelo,temp
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL :: sigma
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-sigma = ALPHALIQUID(specID,temp)*(1-BETALIQUID(specID,temp)*exp(-normalVelo**2*Species(specID)%MassIC/(2*Boltzmannconst*temp)))
-IF (sigma.LT.0.) sigma = 0.
-IF (sigma.GT.1.) sigma = 1.
-END FUNCTION
 
 
 SUBROUTINE CountSurfaceImpact(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,PartTrajectory,SurfaceNormal,p,q)
@@ -549,12 +398,186 @@ SampWall(SurfSideID)%ImpactVector(SpecID,3,p,q)   = SampWall(SurfSideID)%ImpactV
 
 !----- Sampling of impact angle for each species
 SampWall(SurfSideID)%ImpactAngle(SpecID,p,q) = SampWall(SurfSideID)%ImpactAngle(SpecID,p,q) + &
-    ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))) * (180. / PI) * MPF
+    (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal)))) * MPF
 
 !----- Sampling of impact number for each species
 SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) = SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) + MPF
 
 END SUBROUTINE CountSurfaceImpact
 
+
+SUBROUTINE BoundaryParticleOutput(iPart,PartPos,PartTrajectory,SurfaceNormal)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Save particle position, velocity and species to PartDataBoundary container for writing to .h5 later
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals                ,ONLY: abort
+USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState,PDM
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,PartStateBoundarySpec
+USE MOD_TimeDisc_Vars          ,ONLY: time
+USE MOD_Globals_Vars           ,ONLY: PI
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)  :: iPart
+REAL,INTENT(IN)     :: PartPos(1:3)
+REAL,INTENT(IN)     :: PartTrajectory(1:3)
+REAL,INTENT(IN)     :: SurfaceNormal(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL              :: MPF
+!===================================================================================================================================
+IF (usevMPF) THEN
+  MPF = PartMPF(iPart)
+ELSE
+  MPF = Species(PartSpecies(iPart))%MacroParticleFactor
+END IF
+
+ASSOCIATE( iMax => PartStateBoundaryVecLength )
+  iMax = iMax + 1
+  IF(iMax.GT.PDM%MaxParticleNumber)THEN
+    CALL abort(&
+        __STAMP__&
+        ,'BoundaryParticleOutput: PartStateBoundaryVecLength.GT.PDM%MaxParticleNumber. iMax=', IntInfoOpt=iMax)
+  END IF
+  PartStateBoundary(1:3,iMax) = PartPos
+  PartStateBoundary(4:6,iMax) = PartState(4:6,iPart)
+  PartStateBoundary(7,iMax)   = MPF
+  PartStateBoundary(8,iMax)   = time
+  PartStateBoundary(9,iMax)   = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))))
+  PartStateBoundarySpec(iMax) = PartSpecies(iPart)
+END ASSOCIATE
+
+END SUBROUTINE BoundaryParticleOutput
+
+
+SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! sort arryA in ascending order of arrayB
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)    :: EndID
+INTEGER,INTENT(INOUT) :: ArrayA(EndID)
+INTEGER,INTENT(IN)    :: ArrayB(EndID)
+! insert IO variables here
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: i,idx
+LOGICAL :: unsorted(EndID)
+LOGICAL :: unsorted_tmp(EndID)
+INTEGER :: ArrayA_temp(EndID)
+!===================================================================================================================================
+ArrayA_temp=ArrayA
+unsorted = .TRUE.
+DO i=1, EndID
+  IF(ArrayA(i).EQ.-1) THEN
+    unsorted(i)=.FALSE.
+  END IF
+END DO
+unsorted_tmp=unsorted
+DO i = 1, EndID
+  IF(.NOT.unsorted_tmp(i)) CYCLE
+   idx=MINLOC(ArrayB,1,unsorted)
+   ArrayA(i) = ArrayA_temp(idx)
+   unsorted(idx) = .FALSE.
+END DO
+
+END SUBROUTINE SortArray
+
+
+SUBROUTINE DielectricSurfaceCharge(iPart,ElemID,PartTrajectory,alpha)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! description
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals       ,ONLY: abort,myrank
+USE MOD_Mesh_Vars     ,ONLY: nElems
+USE MOD_Part_Tools    ,ONLY: CreateParticle,isChargedParticle
+USE MOD_Particle_Vars ,ONLY: PDM,PartSpecies,LastPartPos
+USE MOD_PICDepo_Tools ,ONLY: DepositParticleOnNodes
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)    :: iPart
+INTEGER,INTENT(IN)    :: ElemID
+REAL,INTENT(IN)       :: PartTrajectory(1:3), alpha
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: NewPartID
+!===================================================================================================================================
+! Sanity checks
+IF(.NOT.PDM%ParticleInside(iPart))THEN
+  IPWRITE (*,*) "iPart  :", iPart
+  IPWRITE (*,*) "ElemID :", ElemID
+  CALL abort(&
+      __STAMP__&
+      ,'Dielectric particle-surface interaction: Particle not inside element.')
+ELSEIF(PartSpecies(iPart).LT.0)THEN
+  IF(myrank.eq.1)THEN
+    IPWRITE (*,*) "iPart =", iPart
+    IPWRITE (*,*) "PDM%ParticleVecLength =", PDM%ParticleVecLength
+  END IF ! myrank.eq.1
+  CALL abort(&
+      __STAMP__&
+      ,'Negative speciesID')
+END IF ! PartSpecies(iPart)
+
+IF(isChargedParticle(iPart))THEN
+  IF(ElemID.GT.nElems)THEN
+    ! Particle is now located in halo element: Create phantom particle, which is sent to new host Processor and removed there (set
+    ! negative SpeciesID in order to remove particle in host Processor)
+    CALL CreateParticle(-PartSpecies(iPart),LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
+    ! Set inside to F (it is set to T in SendNbOfParticles if species ID is negative)
+    PDM%ParticleInside(NewPartID)=.FALSE.
+  ELSE ! Deposit single particle charge on surface here and 
+    CALL DepositParticleOnNodes(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID)
+  END IF ! ElemID.GT.nElems
+END IF ! isChargedParticle(iPart)
+
+END SUBROUTINE DielectricSurfaceCharge
+
+
+REAL FUNCTION GetWallTemperature(PartID,locBCID,PartTrajectory,alpha)
+!===================================================================================================================================
+!> Determine the wall temperature, current options: determine a temperature based on an imposed gradient or use a fixed temperature
+!===================================================================================================================================
+USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Vars           ,ONLY: LastPartPos
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: locBCID, PartID
+REAL, INTENT(IN)                :: PartTrajectory(3), alpha
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: TempGradLength, POI(3), POI_projected(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+IF(PartBound%WallTemp2(locBCID).GT.0.0) THEN
+  POI(1:3) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
+  POI_projected(1:3) = PartBound%TempGradStart(1:3,locBCID) &
+                      + DOT_PRODUCT((POI(1:3) - PartBound%TempGradStart(1:3,locBCID)),PartBound%TempGradVec(1:3,locBCID)) &
+                        / DOTPRODUCT(PartBound%TempGradVec(1:3,locBCID)) * PartBound%TempGradVec(1:3,locBCID)
+  TempGradLength = VECNORM(POI_projected(1:3))/VECNORM(PartBound%TempGradVec(1:3,locBCID))
+  IF(TempGradLength.LT.0.0) THEN
+    GetWallTemperature = PartBound%WallTemp(locBCID)
+  ELSE IF(TempGradLength.GT.1.0) THEN
+    GetWallTemperature = PartBound%WallTemp2(locBCID)
+  ELSE
+    GetWallTemperature = PartBound%WallTemp(locBCID) + TempGradLength * PartBound%WallTempDelta(locBCID)
+  END IF
+ELSE
+  GetWallTemperature = PartBound%WallTemp(locBCID)
+END IF
+
+END FUNCTION GetWallTemperature
 
 END MODULE MOD_Particle_Boundary_Tools

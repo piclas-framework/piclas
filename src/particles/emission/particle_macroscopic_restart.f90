@@ -105,7 +105,7 @@ DO iElem = 1, nElems
                 END IF
               END IF
               IF (InsideFlag) THEN
-                PartState(locnPart,1:3) = RandomPos(1:3)
+                PartState(1:3,locnPart) = RandomPos(1:3)
                 CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
                 locnPart = locnPart + 1
               END IF
@@ -138,7 +138,7 @@ DO iElem = 1, nElems
                 END IF
               END IF
             END DO
-            PartState(locnPart,1:3) = RandomPos(1:3)
+            PartState(1:3,locnPart) = RandomPos(1:3)
             CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
             locnPart = locnPart + 1
           END DO ! nPart
@@ -169,7 +169,7 @@ DO iElem = 1, nElems
             END IF
           END IF
           IF (InsideFlag) THEN
-            PartState(locnPart,1:3) = RandomPos(1:3)
+            PartState(1:3,locnPart) = RandomPos(1:3)
             CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
             locnPart = locnPart + 1
           END IF
@@ -200,7 +200,7 @@ DO iElem = 1, nElems
             END IF
           END IF
           IF (InsideFlag) THEN
-            PartState(locnPart,1:3) = RandomPos(1:3)
+            PartState(1:3,locnPart) = RandomPos(1:3)
             CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
             locnPart = locnPart + 1
           END IF
@@ -243,22 +243,22 @@ INTEGER, INTENT(IN)             :: iPart, iSpec, iElem
 !===================================================================================================================================
 
 ! 1) Set particle velocity from macroscopic bulk velocity and translational temperature in the cell
-PartState(iPart,4:6) = CalcVelocity_maxwell_particle(iSpec,MacroRestartValues(iElem,iSpec,4:6)) &
+PartState(4:6,iPart) = CalcVelocity_maxwell_particle(iSpec,MacroRestartValues(iElem,iSpec,4:6)) &
                           + MacroRestartValues(iElem,iSpec,1:3)
 
 ! 2) Set internal energies (rotational, vibrational, electronic)
 IF(CollisMode.GT.1) THEN
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    PartStateIntEn(iPart,1) = CalcEVib_particle(iSpec,iPart,MacroRestartValues(iElem,iSpec,DSMC_TVIB))
-    PartStateIntEn(iPart,2) = CalcERot_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TROT))
+    PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,iPart,MacroRestartValues(iElem,iSpec,DSMC_TVIB))
+    PartStateIntEn(2,iPart) = CalcERot_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TROT))
   ELSE
-    PartStateIntEn(iPart,1:2) = 0.0
+    PartStateIntEn(1:2,iPart) = 0.0
   END IF
   IF(DSMC%ElectronicModel) THEN
     IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-      PartStateIntEn(iPart,3) = CalcEElec_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TELEC))
+      PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TELEC))
     ELSE
-      PartStateIntEn(iPart,3) = 0.0
+      PartStateIntEn(3,iPart) = 0.0
     END IF
   END IF
 END IF
@@ -271,10 +271,10 @@ PDM%ParticleInside(iPart) = .TRUE.
 
 ! 4) Set particle weights (if required)
 IF (VarTimeStep%UseVariableTimeStep) THEN
-  VarTimeStep%ParticleTimeStep(iPart) = CalcVarTimeStep(PartState(iPart,1),PartState(iPart,2),iElem)
+  VarTimeStep%ParticleTimeStep(iPart) = CalcVarTimeStep(PartState(1,iPart),PartState(2,iPart),iElem)
 END IF
 IF (RadialWeighting%DoRadialWeighting) THEN
-  PartMPF(iPart) = CalcRadWeightMPF(PartState(iPart,2),iSpec,iPart)
+  PartMPF(iPart) = CalcRadWeightMPF(PartState(2,iPart),iSpec,iPart)
 END IF
 
 END SUBROUTINE MacroRestart_InitializeParticle_Maxwell

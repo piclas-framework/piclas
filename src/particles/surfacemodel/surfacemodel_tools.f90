@@ -101,7 +101,7 @@ SUBROUTINE CalcEvapPartNum()
 USE MOD_Globals_Vars           ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, surfmodel, SpecSurf
-USE MOD_Particle_Boundary_Tools,ONLY: TSURUTACONDENSCOEFF
+USE MOD_Part_Tools             ,ONLY: TSURUTACONDENSCOEFF
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_TimeDisc_Vars          ,ONLY: dt
@@ -126,7 +126,7 @@ INTEGER                          :: ElemID
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 
 DO iSpec = 1,nSpecies
-  DO iSurfSide = 1,SurfMesh%nMasterSides
+  DO iSurfSide = 1,SurfMesh%nOutputSides
 
 #if USE_LOADBALANCE
     IF(PerformLBSample) THEN
@@ -237,7 +237,7 @@ REAL                             :: Theta_req, Kfactor, S_0
 INTEGER                          :: PartBoundID
 !===================================================================================================================================
 DO iSpec=1,nSpecies
-  DO SurfSide=1,SurfMesh%nMasterSides
+  DO SurfSide=1,SurfMesh%nOutputSides
     PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
     IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
     DO q = 1,nSurfSample
@@ -281,7 +281,6 @@ SUBROUTINE CalcDesorbProb()
 !===================================================================================================================================
 !> Calculcation of desorption probability for different model (wallmodel 1 and 2)
 !===================================================================================================================================
-USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
@@ -299,7 +298,7 @@ REAL                             :: Theta, nu_des, rate, WallTemp
 REAL                             :: E_des
 INTEGER                          :: PartBoundID, iReactNum, RecombReactID, jSpec, kSpec
 !===================================================================================================================================
-DO SurfSide=1,SurfMesh%nMasterSides
+DO SurfSide=1,SurfMesh%nOutputSides
   PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
   IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
 ! special TPD (temperature programmed desorption) temperature adjustment routine
@@ -378,7 +377,6 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Species,Surfpos,I
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Boundary_vars ,ONLY: PartBound, SurfMesh
 USE MOD_Particle_Vars          ,ONLY: nSpecies
@@ -838,9 +836,9 @@ IF(SpecDSMC(SpecID)%InterID.EQ.2) THEN
   IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
     EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(SpecID)%EZeroPoint
     ! Calculation of the vibrational degree of freedom for the particle
-    IF (PartStateIntEn(PartID,1).GT.SpecDSMC(SpecID)%EZeroPoint) THEN
-      Xi_vib = 2.*(PartStateIntEn(PartID,1)-SpecDSMC(SpecID)%EZeroPoint) &
-              / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(PartID,1), SpecID))
+    IF (PartStateIntEn(1,PartID).GT.SpecDSMC(SpecID)%EZeroPoint) THEN
+      Xi_vib = 2.*(PartStateIntEn(1,PartID)-SpecDSMC(SpecID)%EZeroPoint) &
+              / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(1,PartID), SpecID))
     ELSE
       Xi_vib = 0.0
     END IF
@@ -851,10 +849,10 @@ IF(SpecDSMC(SpecID)%InterID.EQ.2) THEN
     END IF
   ELSE
     EZeroPoint_Educt = EZeroPoint_Educt + DSMC%GammaQuant*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
-    IF((PartStateIntEn(PartID,1)-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib).GT.0.0) THEN
+    IF((PartStateIntEn(1,PartID)-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib).GT.0.0) THEN
 !           IF(ChemReac%MeanEVibQua_PerIter(SpecID).GT.0.0) THEN
-      Xi_vib = 2.*(PartStateIntEn(PartID,1)-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) &
-              / (BoltzmannConst*CalcTVib(SpecDSMC(SpecID)%CharaTVib, PartStateIntEn(PartID,1), SpecDSMC(SpecID)%MaxVibQuant))
+      Xi_vib = 2.*(PartStateIntEn(1,PartID)-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) &
+              / (BoltzmannConst*CalcTVib(SpecDSMC(SpecID)%CharaTVib, PartStateIntEn(1,PartID), SpecDSMC(SpecID)%MaxVibQuant))
 !             Xi_vib = 2.0*ChemReac%MeanEVibQua_PerIter(SpecID) &
 !                     * LOG(1.0/ChemReac%MeanEVibQua_PerIter(SpecID) + 1.0)
     ELSE
@@ -869,8 +867,8 @@ END IF
 
 CalcAdsorbReactProb = 0.0
 IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
-  !PartVelo = SQRT(PartState(PartID,4)**2 + PartState(PartID,5)**2 + PartState(PartID,6)**2)
-  !Norm_Ec = PartVelo**2 * 0.5*Species(SpecID)%MassIC !+ PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
+  !PartVelo = VECNORM(PartState(4:6,PartID))
+  !Norm_Ec = PartVelo**2 * 0.5*Species(SpecID)%MassIC !+ PartStateIntEn(2,PartID) + PartStateIntEn(1,PartID) - EZeroPoint_Educt
   !Xi_Total = 1.! Xi_vib + Xi_rot + 3.
   !AdsorptionTemp=2.*Norm_Ec/Xi_Total/BoltzmannConst
   !MeanNormalVelo = SQRT((BoltzmannConst*AdsorptionTemp) / (2*PI*Species(SpecID)%MassIC)) ! equilibrium mean thermal velo for AdsorptionTemp
@@ -887,7 +885,7 @@ IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
   END SELECT
 ELSE
   Beta = 0.0
-  Norm_Ec = NormalVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
+  Norm_Ec = NormalVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(2,PartID) + PartStateIntEn(1,PartID) - EZeroPoint_Educt
   Xi_Total = Xi_vib + Xi_rot + 1.
   SELECT CASE(ReactionCase)
   CASE(1) ! adsorption
@@ -1157,7 +1155,7 @@ SUBROUTINE SMCR_AdjustMapNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,Spec
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh, SampWall

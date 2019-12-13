@@ -1,4 +1,16 @@
-#!/bin/bash
+#!/bin/bash -i
+
+#==============================================================================
+# title       : InstallHDF5.sh
+# description : This script installs HDF5 either for all compilers/mpi versions 
+#               found in a module env or for a specific compiler-mpi-combination 
+#               (also via module env)
+# date        : Nov 27, 2019
+# version     : 1.0   
+# usage       : bash InstallHDF5.sh [--help] [--rerun] [--modules]
+# notes       : Bash in run interactively via "-i" to use "module load/purge" 
+#               commands
+#==============================================================================
 
 # Check command line arguments
 LOADMODULES=1
@@ -7,7 +19,7 @@ do
   if [ "$arg" == "--help" ] || [ "$arg" == "-h" ]
   then
     echo "Input arguments:"
-    echo "--help/-h            print help information"
+    echo "--help/-h            print this help information"
     echo "--rerun/-r           remove existing module files and re-install HDF5"
     echo "--modules/-m         use modules defined in script by the user."
     echo "                     Otherwise, find modules automatically and install"

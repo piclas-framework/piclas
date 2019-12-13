@@ -64,6 +64,8 @@ USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac
 USE MOD_Particle_Mesh          ,ONLY: SingleParticleToExactElement,SingleParticleToExactElementNoMap
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR
+USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
+USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROBODY
 USE MOD_PICInterpolation       ,ONLY: InterpolateVariableExternalField
 USE MOD_PICInterpolation_Vars  ,ONLY: VariableExternalField
 USE MOD_PICInterpolation_vars  ,ONLY: useVariableExternalField
@@ -739,6 +741,12 @@ __STAMP__&
             Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal(3)
           END IF
         END SELECT
+        IF (UseMacroBody) THEN
+          IF (INSIDEMACROBODY(Particle_pos)) THEN
+            i=i+1
+            CYCLE !particle is inside MacroParticle
+          END IF
+        END IF
         IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
           CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
           IF (insideExcludeRegion) THEN
@@ -760,6 +768,12 @@ __STAMP__&
         CALL RANDOM_NUMBER(RandVal1)
         radius = Species(FractNbr)%Init(iInit)%RadiusIC*RandVal1**(1./3.)
         Particle_pos = DICEUNITVECTOR()*radius + Species(FractNbr)%Init(iInit)%BasePointIC
+        IF (UseMacroBody) THEN
+          IF (INSIDEMACROBODY(Particle_pos)) THEN
+            i=i+1
+            CYCLE !particle is inside MacroParticle
+          END IF
+        END IF
         IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
           CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
           IF (insideExcludeRegion) THEN
@@ -869,6 +883,12 @@ __STAMP__&
 __STAMP__&
 ,'wrong vpiDomainType for virtual Pre-Inserting region!')
         END SELECT
+        IF (UseMacroBody) THEN
+          IF (INSIDEMACROBODY(Particle_pos)) THEN
+            i=i+1
+            CYCLE !particle is inside MacroParticle
+          END IF
+        END IF
         IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
           CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
           IF (insideExcludeRegion) THEN
@@ -944,6 +964,12 @@ __STAMP__&
 __STAMP__&
 ,'wrong vpiDomainType for virtual Pre-Inserting region!')
         END SELECT
+        IF (UseMacroBody) THEN
+          IF (INSIDEMACROBODY(Particle_pos)) THEN
+            i=i+1
+            CYCLE !particle is inside MacroParticle
+          END IF
+        END IF
         IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
           CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
           IF (insideExcludeRegion) THEN
@@ -976,7 +1002,7 @@ __STAMP__&
          j=j+1
          ParticleIndexNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
          IF (ParticleIndexNbr .ne. 0) THEN
-            PartState(ParticleIndexNbr,1:3) = PartState(j,1:3)
+            PartState(1:3,ParticleIndexNbr) = PartState(1:3,j)
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
             IF(DoRefMapping.OR.TriaTracking)THEN
               CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,initFix=.TRUE.,doRelocate=.FALSE.)
@@ -1020,7 +1046,7 @@ __STAMP__&
 #else
       DO i=1,chunkSize
         ParticleIndexNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-        particle_positions(i*3-2 : i*3) = PartState(ParticleIndexNbr-Species(FractNbr)%Init(iInit)%initialParticleNumber,1:3)
+        particle_positions(i*3-2 : i*3) = PartState(1:3,ParticleIndexNbr-Species(FractNbr)%Init(iInit)%initialParticleNumber)
       END DO
 #endif
     !------------------SpaceIC-case: cuboid_with_equidistant_distribution-----------------------------------------------------------
@@ -1175,7 +1201,7 @@ __STAMP__&
             particle_positions((i-Nshift)*3-1) = Particle_pos(2)
             particle_positions((i-Nshift)*3  ) = Particle_pos(3)
 
-            PartState(i-Nshift,4:6) =&
+            PartState(4:6,i-Nshift) =&
             (/IMD_array(7)*IMDLengthScale/IMDTimeScale,&
               IMD_array(8)*IMDLengthScale/IMDTimeScale,&
               IMD_array(9)*IMDLengthScale/IMDTimeScale/)
@@ -1416,7 +1442,7 @@ __STAMP__,&
                                              + PDM%CurrentNextFreePosition)
     END IF
     IF (ParticleIndexNbr .ne. 0) THEN
-       PartState(ParticleIndexNbr,1:DimSend) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
+       PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
        PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
        IF(DoRefMapping.OR.TriaTracking)THEN
          CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.,InitFix=.TRUE.,doRelocate=.FALSE.)
@@ -1427,10 +1453,10 @@ __STAMP__,&
           mySumOfMatchedParticles = mySumOfMatchedParticles + 1
           ! IF (VarTimeStep%UseVariableTimeStep) THEN
           !   VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &
-          !     CalcVarTimeStep(PartState(ParticleIndexNbr,1), PartState(ParticleIndexNbr,2),PEM%Element(ParticleIndexNbr))
+          !     CalcVarTimeStep(PartState(1,ParticleIndexNbr), PartState(2,ParticleIndexNbr),PEM%Element(ParticleIndexNbr))
           ! END IF
           ! IF(RadialWeighting%DoRadialWeighting) THEN
-          !    PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(ParticleIndexNbr,2),FractNbr,ParticleIndexNbr)
+          !    PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),FractNbr,ParticleIndexNbr)
           ! END IF
 #if USE_MPI
           IF(nChunksTemp.EQ.1) THEN
@@ -1686,7 +1712,7 @@ CASE('random')
       CALL RANDOM_NUMBER(RandVal)
       RandVal(:) = RandVal(:) - 0.5
       RandVal(:) = RandVal(:)/SQRT(RandVal(1)**2+RandVal(2)**2+RandVal(3)**2)
-      PartState(PositionNbr,4:6) = RandVal(1:3) * VeloIC
+      PartState(4:6,PositionNbr) = RandVal(1:3) * VeloIC
     END IF
     i = i + 1
   END DO
@@ -1709,7 +1735,7 @@ CASE('random')
 !     tan_vec(1) = Radius(2)*n_vec(3) - Radius(3)*n_vec(2)
 !     tan_vec(2) = Radius(3)*n_vec(1) - Radius(1)*n_vec(3)
 !     tan_vec(3) = Radius(1)*n_vec(2) - Radius(2)*n_vec(1)
-!     PartState(1,4:6) = tan_vec(1:3) * Species(1)%VeloIC
+!     PartState(4:6,1) = tan_vec(1:3) * Species(1)%VeloIC
 CASE('constant')
   i = 1
   DO WHILE (i .le. NbrOfParticle)
@@ -1717,12 +1743,12 @@ CASE('constant')
      IF (PositionNbr .ne. 0) THEN
         IF (Is_ElemMacro) THEN
           IF (Species(FractNbr)%Init(iInit)%ElemVelocityICFileID.GT.0) THEN
-            PartState(PositionNbr,4:6) = Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,PEM%Element(PositionNbr))
+            PartState(4:6,PositionNbr) = Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,PEM%Element(PositionNbr))
           ELSE
-            PartState(PositionNbr,4:6) = VeloVecIC(1:3) * VeloIC
+            PartState(4:6,PositionNbr) = VeloVecIC(1:3) * VeloIC
           END IF
         ELSE
-          PartState(PositionNbr,4:6) = VeloVecIC(1:3) * VeloIC
+          PartState(4:6,PositionNbr) = VeloVecIC(1:3) * VeloIC
         END IF
      END IF
      i = i + 1
@@ -1732,11 +1758,11 @@ CASE('radial_constant')
   DO WHILE (i .le. NbrOfParticle)
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
      IF (PositionNbr .ne. 0) THEN
-        Radius(1:3) = PartState(PositionNbr,1:3) - BasePointIC(1:3)
+        Radius(1:3) = PartState(1:3,PositionNbr) - BasePointIC(1:3)
         !  Unity radius
         !Radius(1:3) = Radius(1:3) / RadiusIC
         Radius(1:3) = Radius(1:3) / SQRT(Radius(1)**2+Radius(2)**2+Radius(3)**2)
-        PartState(PositionNbr,4:6) = Radius(1:3) * VeloIC
+        PartState(4:6,PositionNbr) = Radius(1:3) * VeloIC
      END IF
      i = i + 1
   END DO
@@ -1745,7 +1771,7 @@ CASE('tangential_constant')
   DO WHILE (i .le. NbrOfParticle)
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
      IF (PositionNbr .ne. 0) THEN
-        Radius(1:3) = PartState(PositionNbr,1:3) - BasePointIC(1:3)
+        Radius(1:3) = PartState(1:3,PositionNbr) - BasePointIC(1:3)
         !  Normal Vector of circle
         n_vec(1:3) = NormalIC(1:3)
         ! If we're doing Leapfrog, then use velocities from half-timestep before
@@ -1798,7 +1824,7 @@ CASE('tangential_constant')
 __STAMP__&
 ,' Error in set velocity!',PositionNbr)
           Vec1D=SQRT(Vec1D)
-          PartState(PositionNbr,4:6) = Vec3D+n_vec(1:3) * Vec1D
+          PartState(4:6,PositionNbr) = Vec3D+n_vec(1:3) * Vec1D
         ELSE ! no velocity spread
           ! If Gyrotron resonator: Add velocity in normal direction!
           IF (Alpha .gt. 0.) THEN
@@ -1808,9 +1834,9 @@ __STAMP__&
           END IF
           !  And finally the velocities
           IF(Rotation.EQ.1)THEN
-            PartState(PositionNbr,4:6) = tan_vec(1:3) * VeloIC + n_vec(1:3) * VeloIC
+            PartState(4:6,PositionNbr) = tan_vec(1:3) * VeloIC + n_vec(1:3) * VeloIC
           ELSE
-            PartState(PositionNbr,4:6) = -tan_vec(1:3) * VeloIC + n_vec(1:3) * VeloIC
+            PartState(4:6,PositionNbr) = -tan_vec(1:3) * VeloIC + n_vec(1:3) * VeloIC
           END IF
         END IF
      END IF
@@ -1834,8 +1860,8 @@ CASE('gyrotron_circle')
        r2 = RadiusICGyro
        x_1 = 0.
        y_1 = 0.
-       x_2 = PartState(PositionNbr,1)
-       y_2 = PartState(PositionNbr,2)
+       x_2 = PartState(1,PositionNbr)
+       y_2 = PartState(2,PositionNbr)
        IF (x_1 .eq. x_2) THEN
          a = (x_1 - x_2)/(y_2-y_1)
          b = ((r1**2-r2**2)-(x_1**2-x_2**2)-(y_1**2-y_2**2))&
@@ -1862,11 +1888,11 @@ CASE('gyrotron_circle')
        END IF
        CALL RANDOM_NUMBER(RandVal1)
        IF (RandVal1 .ge. 0.5) THEN
-         Radius(1) = PartState(PositionNbr,1) - x_01
-         Radius(2) = PartState(PositionNbr,2) - y_01
+         Radius(1) = PartState(1,PositionNbr) - x_01
+         Radius(2) = PartState(2,PositionNbr) - y_01
        ELSE
-         Radius(1) = PartState(PositionNbr,1) - x_02
-         Radius(2) = PartState(PositionNbr,2) - y_02
+         Radius(1) = PartState(1,PositionNbr) - x_02
+         Radius(2) = PartState(2,PositionNbr) - y_02
        END IF
 
         Radius(3) = 0.
@@ -1905,19 +1931,19 @@ CASE('gyrotron_circle')
              n_vec = 0.
            END IF
            !  And finally the velocities
-           PartState(PositionNbr,4:6) = (tan_vec(1:3) + n_vec(1:3)) * VeloIC
-           IF (ABS(SQRT(PartState(PositionNbr,4)*PartState(PositionNbr,4) &
-                      + PartState(PositionNbr,5)*PartState(PositionNbr,5))&
+           PartState(4:6,PositionNbr) = (tan_vec(1:3) + n_vec(1:3)) * VeloIC
+           IF (ABS(SQRT(PartState(4,PositionNbr)*PartState(4,PositionNbr) &
+                      + PartState(5,PositionNbr)*PartState(5,PositionNbr))&
                       - VeloIC) .GT. 10.) THEN
-             SWRITE(*,'(A,3(E21.14,X))') 'Velocity=', PartState(PositionNbr,4:6)
+             SWRITE(*,'(A,3(E21.14,X))') 'Velocity=', PartState(4:6,PositionNbr)
              CALL abort(&
 __STAMP__&
 ,'ERROR in gyrotron_circle spaceIC!',PositionNbr)
            END If
-           IF (PartState(PositionNbr,4).NE.PartState(PositionNbr,4) .OR. &
-               PartState(PositionNbr,5).NE.PartState(PositionNbr,5) .OR. &
-               PartState(PositionNbr,6).NE.PartState(PositionNbr,6)     ) THEN
-             SWRITE(*,'(A,3(E21.14,X))') 'WARNING:! NaN: Velocity=', PartState(PositionNbr,4:6)
+           IF (PartState(4,PositionNbr).NE.PartState(4,PositionNbr) .OR. &
+               PartState(5,PositionNbr).NE.PartState(5,PositionNbr) .OR. &
+               PartState(6,PositionNbr).NE.PartState(6,PositionNbr)     ) THEN
+             SWRITE(*,'(A,3(E21.14,X))') 'WARNING:! NaN: Velocity=', PartState(4:6,PositionNbr)
            END If
         END IF
         i = i + 1
@@ -1931,7 +1957,7 @@ CASE('maxwell_lpn')
        ELSE
          CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
        END IF
-       PartState(PositionNbr,4:6) = Vec3D(1:3)
+       PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF
   END DO
 CASE('taylorgreenvortex')
@@ -1939,7 +1965,7 @@ CASE('taylorgreenvortex')
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
        CALL CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
-       PartState(PositionNbr,4:6) = Vec3D(1:3)
+       PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF
   END DO
 CASE('emmert')
@@ -1948,7 +1974,7 @@ CASE('emmert')
     IF (PositionNbr .NE. 0) THEN
       CALL CalcVelocity_emmert(FractNbr, iInit, Vec3D)
     END IF
-    PartState(PositionNbr,4:6) = Vec3D(1:3)
+    PartState(4:6,PositionNbr) = Vec3D(1:3)
   END DO
 CASE('maxwell')
   v_sum(1:3) = 0.0
@@ -1982,7 +2008,7 @@ CASE('maxwell')
 !            Vec3D(distnum)=rnor()
 !          END IF
         END DO
-        PartState(PositionNbr,4:6) = Vec3D(1:3)
+        PartState(4:6,PositionNbr) = Vec3D(1:3)
         v_sum(1:3) = v_sum(1:3) + Vec3D(1:3)
         v2_sum = v2_sum + Vec3D(1)**2+Vec3D(2)**2+Vec3D(3)**2
      END IF
@@ -1997,7 +2023,7 @@ CASE('maxwell')
   DO WHILE (i .le. NbrOfParticle)
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
      IF (PositionNbr .ne. 0) THEN
-       PartState(PositionNbr,4:6) = (PartState(PositionNbr,4:6) - v_sum(1:3)) * maxwellfac &
+       PartState(4:6,PositionNbr) = (PartState(4:6,PositionNbr) - v_sum(1:3)) * maxwellfac &
                                     + VeloIC *VeloVecIC(1:3)
      END IF
      i = i + 1
@@ -2084,7 +2110,7 @@ __STAMP__&
     Vec3D(3) = RandVal(1)*qq*MJRatio(3)
 
     Velosq  = sqrt(Vec3D(1)*Vec3D(1)+Vec3D(2)*Vec3D(2)+Vec3D(3)*Vec3D(3))
-    PartState(PositionNbr,4:6) = velabs/Velosq*Vec3D
+    PartState(4:6,PositionNbr) = velabs/Velosq*Vec3D
   END DO
 
 
@@ -2128,7 +2154,7 @@ CASE('weibel')
 !      END IF
       v_sum(:) = v_sum(:)  + Vec3D(:)
       sigma(:)   = sigma(:)    + Vec3D(:)**2
-      PartState(PositionNbr,4:6) = Vec3D(1:3)
+      PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF
   END DO
 !  WRITE(*,*) PartVeloX(1), PartVeloY(1), PartVeloZ(1)
@@ -2153,7 +2179,7 @@ CASE('weibel')
     v_sum(:)  = v_sum(:)/NbrOfParticle
     sigma(:) = (NbrOfParticle/(NbrOfParticle-1))*(sigma(:)/NbrOfParticle-v_sum(:)**2)
         ! Verschiebungssatz der korrigierten Stichprobenkovarianz:
-  ELSE                                                                            ! s^2(X)=1/(N-1)(N*E(X^2) - N*E(X)^2)
+  ELSE ! s^2(X)=1/(N-1)(N*E(X^2) - N*E(X)^2)
     v_sum(:) = 0.
     sigma(:) = 1.
   END IF
@@ -2162,11 +2188,11 @@ CASE('weibel')
   DO i=1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
-      PartState(PositionNbr,4)   = (PartState(PositionNbr,4)  -v_sum(1)) * &
+      PartState(4,PositionNbr)   = (PartState(4,PositionNbr)  -v_sum(1)) * &
                                     SQRT(WeibelVeloPar**2/sigma(1)) *c
-      PartState(PositionNbr,5:6) = (PartState(PositionNbr,5:6)-v_sum(2:3)) * &
+      PartState(5:6,PositionNbr) = (PartState(5:6,PositionNbr)-v_sum(2:3)) * &
                                     SQRT(WeibelVeloPer**2/sigma(2:3)) *c
-      PartVelo = SQRT(PartState(PositionNbr,4)**2+PartState(PositionNbr,5)**2+PartState(PositionNbr,6)**2)
+      PartVelo = SQRT(PartState(4,PositionNbr)**2+PartState(5,PositionNbr)**2+PartState(6,PositionNbr)**2)
 
       DO WHILE (PartVelo .GE. c)
         ftl = ftl+1
@@ -2203,13 +2229,13 @@ CASE('weibel')
 !          Vec3D(3) = rnor()
 !        END IF
 
-        PartState(PositionNbr,4:6) = Vec3D(1:3)
+        PartState(4:6,PositionNbr) = Vec3D(1:3)
 
-        PartState(PositionNbr,4)   = (Vec3D(1)  -v_sum(1)) * &
+        PartState(4,PositionNbr)   = (Vec3D(1)  -v_sum(1)) * &
             SQRT(WeibelVeloPar**2/sigma(1)) *c
-        PartState(PositionNbr,5:6) = (Vec3D(2:3)-v_sum(2:3)) * &
+        PartState(5:6,PositionNbr) = (Vec3D(2:3)-v_sum(2:3)) * &
             SQRT(WeibelVeloPer**2/sigma(2:3)) *c
-        PartVelo = SQRT(PartState(PositionNbr,4)**2+PartState(PositionNbr,5)**2+PartState(PositionNbr,6)**2)
+        PartVelo = SQRT(PartState(4,PositionNbr)**2+PartState(5,PositionNbr)**2+PartState(6,PositionNbr)**2)
       END DO
     END IF
   END DO
@@ -2218,8 +2244,8 @@ CASE('OneD-twostreaminstabilty')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
-      PartState(PositionNbr,4) = OneDTwoStreamVelo
-      PartState(PositionNbr,5:6) = OneDTwoStreamTransRatio
+      PartState(4,PositionNbr) = OneDTwoStreamVelo
+      PartState(5:6,PositionNbr) = OneDTwoStreamTransRatio
 !      IF (.NOT.DoZigguratSampling) THEN !polar method
         Velosq = 2.
         DO WHILE ((Velosq .GT. 1.) .OR. (Velosq .EQ. 0.))
@@ -2232,9 +2258,9 @@ CASE('OneD-twostreaminstabilty')
 !        RandVal(1) = rnor()
 !        RandVal(2) = rnor()
 !      END IF
-      PartState(PositionNbr,5) = RandVal(1)*OneDTwoStreamTransRatio* &
+      PartState(5,PositionNbr) = RandVal(1)*OneDTwoStreamTransRatio* &
                                                    OneDTwoStreamVelo
-      PartState(PositionNbr,6) = RandVal(2)*OneDTwoStreamTransRatio* &
+      PartState(6,PositionNbr) = RandVal(2)*OneDTwoStreamTransRatio* &
                                                    OneDTwoStreamVelo
     END IF
   END DO

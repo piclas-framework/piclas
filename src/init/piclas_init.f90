@@ -140,6 +140,7 @@ IF(Symmetry2DAxisymmetric) THEN
   RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
 ELSE
   RadialWeighting%DoRadialWeighting = .FALSE.
+  RadialWeighting%PerformCloning = .FALSE.
 END IF
 
 #endif /*PARTICLES*/
@@ -163,12 +164,13 @@ END IF
 
 #ifdef PARTICLES
 !--- Variable time step
-VarTimeStep%UseVariableTimeStep = GETLOGICAL('Part-VariableTimeStep')
-IF (VarTimeStep%UseVariableTimeStep)  THEN
+VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling')
+VarTimeStep%UseDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution')
+IF (VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution)  THEN
+  VarTimeStep%UseVariableTimeStep = .TRUE.
   IF(.NOT.IsLoadBalance) CALL VarTimeStep_Init()
 ELSE
-  VarTimeStep%UseLinearScaling = .FALSE.
-  VarTimeStep%UseDistribution = .FALSE.
+  VarTimeStep%UseVariableTimeStep = .FALSE.
 END IF
 #endif
 
@@ -287,8 +289,10 @@ USE MOD_Particle_Mesh,             ONLY:FinalizeParticleMesh
 USE MOD_Particle_Analyze,          ONLY:FinalizeParticleAnalyze
 USE MOD_PICDepo,                   ONLY:FinalizeDeposition
 USE MOD_ParticleInit,              ONLY:FinalizeParticles
+USE MOD_MacroBody_Init,            ONLY:FinalizeMacroBody
 USE MOD_TTMInit,                   ONLY:FinalizeTTM
 USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
+USE MOD_Particle_Boundary_Porous  ,ONLY:FinalizePorousBoundaryCondition
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init,               ONLY:FinalizeFPFlow
 #endif
@@ -341,6 +345,7 @@ CALL FinalizeFilter()
 #ifdef PARTICLES
 CALL FinalizeSurfaceModel()
 CALL FinalizeParticleBoundarySampling()
+CALL FinalizePorousBoundaryCondition()
 CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
@@ -356,6 +361,7 @@ CALL FinalizeFPFlow()
 CALL FinalizeBGK()
 #endif
 CALL FinalizeParticles()
+CALL FinalizeMacroBody()
 CALL FinalizeBackGroundField()
 #endif /*PARTICLES*/
 #if USE_MPI

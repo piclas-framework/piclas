@@ -146,7 +146,7 @@ __STAMP__&
       WRITE(UNIT=hilf,FMT='(I0)') iReac
       ChemReac%ReactType(iReac)             = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionType','0'))
       ChemReac%QKProcedure(iReac)           = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-QKProcedure','.FALSE.')
-      CHemReac%QKMethod(iReac)              = GETINT('DSMC-Reaction'//TRIM(hilf)//'-QK-Method','0') 
+      CHemReac%QKMethod(iReac)              = GETINT('DSMC-Reaction'//TRIM(hilf)//'-QK-Method','0')
       ChemReac%QKCoeff(iReac,1)             = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-QK-Coeff1','0')
       ChemReac%QKCoeff(iReac,2)             = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-QK-Coeff2','0')
       ChemReac%DefinedReact(iReac,1,:)      = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Reactants',3,'0,0,0')
@@ -1036,7 +1036,7 @@ SUBROUTINE Calc_Arrhenius_Factors()
           END IF
           IF(iQuaMax1.EQ.0) THEN
             IF(iQuaMax2.EQ.0) THEN
-              ChemReac%ReactInfo(iReac)%Xi_Total(0,0) = 2 & 
+              ChemReac%ReactInfo(iReac)%Xi_Total(0,0) = 2 &
                     * (2 - CollInf%omegaLaux(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,1)))
               ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(0,0) = ChemReac%Arrhenius_Prefactor(iReac) &
                     *(BoltzmannConst**(0.5 - ChemReac%Arrhenius_Powerfactor(iReac) &
@@ -1169,8 +1169,8 @@ IMPLICIT NONE
 
 !-- parameters
 INTEGER,PARAMETER             :: unit1=20
-DOUBLE PRECISION, PARAMETER   :: mass_ion=2.180d-25 !Xenon
-DOUBLE PRECISION, PARAMETER   :: mass_neutral=2.180d-25 !Xenon
+!DOUBLE PRECISION, PARAMETER   :: mass_ion=2.180d-25 !Xenon
+!DOUBLE PRECISION, PARAMETER   :: mass_neutral=2.180d-25 !Xenon
 
 !-- local variables
 INTEGER                       :: io_error1,read_error,iLine

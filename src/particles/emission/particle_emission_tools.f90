@@ -785,7 +785,6 @@ SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Mesh_Vars              ,ONLY: nElems
@@ -796,6 +795,8 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, epsOneCell
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry2D        ,ONLY: CalcRadWeightMPF
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
+USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROBODY
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -887,7 +888,12 @@ __STAMP__,&
               END IF
             END IF
           END DO
-          PartState(ParticleIndexNbr,1:3) = RandomPos(1:3)
+          IF (UseMacroBody) THEN
+            IF (INSIDEMACROBODY(RandomPos)) THEN
+              CYCLE !particle is inside MacroParticle
+            END IF
+          END IF
+          PartState(1:3,ParticleIndexNbr) = RandomPos(1:3)
           PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
           PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
           PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
@@ -895,10 +901,10 @@ __STAMP__,&
           ichunkSize = ichunkSize + 1
           IF (VarTimeStep%UseVariableTimeStep) THEN
             VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &
-              CalcVarTimeStep(PartState(ParticleIndexNbr,1), PartState(ParticleIndexNbr,2),iElem)
+              CalcVarTimeStep(PartState(1,ParticleIndexNbr), PartState(2,ParticleIndexNbr),iElem)
           END IF
           IF(RadialWeighting%DoRadialWeighting) THEN
-            PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(ParticleIndexNbr,2),1,ParticleIndexNbr)
+            PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),1,ParticleIndexNbr)
           END IF
         ELSE
           CALL abort(&

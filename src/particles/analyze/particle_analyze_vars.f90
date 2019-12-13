@@ -112,7 +112,7 @@ REAL,ALLOCATABLE              :: PPSCellEqui(:)                      !< Points p
                                                                      !<   including neighbor DOFs
 REAL,ALLOCATABLE              :: DebyeLengthCell(:)                  !< Debye length (cell mean value)
 REAL,ALLOCATABLE              :: PICTimeStepCell(:)                  !< Approximated PIC Time Step (mean cell value)
-REAL,ALLOCATABLE              :: PlasmaParameterCell(:)              !< Approximated PIC Time Step (mean cell value)
+REAL,ALLOCATABLE              :: PlasmaParameterCell(:)              !< Plasma parameter (cell mean value)
 REAL,ALLOCATABLE              :: ElectronDensityCell(:)              !< Electron density (cell mean value)
 REAL,ALLOCATABLE              :: IonDensityCell(:)                   !< Ion density (cell mean value)
 REAL,ALLOCATABLE              :: NeutralDensityCell(:)               !< Neutral density (cell mean value)

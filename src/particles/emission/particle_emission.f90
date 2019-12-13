@@ -385,7 +385,7 @@ USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, RadialWeig
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
-USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_part_pressure          ,ONLY: ParticlePressure, ParticlePressureRem
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
@@ -718,8 +718,8 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
       ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
       IF (ParticleIndexNbr.NE.0) THEN
         CALL TensorProductInterpolation(RandVal3,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
-                           XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(ParticleIndexNbr,1:3))
-        !PartState(ParticleIndexNbr, 1:3) = MapToGeo(RandVal3,P)
+                           XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(1:3,ParticleIndexNbr))
+        !PartState(1:3,ParticleIndexNbr) = MapToGeo(RandVal3,P)
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
         IF (.NOT. DoRefMapping) THEN
           IF (TriaTracking) THEN
@@ -830,7 +830,7 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
       ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
       IF (ParticleIndexNbr.NE.0) THEN
         CALL TensorProductInterpolation(RandVal3,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
-                           XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(ParticleIndexNbr,1:3))
+                           XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(1:3,ParticleIndexNbr))
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
         IF (.NOT. DoRefMapping) THEN
           IF (TriaTracking) THEN
@@ -861,7 +861,7 @@ __STAMP__&
           END DO
           Vec3D(distnum) = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
         END DO
-        PartState(ParticleIndexNbr,4:6) = Vec3D(1:3)
+        PartState(4:6,ParticleIndexNbr) = Vec3D(1:3)
         v_sum(1:3) = v_sum(1:3) + Vec3D(1:3)
         v2_sum = v2_sum + Vec3D(1)**2+Vec3D(2)**2+Vec3D(3)**2
       ELSE
@@ -881,7 +881,7 @@ __STAMP__&
     DO i = 1, NbrPartsInCell
       ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
       IF (ParticleIndexNbr .ne. 0) THEN
-        PartState(ParticleIndexNbr,4:6) = (PartState(ParticleIndexNbr,4:6) - v_sum(1:3)) * maxwellfac &  !macro velocity:
+        PartState(4:6,ParticleIndexNbr) = (PartState(4:6,ParticleIndexNbr) - v_sum(1:3)) * maxwellfac &  !macro velocity:
                                                                                       !=vi + VeloVecIC*(<p>-p_o)/(SQRT(a**2)*<n>*mt)
              + Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(iElem,1:3) + Species(iSpec)%Init(iInit)%VeloVecIC(1:3) &
              * (Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(iElem,5) - Species(iSpec)%Init(iInit)%ConstantPressure) &
@@ -944,8 +944,8 @@ IF (NbrPartsInCell .GT. 1) THEN ! Are there more than one particle
     END IF
     Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,1:3) &                !vi = vi + vi*w
          = Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,1:3) &
-         + PartState(iPartIndx,4:6) * WeightFak
-    Samp_V2(:)                      = Samp_V2(:) + PartState(iPartIndx,4:6)**2 * WeightFak !vi**2 =vi**2 + vi**2*W
+         + PartState(4:6,iPartIndx) * WeightFak
+    Samp_V2(:)                      = Samp_V2(:) + PartState(4:6,iPartIndx)**2 * WeightFak !vi**2 =vi**2 + vi**2*W
     MPFSum                          = MPFSum + WeightFak                                   !MPFsum = MPFsum + W
     PDM%ParticleInside(iPartIndx)=.false. !remove particle
   END DO
@@ -1052,17 +1052,17 @@ DO i=1,PDM%ParticleVecLength
 #endif /*USE_LOADBALANCE*/
     !ElemID = BC2AdaptiveElemMap(ElemID)
     iSpec = PartSpecies(i)
-    Source(1:3,ElemID, iSpec) = Source(1:3,ElemID,iSpec) + PartState(i,4:6) * GetParticleWeight(i)
-    Source(4:6,ElemID, iSpec) = Source(4:6,ElemID,iSpec) + PartState(i,4:6)**2 * GetParticleWeight(i)
+    Source(1:3,ElemID, iSpec) = Source(1:3,ElemID,iSpec) + PartState(4:6,i) * GetParticleWeight(i)
+    Source(4:6,ElemID, iSpec) = Source(4:6,ElemID,iSpec) + PartState(4:6,i)**2 * GetParticleWeight(i)
     Source(7,ElemID, iSpec) = Source(7,ElemID, iSpec) + 1.0  ! simulation particle number
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
         IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-          Source(8:9,ElemID, iSpec) = Source(8:9,ElemID, iSpec) + PartStateIntEn(i,1:2) * GetParticleWeight(i)
+          Source(8:9,ElemID, iSpec) = Source(8:9,ElemID, iSpec) + PartStateIntEn(1:2,i) * GetParticleWeight(i)
         END IF
       END IF
       IF (DSMC%ElectronicModel) THEN
-        Source(10,ElemID, iSpec) = Source(10,ElemID, iSpec) + PartStateIntEn(i,3) * GetParticleWeight(i)
+        Source(10,ElemID, iSpec) = Source(10,ElemID, iSpec) + PartStateIntEn(3,i) * GetParticleWeight(i)
       END IF
     END IF
     Source(11,ElemID, iSpec) = Source(11,ElemID, iSpec) + GetParticleWeight(i)

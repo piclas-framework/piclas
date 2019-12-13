@@ -80,10 +80,9 @@ SUBROUTINE UpdateSurfModelVars()
 !>    and need coverage info for adsorption calculation (mpi routines know which sides to communicate)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles, Species, nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall, PartBound, SurfCOMM
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall, PartBound
 USE MOD_TimeDisc_Vars          ,ONLY: tend,time
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -94,6 +93,7 @@ USE MOD_SurfaceModel_Tools     ,ONLY: SMCR_AdjustMapNum, IsReactiveSurface, Surf
 #if USE_MPI
 USE MOD_SurfaceModel_MPI       ,ONLY: ExchangeSurfaceHaloToOrigin, ExchangeSurfaceOriginToHalo, ExchangeSurfDistInfo
 USE MOD_SurfaceModel_MPI       ,ONLY: MapHaloInnerToOriginInnerSurf
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -132,7 +132,6 @@ IF (.NOT.KeepWallParticles) THEN
       CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%SurfaceNormalVelo(:,:,:,iSpec),AddFlag=.TRUE.)
       CALL MapHaloInnerToOriginInnerSurf(IntDataIN=Adsorption%CollSpecPartNum(:,:,:,iSpec),AddFlag=.TRUE.)
     END IF
-    CALL MapHaloInnerToOriginInnerSurf
     CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumAdsorbPart(:,:,:,iSpec),AddFlag=.TRUE.)
     CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumERDesorbed(:,:,:,iSpec),AddFlag=.TRUE.)
     CALL ExchangeSurfaceHaloToOrigin(RealDataIN=Adsorption%SurfaceNormalVelo(:,:,:,iSpec),AddFlag=.TRUE.)
@@ -149,7 +148,7 @@ IF (.NOT.KeepWallParticles) THEN
     IF (DSMC%ReservoirRateStatistic) SurfModel%Info(iSpec)%WallSpecNumCount = 0
 #endif
 !----- 2.
-    DO iSurfSide = 1,SurfMesh%nMasterSides
+    DO iSurfSide = 1,SurfMesh%nOutputSides
       IF (.NOT.IsReactiveSurface(iSurfSide)) CYCLE
       DO q = 1,nSurfSample
         DO p = 1,nSurfSample
@@ -231,7 +230,7 @@ IF (.NOT.KeepWallParticles) THEN
   END DO
 !----- 3.
   ! SumEvapPart is nullified in particle emission (surface flux) after inserting particles at corresponding surfaces
-  SurfModel%SumEvapPart(:,:,:,:) = SurfModel%SumEvapPart(:,:,:,:) + SurfModel%SumERDesorbed(:,:,1:SurfMesh%nMasterSides,:)
+  SurfModel%SumEvapPart(:,:,:,:) = SurfModel%SumEvapPart(:,:,:,:) + SurfModel%SumERDesorbed(:,:,1:SurfMesh%nOutputSides,:)
   SurfModel%SumERDesorbed(:,:,:,:) = 0
   SurfModel%SumDesorbPart(:,:,:,:) = 0
   SurfModel%SumAdsorbPart(:,:,:,:) = 0
@@ -245,7 +244,7 @@ CALL CalcAdsorbProb()
 CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-DO iSurfSide = 1,SurfMesh%nMasterSides ; DO q=1,nSurfSample ; DO p=1,nSurfSample
+DO iSurfSide = 1,SurfMesh%nOutputSides ; DO q=1,nSurfSample ; DO p=1,nSurfSample
   DO iSpec=1, nSpecies
     IF(Adsorption%CollSpecPartNum(p,q,iSurfSide,iSpec).GT.50) THEN
       Adsorption%IncidentNormalVeloAtSurf(p,q,iSurfSide,iSpec) = &
@@ -278,31 +277,31 @@ CALL ExchangeSurfDistInfo()
 END SUBROUTINE UpdateSurfModelVars
 
 
-SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi,eta,PartID,sideID_IN,flip,IsSpeciesSwap,&
-                              ReflectionIndex,BCSideID,Opt_Reflected,TriNum)
+SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi,eta,PartID,sideID_IN,n_Loc,IsSpeciesSwap,&
+                              ReflectionIndex)
 !===================================================================================================================================
 !> Routine for Selection of Surface interaction
 !===================================================================================================================================
-USE MOD_Globals                ,ONLY: CROSSNORM,UNITVECTOR
-USE MOD_Globals_Vars           ,ONLY: PI
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
-USE MOD_Part_Tools             ,ONLY: VELOFROMDISTRIBUTION, CreateParticle
-USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues
-USE MOD_Particle_Vars          ,ONLY: PartState,Species,PartSpecies
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars          ,ONLY: LastPartPos, PEM
-USE MOD_Particle_Analyze       ,ONLY: RemoveParticle
-USE MOD_Mesh_Vars              ,ONLY: BC,NGeo
-USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_Particle_Boundary_Tools,ONLY: SurfaceToPartEnergyInternal, CalcWallSample, AnalyzeSurfaceCollisions
-USE MOD_Particle_Boundary_Tools,ONLY: TSURUTACONDENSCOEFF, AddPartInfoToSample
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall, CalcSurfaceImpact
-USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time, dt, RKdtFrac
-USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType,BezierControlPoints3D
-USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, ModelERSpecular, SurfModel
-USE MOD_SMCR                   ,ONLY: SMCR_PartAdsorb
-USE MOD_SEE                    ,ONLY: SecondaryElectronEmission
+USE MOD_Globals                 ,ONLY: CROSSNORM,UNITVECTOR,OrthoNormVec
+USE MOD_Globals_Vars            ,ONLY: PI
+USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
+USE MOD_Part_Tools              ,ONLY: VeloFromDistribution, CreateParticle
+USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
+USE MOD_Particle_Vars           ,ONLY: PartState,Species,PartSpecies
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars           ,ONLY: LastPartPos, PEM
+USE MOD_Particle_Analyze        ,ONLY: RemoveParticle
+USE MOD_Mesh_Vars               ,ONLY: BC
+USE MOD_DSMC_Vars               ,ONLY: DSMC
+USE MOD_Particle_Boundary_Tools ,ONLY: SurfaceToPartEnergyInternal, CalcWallSample, AnalyzeSurfaceCollisions
+USE MOD_Particle_Boundary_Tools ,ONLY: AddPartInfoToSample
+USE MOD_Part_Tools              ,ONLY: TSURUTACONDENSCOEFF
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall, CalcSurfaceImpact
+USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time, dt, RKdtFrac
+USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_SurfaceModel_Vars       ,ONLY: Adsorption, ModelERSpecular, SurfModel
+USE MOD_SMCR                    ,ONLY: SMCR_PartAdsorb
+USE MOD_SEE                     ,ONLY: SecondaryElectronEmission
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -310,15 +309,12 @@ IMPLICIT NONE
 INTEGER,INTENT(INOUT)       :: ReflectionIndex !< has to be set to 1: diffuse , 2: perfect reflection, or 3: reaction
 REAL,INTENT(INOUT)          :: PartTrajectory(1:3), LengthPartTrajectory, alpha
 REAL,INTENT(IN)             :: xi, eta
+REAL,INTENT(IN)             :: n_loc(1:3)
 INTEGER,INTENT(IN)          :: PartID
 INTEGER,INTENT(IN)          :: sideID_IN
-INTEGER,INTENT(IN)          :: flip
 LOGICAL,INTENT(IN)          :: IsSpeciesSwap
-INTEGER,INTENT(IN),OPTIONAL :: BCSideID
-INTEGER,INTENT(IN),OPTIONAL :: TriNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-LOGICAL,INTENT(OUT),OPTIONAL :: Opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: ProductSpec(2)   !< 1: product species of incident particle (also used for simple reflection)
@@ -328,7 +324,7 @@ INTEGER                          :: ProductSpec(2)   !< 1: product species of in
                                                           !< with respective species
 INTEGER                          :: ProductSpecNbr   !< number of emitted particles for ProductSpec(1)
 CHARACTER(30)                    :: velocityDistribution(2)   !< specifying keyword for velocity distribution
-REAL                             :: TempErgy(2)               !< temperature, energy or velocity used for velofromdistribution
+REAL                             :: TempErgy(2)               !< temperature, energy or velocity used for VeloFromDistribution
 REAL                             :: reactionEnthalpy     !< negative: transferred to surface / positive: transferred from surface
 LOGICAL                          :: SampledEnthalpy
 REAL                             :: PartTrajectory2(1:3)
@@ -336,7 +332,7 @@ INTEGER                          :: NewPartID
 REAL                             :: RanNum
 REAL                             :: Xitild,EtaTild
 INTEGER                          :: p,q
-REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
+REAL                             :: tang1(1:3),tang2(1:3)
 REAL                             :: Adsorption_prob, Recombination_prob
 INTEGER                          :: SurfSideID, SpecID
 REAL                             :: Norm_velo
@@ -368,43 +364,7 @@ INTEGER                          :: iNewPart ! particle counter for newly create
 ! 1.) Initial surface checks
 ! find normal vector two perpendicular tangential vectors (normal_vector points outwards !!!)
 !===================================================================================================================================
-IF(PRESENT(BCSideID))THEN
-  SELECT CASE(SideType(BCSideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-    n_loc=SideNormVec(1:3,BCSideID)
-    tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,BCSideID)-BezierControlPoints3D(:,0,0,BCSideID))
-    tang2=CROSSNORM(n_loc,tang1)
-  CASE(BILINEAR)
-    CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
-  CASE(CURVED)
-    CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
-  END SELECT
-ELSE
-  IF (TriaTracking) THEN
-    CALL CalcNormAndTangTriangle(nVec=n_loc,tang1=tang1,tang2=tang2,TriNum=TriNum,SideID=sideID_IN)
-  ELSE
-    SELECT CASE(SideType(sideID_IN))
-    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      n_loc=SideNormVec(1:3,sideID_IN)
-        tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,sideID_IN)-BezierControlPoints3D(:,0,0,sideID_IN))
-        tang2=CROSSNORM(n_loc,tang1)
-    CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,sideID_IN)
-    CASE(CURVED)
-      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,sideID_IN)
-    END SELECT
-    IF(flip.NE.0) n_loc=-n_loc
-  END IF
-END IF
-
-! check if BC was already crossed
-IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
-  IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
-  ReflectionIndex = -2 ! default for performing double check. particle moves away from surface not onto surface
-  RETURN
-ELSE
-  IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
-END IF
+CALL OrthoNormVec(n_loc,tang1,tang2)
 
 ! additional states
 locBCID=PartBound%MapToPartBC(BC(sideID_IN))
@@ -502,7 +462,7 @@ CASE (2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (3)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  Norm_velo = DOT_PRODUCT(PartState(PartID,4:6),n_loc(1:3))
+  Norm_velo = DOT_PRODUCT(PartState(4:6,PartID),n_loc(1:3))
   CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_velo,ReflectionIndex,ProductSpec,reactionEnthalpy)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (4)
@@ -533,7 +493,7 @@ CASE (102) ! calculate condensation probability by tsuruta2005 and reflection di
 !-----------------------------------------------------------------------------------------------------------------------------------
   ReflectionIndex = 3
   velocityDistribution(1)='liquid_refl'
-  Norm_velo = DOT_PRODUCT(PartState(PartID,4:6),n_loc(1:3))
+  Norm_velo = DOT_PRODUCT(PartState(4:6,PartID),n_loc(1:3))
   CALL RANDOM_NUMBER(RanNum)
   IF ( (TSURUTACONDENSCOEFF(SpecID,Norm_velo,WallTemp).GE.RanNum) ) THEN
     ProductSpec(1) = -SpecID
@@ -613,17 +573,17 @@ CASE(3) ! reactive interaction case
   CALL AnalyzeSurfaceCollisions(PartID,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
 
   IF (ProductSpec(1).LE.0) THEN
-    CALL RemoveParticle(PartID,alpha=alpha,crossedBC=Opt_Reflected)
+    CALL RemoveParticle(PartID,alpha=alpha)
   ELSE
-    oldVelo(1:3) = PartState(PartID,4:6)
+    oldVelo(1:3) = PartState(4:6,PartID)
     IF(TRIM(velocityDistribution(1)).NE.'') THEN
       ! sample new velocity for reflected particle
-      NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(1),ProductSpec(1),TempErgy(1))
+      NewVelo(1:3) = VeloFromDistribution(velocityDistribution(1),ProductSpec(1),TempErgy(1))
       ! important: n_loc points outwards
-      PartState(PartID,4:6) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
+      PartState(4:6,PartID) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
       ! intersection point with surface
-      LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
+      LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
       ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
       TildTrajectory=dt*RKdtFrac*oldVelo(1:3)
       POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
@@ -631,7 +591,7 @@ CASE(3) ! reactive interaction case
       IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
 
       ! recompute trajectory etc
-      PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * PartState(PartID,4:6)
+      PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * PartState(4:6,PartID)
     ELSE
       IF (PartBound%MomentumACC(locBCID).GT.0.0 .AND. .NOT.ModelERSpecular) THEN
         ! diffuse reflection
@@ -661,17 +621,17 @@ CASE(3) ! reactive interaction case
         NewVelo(1:3) = NewVelo(1:3) * (Species(ProductSpec(1))%MassIC/Species(SpecID)%MassIC)
       END IF
       ! intersection point with surface
-      LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
+      LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
       ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
       TildTrajectory=dt*RKdtFrac*oldVelo(1:3)
       POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
       ! travel rest of particle vector
       IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
-      PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3)
+      PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3)
       !----  saving new particle velocity
-      PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
+      PartState(4:6,PartID)   = NewVelo(1:3) + WallVelo(1:3)
     END IF
-    PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+    PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
     lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
     PartTrajectory=PartTrajectory/lengthPartTrajectory
 
@@ -691,13 +651,13 @@ CASE(3) ! reactive interaction case
       SurfModel%Info(ProductSpec(2))%NumOfDes = SurfModel%Info(ProductSpec(2))%NumOfDes + 1
       ! create new particle and assign correct energies
       ! sample newly created velocity
-      NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),ProductSpec(2),TempErgy(2))
+      NewVelo(1:3) = VeloFromDistribution(velocityDistribution(2),ProductSpec(2),TempErgy(2))
       ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
       NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
       PartTrajectory2=UNITVECTOR(NewVelo(1:3))
 
-      CALL CreateParticle(ProductSpec(2),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
+      CALL CreateParticle(ProductSpec(2),LastPartPos(1:3,PartID),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
       ! Adding the energy that is transferred from the surface onto the internal energies of the particle
       CALL SurfaceToPartEnergyInternal(NewPartID,WallTemp)
 

@@ -52,7 +52,8 @@ INTEGER                       :: SelectionProc              ! Mode of Selection 
 INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for energy redistribution
                                                             ! 2: partical with minimal MPF of this Pair
 LOGICAL                       :: useDSMC
-REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! (npartmax,1:3) with 2nd index: Evib, Erot, Eel
+REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! 1st index: 1:npartmax 
+!                                                           ! 2nd index: Evib, Erot, Eel
 
 LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
 
@@ -71,9 +72,11 @@ TYPE tRadialWeighting
   REAL                        :: PartScaleFactor
   INTEGER                     :: NextClone
   INTEGER                     :: CloneDelayDiff
-  LOGICAL                     :: DoRadialWeighting              ! Enables radial weighting in the axisymmetric simulations
-  INTEGER                     :: CloneMode                      ! 1 = Clone Delay
-                                                                ! 2 = Clone Random Delay
+  LOGICAL                     :: DoRadialWeighting          ! Enables radial weighting in the axisymmetric simulations
+  LOGICAL                     :: PerformCloning             ! Flag whether the cloning/deletion routine should be performed,
+                                                            ! when using radial weighting (e.g. no cloning for the BGK/FP methods)
+  INTEGER                     :: CloneMode                  ! 1 = Clone Delay
+                                                            ! 2 = Clone Random Delay
   INTEGER, ALLOCATABLE        :: ClonePartNum(:)
   INTEGER                     :: CloneInputDelay
   LOGICAL                     :: CellLocalWeighting
@@ -105,7 +108,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   TYPE(tSpecInit),ALLOCATABLE :: Init(:) !   =>NULL()
   TYPE(tSpecInit),ALLOCATABLE :: Surfaceflux(:)
   LOGICAL                     :: PolyatomicMol             ! Species is a polyatomic molecule
-  INTEGER                     :: SpecToPolyArray           ! 
+  INTEGER                     :: SpecToPolyArray           !
   CHARACTER(LEN=64)           :: Name                      ! Species Name, required for DSMCSpeciesElectronicDatabase
   INTEGER                     :: InterID                   ! Identification number (e.g. for DSMC_prob_calc), ini_2
                                                            !     1   : Atom
@@ -120,15 +123,15 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
                                                            !     400 : Excited molecular ion
   REAL                        :: Tref                      ! collision model: reference temperature     , ini_2
   REAL                        :: dref                      ! collision model: reference diameter        , ini_2
-  REAL                        :: omegaLaux                 ! collision model: temperature exponent      , ini_2 
-  REAL                        :: alphaVSS                  ! collision model: scattering exponent(VSS)  , ini_2 
+  REAL                        :: omegaLaux                 ! collision model: temperature exponent      , ini_2
+  REAL                        :: alphaVSS                  ! collision model: scattering exponent(VSS)  , ini_2
   INTEGER                     :: NumOfPro                  ! Number of Protons, ini_2
   REAL                        :: Eion_eV                   ! Energy of Ionisation in eV, ini_2
   REAL                        :: RelPolarizability         ! relative polarizability, ini_2
   INTEGER                     :: NumEquivElecOutShell      ! number of equivalent electrons in outer shell, ini2
-  INTEGER                     :: Xi_Rot                    ! Rotational DOF 
-  REAL                        :: GammaVib                  ! GammaVib = Xi_Vib(T_t)² * exp(CharaTVib/T_t) / 2 -> correction fact 
-                                                           ! for vib relaxation -> see 'Vibrational relaxation rates 
+  INTEGER                     :: Xi_Rot                    ! Rotational DOF
+  REAL                        :: GammaVib                  ! GammaVib = Xi_Vib(T_t)² * exp(CharaTVib/T_t) / 2 -> correction fact
+                                                           ! for vib relaxation -> see 'Vibrational relaxation rates
                                                            ! in the DSMC method', Gimelshein et al., 2002
   REAL                        :: CharaTVib                 ! Charac vibrational Temp, ini_2
   REAL                        :: Ediss_eV                  ! Energy of Dissosiation in eV, ini_2
@@ -142,9 +145,9 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                        :: ElecRelaxProb             ! electronic relaxation probability
                                                            !this should be a value for every transition, and not fix!
   REAL                        :: VFD_Phi3_Factor           ! Factor of Phi3 in VFD Method: Phi3 = 0 => VFD -> TCE, ini_2
-  REAL                        :: CollNumRotInf             ! Collision number for rotational relaxation according to Parker or 
+  REAL                        :: CollNumRotInf             ! Collision number for rotational relaxation according to Parker or
                                                            ! Zhang, ini_2 -> model dependent!
-  REAL                        :: TempRefRot                ! Reference temperature for rotational relaxation according to Parker or 
+  REAL                        :: TempRefRot                ! Reference temperature for rotational relaxation according to Parker or
                                                            ! Zhang, ini_2 -> model dependent!
   REAL, ALLOCATABLE           :: MW_ConstA(:)              ! Model Constant 'A' of Milikan-White Model for vibrational relax, ini_2
   REAL, ALLOCATABLE           :: MW_ConstB(:)              ! Model Constant 'B' of Milikan-White Model for vibrational relax, ini_2
@@ -159,19 +162,27 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL,ALLOCATABLE,DIMENSION(:,:,:) :: ElectronicTransition! counter for electronic transition from state i to j
 #endif
 #endif
-  REAL,ALLOCATABLE,DIMENSION(:,:)   :: ElectronicState     ! Array with electronic State for each species
-                                                           ! first  index: 1 - degeneracy & 2 - char. Temp,el
-                                                           ! second index: energy level
-  INTEGER                       :: SymmetryFactor
-  REAL                          :: CharaTRot
-  REAL, ALLOCATABLE             :: PartitionFunction(:)    ! Partition function for each species in given temperature range
-  REAL                          :: EZeroPoint              ! Zero point energy for molecules
-  REAL                          :: HeatOfFormation         ! Heat of formation of the respective species [Kelvin]
-  INTEGER                       :: PreviousState           ! Species number of the previous state (e.g. N for NIon)
-  LOGICAL                       :: FullyIonized            ! Flag if the species is fully ionized (e.g. C^6+)
-  INTEGER                       :: NextIonizationSpecies   ! SpeciesID of the next higher ionization level (required for field
-                                                           ! ionization)
-
+  REAL,ALLOCATABLE,DIMENSION(:,:)   :: ElectronicState      ! Array with electronic State for each species
+                                                            ! first  index: 1 - degeneracy & 2 - char. Temp,el
+                                                            ! second index: energy level
+  INTEGER                           :: SymmetryFactor
+  REAL                              :: CharaTRot
+  REAL, ALLOCATABLE                 :: PartitionFunction(:) ! Partition function for each species in given temperature range
+  REAL                              :: EZeroPoint           ! Zero point energy for molecules
+  REAL                              :: HeatOfFormation      ! Heat of formation of the respective species [Kelvin]
+  INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
+  LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
+  INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
+!                                                           ! ionization)
+  ! Collision cross-sections for MCC
+  LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
+                                                            ! treated with read-in collision cross-section (currently only with BGG)
+  REAL,ALLOCATABLE                  :: CollXSec(:,:)        ! Collision cross-section as read-in from the database
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: Cross-section at the respective energy level [m^2]
+  REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
+                                                            ! null collision method of MCC
+  REAL                              :: MaxCollFreq          ! Maximal collision frequency at certain energy level and cross-section
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE :: SpecDSMC(:)             ! Species DSMC params (nSpec)
@@ -189,10 +200,10 @@ TYPE tDSMC
   LOGICAL                       :: ReservoirSimu           ! Flag for reservoir simulation
   LOGICAL                       :: ReservoirSimuRate       ! Does not perform the collision.
                                                            ! Switch to enable to create reaction rates curves
-  LOGICAL                       :: ReservoirSurfaceRate    ! Switch enabling surface rate output without changing surface coverages                                                          
+  LOGICAL                       :: ReservoirSurfaceRate    ! Switch enabling surface rate output without changing surface coverages
   LOGICAL                       :: ReservoirRateStatistic  ! if false, calculate the reaction coefficient rate by the probability
                                                            ! Default Value is false
-  INTEGER                       :: VibEnergyModel          ! Model for vibration Energy: 
+  INTEGER                       :: VibEnergyModel          ! Model for vibration Energy:
                                                            !       0: SHO (default value!)  Simple Harmonic Oscillator
                                                            !       1: TSHO                  Truncated Simple Harmonic Oscillator
   LOGICAL                       :: DoTEVRRelaxation        ! Flag for T-V-E-R or more simple T-V-R T-E-R relaxation
@@ -277,6 +288,10 @@ END TYPE tBGGas
 
 TYPE(tBGGas)                    :: BGGas
 
+LOGICAL                             :: UseMCC
+CHARACTER(LEN=256)                  :: MCC_Database
+INTEGER                             :: MCC_TotalPairNum
+
 TYPE tPairData
   REAL                          :: CRela2                       ! squared relative velo of the particles in a pair
   REAL                          :: Prob                         ! collision probability
@@ -294,25 +309,27 @@ END TYPE tPairData
 
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)                ! Data of collision pairs into a cell (nPair)
 
-TYPE tCollInf     ! Collision information 
-  INTEGER                       :: crossSectionConstantMode     ! Flags how cross section constant Cab(Laux1996) is calculated. 
+TYPE tCollInf     ! Collision information
+  INTEGER                       :: crossSectionConstantMode     ! Flags how cross section constant Cab(Laux1996) is calculated.
                                                                 ! sigma=Cab * cr^(-2 omega).
                                                                 !   0: single omega for the computational domain + A_j calculation
                                                                 !   1: Cab will be calculated via species-specific factor A_j
                                                                 !   2: Cab will be calculated directly see Bird1981 eq (9)
   LOGICAL                       :: averagedCollisionParameters  ! Flags if coll-specific(F) or -averaged(T) collision parameters:
                                                                 ! Tref, dref, omegaLaux, alphaVSS
+  INTEGER       , ALLOCATABLE   :: collidingSpecies(:,:)        ! Contains colliding species ini file IDs. e.g. collision #iColl
+                                                                ! are Species1 and Species2: collidingSpecies(iColl,:)=(/1,2/)
   INTEGER       , ALLOCATABLE   :: Coll_Case(:,:)               ! Case of species combination (Spec1, Spec2)
   INTEGER                       :: NumCase                      ! number of possible collision combinations
-  INTEGER       , ALLOCATABLE   :: Coll_CaseNum(:)              ! number of simulated species combinations per cell Sab (number of cases)
+  INTEGER       , ALLOCATABLE   :: Coll_CaseNum(:)              ! number of simulated species combinations per cell Sab (#of cases)
   REAL          , ALLOCATABLE   :: Coll_SpecPartNum(:)          ! number of simulated particles of species n per cell (nSpec)
-  REAL          , ALLOCATABLE   :: crossSectionConstantCab(:)   ! species factor for cross section (number of case)
+  REAL          , ALLOCATABLE   :: crossSectionConstantCab(:)   ! species factor for cross section (#of case)
   INTEGER       , ALLOCATABLE   :: KronDelta(:)                 ! (number of case)
   REAL          , ALLOCATABLE   :: FracMassCent(:,:)            ! mx/(my+mx) (nSpec, number of cases)
   REAL          , ALLOCATABLE   :: MeanMPF(:)
   REAL          , ALLOCATABLE   :: MassRed(:)                   ! reduced mass (number of cases)
-  REAL          , ALLOCATABLE   :: Tref(:,:)                    ! collision model: reference temperature     , ini_2 
-  REAL          , ALLOCATABLE   :: dref(:,:)                    ! collision model: reference diameter        , ini_2 
+  REAL          , ALLOCATABLE   :: Tref(:,:)                    ! collision model: reference temperature     , ini_2
+  REAL          , ALLOCATABLE   :: dref(:,:)                    ! collision model: reference diameter        , ini_2
   REAL          , ALLOCATABLE   :: omegaLaux(:,:)               ! collision model: temperature exponent      , ini_2
   REAL          , ALLOCATABLE   :: alphaVSS(:,:)                ! collision model: scattering exponent (VSS) , ini_2
   LOGICAL                       :: ProhibitDoubleColl = .FALSE.
@@ -344,7 +361,7 @@ END TYPE
 
 TYPE(tMacroDSMC), ALLOCATABLE    :: MacroDSMC(:,:)         ! DSMC sample array (number of Elements, nSpec)
 
-TYPE tReactInfo  
+TYPE tReactInfo
    REAL,  ALLOCATABLE            :: Xi_Total(:,:)          ! Total DOF of Reaction (quant num part1, quant num part2)
    REAL,  ALLOCATABLE            :: Beta_Diss_Arrhenius(:,:) ! Beta_d for calculation of the Dissociation probability
                                                            ! (quant num part1, quant num part2)
@@ -362,7 +379,7 @@ END TYPE
 
 TYPE tChemReactions
   INTEGER                        :: NumOfReact             ! Number of possible Reactions
-  TYPE(tArbDiss), ALLOCATABLE    :: ArbDiss(:)             ! 
+  TYPE(tArbDiss), ALLOCATABLE    :: ArbDiss(:)             !
   LOGICAL, ALLOCATABLE           :: QKProcedure(:)         ! Defines if QK Procedure is selected
   INTEGER, ALLOCATABLE           :: QKMethod(:)            ! Recombination method for Q-K model (1 by Bird / 2 by Gallis)
   REAL,ALLOCATABLE,DIMENSION(:,:):: QKCoeff                ! QKRecombiCoeff for Birds method
@@ -383,7 +400,7 @@ TYPE tChemReactions
                                                            !  1-3 specieses of reactants and products,
                                                            !  0: no species -> only 2 reactants or products)
   INTEGER, ALLOCATABLE           :: ReactCase(:,:)         ! Case of reaction in combination of (spec1, spec2)
-  INTEGER, ALLOCATABLE           :: ReactNum(:,:,:)        ! Number of Reaction of (spec1, spec2, 
+  INTEGER, ALLOCATABLE           :: ReactNum(:,:,:)        ! Number of Reaction of (spec1, spec2,
                                                            ! Case 1: Recomb: func. of species 3
                                                            ! Case 2: dissociation, only 1
                                                            ! Case 3: exchange reaction, only 1
@@ -425,18 +442,7 @@ TYPE tChemReactions
    TYPE(tReactInfo), ALLOCATABLE :: ReactInfo(:)           ! Informations of Reactions (nReactions)
 END TYPE
 
-TYPE tTreeNode
-!  TYPE (tTreeNode), POINTER     :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
-  TYPE (tTreeNode), POINTER      :: ChildNode       => null()       !8 Childnodes of Octree Treenode
-  REAL                           :: MidPoint(1:3)          ! approx Middle Point of Treenode
-  INTEGER                        :: PNum_Node              ! Particle Number of Treenode
-  INTEGER, ALLOCATABLE           :: iPartIndx_Node(:)      ! Particle Index List of Treenode
-  REAL, ALLOCATABLE              :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
-  REAL                           :: NodeVolume(8)
-  INTEGER                        :: NodeDepth
-END TYPE
-
-TYPE(tChemReactions)             :: ChemReac
+TYPE(tChemReactions)              :: ChemReac
 
 
 TYPE tQKAnalytic
@@ -629,9 +635,21 @@ END TYPE tHODSMC
 
 TYPE(tHODSMC)             :: HODSMC
 REAL,ALLOCATABLE          :: DSMC_HOSolution(:,:,:,:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
+REAL,ALLOCATABLE          :: DSMC_VolumeSample(:)         !sampnum samples of volume in element
 
-TYPE tElemNodeVolumes
-    TYPE (tNodeVolume), POINTER             :: Root => null()
+LOGICAL                   :: ConsiderVolumePortions       ! Flag set in case volume portions are required, enables MC volume calc
+
+TYPE tTreeNode
+!  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
+  TYPE (tTreeNode), POINTER       :: ChildNode       => null()       !8 Childnodes of Octree Treenode
+  REAL                            :: MidPoint(1:3)          ! approx Middle Point of Treenode
+  INTEGER                         :: PNum_Node              ! Particle Number of Treenode
+  INTEGER, ALLOCATABLE            :: iPartIndx_Node(:)      ! Particle Index List of Treenode
+  REAL, ALLOCATABLE               :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
+  LOGICAL, ALLOCATABLE            :: MatchedPart(:)         ! Flag signaling that mapped particle is inside of macroparticle
+  REAL                            :: NodeVolume(8)
+  INTEGER                         :: NodeDepth
+  REAL                            :: MPNodeVolumePortion(8)
 END TYPE
 
 TYPE tNodeVolume
@@ -644,8 +662,14 @@ TYPE tNodeVolume
     TYPE (tNodeVolume), POINTER             :: SubNode7 => null()
     TYPE (tNodeVolume), POINTER             :: SubNode8 => null()
     REAL                                    :: Volume
+    REAL                                    :: MPVolumePortion
+    LOGICAL                                 :: MPVolumeDone=.FALSE.
     REAL                                    :: Area
     REAL,ALLOCATABLE                        :: PartNum(:,:)
+END TYPE
+
+TYPE tElemNodeVolumes
+    TYPE (tNodeVolume), POINTER             :: Root => null()
 END TYPE
 
 TYPE (tElemNodeVolumes), ALLOCATABLE        :: ElemNodeVol(:)

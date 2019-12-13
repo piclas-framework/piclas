@@ -68,7 +68,7 @@ CALL prms%CreateLogicalOption(  'Surf-CalcCollCounter'  , 'Analyze the number of
 CALL prms%CreateLogicalOption(  'Surf-CalcDesCounter'   , 'Analyze the number of desorbed particles per species','.FALSE.')
 CALL prms%CreateLogicalOption(  'Surf-CalcAdsProb'      , 'Analyze the mean probabilty for adsorption per species','.FALSE.')
 CALL prms%CreateLogicalOption(  'Surf-CalcDesProb'      , 'Analyze the mean probablity for desorption per species','.FALSE.')
-#if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
+#if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==43)
 CALL prms%CreateLogicalOption(  'Surf-CalcNumSpec'      , 'Analyze the number of simulated particles per species on surfaces'&
                                                           ,'.FALSE.')
 CALL prms%CreateLogicalOption(  'Surf-CalcCoverage'     , 'Analyze the mean surface coverages for each species','.FALSE.')
@@ -128,7 +128,7 @@ DoSurfModelAnalyze = .FALSE.
 CalcCollCounter = GETLOGICAL('Surf-CalcCollCounter')
 CalcDesCounter = GETLOGICAL('Surf-CalcDesCounter')
 
-#if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
+#if (PP_TimeDiscMethod==42 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==43)
 CalcSurfNumSpec = GETLOGICAL('Surf-CalcNumSpec')
 CalcSurfCoverage = GETLOGICAL('Surf-CalcCoverage')
 #if (PP_TimeDiscMethod==42)
@@ -222,13 +222,13 @@ REAL,ALLOCATABLE    :: AdsorptionActE(:), ProperAdsorptionActE(:), Adsorptionnu(
 REAL,ALLOCATABLE    :: SurfaceActE(:), ProperSurfaceActE(:), Surfacenu(:), ProperSurfacenu(:)
 REAL,ALLOCATABLE    :: HeatFlux(:,:), AdsReactCount(:), DesReactCount(:)
 #endif
-#if (PP_TimeDiscMethod ==42) || (PP_TimeDiscMethod ==4)
+#if (PP_TimeDiscMethod ==42) || (PP_TimeDiscMethod ==4) || PP_TimeDiscMethod==43
 INTEGER(KIND=8)     :: WallNumSpec(nSpecies), WallNumSpec_SurfDist(nSpecies)
 REAL                :: WallCoverage(nSpecies)
 #endif
 !===================================================================================================================================
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
-IF (SurfMesh%nMasterSides.EQ.0) RETURN
+IF (SurfMesh%nOutputSides.EQ.0) RETURN
   isRestart = .FALSE.
   IF ( DoRestart ) THEN
     isRestart = .TRUE.
@@ -271,7 +271,7 @@ IF (SurfMesh%nMasterSides.EQ.0) RETURN
         IF (CalcDesProb) THEN
           CALL WriteDataHeaderInfo(unit_index,'MeanDesProb-Spec',OutputCounter,nSpecies)
         END IF
-#if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
+#if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4) || PP_TimeDiscMethod==43
         IF (doDistributionData) THEN
           IF (CalcSurfNumSpec) THEN
             CALL WriteDataHeaderInfo(unit_index,'nSimPart-Wall-Spec',OutputCounter,nSpecies)
@@ -533,7 +533,7 @@ IF (CalcCollCounter) CALL GetCollCounter(SurfCollNum,AdsorptionNum) !collision c
 IF (CalcDesCounter) CALL GetDesCounter(DesorptionNum)
 IF (CalcAdsProb) CALL GetAdsProb(MeanAdsorptionProb)
 IF (CalcDesProb) CALL GetDesProb(MeanDesorptionProb)
-#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || PP_TimeDiscMethod==43
 IF (doDistributionData) THEN
   IF (CalcSurfNumSpec.OR.CalcSurfCoverage) CALL GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
 #if (PP_TimeDiscMethod==42)
@@ -611,7 +611,7 @@ IF (SurfCOMM%MPIOutputRoot) THEN
   IF (CalcDesProb) THEN
     CALL WriteDataInfo(unit_index,nSpecies,RealArray=MeanDesorptionProb(:))
   END IF
-#if ((PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4))
+#if ((PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4) || PP_TimeDiscMethod==43)
 ! output for adsorption
 IF (doDistributiondata) THEN
       IF (CalcSurfNumSpec) THEN
@@ -658,7 +658,7 @@ IF (doDistributiondata) THEN
       END IF
 #endif /*(PP_TimeDiscMethod==42)*/
     END IF
-#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42)*/
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || PP_TimeDiscMethod==43*/
     WRITE(unit_index,'(A)') ''
 #if USE_MPI
   END IF
@@ -934,7 +934,7 @@ END IF
 END SUBROUTINE GetDesProb
 
 
-#if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
+#if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4) || PP_TimeDiscMethod==43
 SUBROUTINE GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
 !===================================================================================================================================
 ! Calculate number of wallparticles for all species
@@ -980,7 +980,7 @@ WallNumSpec_tmp = 0.
 SubWallNumSpec = 0.
 
 DO iSpec=1,nSpecies
-DO iSurfSide=1,SurfMesh%nMasterSides
+DO iSurfSide=1,SurfMesh%nOutputSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%Reactive(PartboundID)) THEN
@@ -1017,8 +1017,8 @@ DO iSurfSide=1,SurfMesh%nMasterSides
   END IF
 END DO
 END DO
-IF (CalcSurfCoverage .AND. SurfMesh%nMasterSides.GT.0) THEN
-  WallCoverage(:) = Coverage(:) / (SurfMesh%nMasterSides*nSurfSample*nSurfSample)
+IF (CalcSurfCoverage .AND. SurfMesh%nOutputSides.GT.0) THEN
+  WallCoverage(:) = Coverage(:) / (SurfMesh%nOutputSides*nSurfSample*nSurfSample)
 END IF
 
 #if USE_MPI
@@ -1474,7 +1474,7 @@ END SELECT
 
 END SUBROUTINE AnalyzeSurfRates
 #endif /*(PP_TimeDiscMethod==42)*/
-#endif /*(PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)*/
+#endif /*(PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4) || PP_TimeDiscMethod==43*/
 
 #endif /*PARTICLES*/
 
