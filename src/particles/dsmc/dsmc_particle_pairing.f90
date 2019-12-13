@@ -229,7 +229,7 @@ USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision, SumVibRelaxProb
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
 USE MOD_DSMC_Vars             ,ONLY: SelectionProc, SpecDSMC, useRelaxProbCorrFactor
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, Symmetry2D
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, Symmetry
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -295,7 +295,7 @@ END IF
 
 DO iPair = 1, nPair
   IF(DSMC%UseNearestNeighbour) THEN
-    IF(Symmetry2D) THEN
+    IF(Symmetry%Order.EQ.2) THEN
       CALL FindNearestNeigh2D(iPartIndx_Node, nPart, iPair)
     ELSE
       CALL FindNearestNeigh(iPartIndx_Node, nPart, iPair)
@@ -402,7 +402,7 @@ USE MOD_DSMC_Vars             ,ONLY: Coll_pData,DSMC
 USE MOD_DSMC_Vars             ,ONLY: SamplingActive,CollInf
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, WriteMacroVolumeValues, PartMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_DSMC_Symmetry2D,        ONLY: CalcRadWeightMPF
+USE MOD_DSMC_Symmetry         ,ONLY: CalcRadWeightMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1088,7 +1088,7 @@ SUBROUTINE DSMC_init_octree()
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : ElemNodeVol
   USE MOD_Mesh_Vars,              ONLY : nElems
-  USE MOD_Particle_Vars,          ONLY : Symmetry2D
+  USE MOD_Particle_Vars,          ONLY : Symmetry
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1105,7 +1105,7 @@ SUBROUTINE DSMC_init_octree()
   DO iElem = 1, nElems
     ALLOCATE(ElemNodeVol(iElem)%Root)
     DO NodeDepth = 1, 2
-      IF (Symmetry2D) THEN
+      IF (Symmetry%Order.EQ.2) THEN
         CALL DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
         !CALL CalcSubNodeMPVolumePortions(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
       ELSE
@@ -1640,7 +1640,7 @@ RECURSIVE SUBROUTINE AddNodeVolumes2D(NodeDepth, Node, DetJac, VdmLocal, iElem, 
 ! MODULES
 USE MOD_Globals_Vars    ,ONLY: Pi
 USE MOD_DSMC_Vars       ,ONLY: tOctreeVdm, tNodeVolume
-USE MOD_Particle_Vars   ,ONLY: Symmetry2DAxisymmetric
+USE MOD_Particle_Vars   ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1727,7 +1727,7 @@ ELSE
       realDirY = dirY
     END IF
   END DO; END DO
-  IF (Symmetry2DAxisymmetric) THEN
+  IF (Symmetry%Axisymmetric) THEN
     Node%Volume = DetJac(1, realDirX, realDirY) * VdmLocal%wGP**2 * 2. * Pi * Pos(2)
   ELSE
     Node%Volume = DetJac(1, realDirX, realDirY) * VdmLocal%wGP**2

@@ -56,7 +56,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile
 USE MOD_PIC_Vars
-USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,OutputVpiWarnings, Symmetry2DAxisymmetric
+USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,OutputVpiWarnings, Symmetry
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Globals_Vars           ,ONLY: PI, TwoepsMach
 USE MOD_Timedisc_Vars          ,ONLY: dt
@@ -139,7 +139,7 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
   IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
   IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) THEN
     DoExactPartNumInsert = .TRUE.
-    IF(Symmetry2DAxisymmetric) THEN
+    IF(Symmetry%Axisymmetric) THEN
       CALL abort(&
 __STAMP__&
 ,'Axisymmetric: Particle insertion only possible with PartDensity!')

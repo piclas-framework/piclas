@@ -376,7 +376,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo, SideToElem
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal, Symmetry2D, VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal, Symmetry, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
 USE MOD_DSMC_Analyze           ,ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
@@ -431,7 +431,7 @@ IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   END IF
 END IF
 DSMC%MergeSubcells = GETLOGICAL('Particles-DSMC-MergeSubcells','.FALSE.')
-IF(DSMC%MergeSubcells.AND.(.NOT.Symmetry2D)) THEN
+IF(DSMC%MergeSubcells.AND.(Symmetry%Order.NE.2)) THEN
   CALL abort(__STAMP__&
       ,'ERROR: Merging of subcells only supported within a 2D/axisymmetric simulation!')
 END IF
@@ -1176,21 +1176,21 @@ ELSE !CollisMode.GT.0
   DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
   IF(DSMC%UseOctree) THEN
     DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
-    IF((.NOT.Symmetry2D).AND.(.NOT.DSMC%UseNearestNeighbour)) THEN
+    IF((Symmetry%Order.NE.2).AND.(.NOT.DSMC%UseNearestNeighbour)) THEN
       CALL abort(&
           __STAMP__&
           ,'Statistical Pairing with Octree not yet supported in 3D!')
     END IF
   END IF
   ! If number of particles is greater than OctreePartNumNode, cell is going to be divided for performance of nearest neighbour
-  IF(Symmetry2D) THEN
+  IF(Symmetry%Order.EQ.2) THEN
     DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','40')
   ELSE
     DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
   END IF
   ! If number of particles is less than OctreePartNumNodeMin, cell is NOT going to be split even if mean free path is not resolved
   ! 3D: 50/8; 2D: 28/4 -> ca. 6-7 particles per cell
-  IF(Symmetry2D) THEN
+  IF(Symmetry%Order.EQ.2) THEN
     DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','28')
   ELSE
     DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','50')
@@ -1206,7 +1206,7 @@ ELSE !CollisMode.GT.0
         ,' Set PP_N to NGeo, else, the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
-  IF(Symmetry2D) THEN
+  IF(Symmetry%Order.EQ.2) THEN
     CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.TRUE.')
     IF (CollInf%ProhibitDoubleColl) THEN
       IF(.NOT.ALLOCATED(CollInf%OldCollPartner)) ALLOCATE(CollInf%OldCollPartner(1:PDM%maxParticleNumber))

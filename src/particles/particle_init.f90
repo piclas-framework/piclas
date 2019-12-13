@@ -1100,7 +1100,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_VarTimeStep   ,ONLY: VarTimeStep_CalcElemFacs
-USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
+USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
 USE MOD_part_RHS               ,ONLY: InitPartRHS
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 ! IMPLICIT VARIABLE HANDLING
@@ -1471,7 +1471,7 @@ ALLOCATE(SpecReset(1:nSpecies))
 SpecReset=.FALSE.
 nMacroRestartFiles = GETINT('Part-nMacroRestartFiles')
 IF (nMacroRestartFiles.GT.0) THEN
-  IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
     CALL abort(__STAMP__&
         ,'ERROR: Symmetry2D/Variable Time Step: Restart with a given DSMCHOState (Macroscopic restart) only possible with:\n'//&
          ' Particles-MacroscopicRestart = T \n Particles-MacroscopicRestart-Filename = Test_DSMCHOState.h5')
@@ -1636,7 +1636,7 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%ElemTVibFileID       = 0
       Species(iSpec)%Init(iInit)%ElemTRotFileID       = 0
       Species(iSpec)%Init(iInit)%ElemTElecFileID      = 0
-      IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+      IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
         CALL abort(__STAMP__&
             ,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
              'cell_local-SpaceIC and/or surface flux!')
@@ -2787,8 +2787,8 @@ CALL MarkMacroBodyElems()
 
 ! === 2D/Axisymmetric initialization
 ! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
-IF(Symmetry2D) CALL DSMC_2D_InitVolumes()
-IF(Symmetry2DAxisymmetric) THEN
+IF(Symmetry%Order.EQ.2) CALL DSMC_2D_InitVolumes()
+IF(Symmetry%Axisymmetric) THEN
   IF(RadialWeighting%DoRadialWeighting) THEN
     ! Initialization of RadialWeighting in 2D axisymmetric simulations
     RadialWeighting%PerformCloning = .TRUE.
@@ -2902,7 +2902,7 @@ END IF !nCollectChargesBCs .GT. 0
 IF (useDSMC) THEN
   BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
   IF (BGGas%BGGasSpecies.NE.0) THEN
-    IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
       CALL abort(&
       __STAMP__&
       ,'ERROR: 2D/Axisymmetric and variable timestep are not implemented with a background gas yet!')
@@ -2972,7 +2972,7 @@ IF(VarTimeStep%UseVariableTimeStep) THEN
       ,'ERROR: Variable time step is only supported with TriaTracking = T')
   END IF
   IF(VarTimeStep%UseLinearScaling) THEN
-    IF(Symmetry2D) THEN
+    IF(Symmetry%Order.LE.2) THEN
       ! 2D: particle-wise scaling in the radial direction, ElemFac array only utilized for the output of the time step
       ALLOCATE(VarTimeStep%ElemFac(nElems))
       VarTimeStep%ElemFac = 1.0

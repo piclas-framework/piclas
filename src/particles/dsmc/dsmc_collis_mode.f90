@@ -888,7 +888,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
   USE MOD_Globals,            ONLY : Abort
   USE MOD_DSMC_Vars,          ONLY : CollisMode, Coll_pData, SelectionProc
   USE MOD_DSMC_Vars,          ONLY : DSMC
-  USE MOD_Particle_Vars,      ONLY : PartState, WriteMacroVolumeValues, Symmetry2D
+  USE MOD_Particle_Vars,      ONLY : PartState, WriteMacroVolumeValues, Symmetry
   USE MOD_TimeDisc_Vars,      ONLY : TEnd, Time
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -908,7 +908,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 
   IF(DSMC%CalcQualityFactors) THEN
     IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-      IF(Symmetry2D) THEN
+      IF(Symmetry%Order.EQ.2) THEN
         Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
                        +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2)
       ELSE

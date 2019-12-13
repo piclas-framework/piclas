@@ -47,7 +47,7 @@ USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, DSMCSumOfFormedParticles, B
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC, CollInf
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Collis           ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
-USE MOD_Particle_Vars         ,ONLY: PDM, WriteMacroVolumeValues, Symmetry2D, PEM
+USE MOD_Particle_Vars         ,ONLY: PDM, WriteMacroVolumeValues, Symmetry, PEM
 USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
 USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
@@ -108,7 +108,7 @@ DO iElem = 1, nElems ! element/cell main loop
       CALL DSMC_pairing_bggas(iElem)
     ELSE IF (nPart.GT.1) THEN
       IF (DSMC%UseOctree) THEN
-        IF(Symmetry2D) THEN
+        IF(Symmetry%Order.EQ.2) THEN
           CALL DSMC_pairing_quadtree(iElem)
         ELSE
           CALL DSMC_pairing_octree(iElem)

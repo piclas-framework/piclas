@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_DSMC_Symmetry2D
+MODULE MOD_DSMC_Symmetry
 !===================================================================================================================================
 !> Routines for 2D (planar/axisymmetric) simulations
 !===================================================================================================================================
@@ -41,10 +41,14 @@ USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 
 CALL prms%SetSection("Particle Symmetry")
+CALL prms%CreateIntOption(    'Particles-Symmetry-Order',  &
+                              'Order of the Simulation 1, 2 or 3 D', '3')
 CALL prms%CreateLogicalOption('Particles-Symmetry2D', 'Activating a 2D simulation on a mesh with one cell in z-direction in the '//&
                               'xy-plane (y ranging from 0 to the domain boundaries)', '.FALSE.')
 CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh '//&
                               'requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-Symmetry1DSphericalsymmetric', 'Activating an sphrical symmetric simulation with the'//&
+                              ' same mesh requirements as for the 1D case and x ranging from 0 to the domain boundary', '.FALSE.')
 CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial weighting in y for the axisymmetric '//&
                               'simulation based on the particle position.', '.FALSE.')
 CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Axisymmetric radial weighting factor, defining '//&
@@ -77,7 +81,7 @@ USE MOD_Globals_Vars            ,ONLY: Pi
 USE MOD_PreProc                 ,ONLY: PP_N
 USE MOD_Mesh_Vars               ,ONLY: nElems, nBCSides, BC, SideToElem, SurfElem
 USE MOD_Interpolation_Vars      ,ONLY: wGP
-USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric
+USE MOD_Particle_Vars           ,ONLY: Symmetry
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
@@ -139,7 +143,7 @@ DO SideID=1,nBCSides
         GEO%CharLength(ElemID) = SQRT(GEO%Volume(ElemID))
         ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
         ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
-        IF (Symmetry2DAxisymmetric) THEN
+        IF (Symmetry%Axisymmetric) THEN
           radius = 0.
           DO iNode = 1, 4
             radius = radius + GEO%NodeCoords(2,GEO%ElemSideNodeID(iNode,iLocSide,ElemID))
@@ -468,7 +472,7 @@ REAL FUNCTION DSMC_2D_CalcSymmetryArea(iLocSide,iElem, ymin, ymax)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: Pi
-USE MOD_Particle_Vars         ,ONLY: Symmetry2DAxisymmetric
+USE MOD_Particle_Vars         ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -504,7 +508,7 @@ END IF
 Length = SQRT((Pmax(1)-Pmin(1))**2 + (Pmax(2)-Pmin(2))**2)
 
 MidPoint = (Pmax(2)+Pmin(2)) / 2.
-IF(Symmetry2DAxisymmetric) THEN
+IF(Symmetry%Axisymmetric) THEN
   DSMC_2D_CalcSymmetryArea = Length * MidPoint * Pi * 2.
   ! Area of the cells on the rotational symmetry axis is set to one
   IF(.NOT.(DSMC_2D_CalcSymmetryArea.GT.0.0)) DSMC_2D_CalcSymmetryArea = 1.
@@ -606,4 +610,4 @@ RETURN
 
 END FUNCTION CalcRadWeightMPF
 
-END MODULE MOD_DSMC_Symmetry2D
+END MODULE MOD_DSMC_Symmetry

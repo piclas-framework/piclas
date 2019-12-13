@@ -87,7 +87,7 @@ USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC, RadialWeighting
-USE MOD_Particle_Vars        ,ONLY: Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
+USE MOD_Particle_Vars        ,ONLY: Symmetry, VarTimeStep
 USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_Init
 USE MOD_ParticleInit         ,ONLY: InitParticles
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
@@ -118,6 +118,7 @@ LOGICAL,INTENT(IN)      :: IsLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: TimeStampLength
+LOGICAL                 :: Symmetry2D
 !===================================================================================================================================
 ! Get length of the floating number time stamp
 TimeStampLength = GETINT('TimeStampLength')
@@ -131,15 +132,40 @@ WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
 ! DSMC handling:
 useDSMC=GETLOGICAL('UseDSMC','.FALSE.')
 
-!--- Flags for planar/axisymmetric simulation (2D)
+!--- Flags for symmetric simulation 
+Symmetry%Order = GETINT('Particles-Symmetry-Order')
 Symmetry2D = GETLOGICAL('Particles-Symmetry2D')
-Symmetry2DAxisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
-IF(Symmetry2DAxisymmetric.AND.(.NOT.Symmetry2D)) THEN
-  Symmetry2D = .TRUE.
+IF(Symmetry2D.AND.(Symmetry%Order.EQ.3)) THEN
+  Symmetry%Order = 2
+  SWRITE(*,*) 'WARNING: Particles-Symmetry-Order is set to 2 because of Particles-Symmetry2D=.TRUE. .'
+  SWRITE(*,*) 'Set Particles-Symmetry-Order=2 and remove Particles-Symmetry2D to avoid this warning'
+ELSE
+  CALL ABORT(__STAMP__&
+    ,'ERROR: 2D Simulations either with Particles-Symmetry-Order=2 or (but not recommended) with Symmetry2D=.TRUE.')
 END IF
-IF(Symmetry2DAxisymmetric) THEN
+
+Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
+IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
+    ,'ERROR: Axissymmetric Simulations only for 1D or 2D')
+IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.1))CALL ABORT(__STAMP__&
+,'ERROR: Axissymmetric Simulations are only implemented for 2D yet')
+IF(Symmetry%Axisymmetric) THEN
   RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
 ELSE
+  RadialWeighting%DoRadialWeighting = .FALSE.
+  RadialWeighting%PerformCloning = .FALSE.
+  RadialWeighting%DoSphericalWeighting = .FALSE.
+END IF
+
+Symmetry%SphericalSymmetric = GETLOGICAL('Particles-Symmetry1DSphericalsymmetric')
+IF(Symmetry%SphericalSymmetric.AND.(Symmetry%Order.NE.1)) CALL ABORT(__STAMP__&
+,'ERROR: Spherical Simulation only for 1D')
+IF(Symmetry%SphericalSymmetric) THEN
+  CALL ABORT(__STAMP__&
+    ,'ERROR: Spherical Simulations are not implemented yet')
+  RadialWeighting%DoSphericalWeighting = GETLOGICAL('Particles-RadialWeighting')
+ELSE
+  RadialWeighting%DoSphericalWeighting = .FALSE.
   RadialWeighting%DoRadialWeighting = .FALSE.
   RadialWeighting%PerformCloning = .FALSE.
 END IF
