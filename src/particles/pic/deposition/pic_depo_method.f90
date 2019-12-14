@@ -120,6 +120,7 @@ CALL addStrListEntry('PIC-Deposition-Type' , 'delta_distri'               , PRM_
 CALL addStrListEntry('PIC-Deposition-Type' , 'cartmesh_volumeweighting'   , PRM_DEPO_MVW)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cartmesh_splines'           , PRM_DEPO_MS)
 CALL addStrListEntry('PIC-Deposition-Type' , 'nearest_blurrycenter'       , PRM_DEPO_NBC)
+CALL addStrListEntry('PIC-Deposition-Type' , 'nearest_blurycenter'        , PRM_DEPO_NBC)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight_mean'        , PRM_DEPO_CVWM)
 END SUBROUTINE DefineParametersDepositionMethod
 
