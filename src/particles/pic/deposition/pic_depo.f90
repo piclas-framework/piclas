@@ -57,7 +57,7 @@ USE MOD_PreProc                ,ONLY: PP_N,PP_nElems
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
 #endif
@@ -1347,14 +1347,10 @@ USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars                ,ONLY: PI
-USE MOD_Mesh_Vars                   ,ONLY: nElems, Elem_xGP, sJ, nNodes
-USE MOD_PICInterpolation_Vars       ,ONLY: InterpolationType
 #if USE_MPI
 USE MOD_Particle_MPI_Vars           ,ONLY: PartMPIExchange
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars            ,ONLY: nDeposPerElem
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 USE MOD_LoadBalance_Timers          ,ONLY: LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
@@ -1375,7 +1371,6 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength) ! TOD
 ! Local variable declaration
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL            :: doPartInExists
-REAL               :: DeltaIntCoeff,prefac
 #if USE_LOADBALANCE
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/

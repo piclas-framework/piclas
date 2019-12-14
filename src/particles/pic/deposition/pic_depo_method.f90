@@ -139,7 +139,6 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: DepositionType_loc
-REAL                    :: dummy(1:3)
 !==================================================================================================================================
 DepositionType_loc = GETINTFROMSTR('PIC-Deposition-Type')
 ! check for interpolation type incompatibilities (cannot be done at interpolation_init
@@ -235,12 +234,11 @@ USE MOD_PICDepo_Vars          ,ONLY: PartSource,gaussborder
 USE MOD_Particle_Vars         ,ONLY: PartState
 !#endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars      ,ONLY: nDeposPerElem
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 USE MOD_LoadBalance_Timers    ,ONLY: LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
 USE MOD_Interpolation_Vars    ,ONLY: wGP
-USE MOD_Mesh_Vars             ,ONLY: nElems,sJ
+USE MOD_Mesh_Vars             ,ONLY: sJ
 USE MOD_Part_Tools            ,ONLY: isDepositParticle
 USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType
 USE MOD_Eval_xyz              ,ONLY: GetPositionInRefElem
@@ -260,8 +258,8 @@ REAL               :: prefac
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
 LOGICAL            :: SAVE_GAUSS
-INTEGER            :: a,b, ii, expo
-INTEGER            :: i,j, k, l, m, iElem, iPart, iPart2, iSFfix
+INTEGER            :: a,b, ii
+INTEGER            :: k, l, m, iElem, iPart
 INTEGER            :: firstPart,LastPart
 !===================================================================================================================================
 ! TODO: Info why and under which conditions the following 'RETURN' is called
@@ -401,10 +399,9 @@ USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_PICDepo_Vars       ,ONLY: PartSource
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
-USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP, sJ, nNodes
+USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -497,13 +494,12 @@ SUBROUTINE DepositionMethod_CVW(DoInnerParts,doPartInExists,doParticle_In)
 ! Deposits the complete particle charge at the center of the cell -> cell-constant deposition
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc                ,ONLY: PP_N,PP_nElems
+USE MOD_PreProc                ,ONLY: PP_N
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,PartPosRef,usevMPF,PartMPF
 USE MOD_Particle_Vars          ,ONLY: PartState
 USE MOD_PICDepo_Vars           ,ONLY: PartSource,CellVolWeight_Volumes
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: nDeposPerElem
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
@@ -522,9 +518,9 @@ LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL, ALLOCATABLE  :: BGMSourceCellVol(:,:,:,:,:), tempsource(:,:,:), tempgridsource(:)
+REAL, ALLOCATABLE  :: BGMSourceCellVol(:,:,:,:,:)
 REAL               :: Charge, TSource(1:4)
-REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3), alpha
+REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3)
 #if USE_LOADBALANCE
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -535,7 +531,7 @@ LOGICAL, PARAMETER :: doCalculateCurrentDensity=.TRUE.
 LOGICAL            :: doCalculateCurrentDensity
 INTEGER            :: SourceDim
 #endif
-INTEGER            :: kk, ll, mm, ppp
+INTEGER            :: kk, ll, mm
 INTEGER            :: firstPart,LastPart,iPart,iElem
 !===================================================================================================================================
 ! Return here for 2nd Deposition() call as it is not required for this deposition method, 
@@ -634,7 +630,7 @@ SUBROUTINE DepositionMethod_CVWM(DoInnerParts,doPartInExists,doParticle_In)
 ! Deposits the complete particle charge at the center of the cell -> cell-constant deposition
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc            ,ONLY: PP_N,PP_nElems
+USE MOD_PreProc            ,ONLY: PP_N
 USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
@@ -661,7 +657,7 @@ LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
 ! LOCAL VARIABLES
 REAL, ALLOCATABLE  :: NodeSource(:,:), tempNodeSource(:,:)
 REAL               :: Charge, TSource(1:4)
-REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3), alpha
+REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3)
 INTEGER            :: NodeID(1:8)
 #if !((USE_HDG) && (PP_nVar==1))
 INTEGER, PARAMETER :: SourceDim=1
@@ -673,7 +669,7 @@ INTEGER            :: SourceDim
 #if USE_LOADBALANCE
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER            :: kk, ll, mm, ppp,iPart,iElem
+INTEGER            :: kk, ll, mm, iPart,iElem
 !===================================================================================================================================
 ! Return here for 2nd Deposition() call as it is not required for this deposition method, 
 ! because the MPI communication is done here directly
@@ -793,6 +789,10 @@ END DO !iEle
 CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
 DEALLOCATE(NodeSource)
+
+! Suppress compiler warning
+RETURN
+IF(doPartInExists.AND.doParticle_In(1))kk=0
 END SUBROUTINE DepositionMethod_CVWM
 
 
@@ -804,7 +804,7 @@ SUBROUTINE DepositionMethod_SF(DoInnerParts,doPartInExists,doParticle_In)
 ! MODULES
 USE MOD_PreProc                     ,ONLY: PP_N,PP_nElems
 USE MOD_globals                     ,ONLY: abort
-USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,PEM,PartMPF,usevMPF
+USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,PartMPF,usevMPF
 USE MOD_Particle_Vars               ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
 USE MOD_PICDepo_Vars                ,ONLY: PartSource,SFdepoLayersGeo,SFdepoLayersBaseVector,LastAnalyzeSurfCollis,PartSourceConst
@@ -817,7 +817,7 @@ USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
 USE MOD_Particle_MPI_Vars           ,ONLY: ExtPartState,ExtPartSpecies,ExtPartToFIBGM,ExtPartMPF,NbrOfextParticles
 USE MOD_TimeDisc_Vars               ,ONLY: dtWeight
 USE MOD_Part_Tools                  ,ONLY: isDepositParticle
-USE MOD_Mesh_Vars                   ,ONLY: nElems, nNodes
+USE MOD_Mesh_Vars                   ,ONLY: nElems
 USE MOD_ChangeBasis                 ,ONLY: ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -832,11 +832,11 @@ LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
 ! LOCAL VARIABLES
 REAL               :: Vec1(1:3), Vec2(1:3), Vec3(1:3)
 REAL               :: RandVal, RandVal2(2), layerPartPos(3), PartRadius, FractPush(3), SFfixDistance
-INTEGER            :: i,j, k, l, m, iElem, iPart, iPart2, iSFfix
+INTEGER            :: iElem, iPart, iPart2, iSFfix
 INTEGER            :: iLayer, layerParts
 INTEGER            :: firstPart,LastPart
-INTEGER            :: kk, ll, mm, ppp
-LOGICAL            :: DoCycle,DepoLoc
+INTEGER            :: kk, ll, mm
+LOGICAL            :: DoCycle
 !===================================================================================================================================
 !-- "normal" particles
 ! TODO: Info why and under which conditions the following 'RETURN' is called
@@ -1070,7 +1070,7 @@ SUBROUTINE DepositionMethod_SF1D(DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc            ,ONLY: PP_N,PP_nElems
-USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
+USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,w_sf,Vdm_EquiN_GaussN,sf1d_dir,r_sf,r2_sf_inv,r2_sf,ElemDepo_xGP,DoSFEqui,alpha_sf
@@ -1345,7 +1345,7 @@ SUBROUTINE DepositionMethod_SF2D(DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc                     ,ONLY: PP_N,PP_nElems
-USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
+USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,usevMPF,PartMPF
 USE MOD_Particle_Vars               ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
 USE MOD_PICDepo_Vars                ,ONLY: PartSource,w_sf,Vdm_EquiN_GaussN
@@ -1384,8 +1384,8 @@ INTEGER            :: kk, ll, mm, ppp
 INTEGER            :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER            :: k,l,m,I,J,iPart,iElem
 INTEGER            :: expo
-REAL               :: dx,dy,dz
-LOGICAL            :: DoCycle,DepoLoc
+REAL               :: dx,dy
+LOGICAL            :: DepoLoc
 !===================================================================================================================================
 ! TODO: Info why and under which conditions the following 'RETURN' is called
 IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
@@ -1689,11 +1689,10 @@ SUBROUTINE DepositionMethod_SFCS(DoInnerParts,doPartInExists,doParticle_In)
 ! MODULES
 USE MOD_PreProc            ,ONLY: PP_N,PP_nElems
 USE MOD_Globals_Vars       ,ONLY: PI
-USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
+USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,Vdm_EquiN_GaussN,SfRadiusInt,r_sf_scale,r_sf0
-USE MOD_PICDepo_Vars       ,ONLY: sf1d_dir,r_sf,r2_sf_inv,r2_sf,ElemDepo_xGP,DoSFEqui,alpha_sf,w_sf
+USE MOD_PICDepo_Vars       ,ONLY: ElemDepo_xGP,DoSFEqui,alpha_sf,w_sf
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
@@ -1726,7 +1725,7 @@ INTEGER            :: firstPart,LastPart
 INTEGER            :: kmin, kmax, lmin, lmax, mmin, mmax
 REAL               :: dx,dy,dz
 INTEGER            :: ppp
-INTEGER            :: k,l,m,I,J,iPart,iElem
+INTEGER            :: k,l,m,iPart,iElem
 REAL               :: local_r_sf, local_r2_sf, local_r2_sf_inv
 INTEGER            :: expo
 INTEGER            :: kk,ll,mm
@@ -1955,7 +1954,6 @@ SUBROUTINE DepositionMethod_DD(DoInnerParts,doPartInExists,doParticle_In)
 USE MOD_PreProc                ,ONLY: PP_nElems,PP_N
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars          ,ONLY: PartState,PartPosRef
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_PICDepo_Vars           ,ONLY: PartSource,DeltaType,XiNDepo,wBaryNDepo,Vdm_NDepo_GaussN,NKnots,Knots,NDepoChooseK,NDepo
 USE MOD_PICDepo_Vars           ,ONLY: DDMassInv,DeltaDistriChangeBasis
 USE MOD_PICDepo_Tools          ,ONLY: DeBoorRef,DeBoor
@@ -1984,7 +1982,7 @@ INTEGER                   :: firstPart,LastPart
 REAL                      :: tLBStart
 #endif /*USE_LOADBALANCE*/
 REAL                      :: DeltaIntCoeff,prefac
-INTEGER                   :: iElem,k,l,m,i,j,iPart
+INTEGER                   :: iElem,i,j,k,iPart
 !===================================================================================================================================
 ! TODO: Info why and under which conditions the following 'RETURN' is called
 IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
@@ -2084,15 +2082,15 @@ SUBROUTINE DepositionMethod_MVW(DoInnerParts,doPartInExists,doParticle_In)
 ! Deposits 
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc            ,ONLY: PP_N,PP_nElems
-USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
+USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,bgmdeltas,BGMSource,GaussBGMFactor,GaussBGMIndex,BGMVolume
 #if USE_MPI
 USE MOD_PICDepo_MPI        ,ONLY: MPISourceExchangeBGM
 #else /*NOT USE_MPI*/
 USE MOD_PICDepo_MPI        ,ONLY: PeriodicSourceExchange
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
@@ -2115,7 +2113,8 @@ REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
 REAL                        :: Charge, TSource(1:4)
 INTEGER                     :: kk,ll,mm,k,l,m
-INTEGER                     :: firstPart,LastPart,iPart,iElem,i,alpha1,alpha2,alpha3
+INTEGER                     :: firstPart,LastPart,iPart,iElem,i
+REAL                        :: alpha1,alpha2,alpha3
 !===================================================================================================================================
 ! Step 1: Deposition of all particles onto background mesh -> densities
 ! IF(DoInnerParts) BGMSource=0.0 ! not possible due to periodic stuff --> two communications
@@ -2152,13 +2151,13 @@ DO iPart = firstPart, lastPart
 !#endif
   TSource(4) = Charge
 
-  BGMSource(k,l,m,1:4)       = BGMSource(k,l,m,1:4) + (TSource * (1-alpha1)*(1-alpha2)*(1-alpha3))
-  BGMSource(k,l,m+1,1:4)     = BGMSource(k,l,m+1,1:4) + (TSource * (1-alpha1)*(1-alpha2)*(alpha3))
-  BGMSource(k,l+1,m,1:4)     = BGMSource(k,l+1,m,1:4) + (TSource * (1-alpha1)*(alpha2)*(1-alpha3))
-  BGMSource(k,l+1,m+1,1:4)   = BGMSource(k,l+1,m+1,1:4) + (TSource * (1-alpha1)*(alpha2)*(alpha3))
-  BGMSource(k+1,l,m,1:4)     = BGMSource(k+1,l,m,1:4) + (TSource * (alpha1)*(1-alpha2)*(1-alpha3))
-  BGMSource(k+1,l,m+1,1:4)   = BGMSource(k+1,l,m+1,1:4) + (TSource * (alpha1)*(1-alpha2)*(alpha3))
-  BGMSource(k+1,l+1,m,1:4)   = BGMSource(k+1,l+1,m,1:4) + (TSource * (alpha1)*(alpha2)*(1-alpha3))
+  BGMSource(k,l,m,1:4)       = BGMSource(k,l,m,1:4)       + (TSource * (1.-alpha1)*(1.-alpha2)*(1.-alpha3))
+  BGMSource(k,l,m+1,1:4)     = BGMSource(k,l,m+1,1:4)     + (TSource * (1.-alpha1)*(1.-alpha2)*(alpha3))
+  BGMSource(k,l+1,m,1:4)     = BGMSource(k,l+1,m,1:4)     + (TSource * (1.-alpha1)*(alpha2)*(1.-alpha3))
+  BGMSource(k,l+1,m+1,1:4)   = BGMSource(k,l+1,m+1,1:4)   + (TSource * (1.-alpha1)*(alpha2)*(alpha3))
+  BGMSource(k+1,l,m,1:4)     = BGMSource(k+1,l,m,1:4)     + (TSource * (alpha1)*(1.-alpha2)*(1.-alpha3))
+  BGMSource(k+1,l,m+1,1:4)   = BGMSource(k+1,l,m+1,1:4)   + (TSource * (alpha1)*(1.-alpha2)*(alpha3))
+  BGMSource(k+1,l+1,m,1:4)   = BGMSource(k+1,l+1,m,1:4)   + (TSource * (alpha1)*(alpha2)*(1.-alpha3))
   BGMSource(k+1,l+1,m+1,1:4) = BGMSource(k+1,l+1,m+1,1:4) + (TSource * (alpha1)*(alpha2)*(alpha3))
 END DO
 BGMSource(:,:,:,:) = BGMSource(:,:,:,:) / BGMVolume
@@ -2218,8 +2217,11 @@ DO iElem = 1, nElems
 #endif /*USE_LOADBALANCE*/
 END DO !iElem
 !DEALLOCATE(BGMSource)
-END SUBROUTINE DepositionMethod_MVW
 
+! Suppress compiler warning
+RETURN
+IF(DoInnerParts)k=0
+END SUBROUTINE DepositionMethod_MVW
 
 
 SUBROUTINE DepositionMethod_MS(DoInnerParts,doPartInExists,doParticle_In)
@@ -2228,15 +2230,15 @@ SUBROUTINE DepositionMethod_MS(DoInnerParts,doPartInExists,doParticle_In)
 ! Deposits 
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc            ,ONLY: PP_N,PP_nElems
-USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
+USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,BGMdeltas,GaussBGMIndex,PartSource,GPWeight,BGMSource,BGMVolume
 #if USE_MPI
 USE MOD_PICDepo_MPI        ,ONLY: MPISourceExchangeBGM
 #else /*NOT USE_MPI*/
 USE MOD_PICDepo_MPI        ,ONLY: PeriodicSourceExchange
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 #endif /*USE_MPI*/
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
 USE MOD_Mesh_Vars          ,ONLY: nElems
@@ -2367,6 +2369,10 @@ DO iElem = 1, nElems
 #endif /*USE_LOADBALANCE*/
 END DO !iElem
 !DEALLOCATE(BGMSource)
+
+! Suppress compiler warning
+RETURN
+IF(DoInnerParts)k=0
 END SUBROUTINE DepositionMethod_MS
 
 
