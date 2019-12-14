@@ -193,7 +193,7 @@ Case(PRM_DEPO_MVW) ! cartmesh_volumeweighting
 Case(PRM_DEPO_MS) ! cartmesh_splines
   DepositionType   = 'cartmesh_splines'
   DepositionMethod => DepositionMethod_MS
-Case(PRM_DEPO_NBC) ! nearest_blurrycenter
+Case(PRM_DEPO_NBC) ! nearest_blurrycenter/nearest_blurycenter
   DepositionType   = 'nearest_blurrycenter'
   DepositionMethod => DepositionMethod_NBC
 Case(PRM_DEPO_CVWM) ! cell_volweight_mean
@@ -224,9 +224,8 @@ END SUBROUTINE InitDepositionMethod
 
 SUBROUTINE DepositionMethod_NGP(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
-! 'non-relativistic'
-! Particle Right-Hand-Side: Non-relativistic push
-! Former FUNCTION NON_RELATIVISTIC_PUSH
+! 'nearest_gausspoint'
+! Deposits the complete particle charge at the nearest Gauss point (interpolation point of the field solver)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc               ,ONLY: PP_N,PP_nElems
@@ -492,8 +491,8 @@ END SUBROUTINE DepositionMethod_NBC
 
 SUBROUTINE DepositionMethod_CVW(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
-! 'nearest_blurrycenter'
-! Deposits the complete particle charge at the center of the cell -> cell-constant deposition
+! 'cell_volweight'
+! Linear charge density distribution within a cell (discontinuous across cell interfaces)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc                ,ONLY: PP_N
@@ -629,8 +628,8 @@ END SUBROUTINE DepositionMethod_CVW
 
 SUBROUTINE DepositionMethod_CVWM(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
-! ''
-! Deposits the complete particle charge at the center of the cell -> cell-constant deposition
+! 'cell_volweight_mean'
+! Linear charge density distribution within a cell (continuous across cell interfaces)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc            ,ONLY: PP_N
@@ -802,8 +801,8 @@ END SUBROUTINE DepositionMethod_CVWM
 
 SUBROUTINE DepositionMethod_SF(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
-! ''
-! Deposits 
+! 'shape_function'
+! Smooth polynomial deposition via "shape functions" of various order in 3D
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc                     ,ONLY: PP_N,PP_nElems
@@ -1069,8 +1068,9 @@ END SUBROUTINE DepositionMethod_SF
 
 SUBROUTINE DepositionMethod_SF1D(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
-! ''
-! Deposits 
+! 'shape_function_1d'
+! Smooth polynomial deposition via "shape functions" of various order in 1D (the dimension in which the charge is smoothly
+! distributed must be supplied)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc            ,ONLY: PP_N,PP_nElems
@@ -1344,8 +1344,9 @@ END SUBROUTINE DepositionMethod_SF1D
 
 SUBROUTINE DepositionMethod_SF2D(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
-! ''
-! Deposits 
+! 'shape_function_2d'
+! Smooth polynomial deposition via "shape functions" of various order in 2D (the dimension in which the charge is not distributed,
+! i.e., in which it is constant, must be supplied)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc                     ,ONLY: PP_N,PP_nElems
@@ -1687,8 +1688,10 @@ END SUBROUTINE DepositionMethod_SF2D
 
 SUBROUTINE DepositionMethod_SFCS(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
-! ''
-! Deposits 
+! 'shape_function_cylindrical' and "shape_function_spherical'
+! Smooth polynomial deposition via "shape functions" of various order in 3D, where the cut-off radius can be varied in space with
+! respect to a cylindrical or a spherical setup, i.e., the radius is increased along the particles radial position in cylindrical or
+! spherical coordinates.
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc            ,ONLY: PP_N,PP_nElems
@@ -1951,8 +1954,12 @@ END SUBROUTINE DepositionMethod_SFCS
 
 SUBROUTINE DepositionMethod_DD(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
-! ''
-! Deposits 
+! 'delta_distri'
+! Delta function kernel (via multiplication with testfunction and integration over reference space), which leads to a deposition
+! directly via the basis functions (considering the distance between the basis function stencil and the particle's position).
+! Two basis functions are available: 
+!   - nodal Lagrange function basis (can cause changes in sign of the charge density)
+!   - Bernstein polynomial function basis, which does not allow a change in sign of the charge density
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc                ,ONLY: PP_nElems,PP_N
@@ -2082,8 +2089,8 @@ END SUBROUTINE DepositionMethod_DD
 
 SUBROUTINE DepositionMethod_MVW(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
-! ''
-! Deposits 
+! 'cartmesh_volumeweighting'
+! Deposition via a Cartesian background mesh, which is then interpolated to the polynomial of each cell.
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc            ,ONLY: PP_N
@@ -2231,8 +2238,8 @@ END SUBROUTINE DepositionMethod_MVW
 
 SUBROUTINE DepositionMethod_MS(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
-! ''
-! Deposits 
+! 'cartmesh_splines'
+! Deposition via a Cartesian background mesh using B-splines, which is then interpolated to the polynomial of each cell.
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc            ,ONLY: PP_N
