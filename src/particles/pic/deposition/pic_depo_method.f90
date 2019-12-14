@@ -28,8 +28,9 @@ PUBLIC :: DepositionMethod
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
-  SUBROUTINE DepositionMethodInterface(DoInnerParts,doPartInExists,doParticle_In)
+  SUBROUTINE DepositionMethodInterface(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
     USE MOD_Particle_Vars ,ONLY: PDM
+    INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
     LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
     LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
     LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
@@ -205,22 +206,22 @@ END SELECT
 
 ! Suppress compiler warning
 RETURN
-CALL DepositionMethod_SF(.FALSE.)
-CALL DepositionMethod_SF1D(.FALSE.)
-CALL DepositionMethod_SF2D(.FALSE.)
-CALL DepositionMethod_SFCS(.FALSE.)
-CALL DepositionMethod_CVW(.FALSE.)
-CALL DepositionMethod_NGP(.FALSE.)
-CALL DepositionMethod_DD(.FALSE.)
-CALL DepositionMethod_MVW(.FALSE.)
-CALL DepositionMethod_MS(.FALSE.)
-CALL DepositionMethod_NBC(.FALSE.)
-CALL DepositionMethod_CVWM(.FALSE.)
+CALL DepositionMethod_SF(0,0,.FALSE.)
+CALL DepositionMethod_SF1D(0,0,.FALSE.)
+CALL DepositionMethod_SF2D(0,0,.FALSE.)
+CALL DepositionMethod_SFCS(0,0,.FALSE.)
+CALL DepositionMethod_CVW(0,0,.FALSE.)
+CALL DepositionMethod_NGP(0,0,.FALSE.)
+CALL DepositionMethod_DD(0,0,.FALSE.)
+CALL DepositionMethod_MVW(0,0,.FALSE.)
+CALL DepositionMethod_MS(0,0,.FALSE.)
+CALL DepositionMethod_NBC(0,0,.FALSE.)
+CALL DepositionMethod_CVWM(0,0,.FALSE.)
 
 END SUBROUTINE InitDepositionMethod
 
 
-SUBROUTINE DepositionMethod_NGP(DoInnerParts,doPartInExists,doParticle_In)
+SUBROUTINE DepositionMethod_NGP(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
 ! 'non-relativistic'
 ! Particle Right-Hand-Side: Non-relativistic push
@@ -246,6 +247,7 @@ USE MOD_Eval_xyz              ,ONLY: GetPositionInRefElem
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
 LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
@@ -260,10 +262,9 @@ REAL               :: tLBStart
 LOGICAL            :: SAVE_GAUSS
 INTEGER            :: a,b, ii
 INTEGER            :: k, l, m, iElem, iPart
-INTEGER            :: firstPart,LastPart
 !===================================================================================================================================
 ! TODO: Info why and under which conditions the following 'RETURN' is called
-IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
+IF((DoInnerParts).AND.(LastPart.LT.FirstPart)) RETURN
 SAVE_GAUSS = .FALSE.
 IF(TRIM(InterpolationType).EQ.'nearest_gausspoint') SAVE_GAUSS = .TRUE.
 IF(MOD(PP_N,2).EQ.0) THEN
@@ -277,7 +278,7 @@ END IF
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 DO iElem=1,PP_nElems
-  DO iPart=firstPart,LastPart
+  DO iPart=FirstPart,LastPart
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
       IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
@@ -385,7 +386,7 @@ END IF
 END SUBROUTINE DepositionMethod_NGP
 
 
-SUBROUTINE DepositionMethod_NBC(DoInnerParts,doPartInExists,doParticle_In)
+SUBROUTINE DepositionMethod_NBC(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
 ! 'nearest_blurrycenter'
 ! Deposits the complete particle charge at the center of the cell -> cell-constant deposition
@@ -407,6 +408,7 @@ USE MOD_Part_Tools         ,ONLY: isDepositParticle
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
 LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
@@ -426,17 +428,16 @@ LOGICAL            :: doCalculateCurrentDensity
 INTEGER            :: SourceDim
 #endif
 INTEGER            :: iElem,iPart
-INTEGER            :: firstPart,LastPart
 !===================================================================================================================================
 ! TODO: Info why and under which conditions the following 'RETURN' is called
-IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
+IF((DoInnerParts).AND.(LastPart.LT.FirstPart)) RETURN
 ALLOCATE(ElemSource(SourceDim:4,1:nElems))
 ElemSource=0.0
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 DO iElem=1,PP_nElems
-  DO iPart=firstPart,lastPart
+  DO iPart=FirstPart,LastPart
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
       IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
@@ -488,7 +489,7 @@ END SUBROUTINE DepositionMethod_NBC
 
 
 
-SUBROUTINE DepositionMethod_CVW(DoInnerParts,doPartInExists,doParticle_In)
+SUBROUTINE DepositionMethod_CVW(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
 ! 'nearest_blurrycenter'
 ! Deposits the complete particle charge at the center of the cell -> cell-constant deposition
@@ -511,6 +512,7 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
 LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
@@ -532,7 +534,7 @@ LOGICAL            :: doCalculateCurrentDensity
 INTEGER            :: SourceDim
 #endif
 INTEGER            :: kk, ll, mm
-INTEGER            :: firstPart,LastPart,iPart,iElem
+INTEGER            :: iPart,iElem
 !===================================================================================================================================
 ! Return here for 2nd Deposition() call as it is not required for this deposition method, 
 ! because the MPI communication is done here directly
@@ -543,7 +545,7 @@ BGMSourceCellVol(:,:,:,:,:) = 0.0
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-DO iPart = firstPart, lastPart
+DO iPart = FirstPart, LastPart
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
@@ -624,7 +626,7 @@ END SUBROUTINE DepositionMethod_CVW
 
 
 
-SUBROUTINE DepositionMethod_CVWM(DoInnerParts,doPartInExists,doParticle_In)
+SUBROUTINE DepositionMethod_CVWM(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
 ! ''
 ! Deposits the complete particle charge at the center of the cell -> cell-constant deposition
@@ -648,6 +650,7 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElemSpli
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
 LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
@@ -682,7 +685,7 @@ NodeSource = 0.0
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-DO iPart=1,PDM%ParticleVecLength
+DO iPart=FirstPart,LastPart
   IF (PDM%ParticleInside(iPart)) THEN
     IF (usevMPF) THEN
       Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
@@ -796,7 +799,7 @@ IF(doPartInExists.AND.doParticle_In(1))kk=0
 END SUBROUTINE DepositionMethod_CVWM
 
 
-SUBROUTINE DepositionMethod_SF(DoInnerParts,doPartInExists,doParticle_In)
+SUBROUTINE DepositionMethod_SF(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
 ! ''
 ! Deposits 
@@ -823,6 +826,7 @@ USE MOD_ChangeBasis                 ,ONLY: ChangeBasis3D
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
 LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
@@ -834,13 +838,12 @@ REAL               :: Vec1(1:3), Vec2(1:3), Vec3(1:3)
 REAL               :: RandVal, RandVal2(2), layerPartPos(3), PartRadius, FractPush(3), SFfixDistance
 INTEGER            :: iElem, iPart, iPart2, iSFfix
 INTEGER            :: iLayer, layerParts
-INTEGER            :: firstPart,LastPart
 INTEGER            :: kk, ll, mm
 LOGICAL            :: DoCycle
 !===================================================================================================================================
 !-- "normal" particles
 ! TODO: Info why and under which conditions the following 'RETURN' is called
-IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
+IF((DoInnerParts).AND.(LastPart.LT.FirstPart)) RETURN
 Vec1(1:3) = 0.
 Vec2(1:3) = 0.
 Vec3(1:3) = 0.
@@ -857,7 +860,7 @@ IF (GEO%nPeriodicVectors.EQ.3) THEN
   Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
 END IF
 IF (usevMPF) THEN
-  DO iPart=firstPart,LastPart
+  DO iPart=FirstPart,LastPart
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
       IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
@@ -870,7 +873,7 @@ IF (usevMPF) THEN
       ,Vec1,Vec2,Vec3,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
   END DO ! iPart
 ELSE
-  DO iPart=firstPart,LastPart
+  DO iPart=FirstPart,LastPart
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
       IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
@@ -1063,7 +1066,7 @@ END IF
 END SUBROUTINE DepositionMethod_SF
 
 
-SUBROUTINE DepositionMethod_SF1D(DoInnerParts,doPartInExists,doParticle_In)
+SUBROUTINE DepositionMethod_SF1D(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
 ! ''
 ! Deposits 
@@ -1090,6 +1093,7 @@ USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
 LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
@@ -1101,13 +1105,12 @@ REAL               :: Vec1(1:3), Vec2(1:3), Vec3(1:3)
 REAL               :: ShiftedPart(1:3)
 LOGICAL            :: chargedone(1:nElems)!, SAVE_GAUSS
 REAL               :: radius2, S, S1, Fac(1:4)!, Fac2(4)
-INTEGER            :: firstPart,LastPart
 INTEGER            :: kk, ll, mm, ppp
 INTEGER            :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER            :: k,l,m,iPart,ind,iCase,iElem,expo,ElemID
 !===================================================================================================================================
 ! TODO: Info why and under which conditions the following 'RETURN' is called
-IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
+IF((DoInnerParts).AND.(LastPart.LT.FirstPart)) RETURN
 Vec1(1:3) = 0.
 Vec2(1:3) = 0.
 Vec3(1:3) = 0.
@@ -1123,7 +1126,7 @@ IF (GEO%nPeriodicVectors.EQ.3) THEN
   Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
   Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
 END IF
-DO iPart=firstPart,LastPart
+DO iPart=FirstPart,LastPart
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
@@ -1338,7 +1341,7 @@ END IF
 END SUBROUTINE DepositionMethod_SF1D
 
 
-SUBROUTINE DepositionMethod_SF2D(DoInnerParts,doPartInExists,doParticle_In)
+SUBROUTINE DepositionMethod_SF2D(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
 ! ''
 ! Deposits 
@@ -1367,6 +1370,7 @@ USE MOD_ChangeBasis                 ,ONLY: ChangeBasis3D
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
 LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
@@ -1379,7 +1383,6 @@ LOGICAL            :: chargedone(1:nElems)!, SAVE_GAUSS
 REAL               :: radius2, S, S1, Fac(1:4)!, Fac2(4)
 INTEGER            :: ElemID, iCase, ind
 REAL               :: ShiftedPart(1:3)
-INTEGER            :: firstPart,LastPart
 INTEGER            :: kk, ll, mm, ppp
 INTEGER            :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER            :: k,l,m,I,J,iPart,iElem
@@ -1388,7 +1391,7 @@ REAL               :: dx,dy
 LOGICAL            :: DepoLoc
 !===================================================================================================================================
 ! TODO: Info why and under which conditions the following 'RETURN' is called
-IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
+IF((DoInnerParts).AND.(LastPart.LT.FirstPart)) RETURN
 Vec1(1:3) = 0.
 Vec2(1:3) = 0.
 Vec3(1:3) = 0.
@@ -1404,7 +1407,7 @@ IF (GEO%nPeriodicVectors.EQ.3) THEN
   Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
   Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
 END IF
-DO iPart=firstPart,LastPart
+DO iPart=FirstPart,LastPart
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
@@ -1681,7 +1684,7 @@ END IF
 END SUBROUTINE DepositionMethod_SF2D
 
 
-SUBROUTINE DepositionMethod_SFCS(DoInnerParts,doPartInExists,doParticle_In)
+SUBROUTINE DepositionMethod_SFCS(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
 ! ''
 ! Deposits 
@@ -1709,6 +1712,7 @@ USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
 LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
@@ -1721,7 +1725,6 @@ REAL               :: radius2, S, S1, Fac(1:4)!, Fac2(4)
 LOGICAL            :: chargedone(1:nElems)!, SAVE_GAUSS
 INTEGER            :: ElemID, iCase, ind
 REAL               :: ShiftedPart(1:3)
-INTEGER            :: firstPart,LastPart
 INTEGER            :: kmin, kmax, lmin, lmax, mmin, mmax
 REAL               :: dx,dy,dz
 INTEGER            :: ppp
@@ -1731,7 +1734,7 @@ INTEGER            :: expo
 INTEGER            :: kk,ll,mm
 !===================================================================================================================================
 ! TODO: Info why and under which conditions the following 'RETURN' is called
-IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
+IF((DoInnerParts).AND.(LastPart.LT.FirstPart)) RETURN
 Vec1(1:3) = 0.
 Vec2(1:3) = 0.
 Vec3(1:3) = 0.
@@ -1747,7 +1750,7 @@ IF (GEO%nPeriodicVectors.EQ.3) THEN
   Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
   Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
 END IF
-DO iPart=firstPart,LastPart
+DO iPart=FirstPart,LastPart
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
@@ -1945,7 +1948,7 @@ END IF
 END SUBROUTINE DepositionMethod_SFCS
 
 
-SUBROUTINE DepositionMethod_DD(DoInnerParts,doPartInExists,doParticle_In)
+SUBROUTINE DepositionMethod_DD(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
 ! ''
 ! Deposits 
@@ -1969,6 +1972,7 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElem
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
 LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
@@ -1977,7 +1981,6 @@ LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(3,0:NDepo) :: L_xi
-INTEGER                   :: firstPart,LastPart
 #if USE_LOADBALANCE
 REAL                      :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -1985,12 +1988,12 @@ REAL                      :: DeltaIntCoeff,prefac
 INTEGER                   :: iElem,i,j,k,iPart
 !===================================================================================================================================
 ! TODO: Info why and under which conditions the following 'RETURN' is called
-IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
+IF((DoInnerParts).AND.(LastPart.LT.FirstPart)) RETURN
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 DO iElem=1,PP_nElems
-  DO iPart=firstPart,LastPart
+  DO iPart=FirstPart,LastPart
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
       IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
@@ -2076,7 +2079,7 @@ END IF ! DoInnerParts
 END SUBROUTINE DepositionMethod_DD
 
 
-SUBROUTINE DepositionMethod_MVW(DoInnerParts,doPartInExists,doParticle_In)
+SUBROUTINE DepositionMethod_MVW(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
 ! ''
 ! Deposits 
@@ -2101,6 +2104,7 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElemSpli
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
 LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
@@ -2113,7 +2117,7 @@ REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
 REAL                        :: Charge, TSource(1:4)
 INTEGER                     :: kk,ll,mm,k,l,m
-INTEGER                     :: firstPart,LastPart,iPart,iElem,i
+INTEGER                     :: iPart,iElem,i
 REAL                        :: alpha1,alpha2,alpha3
 !===================================================================================================================================
 ! Step 1: Deposition of all particles onto background mesh -> densities
@@ -2122,7 +2126,7 @@ REAL                        :: alpha1,alpha2,alpha3
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 BGMSource(:,:,:,:) = 0.0
-DO iPart = firstPart, lastPart
+DO iPart = FirstPart, LastPart
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
@@ -2224,7 +2228,7 @@ IF(DoInnerParts)k=0
 END SUBROUTINE DepositionMethod_MVW
 
 
-SUBROUTINE DepositionMethod_MS(DoInnerParts,doPartInExists,doParticle_In)
+SUBROUTINE DepositionMethod_MS(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
 ! ''
 ! Deposits 
@@ -2250,6 +2254,7 @@ USE MOD_PICDepo_Tools      ,ONLY: DeBoor
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
 LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
 LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
@@ -2263,7 +2268,6 @@ INTEGER            :: PosInd(3),r,ss,t,u,v,w, dir, weightrun
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
 INTEGER            :: k,l,m,kk,ll,mm,iPart,iElem
-INTEGER            :: firstPart,LastPart
 REAL               :: Charge
 !===================================================================================================================================
 ! Step 1: Deposition of all particles onto background mesh -> densities
@@ -2273,7 +2277,7 @@ REAL               :: Charge
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 BGMSource(:,:,:,:) = 0.0
-DO iPart = firstPart, lastPart
+DO iPart = FirstPart, LastPart
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE

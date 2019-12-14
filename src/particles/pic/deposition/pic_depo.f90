@@ -1374,7 +1374,7 @@ LOGICAL            :: doPartInExists
 #if USE_LOADBALANCE
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER            :: firstPart,LastPart
+INTEGER            :: FirstPart,LastPart
 !============================================================================================================================
 ! Return, if no deposition is required
 IF(.NOT.DoDeposition) RETURN
@@ -1402,21 +1402,21 @@ END IF
 
 IF(DoInnerParts)THEN
   PartSource = 0.0
-  firstPart  = 1
-  lastPart   = PDM%ParticleVecLength
-  !IF(firstPart.GT.lastPart) RETURN
+  FirstPart  = 1
+  LastPart   = PDM%ParticleVecLength
+  !IF(FirstPart.GT.LastPart) RETURN
 ELSE
 #if USE_MPI
-  firstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
-  lastPart =PDM%ParticleVecLength
+  FirstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
+  LastPart =PDM%ParticleVecLength
 #else
-  firstPart=1
-  lastPart =0
+  FirstPart=1
+  LastPart =0
 #endif /*USE_MPI*/
 END IF
 
 ! Do the actual deposition (cell_volweight, shapefunction, spline etc.)
-CALL DepositionMethod(DoInnerParts,doPartInExists,doParticle_In)
+CALL DepositionMethod(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 
 ! End time measurement for shape function deposition only
 #if USE_LOADBALANCE
