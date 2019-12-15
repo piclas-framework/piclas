@@ -126,7 +126,7 @@ END SUBROUTINE DefineParametersDepositionMethod
 
 
 !==================================================================================================================================!
-!> Initialize particle RHS functions
+!> Initialize deposition method function pointer
 !==================================================================================================================================!
 SUBROUTINE InitDepositionMethod()
 ! MODULES
@@ -158,7 +158,7 @@ IF((DepositionType_loc.EQ.PRM_DEPO_CVWM).AND. &
   ,'ERROR in pic_depo.f90: PIC-Deposition-Type = cell_volweight_mean only allowed with TriaTracking!')
 END IF
 
-
+! Select the deposition method function pointer
 SELECT CASE(DepositionType_loc)
 Case(PRM_DEPO_SF) ! shape_function
   DepositionMethod => DepositionMethod_SF
@@ -202,10 +202,9 @@ Case(PRM_DEPO_CVWM) ! cell_volweight_mean
 CASE DEFAULT
   CALL CollectiveStop(__STAMP__,&
       'Unknown DepositionMethod!' ,IntInfo=DepositionType_loc)
-      !'Unknown DepositionMethod! ['//TRIM(DepositionType)//']')
 END SELECT
 
-! Suppress compiler warning
+! Suppress compiler warnings
 RETURN
 CALL DepositionMethod_SF(0,0,.FALSE.)
 CALL DepositionMethod_SF1D(0,0,.FALSE.)
@@ -361,28 +360,6 @@ IF(.NOT.DoInnerParts)THEN
   END DO ! iElem=1,PP_nElems
 END IF
 
-
-!SELECT CASE(TRIM(DepositionType))
-!CASE('nearest_blurrycenter')
-!CASE('cell_volweight')
-!CASE('cell_volweight_mean','cell_volweight_mean2')
-!CASE('epanechnikov')
-!CASE('shape_function','shape_function_simple')
-!CASE('shape_function_1d')
-!CASE('shape_function_2d')
-!CASE('shape_function_cylindrical','shape_function_spherical')
-!CASE('delta_distri')
-!CASE('nearest_gausspoint')
-!CASE('cartmesh_volumeweighting')
-!CASE('cartmesh_splines')
-!CASE DEFAULT
-  !CALL abort(&
-  !__STAMP__&
-  !,'Unknown DepositionType in pic_depo.f90')
-!END SELECT
-
-
-
 END SUBROUTINE DepositionMethod_NGP
 
 
@@ -485,7 +462,6 @@ IF(.NOT.DoInnerParts)THEN
 #endif /*USE_LOADBALANCE*/
 END IF ! .NOT. DoInnerParts
 END SUBROUTINE DepositionMethod_NBC
-
 
 
 
@@ -718,7 +694,6 @@ DO iPart=FirstPart,LastPart
   END IF
 END DO
 
-
 ! Node MPI communication
 #if USE_MPI
 IF(doCalculateCurrentDensity)THEN
@@ -742,8 +717,6 @@ IF(DoDielectricSurfaceCharge)THEN
   ! Add external node source (e.g. surface charging)
   NodeSource(4,:) = NodeSource(4,:) + NodeSourceExt
 END IF ! DoDielectricSurfaceCharge
-
-
 
 ! Currently also "Nodes" are included in time measurement that is averaged across all elements. Can this be improved?
 #if USE_LOADBALANCE
@@ -1955,11 +1928,12 @@ END SUBROUTINE DepositionMethod_SFCS
 SUBROUTINE DepositionMethod_DD(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
 !===================================================================================================================================
 ! 'delta_distri'
-! Delta function kernel (via multiplication with testfunction and integration over reference space), which leads to a deposition
-! directly via the basis functions (considering the distance between the basis function stencil and the particle's position).
+! Delta function kernel: Multiplication with test function and integration over reference space leads to a deposition by directly
+! evaluating the basis functions (considering the distance between the basis function stencil and the particle's position).
+!
 ! Two basis functions are available: 
-!   - nodal Lagrange function basis (can cause changes in sign of the charge density)
-!   - Bernstein polynomial function basis, which does not allow a change in sign of the charge density
+!   1. Nodal Lagrange function basis (can cause changes in sign of the charge density)
+!   2. Bernstein polynomial function basis, which does not allow a change in sign of the charge density
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc                ,ONLY: PP_nElems,PP_N
