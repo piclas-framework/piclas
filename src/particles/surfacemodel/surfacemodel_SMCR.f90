@@ -577,7 +577,7 @@ ALLOCATE( P_react_forward(1:Adsorption%nExchReactions),&
           Pos_Product(1:2,1:Adsorption%ReactNum+Adsorption%nExchReactions))
 
 ! sample energy of surfaces before desorption treatment
-DO iSurf = 1,SurfMesh%nMasterSides
+DO iSurf = 1,SurfMesh%nOutputSides
   IF (SurfaceHasModelNum(iSurf).NE.3) CYCLE
   DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
@@ -591,7 +591,7 @@ DO iSurf = 1,SurfMesh%nMasterSides
 END DO
 
 ! loop over all surfaces and decide if catalytic boundary of modeltype 3
-DO iSurf = 1,SurfMesh%nMasterSides
+DO iSurf = 1,SurfMesh%nOutputSides
   IF (SurfaceHasModelNum(iSurf).NE.3) CYCLE
   globSide = SurfMesh%SurfIDToSideID(iSurf)
   PartBoundID = PartBound%MapToPartBC(BC(globSide))
@@ -1607,10 +1607,10 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
 #endif
   END DO ! nSpecies (analyze)
 END DO ; END DO ! nSurfSample
-END DO ! SurfMesh%nMasterSides
+END DO ! SurfMesh%nOutputSides
 
 ! sample energy of surfaces after desorption treatment
-DO iSurf = 1,SurfMesh%nMasterSides
+DO iSurf = 1,SurfMesh%nOutputSides
   IF (SurfaceHasModelNum(iSurf).NE.3) CYCLE
   DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
@@ -1641,7 +1641,7 @@ SUBROUTINE SMCR_Diffusion()
 !> Calculation of diffusion on reconstructed surface with assumption of Quasi Chemical Approximation (QCA)
 !>   diffusion into equilibrium (Quasi Chemical Approximation - QCA) is performed for particles on surface
 !===================================================================================================================================
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, PlanckConst
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Vars          ,ONLY: Species, WriteMacroSurfaceValues
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
@@ -1666,7 +1666,7 @@ IF (.NOT.SurfMesh%SurfOnProc) RETURN
 IF (Adsorption%NoDiffusion) RETURN
 
 ! diffusion into equilibrium distribution
-DO iSurf=1,SurfMesh%nMasterSides
+DO iSurf=1,SurfMesh%nOutputSides
   IF (SurfaceHasModelNum(iSurf).NE.3) CYCLE
   DO jSubSurf=1,nSurfSample ; DO iSubSurf=1,nSurfSample
 
@@ -1755,7 +1755,7 @@ DO iSurf=1,SurfMesh%nMasterSides
           * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(1)%MacroParticleFactor
     END IF
   END DO ; END DO !iSubSurf = 1,nSurfSample; jSubSurf = 1,nSurfSample
-END DO !iSurf = 1,SurfMesh%nMasterSides
+END DO !iSurf = 1,SurfMesh%nOutputSides
 
 END SUBROUTINE SMCR_Diffusion
 

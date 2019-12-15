@@ -194,3 +194,8 @@
 #define SAMPWALL_DELTA_MOMENTUMZ  12
 
 #define SAMPWALL_NVARS            12
+
+! Tracking method
+#define REFMAPPING    1
+#define TRACING       2
+#define TRIATRACKING  3
