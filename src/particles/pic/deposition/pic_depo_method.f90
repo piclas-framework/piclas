@@ -381,6 +381,9 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElem
 #endif /*USE_LOADBALANCE*/
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
+#if ((USE_HDG) && (PP_nVar==1))
+USE MOD_TimeDisc_Vars      ,ONLY: dt,tAnalyzeDiff,tEndDiff
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -413,6 +416,18 @@ ElemSource=0.0
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
+
+! Check whether charge and current density have to be computed or just the charge density
+#if ((USE_HDG) && (PP_nVar==1))
+IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
+  doCalculateCurrentDensity=.TRUE.
+  SourceDim=1
+ELSE ! do not calculate current density
+  doCalculateCurrentDensity=.FALSE.
+  SourceDim=4
+END IF
+#endif
+
 DO iElem=1,PP_nElems
   DO iPart=FirstPart,LastPart
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
@@ -484,6 +499,9 @@ USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_PICDepo_Vars           ,ONLY: PartSource,CellVolWeightFac
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+#if ((USE_HDG) && (PP_nVar==1))
+USE MOD_TimeDisc_Vars          ,ONLY: dt,tAnalyzeDiff,tEndDiff
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -521,6 +539,18 @@ BGMSourceCellVol(:,:,:,:,:) = 0.0
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
+
+! Check whether charge and current density have to be computed or just the charge density
+#if ((USE_HDG) && (PP_nVar==1))
+IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
+  doCalculateCurrentDensity=.TRUE.
+  SourceDim=1
+ELSE ! do not calculate current density
+  doCalculateCurrentDensity=.FALSE.
+  SourceDim=4
+END IF
+#endif
+
 DO iPart = FirstPart, LastPart
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
@@ -622,6 +652,9 @@ USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
+#if ((USE_HDG) && (PP_nVar==1))
+USE MOD_TimeDisc_Vars      ,ONLY: dt,tAnalyzeDiff,tEndDiff
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -661,6 +694,18 @@ NodeSource = 0.0
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
+
+! Check whether charge and current density have to be computed or just the charge density
+#if ((USE_HDG) && (PP_nVar==1))
+IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
+  doCalculateCurrentDensity=.TRUE.
+  SourceDim=1
+ELSE ! do not calculate current density
+  doCalculateCurrentDensity=.FALSE.
+  SourceDim=4
+END IF
+#endif
+
 DO iPart=FirstPart,LastPart
   IF (PDM%ParticleInside(iPart)) THEN
     IF (usevMPF) THEN

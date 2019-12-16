@@ -1354,9 +1354,6 @@ USE MOD_Particle_MPI_Vars           ,ONLY: PartMPIExchange
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 USE MOD_LoadBalance_Timers          ,ONLY: LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
-#if ((USE_HDG) && (PP_nVar==1))
-USE MOD_TimeDisc_Vars               ,ONLY: dt,tAnalyzeDiff,tEndDiff
-#endif
 USE MOD_PICDepo_Method              ,ONLY: DepositionMethod
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -1388,17 +1385,6 @@ END IF ! TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'
 
 doPartInExists=.FALSE.
 IF(PRESENT(doParticle_In)) doPartInExists=.TRUE.
-
-! Check whether charge and current density have to be computed or just the charge density
-#if ((USE_HDG) && (PP_nVar==1))
-IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
-  doCalculateCurrentDensity=.TRUE.
-  SourceDim=1
-ELSE ! do not calculate current density
-  doCalculateCurrentDensity=.FALSE.
-  SourceDim=4
-END IF
-#endif
 
 IF(DoInnerParts)THEN
   PartSource = 0.0
