@@ -857,7 +857,7 @@ CALL ReadAttribute(File_ID,'VarNamesParticles',nPartsVar+3,StrArray=tmpArray)
 VarNamesParticle(1:nPartsVar)=tmpArray(4:nPartsVar+3)
 
 IF(nParts.GT.0) THEN
-  ALLOCATE(PartData(1:nPartsVar+3,1:nParts),tmpPartData(1:nPartsVar+3,1:nParts))
+  ALLOCATE(PartData(1:nPartsVar+3,1:nParts),tmpPartData(1:nParts,1:nPartsVar+3))
   PartData = 0.
   tmpPartData = 0.
   SDEALLOCATE(ConnectInfo)
@@ -871,7 +871,7 @@ CALL ReadArray('PartData',2,(/nPartsVar+3_IK,nParts/),0_IK,1,RealArray=tmpPartDa
 END ASSOCIATE
 
 DO iPart=1,nParts
-  PartData(1:nPartsVar+3,iPart) = tmpPartData(iPart,1:nPartsVar+3)
+  PartData(1:nPartsVar+3,iPart) = tmpPartData(1:nPartsVar+3,iPart)
   ConnectInfo(1,iPart)=iPart-1
 END DO
 

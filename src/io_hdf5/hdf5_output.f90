@@ -795,23 +795,24 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVar
-#if USE_MPI
-INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
-INTEGER(KIND=IK)               :: nParticles(0:nProcessors-1)
-#endif
 LOGICAL                        :: reSwitch
 INTEGER                        :: pcount
 LOGICAL                        :: withDSMC=.FALSE.
-INTEGER(KIND=IK)               :: locnPart,offsetnPart
-INTEGER(KIND=IK)               :: iPart,nPart_glob
 INTEGER                        :: iElem_glob, iElem_loc
-INTEGER(KIND=IK),ALLOCATABLE   :: PartInt(:,:)
 REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
 INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
-INTEGER(KIND=IK)               :: locnPart_max
 INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
+! Integers of KIND=IK
+INTEGER(KIND=IK)               :: locnPart,offsetnPart
+INTEGER(KIND=IK)               :: iPart,nPart_glob
+INTEGER(KIND=IK),ALLOCATABLE   :: PartInt(:,:)
+INTEGER(KIND=IK)               :: locnPart_max
+#if USE_MPI
+INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
+INTEGER(KIND=IK)               :: nParticles(0:nProcessors-1)
+#endif
 !=============================================
 ! Required default values for KIND=IK
 MaxQuantNum=-1
@@ -1267,33 +1268,33 @@ offsetnPart  = 0_IK
 nPart_glob   = locnPart
 locnPart_max = locnPart
 #endif
-ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,INT(PartDataSize,IK)))
+ALLOCATE(PartData(INT(PartDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart))
 
 
 pcount=1
 DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
   ! Position and Velocity
-  PartData(iPart,1)=PartStateBoundary(1,pcount)
-  PartData(iPart,2)=PartStateBoundary(2,pcount)
-  PartData(iPart,3)=PartStateBoundary(3,pcount)
-  PartData(iPart,4)=PartStateBoundary(4,pcount)
-  PartData(iPart,5)=PartStateBoundary(5,pcount)
-  PartData(iPart,6)=PartStateBoundary(6,pcount)
+  PartData(1,iPart)=PartStateBoundary(1,pcount)
+  PartData(2,iPart)=PartStateBoundary(2,pcount)
+  PartData(3,iPart)=PartStateBoundary(3,pcount)
+  PartData(4,iPart)=PartStateBoundary(4,pcount)
+  PartData(5,iPart)=PartStateBoundary(5,pcount)
+  PartData(6,iPart)=PartStateBoundary(6,pcount)
 
   ! SpeciesID
-  PartData(iPart,7)=PartStateBoundarySpec(pcount)
+  PartData(7,iPart)=PartStateBoundarySpec(pcount)
 
   ! Kinetic energy [J->eV] (do not consider the MPF here!)
-  PartData(iPart,8)=CalcEkinPart2(PartStateBoundary(4:6,pcount),PartStateBoundarySpec(pcount),1.0) / ElementaryCharge
+  PartData(8,iPart)=CalcEkinPart2(PartStateBoundary(4:6,pcount),PartStateBoundarySpec(pcount),1.0) / ElementaryCharge
 
   ! MPF: Macro particle factor
-  PartData(iPart,9)=PartStateBoundary(7,pcount)
+  PartData(9,iPart)=PartStateBoundary(7,pcount)
 
   ! Simulation time [s]
-  PartData(iPart,10)=PartStateBoundary(8,pcount)
+  PartData(10,iPart)=PartStateBoundary(8,pcount)
 
   ! Impact obliqueness angle [degree]
-  PartData(iPart,11)=PartStateBoundary(9,pcount)
+  PartData(11,iPart)=PartStateBoundary(9,pcount)
 
 
   pcount = pcount +1
@@ -1341,29 +1342,29 @@ ASSOCIATE (&
   IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
     IF(MPIRoot)THEN ! only root writes the container
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-      CALL WriteArrayToHDF5(DataSetName='PartData'   , rank=2           , &
-                            nValGlobal=(/nPart_glob  , PartDataSize/)   , &
-                            nVal=      (/locnPart    , PartDataSize  /) , &
-                            offset=    (/offsetnPart , 0_IK  /)         , &
-                            collective=.FALSE.       , RealArray=PartData)
+      CALL WriteArrayToHDF5(DataSetName='PartData'     , rank=2              , &
+                            nValGlobal=(/ PartDataSize , nPart_glob  /)      , &
+                            nVal=      (/ PartDataSize , locnPart    /)      , &
+                            offset=    (/offsetnPart   , 0_IK  /)            , &
+                            collective=.FALSE.         , RealArray=PartData)
       CALL CloseDataFile()
     END IF !MPIRoot
   END IF !locnPart_max.EQ.0
 #if USE_MPI
-  CALL DistributedWriteArray(FileName                     , &
-                             DataSetName  = 'PartData'    , rank = 2          , &
-                             nValGlobal   = (/nPart_glob  , PartDataSize/)    , &
-                             nVal         = (/locnPart    , PartDataSize/)    , &
-                             offset       = (/offsetnPart , 0_IK/)            , &
-                             collective   = .FALSE.       , offSetDim = 1     , &
-                             communicator = PartMPI%COMM  , RealArray = PartData)
+  CALL DistributedWriteArray(FileName                       , &
+                             DataSetName  = 'PartData'      , rank = 2              , &
+                             nValGlobal   = (/ PartDataSize , nPart_glob  /)        , &
+                             nVal         = (/ PartDataSize , locnPart    /)        , &
+                             offset       = (/offsetnPart   , 0_IK/)                , &
+                             collective   = .FALSE.         , offSetDim = 1         , &
+                             communicator = PartMPI%COMM    , RealArray = PartData)
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  CALL WriteArrayToHDF5(DataSetName = 'PartData'    , rank = 2                , &
-                        nValGlobal  = (/nPart_glob  , PartDataSize/)          , &
-                        nVal        = (/locnPart    , PartDataSize/)          , &
-                        offset      = (/offsetnPart , 0_IK  /)                , &
-                        collective  = .TRUE.        , RealArray = PartData)
+  CALL WriteArrayToHDF5(DataSetName = 'PartData'      , rank = 2              , &
+                        nValGlobal  = (/ PartDataSize , nPart_glob  /)        , &
+                        nVal        = (/ PartDataSize , locnPart    /)        , &
+                        offset      = (/offsetnPart   , 0_IK  /)              , &
+                        collective  = .TRUE.          , RealArray = PartData)
   CALL CloseDataFile()
 #endif /*USE_MPI*/
 
@@ -1502,11 +1503,11 @@ ASSOCIATE (PartDataSize => INT(PartDataSize,IK))
     IF(PartMPI%MPIRoot)THEN ! only root writes the container
 #endif /*USE_MPI*/
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-      CALL WriteArrayToHDF5(DataSetName='MacroPartData'   , rank=2           , &
-                            nValGlobal=(/nPart_glob  , INT(PartDataSize,IK)/)   , &
-                            nVal=      (/locnPart    , INT(PartDataSize,IK)/) , &
-                            offset=    (/offsetnPart , 0_IK  /)         , &
-                            collective=.FALSE.       , RealArray=PartData)
+      CALL WriteArrayToHDF5(DataSetName='MacroPartData'        , rank=2           , &
+                            nValGlobal=(/ INT(PartDataSize,IK) , nPart_glob     /), &
+                            nVal=      (/ INT(PartDataSize,IK) , locnPart       /), &
+                            offset=    (/offsetnPart           , 0_IK           /), &
+                            collective=.FALSE.                 , RealArray=PartData)
       CALL CloseDataFile()
 #if USE_MPI
     END IF !MPIRoot
@@ -1514,18 +1515,18 @@ ASSOCIATE (PartDataSize => INT(PartDataSize,IK))
   END IF !locnPart_max.EQ.0
 #if USE_MPI
   CALL DistributedWriteArray(FileName                     , &
-                             DataSetName  = 'MacroPartData'    , rank = 2          , &
-                             nValGlobal   = (/nPart_glob  , INT(PartDataSize,IK)/)    , &
-                             nVal         = (/locnPart    , INT(PartDataSize,IK)/)    , &
-                             offset       = (/offsetnPart , 0_IK/)            , &
-                             collective   = .FALSE.       , offSetDim = 1     , &
-                             communicator = PartMPI%COMM  , RealArray = PartData)
+                             DataSetName  = 'MacroPartData'         , rank = 2       , &
+                             nValGlobal   = (/ INT(PartDataSize,IK) , nPart_glob  /) , &
+                             nVal         = (/ INT(PartDataSize,IK) , locnPart    /) , &
+                             offset       = (/offsetnPart           , 0_IK        /) , &
+                             collective   = .FALSE.                 , offSetDim = 1  , &
+                             communicator = PartMPI%COMM            , RealArray = PartData)
 #else
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  CALL WriteArrayToHDF5(DataSetName = 'MacroPartData'    , rank = 2                , &
-                        nValGlobal  = (/nPart_glob  , INT(PartDataSize,IK)/)          , &
-                        nVal        = (/locnPart    , INT(PartDataSize,IK)/)          , &
-                        offset      = (/offsetnPart , 0_IK  /)                , &
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.     , readOnly=.FALSE.)
+  CALL WriteArrayToHDF5(DataSetName = 'MacroPartData'         , rank = 2       , &
+                        nValGlobal  = (/ INT(PartDataSize,IK) , nPart_glob  /) , &
+                        nVal        = (/ INT(PartDataSize,IK) , locnPart    /) , &
+                        offset      = (/ offsetnPart          , 0_IK        /) , &
                         collective  = .TRUE.        , RealArray = PartData)
   CALL CloseDataFile()
 #endif /*USE_MPI*/
@@ -2244,10 +2245,10 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 CALL WriteAttributeToHDF5(File_ID,'VarNamesParticleClones',PartDataSize,StrArray=StrVarNames)
 
 ASSOCIATE (&
-      nPart_glob    => INT(nPart_glob,IK)    ,&
-      offsetnPart      => INT(offsetnPart,IK)      ,&
-      MaxQuantNum     => INT(MaxQuantNum,IK)     ,&
-      PartDataSize    => INT(PartDataSize,IK)    )
+      nPart_glob      => INT(nPart_glob,IK)    ,&
+      offsetnPart     => INT(offsetnPart,IK)   ,&
+      MaxQuantNum     => INT(MaxQuantNum,IK)   ,&
+      PartDataSize    => INT(PartDataSize,IK)  )
 CALL WriteArrayToHDF5(DataSetName='CloneData', rank=2,&
                       nValGlobal=(/PartDataSize , nPart_glob /) , &
                       nVal=      (/PartDataSize , locnPart   /) , &
