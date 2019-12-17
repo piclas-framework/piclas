@@ -728,7 +728,7 @@ IF(DoRestart)THEN
         END IF ! changedVars
         ALLOCATE(PartData(PartDataSize_HDF5,offsetnPart+1_IK:offsetnPart+locnPart))
 
-        CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,1,RealArray=PartData)!,&
+        CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,2,RealArray=PartData)!,&
         !xfer_mode_independent=.TRUE.)
 
         IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
