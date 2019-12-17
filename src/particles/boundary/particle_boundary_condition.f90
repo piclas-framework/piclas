@@ -380,10 +380,10 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfMesh,SampWall,CalcSurfColli
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues,PartLorentzType
-USE MOD_Particle_Vars           ,ONLY: VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: VarTimeStep, usevMPF
 USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC,RadialWeighting,PartStateIntEn
-USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues, usevMPF
+USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
 USE MOD_TImeDisc_Vars           ,ONLY: tend,time
 USE MOD_Equation_Vars           ,ONLY: c2_inv
 #if defined(LSERK)

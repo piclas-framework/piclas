@@ -69,7 +69,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,NumDens)
   USE MOD_DSMC_PolyAtomicModel,   ONLY : Calc_Beta_Poly
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
   USE MOD_DSMC_Vars,              ONLY : RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : PartState, Species, PartSpecies, nSpecies, VarTimeStep
+  USE MOD_Particle_Vars,          ONLY : PartState, Species, PartSpecies, nSpecies, VarTimeStep, usevMPF
   USE MOD_DSMC_Analyze,           ONLY : CalcTVibPoly, CalcTelec
   USE MOD_Globals_Vars,           ONLY : Pi
 USE MOD_part_tools                ,ONLY: GetParticleWeight
@@ -125,7 +125,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   Weight2 = GetParticleWeight(React2Inx)
   IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(iPart_p3)
 
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ReducedMass = (Species(EductReac(1))%MassIC *Weight1  * Species(EductReac(2))%MassIC * Weight2) &
       / (Species(EductReac(1))%MassIC * Weight1+ Species(EductReac(2))%MassIC * Weight2)
   ELSE
@@ -416,7 +416,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac, iPart_p3)
 USE MOD_Globals                ,ONLY: abort
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
-USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange, CalcXiElec
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
 USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiTotalEqui
@@ -495,7 +495,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
   Weight2 = GetParticleWeight(React2Inx)
   IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(iPart_p3)
 
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ReducedMass = Species(EductReac(1))%MassIC*Weight1 * Species(EductReac(2))%MassIC*Weight2 &
                / (Species(EductReac(1))%MassIC*Weight1 + Species(EductReac(2))%MassIC*Weight2)
   ELSE
@@ -524,7 +524,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
       PartStateIntEn( 2,React3Inx) = 0.
       IF ( DSMC%ElectronicModel )  PartStateIntEn( 3,React3Inx) = 0.
       PEM%Element(React3Inx) = PEM%Element(React1Inx)
-      IF(RadialWeighting%DoRadialWeighting) PartMPF(React3Inx) = PartMPF(React1Inx)
+      IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) PartMPF(React3Inx) = PartMPF(React1Inx)
       IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(React3Inx) = VarTimeStep%ParticleTimeStep(React1Inx)
       WeightProd = Weight1
       NumWeightProd = 3.
@@ -555,7 +555,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
   Coll_pData(iPair)%Ec = 0.5 * ReducedMass *Coll_pData(iPair)%CRela2 &
          + ChemReac%EForm(iReac)/NumWeightProd*(Weight1+Weight2+WeightProd)
 
-  IF(RadialWeighting%DoRadialWeighting) THEN
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
     ! Weighting factor already included in the weights
     ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)/NumWeightProd*(Weight1+Weight2+WeightProd)
   ELSE
@@ -905,7 +905,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     VzPseuMolec = (VeloMz + FracMassCent2*RanVeloz)
 
     ! Scattering of (AB)
-    IF (RadialWeighting%DoRadialWeighting) THEN
+    IF (usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
       FracMassCent1 = Species(ProductReac(1))%MassIC *Weight1 &
           /(Species(ProductReac(1))%MassIC* Weight1 + Species(ProductReac(3))%MassIC * WeightProd)
       FracMassCent2 = Species(ProductReac(3))%MassIC *WeightProd &
@@ -986,7 +986,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     END IF
     ERel_React1_React3 = Coll_pData(iPair)%Ec
 
-    IF (RadialWeighting%DoRadialWeighting) THEN
+    IF (usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
       FracMassCent1 = Species(ProductReac(1))%MassIC *Weight1 &
           /(Species(ProductReac(1))%MassIC* Weight1 + Species(ProductReac(2))%MassIC * Weight2)
       FracMassCent2 = Species(ProductReac(2))%MassIC *Weight2 &
@@ -994,9 +994,9 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
       ReducedMass = Species(ProductReac(1))%MassIC *Weight1* Species(ProductReac(2))%MassIC *Weight2 &
           / (Species(ProductReac(1))%MassIC*Weight1 + Species(ProductReac(2))%MassIC *Weight2)
     ELSE
-    ! Scattering of (AB)
-    FracMassCent1 = CollInf%FracMassCent(ProductReac(1),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
-    FracMassCent2 = CollInf%FracMassCent(ProductReac(2),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
+      ! Scattering of (AB)
+      FracMassCent1 = CollInf%FracMassCent(ProductReac(1),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
+      FracMassCent2 = CollInf%FracMassCent(ProductReac(2),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
       ReducedMass = CollInf%MassRed(CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
     END IF
 
@@ -1044,10 +1044,10 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     WRITE(UNIT_StdOut,*) '\n'
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_new             : ",Energy_new
-    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Energy difference : ",Energy_old-Energy_new
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Energy difference : ",Energy_new-Energy_old
     ASSOCIATE( energy => MAX(ABS(Energy_old),ABS(Energy_new)) )
       IF(energy.GT.0.0)THEN
-        IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Energy difference : ",(Energy_old-Energy_new)/energy
+        IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Energy difference : ",(Energy_new-Energy_old)/energy
       END IF
     END ASSOCIATE
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
@@ -1068,10 +1068,10 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
       IPWRITE(UNIT_StdOut,'(I0,A,I0)')           " Direction (x,y,z)        : ",iMom
       IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_old             : ",Momentum_old(iMom)
       IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_new             : ",Momentum_new(iMom)
-      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Momentum difference : ",Momentum_old(iMom)-Momentum_new(iMom)
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Momentum difference : ",Momentum_new(iMom)-Momentum_old(iMom)
       ASSOCIATE( Momentum => MAX(ABS(Momentum_old(iMom)),ABS(Momentum_new(iMom))) )
         IF(Momentum.GT.0.0)THEN
-          IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Momentum difference : ",(Momentum_old(iMom)-Momentum_new(iMom))/Momentum
+          IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Momentum difference : ",(Momentum_new(iMom)-Momentum_old(iMom))/Momentum
         END IF
       END ASSOCIATE
       IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-10

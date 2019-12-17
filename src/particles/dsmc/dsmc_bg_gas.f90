@@ -61,7 +61,7 @@ USE MOD_Globals                ,ONLY: Abort
 USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef
+USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef, usevMPF, PartMPF
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF
 USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
@@ -92,6 +92,9 @@ __STAMP__&
       PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,iPart)
     END IF
     PartSpecies(PositionNbr) = BGGas%BGGasSpecies
+    IF(usevMPF) THEN
+      PartMPF(PositionNbr) = PartMPF(iPart)
+    END IF
     IF(SpecDSMC(BGGas%BGGasSpecies)%PolyatomicMol) THEN
       CALL DSMC_SetInternalEnr_Poly(BGGas%BGGasSpecies,0,PositionNbr,1)
     ELSE
@@ -122,8 +125,8 @@ USE MOD_Globals
 USE MOD_DSMC_Analyze        ,ONLY: CalcGammaVib
 USE MOD_DSMC_Vars           ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
 USE MOD_DSMC_Vars           ,ONLY: VarVibRelaxProb
-USE MOD_Particle_Vars       ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species
-USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
+USE MOD_Particle_Vars       ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species
+USE MOD_part_tools          ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -145,11 +148,10 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
     END DO
   END IF
 
-  CollInf%Coll_SpecPartNum = 0
-  CollInf%Coll_CaseNum = 0
-
   ALLOCATE(Coll_pData(nPair))
   Coll_pData%Ec=0
+  CollInf%Coll_SpecPartNum = 0.
+  CollInf%Coll_CaseNum = 0
   iPair = 1
 
   IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
@@ -160,7 +162,8 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
     ! Counting the number of particles per species
     CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) + 1
     ! Calculation of mean vibrational energy per cell and iter, necessary for dissociation probability
-    IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(1,iPart)
+    IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) &
+                                                            + PartStateIntEn(1,iPart) * GetParticleWeight(iPart)
     ! Creating pairs for species, which are not the background species nor treated with a MCC model
     IF(iSpec.NE.BGGas%BGGasSpecies) THEN
       Coll_pData(iPair)%iPart_p1 = iPart
@@ -169,15 +172,6 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
     END IF
     iPart = PEM%pNext(iPart)
   END DO
-
-  ! Setting Number of BGGas Particles per Cell
-  IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0) THEN
-    BGGas%BGColl_SpecPartNum = Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensity(iElem) * GEO%Volume(iElem)      &
-                                               / Species(BGGas%BGGasSpecies)%MacroParticleFactor
-  ELSE
-    BGGas%BGColl_SpecPartNum = BGGas%BGGasDensity * GEO%Volume(iElem)      &
-                                               / Species(BGGas%BGGasSpecies)%MacroParticleFactor
-  END IF
 
   IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
     ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
@@ -190,12 +184,9 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
     IF(SelectionProc.EQ.2) CALL CalcGammaVib()
   END IF
 
-  CollInf%Coll_SpecPartNum(BGGas%BGGasSpecies) = BGGas%BGColl_SpecPartNum
-
   DO iPair = 1, nPair
     cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
     cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
-    IF (usevMPF) PartMPF(Coll_pData(iPair)%iPart_p2) = PartMPF(Coll_pData(iPair)%iPart_p1)
     iCase = CollInf%Coll_Case(cSpec1, cSpec2)
     CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
     Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
@@ -323,6 +314,9 @@ __STAMP__&
     CALL DSMC_SetInternalEnr_Poly(BGGas%BGGasSpecies,0,PositionNbr,1)
   ELSE
     CALL DSMC_SetInternalEnr_LauxVFD(BGGas%BGGasSpecies,0,PositionNbr,1)
+  END IF
+  IF(usevMPF) THEN
+    PartMPF(PositionNbr) = PartMPF(iPart)
   END IF
   PEM%Element(PositionNbr) = iElem
   PDM%ParticleInside(PositionNbr) = .TRUE.

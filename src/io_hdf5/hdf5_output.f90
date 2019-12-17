@@ -893,7 +893,7 @@ END IF
 
 !!! Kleiner Hack von JN (Teil 1/2):
 
-IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+IF (.NOT.(useDSMC.OR.PartPressureCell.OR.usevMPF)) THEN
   ALLOCATE(PEM%pStart(1:PP_nElems)           , &
            PEM%pNumber(1:PP_nElems)          , &
            PEM%pNext(1:PDM%maxParticleNumber), &
@@ -1150,7 +1150,7 @@ DEALLOCATE(PartData)
 
 !!! Kleiner Hack von JN (Teil 2/2):
 useDSMC=withDSMC
-IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+IF (.NOT.(useDSMC.OR.PartPressureCell.OR.usevMPF)) THEN
   DEALLOCATE(PEM%pStart , &
              PEM%pNumber, &
              PEM%pNext  , &

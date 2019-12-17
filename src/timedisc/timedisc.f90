@@ -4483,7 +4483,7 @@ SUBROUTINE TimeStepPoisson()
 ! Euler (500) or Leapfrog (509) -push with HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort, LocalTime
+USE MOD_Globals                ,ONLY: Abort, LocalTime, MPIRoot
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time

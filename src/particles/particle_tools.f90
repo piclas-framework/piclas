@@ -89,7 +89,7 @@ SUBROUTINE UpdateNextFreePosition()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars        ,ONLY: PDM,PEM, PartSpecies, doParticleMerge, vMPF_SpecNumElem, PartPressureCell
-USE MOD_Particle_Vars        ,ONLY: KeepWallParticles, PartState, VarTimeStep
+USE MOD_Particle_Vars        ,ONLY: KeepWallParticles, PartState, VarTimeStep, usevMPF
 USE MOD_DSMC_Vars            ,ONLY: useDSMC, CollInf
 USE MOD_Particle_VarTimeStep ,ONLY: CalcVarTimeStep
 #if USE_LOADBALANCE
@@ -114,7 +114,7 @@ CALL LBStartTime(tLBStart)
 
 IF(PDM%maxParticleNumber.EQ.0) RETURN
 counter1 = 1
-IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
+IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell.OR.usevMPF) THEN
   PEM%pNumber(:) = 0
   IF (KeepWallParticles) PEM%wNumber(:) = 0
 END IF
@@ -122,7 +122,7 @@ n = PDM%ParticleVecLength !PDM%maxParticleNumber
 PDM%ParticleVecLength = 0
 PDM%insideParticleNumber = 0
 IF (doParticleMerge) vMPF_SpecNumElem = 0
-IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
+IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell.OR.usevMPF) THEN
   DO i=1,n
     IF (.NOT.PDM%ParticleInside(i)) THEN
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
