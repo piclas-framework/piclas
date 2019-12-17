@@ -150,6 +150,8 @@ USE MOD_part_tools          ,ONLY: GetParticleWeight
 
   ALLOCATE(Coll_pData(nPair))
   Coll_pData%Ec=0
+  CollInf%Coll_SpecPartNum = 0.
+  CollInf%Coll_CaseNum = 0
   iPair = 1
 
   IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
@@ -312,6 +314,9 @@ __STAMP__&
     CALL DSMC_SetInternalEnr_Poly(BGGas%BGGasSpecies,0,PositionNbr,1)
   ELSE
     CALL DSMC_SetInternalEnr_LauxVFD(BGGas%BGGasSpecies,0,PositionNbr,1)
+  END IF
+  IF(usevMPF) THEN
+    PartMPF(PositionNbr) = PartMPF(iPart)
   END IF
   PEM%Element(PositionNbr) = iElem
   PDM%ParticleInside(PositionNbr) = .TRUE.

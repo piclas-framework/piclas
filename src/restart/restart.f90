@@ -803,6 +803,12 @@ IF(DoRestart)THEN
                 PartMPF(iPart) = Species(PartSpecies(iPart))%MacroParticleFactor
               END IF
             END IF ! (CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)
+          ELSE IF (usevMPF) THEN
+            IF(readVarFromState(8)) THEN
+              PartMPF(iPart) = PartData(offsetnPart+iLoop,8)
+            ELSE
+              PartMPF(iPart) = Species(PartSpecies(iPart))%MacroParticleFactor
+            END IF
           END IF ! UseDSMC
 
           IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
