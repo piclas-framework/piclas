@@ -887,7 +887,7 @@ locnPart_max=locnPart
 ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
 ALLOCATE(PartData(INT(PartDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart))
 IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-  ALLOCATE(VibQuantData(offsetnPart+1_IK:offsetnPart+locnPart,MaxQuantNum))
+  ALLOCATE(VibQuantData(MaxQuantNum,offsetnPart+1_IK:offsetnPart+locnPart))
   VibQuantData = 0
   !+1 is real number of necessary vib quants for the particle
 END IF
@@ -967,10 +967,10 @@ DO iElem_loc=1,PP_nElems
       IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
         IF (SpecDSMC(PartSpecies(pcount))%PolyatomicMol) THEN
           iPolyatMole = SpecDSMC(PartSpecies(pcount))%SpecToPolyArray
-          VibQuantData(iPart,1:PolyatomMolDSMC(iPolyatMole)%VibDOF) = &
+          VibQuantData(1:PolyatomMolDSMC(iPolyatMole)%VibDOF,iPart) = &
             VibQuantsPar(pcount)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
         ELSE
-           VibQuantData(iPart,:) = 0
+           VibQuantData(:,iPart) = 0
         END IF
       END IF
 
@@ -1086,15 +1086,15 @@ ASSOCIATE (&
                              nValGlobal   = (/PartDataSize , nPart_glob /)  , &
                              nVal         = (/PartDataSize , locnPart   /)  , &
                              offset       = (/0_IK         , offsetnPart/)  , &
-                             collective   = .FALSE.        , offSetDim= 1   , &
+                             collective   = .FALSE.        , offSetDim= 2   , &
                              communicator = PartMPI%COMM   , RealArray= PartData)
   IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
     CALL DistributedWriteArray(FileName , &
-                              DataSetName ='VibQuantData', rank=2            , &
-                              nValGlobal  =(/nPart_glob  , MaxQuantNum/)     , &
-                              nVal        =(/locnPart    , MaxQuantNum  /)   , &
-                              offset      =(/offsetnPart , 0_IK  /)          , &
-                              collective  =.FALSE.       , offSetDim=1       , &
+                              DataSetName ='VibQuantData', rank=2           , &
+                              nValGlobal  =(/MaxQuantNum , nPart_glob  /)   , &
+                              nVal        =(/MaxQuantNum , locnPart    /)   , &
+                              offset      =(/offsetnPart , 0_IK        /)   , &
+                              collective  =.FALSE.       , offSetDim=2      , &
                               communicator=PartMPI%COMM  , IntegerArray_i4=VibQuantData)
     DEALLOCATE(VibQuantData)
   END IF
@@ -1117,9 +1117,9 @@ ASSOCIATE (&
                         collective  = .TRUE.         , RealArray = PartData)
   IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
     CALL WriteArrayToHDF5(DataSetName = 'VibQuantData' , rank = 2             , &
-                          nValGlobal  = (/nPart_glob   , MaxQuantNum/)        , &
-                          nVal        = (/locnPart     , MaxQuantNum  /)      , &
-                          offset      = (/offsetnPart  , 0_IK /)              , &
+                          nValGlobal  = (/ MaxQuantNum , nPart_glob   /)      , &
+                          nVal        = (/ MaxQuantNum , locnPart     /)      , &
+                          offset      = (/ 0_IK        , offsetnPart  /)      , &
                           collective  = .TRUE.         , IntegerArray_i4 = VibQuantData)
     DEALLOCATE(VibQuantData)
   END IF
@@ -2152,7 +2152,7 @@ nPart_glob=locnPart
 ALLOCATE(PartData(PartDataSize,offsetnPart+1:offsetnPart+locnPart))
 
 IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-  ALLOCATE(VibQuantData(offsetnPart+1:offsetnPart+locnPart,MaxQuantNum))
+  ALLOCATE(VibQuantData(MaxQuantNum,offsetnPart+1:offsetnPart+locnPart))
   !+1 is real number of necessary vib quants for the particle
 END IF
 iPart=offsetnPart
@@ -2195,10 +2195,10 @@ DO iDelay=0,tempDelay
     IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
       IF (SpecDSMC(ClonedParticles(pcount,iDelay)%Species)%PolyatomicMol) THEN
         iPolyatMole = SpecDSMC(ClonedParticles(pcount,iDelay)%Species)%SpecToPolyArray
-        VibQuantData(iPart,1:PolyatomMolDSMC(iPolyatMole)%VibDOF) = &
+        VibQuantData(1:PolyatomMolDSMC(iPolyatMole)%VibDOF,iPart) = &
           ClonedParticles(pcount,iDelay)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
       ELSE
-          VibQuantData(iPart,:) = 0
+          VibQuantData(:,iPart) = 0
       END IF
     END IF
   END DO
@@ -2255,11 +2255,11 @@ CALL WriteArrayToHDF5(DataSetName='CloneData', rank=2,&
                       offset=    (/0_IK         , offsetnPart/) , &
                       collective=.FALSE., RealArray=PartData)
 IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-  CALL WriteArrayToHDF5(DataSetName='CloneVibQuantData', rank=2,&
-                        nValGlobal=(/nPart_glob,MaxQuantNum/),&
-                        nVal=      (/locnPart,MaxQuantNum  /),&
-                        offset=    (/offsetnPart , 0_IK  /),&
-                        collective=.FALSE., IntegerArray_i4=VibQuantData)
+  CALL WriteArrayToHDF5(DataSetName='CloneVibQuantData' , rank=2              , &
+                        nValGlobal=(/MaxQuantNum        , nPart_glob     /)   , &
+                        nVal=      (/MaxQuantNum        , locnPart       /)   , &
+                        offset=    (/0_IK               , offsetnPart    /)   , &
+                        collective=.FALSE.              , IntegerArray_i4=VibQuantData)
   DEALLOCATE(VibQuantData)
 END IF
 END ASSOCIATE
