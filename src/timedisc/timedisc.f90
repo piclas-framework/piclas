@@ -800,13 +800,13 @@ USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,DoRefMapping,Measu
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, PEM, PDM, &
-                                      doParticleMerge,PartPressureCell,DoFieldIonization, usevMPF
+                                      doParticleMerge,PartPressureCell,DoFieldIonization
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_DSMC                   ,ONLY: DSMC_main
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS, RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
@@ -819,7 +819,6 @@ USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIPar
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif /*USE_MPI*/
-USE MOD_vMPF                   ,ONLY: SplitMerge_main
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -1255,14 +1254,6 @@ IF (doParticleMerge) THEN
   CALL UpdateNextFreePosition()
 END IF
 
-
-IF ((iter.EQ.1).AND.(usevMPF).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-  SWRITE(*,*) 'Merging particles...'
-  CALL SplitMerge_main()
-  SWRITE(*,*) 'Merged particles to target number!'
-  CALL UpdateNextFreePosition()
-END IF
-
 IF (useDSMC) THEN
   IF (time.GE.DelayTime) THEN
 
@@ -1351,8 +1342,8 @@ USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, usevMPF
-USE MOD_DSMC_Vars                ,ONLY: DSMC_RHS, DSMC, CollisMode, RadialWeighting
+USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
+USE MOD_DSMC_Vars                ,ONLY: DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC                     ,ONLY: DSMC_main
 USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission            ,ONLY: ParticleInserting
@@ -1362,7 +1353,6 @@ USE MOD_Particle_Tracking        ,ONLY: ParticleTracing,ParticleRefTracking,Part
 USE MOD_SurfaceModel             ,ONLY: UpdateSurfModelVars, SurfaceModel_main
 USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_Particle_Boundary_Vars   ,ONLY: nPorousBC
-USE MOD_vMPF                     ,ONLY: SplitMerge_main
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -1510,11 +1500,6 @@ REAL                       :: tLBStart
     CALL abort(&
     __STAMP__&
     ,'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
-  END IF
-
-  IF ((iter.EQ.1).AND.(usevMPF).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-    CALL SplitMerge_main()
-    CALL UpdateNextFreePosition()
   END IF
 
   CALL DSMC_main()
@@ -4510,7 +4495,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell, usevMPF
+USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
 USE MOD_Particle_Analyze       ,ONLY: CalcCoupledPowerPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
@@ -4521,7 +4506,7 @@ USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_surface_flux           ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS, RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge,PartAnalyzeStep
@@ -4534,7 +4519,6 @@ USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,Ext
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
-USE MOD_vMPF                   ,ONLY: SplitMerge_main
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -4772,13 +4756,6 @@ IF (doParticleMerge) THEN
                PEM%pNext  , &
                PEM%pEnd   )
   END IF
-  CALL UpdateNextFreePosition()
-END IF
-
-IF ((iter.EQ.1).AND.(usevMPF).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-  SWRITE(*,*) 'Merging particles...'
-  CALL SplitMerge_main()
-  SWRITE(*,*) 'Merged particles to target number!'
   CALL UpdateNextFreePosition()
 END IF
 
