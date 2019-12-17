@@ -16,6 +16,9 @@ MODULE MOD_Particle_Boundary_Vars
 ! Contains global variables provided by the particle surfaces routines
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -62,11 +65,11 @@ TYPE tSurfaceCOMM
   INTEGER                               :: nOutputProcs                  ! number of output processes
 #if USE_MPI
   LOGICAL                               :: InnerBCs                      ! are there InnerSides with reflective properties
-  INTEGER                               :: COMM                          ! communicator
+  INTEGER                               :: COMM=MPI_COMM_NULL            ! communicator
   INTEGER                               :: nMPINeighbors                 ! number of processes to communicate with
   TYPE(tSurfaceSendList),ALLOCATABLE    :: MPINeighbor(:)                ! list containing all mpi neighbors
+  INTEGER                               :: OutputCOMM=MPI_COMM_NULL      ! communicator for output
 #endif /*USE_MPI*/
-  INTEGER                               :: OutputCOMM                    ! communicator for output
 END TYPE
 TYPE (tSurfaceCOMM)                     :: SurfCOMM
 
@@ -78,7 +81,10 @@ TYPE tSurfaceMesh
   INTEGER                               :: nSides                        ! Number of Sides on Surface (reflective)
   INTEGER                               :: nBCSides                      ! Number of OuterSides with Surface (reflective) properties
   INTEGER                               :: nInnerSides                   ! Number of InnerSides with Surface (reflective) properties
-  INTEGER                               :: nMasterSides                  ! Number of maser surfaces (bcsides+maser_innersides)
+  INTEGER                               :: nOutputSides                  ! Number of surfaces that are assigned to an MPI rank for
+                                                                         ! surface sampling (MacroSurfaceVal and MacroSurfaceSpecVal) 
+                                                                         ! and output to .h5 (SurfData) purposes:
+                                                                         ! nOutputSides = bcsides + maser_innersides
   INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
   INTEGER                               :: nGlobalSides                  ! Global number of Sides on Surfaces (reflective)
   INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping of side ID to surface side ID (reflective)
@@ -142,7 +148,7 @@ TYPE tPorousBC
   INTEGER                               :: BC                     ! Number of the reflective BC to be used as a porous BC
   REAL                                  :: Pressure               ! Pressure at the BC [Pa], user-given
   REAL                                  :: Temperature            ! Temperature at the BC [K], user-given
-  REAL                                  :: NumberDensity          ! Calculated number density [1/m3]
+  CHARACTER(LEN=50)                     :: Type
   REAL                                  :: PumpingSpeed           ! Given/calculated pumping speed [m3/s]
   REAL                                  :: DeltaPumpingSpeedKp    ! Proportional factor for the pumping speed controller
   REAL                                  :: DeltaPumpingSpeedKi    ! Integral factor for the pumping speed controller
@@ -156,10 +162,8 @@ TYPE tPorousBC
   INTEGER, ALLOCATABLE                  :: SideList(:)            ! Mapping from porous BC side list to the BC side list
   REAL, ALLOCATABLE                     :: Sample(:,:)            ! Allocated with SideNumber and nPorousBCVars
   INTEGER, ALLOCATABLE                  :: RegionSideType(:)      ! 0: side is completely inside porous region
-                                                                  ! 1: side is completely outside porous region
-                                                                  ! 2: side is partially inside porous region
+                                                                  ! 1: side is partially inside porous region
   REAL, ALLOCATABLE                     :: RemovalProbability(:)  ! Removal probability at the porous BC
-  REAL, ALLOCATABLE                     :: PressureDifference(:)  ! Removal probability at the porous BC
   REAL, ALLOCATABLE                     :: PumpingSpeedSide(:)    ! Removal probability at the porous BC
   REAL                                  :: Output(1:5)            ! 1: Counter of impinged particles on the BC
                                                                   ! 2: Measured pumping speed [m3/s] through # of deleted particles
@@ -169,8 +173,8 @@ TYPE tPorousBC
 END TYPE
 TYPE(tPorousBC), ALLOCATABLE            :: PorousBC(:)            ! Container for the porous BC, allocated with nPorousBC
 
-INTEGER, ALLOCATABLE                    :: MapBCtoPorousBC(:)     ! Mapping the porous BC to the BC (input: BC, output: porous BC)
-INTEGER, ALLOCATABLE                    :: MapSurfSideToPorousSide(:) !
+INTEGER, ALLOCATABLE                    :: MapSurfSideToPorousBC(:)   ! Mapping of the surface side to the porous BC
+INTEGER, ALLOCATABLE                    :: MapSurfSideToPorousSide(:) ! Mapping of the surface side to the porous side
 
 TYPE tSurfColl
   INTEGER                               :: NbrOfSpecies           ! Nbr. of Species to be counted for wall collisions (def. 0: all)
@@ -212,7 +216,8 @@ TYPE tPartBoundary
   INTEGER              , ALLOCATABLE     :: MapToPartBC(:)              ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
   !!INTEGER              , ALLOCATABLE     :: SideBCType(:)            ! list with boundary condition for each side
   REAL    , ALLOCATABLE                  :: MomentumACC(:)
-  REAL    , ALLOCATABLE                  :: WallTemp(:)
+  REAL    , ALLOCATABLE                  :: WallTemp(:), WallTemp2(:), WallTempDelta(:)
+  REAL    , ALLOCATABLE                  :: TempGradStart(:,:), TempGradEnd(:,:), TempGradVec(:,:)
   REAL    , ALLOCATABLE                  :: TransACC(:)
   REAL    , ALLOCATABLE                  :: VibACC(:)
   REAL    , ALLOCATABLE                  :: RotACC(:)
@@ -241,22 +246,20 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: SolidAreaIncrease(:)
   INTEGER , ALLOCATABLE                  :: SolidStructure(:)             ! crystal structure of solid boundary (1:fcc100 2:fcc111)
   INTEGER , ALLOCATABLE                  :: SolidCrystalIndx(:)
-  LOGICAL , ALLOCATABLE                  :: AmbientCondition(:)
-  LOGICAL , ALLOCATABLE                  :: AmbientConditionFix(:)
-  REAL    , ALLOCATABLE                  :: AmbientTemp(:)
-  REAL    , ALLOCATABLE                  :: AmbientMeanPartMass(:)
-  REAL    , ALLOCATABLE                  :: AmbientBeta(:)
-  REAL    , ALLOCATABLE                  :: AmbientVelo(:,:)
-  REAL    , ALLOCATABLE                  :: AmbientDens(:)
-  REAL    , ALLOCATABLE                  :: AmbientDynamicVisc(:)               ! dynamic viscousity
-  REAL    , ALLOCATABLE                  :: AmbientThermalCond(:)               ! thermal conuctivity
   LOGICAL , ALLOCATABLE                  :: Adaptive(:)
   INTEGER , ALLOCATABLE                  :: AdaptiveType(:)
   INTEGER , ALLOCATABLE                  :: AdaptiveMacroRestartFileID(:)
   REAL    , ALLOCATABLE                  :: AdaptivePressure(:)
   REAL    , ALLOCATABLE                  :: AdaptiveTemp(:)
-  LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                   !Use Boundary for Q-Criterion ?
-  LOGICAL , ALLOCATABLE                  :: Resample(:)                      !Resample Equilibirum Distribution with reflection
+  LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                ! Use Boundary for Q-Criterion ?
+  LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibirum Distribution with reflection
+  LOGICAL , ALLOCATABLE                  :: Dielectric(:)                 ! Define if particle boundary [$] is a dielectric
+!                                                                         ! interface, i.e. an interface between a dielectric and 
+!                                                                         ! a non-dielectric or a between to different dielectrics 
+!                                                                         ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
+!                                                                         ! (Default=FALSE.)
+  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutput(:)     ! Save particle position, velocity and species to 
+!                                                                         ! PartDataBoundary container for writing to .h5 later
 END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries
@@ -311,23 +314,31 @@ END TYPE tAuxBC_parabol
 TYPE(tAuxBC_parabol), ALLOCATABLE       :: AuxBC_parabol(:)
 
 TYPE tPartAuxBC
-  INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
-  INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)
-  REAL    , ALLOCATABLE                  :: MomentumACC(:)
-  REAL    , ALLOCATABLE                  :: WallTemp(:)
-  REAL    , ALLOCATABLE                  :: TransACC(:)
-  REAL    , ALLOCATABLE                  :: VibACC(:)
-  REAL    , ALLOCATABLE                  :: RotACC(:)
-  REAL    , ALLOCATABLE                  :: ElecACC(:)
-  REAL    , ALLOCATABLE                  :: WallVelo(:,:)
-  INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
-  REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
-  INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
-  LOGICAL , ALLOCATABLE                  :: Resample(:)                      !Resample Equilibirum Distribution with reflection
+  INTEGER               :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
+  INTEGER               :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
+  INTEGER , ALLOCATABLE :: TargetBoundCond(:)
+  REAL    , ALLOCATABLE :: MomentumACC(:)
+  REAL    , ALLOCATABLE :: WallTemp(:)
+  REAL    , ALLOCATABLE :: TransACC(:)
+  REAL    , ALLOCATABLE :: VibACC(:)
+  REAL    , ALLOCATABLE :: RotACC(:)
+  REAL    , ALLOCATABLE :: ElecACC(:)
+  REAL    , ALLOCATABLE :: WallVelo(:,:)
+  INTEGER , ALLOCATABLE :: NbrOfSpeciesSwaps(:)  !Number of Species to be changed at wall
+  REAL    , ALLOCATABLE :: ProbOfSpeciesSwaps(:) !Probability of SpeciesSwaps at wall
+  INTEGER , ALLOCATABLE :: SpeciesSwaps(:,:,:)   !Species to be changed at wall (in, out), out=0: delete
+  LOGICAL , ALLOCATABLE :: Resample(:)           !Resample Equilibirum Distribution with reflection
 END TYPE
-TYPE(tPartAuxBC)                         :: PartAuxBC                         ! auxBC Data for Particles
+TYPE(tPartAuxBC)        :: PartAuxBC             ! auxBC Data for Particles
 
+! Boundary particle output
+LOGICAL              :: DoBoundaryParticleOutput   ! Flag set automatically if particles crossing specific 
+!                                                  ! boundaries are to be saved to .h5 (position of intersection, 
+!                                                  ! velocity, species, internal energies)
+REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:9,1:NParts) 1st index: x,y,z,vx,vy,vz,MPF,time,impact angle
+!                                                  !                2nd index: 1 to number of boundary-crossed particles
+INTEGER, ALLOCATABLE :: PartStateBoundarySpec(:)   ! Species ID of boundary-crossed particles
+INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed particles
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Boundary_Vars

@@ -58,6 +58,9 @@ CALL prms%CreateIntOption(    'PIC-AnalyticInterpolation-SubType', "SubType of A
 CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationP'       , "parameter 'p' for AnalyticInterpolationType = 1", '1.')
 #endif /*CODE_ANALYZE*/
 
+CALL prms%CreateLogicalOption(  'PIC-DoInterpolation'         , "TODO-DEFINE-PARAMETER\n"//&
+                                                                "Compute the self field's influence "//&
+                                                                "on the Particle", '.TRUE.')
 CALL prms%CreateStringOption(   'PIC-Interpolation-Type'      , "TODO-DEFINE-PARAMETER\n"//&
                                                                 "Type of Interpolation-Method to calculate"//&
                                                                 " the EM field's value for the particle", 'particle_position')
@@ -68,24 +71,7 @@ CALL prms%CreateRealArrayOption('PIC-externalField'           , 'TODO-DEFINE-PAR
                                                                 'External field is added to the'//&
                                                                 'maxwell-solver-field', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
 CALL prms%CreateRealOption(     'PIC-scaleexternalField'      , 'TODO-DEFINE-PARAMETER', '1.0')
-CALL prms%CreateLogicalOption(  'PIC-DoInterpolation'         , "TODO-DEFINE-PARAMETER\n"//&
-                                                                "Compute the self field's influence "//&
-                                                                "on the Particle", '.TRUE.')
-CALL prms%CreateLogicalOption(  'PIC-BG-Field'                , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'BGField data (1:x,0:NBG,0:NBG,0:NBG,'//&
-                                                                '1:PP_nElems) \n'//&
-                                                                'If PIC-BG-Field=T\n'//&
-                                                                'Define:\n'//&
-                                                                'PIC-BGFilename\n'//&
-                                                                'PIC-BGFieldScaling\n'//&
-                                                                'PIC-NBG', '.TRUE.')
-CALL prms%CreateStringOption(   'PIC-BGFileName'              , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'File name for background field ([character].h5)', 'none')
-CALL prms%CreateIntOption(      'PIC-NBG'                     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Polynomial degree that shall be used '//&
-                                                                'for background field during simulation', '1')
-CALL prms%CreateRealOption(     'PIC-BGFieldScaling'          , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Space scaling of background field', '1.')
+
 CALL prms%CreateStringOption(   'PIC-curvedexternalField'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'File to curved external field data.','none')
 CALL prms%CreateStringOption(   'PIC-variableexternalField'   , 'TODO-DEFINE-PARAMETER\n'//&

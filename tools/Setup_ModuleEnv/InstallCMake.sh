@@ -1,4 +1,15 @@
 #!/bin/bash
+
+#==============================================================================
+# title       : InstallCMake.sh
+# description : This script installs cmake with a specified version as given 
+#               below via CMAKEVERSION='X.XX.X'
+# date        : Nov 27, 2019
+# version     : 1.0   
+# usage       : bash InstallCMake.sh
+# notes       : 
+#==============================================================================
+
 INSTALLDIR=/opt
 SOURCESDIR=/opt/Installsources
 TEMPLATEDIR=/opt/Installsources/moduletemplates
@@ -8,8 +19,10 @@ if [ ! -d "${SOURCESDIR}" ]; then
 fi
 
 # DOWNLOAD and INSTALL CMAKE (example cmake-3.4.3)
-# CMAKEVERSION='3.4.3'
-CMAKEVERSION='3.13.3'
+# For current releases, see: https://github.com/Kitware/CMake/releases/
+#CMAKEVERSION='3.4.3'
+#CMAKEVERSION='3.13.3'
+CMAKEVERSION='3.15.3'
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}-d
 
@@ -35,7 +48,13 @@ if [ ! -e "${MODULEFILE}" ]; then
   cd ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
   ../bootstrap --prefix=${CMAKEDIR}
   make -j 2 2>&1 | tee make.out
-  make install 2>&1 | tee install.out
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo " "
+    echo "Failed: [make -j 2 2>&1 | tee make.out]"
+    exit
+  else
+    make install 2>&1 | tee install.out
+  fi
 
   if [ -e "${CMAKEDIR}/bin/cmake" ] && [ -e "${CMAKEDIR}/bin/ccmake" ]; then
     if [ ! -e "${INSTALLDIR}/modules/modulefiles/utilities/cmake" ]; then

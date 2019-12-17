@@ -105,7 +105,6 @@ USE MOD_Interpolation_Vars,      ONLY:InterpolationInitIsDone
 USE MOD_Equation_Vars
 USE MOD_HDG_vars
 USE MOD_Mesh_Vars,               ONLY:nSides
-USE MOD_TimeDisc_Vars,           ONLY:TEnd
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -117,7 +116,6 @@ USE MOD_TimeDisc_Vars,           ONLY:TEnd
 REAL                         :: chitensValue,chitensRadius  ! Deprecated variables, remove in future (by the end of 2017)
 INTEGER                      :: chitensWhichField           ! Deprecated variables, remove in future (by the end of 2017)
 !===================================================================================================================================
-TEnd=GetReal('TEnd')
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    SWRITE(*,*) "InitPoisson not ready to be called or already called."
    RETURN

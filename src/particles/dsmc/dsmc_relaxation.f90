@@ -71,7 +71,7 @@ DO WHILE (iRan.GT.(1 - REAL(iQua)/REAL(MaxColQua))**FakXi)
   iQua = INT(iRan * iQuaMax)
   CALL RANDOM_NUMBER(iRan)
 END DO
-PartStateIntEn(iPart,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
+PartStateIntEn(1,iPart) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
               * SpecDSMC(PartSpecies(iPart))%CharaTVib
 
 END SUBROUTINE DSMC_VibRelaxDiatomic
@@ -147,7 +147,6 @@ SUBROUTINE CalcXiVibPart(TVib, iSpec, XiVibPart)
 ! Calculation of the vibrational degrees of freedom for each characteristic vibrational temperature, used for chemical reactions
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PolyatomMolDSMC
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

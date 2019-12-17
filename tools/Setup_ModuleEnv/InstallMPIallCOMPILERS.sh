@@ -1,4 +1,15 @@
-#!/bin/bash
+#!/bin/bash -i
+
+#==============================================================================
+# title       : InstallMPIallCOMPILERS.sh
+# description : This script installs openmpi or mpich in a pre-installed module 
+#               env for all compiler that are found and able to be loaded
+# date        : Nov 27, 2019
+# version     : 1.0   
+# usage       : bash InstallMPIallCOMPILERS.sh
+# notes       : Bash in run interactively via "-i" to use "module load/purge" 
+#               commands
+#==============================================================================
 
 # chose which mpi you want to have installed (openmpi or mpich)
 WHICHMPI=openmpi
@@ -8,13 +19,13 @@ WHICHCOMPILER=gcc
 if [ "${WHICHMPI}" == "openmpi" ]; then
   # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
   #MPIVERSION=2.1.6
-  MPIVERSION=3.1.3
-  #MPIVERSIONTAG=2.1
-  MPIVERSIONTAG=3.1
+  #MPIVERSION=3.1.3
+  #MPIVERSION=3.1.4
+  #MPIVERSION=4.0.1
+  MPIVERSION=4.0.2
 elif [ "${WHICHMPI}" == "mpich" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
   MPIVERSION=3.2
-  MPIVERSIONTAG=3.2
 else
   echo "flag neither 'openmpi' nor 'mpich'"
   echo "no mpi installed"
@@ -49,8 +60,14 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
     # if no mpi module for this compiler found, install ${WHICHMPI} and create module
     if [ ! -e "${MPIMODULEFILE}" ]; then
       echo "creating ${WHICHMPI}-${MPIVERSION} for ${WHICHCOMPILER}-${COMPILERVERSION}"
+
+      if [[ -n $(module purge 2>&1) ]]; then
+        echo "module: command not found"
+        exit
+      fi
       module purge
-      if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION}) ]]; then
+
+      if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
         echo "module ${WHICHCOMPILER}/${COMPILERVERSION} not found "
         break
       fi
@@ -60,11 +77,11 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
       cd ${SOURCEDIR}
       if [ "${WHICHMPI}" == "openmpi" ]; then
         if [ ! -e "${SOURCEDIR}/${WHICHMPI}-${MPIVERSION}.tar.gz" ]; then
-          wget "https://www.open-mpi.org/software/ompi/v${MPIVERSIONTAG}/downloads/openmpi-${MPIVERSION}.tar.gz"
+          wget "https://www.open-mpi.org/software/ompi/v${MPIVERSION%.*}/downloads/openmpi-${MPIVERSION}.tar.gz"
         fi
         if [ ! -e "${SOURCEDIR}/openmpi-${MPIVERSION}.tar.gz" ]; then
           echo "no mpi install-file downloaded for OpenMPI-${MPIVERSION}"
-          echo "check if https://www.open-mpi.org/software/ompi/v${MPIVERSIONTAG}/downloads/openmpi-${MPIVERSION}.tar.gz exists"
+          echo "check if https://www.open-mpi.org/software/ompi/v${MPIVERSION%.*}/downloads/openmpi-${MPIVERSION}.tar.gz exists"
           break
         fi
       elif [ "${WHICHMPI}" == "mpich" ]; then
@@ -92,7 +109,13 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
         ../configure --prefix=${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION} CC=$(which icc) CXX=$(which icpc) FC=$(which ifort)
       fi
       make -j 2 2>&1 | tee make.out
-      make install 2>&1 | tee install.out
+      if [ ${PIPESTATUS[0]} -ne 0 ]; then
+        echo " "
+        echo "Failed: [make -j 2 2>&1 | tee make.out]"
+        break
+      else
+        make install 2>&1 | tee install.out
+      fi
 
       # create modulefile if installation seems succesfull (check if mpicc, mpicxx, mpifort exists in installdir)
       if [ -e "${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION}/bin/mpicc" ] && [ -e "${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION}/bin/mpicxx" ] && [ -e "${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION}/bin/mpifort" ]; then
@@ -114,8 +137,8 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
       continue
     fi
   done
-  cd ${SOURCEDIR}
-  rm -rf ${WHICHMPI}-${MPIVERSION}.tar.gz
+  #cd ${SOURCEDIR}
+  #rm -rf ${WHICHMPI}-${MPIVERSION}.tar.gz
 else
   echo "WHICHCOMPILER-flag neither 'gcc' nor 'intel'"
   echo "no mpi installed"

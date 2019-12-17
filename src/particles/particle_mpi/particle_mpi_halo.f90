@@ -1018,6 +1018,16 @@ IF (SendMsg%nElems.GT.0) THEN
       ,'Could not allocate SendMsg%ElemHasAuxBCs',SendMsg%nElems)
       SendMsg%ElemHasAuxBCs=.FALSE.
   END IF
+  ALLOCATE(SendMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate SendMsg%XCL_NGeo',SendMsg%nElems)
+  SendMsg%XCL_NGeo(:,:,:,:,:)=0
+  ALLOCATE(SendMsg%DXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate SendMsg%DXCL_NGeo',SendMsg%nElems)
+  SendMsg%DXCL_NGeo(:,:,:,:,:,:)=0
 END IF
 IF (RecvMsg%nElems.GT.0) THEN
   ALLOCATE(RecvMsg%CurvedElem(1:RecvMsg%nElems),STAT=ALLOCSTAT)
@@ -1039,6 +1049,16 @@ IF (RecvMsg%nElems.GT.0) THEN
       ,'Could not allocate RecvMsg%ElemHasAuxBCs',RecvMsg%nElems)
     RecvMsg%ElemHasAuxBCs=.FALSE.
   END IF
+  ALLOCATE(RecvMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:RecvMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate RecvMsg%XCL_NGeo',RecvMsg%nElems)
+  RecvMsg%XCL_NGeo(:,:,:,:,:)=0
+  ALLOCATE(RecvMsg%DXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:RecvMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate RecvMsg%ElemToSide',RecvMsg%nElems)
+  RecvMsg%DXCL_NGeo(:,:,:,:,:,:)=0
 END IF
 
 IF (TriaTracking) THEN
@@ -1097,40 +1117,6 @@ IF (TriaTracking) THEN
       __STAMP__&
       ,'Could not allocate RecvMsg%ConcaveElemSide',RecvMsg%nElems)
     RecvMsg%ConcaveElemSide=.FALSE.
-  END IF
-END IF
-
-IF(DoRefMapping)THEN
-  ! XCL_NGeo for exchange
-  IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
-    ALLOCATE(SendMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__&
-      ,'Could not allocate SendMsg%XCL_NGeo',SendMsg%nElems)
-    SendMsg%XCL_NGeo(:,:,:,:,:)=0
-  END IF
-  IF (RecvMsg%nElems.GT.0) THEN
-    ALLOCATE(RecvMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:RecvMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__&
-      ,'Could not allocate RecvMsg%XCL_NGeo',RecvMsg%nElems)
-    RecvMsg%XCL_NGeo(:,:,:,:,:)=0
-  END IF
-
-  ! DXCL_NGeo for exchange
-  IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
-    ALLOCATE(SendMsg%DXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__&
-      ,'Could not allocate SendMsg%DXCL_NGeo',SendMsg%nElems)
-    SendMsg%DXCL_NGeo(:,:,:,:,:,:)=0
-  END IF
-  IF (RecvMsg%nElems.GT.0) THEN
-    ALLOCATE(RecvMsg%DXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:RecvMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__&
-      ,'Could not allocate RecvMsg%ElemToSide',RecvMsg%nElems)
-    RecvMsg%DXCL_NGeo(:,:,:,:,:,:)=0
   END IF
 END IF
 
@@ -1331,12 +1317,12 @@ END IF
 ! ElemtoSide
 DO iElem = 1,nElems
   IF (ElemIndex(iElem).NE.0) THEN
-    IF(DoRefMapping)THEN
-      SendMsg%XCL_NGeo(:,:,:,:,ElemIndex(iElem))=XCL_NGeo(:,:,:,:,iElem)
-      SendMsg%dXCL_NGeo(:,:,:,:,:,ElemIndex(iElem))=dXCL_NGeo(:,:,:,:,:,iElem)
-      !SendMsg%ElemSlabNormals(:,:,ElemIndex(iElem))=ElemSlabNormals(:,:,iElem)
-      !SendMsg%ElemSlabIntervals(:,ElemIndex(iElem))=ElemSlabIntervals(:,iElem)
-    END IF
+    SendMsg%XCL_NGeo(:,:,:,:,ElemIndex(iElem))=XCL_NGeo(:,:,:,:,iElem)
+    SendMsg%dXCL_NGeo(:,:,:,:,:,ElemIndex(iElem))=dXCL_NGeo(:,:,:,:,:,iElem)
+    !IF(DoRefMapping)THEN
+    !  SendMsg%ElemSlabNormals(:,:,ElemIndex(iElem))=ElemSlabNormals(:,:,iElem)
+    !  SendMsg%ElemSlabIntervals(:,ElemIndex(iElem))=ElemSlabIntervals(:,iElem)
+    !END IF
     SendMsg%CurvedElem(ElemIndex(iElem))=CurvedElem(iElem)
     IF (UseAuxBCs) SendMsg%ElemHasAuxBCs(ElemIndex(iElem),:)=ElemHasAuxBCs(iElem,:)
     IF (.NOT.DoRefMapping) THEN
@@ -1467,16 +1453,12 @@ IF (PartMPI%MyRank.LT.iProc) THEN
       CALL MPI_SEND(SendMsg%SideSlabIntervals,SendMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%BoundingBoxIsEmpty,SendMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,IERROR)
-  IF(DoRefMapping)THEN
-    IF (SendMsg%nElems.GT.0) &
-        CALL MPI_SEND(SendMsg%XCL_NGeo,SendMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
-    IF (SendMsg%nElems.GT.0) &
-        CALL MPI_SEND(SendMsg%dXCL_NGeo,SendMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,IERROR)
-!    IF (SendMsg%nElems.GT.0) &
-!        CALL MPI_SEND(SendMsg%ElemSlabNormals,SendMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,IERROR)
-!    IF (SendMsg%nElems.GT.0) &
-!        CALL MPI_SEND(SendMsg%ElemSlabIntervals,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
-  END IF
+  !IF(DoRefMapping)THEN
+  !  IF (SendMsg%nElems.GT.0) &
+  !      CALL MPI_SEND(SendMsg%ElemSlabNormals,SendMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,IERROR)
+  !  IF (SendMsg%nElems.GT.0) &
+  !      CALL MPI_SEND(SendMsg%ElemSlabIntervals,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
+  !END IF
   IF(TriaTracking)THEN
     IF (SendMsg%nElems.GT.0) &
         CALL MPI_SEND(SendMsg%ElemToNodeID,SendMsg%nElems*8,MPI_INTEGER,iProc,1114,PartMPI%COMM,IERROR)
@@ -1508,6 +1490,10 @@ IF (PartMPI%MyRank.LT.iProc) THEN
       CALL MPI_SEND(SendMsg%SideNormVec ,SendMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1125,PartMPI%COMM,IERROR)
   IF (SendMsg%nElems.GT.0 .AND. UseAuxBCs) &
       CALL MPI_SEND(SendMsg%ElemHasAuxBCs,SendMsg%nElems*nAuxBCs,MPI_LOGICAL,iProc,1126,PartMPI%COMM,IERROR)
+  IF (SendMsg%nElems.GT.0) &
+      CALL MPI_SEND(SendMsg%XCL_NGeo,SendMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1128,PartMPI%COMM,IERROR)
+  IF (SendMsg%nElems.GT.0) &
+      CALL MPI_SEND(SendMsg%dXCL_NGeo,SendMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1129,PartMPI%COMM,IERROR)
 
   ! Receive:
   IF (RecvMsg%nElems.GT.0) &
@@ -1532,16 +1518,12 @@ IF (PartMPI%MyRank.LT.iProc) THEN
       CALL MPI_RECV(RecvMsg%SideSlabIntervals,RecvMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%BoundingBoxIsEmpty,RecvMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,MPISTATUS,IERROR)
-  IF(DoRefMapping)THEN
-    IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_RECV(RecvMsg%XCL_NGeo,RecvMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
-    IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_RECV(RecvMsg%dXCL_NGeo,RecvMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
-!    IF (RecvMsg%nElems.GT.0) &
-!        CALL MPI_RECV(RecvMsg%ElemSlabNormals,RecvMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
-!    IF (RecvMsg%nElems.GT.0) &
-!        CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
-  END IF
+  !IF(DoRefMapping)THEN
+  !  IF (RecvMsg%nElems.GT.0) &
+  !      CALL MPI_RECV(RecvMsg%ElemSlabNormals,RecvMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
+  !  IF (RecvMsg%nElems.GT.0) &
+  !      CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
+  !END IF
   IF(TriaTracking)THEN
     IF (RecvMsg%nElems.GT.0) &
         CALL MPI_RECV(RecvMsg%ElemToNodeID,RecvMsg%nElems*8,MPI_INTEGER,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
@@ -1574,6 +1556,10 @@ IF (PartMPI%MyRank.LT.iProc) THEN
       CALL MPI_RECV(RecvMsg%SideNormVec ,RecvMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1125,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nElems.GT.0 .AND. UseAuxBCs) &
       CALL MPI_RECV(RecvMsg%ElemHasAuxBCs,RecvMsg%nElems*nAuxBCs,MPI_LOGICAL,iProc,1126,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (RecvMsg%nElems.GT.0) &
+      CALL MPI_RECV(RecvMsg%XCL_NGeo,RecvMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1128,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (RecvMsg%nElems.GT.0) &
+      CALL MPI_RECV(RecvMsg%dXCL_NGeo,RecvMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1129,PartMPI%COMM,MPISTATUS,IERROR)
 ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   ! Receive:
   IF (RecvMsg%nElems.GT.0) &
@@ -1597,16 +1583,12 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
       CALL MPI_RECV(RecvMsg%SideSlabIntervals,RecvMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%BoundingBoxIsEmpty,RecvMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,MPISTATUS,IERROR)
-  IF(DoRefMapping)THEN
-    IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_RECV(RecvMsg%XCL_NGeo,RecvMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
-    IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_RECV(RecvMsg%dXCL_NGeo,RecvMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
-!    IF (RecvMsg%nElems.GT.0) &
-!        CALL MPI_RECV(RecvMsg%ElemSlabNormals,RecvMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
-!    IF (RecvMsg%nElems.GT.0) &
-!        CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
-  END IF
+  !IF(DoRefMapping)THEN
+  !  IF (RecvMsg%nElems.GT.0) &
+  !      CALL MPI_RECV(RecvMsg%ElemSlabNormals,RecvMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
+  !  IF (RecvMsg%nElems.GT.0) &
+  !      CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
+  !END IF
   IF(TriaTracking)THEN
     IF (RecvMsg%nElems.GT.0) &
         CALL MPI_RECV(RecvMsg%ElemToNodeID,RecvMsg%nElems*8,MPI_INTEGER,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
@@ -1639,6 +1621,10 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
       CALL MPI_RECV(RecvMsg%SideNormVec ,RecvMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1125,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nElems.GT.0 .AND. UseAuxBCs) &
       CALL MPI_RECV(RecvMsg%ElemHasAuxBCs,RecvMsg%nElems*nAuxBCs,MPI_LOGICAL,iProc,1126,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (RecvMsg%nElems.GT.0) &
+      CALL MPI_RECV(RecvMsg%XCL_NGeo,RecvMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1128,PartMPI%COMM,MPISTATUS,IERROR)
+  IF (RecvMsg%nElems.GT.0) &
+      CALL MPI_RECV(RecvMsg%dXCL_NGeo,RecvMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1129,PartMPI%COMM,MPISTATUS,IERROR)
 
   ! Send:
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%ElemToSide,SendMsg%nElems*2*6,MPI_INTEGER       ,iProc,1104,PartMPI%COMM,IERROR)
@@ -1657,17 +1643,12 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
       CALL MPI_SEND(SendMsg%SideSlabIntervals,SendMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%BoundingBoxIsEmpty,SendMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,IERROR)
-
-  IF(DoRefMapping)THEN
-    IF (SendMsg%nElems.GT.0) &
-        CALL MPI_SEND(SendMsg%XCL_NGeo,SendMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
-    IF (SendMsg%nElems.GT.0) &
-        CALL MPI_SEND(SendMsg%dXCL_NGeo,SendMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,IERROR)
-!    IF (SendMsg%nElems.GT.0) &
-!        CALL MPI_SEND(SendMsg%ElemSlabNormals,SendMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,IERROR)
-!    IF (SendMsg%nElems.GT.0) &
-!        CALL MPI_SEND(SendMsg%ElemSlabIntervals,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
-  END IF
+  !IF(DoRefMapping)THEN
+  !  IF (SendMsg%nElems.GT.0) &
+  !      CALL MPI_SEND(SendMsg%ElemSlabNormals,SendMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,IERROR)
+  !  IF (SendMsg%nElems.GT.0) &
+  !      CALL MPI_SEND(SendMsg%ElemSlabIntervals,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
+  !END IF
   IF(TriaTracking)THEN
     IF (SendMsg%nElems.GT.0) &
         CALL MPI_SEND(SendMsg%ElemToNodeID,SendMsg%nElems*8,MPI_INTEGER,iProc,1114,PartMPI%COMM,IERROR)
@@ -1700,6 +1681,10 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
       CALL MPI_SEND(SendMsg%SideNormVec ,SendMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1125,PartMPI%COMM,IERROR)
   IF (SendMsg%nElems.GT.0 .AND. UseAuxBCs) &
       CALL MPI_SEND(SendMsg%ElemHasAuxBCs,SendMsg%nElems*nAuxBCs,MPI_LOGICAL,iProc,1126,PartMPI%COMM,IERROR)
+  IF (SendMsg%nElems.GT.0) &
+      CALL MPI_SEND(SendMsg%XCL_NGeo,SendMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1128,PartMPI%COMM,IERROR)
+  IF (SendMsg%nElems.GT.0) &
+      CALL MPI_SEND(SendMsg%dXCL_NGeo,SendMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1129,PartMPI%COMM,IERROR)
 END IF
 
 IF ((RecvMsg%nElems.EQ.0) .AND. (RecvMsg%nSides.GT.0))THEN
@@ -1919,6 +1904,8 @@ ELSE ! DoRefMappping=F
       IF (UseAuxBCs) THEN
         ElemHasAuxBCs(newElemID,:)  = RecvMsg%ElemHasAuxBCs(iElem,:)
       END IF
+      XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
+      dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
       IF (TriaTracking) THEN
         DO iNode = 1,8
           GEO%ElemToNodeID(iNode,newElemID) = tmpnNodes + RecvMsg%ElemToNodeID(iNode,iElem)
@@ -2052,37 +2039,38 @@ DEALLOCATE(DummyElemToSide)
 !ElemToElemGlob(:,:,offSetElem+1:offSetElem+nOldElems) =DummyElemToElemGlob(:,:,1:nOldElems)
 !DEALLOCATE(DummyElemToSide)
 
+! XCL_NGeo
+ALLOCATE(DummyXCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems))
+IF (.NOT.ALLOCATED(DummyXCL_NGeo)) CALL abort(&
+  __STAMP__&
+  ,'Could not allocate DummyXCL_NGeo')
+DummyXCL_NGeo=XCL_NGeo
+!IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
+DEALLOCATE(XCL_NGeo)
+ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nTotalElems),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
+  __STAMP__&
+  ,'Could not reallocate XCL_NGeo')
+XCL_NGeo=0.
+XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems) =DummyXCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems)
+DEALLOCATE(DummyXCL_NGeo)
+! dXCL_NGeo
+ALLOCATE(DummydXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems))
+IF (.NOT.ALLOCATED(DummydXCL_NGeo)) CALL abort(&
+  __STAMP__&
+  ,'Could not allocate DummydXCL_NGeo')
+DummydXCL_NGeo=dXCL_NGeo
+!IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
+DEALLOCATE(dXCL_NGeo)
+ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nTotalElems),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
+  __STAMP__&
+  ,'Could not reallocate dXCL_NGeo')
+dXCL_NGeo=0.
+dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems) =DummydXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems)
+DEALLOCATE(DummydXCL_NGeo)
+
 IF(DoRefMapping)THEN
-  ! XCL_NGeo
-  ALLOCATE(DummyXCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems))
-  IF (.NOT.ALLOCATED(DummyXCL_NGeo)) CALL abort(&
-    __STAMP__&
-    ,'Could not allocate DummyXCL_NGeo')
-  DummyXCL_NGeo=XCL_NGeo
-  !IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
-  DEALLOCATE(XCL_NGeo)
-  ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nTotalElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
-    ,'Could not reallocate XCL_NGeo')
-  XCL_NGeo=0.
-  XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems) =DummyXCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems)
-  DEALLOCATE(DummyXCL_NGeo)
-  ! dXCL_NGeo
-  ALLOCATE(DummydXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems))
-  IF (.NOT.ALLOCATED(DummydXCL_NGeo)) CALL abort(&
-    __STAMP__&
-    ,'Could not allocate DummydXCL_NGeo')
-  DummydXCL_NGeo=dXCL_NGeo
-  !IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
-  DEALLOCATE(dXCL_NGeo)
-  ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nTotalElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
-    ,'Could not reallocate dXCL_NGeo')
-  dXCL_NGeo=0.
-  dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems) =DummydXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems)
-  DEALLOCATE(DummydXCL_NGeo)
   ! PartBCSideList
   ALLOCATE(DummyPartBCSideList(1:nOldSides))
   IF (.NOT.ALLOCATED(DummyPartBCSideList)) CALL abort(&

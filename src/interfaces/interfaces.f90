@@ -184,11 +184,12 @@ SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,Dis
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,              ONLY:abort,UNIT_stdOut
+USE MOD_Globals         ,ONLY: abort,UNIT_stdOut
 #if USE_MPI
-USE MOD_Globals,              ONLY:MPI_COMM_WORLD,mpiroot
+USE MOD_Globals         ,ONLY: mpiroot
 #endif /*USE_MPI*/
-USE MOD_Mesh_Vars,            ONLY:Elem_xGP
+USE MOD_Mesh_Vars       ,ONLY: Elem_xGP
+USE MOD_Dielectric_Vars ,ONLY: DielectricRadiusValueB
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -244,9 +245,9 @@ DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 END DO; END DO; END DO; END DO !iElem,k,j,i
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
-! 2.) Additionally check radius (e.g. half sphere regions)
+! 2.) Additionally check a radius (e.g. half sphere regions)
 ! ----------------------------------------------------------------------------------------------------------------------------------
-! if option 'DoRadius' is applied, elements are double checked if they are within a certain radius
+! if option 'DoRadius' is applied, elements are double-checked if they are within a certain radius
 IF(DoRadius.AND.Radius.GT.0.0)THEN
   DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r = SQRT(Elem_xGP(1,i,j,k,iElem)**2+&
@@ -269,20 +270,20 @@ IF(PRESENT(GeometryName))THEN
   ! Set the geometrical coordinates (e.g. Axial symmetric with r(x) dependency)
   CALL SetGeometry(GeometryName)
 
-  ! inquire if DOFs/Elems are within/outside of a region
+  ! Inquire if DOFs/Elems are within/outside of a region
   SELECT CASE(TRIM(GeometryName))
   CASE('FH_lens')
-    ! loop every element and compare the DOF position
+    ! Loop every element and compare the DOF position
     DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       ! x-axis symmetric geometry: get interpolated radius of lens geometry -> r_interpolated(x)
       CALL InterpolateGeometry(Elem_xGP(1,i,j,k,iElem),dim_x=1,dim_y=2,x_OUT=rInterpolated) ! Scale radius
 
-      ! calculate 2D radius for y-z-plane for comparison with interpolated lens radius
+      ! Calculate 2D radius for y-z-plane for comparison with interpolated lens radius
       r = SQRT(&
           Elem_xGP(2,i,j,k,iElem)**2+&
           Elem_xGP(3,i,j,k,iElem)**2  )
 
-      ! check if r is larger than the interpolated radius of the geometry .AND.
+      ! Check if r is larger than the interpolated radius of the geometry .AND.
       ! if r is not almost equal to the radius invert the "isElem" logical value
       IF(r.GT.rInterpolated.AND.(.NOT.ALMOSTEQUALRELATIVE(r,rInterpolated,1e-3)))THEN
         IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
@@ -291,21 +292,43 @@ IF(PRESENT(GeometryName))THEN
       END IF
     END DO; END DO; END DO; END DO !iElem,k,j,i
   CASE('FishEyeLens')
-    ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
-  CASE('DielectricResonatorAntenna') ! radius only in x-y (not z)
+    ! Nothing to do, because the geometry is set by using the sphere's radius in step 2.)
+  CASE('DielectricResonatorAntenna') ! Radius is checked, but only in x-y (not z)
     DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      r = SQRT(Elem_xGP(1,i,j,k,iElem)**2+&
-          Elem_xGP(2,i,j,k,iElem)**2  )
-      !only perform check for elements in z = Elem_xGP(3) > 0
-      IF(Elem_xGP(3,i,j,k,iElem).GT.0.0)THEN
-        ! check if r is larger than the supplied value .AND.
-        ! if r is not almost equal to the radius
+      IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
+
+        ! Calculate 2D radius for x-y-plane
+        r = SQRT(Elem_xGP(1,i,j,k,iElem)**2 + Elem_xGP(2,i,j,k,iElem)**2)
+        
+        ! Only perform check for elements in z = Elem_xGP(3) > 0
+        IF(Elem_xGP(3,i,j,k,iElem).GT.0.0)THEN
+          ! Check if r is larger than the supplied value .AND. if r is not almost equal to the radius
+          IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
+              isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
+          END IF ! r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3))
+        END IF ! Elem_xGP(3,i,j,k,iElem).GT.0.0
+      END IF ! isElem(iElem).EQV.ElementIsInside
+    END DO; END DO; END DO; END DO !iElem,k,j,i
+  CASE('Circle') ! Radius is checked, but only in x-y (not z)
+    DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+      IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
+
+        ! Calculate 2D radius for x-y-plane
+        r = SQRT(Elem_xGP(1,i,j,k,iElem)**2 + Elem_xGP(2,i,j,k,iElem)**2)
+
+        ! Check if r is larger than the supplied value .AND. if r is not almost equal to the radius
         IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
-          IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
-            isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
-          END IF
+          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
         END IF
-      END IF
+
+        ! For dielectric regions, check (optional) 2nd radius and exclude regions within the radius
+        ! Check if r is smaller than the radius DielectricRadiusValueB .AND. if r is not almost equal to the radius DielectricRadiusValueB
+        IF(DielectricRadiusValueB.GT.0.0)THEN
+          IF(r.LT.DielectricRadiusValueB.AND.(.NOT.ALMOSTEQUALRELATIVE(r,DielectricRadiusValueB,1e-3)))THEN
+            isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
+          END IF ! r.LT.DielectricRadiusValueB
+        END IF ! DielectricRadiusValueB.GT.0.0
+      END IF ! isElem(iElem).EQV.ElementIsInside
     END DO; END DO; END DO; END DO !iElem,k,j,i
   CASE('default')
     ! Nothing to do, because the geometry is set by using the box coordinates
@@ -321,7 +344,7 @@ END IF
 END SUBROUTINE  FindElementInRegion
 
 
-SUBROUTINE FindInterfacesInRegion(isFace,isInterFace,isElem)
+SUBROUTINE FindInterfacesInRegion(isFace,isInterFace,isElem,info_opt)
 !===================================================================================================================================
 !> Check if a face is in a special region (e.g. Dielectric) and/or connects a special region (e.g. Dielectric) to the physical
 !> region. This is used, e.g., for dielectric or PML regions
@@ -336,33 +359,38 @@ SUBROUTINE FindInterfacesInRegion(isFace,isInterFace,isElem)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Mesh_Vars              ,ONLY: nSides,nBCSides
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 #if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI,             ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif
+!USE MOD_Mesh_Vars             ,ONLY: nBCSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)               :: isElem(1:PP_nElems) ! True/False element: special region
+LOGICAL,INTENT(IN)                   :: isElem(1:PP_nElems) ! True/False element: special region
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: info_opt            ! Optional information regarding the type of faces/interfaces to be found
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-LOGICAL,ALLOCATABLE,INTENT(INOUT):: isFace(:)           ! True/False face: special region <-> special region
-LOGICAL,ALLOCATABLE,INTENT(INOUT):: isInterFace(:)      ! True/False face: special region <-> physical region (or vice versa)
+LOGICAL,ALLOCATABLE,INTENT(INOUT) :: isFace(:)      ! True/False face: special region <-> special region
+LOGICAL,ALLOCATABLE,INTENT(INOUT) :: isInterFace(:) ! True/False face: special region <-> physical region (or vice versa)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides):: isFace_Slave,isFace_Master,isFace_combined ! the dimension is only used because of
-                                                                                      ! the prolong to face routine and MPI logic
-INTEGER                                 :: iSide
+REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides) :: isFace_Slave,isFace_Master,isFace_combined ! the dimension is only used because of
+                                                                                       ! the prolong to face routine and MPI logic
+INTEGER                                  :: iSide ! Side iterator
+CHARACTER(LEN=255)                       :: info  ! Output info on failure
 !===================================================================================================================================
 ! General workflow:
 ! 1.  initialize Master, Slave and combined side array (it is a dummy array for which only a scalar value is communicated)
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
 ! 3.  MPI: communicate slave sides to master
-! 4.  calculate combinded value 'isFace_combined' which determines the type of the interface on the master side, where the
+! 4.  comminucate the values to the slave sides (currently done but not used anywhere)
+! 5.  calculate combinded value 'isFace_combined' which determines the type of the interface on the master side, where the
 !     information is later used when fluxes are determined
-! 5.  comminucate the calculated value 'isFace_combined' to the slave sides (currently done but not used anywhere)
 ! 6.  loop over all sides and use the calculated value 'isFace_combined' to determine 'isFace' and 'interFace'
 
 ! 1.  initialize Master, Slave and combined side array (it is a dummy array for which only a scalar value is communicated)
@@ -371,12 +399,24 @@ ALLOCATE(isInterFace(1:nSides))
 isFace=.FALSE.
 isInterFace=.FALSE.
 ! For MPI sides send the info to all other procs
-isFace_Slave=-3.
-isFace_Master=-3.
-isFace_combined=-3.
+isFace_Slave    = -3.
+isFace_Master   = -3.
+isFace_combined = -3.
+
 
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
 CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.) ! Includes Mortar sides
+!      !DEBUGGING
+!      DO iSide = 1, nSides
+!        IF(iSide.LE.nBCSides)THEN
+!          WRITE (*,*) "iSide, Master, Slave =", iSide, isFace_Master(1,0,0,iSide), isFace_Slave(1,0,0,iSide)," (BC)"
+!        ELSE
+!          WRITE (*,*) "iSide, Master, Slave =", iSide, isFace_Master(1,0,0,iSide), isFace_Slave(1,0,0,iSide)
+!        END IF ! iSide.LE.nBCSides
+!        IF(isFace_Master(1,0,0,iSide).LT.0..OR.isFace_Slave(1,0,0,iSide).LT.0.)THEN
+!          EXIT
+!        END IF ! isFace_Master(1,0,0,iSide).LT.0..OR.isFace_Slave(1,0,0,iSide).LT.0.
+!      END DO ! iSide = 1, nSides
 #if USE_MPI
 CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)  ! Includes Mortar sides
 
@@ -388,22 +428,8 @@ CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -re
 #endif /*USE_MPI*/
 
 
-
-! 4.  Calculate combined value 'isFace_combined' which determines the type of the interface on the master side, where the
-!     information is later used when fluxes are determined
-!         add isFace_Master to isFace_Slave and send
-! Build four-states-array for the 4 different combinations phy/phy(0), spec/phy(1), phy/spec(2) and spec/spec(3) a face can be.
-isFace_combined=2*isFace_Slave+isFace_Master
-! use numbering:  2*isFace_Slave+isFace_Master  = 1: Master side is special (e.g. dielectric)
-!                                                 2: Slave  side is special (e.g. dielectric)
-!                                                 3: both sides are special (e.g. dielectric) sides
-!                                                 0: normal face in physical region (no special region involved)
-
-
-
-! 5.  comminucate the calculated value 'isFace_combined' to the slave sides (currently done but not used anywhere)
+! 4.  Communicate the values to the slave sides
 !         communicate information to slave sides
-!         CURRENTLY NOT NEEDED!
 CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.FALSE.)
 
 #if USE_MPI
@@ -412,19 +438,75 @@ CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.TRUE.)
 CALL StartReceiveMPIData(1,isFace_Master,1,nSides ,RecRequest_U,SendID=1) ! Receive YOUR
 CALL StartSendMPIData(   1,isFace_Master,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=1) !Send YOUR -receive MINE
+!#else ! is this required for MPI=OFF?
+!isFace_Slave=isFace_Master
 #endif /*USE_MPI*/
+
+
+! 5.  Calculate combined value 'isFace_combined' which determines the type of the interface on the master side, where the
+!     information is later used when fluxes are determined
+!         add isFace_Master to isFace_Slave and send
+! Build four-states-array for the 4 different combinations phy/phy(0), spec/phy(1), phy/spec(2) and spec/spec(3) a face can be.
+!isFace_combined=2*isFace_Master+isFace_Slave
+isFace_combined=2*isFace_Slave+isFace_Master
+
+!      !DEBUGGING
+!      DO iSide = 1, nSides
+!        IF(iSide.LE.nBCSides)THEN
+!          WRITE (*,*) "iSide, isFace_combined =", iSide, isFace_combined(1,0,0,iSide)," (BC)"
+!        ELSE
+!          WRITE (*,*) "iSide, isFace_combined =", iSide, isFace_combined(1,0,0,iSide)
+!        END IF ! iSide.LE.nBCSides
+!        IF(isFace_combined(1,0,0,iSide).LT.0.)THEN
+!          EXIT
+!        END IF ! isFace_Master(1,0,0,iSide).LT.0..OR.isFace_Slave(1,0,0,iSide).LT.0.
+!      END DO ! iSide = 1, nSides
+
+! use numbering:  2*isFace_Slave+isFace_Master  = 1: Master side is special (e.g. dielectric)
+!                                                 2: Slave  side is special (e.g. dielectric)
+!                                                 3: both sides are special (e.g. dielectric) sides
+!                                                 0: normal face in physical region (no special region involved)
 
 
 ! 6.  loop over all sides and use the calculated value 'isFace_combined' to determine 'isFace' and 'interFace'
 !         set 'isFace' for sides that have at least one special region on either side
 !         set 'interFace' for sides that are between two different region, e.g., between a PML and the physical domain
+
 DO iSide=1,nSides
-  IF(isFace_combined(1,0,0,iSide).GT.0)THEN
+  IF(isFace_combined(1,0,0,iSide).GT.0.)THEN
     isFace(iSide)=.TRUE. ! mixed or pure special region face: when my side is not special but neighbor is special
-    IF((isFace_combined(1,0,0,iSide).EQ.1).OR.&
-       (isFace_combined(1,0,0,iSide).EQ.2))THEN
+    IF((NINT(isFace_combined(1,0,0,iSide)).EQ.1).OR.&
+       (NINT(isFace_combined(1,0,0,iSide)).EQ.2))THEN
         isInterFace(iSide)=.TRUE. ! set all mixed sides as InterFaces, exclude BCs later on
     END IF
+  ! The following sanity check is currently deactivated (numbers cannot be <-6.)
+  ELSEIF(isFace_combined(1,0,0,iSide).LT.-100.)THEN ! set back to 0. when fixed
+    IF(PRESENT(info_opt))THEN
+      info=": "//TRIM(info_opt)
+    ELSE
+      info=''
+    END IF ! PRESENT(info_opt)
+    IPWRITE (UNIT_stdOut,*) " ERROR in FindInterfacesInRegion()"//TRIM(info)
+    IPWRITE (UNIT_stdOut,*) " iSide =", iSide
+    IPWRITE (UNIT_stdOut,*) " X: BezierControlPoints3D(1,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(1,0:NGeo,0:NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " Y: BezierControlPoints3D(2,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(2,0:NGeo,0:NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " Z: BezierControlPoints3D(3,0:NGeo,0:NGeo,iSide) =", BezierControlPoints3D(3,0:NGeo,0:NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " Corner nodes are:"
+    IPWRITE (UNIT_stdOut,*) " X: BezierControlPoints3D(1,0/NGeo,0/NGeo,iSide) =", BezierControlPoints3D(1,0,0,iSide),&
+                                                                                  BezierControlPoints3D(1,0,NGeo,iSide),&
+                                                                                  BezierControlPoints3D(1,NGeo,0,iSide),&
+                                                                                  BezierControlPoints3D(1,NGeo,NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " X: BezierControlPoints3D(2,0/NGeo,0/NGeo,iSide) =", BezierControlPoints3D(2,0,0,iSide),&
+                                                                                  BezierControlPoints3D(2,0,NGeo,iSide),&
+                                                                                  BezierControlPoints3D(2,NGeo,0,iSide),&
+                                                                                  BezierControlPoints3D(2,NGeo,NGeo,iSide)
+    IPWRITE (UNIT_stdOut,*) " X: BezierControlPoints3D(3,0/NGeo,0/NGeo,iSide) =", BezierControlPoints3D(3,0,0,iSide),&
+                                                                                  BezierControlPoints3D(3,0,NGeo,iSide),&
+                                                                                  BezierControlPoints3D(3,NGeo,0,iSide),&
+                                                                                  BezierControlPoints3D(3,NGeo,NGeo,iSide)
+    CALL abort(&
+    __STAMP__&
+    ,'isFace_combined(1,0,0,iSide).LT.0. -> ',RealInfoOpt=isFace_combined(1,0,0,iSide))
   END IF
 END DO
 isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
@@ -553,7 +635,7 @@ INTEGER                 :: iMortar,nMortars
 INTEGER                 :: firstMortarSideID,lastMortarSideID
 INTEGER                 :: MortarSideID,SideID,iSide,flip
 !===================================================================================================================================
-! get 1st and last SideID depeding on doMPISides=T/F
+! get 1st and last SideID depending on doMPISides=T/F
 firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
  lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
 
@@ -1057,8 +1139,10 @@ CASE('FH_lens')
 
 CASE('FishEyeLens')
   ! Nothing to do, because the geometry is set by using the spheres radius in 2.)
-CASE('DielectricResonatorAntenna') ! radius only in x-y (not z)
-  ! nothing to set, because rotationally symmetry (defined by a radius in x-y)
+CASE('DielectricResonatorAntenna') ! Radius only in x-y (not z)
+  ! nothing to set, because rotationally symmetric, as defined by a radius in x-y
+CASE('Circle') ! Radius only in x-y (not z)
+  ! nothing to set, because rotationally symmetric, as defined by one or two radii in x-y: DielectricRadiusValue and DielectricRadiusValueB (optional)
 CASE('default')
   ! Nothing to do, because the geometry is set by using the box coordinates
 CASE DEFAULT

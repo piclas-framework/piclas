@@ -287,8 +287,8 @@ END SUBROUTINE MergeParticles
 SUBROUTINE CalculateDistMoments(iPartIndx_Node, nPart, vBulk, Vtherm2, PressTens, HeatVec, Energy)
 !===================================================================================================================================
 !> Calculation of distribution moments
-!> 1.) Calc bulkvelocity
-!> 2.) Summing up the relative velocities and their square to calculate the moments (PressTens, HeatVec)
+!> 1.) Calc bulk velocity
+!> 2.) Summing up the relative velocities and their squares to calculate the moments (PressTens, HeatVec)
 !> 3.) Fill missing entries in PressTens
 !===================================================================================================================================
 ! MODULES
@@ -351,11 +351,10 @@ END SUBROUTINE CalculateDistMoments
 
 SUBROUTINE ARChapEnsk(nPart, iRanPart, Vtherm, HeatVec, PressTens)
 !===================================================================================================================================
-!> Acceptance rejection method for reconstruct distribution moments (according Chapman Enskog)
+!> Acceptance rejection method for the reconstruction of distribution moments (according to Chapman Enskog)
 !===================================================================================================================================
 ! MODULES
 USE Ziggurat
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -368,7 +367,7 @@ REAL, INTENT(OUT)             :: iRanPart(:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                           :: Vheat, V2, iRan, OldProb, Envelope, Envelope2, cMat, cPress
-INTEGER                        :: iPart, fillMa1, fillMa2
+INTEGER                        :: iPart
 !===================================================================================================================================
 Envelope = MAX(ABS(HeatVec(1)),ABS(HeatVec(2)),ABS(HeatVec(3)))/Vtherm**(3./2.)
 Envelope2 = MAX(ABS(PressTens(1,2)),ABS(PressTens(1,3)),ABS(PressTens(2,3)))/Vtherm
@@ -408,6 +407,5 @@ DO iPart = 1, nPart
 END DO
 
 END SUBROUTINE ARChapEnsk
-
 
 END MODULE MOD_vMPF

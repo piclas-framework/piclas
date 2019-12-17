@@ -48,15 +48,16 @@ USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
 USE MOD_Mesh_Vars           ,ONLY: nElems
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues, Symmetry2D, usevMPF
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_FPFlow_Vars         ,ONLY: FPDSMCSwitchDens, FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC
+USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
-USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt
+USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling
 USE MOD_DSMC                ,ONLY: DSMC_main
+USE MOD_part_tools          ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -68,14 +69,26 @@ USE MOD_DSMC                ,ONLY: DSMC_main
 INTEGER               :: iElem, nPart, iLoop, iPart
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 LOGICAL               :: DoElement(nElems)
-REAL                  :: vBulk(3), dens
+REAL                  :: vBulk(3), dens, partWeight, totalWeight
 !===================================================================================================================================
 DSMC_RHS = 0.0
 DoElement = .FALSE.
 
 DO iElem = 1, nElems
   nPart = PEM%pNumber(iElem)
-  dens = nPart * Species(1)%MacroParticleFactor / GEO%Volume(iElem)
+  totalWeight = 0.0
+  iPart = PEM%pStart(iElem)
+  DO iLoop = 1, nPart
+    partWeight = GetParticleWeight(iPart)
+    totalWeight = totalWeight + partWeight
+    iPart = PEM%pNext(iPart)
+  END DO
+
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    dens = totalWeight / GEO%Volume(iElem)
+  ELSE
+    dens = totalWeight * Species(1)%MacroParticleFactor / GEO%Volume(iElem)
+  END IF
   IF (dens.LT.FPDSMCSwitchDens) THEN
     DoElement(iElem) = .TRUE.
     CYCLE
@@ -83,22 +96,24 @@ DO iElem = 1, nElems
   IF (nPart.LT.3) CYCLE
 
   IF (DoBGKCellAdaptation) THEN
-    CALL BGK_octree_adapt(iElem)
-  ELSE
-    IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CollProbMax = 1.
+    IF(Symmetry2D) THEN
+      CALL BGK_quadtree_adapt(iElem)
+    ELSE
+      CALL BGK_octree_adapt(iElem)
     END IF
-
-    ALLOCATE(iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
-
+  ELSE
+    ALLOCATE(iPartIndx_Node(nPart))
+    totalWeight = 0.0
     vBulk(1:3) = 0.0
-    iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+    iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
       iPartIndx_Node(iLoop) = iPart
-      vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)
+      partWeight  = GetParticleWeight(iPart)
+      vBulk(1:3)  = vBulk(1:3) + PartState(4:6,iPart) * partWeight
+      totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
-    vBulk = vBulk / nPart
+    vBulk = vBulk / totalWeight
 
     IF(DSMC%CalcQualityFactors) THEN
       FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
@@ -135,15 +150,16 @@ USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry2D
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
-USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt
+USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling,WriteDSMCHOToHDF5,CalcSurfaceValues
 USE MOD_Restart_Vars        ,ONLY: RestartTime
 USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
+USE MOD_part_tools          ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -152,31 +168,36 @@ USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_M
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem, nPart, iPart, iLoop, nOutput
-REAL                :: vBulk(1:3)
-INTEGER, ALLOCATABLE   :: iPartIndx_Node(:)
+INTEGER                     :: iElem, nPart, iPart, iLoop, nOutput
+REAL                        :: vBulk(1:3), partWeight, totalWeight
+INTEGER, ALLOCATABLE        :: iPartIndx_Node(:)
 !===================================================================================================================================
 DSMC_RHS = 0.0
 
 IF (DoBGKCellAdaptation) THEN
   DO iElem = 1, nElems
-    CALL BGK_octree_adapt(iElem)
+    IF(Symmetry2D) THEN
+      CALL BGK_quadtree_adapt(iElem)
+    ELSE
+      CALL BGK_octree_adapt(iElem)
+    END IF
   END DO
 ELSE
   DO iElem = 1, nElems
     nPart = PEM%pNumber(iElem)
     IF (nPart.LT.3) CYCLE
-
-    ALLOCATE(iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
-
+    ALLOCATE(iPartIndx_Node(nPart))
     vBulk(1:3) = 0.0
-    iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+    totalWeight = 0.0
+    iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
+      partWeight = GetParticleWeight(iPart)
       iPartIndx_Node(iLoop) = iPart
-      vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)
+      vBulk(1:3)  = vBulk(1:3) + PartState(4:6,iPart) * partWeight
+      totalWeight = totalWeight + partWeight
       iPart = PEM%pNext(iPart)
     END DO
-    vBulk = vBulk / nPart
+    vBulk = vBulk / totalWeight
 
     IF(DSMC%CalcQualityFactors) THEN
       FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.

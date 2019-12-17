@@ -80,7 +80,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL    :: tempNorm
-INTEGER :: iWeight,i,j,k
+INTEGER :: iWeight
 REAL    :: Velo(3), Temp, Dens, Mass
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -321,15 +321,13 @@ SUBROUTINE QDSReCalculateDGValues()
 ! Get the constant advection velocity vector from the ini file
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,       ONLY:PI
-!USE MOD_Globals_Vars,       ONLY:BoltzmannConst
 USE MOD_PreProc
-USE MOD_QDS_DG_Vars,        ONLY:QDSSpeciesMass,UQDS,GaussHermitWeiAbs,QDSMacroValues,nQDSElems,QDSSpecDOF
-USE MOD_Mesh_Vars,          ONLY:sJ
-USE MOD_Interpolation_Vars, ONLY:wGP
-USE MOD_QDS_DG_Vars,        ONLY:QDSnVar_macro
-USE MOD_QDS_Equation_vars,  ONLY:QDSnVar
-USE MOD_QDS_Equation,       ONLY:QDS_Q2U
+USE MOD_QDS_DG_Vars        ,ONLY: QDSSpeciesMass,UQDS,QDSMacroValues,nQDSElems
+USE MOD_Mesh_Vars          ,ONLY: sJ
+USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_QDS_DG_Vars        ,ONLY: QDSnVar_macro
+USE MOD_QDS_Equation_vars  ,ONLY: QDSnVar
+USE MOD_QDS_Equation       ,ONLY: QDS_Q2U
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -338,7 +336,7 @@ USE MOD_QDS_Equation,       ONLY:QDS_Q2U
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem, k, j, i!, L
+INTEGER           :: iElem, k, j, i
 !===================================================================================================================================
 !QDSSpeciesMass=Species(QDS_Species)%MassIC
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file

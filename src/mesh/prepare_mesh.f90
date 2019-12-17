@@ -430,28 +430,20 @@ DO iNbProc=1,nNbProcs
         IF(myRank.LT.aSide%NbProc)THEN
           IF(aSide%SideID.LE.nMPISides_MINE_Proc(iNbProc))THEN ! MINE
             aSide%SideID=aSide%SideID +offsetMPISides_MINE(iNbProc-1)
-#ifdef PARTICLES
-            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
-#endif /*PARTICLES*/
           ELSE ! YOUR
             aSide%SideID=(aSide%SideID-nMPISides_MINE_Proc(iNbProc))+offsetMPISides_YOUR(iNbProc-1)
-#ifdef PARTICLES
-            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha ! -1
-#endif /*PARTICLES*/
           END IF
         ELSE
           IF(aSide%SideID.LE.nMPISides_YOUR_Proc(iNbProc))THEN ! MINE
             aSide%SideID=aSide%SideID +offsetMPISides_YOUR(iNbProc-1)
-#ifdef PARTICLES
-            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
-#endif /*PARTICLES*/
           ELSE ! YOUR
             aSide%SideID=(aSide%SideID-nMPISides_YOUR_Proc(iNbProc))+offsetMPISides_MINE(iNbProc-1)
-#ifdef PARTICLES
-            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha ! -1
-#endif /*PARTICLES*/
           END IF
         END IF ! myrank<NbProc
+#ifdef PARTICLES
+        ! Set BC alpha for changed SideID
+        SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
+#endif /*PARTICLES*/
       END DO ! iMortar
     END DO ! iLocSide
   END DO ! iElem
@@ -538,6 +530,10 @@ IF(nMortarSides.GT.0)THEN
         ! then shift SidID by number of big Mortars that will be moved and mark side as shifted (tmp=1)
         IF((aSide%tmp.EQ.0).AND.(aSide%SideID.GT.lastMortarInnerSide))THEN
           aSide%SideID=aSide%SideID+addToInnerMortars
+#ifdef PARTICLES
+          ! Set BC alpha for new SideID: Fix wrong BC assignment of inner sides
+          SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
+#endif /*PARTICLES*/
           aSide%tmp=1
         END IF
         ! repeat the same for the small virtual sides
@@ -546,6 +542,10 @@ IF(nMortarSides.GT.0)THEN
           aSide=>aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp ! point to small virtual side
           IF((aSide%tmp.EQ.0).AND.(aSide%SideID.GT.lastMortarInnerSide))THEN
             aSide%SideID=aSide%SideID+addToInnerMortars
+#ifdef PARTICLES
+            ! Set BC alpha for new SideID: Fix wrong BC assignment of inner sides
+            SidePeriodicType(aSide%SideID)=aSide%BC_Alpha
+#endif /*PARTICLES*/
             aSide%tmp=1
           END IF
         END DO ! iMortar
@@ -844,7 +844,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
 USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nBCSides,nSides
 USE MOD_Mesh_Vars        ,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
-USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
+USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob,GlobalUniqueSideID
 USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
 #if USE_MPI
 USE MOD_MPI_vars
@@ -896,6 +896,9 @@ DO iElem=1,nElems
       SideToElem(S2E_FLIP,aSide%SideID)            = aSide%Flip
     END IF
     BC(aSide%sideID)=aSide%BCIndex
+#ifdef PARTICLES
+    GlobalUniqueSideID(aSide%sideID)=aSide%Ind
+#endif /*PARTICLES*/
   END DO ! LocSideID
 END DO ! iElem
 

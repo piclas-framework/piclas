@@ -24,10 +24,11 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Dielectric region damping factor
 LOGICAL             :: DoDielectric                   ! True/false switch for Dielectric calculation procedures
+LOGICAL             :: DoDielectricSurfaceCharge      ! Flag set automatically if dielectric boundaries are used
 LOGICAL             :: DielectricFluxNonConserving    ! True/false switch for using conserving or non-conserving fluxes at
 !                                                     !dielectric interfaces between a dielectric region and vacuum
 LOGICAL             :: DielectricInitIsDone           ! Initialization flag
-LOGICAL             :: DielectricNoParticles          ! Do not insert/emit particles into dielectric regions (default=F).
+LOGICAL             :: DielectricNoParticles          ! Do not insert/emit particles into dielectric regions (default=T).
 LOGICAL,ALLOCATABLE :: isDielectricElem(:)            ! True if iElem is an element located within the Dielectric.
 !                                                     ! This vector is allocated to (region.1:PP_nElems)
 LOGICAL,ALLOCATABLE :: isDielectricFace(:)            ! True if iFace is a Face located within or on the boarder (interface) of the
@@ -36,11 +37,12 @@ LOGICAL,ALLOCATABLE :: isDielectricInterFace(:)       ! True if iFace is a Face 
 !                                                     ! region. This vector is allocated to (1:nSides)
 LOGICAL             :: DielectricCheckRadius          ! Instead of a bounding box region for setting a dielectric area, use radius
 REAL                :: DielectricRadiusValue          ! Radius for setting dielectric element ON/OFF
+REAL                :: DielectricRadiusValueB         ! 2nd radius for cutting out circular areas
 INTEGER             :: Dielectricspread               ! If true Eps_x=Eps_y=Eps_z for all Dielectric cells
 REAL,DIMENSION(6)   :: xyzPhysicalMinMaxDielectric    ! Physical   boundary coordinates, outside = Dielectric region
 REAL,DIMENSION(6)   :: xyzDielectricMinMax            ! Dielectric boundary coordinates, outside = physical region
 LOGICAL             :: useDielectricMinMax            ! Switch between 'xyzPhysicalMinMax' and 'xyzDielectricMinMax'
-CHARACTER(255)      :: DielectricTestCase             ! Special test cases, e.g., "fish eye lens" Maxwell 1860
+CHARACTER(255)      :: DielectricTestCase             ! Specific test cases: "FishEyeLens" (Maxwell 1860), "FH_lens", "Circle"'
 REAL                :: DielectricEpsR                 ! For Dielectric region shift
 REAL                :: DielectricEpsR_inv             ! 1./EpsR
 #if USE_HDG
@@ -71,5 +73,7 @@ LOGICAL                               :: poyntingusemur_inv             ! True/f
 !                                                                       ! Poynting vector planes on the same face
 REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_MuR_Master_inv      ! face array containing 1./MuR for each DOF
 REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_MuR_Slave_inv
+! Charges on dielectric surfaces
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: NodeSourceExtGlobal      ! Write NodeSourceExt (external charge density) field to HDF5 file
 !===================================================================================================================================
 END MODULE MOD_Dielectric_Vars
