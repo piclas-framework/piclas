@@ -431,7 +431,7 @@ IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   END IF
 END IF
 DSMC%MergeSubcells = GETLOGICAL('Particles-DSMC-MergeSubcells','.FALSE.')
-IF(DSMC%MergeSubcells.AND.(Symmetry%Order.NE.2)) THEN
+IF(DSMC%MergeSubcells.AND.(Symmetry%Order.LE.2)) THEN
   CALL abort(__STAMP__&
       ,'ERROR: Merging of subcells only supported within a 2D/axisymmetric simulation!')
 END IF
@@ -1176,29 +1176,43 @@ ELSE !CollisMode.GT.0
   DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
   IF(DSMC%UseOctree) THEN
     DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
-    IF((Symmetry%Order.NE.2).AND.(.NOT.DSMC%UseNearestNeighbour)) THEN
+    IF((Symmetry%Order.EQ.2).AND.(.NOT.DSMC%UseNearestNeighbour)) THEN
       CALL abort(&
           __STAMP__&
           ,'Statistical Pairing with Octree not yet supported in 3D!')
     END IF
   END IF
   ! If number of particles is greater than OctreePartNumNode, cell is going to be divided for performance of nearest neighbour
-  IF(Symmetry%Order.EQ.2) THEN
+  IF(Symmetry%Order.EQ.3) THEN
+    DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
+  ELSE IF(Symmetry%Order.EQ.2) THEN
     DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','40')
   ELSE
-    DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
+    DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','20')
   END IF
   ! If number of particles is less than OctreePartNumNodeMin, cell is NOT going to be split even if mean free path is not resolved
   ! 3D: 50/8; 2D: 28/4 -> ca. 6-7 particles per cell
-  IF(Symmetry%Order.EQ.2) THEN
-    DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','28')
-  ELSE
+  IF(Symmetry%Order.EQ.3) THEN
     DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','50')
-  END IF
-  IF (DSMC%PartNumOctreeNodeMin.LT.20) THEN
-    CALL abort(&
-        __STAMP__&
-        ,'ERROR: Given Particles-OctreePartNumNodeMin is less than 20!')
+    IF (DSMC%PartNumOctreeNodeMin.LT.20) THEN
+      CALL abort(&
+          __STAMP__&
+          ,'ERROR: Given Particles-OctreePartNumNodeMin is less than 20!')
+    END IF
+  ELSE IF(Symmetry%Order.EQ.2) THEN
+    DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','28')
+    IF (DSMC%PartNumOctreeNodeMin.LT.10) THEN
+      CALL abort(&
+          __STAMP__&
+          ,'ERROR: Given Particles-OctreePartNumNodeMin is less than 10!')
+    END IF
+  ELSE
+    DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','14')
+    IF (DSMC%PartNumOctreeNodeMin.LT.5) THEN
+      CALL abort(&
+          __STAMP__&
+          ,'ERROR: Given Particles-OctreePartNumNodeMin is less than 5!')
+    END IF
   END IF
   IF(DSMC%UseOctree) THEN
     IF(NGeo.GT.PP_N) CALL abort(&
@@ -1206,7 +1220,7 @@ ELSE !CollisMode.GT.0
         ,' Set PP_N to NGeo, else, the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
-  IF(Symmetry%Order.EQ.2) THEN
+  IF(Symmetry%Order.LE.2) THEN
     CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.TRUE.')
     IF (CollInf%ProhibitDoubleColl) THEN
       IF(.NOT.ALLOCATED(CollInf%OldCollPartner)) ALLOCATE(CollInf%OldCollPartner(1:PDM%maxParticleNumber))

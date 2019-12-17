@@ -876,7 +876,8 @@ __STAMP__,&
             ELSE
               RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
             END IF
-            IF(Symmetry%Order.EQ.2) RandomPos(3) = 0.
+            IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
+            IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
             IF (DoRefMapping) THEN
               CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
               IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.

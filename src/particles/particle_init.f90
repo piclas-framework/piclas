@@ -968,9 +968,11 @@ USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
 #endif
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
+USE MOD_Particle_Vars              ,ONLY: Symmetry
 #endif
 #if (PP_TimeDiscMethod==400)
 USE MOD_BGK_Init                   ,ONLY: InitBGK
+USE MOD_Particle_Vars              ,ONLY: Symmetry
 #endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1036,9 +1038,13 @@ IF (useDSMC) THEN
   CALL InitDSMC()
   CALL InitSurfaceModel()
 #if (PP_TimeDiscMethod==300)
+IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__&
+  ,'ERROR: 1D fokker-plank flow is not implemented yet')
   CALL InitFPFlow()
 #endif
 #if (PP_TimeDiscMethod==400)
+IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__&
+  ,'ERROR: 1D BGK is not implemented yet')
   CALL InitBGK()
 #endif
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
@@ -1100,7 +1106,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_VarTimeStep   ,ONLY: VarTimeStep_CalcElemFacs
-USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
+USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_1D_InitVolumes
 USE MOD_part_RHS               ,ONLY: InitPartRHS
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 ! IMPLICIT VARIABLE HANDLING
@@ -2788,6 +2794,7 @@ CALL MarkMacroBodyElems()
 ! === 2D/Axisymmetric initialization
 ! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
 IF(Symmetry%Order.EQ.2) CALL DSMC_2D_InitVolumes()
+IF(Symmetry%Order.EQ.1) CALL DSMC_1D_InitVolumes()
 IF(Symmetry%Axisymmetric) THEN
   IF(RadialWeighting%DoRadialWeighting) THEN
     ! Initialization of RadialWeighting in 2D axisymmetric simulations

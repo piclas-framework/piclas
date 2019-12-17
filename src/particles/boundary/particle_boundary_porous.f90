@@ -135,7 +135,7 @@ IF(DoRefMapping) THEN
       ,'ERROR: Porous boundary conditions are not implemented with DoRefMapping!')
 END IF
 
-IF((Symmetry%Order.EQ.2).AND.(.NOT.Symmetry%Axisymmetric)) THEN
+IF((Symmetry%Order.LE.2).AND.(.NOT.Symmetry%Axisymmetric)) THEN
   CALL abort(__STAMP__&
       ,'ERROR: Porous boundary conditions are not implemented for 2D simulations!')
 END IF

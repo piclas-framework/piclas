@@ -126,6 +126,9 @@ IF(VarTimeStep%UseLinearScaling) THEN
       VarTimeStep%TimeScaleFac2DFront = GETREAL('Part-VariableTimeStep-ScaleFactor2DFront','1.0')
       VarTimeStep%TimeScaleFac2DBack = GETREAL('Part-VariableTimeStep-ScaleFactor2DBack','1.0')
     END IF
+  ELSE IF(Symmetry%Order.EQ.1) THEN 
+    CALL abort(__STAMP__, &
+    'ERROR: 1D and variable timestep is not implemented yet!')
   ELSE
     VarTimeStep%StartPoint = GETREALARRAY('Part-VariableTimeStep-StartPoint',3)
     VarTimeStep%EndPoint = GETREALARRAY('Part-VariableTimeStep-EndPoint',3)

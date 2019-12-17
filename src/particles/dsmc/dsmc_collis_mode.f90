@@ -908,13 +908,15 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 
   IF(DSMC%CalcQualityFactors) THEN
     IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-      IF(Symmetry%Order.EQ.2) THEN
-        Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
-                       +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2)
-      ELSE
+      IF(Symmetry%Order.EQ.3) THEN
         Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
                        +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2 &
                        +(PartState(3,Coll_pData(iPair)%iPart_p1) - PartState(3,Coll_pData(iPair)%iPart_p2))**2)
+      ELSE IF(Symmetry%Order.EQ.2) THEN
+        Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
+                       +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2)
+      ELSE
+        Distance = PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2)
       END IF
       DSMC%CollSepDist = DSMC%CollSepDist + Distance
       DSMC%CollSepCount = DSMC%CollSepCount + 1

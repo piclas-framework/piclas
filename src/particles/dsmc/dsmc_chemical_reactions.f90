@@ -1056,11 +1056,13 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry
         ,'CODE_ANALYZE: DSMC_Chemistry is not energy conserving for chemical reaction:', IntInfoOpt=iReac)
   END IF
   ! Check for momentum difference
-  IF(Symmetry%Order.EQ.2) THEN
+  IF(Symmetry%Order.EQ.3) THEN
+    iMomDim = 3
+  ELSE IF(Symmetry%Order.EQ.2) THEN
     ! Do not check the momentum in z as it can be very small (close to machine precision), leading to greater relative errors
     iMomDim = 2
   ELSE
-    iMomDim = 3
+    iMomDim = 1
   END IF
   DO iMom=1,iMomDim
     IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),1.0e-10)) THEN

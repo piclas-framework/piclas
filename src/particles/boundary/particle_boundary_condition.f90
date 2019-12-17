@@ -685,7 +685,7 @@ REAL                                :: rotVelY, rotVelZ, rotPosY, MacroParticleF
 REAL                                :: VelX, VelY, VelZ,VecX, VecY, VecZ
 REAL                                :: Vector1(1:3), Vector2(1:3)
 REAL                                :: nx, ny, nz, nVal
-INTEGER                             :: LocSideID, ElemID
+INTEGER                             :: LocSideID, ElemID, iLoop
 LOGICAL                             :: DoSample
 REAL                                :: EvibOld,ErotOld
 !===================================================================================================================================
@@ -983,11 +983,15 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
     NewVelo(3) = rotVelZ
   END IF ! Symmetry%Axisymmetric
 
-  IF(Symmetry%Order.EQ.2) THEN
-    ! z-Variable is set to zero (should be for the axisymmetric case anyway after rotation)
-    lastPartPos(3,PartID) = 0.0
-    PartState(3,PartID)   = 0.0
-  END IF ! Symmetry%Order.EQ.2
+  ! IF(Symmetry%Order.EQ.2) THEN
+  !   ! z-Variable is set to zero (should be for the axisymmetric case anyway after rotation)
+  !   lastPartPos(3,PartID) = 0.0
+  !   PartState(3,PartID)   = 0.0
+  ! END IF ! Symmetry%Order.EQ.2
+  DO iLoop=Symmetry%Order+1,3
+    LastPartPos(iLoop,PartID) = 0.0
+    PartState(iLoop,PartID) = 0.0
+  END DO
 
   IF (DoSample) THEN
     !----  Sampling force at walls

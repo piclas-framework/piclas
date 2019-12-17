@@ -1367,7 +1367,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo
-INTEGER                    :: iPart
+INTEGER                    :: iPart, iLoop
 #if USE_LOADBALANCE
 REAL                       :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -1433,10 +1433,15 @@ REAL                       :: tLBStart
 #endif /*USE_LOADBALANCE*/
 
   ! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
-  IF(Symmetry%Order.EQ.2) THEN
-    LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
-    PartState(3,1:PDM%ParticleVecLength) = 0.0
-  END IF
+  ! IF(Symmetry%Order.EQ.2) THEN
+  !   LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
+  !   PartState(3,1:PDM%ParticleVecLength) = 0.0
+  ! END IF
+  DO iLoop=Symmetry%Order+1,3
+    LastPartPos(iLoop,1:PDM%ParticleVecLength) = 0.0
+    PartState(iLoop,1:PDM%ParticleVecLength) = 0.0
+  END DO
+
 
 #if USE_MPI
   ! open receive buffer for number of particles
@@ -1934,10 +1939,14 @@ REAL                       :: tLBStart
 #endif /*USE_LOADBALANCE*/
 
   ! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
-  IF(Symmetry%Order.EQ.2) THEN
-    LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
-    PartState(3,1:PDM%ParticleVecLength) = 0.0
-  END IF
+  ! IF(Symmetry%Order.EQ.2) THEN
+  !   LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
+  !   PartState(3,1:PDM%ParticleVecLength) = 0.0
+  ! END IF
+  DO iLoop=Symmetry%Order+1,3
+    LastPartPos(iLoop,1:PDM%ParticleVecLength) = 0.0
+    PartState(iLoop,1:PDM%ParticleVecLength) = 0.0
+  END DO
 
 #if USE_MPI
   ! open receive buffer for number of particles
@@ -4277,10 +4286,14 @@ DO iPart=1,PDM%ParticleVecLength
 END DO
 
 ! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
-IF(Symmetry%Order.EQ.2) THEN
-  LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
-  PartState(3,1:PDM%ParticleVecLength) = 0.0
-END IF
+! IF(Symmetry%Order.EQ.2) THEN
+!   LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
+!   PartState(3,1:PDM%ParticleVecLength) = 0.0
+! END IF
+DO iLoop=Symmetry%Order+1,3
+  LastPartPos(iLoop,1:PDM%ParticleVecLength) = 0.0
+  PartState(iLoop,1:PDM%ParticleVecLength) = 0.0
+END DO
 
 #if USE_MPI
 ! open receive buffer for number of particles
@@ -4417,11 +4430,14 @@ DO iPart=1,PDM%ParticleVecLength
 END DO
 
 ! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
-IF(Symmetry%Order.EQ.2) THEN
-  LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
-  PartState(3,1:PDM%ParticleVecLength) = 0.0
-END IF
-
+! IF(Symmetry%Order.EQ.2) THEN
+!   LastPartPos(3,1:PDM%ParticleVecLength) = 0.0
+!   PartState(3,1:PDM%ParticleVecLength) = 0.0
+! END IF
+DO iLoop=Symmetry%Order+1,3
+  LastPartPos(iLoop,1:PDM%ParticleVecLength) = 0.0
+  PartState(iLoop,1:PDM%ParticleVecLength) = 0.0
+END DO
 #if USE_MPI
 ! open receive buffer for number of particles
 CALL IRecvNbOfParticles()

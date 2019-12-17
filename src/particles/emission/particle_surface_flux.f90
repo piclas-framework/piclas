@@ -59,7 +59,7 @@ USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray,GetD
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
 USE MOD_Particle_Vars          ,ONLY: Symmetry
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
+USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -440,7 +440,7 @@ __STAMP__&
         CALL abort(__STAMP__&
             ,'ERROR: Adaptive surface flux boundary conditions are not implemented with DoRefMapping!')
       END IF
-      IF((Symmetry%Order.EQ.2).OR.VarTimeStep%UseVariableTimeStep) THEN
+      IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
         CALL abort(__STAMP__&
             ,'ERROR: Adaptive surface flux boundary conditions are not implemented with 2D/axisymmetric or variable time step!')
       END IF
@@ -620,6 +620,8 @@ DO iBC=1,nDataBC
         ELSE
           SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,ElemID) / 2.
         END IF
+      ELSE IF(Symmetry%Order.EQ.1) THEN
+        SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_1D_CalcSymmetryArea(iLocSide,ElemID) / 2.
       END IF
       !----- symmetry specific area calculation end
       IF (.NOT.TriaTracking) THEN !check that all sides are planar if TriaSurfaceFlux is used for tracing or refmapping
