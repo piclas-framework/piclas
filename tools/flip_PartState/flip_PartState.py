@@ -4,6 +4,60 @@ import argparse
 import re
 import shutil
 
+def FlipDataset(data_set) :
+    # Open h5 file and read container info
+    # --------------------------------------------
+    #     r       : Readonly, file must exist
+    #     r+      : Read/write, file must exist
+    #     w       : Create file, truncate if exists
+    #     w- or x : Create file, fail if exists
+    #     a       : Read/write if exists, create otherwise (default
+    # --------------------------------------------
+    # When sorting is used, the sorted array is written to the original .h5 file with a new name
+    f1 = h5py.File(statefile,'r+')
+
+    file_version  = f1.attrs.get('File_Version', default=-1.)[0]
+
+    # Usage:
+    # -------------------
+    # available keys         : print("Keys: %s" % f1.keys())                                # yields, e.g., <KeysViewHDF5 ['DG_Solution', 'PartData']>
+    # first key in list      : a_group_key = list(f1.keys())[0]                             # yields 'DG_Solution'
+    # available attributes   : print('\n'.join(x for x in f1.attrs))                        # yields 'File_Type\n File_Version\n MeshFile'
+    # get specific attribute : file_version  = f1.attrs.get('File_Version', default=-1.)[0] # yields, e.g., 1.5
+    # -------------------
+    
+    # 1.1.1   Read the dataset from the hdf5 file
+    try :
+        b1 = f1[data_set][:]
+    except :
+        #print('Dataset %s does not exist' % data_set)
+        return
+    old_shape=b1.shape
+
+    # Switch dimenions and store in file
+    # -----------------------------------------
+    # 0. remove original PartData container
+    del f1[data_set]
+    # 1. Swtich dimension of PartData
+    b1 = np.swapaxes(b1,0,1)
+    new_shape=b1.shape
+    print("".ljust(max_length-len(statefile)),statefile," | %s%s => %s%s" % (data_set, str(old_shape), data_set, str(new_shape)))
+    # 2. Create new dataset 'dset'
+    dset = f1.create_dataset(data_set, shape=b1.shape, dtype=np.float64)
+    # 3. Write as C-continuous array via np.ascontiguousarray()
+    dset.write_direct(np.ascontiguousarray(b1))
+    # 4. Change the file version to 1.4 or 1.5 depending on the original file version
+    if file_version > 0. :
+        if file_version < 1.5 :
+            file_version_new=1.5
+        else :
+            file_version_new=1.4
+        f1.attrs.modify('File_Version',file_version_new)
+
+    f1.close()
+
+    return
+
 class bcolors :
     """color and font style definitions for changing output appearance"""
     # Reset (user after applying a color to return to normal coloring)
@@ -73,53 +127,13 @@ print(132*"-")
 n = 0
 for statefile in args.files :
     n+=1
-    # Open h5 file and read container info
-    # --------------------------------------------
-    #     r       : Readonly, file must exist
-    #     r+      : Read/write, file must exist
-    #     w       : Create file, truncate if exists
-    #     w- or x : Create file, fail if exists
-    #     a       : Read/write if exists, create otherwise (default
-    # --------------------------------------------
-    # When sorting is used, the sorted array is written to the original .h5 file with a new name
-    f1 = h5py.File(statefile,'r+')
+    # Flip PartData
+    FlipDataset('PartData')
 
-    file_version  = f1.attrs.get('File_Version', default=-1.)[0]
-
-    # Usage:
-    # -------------------
-    # available keys         : print("Keys: %s" % f1.keys())                                # yields, e.g., <KeysViewHDF5 ['DG_Solution', 'PartData']>
-    # first key in list      : a_group_key = list(f1.keys())[0]                             # yields 'DG_Solution'
-    # available attributes   : print('\n'.join(x for x in f1.attrs))                        # yields 'File_Type\n File_Version\n MeshFile'
-    # get specific attribute : file_version  = f1.attrs.get('File_Version', default=-1.)[0] # yields, e.g., 1.5
-    # -------------------
-    data_set= 'PartData'
-    
-    # 1.1.1   Read the dataset from the hdf5 file
-    b1 = f1[data_set][:]
-    old_shape=b1.shape
-
-    # Switch dimenions and store in file
-    # -----------------------------------------
-    # 0. remove original PartData container
-    del f1[data_set]
-    # 1. Swtich dimension of PartData
-    b1 = np.swapaxes(b1,0,1)
-    new_shape=b1.shape
-    print("".ljust(max_length-len(statefile)),statefile," | PartData%s => PartData%s" % (str(old_shape), str(new_shape)))
-    # 2. Create new dataset 'dset'
-    dset = f1.create_dataset(data_set, shape=b1.shape, dtype=np.float64)
-    # 3. Write as C-continuous array via np.ascontiguousarray()
-    dset.write_direct(np.ascontiguousarray(b1))
-    # 4. Change the file version to 1.4 or 1.5 depending on the original file version
-    if file_version > 0. :
-        if file_version < 1.5 :
-            file_version_new=1.5
-        else :
-            file_version_new=1.4
-        f1.attrs.modify('File_Version',file_version_new)
-
-    f1.close()
+    # Check for additional arrays: 'CloneVibQuantData', 'VibQuantData' and 'CloneData'
+    FlipDataset('CloneVibQuantData')
+    FlipDataset('VibQuantData')
+    FlipDataset('CloneData')
 
 print(132*"-")
 
