@@ -3,9 +3,9 @@
 # Switch to build all document parts - or only ready parts
 BUILDALL=
 
-SRC=000_userguide.md 010_installation.md 020_workflow.md 030_features_models.md 040_tools.md
-SRC +=  050_tutorials.md 080_cluster_guide.md
-# SRC +=  050_tutorials.md tutorials/*/*.md 070_unittest.md 080_cluster_guide.md 099_parameter.md 
+SRC=000_userguide.md 010_installation.md 020_workflow.md 030_features_models.md 040_visu_output.md 050_tools.md
+SRC +=  060_tutorials.md 080_cluster_guide.md
+# SRC +=  tutorials/*/*.md 070_unittest.md 080_cluster_guide.md 099_parameter.md 
 ifneq ($(BUILDALL),)
   SRC += missing.md
 endif

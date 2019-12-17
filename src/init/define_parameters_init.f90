@@ -41,9 +41,9 @@ USE MOD_LoadBalance                ,ONLY: DefineParametersLoadBalance
 USE MOD_Analyze                    ,ONLY: DefineParametersAnalyze
 USE MOD_RecordPoints               ,ONLY: DefineParametersRecordPoints
 USE MOD_TimeDisc                   ,ONLY: DefineParametersTimedisc
-USE MOD_Mesh                       ,ONLY: DefineparametersMesh
+USE MOD_Mesh                       ,ONLY: DefineParametersMesh
 USE MOD_Equation                   ,ONLY: DefineParametersEquation
-#if ! (USE_HDG)
+#if !(USE_HDG)
 USE MOD_PML                        ,ONLY: DefineParametersPML
 #endif /*USE_HDG*/
 #if USE_QDS_DG
@@ -62,10 +62,11 @@ USE MOD_Piclas_Init                ,ONLY: DefineParametersPiclas
 USE MOD_ParticleInit               ,ONLY: DefineParametersParticles
 USE MOD_MacroBody_Init             ,ONLY: DefineParametersMacroBody
 USE MOD_Particle_Boundary_Sampling ,ONLY: DefineParametersParticlesBoundarySampling
-USE MOD_Particle_Mesh              ,ONLY: DefineparametersParticleMesh
+USE MOD_Particle_Mesh              ,ONLY: DefineParametersParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: DefineParametersParticleAnalyze
 USE MOD_TTMInit                    ,ONLY: DefineParametersTTM
 USE MOD_PICInit                    ,ONLY: DefineParametersPIC
+USE MOD_InitializeBackgroundField  ,ONLY: DefineParametersBGField
 USE MOD_Part_Emission              ,ONLY: DefineParametersParticleEmission
 USE MOD_DSMC_Init                  ,ONLY: DefineParametersDSMC
 USE MOD_SurfaceModel_Init          ,ONLY: DefineParametersSurfModel
@@ -75,6 +76,7 @@ USE MOD_FPFlow_Init                ,ONLY: DefineParametersFPFlow
 USE MOD_Particle_Boundary_Porous   ,ONLY: DefineParametersPorousBC
 USE MOD_Particle_VarTimeStep       ,ONLY: DefineParametersVaribleTimeStep
 USE MOD_DSMC_Symmetry2D            ,ONLY: DefineParametersParticleSymmetry
+USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
@@ -116,6 +118,7 @@ CALL DefineParametersFilter()
 CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()
 #ifdef PARTICLES
+CALL DefineParametersSuperB()
 CALL DefineParametersParticles()
 CALL DefineParametersMacroBody()
 CALL DefineParametersParticlesBoundarySampling()
@@ -126,6 +129,7 @@ CALL DefineParametersParticleMesh()
 CALL DefineParametersParticleAnalyze()
 CALL DefineParametersTTM()
 CALL DefineParametersPIC()
+CALL DefineParametersBGField()
 CALL DefineParametersParticleEmission()
 CALL DefineParametersDSMC()
 #if (PP_TimeDiscMethod==300)
