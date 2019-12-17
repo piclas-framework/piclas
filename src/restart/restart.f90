@@ -84,6 +84,7 @@ SUBROUTINE InitRestart()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY: FileVersionHDF5
 USE MOD_PreProc
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETSTR
 #if USE_LOADBALANCE
@@ -94,11 +95,7 @@ USE MOD_ReadInTools        ,ONLY: PrintOption
 USE MOD_Interpolation_Vars ,ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
 USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
-#ifdef PP_POIS
-#elif USE_HDG
 USE MOD_HDF5_Input         ,ONLY: DatasetExists
-#else
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -113,6 +110,7 @@ CHARACTER(20)               :: hilf
 #if USE_HDG
 LOGICAL                     :: DG_SolutionUExists
 #endif /*USE_HDG*/
+LOGICAL                     :: FileVersionExists
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.RestartInitIsDone)THEN
    CALL abort(&
@@ -174,6 +172,39 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   END IF
   ! Read in time from restart file
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
+  ! check file version
+  CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
+  IF (FileVersionExists) THEN
+    CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
+  ELSE
+    CALL abort(&
+        __STAMP__&
+        ,'Error in InitRestart(): Attribute "File_Version" does not exist!')
+  END IF
+  IF(FileVersionHDF5.LT.1.5)THEN
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' Restart file is too old! "File_Version" in restart file < 1.5!'
+    SWRITE(UNIT_StdOut,'(A)')' The format used in the restart file is not compatible with this version of PICLas.'
+    SWRITE(UNIT_StdOut,'(A)')' Among others, the particle format (PartData) has changed.'
+    SWRITE(UNIT_StdOut,'(A)')' Run python script '
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')'     python  ./tools/flip_PartState/flip_PartState.py  --help'
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' for info regarding the usage and run the script against the restart file, e.g., '
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')'     python  ./tools/flip_PartState/flip_PartState.py  ProjectName_State_000.0000xxxxxx.h5'
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' to update the format and file version number.'
+    SWRITE(UNIT_StdOut,'(A)')' Note that the format can be changed back to the old one by running the script a second time.'
+    SWRITE(UNIT_StdOut,'(A)')' '
+    SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
+    CALL abort(&
+    __STAMP__&
+    ,'Error in InitRestart(): "File_Version" in restart file < 1.5. See error message above to fix. File version in restart file =',&
+    RealInfoOpt=FileVersionHDF5)
+  END IF ! FileVersionHDF5.LT.1.5
   CALL CloseDataFile()
 ELSE
   RestartTime = 0.
