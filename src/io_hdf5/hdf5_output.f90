@@ -2249,11 +2249,11 @@ ASSOCIATE (&
       offsetnPart     => INT(offsetnPart,IK)   ,&
       MaxQuantNum     => INT(MaxQuantNum,IK)   ,&
       PartDataSize    => INT(PartDataSize,IK)  )
-CALL WriteArrayToHDF5(DataSetName='CloneData', rank=2,&
-                      nValGlobal=(/PartDataSize , nPart_glob /) , &
-                      nVal=      (/PartDataSize , locnPart   /) , &
-                      offset=    (/0_IK         , offsetnPart/) , &
-                      collective=.FALSE., RealArray=PartData)
+CALL WriteArrayToHDF5(DataSetName='CloneData'   , rank=2         , &
+                      nValGlobal=(/PartDataSize , nPart_glob /)  , &
+                      nVal=      (/PartDataSize , locnPart   /)  , &
+                      offset=    (/0_IK         , offsetnPart/)  , &
+                      collective=.FALSE.        , RealArray=PartData)
 IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   CALL WriteArrayToHDF5(DataSetName='CloneVibQuantData' , rank=2              , &
                         nValGlobal=(/MaxQuantNum        , nPart_glob     /)   , &

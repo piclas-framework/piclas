@@ -1348,13 +1348,14 @@ IMPLICIT NONE
   DEALLOCATE(SizeClone)
 
   IF(ClonePartNum.GT.0) THEN
-    ALLOCATE(CloneData(1:ClonePartNum,1:CloneDataSize))
-    ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK),CloneDataSize => INT(CloneDataSize,IK))
-      CALL ReadArray('CloneData',2,(/ClonePartNum,CloneDataSize/),0_IK,1,RealArray=CloneData)
+    ALLOCATE(CloneData(1:CloneDataSize,1:ClonePartNum))
+    ASSOCIATE(ClonePartNum  => INT(ClonePartNum,IK)  ,&
+              CloneDataSize => INT(CloneDataSize,IK) )
+      CALL ReadArray('CloneData',2,(/CloneDataSize,ClonePartNum/),0_IK,2,RealArray=CloneData)
     END ASSOCIATE
     SWRITE(*,*) 'Read-in of cloned particles complete. Total clone number: ', ClonePartNum
     ! Determing the old clone delay
-    maxDelay = INT(MAXVAL(CloneData(:,9)))
+    maxDelay = INT(MAXVAL(CloneData(9,:)))
     IF(RadialWeighting%CloneMode.EQ.1) THEN
       ! Array is allocated from 0 to maxDelay
       compareDelay = maxDelay + 1
@@ -1394,43 +1395,43 @@ IMPLICIT NONE
     END IF
     ! Copying particles into ClonedParticles array
     DO iPart = 1, ClonePartNum
-      iDelay = INT(CloneData(iPart,9))
-      iElem = INT(CloneData(iPart,8)) - offsetElem
+      iDelay = INT(CloneData(9,iPart))
+      iElem = INT(CloneData(8,iPart)) - offsetElem
       IF((iElem.LE.nElems).AND.(iElem.GT.0)) THEN
         IF(iDelay.LE.tempDelay) THEN
           pcount(iDelay) = pcount(iDelay) + 1
           RadialWeighting%ClonePartNum(iDelay) = pcount(iDelay)
-          ClonedParticles(pcount(iDelay),iDelay)%PartState(1) = CloneData(iPart,1)
-          ClonedParticles(pcount(iDelay),iDelay)%PartState(2) = CloneData(iPart,2)
-          ClonedParticles(pcount(iDelay),iDelay)%PartState(3) = CloneData(iPart,3)
-          ClonedParticles(pcount(iDelay),iDelay)%PartState(4) = CloneData(iPart,4)
-          ClonedParticles(pcount(iDelay),iDelay)%PartState(5) = CloneData(iPart,5)
-          ClonedParticles(pcount(iDelay),iDelay)%PartState(6) = CloneData(iPart,6)
-          ClonedParticles(pcount(iDelay),iDelay)%Species = INT(CloneData(iPart,7))
+          ClonedParticles(pcount(iDelay),iDelay)%PartState(1) = CloneData(1,iPart)
+          ClonedParticles(pcount(iDelay),iDelay)%PartState(2) = CloneData(2,iPart)
+          ClonedParticles(pcount(iDelay),iDelay)%PartState(3) = CloneData(3,iPart)
+          ClonedParticles(pcount(iDelay),iDelay)%PartState(4) = CloneData(4,iPart)
+          ClonedParticles(pcount(iDelay),iDelay)%PartState(5) = CloneData(5,iPart)
+          ClonedParticles(pcount(iDelay),iDelay)%PartState(6) = CloneData(6,iPart)
+          ClonedParticles(pcount(iDelay),iDelay)%Species = INT(CloneData(7,iPart))
           ClonedParticles(pcount(iDelay),iDelay)%Element = iElem
-          ClonedParticles(pcount(iDelay),iDelay)%lastPartPos(1:3) = CloneData(iPart,1:3)
+          ClonedParticles(pcount(iDelay),iDelay)%lastPartPos(1:3) = CloneData(1:3,iPart)
           IF (UseDSMC) THEN
             IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(iPart,10)
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(iPart,11)
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(3) = CloneData(iPart,12)
-              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor   = CloneData(iPart,13)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(10,iPart)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(11,iPart)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(3) = CloneData(12,iPart)
+              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor   = CloneData(13,iPart)
             ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(iPart,10)
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(iPart,11)
-              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor   = CloneData(iPart,12)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(10,iPart)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(11,iPart)
+              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor   = CloneData(12,iPart)
             ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(iPart,10)
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(iPart,11)
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(3) = CloneData(iPart,12)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(10,iPart)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(11,iPart)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(3) = CloneData(12,iPart)
             ELSE IF (CollisMode.GT.1) THEN
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(iPart,10)
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(iPart,11)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(10,iPart)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(11,iPart)
             ELSE IF (usevMPF) THEN
-              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor = CloneData(iPart,10)
+              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor = CloneData(10,iPart)
             END IF
           ELSE IF (usevMPF) THEN
-              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor = CloneData(iPart,10)
+              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor = CloneData(10,iPart)
           END IF
           IF (UseDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
             IF (SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%PolyatomicMol) THEN
