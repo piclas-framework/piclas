@@ -411,8 +411,7 @@ INTEGER            :: iElem,iPart
 !===================================================================================================================================
 ! TODO: Info why and under which conditions the following 'RETURN' is called
 IF((DoInnerParts).AND.(LastPart.LT.FirstPart)) RETURN
-ALLOCATE(ElemSource(SourceDim:4,1:nElems))
-ElemSource=0.0
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
@@ -427,6 +426,9 @@ ELSE ! do not calculate current density
   SourceDim=4
 END IF
 #endif
+
+ALLOCATE(ElemSource(SourceDim:4,1:nElems))
+ElemSource=0.0
 
 DO iElem=1,PP_nElems
   DO iPart=FirstPart,LastPart
@@ -534,8 +536,6 @@ INTEGER            :: iPart,iElem
 ! because the MPI communication is done here directly
 IF(.NOT.DoInnerParts) RETURN
 
-ALLOCATE(BGMSourceCellVol(SourceDim:4,0:1,0:1,0:1,1:nElems))
-BGMSourceCellVol(:,:,:,:,:) = 0.0
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
@@ -550,6 +550,9 @@ ELSE ! do not calculate current density
   SourceDim=4
 END IF
 #endif
+
+ALLOCATE(BGMSourceCellVol(SourceDim:4,0:1,0:1,0:1,1:nElems))
+BGMSourceCellVol(:,:,:,:,:) = 0.0
 
 DO iPart = FirstPart, LastPart
   ! TODO: Info why and under which conditions the following 'CYCLE' is called
@@ -687,10 +690,6 @@ INTEGER            :: kk, ll, mm, iPart,iElem
 ! because the MPI communication is done here directly
 IF(.NOT.DoInnerParts) RETURN
 
-! Allocate NodeSource array and deallocate at the end of this procedure
-ALLOCATE(NodeSource(SourceDim:4,1:nNodes))
-NodeSource = 0.0
-
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
@@ -705,6 +704,10 @@ ELSE ! do not calculate current density
   SourceDim=4
 END IF
 #endif
+
+! Allocate NodeSource array and deallocate at the end of this procedure
+ALLOCATE(NodeSource(SourceDim:4,1:nNodes))
+NodeSource = 0.0
 
 DO iPart=FirstPart,LastPart
   IF (PDM%ParticleInside(iPart)) THEN
