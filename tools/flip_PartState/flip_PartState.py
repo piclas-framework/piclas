@@ -4,7 +4,35 @@ import argparse
 import re
 import shutil
 
-def FlipDataset(data_set) :
+def ChangeFileVersion(statefile) :
+    # Open h5 file and read container info
+    # --------------------------------------------
+    #     r       : Readonly, file must exist
+    #     r+      : Read/write, file must exist
+    #     w       : Create file, truncate if exists
+    #     w- or x : Create file, fail if exists
+    #     a       : Read/write if exists, create otherwise (default
+    # --------------------------------------------
+    # When sorting is used, the sorted array is written to the original .h5 file with a new name
+    # 1. Open .h5 data file
+    f1 = h5py.File(statefile,'r+')
+
+    # 2. Get curret file version
+    file_version  = f1.attrs.get('File_Version', default=-1.)[0]
+
+    # 3. Change the file version to 1.4 or 1.5 depending on the original file version
+    if file_version > 0. :
+        if file_version < 1.5 :
+            file_version_new=1.5
+        else :
+            file_version_new=1.4
+        f1.attrs.modify('File_Version',file_version_new)
+        print("Changed file version from %s to %s" % (file_version,file_version_new))
+
+    # 4. Close .h5 data file
+    f1.close()
+
+def FlipDataset(statefile,data_set) :
     # Open h5 file and read container info
     # --------------------------------------------
     #     r       : Readonly, file must exist
@@ -15,8 +43,6 @@ def FlipDataset(data_set) :
     # --------------------------------------------
     # When sorting is used, the sorted array is written to the original .h5 file with a new name
     f1 = h5py.File(statefile,'r+')
-
-    file_version  = f1.attrs.get('File_Version', default=-1.)[0]
 
     # Usage:
     # -------------------
@@ -32,31 +58,31 @@ def FlipDataset(data_set) :
     except :
         #print('Dataset %s does not exist' % data_set)
         return
+
     old_shape=b1.shape
 
     # Switch dimenions and store in file
     # -----------------------------------------
     # 0. remove original PartData container
     del f1[data_set]
+
     # 1. Swtich dimension of PartData
     b1 = np.swapaxes(b1,0,1)
     new_shape=b1.shape
     print("".ljust(max_length-len(statefile)),statefile," | %s%s => %s%s" % (data_set, str(old_shape), data_set, str(new_shape)))
+
     # 2. Create new dataset 'dset'
     dset = f1.create_dataset(data_set, shape=b1.shape, dtype=np.float64)
+
     # 3. Write as C-continuous array via np.ascontiguousarray()
-    dset.write_direct(np.ascontiguousarray(b1))
-    # 4. Change the file version to 1.4 or 1.5 depending on the original file version
-    if file_version > 0. :
-        if file_version < 1.5 :
-            file_version_new=1.5
-        else :
-            file_version_new=1.4
-        f1.attrs.modify('File_Version',file_version_new)
+    if not b1.any() :
+        print(" %s has dimension %s. Skipping" % (data_set,b1.shape))
+        pass
+    else :
+        dset.write_direct(np.ascontiguousarray(b1))
 
+    # 4. Close .h5 data file
     f1.close()
-
-    return
 
 class bcolors :
     """color and font style definitions for changing output appearance"""
@@ -124,16 +150,17 @@ print(132*"-")
 s="Example.h5"
 print("".ljust(max_length-len(s)),s," | PartData(dim1, dim2)")
 print(132*"-")
-n = 0
 for statefile in args.files :
-    n+=1
     # Flip PartData
-    FlipDataset('PartData')
+    FlipDataset(statefile,'PartData')
 
     # Check for additional arrays: 'CloneVibQuantData', 'VibQuantData' and 'CloneData'
-    FlipDataset('CloneVibQuantData')
-    FlipDataset('VibQuantData')
-    FlipDataset('CloneData')
+    FlipDataset(statefile,'CloneVibQuantData')
+    FlipDataset(statefile,'VibQuantData')
+    FlipDataset(statefile,'CloneData')
+
+    # Change file version
+    ChangeFileVersion(statefile)
 
 print(132*"-")
 
