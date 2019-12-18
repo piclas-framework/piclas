@@ -838,7 +838,9 @@ USE MOD_PICDepo_Vars                ,ONLY: Vdm_EquiN_GaussN,SFResampleAnalyzeSur
 USE MOD_PICDepo_Vars                ,ONLY: PartSourceConstExists,NbrOfSFdepoLayers,NbrOfSFdepoFixes,DoSFEqui
 USE MOD_PICDepo_Vars                ,ONLY: ConstantSFdepoLayers
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
+#if USE_MPI
 USE MOD_Particle_MPI_Vars           ,ONLY: ExtPartState,ExtPartSpecies,ExtPartToFIBGM,ExtPartMPF,NbrOfextParticles
+#endif /*USE_MPI*/
 USE MOD_TimeDisc_Vars               ,ONLY: dtWeight
 USE MOD_Part_Tools                  ,ONLY: isDepositParticle
 USE MOD_Mesh_Vars                   ,ONLY: nElems
