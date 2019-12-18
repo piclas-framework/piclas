@@ -1087,7 +1087,7 @@ END SUBROUTINE AddQuadTreeNode
 
 SUBROUTINE DSMC_pairing_dotree(iElem)
 !===================================================================================================================================
-!
+! Pairing subroutine for dotree, decides whether to create a new dotree node or start particle pairing
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
@@ -1161,7 +1161,7 @@ END SUBROUTINE DSMC_pairing_dotree
 
 RECURSIVE SUBROUTINE AddDoTreeNode(TreeNode, iElem, NodeVol)
 !===================================================================================================================================
-!>
+!> Adds additional dotree node/branch and decide if this node has to be divided again or start particle pairing
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1266,11 +1266,11 @@ DO iLoop = 1, 2
   IF((PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin).AND.(.NOT.ForceNearestNeigh)) THEN
     ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-    IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-      DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), Volume(iLoop))
-    ELSE
+    ! IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    !   DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), Volume(iLoop))
+    ! ELSE
       DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), Volume(iLoop))
-    END IF
+    ! END IF
     IF((DSMC%MeanFreePath.LT.(LengthVolumeTemp(iLoop))).OR.(PartNumChildNode(iLoop).GT.DSMC%PartNumOctreeNode)) THEN
       NULLIFY(TreeNode%ChildNode)
       ALLOCATE(TreeNode%ChildNode)
@@ -2432,7 +2432,7 @@ END FUNCTION DOTANTCUBEID
 
 FUNCTION DOTANTCUBEMIDPOINT(CubeID,octantDepth,octantCenter)
 !===================================================================================================================================
-!> determines the position of the center of the given cubeID of an Octant for a given 3D centerpoint and depth
+!> determines the position of the center of the given cubeID of an Dotant for a given 3D centerpoint and depth
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2506,7 +2506,7 @@ END SUBROUTINE DSMC_CalcSubNodeVolumes1D
 
 RECURSIVE SUBROUTINE AddNodeVolumes1D(NodeDepth, Node, iElem, SubNodesIn)
 !===================================================================================================================================
-!> description
+!> calculate volume and x-length of an DotreeNode
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
