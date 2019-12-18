@@ -2791,8 +2791,13 @@ CALL InitFIBGM()
 CALL InitMacroBody()
 CALL MarkMacroBodyElems()
 
-! === 2D/Axisymmetric initialization
+! === 2D/1D/Axisymmetric initialization
 ! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
+IF(Symmetry%Order.EQ.1) THEN
+  TriaEps = 2.22e-16
+ELSE
+  TriaEps = 0.0
+END IF
 IF(Symmetry%Order.EQ.2) CALL DSMC_2D_InitVolumes()
 IF(Symmetry%Order.EQ.1) CALL DSMC_1D_InitVolumes()
 IF(Symmetry%Axisymmetric) THEN

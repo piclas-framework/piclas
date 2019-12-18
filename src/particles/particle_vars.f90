@@ -498,5 +498,7 @@ TYPE tVariableTimeStep
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
 
+REAL                                   :: TriaEps !Machine precision for 1D, 0 for other
+
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

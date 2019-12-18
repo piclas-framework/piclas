@@ -98,6 +98,7 @@ USE MOD_Particle_Intersection       ,ONLY: IntersectionWithWall
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
 USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry               ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
+USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -2495,9 +2496,7 @@ REAL                             :: Px, Py, Pz
 REAL                             :: Vx, Vy, Vz!, Vall
 REAL                             :: xNode(3), yNode(3), zNode(3), Ax(3), Ay(3), Az(3)
 REAL                             :: det(3)
-REAL                             :: eps
 !===================================================================================================================================
-eps = 0.
 
 ThroughSide = .FALSE.
 
@@ -2562,7 +2561,7 @@ det(3) = ((Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + &
           (Ax(3) * Vy - Ay(3) * Vx) * Az(2))
 
 ! Comparison of the determinants with eps, where a zero is stored (due to machine precision)
-IF ((det(1).ge.-eps).AND.(det(2).ge.-eps).AND.(det(3).ge.-eps)) THEN
+IF ((det(1).ge.-TriaEps).AND.(det(2).ge.-TriaEps).AND.(det(3).ge.-TriaEps)) THEN
   ThroughSide = .TRUE.
 END IF
 
