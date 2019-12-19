@@ -252,7 +252,7 @@ USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC, PartStateIntEn, us
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC, CollInf
 USE MOD_Particle_Vars           ,ONLY: PartMPF, PDM, PartSpecies, PartState, Species, LastPartPos
 USE MOD_TimeDisc_Vars           ,ONLY: iter
-USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartOut
+USE MOD_part_operations         ,ONLY: RemoveParticle
 USE Ziggurat
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -342,11 +342,7 @@ ELSE
     END IF
     CALL RANDOM_NUMBER(iRan)
     IF(DeleteProb.GT.iRan) THEN
-      PDM%ParticleInside(iPart) = .FALSE.
-      IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(iPart) = 0
-      IF(CalcPartBalance) THEN
-        nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
-      END IF ! CalcPartBalance
+      CALL RemoveParticle(iPart)
     END IF
   END IF
 END IF
