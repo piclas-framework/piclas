@@ -302,6 +302,7 @@ TYPE typeSurfaceflux
                                                                              ! through Monte Carlo integration (initially)
   INTEGER                                :: AdaptivePartNumOut               ! Adaptive, Type 4: Number of particles exiting through
                                                                              ! the adaptive boundary condition
+  REAL                                   :: SampledMassflow                  ! Actual mass flow rate through a surface flux boundary
   REAL, ALLOCATABLE                      :: nVFRSub(:,:)                     ! normal volume flow rate through subsubside
 END TYPE
 

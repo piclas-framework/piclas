@@ -423,18 +423,18 @@ dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/)) ! quick fix: set dt for initial writ
 
 #if USE_LOADBALANCE
 IF (DoInitialAutoRestart) THEN
-  tmp_DoLoadBalance = DoLoadBalance
-  DoLoadBalance = .TRUE.
+  tmp_DoLoadBalance     = DoLoadBalance
+  DoLoadBalance         = .TRUE.
   tmp_LoadbalanceSample = LoadBalanceSample
-  LoadBalanceSample = InitialAutoRestartSample
+  LoadBalanceSample     = InitialAutoRestartSample
   ! correct initialautrestartSample if partweight_initialautorestart is enabled so tAnalyze is calculated correctly
   ! LoadBalanceSample still needs to be zero
   IF (IAR_PerformPartWeightLB) InitialAutoRestartSample=1
   ! correction for first analyzetime due to auto initial restart
-  IF (MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd,RestartTime+InitialAutoRestartSample*dt).LT.tAnalyze) THEN
-    tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd,RestartTime+LoadBalanceSample*dt)
-    tAnalyzeDiff=tAnalyze-time
-    dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
+  IF (MIN(RestartTime+iAnalyze*Analyze_dt,tEnd,RestartTime+InitialAutoRestartSample*dt).LT.tAnalyze) THEN
+    tAnalyze     = MIN(RestartTime+iAnalyze*Analyze_dt,tEnd,RestartTime+InitialAutoRestartSample*dt)
+    tAnalyzeDiff = tAnalyze-time
+    dt           = MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
   END IF
 END IF
 #endif /*USE_LOADBALANCE*/
@@ -5362,11 +5362,11 @@ ELSE ! .NO. ManualTimeStep
   ! time step is calculated by the solver
   ! first Maxwell time step for explicit LSRK
 #if !(USE_HDG)
-  dt_Min=CalcTimeStep()
-  sdtCFLOne  = 1.0/(dt_Min*CFLtoOne)
+  dt_Min    = CalcTimeStep()
+  sdtCFLOne = 1.0/(dt_Min*CFLtoOne)
 #else
-  dt_Min=0
-  sdtCFLOne  = -1.0 !dummy for HDG!!!
+  dt_Min    = 0
+  sdtCFLOne = -1.0 !dummy for HDG!!!
 #endif /*USE_HDG*/
 
   dt=dt_Min
@@ -5382,10 +5382,9 @@ ELSE ! .NO. ManualTimeStep
 END IF ! useManualTimestep
 
 #if (PP_TimeDiscMethod==201)
-dt_maxwell = CALCTIMESTEP()
-sdtCFLOne  = 1.0/(dt_Maxwell*CFLtoOne)
-MaximumIterNum = INT(MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob) &
-               / (c * dt_maxwell))
+dt_maxwell     = CALCTIMESTEP()
+sdtCFLOne      = 1.0/(dt_Maxwell*CFLtoOne)
+MaximumIterNum = INT(MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob) / (c * dt_maxwell))
 IF(MPIroot)THEN
   print*, 'MaxIterNum for MaxwellSolver: ', MaximumIterNum
   print*, 'Maxwell TimeStep: ', dt_maxwell
