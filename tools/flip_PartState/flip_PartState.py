@@ -27,6 +27,7 @@ def ChangeFileVersion(statefile) :
         else :
             file_version_new=1.4
         f1.attrs.modify('File_Version',file_version_new)
+        print( )
         print("Changed file version from %s to %s" % (file_version,file_version_new))
 
     # 4. Close .h5 data file
@@ -59,6 +60,17 @@ def FlipDataset(statefile,data_set) :
         #print('Dataset %s does not exist' % data_set)
         return
 
+    dataType = f1[data_set].dtype
+
+    if args.debug:
+        print( )
+        print(yellow("    size :         "+ str(f1[data_set].size)))
+        print(yellow("    shape :        "+ str(f1[data_set].shape)))
+        print(yellow("    dtype :        "+ str(f1[data_set].dtype)))
+        print(yellow("    chunks :       "+ str(f1[data_set].chunks)))
+        print(yellow("    compression :  "+ str(f1[data_set].compression)))
+        print(yellow("    shuffle :      "+ str(f1[data_set].shuffle)))
+
     old_shape=b1.shape
 
     # Switch dimenions and store in file
@@ -72,7 +84,8 @@ def FlipDataset(statefile,data_set) :
     print("".ljust(max_length-len(statefile)),statefile," | %s%s => %s%s" % (data_set, str(old_shape), data_set, str(new_shape)))
 
     # 2. Create new dataset 'dset'
-    dset = f1.create_dataset(data_set, shape=b1.shape, dtype=np.float64)
+    #dset = f1.create_dataset(data_set, shape=b1.shape, dtype=np.float64)
+    dset = f1.create_dataset(data_set, shape=b1.shape, dtype=getattr(np, str(dataType)))
 
     # 3. Write as C-continuous array via np.ascontiguousarray()
     if not b1.any() :
@@ -129,6 +142,7 @@ start = timer()
 """get command line arguments"""
 parser = argparse.ArgumentParser(description='DESCRIPTION:\nTool for switching the dimensions of the PartState container of multiple .h5 files.\nSupply a single state file or a group of state files by using the wildcard "*", e.g. MySimulation_000.000000* for a list of file names.', formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('files', type=str, help='Files (.h5) that are to be merged together.', nargs='+')
+parser.add_argument('-d', '--debug', action='store_true', help='Print additional imformation regarding the files onto screen.')
 
 # Get command line arguments
 args = parser.parse_args()
