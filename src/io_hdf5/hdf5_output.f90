@@ -1093,7 +1093,7 @@ ASSOCIATE (&
                               DataSetName ='VibQuantData', rank=2           , &
                               nValGlobal  =(/MaxQuantNum , nPart_glob  /)   , &
                               nVal        =(/MaxQuantNum , locnPart    /)   , &
-                              offset      =(/offsetnPart , 0_IK        /)   , &
+                              offset      =(/0_IK        , offsetnPart /)   , &
                               collective  =.FALSE.       , offSetDim=2      , &
                               communicator=PartMPI%COMM  , IntegerArray_i4=VibQuantData)
     DEALLOCATE(VibQuantData)
@@ -1345,7 +1345,7 @@ ASSOCIATE (&
       CALL WriteArrayToHDF5(DataSetName='PartData'     , rank=2              , &
                             nValGlobal=(/ PartDataSize , nPart_glob  /)      , &
                             nVal=      (/ PartDataSize , locnPart    /)      , &
-                            offset=    (/offsetnPart   , 0_IK  /)            , &
+                            offset=    (/ 0_IK         , offsetnPart /)      , &
                             collective=.FALSE.         , RealArray=PartData)
       CALL CloseDataFile()
     END IF !MPIRoot
@@ -1355,15 +1355,15 @@ ASSOCIATE (&
                              DataSetName  = 'PartData'      , rank = 2              , &
                              nValGlobal   = (/ PartDataSize , nPart_glob  /)        , &
                              nVal         = (/ PartDataSize , locnPart    /)        , &
-                             offset       = (/offsetnPart   , 0_IK/)                , &
-                             collective   = .FALSE.         , offSetDim = 1         , &
+                             offset       = (/ 0_IK         , offsetnPart /)        , &
+                             collective   = .FALSE.         , offSetDim = 2         , &
                              communicator = PartMPI%COMM    , RealArray = PartData)
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName = 'PartData'      , rank = 2              , &
                         nValGlobal  = (/ PartDataSize , nPart_glob  /)        , &
                         nVal        = (/ PartDataSize , locnPart    /)        , &
-                        offset      = (/offsetnPart   , 0_IK  /)              , &
+                        offset      = (/ 0_IK         , offsetnPart /)        , &
                         collective  = .TRUE.          , RealArray = PartData)
   CALL CloseDataFile()
 #endif /*USE_MPI*/
@@ -1506,7 +1506,7 @@ ASSOCIATE (PartDataSize => INT(PartDataSize,IK))
       CALL WriteArrayToHDF5(DataSetName='MacroPartData'        , rank=2           , &
                             nValGlobal=(/ INT(PartDataSize,IK) , nPart_glob     /), &
                             nVal=      (/ INT(PartDataSize,IK) , locnPart       /), &
-                            offset=    (/offsetnPart           , 0_IK           /), &
+                            offset=    (/ 0_IK                 , offsetnPart    /), &
                             collective=.FALSE.                 , RealArray=PartData)
       CALL CloseDataFile()
 #if USE_MPI
@@ -1518,16 +1518,16 @@ ASSOCIATE (PartDataSize => INT(PartDataSize,IK))
                              DataSetName  = 'MacroPartData'         , rank = 2       , &
                              nValGlobal   = (/ INT(PartDataSize,IK) , nPart_glob  /) , &
                              nVal         = (/ INT(PartDataSize,IK) , locnPart    /) , &
-                             offset       = (/offsetnPart           , 0_IK        /) , &
-                             collective   = .FALSE.                 , offSetDim = 1  , &
+                             offset       = (/ 0_IK                 , offsetnPart /) , &
+                             collective   = .FALSE.                 , offSetDim = 2  , &
                              communicator = PartMPI%COMM            , RealArray = PartData)
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.     , readOnly=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName = 'MacroPartData'         , rank = 2       , &
                         nValGlobal  = (/ INT(PartDataSize,IK) , nPart_glob  /) , &
                         nVal        = (/ INT(PartDataSize,IK) , locnPart    /) , &
-                        offset      = (/ offsetnPart          , 0_IK        /) , &
-                        collective  = .TRUE.        , RealArray = PartData)
+                        offset      = (/ 0_IK                 , offsetnPart /) , &
+                        collective  = .TRUE.                  , RealArray = PartData)
   CALL CloseDataFile()
 #endif /*USE_MPI*/
 END ASSOCIATE
@@ -1772,7 +1772,7 @@ nSurfPart_glob=locnSurfPart
 #endif
 
 ALLOCATE(SurfPartInt(offsetSurfSide+1:offsetSurfSide+SurfMesh%nOutputSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize))
-ALLOCATE(SurfPartData(offsetnSurfPart+1:offsetnSurfPart+locnSurfPart,SurfPartDataSize))
+ALLOCATE(SurfPartData(SurfPartDataSize,offsetnSurfPart+1:offsetnSurfPart+locnSurfPart))
 iOffset = offsetnSurfPart
 DO iSurfSide = 1,SurfMesh%nOutputSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
@@ -1790,8 +1790,8 @@ DO iSurfSide = 1,SurfMesh%nOutputSides
           ! set the surfpartdata array values
           DO iPart = 1, (nSites - nSitesRemain)
             UsedSiteMapPos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%UsedSiteMap(nSites+1-iPart)
-            SurfPartData(iOffset+iPart,1) = UsedSiteMapPos
-            SurfPartData(iOffset+iPart,2) = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos)
+            SurfPartData(1,iOffset+iPart) = UsedSiteMapPos
+            SurfPartData(2,iOffset+iPart) = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos)
           END DO
           iOffset = iOffset + nSites - nSitesRemain
         ELSE
@@ -1864,19 +1864,19 @@ ASSOCIATE (&
       SurfPartDataSize => INT(SurfPartDataSize,IK) )
 #if USE_MPI
   CALL DistributedWriteArray(FileName                                              , &
-                             DataSetName  = 'SurfPartData'    , rank = 2           , &
-                             nValGlobal   = (/nSurfPart_glob  , SurfPartDataSize/) , &
-                             nVal         = (/locnSurfPart    , SurfPartDataSize/) , &
-                             offset       = (/offsetnSurfPart , 0_IK/)             , &
-                             collective   = .FALSE.       , offSetDim = 1          , &
-                             communicator = SurfCOMM%OutputCOMM  , IntegerArray_i4 = SurfPartData(:,:))
+                             DataSetName  = 'SurfPartData'      , rank = 2           , &
+                             nValGlobal   = (/ SurfPartDataSize , nSurfPart_glob  /) , &
+                             nVal         = (/ SurfPartDataSize , locnSurfPart    /) , &
+                             offset       = (/ 0_IK             , offsetnSurfPart /) , &
+                             collective   = .FALSE.             , offSetDim = 2      , &
+                             communicator = SurfCOMM%OutputCOMM , IntegerArray_i4 = SurfPartData(:,:))
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  CALL WriteArrayToHDF5(DataSetName = 'SurfPartData'    , rank = 2                          , &
-                        nValGlobal  = (/nSurfPart_glob  , SurfPartDataSize/)                , &
-                        nVal        = (/locnSurfPart    , SurfPartDataSize/)                , &
-                        offset      = (/offsetnSurfPart , 0_IK            /)                , &
-                        collective  = .TRUE.            , IntegerArray_i4 = SurfPartData(: , :))
+  CALL WriteArrayToHDF5(DataSetName = 'SurfPartData'      , rank = 2                         , &
+                        nValGlobal  = (/ SurfPartDataSize , nSurfPart_glob  /)               , &
+                        nVal        = (/ SurfPartDataSize , locnSurfPart    /)               , &
+                        offset      = (/ 0_IK             , offsetnSurfPart /)               , &
+                        collective  = .TRUE.              , IntegerArray_i4 = SurfPartData(: , :))
   CALL CloseDataFile()
 #endif
 END ASSOCIATE

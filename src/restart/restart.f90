@@ -1227,7 +1227,7 @@ IF(DoRestart)THEN
               locnSurfPart = 0
               offsetnSurfPart = 0
             END IF
-            ALLOCATE(SurfPartData(offsetnSurfPart+1:offsetnSurfPart+locnSurfPart,SurfPartDataSize))
+            ALLOCATE(SurfPartData(SurfPartDataSize,offsetnSurfPart+1:offsetnSurfPart+locnSurfPart))
             ! read local Surface Particle Data from HDF5
 
             ! Associate construct for integer KIND=8 possibility
@@ -1235,7 +1235,7 @@ IF(DoRestart)THEN
                   locnSurfPart      => INT(locnSurfPart,IK)      ,&
                   SurfPartDataSize  => INT(SurfPartDataSize,IK)  ,&
                   offsetnSurfPart   => INT(offsetnSurfPart,IK)   )
-              CALL ReadArray('SurfPartData',2,(/locnSurfPart,SurfPartDataSize/),offsetnSurfPart,1,IntegerArray_i4=SurfPartData)
+              CALL ReadArray('SurfPartData',2,(/SurfPartDataSize,locnSurfPart/),offsetnSurfPart,2,IntegerArray_i4=SurfPartData)
             END ASSOCIATE
             IF (locnSurfPart.GT.0) THEN
               DO iSurfSide = 1,SurfMesh%nOutputSides
@@ -1249,8 +1249,8 @@ IF(DoRestart)THEN
                         lastpart  = SurfPartInt(offsetSurfSide+iSurfSide,isubsurf,jsubsurf,iCoord,3)
                         ! set the surfpartdata array values
                         DO iPart = firstpart, lastpart
-                          UsedSiteMapPos = SurfPartData(iPart,1)
-                          SpecID         = SurfPartData(ipart,2)
+                          UsedSiteMapPos = SurfPartData(1,iPart)
+                          SpecID         = SurfPartData(2,ipart)
                           SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%Species(UsedSiteMapPos) = SpecID
                           ! assign bond order of respective surface atoms in the surface lattice
                           DO iInterAtom = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(iCoord)%nInterAtom
