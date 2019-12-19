@@ -18,7 +18,9 @@ def ChangeFileVersion(statefile) :
     f1 = h5py.File(statefile,'r+')
 
     # 2. Get curret file version
-    file_version  = f1.attrs.get('File_Version', default=-1.)[0]
+    file_version = f1.attrs.get('File_Version', default=-1.)
+    if type(file_version) is type([]) :
+        file_version = file_version[0]
 
     # 3. Change the file version to 1.4 or 1.5 depending on the original file version
     if file_version > 0. :
