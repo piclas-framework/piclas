@@ -1554,14 +1554,14 @@ END IF
 #endif
 
 ! Deposition of particles
-CALL Deposition(doInnerParts=.TRUE.)
+CALL Deposition(DoInnerParts=.TRUE.)
 #if USE_MPI
 ! here: finish deposition with delta kernal
 !       maps source terms in physical space
 ! ALWAYS require
 PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
-CALL Deposition(doInnerParts=.FALSE.)
+CALL Deposition(DoInnerParts=.FALSE.)
 #endif /*PARTICLES*/
 
 ! recompute fields
