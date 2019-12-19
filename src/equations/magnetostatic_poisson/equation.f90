@@ -360,10 +360,9 @@ FUNCTION shapefunc(r)
 END FUNCTION shapefunc
 
 FUNCTION beta(z,w)
-   USE nr
    IMPLICIT NONE
    REAL beta, w, z
-   beta = exp(gammln(z)+gammln(w)-gammln(z+w))
+   beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)
 END FUNCTION beta
 
 SUBROUTINE FinalizeEquation()
