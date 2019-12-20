@@ -97,12 +97,6 @@ Following parameters can be used for both schemes.
 | BezierClipMaxIntersec |  2*NGeo  |      Maximum number of roots for curvilinear faces.      |
 |      epsilontol       | 100*epsM |       Tolerance for linear and bilinear algorithm.       |
 
-### Possible outdated  (NEEDS UPDATING)
-
-|        Option         | Values |                    Notes                     |
-| :-------------------: | :----: | :------------------------------------------: |
-| BezierEpsilonBilinear |  T/F   | Tolerance for linear-bilinear side. Obsolet. |
-
 ## Boundary Conditions - Field Solver
 
 To-do: Modification of boundaries with the PICLas parameter file (order is of importance)
