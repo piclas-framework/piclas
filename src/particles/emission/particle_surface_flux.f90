@@ -572,9 +572,9 @@ DO iBC=1,nDataBC
         IF (UseCircularInflow .AND. (iSF .LE. Species(iSpec)%nSurfacefluxBCs)) THEN
           ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(1:TmpSideNumber(iBC)) )
         END IF
-      END IF
-      IF(RadialWeighting%DoRadialWeighting) THEN
-        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
+        IF(RadialWeighting%DoRadialWeighting) THEN
+          ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
+        END IF
       END IF
     END DO
   END DO
