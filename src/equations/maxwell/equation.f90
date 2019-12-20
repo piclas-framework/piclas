@@ -74,7 +74,7 @@ CALL prms%CreateLogicalOption(  'CentralFlux'      , 'TODO-DEFINE-PARAMETER\n'//
                                                      'Flag for central or upwind flux' , '.FALSE.')
 CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Define exact function necessary for '//&
-                                                     'linear scalar advection')
+                                                     'linear scalar advection', '-1')
 
 CALL prms%CreateLogicalOption(  'DoExactFlux'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Switch emission to flux superposition at'//&
@@ -151,7 +151,6 @@ USE MOD_ReadInTools
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 #endif
 USE MOD_Equation_Vars
-USE MOD_TimeDisc_Vars      ,ONLY: TEnd
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCs,BC
 USE MOD_Globals_Vars       ,ONLY: EpsMach
 USE MOD_Mesh_Vars          ,ONLY: xyzMinMax,nSides,nBCSides
@@ -176,8 +175,6 @@ LOGICAL                          :: DoSide(1:nSides)
 INTEGER                          :: locType,locState,iSide
 REAL                             :: BeamEnergy_loc,BeamFluency_loc,BeamArea_loc
 !===================================================================================================================================
-! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
-TEnd=GetReal('TEnd') ! must be read in here due to DSMC_init
 IF(EquationInitIsDone)THEN
 #ifdef PARTICLES
   IF(InterpolationInitIsDone)THEN

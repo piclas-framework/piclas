@@ -59,14 +59,14 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars            ,ONLY: PDM,PartSpecies, UseCircularInflow, UseAdaptive, Species
+USE MOD_Particle_Vars            ,ONLY: PDM, UseCircularInflow
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars       ,ONLY: PartBCSideList
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC,DoBoundaryParticleOutput
 USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
 USE MOD_SurfaceModel             ,ONLY: ReactiveSurfaceTreatment
-USE MOD_Particle_Analyze         ,ONLY: RemoveParticle
+USE MOD_part_operations          ,ONLY: RemoveParticle
 USE MOD_Mesh_Vars                ,ONLY: BC
 #if defined(IMPA)
 USE MOD_Particle_Vars            ,ONLY: PartIsImplicit
@@ -91,7 +91,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
-INTEGER                              :: ReflectionIndex, iSpec, iSF, BCSideID
+INTEGER                              :: ReflectionIndex, BCSideID
 LOGICAL                              :: isSpeciesSwap, ElasticReflectionAtPorousBC
 !===================================================================================================================================
 
@@ -144,16 +144,7 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(BC(SideID)) )
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(1) !PartBound%OpenBC)
   !----------------------------------------------------------------------------------------------------------------------------------
-  IF(UseAdaptive) THEN
-    iSpec = PartSpecies(iPart)
-    DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-      IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.iBC) THEN
-        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = &
-            Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
-      END IF
-    END DO
-  END IF
-  CALL RemoveParticle(iPart,alpha=alpha)
+  CALL RemoveParticle(iPart,BCID=iBC,alpha=alpha)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(2) !PartBound%ReflectiveBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -249,6 +240,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylin
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Particle_Vars          ,ONLY: LastPartPos
+USE MOD_part_operations        ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -313,13 +305,7 @@ SELECT CASE(PartAuxBC%TargetBoundCond(AuxBCIdx))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartAuxBC%OpenBC
 !-----------------------------------------------------------------------------------------------------------------------------------
-  IF(CalcPartBalance) THEN
-      nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
-      PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
-  END IF ! CalcPartBalance
-  PDM%ParticleInside(iPart) = .FALSE.
-  alpha=-1.
-
+  CALL RemoveParticle(iPart,alpha=alpha)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartAuxBC%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1061,6 +1047,7 @@ USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn
 USE MOD_Particle_Vars           ,ONLY: PartIsImplicit,DoPartInNewton
 #endif /*IMPA*/
 USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_part_operations         ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1091,6 +1078,7 @@ IF (PRESENT(AuxBCIdx)) THEN
 ELSE
   IsAuxBC=.FALSE.
 END IF
+
 IF (IsAuxBC) THEN
   CALL RANDOM_NUMBER(RanNum)
   IF(RanNum.LE.PartAuxBC%ProbOfSpeciesSwaps(AuxBCIdx)) THEN
@@ -1106,21 +1094,13 @@ IF (IsAuxBC) THEN
     !swap species
     IF (targetSpecies.ge.0) IsSpeciesSwap=.TRUE.
     IF (targetSpecies.eq.0) THEN !delete particle -> same as PartAuxBC%OpenBC
-      IF(CalcPartBalance) THEN
-        nPartOut(PartSpecies(PartID))=nPartOut(PartSpecies(PartID)) + 1
-        PartEkinOut(PartSpecies(PartID))=PartEkinOut(PartSpecies(PartID))+CalcEkinPart(PartID)
-      END IF ! CalcPartBalance
-      !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
-      PDM%ParticleInside(PartID) = .FALSE.
-      alpha=-1.
+      CALL RemoveParticle(PartID,alpha=alpha)
     ELSEIF (targetSpecies.gt.0) THEN !swap species
       PartSpecies(PartID)=targetSpecies
     END IF
   END IF !RanNum.LE.PartAuxBC%ProbOfSpeciesSwaps
 ELSE
-
   DoSample = (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
-
   locBCID = PartBound%MapToPartBC(BC(SideID))
   CALL RANDOM_NUMBER(RanNum)
   IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID)))) THEN
@@ -1165,13 +1145,13 @@ ELSE
           AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) = PartSpecies(PartID)
           AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) = locBCID
         END IF
-    END IF ! DoSample
-  END IF
-  IF (targetSpecies.eq.0) THEN !delete particle -> same as PartBound%OpenBC
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-      MacroParticleFactor = GetParticleWeight(PartID)
-    ELSE
-      MacroParticleFactor = GetParticleWeight(PartID)*Species(PartSpecies(PartID))%MacroParticleFactor
+      END IF ! DoSample
+    END IF
+    IF (targetSpecies.eq.0) THEN !delete particle -> same as PartBound%OpenBC
+      IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        MacroParticleFactor = GetParticleWeight(PartID)
+      ELSE
+        MacroParticleFactor = GetParticleWeight(PartID)*Species(PartSpecies(PartID))%MacroParticleFactor
       END IF
       DO iCC=1,nCollectChargesBCs !-chargeCollect
         IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
@@ -1180,10 +1160,6 @@ ELSE
           EXIT
         END IF
       END DO
-      IF(CalcPartBalance) THEN
-        nPartOut(PartSpecies(PartID))=nPartOut(PartSpecies(PartID)) + 1
-        PartEkinOut(PartSpecies(PartID))=PartEkinOut(PartSpecies(PartID))+CalcEkinPart(PartID)
-      END IF ! CalcPartBalance
       ! sample values of deleted species
       IF (DoSample) THEN
         SurfSideID=SurfMesh%SideIDToSurfID(SideID)
@@ -1212,15 +1188,8 @@ ELSE
         END IF ! ALLOCATED(PartStateIntEn)
         CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,EtraOld,EvibOld,ErotOld,PartTrajectory,n_loc,p,q)
       END IF ! CalcSurfaceImpact
-
-      !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
-      PDM%ParticleInside(PartID) = .FALSE.
-      alpha=-1.
-#ifdef IMPA
-      DoPartInNewton(PartID) = .FALSE.
-      PartIsImplicit(PartID) = .FALSE.
-#endif /*IMPA*/
-    ELSEIF (targetSpecies.gt.0) THEN !swap species
+      CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(BC(SideID)),alpha=alpha)
+    ELSE IF (targetSpecies.gt.0) THEN !swap species
       DO iCC=1,nCollectChargesBCs !-chargeCollect
         IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
           CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
@@ -1229,9 +1198,10 @@ ELSE
         END IF
       END DO
       PartSpecies(PartID)=targetSpecies
-    END IF
-  END IF !RanNum.LE.PartBound%ProbOfSpeciesSwaps
-END IF !IsAuxBC
+    END IF ! targetSpecies.eq.0
+  END IF ! RanNum.LE.PartBound%ProbOfSpeciesSwaps
+END IF ! IsAuxBC
+
 END SUBROUTINE SpeciesSwap
 
 
@@ -1483,12 +1453,10 @@ SUBROUTINE SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars          ,ONLY: PDM, Species, LastPartPos, PartSpecies
+USE MOD_Particle_Vars          ,ONLY: Species, LastPartPos, PartSpecies
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
+USE MOD_part_operations        ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1513,15 +1481,7 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       point(2)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(3))-Species(iSpec)%Surfaceflux(iSF)%origin(2)
       radius=SQRT( (point(1))**2+(point(2))**2 )
       IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
-        PDM%ParticleInside(iPart)=.FALSE.
-        alpha=-1.
-        IF(CalcPartBalance) THEN
-          nPartOut(iSpec)=nPartOut(iSpec) + 1
-          PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(iPart)
-        END IF ! CalcPartBalance
-        ! Counting the particles leaving the domain through the constant mass flow boundary (circular inflow on reflective)
-        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = &
-                                                                Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
+        CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(BC(SideID)),alpha=alpha)
       END IF
     END IF
   END IF

@@ -4,7 +4,7 @@
 
 The goal of PICLas is to enable to approximation of the complete Boltzmann equation:
 
-$$ \frac{\partial f}{\partial t} + \mathbf{v}\cdot\frac{\partial f}{\partial \mathbf{x}} + \frac{\mathbf{F}}{m}\cdot\frac{\partial f}{\partial \mathbf{v}} = \left.\frac{\partial f}{\partial t}\right|_\mathrm{coll} $$
+$$ \frac{\partial f}{\partial t} + \mathbf{v}\cdot\frac{\partial f}{\partial \mathbf{x}} + \frac{\mathbf{F}}{m}\cdot\frac{\partial f}{\partial \mathbf{v}} = \left.\frac{\partial f}{\partial t}\right|_{\mathrm{coll}} $$
 
 ## Particle Tracking
 
@@ -88,7 +88,7 @@ Following parameters can be used for both schemes.
 |                       |          |     construct a tighter bounding box for each side.      |
 |     BezierSampleN     |   NGeo   |  Polynomial degree to sample sides for SurfaceFlux and   |
 |                       |          |              Sampling of DSMC surface data.              |
-|   BezierNewtonAngle   |  <PI/2   | Angle to switch between Clipping and a Newton algorithm. |
+|   BezierNewtonAngle   |  $<PI/2$   | Angle to switch between Clipping and a Newton algorithm. |
 |  BezierClipTolerance  |   1e-8   |      Tolerance of Bezier-Clipping and Bezier-Newton      |
 |     BezierClipHit     |   1e-6   | Tolerance to increase sides and path during Bezier-Algo. |
 |   BezierSplitLimit    |   0.6    |    Minimum degrees of side during clipping. A larger     |
@@ -116,6 +116,68 @@ Dielectric -> type 100?
 ### Poisson's Equation
 
 To-do
+
+### Dielectric Materials
+
+Dielectric material properties can be considered by defining regions (or specific elements)
+in the computational domain, where permittivity and permeability constants for linear isotropic 
+non-lossy dielectrics are used. The interfaces between dielectrics and vacuum regions must be separated 
+by element-element interfaces due to the DGSEM (Maxwell) and HDG (Poisson) solver requirements, but
+can vary spatially within these elements.
+
+The dielectric module is activated by setting
+
+    DoDielectric = T
+
+and specifying values for the permittivity and permeability constants
+
+    DielectricEpsR = X
+    DielectricMuR = X
+
+Furthermore, the corresponding regions in which the dielectric materials are found must be defined, 
+e.g., simple boxes via
+
+    xyzDielectricMinMax  = (/0.0 , 1.0 , 0.0 , 1.0 , 0.0 , 1.0/)
+
+for the actual dielectric region (vector with 6 entries yielding $x$-min/max, $y$-min/max and 
+$z$-min/max) or the inverse (vacuum, define all elements which are NOT dielectric) by
+
+    xyzPhysicalMinMaxDielectric = (/0.0 , 1.0 , 0.0 , 1.0 , 0.0 , 1.0/)
+
+Spherical regions can be defined by setting a radius value
+
+    DielectricRadiusValue = X
+
+and special pre-defined regions (which also consider spatially varying material properties) may also be 
+used, e.g., 
+
+    DielectricTestCase = FishEyeLens
+
+where the following pre-defined cases are available as given in table \ref{tab:dielectric_test_cases}.
+
+Table: Dielectric Test Cases \label{tab:dielectric_test_cases}
+
+| Option                       | Additional Parameters                           | Notes                                                                                                               |
+| :-------------------------:  | :------------------------:                        | :-------------------------------------------------------:                                                           |
+| `FishEyeLens`                | none                                            | function with radial dependence: $\varepsilon_{r}=n_{0}^{2}/(1 + (r/r_{max})^{2})^{2}$                              |
+| `Circle`                     | `DielectricRadiusValue, DielectricRadiusValueB` | Circular dielectric in x-y-direction (constant in z-direction)  with optional cut-out radius DielectricRadiusValueB |
+| `DielectricResonatorAntenna` | `DielectricRadiusValue`                         | Circular dielectric in x-y-direction (only elements with $z>0$)                                                     |
+| `FH_lens`                    | none                                            | specific geometry (see `SUBROUTINE SetGeometry` for more information)                                               |
+
+For the Maxwell solver (DGSEM), the interface fluxes between vacuum and dielectric regions can
+either be conserving or non-conserving, which is selected by
+
+    DielectricFluxNonConserving = T
+
+which uses non-conserving fluxes. This is recommended for improved simulation results, as described in [@Copplestone2019b].
+When particles are to be considered in a simulation, these are generally removed from dielectric
+materials during the emission (inserting) stage, but may be allowed to exist within dielectrics by
+setting
+
+    DielectricNoParticles = F
+
+which is set true by default, hence, removing the particles.
+
 
 ## Boundary Conditions - Particle Solver
 
@@ -182,15 +244,15 @@ The porous boundary condition uses a removal probability to determine whether a 
     Part-PorousBC1-DeltaPumpingSpeed-Kp=0.1
     Part-PorousBC1-DeltaPumpingSpeed-Ki=0.0
 
-The removal probability is determined through the given pressure [Pa] and temperature [K] at the boundary. A pumping speed can be given as a first guess, however, the pumping speed $S$ [$m^3/s$] will be adapted if the proportional factor ($K_\mathrm{p}$, `DeltaPumpingSpeed-Kp`) is greater than zero
+The removal probability is determined through the given pressure [Pa] and temperature [K] at the boundary. A pumping speed can be given as a first guess, however, the pumping speed $S$ [$m^3/s$] will be adapted if the proportional factor ($K_{\mathrm{p}}$, `DeltaPumpingSpeed-Kp`) is greater than zero
 
-$$ S^{n+1}(t) = S^{n}(t) + K_\mathrm{p} \Delta p(t) + K_\mathrm{i} \int_0^t \Delta p(t') dt',$$
+$$ S^{n+1}(t) = S^{n}(t) + K_{\mathrm{p}} \Delta p(t) + K_{\mathrm{i}} \int_0^t \Delta p(t') dt',$$
 
-where $\Delta p$ is the pressure difference between the given pressure and the actual pressure at the pump. An integral factor ($K_\mathrm{i}$, `DeltaPumpingSpeed-Ki`) can be utilized to mimic a PI controller. The proportional and integral factors are relative to the given pressure. However, the integral factor has not yet been thoroughly tested. The removal probability $\alpha$ is then calculated by
+where $\Delta p$ is the pressure difference between the given pressure and the actual pressure at the pump. An integral factor ($K_{\mathrm{i}}$, `DeltaPumpingSpeed-Ki`) can be utilized to mimic a PI controller. The proportional and integral factors are relative to the given pressure. However, the integral factor has not yet been thoroughly tested. The removal probability $\alpha$ is then calculated by
 
-$$\alpha = \frac{S n \Delta t}{N_\mathrm{pump} w} $$
+$$\alpha = \frac{S n \Delta t}{N_{\mathrm{pump}} w} $$
 
-where $n$ is the sampled, cell-local number density and $N_\mathrm{pump}$ is the total number of impinged particle at the pump during the previous time step. $\Delta t$ is the time step and $w$ the weighting factor. The pumping speed $S$ is only adapted if the resulting removal probability $\alpha$ is between zero and unity. The removal probability is not species-specific.
+where $n$ is the sampled, cell-local number density and $N_{\mathrm{pump}}$ is the total number of impinged particle at the pump during the previous time step. $\Delta t$ is the time step and $w$ the weighting factor. The pumping speed $S$ is only adapted if the resulting removal probability $\alpha$ is between zero and unity. The removal probability is not species-specific.
 
 To reduce the influence of statistical fluctuations, the relevant macroscopic values (pressure difference $\Delta p$ and number density $n$) can be sampled for $N$ iterations by defining (for all porous boundaries)
 
@@ -377,9 +439,19 @@ The relaxation factor $f_{\mathrm{relax}}$ is defined by
 
     Part-AdaptiveWeightingFactor = 0.001
 
-The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to overpredict the given mass flow, when the emission area is very small and large sample size would required to have enough particles that leave the method. For `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted, and thus the correct mass flow can be reproduced.
+The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to overpredict the given mass flow, when the emission area is very small and large sample size would be required to have enough particles that leave the domain through the emission area. For the `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted and the mass flow adapted accordingly, thus the correct mass flow can be reproduced.
 
-It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
+Additionally, the `Type=4` method can be utilized in combination with a reflective boundary condition to model diffusion and leakage (e.g. in vacuum tanks) based on a diffusion rate $Q$ [Pa m$^3$ s$^{-1}$]. The input mass flow [kg s$^{-1}$] for the simulation is then determined by
+
+$$\dot{m} = \frac{QM}{1000RT},$$
+
+where $R=8.314$ J mol$^{-1}$K$^{-1}$ is the gas constant, $M$ the molar mass in [g mol$^{-1}$] and $T$ is the gas temperature [K].
+
+To verify the resulting mass flow rate of an adaptive surface flux, the following option can be enabled
+
+    CalcMassflowRate = T
+
+This will output a species-specific mass flow rate [kg s^$-1$] for each surface flux condition in the `PartAnalyze.csv`, which gives the current mass flow for the time step. Positive values correspond to a net mass flux into the domain and negative values vice versa. It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 
 #### Missing descriptions
 
@@ -484,6 +556,116 @@ where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|}$ is the distance betwe
 grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$ and
 $R$ is the cut-off radius.
 
+## Background Field \label{sec:superB}
+
+Certain application cases allow the utilization of a constant magnetic background field. The magnetic field resulting from certain types of coils and permanent magnets can be calculated during the initialization within PICLas or with the standalone tool **superB** (see Section \ref{sec:compileroptions} for compilation).
+
+The background field can be enabled by
+
+    PIC-BG-Field = T
+
+The first option is to use a previously calculated background field. It can be read-in with
+
+    PIC-BGFileName = BField.h5
+    PIC-NBG = 1
+    PIC-BGFieldScaling = 1.
+
+Additionally, the polynomial degree for the background field can be set by ``PIC-NBG`` and might differ from the actually read-in polynomial degree. Optionally, the read-in field can be scaled by the last of the three parameters above.
+
+The second option is to calculate the magnetic field during the initialization, which will produce an output of the field. The calculation is enabled by
+
+    PIC-CalcBField = T
+
+For this purpose, different coil and permanent magnet geometries can be defined. For visualization purposes, the geometry of the respective coils and permanent magnets can be directly written out as a VTK with
+
+    PIC-CalcBField-OutputVTK = T
+
+In the following the parameters for different coils and permanent magnets based on the implementation by Hinsberger [@Hinsberger2017] are presented.
+
+### Magnetic Field by Permanent Magnets
+
+First, the total number of permanent magnets has to be defined and the type selected. Options are `cuboid`, `sphere`, `cylinder` and `conic`.
+
+    NumOfPermanentMagnets = 1
+    PermanentMagnet1-Type = cuboid
+                            sphere
+                            cylinder
+                            conic
+
+All options require the input of a base/origin vector, a number of discretization nodes (results in a different number of total points depending on the chosen geometry) and a magnetisation in [A/m]
+
+    PermanentMagnet1-BasePoint = (/0.,0.,0./)
+    PermanentMagnet1-NumNodes = 10
+    PermanentMagnet1-Magnetisation = (/0.,0.,1./)
+
+The geometries require different input parameters given below
+
+    ! Three vectors spanning the cuboid
+    PermanentMagnet1-BaseVector1 = (/1.,0.,0./)
+    PermanentMagnet1-BaseVector2 = (/0.,1.,0./)
+    PermanentMagnet1-BaseVector3 = (/0.,0.,1./)
+    ! Radius required for a spherical, cylindrical and conical magnet
+    PermanentMagnet1-Radius = 1.
+    ! Height vector required for a cylindrical and conical magnet
+    PermanentMagnet1-HeightVector = (/0.,0.,1./)
+    ! Second radius only required for a conical magnet
+    PermanentMagnet1-Radius2 = 1.
+
+### Magnetic Field by Coils
+
+The total number of coils and the respective type of the cross-section (`linear`,`circle`,`rectangle`,`custom`) is defined by
+
+    NumOfCoils = 1
+    Coil1-Type = linear
+                 circle
+                 rectangle
+                 custom
+
+All options require the input of a base/origin vector, a length vector (vector normal to the cross-section of the coil) and the current in [A]
+
+    Coil1-BasePoint = (/0.0,0.0,0.0/)
+    Coil1-LengthVector = (/0.0,1.0,0.0/)
+    Coil1-Current = 1.
+
+The first option `linear` represents a simple linear conductor (e.g. a straight wire) and requires only the input of a number of discretization points
+
+    Coil1-NumNodes = 5
+
+The other three types, which are actually coils, are described by the number of loops and the number of discretization points per loop
+
+    Coil1-LoopNum = 10
+    Coil1-PointsPerLoop = 10
+
+The cross-section of the coil is defined in a plane normal to the `-LengthVector`. A circular coil cross-section requires simply the input of a radius while a rectangular coil cross-section is spanned by two vectors (`-RectVec1` and `-RectVec2`) and an additional vector, which must be orthogonal to the `-LengthVector` to define the orientation of the cross-section (`-AxisVec1`). In these two cases, the base/origin vector defines the middle point of the cross-section.
+
+    ! Circular coil cross-section
+    Coil1-Radius = 1.
+    ! Rectangular coil cross-section
+    Coil1-RectVec1 = (/1.0,0.0/)
+    Coil1-RectVec2 = (/0.0,1.0/)
+    Coil1-AxisVec1 = (/0.0,0.0,1.0/)
+
+The last cross-section type `custom` allows the definition of a cross-section as a combination of multiple linear (`line`) and circular (`circle`) segments and also requires an additional vector to define the orientation of the cross-section (`-AxisVec1`)
+
+    Coil1-AxisVec1 = (/0.0,0.0,1.0/)
+    Coil1-NumOfSegments = 3
+    ! Linear segment defined by 
+    Coil1-Segment1-SegmentType = line
+    Coil1-Segment1-NumOfPoints = 5
+    Coil1-Segment1-LineVector = (/1.0,1.0/)
+    ! Circular segment connected to the previous segment
+    Coil1-Segment2-SegmentType = circle
+    Coil1-Segment2-NumOfPoints = 5
+    Coil1-Segment2-Radius = 1.
+    Coil1-Segment2-Phi1 = 90.
+    Coil1-Segment2-Phi2 = 0.
+    ! Linear segment connected to the previous segment, closing the cross-section
+    Coil1-Segment3-SegmentType = line
+    Coil1-Segment3-NumOfPoints = 5
+    Coil1-Segment3-LineVector = (/-2.0,0.0/)
+
+The `-NumOfPoints` controls the number of discretization points per segment. A linear segment is simply described by a vector in the cross-section plane. The circular segment is defined by a radius and the initial as well as final angle of the segment. It should be noted that the base point defines the start of the first segment as opposed to the circular and rectangular cross-sections, where it is the middle point of the cross-section.
+
 ## Direct Simulation Monte Carlo
 
 To enable the simulation with DSMC, an appropriate time discretization method including the DSMC module should be chosen before the code compilation. A stand-alone DSMC simulation can be enabled by compiling PICLas with the following parameter
@@ -542,7 +724,7 @@ The first option is to adapt the time step during a simulation restart based on 
 
 The second flag allows to enable/disable the adaptation of the time step distribution. Typically, a simulation would be performed until a steady-state (or close to it, e.g. the particle number is not increasing significantly anymore) is reached with a uniform time step. Then a restart with the above options would be performed, where the time step distribution is adapted using the DSMC output of the last simulation. Now, the user can decide to continue adapting the time step with the subsequent DSMC outputs (Note: Do not forget to update the DSMCState file name!) or to disable the adaptation and to continue the simulation with the distribution from the last simulation (the adapted particle time step is saved within the regular state file). It should be noted that if after a successful restart at e.g. $t=2$, and the simulation fails during the runtime at $t=2.5$ before the next state file could be written out at $t=3$, an adaptation for the next simulation attempt shoud NOT be performed as the adapted time step is stored in the output of new restart file at the restart time $t=2$. Restart files from which the restart is performed are overwritten after a successful restart.
 
-The `MaxFactor` and `MinFactor` allow to limit the adapted time step within a range of $f_\mathrm{min} \Delta t$ and $f_\mathrm{max} \Delta t$. The time step adaptation can be used to increase the number of particles by defining a minimum particle number (e.g `MinPartNum` = 10, optional). For DSMC, the parameters `TargetMCSoverMFP` (ratio of the mean collision separation distance over mean free path) and `TargetMaxCollProb` (maximum collision probability) allow to modify the target values for the adaptation. For the BGK and FP methods, the time step can be adapted according to a target maximal relaxation frequency.
+The `MaxFactor` and `MinFactor` allow to limit the adapted time step within a range of $f_{\mathrm{min}} \Delta t$ and $f_{\mathrm{max}} \Delta t$. The time step adaptation can be used to increase the number of particles by defining a minimum particle number (e.g `MinPartNum` = 10, optional). For DSMC, the parameters `TargetMCSoverMFP` (ratio of the mean collision separation distance over mean free path) and `TargetMaxCollProb` (maximum collision probability) allow to modify the target values for the adaptation. For the BGK and FP methods, the time step can be adapted according to a target maximal relaxation frequency.
 
 The last two flags enable to initialize the particles distribution from the given DSMC state file, using the macroscopic properties such as flow velocity, number density and temperature (see Section \ref{sec:macro_restart}). Strictly speaking, the VTS procedure only requires the `Filename` for the read-in of the aforementioned parameters, however, it is recommended to perform a macroscopic restart to initialize the correct particle number per cells. Otherwise, cells with a decreased/increased time step will require some time until the additional particles have reached/left the cell.
 
@@ -550,7 +732,7 @@ The time step adaptation can also be utilized in coupled BGK-DSMC simulations, w
 
 #### Linear scaling
 
-The second option is to use a linearly increasing time step along a given direction. This option does not require a restart or a previous simulation result. Currently, only the increase of the time step along the **x-direction** is implemented. With the start point and end point, the region in which the linear increase should be performed can be defined. To define the domain border as the end point in maximal x-direction, the vector `(/-99999.,0.0,0.0/)` should be supplied. Finally, the `ScaleFactor` defines the maximum time step increase towards the end point $\Delta t (x_\mathrm{end})=f \Delta t$.
+The second option is to use a linearly increasing time step along a given direction. This option does not require a restart or a previous simulation result. Currently, only the increase of the time step along the **x-direction** is implemented. With the start point and end point, the region in which the linear increase should be performed can be defined. To define the domain border as the end point in maximal x-direction, the vector `(/-99999.,0.0,0.0/)` should be supplied. Finally, the `ScaleFactor` defines the maximum time step increase towards the end point $\Delta t (x_{\mathrm{end}})=f \Delta t$.
 
     Part-VariableTimeStep-LinearScaling = T
     Part-VariableTimeStep-ScaleFactor   = 2
@@ -562,7 +744,7 @@ Besides DSMC, the linear scaling is available for the BGK and FP method. Finally
 
 ### 2D/Axisymmetric Simulation \label{sec:2DAxi}
 
-For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_\mathrm{min}|=|z_\mathrm{max}|$. The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
+For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_{\mathrm{min}}|=|z_{\mathrm{max}}|$. The rotational symmetry axis shall be defined as a separate boundary with the `symmetric_axis` boundary condition
 
 Part-Boundary4-SourceName=SYMAXIS
 Part-Boundary4-Condition=symmetric_axis
@@ -582,20 +764,20 @@ To enable axisymmetric simulations, the following flag is required
 
     Particles-Symmetry2DAxisymmetric=T
 
-To fully exploit rotational symmetry, a radial weighting can be enabled, which will linearly increase the weighting factor $w$ towards $y_\mathrm{max}$ (i.e. the domain border in $y$-direction), depending on the current $y$-position of the particle.
+To fully exploit rotational symmetry, a radial weighting can be enabled, which will linearly increase the weighting factor $w$ towards $y_{\mathrm{max}}$ (i.e. the domain border in $y$-direction), depending on the current $y$-position of the particle.
 
     Particles-RadialWeighting=T
     Particles-RadialWeighting-PartScaleFactor=100
 
-A radial weighting factor of 100 means that the weighting factor at $y_\mathrm{max}$ will be $100w$. Although greatly reducing the number of particles, this introduces the need to delete and create (in the following "clone") particles, which travel upwards and downwards in the $y$-direction, respectively. If the new weighting factor is smaller than the previous one, a cloning probability is calculated by
+A radial weighting factor of 100 means that the weighting factor at $y_{\mathrm{max}}$ will be $100w$. Although greatly reducing the number of particles, this introduces the need to delete and create (in the following "clone") particles, which travel upwards and downwards in the $y$-direction, respectively. If the new weighting factor is smaller than the previous one, a cloning probability is calculated by
 
-$$ P_\mathrm{clone} = \frac{w_\mathrm{old}}{w_\mathrm{new}} - \mathrm{INT}\left(\frac{w_\mathrm{old}}{w_\mathrm{new}}\right)\qquad \text{for}\quad w_\mathrm{new}<w_\mathrm{old}.$$
+$$ P_{\mathrm{clone}} = \frac{w_{\mathrm{old}}}{w_{\mathrm{new}}} - \mathrm{INT}\left(\frac{w_{\mathrm{old}}}{w_{\mathrm{new}}}\right)\qquad \text{for}\quad w_{\mathrm{new}}<w_{\mathrm{old}}.$$
 
 For the deletion process, a deletion probability is calculated, if the new weighting factor is greater than the previous
 
-$$ P_\mathrm{delete} = 1 - P_\mathrm{clone}\qquad \text{for}\quad w_\mathrm{old}<w_\mathrm{new}.$$
+$$ P_{\mathrm{delete}} = 1 - P_{\mathrm{clone}}\qquad \text{for}\quad w_{\mathrm{old}}<w_{\mathrm{new}}.$$
 
-If the ratio between the old and the new weighting factor is $w_\mathrm{old}/w_\mathrm{new}> 2$, the time step or the radial weighting factor should be reduced as the creation of more than one clone per particle per time step is not allowed. The same applies if the deletion probability is above $0.5$.
+If the ratio between the old and the new weighting factor is $w_{\mathrm{old}}/w_{\mathrm{new}}> 2$, the time step or the radial weighting factor should be reduced as the creation of more than one clone per particle per time step is not allowed. The same applies if the deletion probability is above $0.5$.
 
 For the cloning procedure, two methods are implemented, where the information of the particles to be cloned are stored for a given number of iterations (`CloneDelay=10`) and inserted at the old position. The difference is whether the list is inserted chronologically (`CloneMode=1`) or randomly (`CloneMode=2`) after the first number of delay iterations.
 
@@ -618,12 +800,12 @@ Besides DSMC, 2D/axisymmetric simulations are also possible the BGK/FP particle 
 
 #### Variable Time Step: Linear scaling \label{sec:2DAxi_vts}
 
-The linear scaling of the variable time step is implemented slightly different to the 3D case. Here, a particle-based time step is used, where the time step of the particle is determined on its current position. The first scaling is applied in the radial direction, where the time step is increased towards the radial domain border. Thus, $\Delta t (y_\mathrm{max}) = f \Delta t$ and $\Delta t (y_\mathrm{min} = 0) = \Delta t$.
+The linear scaling of the variable time step is implemented slightly different to the 3D case. Here, a particle-based time step is used, where the time step of the particle is determined on its current position. The first scaling is applied in the radial direction, where the time step is increased towards the radial domain border. Thus, $\Delta t (y_{\mathrm{max}}) = f \Delta t$ and $\Delta t (y_{\mathrm{min}} = 0) = \Delta t$.
 
     Part-VariableTimeStep-LinearScaling = T
     Part-VariableTimeStep-ScaleFactor = 2
 
-Additionally, the time step can be varied along the x-direction by defining a "stagnation" point, towards which the time step is decreased from the minimum x-coordinate ($\Delta t (x_\mathrm{min}) = f_\mathrm{front}\Delta t$) and away from which the time step is increased again towards the maximum x-coordinate ($\Delta t (x_\mathrm{max}) = f_\mathrm{back}\Delta t$). Therefore, only at the stagnation point, the time step defined during the initialization is used.
+Additionally, the time step can be varied along the x-direction by defining a "stagnation" point, towards which the time step is decreased from the minimum x-coordinate ($\Delta t (x_{\mathrm{min}}) = f_{\mathrm{front}}\Delta t$) and away from which the time step is increased again towards the maximum x-coordinate ($\Delta t (x_{\mathrm{max}}) = f_{\mathrm{back}}\Delta t$). Therefore, only at the stagnation point, the time step defined during the initialization is used.
 
     Part-VariableTimeStep-Use2DFunction = T
     Part-VariableTimeStep-StagnationPoint = 0.0
@@ -647,7 +829,7 @@ The name is at the moment only utilized to retrieve the electronic energy levels
 |   10 | Atomic Ion                         |
 |   20 | Molecular Ion                      |
 
-Depending on the utilized collision model, different parameters have to be defined. As an example, the parameters for the Variable Hard Sphere (VHS) collision cross-section model are be defined by the temperature exponent $\omega$, reference temperature $T_\mathrm{ref}$ and diameter $d_\mathrm{ref}$
+Depending on the utilized collision model, different parameters have to be defined. As an example, the parameters for the Variable Hard Sphere (VHS) collision cross-section model are be defined by the temperature exponent $\omega$, reference temperature $T_{\mathrm{ref}}$ and diameter $d_{\mathrm{ref}}$
 
     Part-Species1-omegaVHS = 0.24
     Part-Species1-VHSReferenceTemp = 273
@@ -660,9 +842,9 @@ Diatomic molecular species require the definition of the characteristic temperat
     Part-Species1-CharaTempVib = 4194.9
     Part-Species1-Ediss_eV = 4.53
 
-Polyatomic molecular species require an additional flag, the input of the number of atoms  and whether the molecule is linear (e.g. CO$_2$, $\xi_\mathrm{rot} = 2$) or non-linear (e.g. H$_2$O, CH$_4$, $\xi_\mathrm{rot} = 3$). The number of the vibrational degrees of freedom is then given by
+Polyatomic molecular species require an additional flag, the input of the number of atoms  and whether the molecule is linear (e.g. CO$_2$, $\xi_{\mathrm{rot}} = 2$) or non-linear (e.g. H$_2$O, CH$_4$, $\xi_{\mathrm{rot}} = 3$). The number of the vibrational degrees of freedom is then given by
 
-$$ \alpha = 3 N_\mathrm{atom} - 3 - \xi_\mathrm{rot} $$
+$$ \alpha = 3 N_{\mathrm{atom}} - 3 - \xi_{\mathrm{rot}} $$
 
 As an example the parameters of CH$_3$ are given below. The molecule has four vibrational modes, with two of them having a degeneracy of two. These values are simply given the according amount of times
 
@@ -740,9 +922,9 @@ It is not possible to calculate an instantaneous vibrational relaxation probabil
 
     Particles-DSMC-alpha = 0.99
 
-The new probability is calculated with the vibrational relaxation probability of the $n^\mathrm{th}$ iteration $P^{n}_\mathrm{v}$, the number of collision pairs $n_\mathrm{pair}$ and the average vibrational relaxation probability of the actual iteration $P^\mathrm{iter}_\mathrm{v}$.
+The new probability is calculated with the vibrational relaxation probability of the $n^{\mathrm{th}}$ iteration $P^{n}_{\mathrm{v}}$, the number of collision pairs $n_{\mathrm{pair}}$ and the average vibrational relaxation probability of the actual iteration $P^{\mathrm{iter}}_{\mathrm{v}}$.
 
-$$P^{n+1}_\mathrm{v}= P^{n}_\mathrm{v}  \cdot  \alpha^{2  \cdot  n_\mathrm{pair}} + (1-\alpha^{2  \cdot  n_\mathrm{pair}}) \cdot P^\mathrm{iter}_\mathrm{v} $$
+$$P^{n+1}_{\mathrm{v}}= P^{n}_{\mathrm{v}}  \cdot  \alpha^{2  \cdot  n_{\mathrm{pair}}} + (1-\alpha^{2  \cdot  n_{\mathrm{pair}}}) \cdot P^{\mathrm{iter}}_{\mathrm{v}} $$
 
 This model is extended to more species by calculating a separate probability for each species. An initial vibrational relaxation probability is set by calculating $\mathrm{INT}(1/(1-\alpha))$ vibrational relaxation probabilities for each species and cell by using an instantaneous translational cell temperature.
 
@@ -775,19 +957,19 @@ To determine whether the DSMC related parameters are chosen correctly, so-called
 
 This flag writes out the spatial distribution of the mean and maximal collision probability (`DSMC_MeanCollProb` and `DSMC_MaxCollProb`). On the one hand, maximal collision probabilities above unity indicate that the time step should be reduced. On the other hand, very small collision probabilities mean that the time step can be further increased. Additionally, the ratio of the mean collision separation distance to the mean free path is written out (`DSMC_MCSoverMFP`)
 
-$$\frac{l_\mathrm{mcs}}{\lambda} < 1$$
+$$\frac{l_{\mathrm{mcs}}}{\lambda} < 1$$
 
 The mean collision separation distance is determined during every collision and compared to the mean free path, where its ratio should be less than unity. Values above unity indicate an insufficient particle discretization. In order to estimate the required weighting factor $w$, the following equation can be utilized for a 3D simulation
 
-$$w < \frac{1}{\left(\sqrt{2}\pi d_\mathrm{ref}^2 n^{2/3}\right)^3},$$
+$$w < \frac{1}{\left(\sqrt{2}\pi d_{\mathrm{ref}}^2 n^{2/3}\right)^3},$$
 
-where $d_\mathrm{ref}$ is the reference diameter and $n$ the number density. Here, the largest number density within the simulation domain should be used as the worst-case. For supersonic/hypersonic flows, the conditions behind a normal shock can be utilized as a first guess. For a thruster/nozzle expansion simulation, the chamber or throat conditions are the limiting factor.
+where $d_{\mathrm{ref}}$ is the reference diameter and $n$ the number density. Here, the largest number density within the simulation domain should be used as the worst-case. For supersonic/hypersonic flows, the conditions behind a normal shock can be utilized as a first guess. For a thruster/nozzle expansion simulation, the chamber or throat conditions are the limiting factor.
 
 ## Background Gas
 
-A constant background gas can be utilized to enable efficient particle collisions between the background gas and other particle species (represented by actual simulation particles). The assumption is that the density of the background gas $n_\mathrm{gas}$ is much greater than the density of the particle species, e.g. the charged species in a plasma, $n_\mathrm{charged}$
+A constant background gas can be utilized to enable efficient particle collisions between the background gas and other particle species (represented by actual simulation particles). The assumption is that the density of the background gas $n_{\mathrm{gas}}$ is much greater than the density of the particle species, e.g. the charged species in a plasma, $n_{\mathrm{charged}}$
 
-$$ n_\mathrm{gas} >> n_\mathrm{charged}.$$
+$$ n_{\mathrm{gas}} >> n_{\mathrm{charged}}.$$
 
 Under this assumption, collisions within the particle species can be neglected and collisions between the background gas and particle species do not change the conditions of the background gas. It can be activated by defining the species (as defined in Section \ref{sec:dsmc_species}) that should act as the background gas and the number density in m$^{-3}$.
 
@@ -826,7 +1008,7 @@ Two methods are currently implemented to allow the simulation of gas flows in th
 
 The implementation of the FP-based collision operator is based on the publications by [@Gorji2014] and [@Pfeiffer2017]. The collision integral is hereby approximated by a drift and diffusion process
 
-$$  \left.\frac{\partial f}{\partial t}\right|_\mathrm{coll}\approx-\sum_{i=1}^3 {\frac{\partial }{\partial v_i}(A_i f)+\frac{1}{2}\sum_{i=1}^3 \sum_{j=1}^3\frac{\partial ^2 }{\partial v_i\partial v_j}(D_{ij}f)}, $$
+$$  \left.\frac{\partial f}{\partial t}\right|_{\mathrm{coll}}\approx-\sum_{i=1}^3 {\frac{\partial }{\partial v_i}(A_i f)+\frac{1}{2}\sum_{i=1}^3 \sum_{j=1}^3\frac{\partial ^2 }{\partial v_i\partial v_j}(D_{ij}f)}, $$
 
 where $\mathbf{A}$ is the drift vector and $\mathcal{D}$ the diffusion matrix.
 
@@ -877,7 +1059,7 @@ where $\Delta t$ is the chosen time step and $1/\tau$ the relaxation frequency. 
 
 The implementation of the BGK-based collision operator is based on the publications by [@Pfeiffer2018a] and [@Pfeiffer2018b]. It allows the simulation of gas flows in the continuum and transitional regime, where the DSMC method is computationally too expensive. The collision integral is hereby approximated by a relaxation process:
 
-$$ \left.\frac{\partial f}{\partial t}\right|_\mathrm{coll} \approx \nu(f^t-f), $$
+$$ \left.\frac{\partial f}{\partial t}\right|_{\mathrm{coll}} \approx \nu(f^t-f), $$
 
 where $f^t$ is the target distribution function and $\nu$ the relaxation frequency.
 
@@ -1002,164 +1184,3 @@ Information of macroscopic bodies is written into the state file (VarNamesmacroP
 In order to add additional elemdata output (for debug/analyze purposes) of ElemHasMacroBody of the first defined macroscopic body, activate
 
     MacroBody-WriteElemData=T
-
-
-
-
-## Output of Macroscopic Variables
-
-In general, simulation results are either available spatially resolved based on the mesh (classic CFD results) and/or as integral values (e.g. for reservoir/heat bath simulations).
-
-### Field Variables
-
-WIP
-
-### Particle-flow Field and Surface variables
-
-A sampling over a certain number of iterations is performed to calculate the macroscopic values such as number density, bulk velocity and temperature from the microscopic particle information. Output and sampling on surfaces can be enabled by
-
-    Particles-DSMC-CalcSurfaceVal = T
-
-Parameters indicating the quality of the simulation (e.g. the maximal collision probability in case of DSMC) can be enabled by
-
-    Particles-DSMC-CalcQualityFactors = T
-
-Two variants are available in PICLas, allowing to sample a certain amount of the simulation duration or to sample continuously during the simulation and output the result after the given number of iterations.
-
-The first variant is usually utilized to sample at the end of a simulation, when the steady condition is reached. The first parameter `Part-TimeFracForSampling` defines the percentage that shall be sampled relative to the simulation end time $T_\mathrm{end}$ (Parameter: `TEnd`)
-
-    Part-TimeFracForSampling = 0.1
-    Particles-NumberForDSMCOutputs = 2
-
-`Particles-NumberForDSMCOutputs` defines the number of outputs during the sampling time. Example: The simulation end time is $T_\mathrm{end}=1$, thus sampling will begin at $T=0.9$ and the first output will be written at $T=0.95$. At this point the sample will NOT be resetted but continued. Therefore, the second and last output at $T=T_\mathrm{end}=1.0$ is not independent of the previous result but contains the sample of the complete sampling duration. It should be noted that if a simulation is continued at e.g. $T=0.95$, sampling with the given parameters will begin immediately.
-
-The second variant can be used to produce outputs for unsteady simulations, while still to be able to sample for a number of iterations (Parameter: `Part-IterationForMacroVal`). The first two flags allow to enable the output of flowfield/volume and surface values, respectively.
-
-    Part-WriteMacroVolumeValues = T
-    Part-WriteMacroSurfaceValues = T
-    Part-IterationForMacroVal = 100
-
-Example: The simulation end time is $T_\mathrm{end}=1$ with a time step of $\Delta t = 0.001$. With the parameters given above, we would sample for 100 iterations up to $T = 0.1$ and get the first output. Afterwards, the sample is deleted and the sampling begins anew for the following output at $T=0.2$. This procedure is repeated until the simulation end, resulting in 10 outputs with independent samples.
-
-#### Sampling of Particle-surface Impacts
-
-Additional surface values can be sampled by using
-
-    CalcSurfaceImpact = T
-
-which calculates the species-dependent averaged impact energy (trans, rot, vib), impact vector, angle (between particle trajectory and surface tangential vector) and number of impacts due to particle-surface collisions.
-The output of the surface-sampled data is written to `*_DSMCSurfState_*.h5`.
-
-### Integral Variables
-
-PartAnalyze/FieldAnalyze
-
-### Element-constant properties
-The determined properties are given by a single value within each cell.
-
-
-#### Power Coupled to Particles
-The energy transferred to particles during the push (acceleration due to electromagnetic fields) is
-determined by using
-
-    CalcCoupledPower = T
-
-which calculates the properties `PCoupl` (instantaneous) and a time-averaged (moving average) value
-`PCoupledMoAv` that are stored in the `ParticleAnalysis.csv` output file. Additionally, the power
-coupled to the particles in each cell (average power per cubic metre) is time-averaged (moving average)
-and stored in `PCouplDensityAvgElem` for each species separately, which is written to `*_State_*.h5`.
-Furthermore, the accumulated power over all particles of the same species is displayed in STD-out via
-
-     Averaged coupled power per species [W]
-     1     :    0.0000000000000000
-     2     :    2.6614384806763068E-003
-     3     :    2.6837037798108634E-006
-     4     :    0.0000000000000000
-     5     :    8.8039637450978475E-006
-     Total :    2.6729261482012156E-003
-
-for the time-averaged (moving average) power.
-
-#### Analysis of Particle Properties via *Particle Analyze*
-
-**Plasma Frequency**
-The (cold) plasma frequency can be calculated via
-
-$$\omega_{p}=\omega_{e}=\frac{e^{2}n_{e}}{\varepsilon_{0}m_{e}}$$
-
-which is the frequency with which the charge density of the electrons oscillates, where
-$\varepsilon_{0}$ is the permittivity of vacuum, $e$ is the elementary charge, $n_{e}$ and $m_{e}$
-are the electron density and mass, respectively.
-The calculation is activated by
-
-    CalcPlasmaFreqeuncy = T
-
-**PIC Particle Time Step**
-The maximum allowed time step within the PIC schemes can be estimated by
-
-$$\Delta_{t,\mathrm{PIC}}<\frac{0.2}{\omega_{p}}$$
-
-where $\omega_{p}$ is the (cold) plasma frequency.
-The calculation is activated by
-
-    CalcPICTimeStep = T
-
-**Debye length**
-The Debye length can be calculated via
-
-$$\lambda_{D}=\sqrt{\frac{\varepsilon_{0}k_{B}T_{e}}{e^{2}n_{e}}}$$
-
-where $\varepsilon_{0}$ is the permittivity of vacuum, $k_{B}$ is the Boltzmann constant, $e$ is the
-elementary charge and $T_{e}$ and $n_{e}$ are the electron temperature and density, respectively.
-The Debye length measures the distance after which the magnitude of the electrostatic
-potential of a single charge drops by $1/\text{e}$.
-The calculation is activated by
-
-    CalcDebyeLength = T
-
-**Points per Debye Length**
-The spatial resolution in terms of grid points per Debye length can be estimated via
-
-$$\mathrm{PPD}=\frac{\lambda_{D}}{\Delta x}=\frac{(p+1)\lambda_{D}}{L}\sim 1$$
-
-where $\Delta x$ is the grid spacing (average spacing between grid points),
-$p$ is the polynomial degree of the solution, $\lambda_{D}$ is the Debye length and $L=V^{1/3}$
-is the characteristic cell length, which is determined from the volume $V$ of the grid cell.
-Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting
-$L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of
-each cell. These values are especially useful when dealing with Cartesian grids.
-The calculation is activated by
-
-    CalcPointsPerDebyeLength = T
-
-**PIC CFL Condition**
-The plasma frequency time step restriction and the spatial Debye length restriction can be merged
-into a single parameter
-
-$$\frac{\Delta t}{0.4 \Delta x}\sqrt{\frac{k_{b}T_{e}}{m_{e}}}= \frac{(p+1)\Delta t}{0.4 L}\sqrt{\frac{k_{b}T_{e}}{m_{e}}} \lesssim 1$$
-
-where $\Delta t$ is the time step, $\Delta x$ is the grid spacing (average spacing between grid
-points), $p$ is the polynomial degree of the solution, $k_{B}$ is the Boltzmann constant, $T_{e}$
-and $m_{e}$ are the electron temperature and mass, respectively. Furthermore, the calculation in
-each direction $x$, $y$ and $z$ is performed by setting $L=\left\{ L_{x}, L_{y}, L_{z} \right\}$,
-which are the average distances of the bounding box of each cell.
-These values are especially useful when dealing with Cartesian grids.
-The calculation is activated by
-
-    CalcPICCFLCondition = T
-
-**Maximum Particle Displacement**
-The largest displacement of a particle within one time step $\Delta t$ is estimated for each cell
-via
-
-$$\frac{\mathrm{max}(v_{\mathrm{iPart}})\Delta t}{\Delta x}=\frac{(p+1)\mathrm{max}(v_{\mathrm{iPart}})\Delta t}{L} < 1$$
-
-which means that the fastest particle is not allowed to travel over the length of two grid points
-separated by $\Delta x$.
-Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting
-$L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of
-each cell.
-These values are especially useful when dealing with Cartesian grids.
-The calculation is activated by
-
-    CalcMaxPartDisplacement = T

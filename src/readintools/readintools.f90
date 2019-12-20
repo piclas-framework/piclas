@@ -97,8 +97,8 @@ INTERFACE PrintDefaultParameterFile
   MODULE PROCEDURE PrintDefaultParameterFile
 END INTERFACE
 
-INTERFACE CNTSTR
-  MODULE PROCEDURE CNTSTR
+INTERFACE CountOption
+  MODULE PROCEDURE CountOption
 END INTERFACE
 
 INTERFACE GETINT
@@ -149,13 +149,17 @@ INTERFACE ExtractParameterFile
   MODULE PROCEDURE ExtractParameterFile
 END INTERFACE
 
+INTERFACE FinalizeParameters
+  MODULE PROCEDURE FinalizeParameters
+END INTERFACE
+
 INTERFACE PrintOption
   MODULE PROCEDURE PrintOption
 END INTERFACE
 
 PUBLIC :: IgnoredParameters
 PUBLIC :: PrintDefaultParameterFile
-PUBLIC :: CNTSTR
+PUBLIC :: CountOption
 PUBLIC :: GETINT
 PUBLIC :: GETLOGICAL
 PUBLIC :: GETREAL
@@ -167,6 +171,7 @@ PUBLIC :: GETSTRARRAY
 PUBLIC :: GETDESCRIPTION
 PUBLIC :: GETINTFROMSTR
 PUBLIC :: addStrListEntry
+PUBLIC :: FinalizeParameters
 PUBLIC :: ExtractParameterFile
 PUBLIC :: PrintOption
 
@@ -301,6 +306,7 @@ END IF
 
 END SUBROUTINE finalize
 
+
 !==================================================================================================================================
 !> Remove not used entries in the linked list of THIS parameters.
 !> reduce size of list for faster loadbalance init
@@ -363,10 +369,10 @@ LOGICAL,INTENT(IN),OPTIONAL           :: numberedmulti    !< marker if numbered 
 ! LOCAL VARIABLES
 CLASS(link), POINTER :: newLink
 !==================================================================================================================================
-IF(this%check_options(name)) THEN
-  CALL Abort(__STAMP__, &
-      'Option "'//TRIM(name)//'" is already defined, can not be defined with the same name twice!')
-END IF
+!IF(this%check_options(name)) THEN
+!  CALL Abort(__STAMP__, &
+!      'Option "'//TRIM(name)//'" is already defined, can not be defined with the same name twice!')
+!END IF
 
 opt%hasDefault = PRESENT(value)
 IF (opt%hasDefault) THEN
@@ -977,6 +983,7 @@ CLASS(link), POINTER   :: current
 CLASS(OPTION), POINTER :: currentOpt
 INTEGER                :: maxNameLen
 INTEGER                :: maxValueLen
+INTEGER                :: commentLen
 INTEGER                :: lineLen
 INTEGER                :: spaceNameLen
 INTEGER                :: spaceValueLen
@@ -1036,13 +1043,18 @@ DO WHILE (associated(current))
   maxValueLen = MAX(maxValueLen, current%opt%GETVALUELEN())
   current => current%next
 END DO
-lineLen = maxNameLen + maxValueLen + 4 + 50
+IF (markdown) THEN
+  maxNameLen=MAX(maxNameLen,10)
+  maxValueLen=MAX(maxValueLen,11)
+END IF
+commentLen=MERGE(50,80,markdown)
+lineLen = maxNameLen + maxValueLen + 4 + commentLen
 spaceNameLen = maxNameLen - 9
 spaceValueLen = maxValueLen - 10
 WRITE(fmtLineLen,*) lineLen
 WRITE(fmtName,*)    maxNameLen
 WRITE(fmtValue,*)   maxValueLen
-WRITE(fmtComment,*) 50
+WRITE(fmtComment,*) commentLen
 WRITE(fmtNamespace,*) spaceNameLen
 WRITE(fmtValuespace,*) spaceValueLen
 current => prms%firstLink
@@ -1124,7 +1136,7 @@ END FUNCTION constructor_Link
 !> Count number of times a parameter is used within a file in case of multiple parameters. This only calls the internal
 !> function countoption_ of the parameters class.
 !==================================================================================================================================
-FUNCTION CNTSTR(name) result(no)
+FUNCTION CountOption(name) result(no)
 ! MODULES
 USE MOD_Options
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1135,7 +1147,7 @@ INTEGER                     :: no    !< number of parameters
 ! LOCAL VARIABLES
 !==================================================================================================================================
 no = prms%CountOption_(name)
-END FUNCTION CNTSTR
+END FUNCTION CountOption
 
 !==================================================================================================================================
 !> General routine to get an option. This routine is called from GETINT,GETREAL,GETLOGICAL,GETSTR to get the value a non-array
@@ -1583,7 +1595,7 @@ DO WHILE (associated(current))
       opt%foundInList = .TRUE.
       ! Size of list with string-integer pairs
       listSize = SIZE(opt%strList)
-      ! Check if an integer has been specfied directly
+      ! Check if an integer has been specified directly
       IF (ISINT(opt%value)) THEN
         READ(opt%value,*) value
         found=.FALSE.
@@ -1700,6 +1712,9 @@ CALL Abort(__STAMP__,&
 
 END SUBROUTINE addStrListEntry
 
+!===================================================================================================================================
+!> This routing extracts a parameter file from the userblock of a state file
+!===================================================================================================================================
 SUBROUTINE ExtractParameterFile(filename,prmfile,userblockFound)
 ! MODULES
 USE MOD_StringTools ,ONLY: STRICMP
@@ -1708,7 +1723,7 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 CHARACTER(LEN=255),INTENT(IN) :: filename !< name of file to be read
 CHARACTER(LEN=*),INTENT(IN)   :: prmfile  !< name of file to be written
-LOGICAL,INTENT(OUT)           :: userblockFound
+LOGICAL,INTENT(OUT)           :: userblockFound !< logical indicating sucessful extraction of parameter file
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: stat,iniUnit,fileUnit
@@ -1787,6 +1802,30 @@ CALL MPI_BCAST(userblockFound,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
 
 END SUBROUTINE ExtractParameterFile
+
+!===================================================================================================================================
+!> Clear parameters list 'prms'.
+!===================================================================================================================================
+SUBROUTINE FinalizeParameters()
+IMPLICIT NONE
+! LOCAL VARIABLES
+CLASS(link), POINTER         :: current, tmp
+!===================================================================================================================================
+
+if(associated(prms%firstlink))then
+  current => prms%firstLink
+  DO WHILE (associated(current%next))
+    DEALLOCATE(current%opt)
+    NULLIFY(current%opt)
+    tmp => current%next
+    DEALLOCATE(current)
+    NULLIFY(current)
+    current => tmp
+  END DO
+end if
+prms%firstLink => null()
+prms%lastLink  => null()
+END SUBROUTINE FinalizeParameters
 
 
 !==================================================================================================================================

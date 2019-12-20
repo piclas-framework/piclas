@@ -23,3 +23,34 @@ number of warnings is then supplied.
 Script (RemoveTrailWhiteSpaces.sh) can be executed from any directory inside the project.
 Searches all files (\*.f90, \*.h) in gitroot/src directory and removes trailing white spaces.
 Before remove operation all files and number of changes are shown and user is asked wether action is to be performed.
+
+
+## Module Environment  \label{sec:tools_module_env}
+
+A set of scripts given in `~/Flexi/piclas/tools/Setup_ModuleEnv/` can be used for setting up a
+module environment. The main steps are 
+```
+These scripts help setting up an environment for development with piclas
+
+------------------------------------------------------------
+Order of how to setup environment
+
+1. open console and run:
+      sudo -s
+2. change dir to script directory ( cd /path/to/piclas/tools )
+3. ./InstallPackages.sh
+4. ./InstallModules.sh
+  5. reboot and maybe second time ./InstallModules.sh is needed
+6. ./InstallCMake.sh
+7. ./InstallGCC.sh
+8. ./InstallMPIallCOMPILERS.sh
+9. ./InstallHDF5.sh
+
+! next one might currently not work
+10. ./InstallParaview.sh
+
+------------------------------------------------------------
+all scripts (6-9) can be rerun with "-r" or "-rerun" argument
+  this cleans the created module file and build directory of the to-be-build version and rebuilds it
+```
+and are given in `~/Flexi/piclas/tools/Setup_ModuleEnv/README.txt`

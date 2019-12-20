@@ -94,7 +94,6 @@ USE MOD_ReadInTools
 USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
 #endif
 USE MOD_Equation_Vars
-USE MOD_TimeDisc_Vars, ONLY: TEnd
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -107,8 +106,6 @@ REAL                             :: c_test
 #if USE_MPI
 #endif
 !===================================================================================================================================
-! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
-TEnd=GetReal('TEnd') ! must be read in here due to DSMC_init
 IF(InterpolationInitIsDone.AND.EquationInitIsDone)THEN
    SWRITE(*,*) "InitElectrostatic not ready to be called or already called."
    RETURN

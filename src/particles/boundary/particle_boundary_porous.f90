@@ -319,11 +319,12 @@ SUBROUTINE PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,ElasticRefl
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: PDM, LastPartPos, PartSpecies
+USE MOD_Particle_Vars          ,ONLY: LastPartPos
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, MapSurfSideToPorousBC, PorousBC, MapSurfSideToPorousSide
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_part_tools             ,ONLY: GetParticleWeight
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_part_operations        ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -337,7 +338,7 @@ LOGICAL,INTENT(INOUT)         :: ElasticReflectionAtPorousBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: point(1:2), intersectionPoint(1:3), radius, iRan
-INTEGER                       :: iSpec, SurfSideID, PorousBCID, pBCSideID
+INTEGER                       :: SurfSideID, PorousBCID, pBCSideID
 LOGICAL                       :: ParticleHitPorousBC
 !===================================================================================================================================
 SurfSideID = SurfMesh%SideIDToSurfID(SideID)
@@ -371,15 +372,9 @@ IF(PorousBCID.GT.0) THEN
       CASE('pump')
         CALL RANDOM_NUMBER(iRan)
         IF(iRan.LE.PorousBC(PorousBCID)%RemovalProbability(pBCSideID)) THEN
-          PDM%ParticleInside(iPart)=.FALSE.
-          alpha=-1.
           ! Counting particles that leave the domain through the porous BC (required for the calculation of the pumping capacity)
           PorousBC(PorousBCID)%Sample(pBCSideID,2) = PorousBC(PorousBCID)%Sample(pBCSideID,2) + GetParticleWeight(iPart)
-          IF(CalcPartBalance) THEN
-            iSpec = PartSpecies(iPart)
-            nPartOut(iSpec)=nPartOut(iSpec) + 1
-            PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(iPart)
-          END IF ! CalcPartBalance
+          CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(BC(SideID)),alpha=alpha)
         END IF
         ! Treat the pump as a perfect reflection (particle is not removed and keeps its temperature)
         ElasticReflectionAtPorousBC = .TRUE.
