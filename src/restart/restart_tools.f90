@@ -47,7 +47,7 @@ USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectric
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_HDF5_input             ,ONLY: ReadArray,GetDataSize
+USE MOD_HDF5_input             ,ONLY: ReadArray
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
