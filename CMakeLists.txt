@@ -99,7 +99,6 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                               RK3
                                                               RK4
                                                               RK14
-                                                              ParticleEuler-FieldRK4
                                                               DSMC
                                                               RESERVOIR
                                                               FP-Flow
@@ -113,9 +112,7 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                               ROS3
                                                               ROS4
                                                               ROS46
-                                                              ROS6
-                                                              FieldRelaxation
-                                                              FieldRelaxation-AdaptiveTimeStep)
+                                                              ROS6)
 
 OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
 OPTION(PICLAS_BUILD_POSTI "Build POSTI toolset" ON)
@@ -141,7 +138,7 @@ IF(PICLAS_NODETYPE STREQUAL "GAUSS")
 ELSEIF(PICLAS_NODETYPE STREQUAL "GAUSS-LOBATTO")
   ADD_DEFINITIONS(-DPP_NodeType=2)
 ELSE()
-  MESSAGE(ERROR "No such node type known.")
+  MESSAGE(SEND_ERROR "Unknown node type.")
 ENDIF()
 ADD_DEFINITIONS(-DPP_nElems=NELEMZ)
 
@@ -157,26 +154,23 @@ IF(PICLAS_EQNSYSNAME STREQUAL "maxwell")
   #SET(PICLAS_C_PREPROC ${F2P_C_PREPROC} -Dmaxwell)
   ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell)
   SET(PICLAS_HDG OFF)
-ELSEIF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
-  ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell_pois -DPOIS)
-  SET(PICLAS_HDG OFF)
-ELSEIF(PICLAS_EQNSYSNAME STREQUAL "electrostatic_pois")
-  ADD_DEFINITIONS(-DPP_nVar=4 -Delectostratic -DPOIS)
-  SET(PICLAS_HDG OFF)
-ELSEIF(PICLAS_EQNSYSNAME STREQUAL "electrostatic")
-  ADD_DEFINITIONS(-DPP_nVar=4 -Delectrostatic)
-  SET(PICLAS_HDG OFF)
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "poisson")
   ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
   SET(PICLAS_HDG ON)
+ELSEIF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
+  ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell_pois -DPOIS)
+  SET(PICLAS_HDG OFF)
+  MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic")
   ADD_DEFINITIONS(-DPP_nVar=3 -Dmagnetostatic)
   SET(PICLAS_HDG ON)
+  MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic_poisson")
   ADD_DEFINITIONS(-DPP_nVar=4 -Dmagnetostatic_poisson)
   SET(PICLAS_HDG ON)
+  MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSE()
-   MESSAGE(ERROR "Unknown equation system.")
+   MESSAGE(SEND_ERROR "Unknown equation system.")
 ENDIF()
 
 # =========================================================================
@@ -187,15 +181,15 @@ IF(PICLAS_PARTICLES)
   ADD_DEFINITIONS(-DPARTICLES)
 ELSE()
   IF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
-    MESSAGE(ERROR " Not allowed to used DSMC without particles.")
+    MESSAGE(SEND_ERROR "DSMC cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
-    MESSAGE(ERROR " Not allowed to used RESERVOIR without particles.")
+    MESSAGE(SEND_ERROR "RESERVOIR cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "MACROBODY")
-    MESSAGE(ERROR " Not allowed to used MACROBODY without particles.")
+    MESSAGE(SEND_ERROR "MACROBODY cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
-    MESSAGE(ERROR " Not allowed to used BGK-Flow without particles.")
+    MESSAGE(SEND_ERROR "BGK-Flow cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
-    MESSAGE(ERROR " Not allowed to used FP-Flow without particles.")
+    MESSAGE(SEND_ERROR "FP-Flow cannot be used without particles.")
   ENDIF()
 ENDIF(PICLAS_PARTICLES)
 
@@ -241,8 +235,6 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK14")
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=6 -DLSERK)
   ENDIF()
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ParticleEuler-FieldRK4")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=5)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=4)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
@@ -280,12 +272,8 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=300)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=200)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation-AdaptiveTimeStep")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=201)
 ELSE()
-   MESSAGE(ERROR "Unknown timedisc method system.")
+   MESSAGE(SEND_ERROR "Unknown time discretization method.")
 ENDIF()
 IF(PICLAS_IMPLICIT_ANALYZE)
   ADD_DEFINITIONS(-DIMPLICIT_ANALYZE)
@@ -324,7 +312,7 @@ IF(PICLAS_HDG)
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS6")
      MESSAGE(STATUS "use HDG with ROS6")
   ELSE()
-      MESSAGE(ERROR ": Unknown timedisc method system for HDG.")
+      MESSAGE(SEND_ERROR "Unknown time discretization method for HDG.")
   ENDIF()
 ELSE()
   ADD_DEFINITIONS(-DUSE_HDG=0)
@@ -440,7 +428,7 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
   SET (PICLAS_COMPILE_FLAGS "-F")
 
 ELSE()
-   MESSAGE(ERROR "Unknown compiler")
+   MESSAGE(SEND_ERROR "Unknown compiler.")
 ENDIF()
 
 # =========================================================================
@@ -678,7 +666,7 @@ FILE(GLOB_RECURSE implicitF90 ./src/linearsolver/linearsolver.f90
                               ./src/linearsolver/linearoperator/linearoperator.f90
                               ./src/linearsolver/newton.f90)
 
-                            IF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
+IF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
   FILE(GLOB_RECURSE precondF90 ./src/precond/precond.f90
                                ./src/precond/precond_vars.f90
                                ./src/precond/applypreconditioner.f90

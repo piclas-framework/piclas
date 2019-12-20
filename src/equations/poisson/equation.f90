@@ -634,10 +634,8 @@ FUNCTION shapefunc(r)
 END FUNCTION shapefunc
 
 FUNCTION beta(z,w)
-  ! USE nr
    IMPLICIT NONE
    REAL beta, w, z
-   !beta = exp(gammln(z)+gammln(w)-gammln(z+w))  ! old - kind=6
    beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)           ! n   - kind=8
 END FUNCTION beta
 
