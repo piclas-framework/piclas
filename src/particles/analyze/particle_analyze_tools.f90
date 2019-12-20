@@ -70,12 +70,10 @@ END IF
 IF (PartLorentzType.EQ.5)THEN
   ! gamma v is pushed instead of gamma, therefore, only the relativistic kinetic energy is computed
   ! compute gamma
-  gamma1=SQRT(1.0+DOT_PRODUCT(PartState(4:6,iPart),PartState(4:6,iPart))*c2_inv)
+  gamma1=SQRT(1.0+DOTPRODUCT(PartState(4:6,iPart))*c2_inv)
   CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
 ELSE
-  partV2 = PartState(4,iPart) * PartState(4,iPart) &
-         + PartState(5,iPart) * PartState(5,iPart) &
-         + PartState(6,iPart) * PartState(6,iPart)
+  partV2 = DOTPRODUCT(PartState(4:6,iPart))
   IF (partV2.LT.1E12)THEN
     CalcEkinPart= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * WeightingFactor
   ELSE

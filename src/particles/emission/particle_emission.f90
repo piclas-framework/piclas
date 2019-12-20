@@ -412,14 +412,6 @@ INTEGER                          :: mode
 INTEGER                          :: InitGroup
 #endif
 !===================================================================================================================================
-
-!----------------------------------------------------------------------------------------------------------------------------------
-!!! VORSICHT: FUNKTIONIERT SO MOMENTAN NUR MIT 1 SPEZIES!!!!
-! --- fuer mehr als eine Spezies gibt es bei der Benutzung des
-!     mode_opt Flags Probleme mit den non-blocking communications.
-!     Es koennte dann passieren, dass Nachrichten falsch zugeordnet werden.
-!     Sicherheitshalber sollte man kein mode_opt Argument bei mehrern
-!     Spezies uebergeben.
 #if USE_MPI
 IF (PRESENT(mode_opt)) THEN
   mode=mode_opt
@@ -621,41 +613,18 @@ __STAMP__&
       ! alter history, dirty hack for balance calculation
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition - NbrOfParticle
       IF(NbrOfParticle.GT.0)THEN
-#if defined(LSERK) || defined(ROS) || defined(IMPA)
-        ! IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
-        !   nPartInTmp(i)=nPartInTmp(i) + NBrofParticle
-        !   DO iPart=1,NbrOfparticle
-        !     PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-        !     IF (PositionNbr .ne. 0) PartEkinInTmp(PartSpecies(PositionNbr)) = &
-        !                             PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-        !   END DO ! iPart
-        ! ELSE
-          nPartIn(i)=nPartIn(i) + NBrofParticle
-          DO iPart=1,NbrOfparticle
-            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-            IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr)) = &
-                                    PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-          END DO ! iPart
-        ! END IF
-#else
         nPartIn(i)=nPartIn(i) + NBrofParticle
         DO iPart=1,NbrOfparticle
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr)) = &
                                   PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
-#endif
       END IF
       ! alter history, dirty hack for balance calculation
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
     END IF ! CalcPartBalance
-    ! instead of UpdateNextfreePosition we update the
-    ! particleVecLength only.
-    !PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-    !PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-    !CALL UpdateNextFreePosition()
-  END DO
-END DO
+  END DO  ! iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+END DO  ! i=1,nSpecies
 
 END SUBROUTINE ParticleInserting
 
@@ -1032,6 +1001,18 @@ REAL                            :: tLBStart
 !===================================================================================================================================
 ALLOCATE(Source(1:11,1:nElems,1:nSpecies))
 Source=0.0
+
+! Optional flag for the utilization of the routine for an initial sampling of the density and pressure distribution before simstart
+IF(PRESENT(initSampling_opt)) THEN
+  initSampling = initSampling_opt
+ELSE
+ initSampling = .FALSE.
+END IF
+
+! If no particles are present during the initial sampling for a porous BC, leave the routine, otherwise initial variables for the
+! adaptive inlet surface flux will be overwritten by zero's.
+IF (PDM%ParticleVecLength.LT.1) RETURN
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1063,13 +1044,6 @@ END DO
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_ADAPTIVE,tLBStart)
 #endif /*USE_LOADBALANCE*/
-
-! Optional flag for the utilization of the routine for an initial sampling of the density and pressure distribution before simstart
-IF(PRESENT(initSampling_opt)) THEN
-  initSampling = initSampling_opt
-ELSE
- initSampling = .FALSE.
-END IF
 
 IF(initSampling) THEN
   RelaxationFactor = 1
