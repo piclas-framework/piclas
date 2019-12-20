@@ -484,7 +484,7 @@ unsorted_tmp=unsorted
 DO i = 1, EndID
   IF(.NOT.unsorted_tmp(i)) CYCLE
    idx=MINLOC(ArrayB,1,unsorted)
-   ArrayA(i) = ArrayA_temp(idx)
+   ArrayA(idx) = ArrayA_temp(i)
    unsorted(idx) = .FALSE.
 END DO
 
