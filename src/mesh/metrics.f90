@@ -55,6 +55,10 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+INTERFACE BuildCoords
+  MODULE PROCEDURE BuildCoords
+END INTERFACE
+
 INTERFACE CalcMetrics
   MODULE PROCEDURE CalcMetrics
 END INTERFACE
@@ -71,6 +75,7 @@ INTERFACE CalcMetricsErrorDiff
   MODULE PROCEDURE CalcMetricsErrorDiff
 END INTERFACE
 
+PUBLIC::BuildCoords
 PUBLIC::CalcMetrics
 PUBLIC::CalcSurfMetrics
 PUBLIC::SurfMetricsFromJa
@@ -79,7 +84,76 @@ PUBLIC::CalcMetricsErrorDiff
 
 CONTAINS
 
-SUBROUTINE CalcMetrics(XCL_NGeo_Out,dXCL_NGeo_out)
+!==================================================================================================================================
+!> This routine takes the equidistant node coordinats of the mesh (on NGeo+1 points) and uses them to build the coordinates
+!> of solution/interpolation points of type NodeType on polynomial degree Nloc (Nloc+1 points per direction).
+!> The coordinates (for a non-conforming mesh) can also be built from an octree if the mesh is based on a conforming baseline mesh.
+!==================================================================================================================================
+SUBROUTINE BuildCoords(NodeCoords,Nloc,VolumeCoords,TreeCoords)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars          ,ONLY: NGeo,nElems
+USE MOD_Mesh_Vars          ,ONLY: ElemToTree,xiMinMax,nTrees,NGeoTree
+USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType
+USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D_XYZ, ChangeBasis3D
+USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
+!----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+REAL,INTENT(INOUT)            :: NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems)         !< Equidistant mesh coordinates
+INTEGER,INTENT(IN)            :: Nloc                                                  !< Convert to Nloc+1 points per direction
+REAL,INTENT(OUT)              :: VolumeCoords(3,0:Nloc,0:Nloc,0:Nloc,nElems)       !< OUT: Coordinates of solution/interpolation
+                                                                                       !< points
+REAL,INTENT(INOUT),OPTIONAL   :: TreeCoords(3,0:NGeoTree,0:NGeoTree,0:NGeoTree,nTrees) !< coordinates of nodes of tree-elements
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: i,iElem
+REAL                          :: XCL_Nloc(3,0:Nloc,0:Nloc,0:Nloc)
+REAL,DIMENSION(0:Nloc,0:Nloc) :: Vdm_xi_N,Vdm_eta_N
+REAL,DIMENSION(0:Nloc,0:Nloc) :: Vdm_zeta_N
+REAL                          :: Vdm_EQNGeo_CLNloc(0:Nloc ,0:Ngeo)
+REAL                          :: Vdm_CLNloc_Nloc  (0:Nloc ,0:Nloc)
+REAL                          :: xi0(3),dxi(3),length(3)
+REAL                          :: xiCL_Nloc(0:Nloc),wBaryCL_Nloc(0:Nloc)
+REAL                          :: xiNloc(0:Nloc)
+!==================================================================================================================================
+
+CALL GetVandermonde(    NGeo, NodeTypeVISU, NLoc, NodeTypeCL, Vdm_EQNGeo_CLNloc,  modal=.FALSE.)
+CALL GetVandermonde(    Nloc, NodeTypeCL  , Nloc, NodeType  , Vdm_CLNloc_Nloc,     modal=.FALSE.)
+
+! NOTE: Transform intermediately to CL points, to be consistent with metrics being built with CL
+!       Important for curved meshes if NGeo<N, no effect for N>=NGeo
+
+!1.a) Transform from EQUI_NGeo to solution points on Nloc
+IF(PRESENT(TreeCoords))THEN
+  CALL GetNodesAndWeights(Nloc, NodeTypeCL  , xiCL_Nloc  , wIPBary=wBaryCL_Nloc)
+  CALL GetNodesAndWeights(Nloc, NodeType  ,   xiNloc)
+  DO iElem=1,nElems
+    xi0   =xiMinMax(:,1,iElem)
+    length=xiMinMax(:,2,iElem)-xi0
+    CALL ChangeBasis3D(3,NGeo,Nloc,Vdm_EQNGeo_CLNloc,TreeCoords(:,:,:,:,ElemToTree(iElem)),XCL_Nloc)
+    DO i=0,Nloc
+      dxi=0.5*(xiNloc(i)+1.)*length
+      CALL LagrangeInterpolationPolys(xi0(1) + dxi(1),Nloc,xiCL_Nloc,wBaryCL_Nloc,Vdm_xi_N(  i,:))
+      CALL LagrangeInterpolationPolys(xi0(2) + dxi(2),Nloc,xiCL_Nloc,wBaryCL_Nloc,Vdm_eta_N( i,:))
+      CALL LagrangeInterpolationPolys(xi0(3) + dxi(3),Nloc,xiCL_Nloc,wBaryCL_Nloc,Vdm_zeta_N(i,:))
+    END DO
+    CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,XCL_Nloc,VolumeCoords(:,:,:,:,iElem))
+  END DO
+ELSE
+  Vdm_EQNGeo_CLNloc=MATMUL(Vdm_CLNloc_Nloc,Vdm_EQNGeo_CLNloc)
+  DO iElem=1,nElems
+    CALL ChangeBasis3D(3,NGeo,Nloc,Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),VolumeCoords(:,:,:,:,iElem))
+  END DO
+END IF
+
+END SUBROUTINE BuildCoords
+
+
+SUBROUTINE CalcMetrics(XCL_NGeo_Out,dXCL_NGeo_out,meshMode)
 !===================================================================================================================================
 !> This routine computes the geometries volume metric terms.
 !===================================================================================================================================
@@ -98,7 +172,7 @@ USE MOD_Mesh_Vars,               ONLY:nElems,offSetElem
 USE MOD_Interpolation,           ONLY:GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
+USE MOD_Interpolation_Vars,      ONLY:NodeTypeCL,NodeTypeVISU,NodeType,xGP
 #ifdef PARTICLES
 #if USE_MPI
 USE MOD_Mesh_Vars,               ONLY:nSides
@@ -119,6 +193,10 @@ USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMortarInnerSides
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN) :: meshMode !< 0: only read and build Elem_xGP,
+                               !< 1: as 0 + build connectivity
+                               !< 2: as 1 + calc metrics
+                               !< 3: as 2 but skip InitParticleMesh
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT),OPTIONAL  :: XCL_Ngeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,nElems)      ! mapping X(xi) P\in Ngeo
@@ -149,7 +227,7 @@ REAL    :: DCL_NGeo(0:Ngeo,0:Ngeo)
 REAL    :: DCL_N(   0:PP_N,0:PP_N)
 
 ! Vandermonde matrices (N_OUT,N_IN)
-REAL    :: Vdm_EQNgeo_CLNgeo( 0:Ngeo   ,0:Ngeo)
+REAL    :: Vdm_EQNGeo_CLNgeo( 0:Ngeo   ,0:Ngeo)
 REAL    :: Vdm_CLNGeo_NgeoRef(0:NgeoRef,0:Ngeo)
 REAL    :: Vdm_NgeoRef_N(     0:PP_N   ,0:NgeoRef)
 REAL    :: Vdm_CLNGeo_CLN(    0:PP_N   ,0:Ngeo)
@@ -188,7 +266,7 @@ Metrics_hTilde=0.
 ! Always use interpolation for the rest!
 
 ! 1.a) NodeCoords: EQUI Ngeo to CLNgeo and CLN
-CALL GetVandermonde(    Ngeo   , NodeTypeVISU, Ngeo    , NodeTypeCL, Vdm_EQNgeo_CLNgeo , modal=.FALSE.)
+CALL GetVandermonde(    Ngeo   , NodeTypeVISU, Ngeo    , NodeTypeCL, Vdm_EQNGeo_CLNgeo , modal=.FALSE.)
 
 ! 1.b) dXCL_Ngeo:
 CALL GetDerivativeMatrix(Ngeo  , NodeTypeCL  , DCL_Ngeo)
@@ -365,7 +443,6 @@ DO iElem=1,nElems
       CALL LagrangeInterpolationPolys(xi0(2) + dxi(2),PP_N,xiCL_N,wBaryCL_N,Vdm_eta_N( i,:))
       CALL LagrangeInterpolationPolys(xi0(3) + dxi(3),PP_N,xiCL_N,wBaryCL_N,Vdm_zeta_N(i,:))
     END DO
-    CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,XCL_N            ,Elem_xGP(      :,:,:,:,iElem))
     CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,JaCL_N(1,:,:,:,:),Metrics_fTilde(:,:,:,:,iElem))
     CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,JaCL_N(2,:,:,:,:),Metrics_gTilde(:,:,:,:,iElem))
     CALL ChangeBasis3D_XYZ(3,PP_N,PP_N,Vdm_xi_N,Vdm_eta_N,Vdm_zeta_N,JaCL_N(3,:,:,:,:),Metrics_hTilde(:,:,:,:,iElem))
@@ -399,7 +476,6 @@ DO iElem=1,nElems
 #endif /*maxwell*/
   ELSE
     ! interpolate Metrics from Cheb-Lobatto N onto GaussPoints N
-    CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,XCL_N            ,Elem_xGP(      :,:,:,:,iElem))
     CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,JaCL_N(1,:,:,:,:),Metrics_fTilde(:,:,:,:,iElem))
     CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,JaCL_N(2,:,:,:,:),Metrics_gTilde(:,:,:,:,iElem))
     CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_N,JaCL_N(3,:,:,:,:),Metrics_hTilde(:,:,:,:,iElem))
@@ -454,59 +530,64 @@ DO iElem=1,nElems
 END DO !iElem=1,nElems
 
 #ifdef PARTICLES
-SWRITE(UNIT_stdOut,'(A)') ' '
-SWRITE(UNIT_stdOut,'(A)') 'BEZIERCONTROLPOINTS ...'
-StartT2=PICLASTIME()
+IF(meshMode.NE.3)THEN
+  SWRITE(UNIT_stdOut,'(A)') ' '
+  SWRITE(UNIT_stdOut,'(A)') 'BEZIERCONTROLPOINTS ...'
+  StartT2=PICLASTIME()
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
 #endif /*USE_MPI*/
 
 #if USE_MPI
-lowerLimit=nSides ! all incl. my mortar sides
+  lowerLimit=nSides ! all incl. my mortar sides
 #else
-lowerLimit=nBCSides+nMortarInnerSides+nInnerSides
+  lowerLimit=nBCSides+nMortarInnerSides+nInnerSides
 #endif /*USE_MPI*/
 
-! Next, build the BezierControlPoints,SideSlabNormals,SideSlabIntervals and BoundingBoxIsEmpty for
-! nBCSides, nInnerMortarSides, nInnerSides, nMPISides_MINE and MINE mortar sides
-! this requires check for flip and MortarSlave2Master
-DO iSide=1,lowerLimit
-  ! check flip or mortar sideid
-  ElemID  =SideToElem(S2E_ELEM_ID,iSide)
-  NBElemID=SideToElem(S2E_NB_ELEM_ID,iSide)
-  SideID=MortarSlave2MasterInfo(iSide)
-  IF(ElemID.EQ.NBElemID)THEN
-    IF(ElemID.EQ.-1) BezierControlPoints3D(:,:,:,iSide)=BezierControlPoints3D(:,:,:,SideID)
-  END IF
-  ! elevation occurs within this routine
-  IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
-  CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
-                                     ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
-                                     ,SideSlabNormals(1:3,1:3,iSide)                                         &
-                                     ,SideSlabInterVals(1:6,iSide)                                           &
-                                     ,BoundingBoxIsEmpty(iSide)                                              )
-END DO
+  ! Next, build the BezierControlPoints,SideSlabNormals,SideSlabIntervals and BoundingBoxIsEmpty for
+  ! nBCSides, nInnerMortarSides, nInnerSides, nMPISides_MINE and MINE mortar sides
+  ! this requires check for flip and MortarSlave2Master
+  DO iSide=1,lowerLimit
+    ! check flip or mortar sideid
+    ElemID  =SideToElem(S2E_ELEM_ID,iSide)
+    NBElemID=SideToElem(S2E_NB_ELEM_ID,iSide)
+    SideID=MortarSlave2MasterInfo(iSide)
+    IF(ElemID.EQ.NBElemID)THEN
+      IF(ElemID.EQ.-1) BezierControlPoints3D(:,:,:,iSide)=BezierControlPoints3D(:,:,:,SideID)
+    END IF
+    ! elevation occurs within this routine
+    IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
+    CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
+        ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
+        ,SideSlabNormals(1:3,1:3,iSide)                                         &
+        ,SideSlabInterVals(1:6,iSide)                                           &
+        ,BoundingBoxIsEmpty(iSide)                                              )
+  END DO
 
-! here, check the BC-control-points
-DO iSide=1,lowerLimit
-  ElemID=SideToElem(S2E_ELEM_ID,iSide)
-  SideID=MortarSlave2MasterInfo(iSide)
-  ! elevation occurs within this routine
-  IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
-  IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10)THEN
-    IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Warning, BezierControlPoint is zero! SideID:', iSide
-    IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Elem and NBElemID:', ElemID,SideToElem(S2E_NB_ELEM_ID,iSide)
-    IPWRITE(UNIT_stdOut,*) 'Points',BezierControlPoints3D(:,:,:,iSide)
-  END IF
-END DO
+  ! here, check the BC-control-points
+  DO iSide=1,lowerLimit
+    ElemID=SideToElem(S2E_ELEM_ID,iSide)
+    SideID=MortarSlave2MasterInfo(iSide)
+    ! elevation occurs within this routine
+    IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
+    IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10)THEN
+      IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Warning, BezierControlPoint is zero! SideID:', iSide
+      IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Elem and NBElemID:', ElemID,SideToElem(S2E_NB_ELEM_ID,iSide)
+      IPWRITE(UNIT_stdOut,*) 'Points',BezierControlPoints3D(:,:,:,iSide)
+    END IF
+  END DO
 
-endT=PICLASTIME()
-BezierTime=BezierTime+endT-StartT2
+  endT=PICLASTIME()
+  BezierTime=BezierTime+endT-StartT2
 
-SWRITE(UNIT_stdOut,'(A)') ' '
-endt=PICLASTIME()
-SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of Bezier control points took [',BezierTime            ,'s]'
-SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT-BezierTime,'s]'
+  SWRITE(UNIT_stdOut,'(A)') ' '
+  endt=PICLASTIME()
+  SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of Bezier control points took [',BezierTime            ,'s]'
+  SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT-BezierTime,'s]'
+ELSE
+  endt=PICLASTIME()
+  SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT,'s]'
+END IF ! meshMode.NE.3
 #else
 endt=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT,'s]'
@@ -765,7 +846,7 @@ USE MOD_Mesh_Vars,               ONLY:NodeCoords
 USE MOD_Interpolation,           ONLY:GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType
+USE MOD_Interpolation_Vars,      ONLY:NodeTypeCL,NodeTypeVISU,NodeType
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -828,7 +909,7 @@ CALL GetDerivativeMatrix(PP_N  , NodeTypeCL  , DCL_N)
 CALL GetVandermonde(    PP_N   , NodeTypeCL  , PP_N    , NodeType,   Vdm_CLN_N         , modal=.FALSE.)
 CALL GetNodesAndWeights(PP_N   , NodeTypeCL  , xiCL_N  , wIPBary=wBaryCL_N)
 
-! 3.a) Interpolate from Tree for particls
+! 3.a) Interpolate from Tree for particles
 CALL GetNodesAndWeights(NGeo   , NodeTypeCL  , XiCL_NGeo  , wIPBary=wBaryCL_NGeo)
 
 ! Outer loop over all elements

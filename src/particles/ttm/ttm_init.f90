@@ -767,15 +767,15 @@ SUBROUTINE InitIMD_TTM_Coupling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, ElementaryCharge
+USE MOD_Globals_Vars        ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_PreProc
 USE MOD_TTM_Vars
-USE MOD_Particle_Vars ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
-USE MOD_Mesh_Vars     ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_DSMC_Vars     ,ONLY: CollisMode,DSMC,PartStateIntEn
-USE MOD_part_emission ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_Vars     ,ONLY: useDSMC
-USE MOD_Eval_xyz      ,ONLY: TensorProductInterpolation
+USE MOD_Particle_Vars       ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
+USE MOD_Mesh_Vars           ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
+USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_DSMC_Vars           ,ONLY: useDSMC
+USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -882,13 +882,13 @@ DO iElem=1,PP_nElems
     CALL RANDOM_NUMBER(PartPosRef(1:3)) ! get random reference space
     PartPosRef(1:3)=PartPosRef(1:3)*2. - 1. ! map (0,1) -> (-1,1)
     CALL TensorProductInterpolation(PartPosRef(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) &
-                      ,PartState(ParticleIndexNbr,1:3)) !Map into phys. space
+                      ,PartState(1:3,ParticleIndexNbr)) !Map into phys. space
 
     ! Set the internal energies (vb, rot and electronic) to zero if needed
     IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
-      PartStateIntEn(ParticleIndexNbr, 1) = 0.
-      PartStateIntEn(ParticleIndexNbr, 2) = 0.
-      IF ( DSMC%ElectronicModel )  PartStateIntEn(ParticleIndexNbr, 3) = 0.
+      PartStateIntEn( 1,ParticleIndexNbr) = 0.
+      PartStateIntEn( 2,ParticleIndexNbr) = 0.
+      IF ( DSMC%ElectronicModel )  PartStateIntEn( 3,ParticleIndexNbr) = 0.
     END IF
 
     ! Set the element ID of the electron to the current element ID
@@ -902,7 +902,7 @@ DO iElem=1,PP_nElems
     END IF
 
     ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
-    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(ParticleIndexNbr,4:6),&
+    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(4:6,ParticleIndexNbr),&
                                   Temperature=CellElectronTemperature)
   END DO
 END DO
@@ -992,7 +992,7 @@ CLOSE(ioUnit)
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
 
-  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,CSVFORMAT
+  WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
   DO iElem=1,PP_nElems
     WRITE(tmpStr2,formatStr)&
         " ",TTM_Cell_1(iElem),&

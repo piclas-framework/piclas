@@ -1,4 +1,16 @@
 #!/bin/bash
+
+#==============================================================================
+# title       : InstallPackages.sh
+# description : This script installs the software packages required for 
+#               the module env scripts for creating a software environment for 
+#               PICLas/FLEXI code frameworks
+# date        : Nov 27, 2019
+# version     : 1.0   
+# usage       : bash InstallPackages.sh
+# notes       : 
+#==============================================================================
+
 apt-get update
 apt-get install \
   libgmp3-dev \
@@ -23,6 +35,7 @@ apt-get install \
   mesa-common-dev \
   libz-dev \
   libncurses-dev \
+  tcl \
   tcl8.6-dev \
   ctags \
   libboost-dev \

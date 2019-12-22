@@ -25,8 +25,10 @@ SAVE
 LOGICAL                       :: ParticleAnalyzeInitIsDone = .FALSE.
 LOGICAL                       :: CalcNumSpec                         !< Calculate the number of simulated particles per species
 LOGICAL                       :: CalcNumDens                         !< Calculate the number density per species within the domain
+LOGICAL                       :: CalcMassflowRate                    !< Calculate the mass flow through the adaptive inlet boundary
 LOGICAL                       :: CalcCollRates                       !< Calculate the collision rates per collision pair
 LOGICAL                       :: CalcReacRates                       !< Calculate the reaction rate per reaction
+LOGICAL                       :: CalcRelaxProb                       !< Calculate relaxation probabilities
 LOGICAL                       :: CalcEkin                            !< Compute the kinetic energy of each species
 LOGICAL                       :: CalcEtot                            !< Compute the total energy as sum of potential and kin eng
 LOGICAL                       :: CalcEint                            !< Compute the internal energy of each species
@@ -59,10 +61,8 @@ LOGICAL                       :: DoPartAnalyze                       !< perform 
 INTEGER                       :: PartAnalyzeStep                     !< Analyze is performed each Nth time step
 INTEGER,ALLOCATABLE           :: nPartIn(:)                          !< Number of entry and leaving particles
 INTEGER,ALLOCATABLE           :: nPartOut(:)                         !< Number of entry and leaving particles
-INTEGER,ALLOCATABLE           :: nPartInTmp(:)                       !< Number of entry and leaving particles
 REAL,ALLOCATABLE              :: PartEkinIn(:)                       !< Energy and temperature of input particle
 REAL,ALLOCATABLE              :: PartEkinOut(:)                      !< Energy and temperature of input particle
-REAL,ALLOCATABLE              :: PartEKinInTmp(:)                    !< Energy and temperature of input particle
 
 ! get derived particle properties (for IMD/TTM initialization these values are calculated from the TTM grid values)
 LOGICAL                       :: CalcDebyeLength                     !< Compute the Debye length (min and max) in each cell
@@ -76,7 +76,7 @@ LOGICAL                       :: CalcPointsPerDebyeLength            !< Compute 
 LOGICAL                       :: CalcPICCFLCondition                 !< Compute a PIC CFL condition for each cell
 !                                                                    !< in terms of cell lengths in X, Y and Z for each cell
 !                                                                    !< PPD=(p+1)lambda_D/L_cell
-LOGICAL                       :: CalcMaxPartDisplacement             !< Compute the maximum displacement of the fastest particle 
+LOGICAL                       :: CalcMaxPartDisplacement             !< Compute the maximum displacement of the fastest particle
 LOGICAL                       :: CalcPointsPerShapeFunction          !< Compute the points per shape function sphere
 !                                                                    !< PPS = DOF_cell*VolumeShapeFunction/Volume_cell
 
@@ -111,7 +111,7 @@ REAL,ALLOCATABLE              :: PPSCellEqui(:)                      !< Points p
                                                                      !<   including neighbor DOFs
 REAL,ALLOCATABLE              :: DebyeLengthCell(:)                  !< Debye length (cell mean value)
 REAL,ALLOCATABLE              :: PICTimeStepCell(:)                  !< Approximated PIC Time Step (mean cell value)
-REAL,ALLOCATABLE              :: PlasmaParameterCell(:)              !< Approximated PIC Time Step (mean cell value)
+REAL,ALLOCATABLE              :: PlasmaParameterCell(:)              !< Plasma parameter (cell mean value)
 REAL,ALLOCATABLE              :: ElectronDensityCell(:)              !< Electron density (cell mean value)
 REAL,ALLOCATABLE              :: IonDensityCell(:)                   !< Ion density (cell mean value)
 REAL,ALLOCATABLE              :: NeutralDensityCell(:)               !< Neutral density (cell mean value)
@@ -130,5 +130,6 @@ REAL                          :: printDiffTime                       !< TODO
 REAL                          :: printDiffVec(6)                     !< TODO
 REAL                          :: ChemEnergySum                       !< TODO
 LOGICAL                       :: CalcPorousBCInfo                    !< Calculate output for porous BCs (averaged over whole BC)
+REAL,ALLOCATABLE              :: MassflowRate(:,:)
 !===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars

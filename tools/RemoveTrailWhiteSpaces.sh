@@ -9,7 +9,7 @@ removetrailwhitespaces() {
   ACCEPTEDFILES=""
   for REPLACEFILE in ${FOUNDFILES}; do
     if [[ -n $(grep -i "${SEARCHSTRING}" "${REPLACEFILE}") ]]; then
-      echo found $(grep -io "\s\+$" ${REPLACEFILE} | wc -l) trailing white space occurences in $REPLACEFILE
+      echo found $(grep -io "${SEARCHSTRING}" ${REPLACEFILE} | wc -l) trailing white space occurences in $REPLACEFILE
       if [[ -z ${ACCEPTEDFILES} ]]; then
         ACCEPTEDFILES+="${REPLACEFILE}"
       else

@@ -37,6 +37,10 @@ INTEGER          :: NGeoRef                     !< polynomial degree of geometri
 INTEGER          :: NGeoElevated                !< polynomial degree of elevated geometric transformation
 REAL,ALLOCATABLE :: Xi_NGeo(:)                  !< 1D equidistant point positions for curved elements (during readin)
 REAL             :: DeltaXi_NGeo
+REAL,ALLOCATABLE :: Vdm_EQ_N(:,:)               !< Vandermonde mapping from equidistant (visu) to NodeType node set
+REAL,ALLOCATABLE :: Vdm_N_EQ(:,:)               !< Vandermonde mapping from NodeType to equidistant (visu) node set
+REAL,ALLOCATABLE :: Vdm_GL_N(:,:)               !< Vandermonde mapping from Gauss-Lobatto (analyze) to NodeType node set
+REAL,ALLOCATABLE :: Vdm_N_GL(:,:)               !< Vandermonde mapping from NodeType to Gauss-Lobatto (analyze) node set
 ! check if these arrays are still used
 REAL,ALLOCATABLE :: Vdm_CLN_GaussN(:,:)
 REAL,ALLOCATABLE :: Vdm_CLNGeo_CLN(:,:)
@@ -118,7 +122,8 @@ INTEGER,ALLOCATABLE :: ElemToSide(:,:,:) !< SideID    = ElemToSide(E2S_SIDE_ID,Z
 INTEGER,ALLOCATABLE :: SideToElem(:,:)   !< ElemID    = SideToElem(S2E_ELEM_ID,SideID)
                                          !< NB_ElemID = SideToElem(S2E_NB_ELEM_ID,SideID)
                                          !< locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
-INTEGER,ALLOCATABLE :: BC(:)             !< BCIndex   = BC(SideID), 1:nCSides
+INTEGER,ALLOCATABLE :: BC(:)             !< BCIndex   = BC(SideID), 1:nBCSides
+INTEGER,ALLOCATABLE :: GlobalUniqueSideID(:) !< SideInfo(SIDE_ID,iSide) = GlobalUniqueSideIDC(SideID), 1:nSides
 INTEGER,ALLOCATABLE :: BoundaryType(:,:) !< BCType    = BoundaryType(BC(SideID),BC_TYPE)
                                          !< BCState   = BoundaryType(BC(SideID),BC_STATE)
 INTEGER,ALLOCATABLE :: AnalyzeSide(:)    !< Marks, wheter a side belongs to a group of analyze sides (e.g. to a BC group)
@@ -187,11 +192,11 @@ INTEGER             :: lastMortarMPISide       !< Last  SideID of Mortar MPI sid
 INTEGER             :: nMortarSides=0          !< total number of mortar sides
 INTEGER             :: nMortarInnerSides=0     !< number of inner mortar sides
 INTEGER             :: nMortarMPISides=0       !< number of mortar MPI sides
-INTEGER,ALLOCATABLE :: MortarType(:,:)         !< Side Info about mortars, [1:2,1:nSides], Type of mortar [1] : 
+INTEGER,ALLOCATABLE :: MortarType(:,:)         !< Side Info about mortars, [1:2,1:nSides], Type of mortar [1] :
                                                !< =-1: conforming side not belonging to mortar
-                                               !< =0: small mortar side belonging to big side , 
+                                               !< =0: small mortar side belonging to big side ,
                                                !< =-10: neighbor of small mortar side (exists only if its an MPI side, too)
-                                               !< =1: bigside type 1-4, 2: bigside type 1-2 eta, 3: bigside type 1-2 xi 
+                                               !< =1: bigside type 1-4, 2: bigside type 1-2 eta, 3: bigside type 1-2 xi
                                                !< [2] position index in mortarInfo list
 INTEGER,ALLOCATABLE :: MortarInfo(:,:,:)       !< 1:2,1:4,1:nMortarSides: [1] nbSideID / flip, [2] max 4 mortar sides, [3] sides
 INTEGER,ALLOCATABLE :: MortarSlave2MasterInfo(:) !< 1:nSides: map of slave mortar sides to belonging master mortar sides
@@ -246,10 +251,11 @@ TYPE tSide
   INTEGER                      :: BCindex         !< index in BoundaryType array!
   INTEGER                      :: flip
 #ifdef PARTICLES
+  LOGICAL                      :: InnerBCOutput   !< Logical if proc writes InnerBC information
   INTEGER                      :: BC_Alpha        !< inital value for periodic displacement before mapping in pos. bc-index range
 #endif /*PARTICLES*/
   INTEGER                      :: nMortars        !< number of slave mortar sides associated with master mortar
-  INTEGER                      :: MortarType      !< type of mortar from mesh file: =0: conforming side or small side of bigside 
+  INTEGER                      :: MortarType      !< type of mortar from mesh file: =0: conforming side or small side of bigside
                                                   !< =1 : big side with 1-4 =2: big side with 1-2 in eta, =3: bigSide with 1-2 in xi
                                                   !< =-10: connected neighbor side of small mortar side
   TYPE(tSidePtr),POINTER       :: MortarSide(:)   !< array of side pointers to slave mortar sides

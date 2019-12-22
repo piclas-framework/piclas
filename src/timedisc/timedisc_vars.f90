@@ -47,10 +47,6 @@ REAL             :: dt_Min
 #if (defined(IMPA) || defined(ROS) || (PP_TimeDiscMethod==509))
 REAL             :: dt_old
 #endif /*defined(IMPA) || defined(ROS) || (PP_TimeDiscMethod==509)*/
-#if (PP_TimeDiscMethod==201)
-REAL             :: dt_temp
-INTEGER          :: MaximumIterNum
-#endif
 #if (PP_TimeDiscMethod==100)
 INTEGER,PARAMETER  :: nRKStages=1
 #endif
@@ -83,11 +79,11 @@ REAL,PARAMETER  :: CFLScaleAlpha(1:15) = &
 #endif /*PP_NodeType*/
 #endif
 
-#if ((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42))
+#if ((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==43))
 INTEGER,PARAMETER  :: nRKStages=1
 #endif
 
-#if ((PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==5)||(PP_TimeDiscMethod==200)||(PP_TimeDiscMethod==201)||(PP_TimeDiscMethod==502)||(PP_TimeDiscMethod==442))
+#if ((PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==502))
 ! Runge-Kutta 4 - Carpenter 1994 NASA Report
 INTEGER,PARAMETER  :: nRKStages=5
 REAL,PARAMETER  :: RK4_a2=  567301805773.0/  1357537059087.0

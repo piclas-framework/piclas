@@ -23,6 +23,7 @@ and login with `ssh hlrs`. Now you can clone the repository when logged onto the
 
     git clone ssh://git@localhost:7777/piclas/piclas.git
 
+
 ### Cloning with the HTTPS protocol
 
 The HLRS provides a tutorial for this case in their [https://wickie.hlrs.de](https://wickie.hlrs.de/platforms/index.php/Secure_Shell_ssh#Git). However, this method has not been verified.

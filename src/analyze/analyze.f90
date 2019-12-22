@@ -67,8 +67,6 @@ IMPLICIT NONE
 CALL prms%SetSection("Analyze")
 CALL prms%CreateLogicalOption('DoCalcErrorNorms'     , 'Set true to compute L2 and LInf error norms at analyze step.','.FALSE.')
 CALL prms%CreateRealOption(   'Analyze_dt'           , 'Specifies time intervall at which analysis routines are called.','0.')
-CALL prms%CreateIntOption(    'NAnalyze'             , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
-                                                       'Default: 2*N.')
 CALL prms%CreateRealOption(   'OutputTimeFixed'      , 'fixed time for writing state to .h5','-1.0')
 CALL prms%CreateIntOption(    'nSkipAnalyze'         , '(Skip Analyze-Dt)','1')
 CALL prms%CreateLogicalOption('CalcTimeAverage'      , 'Flag if time averaging should be performed','.FALSE.')
@@ -86,8 +84,6 @@ CALL prms%CreateIntOption(    'nSkipAvg'             , 'Iter every which CalcTim
                                                  !"Default: Same as IniExactFunc")
 !CALL prms%CreateIntOption(    'AnalyzeRefState' ,"Define state used for analyze (e.g. for computing L2 errors). "//&
                                                  !"Default: Same as IniRefState")
-!CALL prms%CreateLogicalOption('doMeasureFlops',  "Set true to measure flop count, if compiled with PAPI.",&
-                                                 !'.TRUE.')
 !CALL DefineParametersAnalyzeEquation()
 #ifdef CODE_ANALYZE
 CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info to CodeAnalyze.csv','.TRUE.')
@@ -119,8 +115,8 @@ SUBROUTINE InitAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary,InterpolationInitIsDone
-USE MOD_Analyze_Vars          ,ONLY: Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
+USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone
+USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
 USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed,FieldAnalyzeStep
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL
@@ -159,11 +155,6 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
 
 ! Get logical for calculating the error norms L2 and LInf
 DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms')
-
-! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
-WRITE(DefStr,'(i4)') 2*(PP_N+1)
-NAnalyze = GETINT('NAnalyze',DefStr)
-CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 
 ! Get the time step for performing analyzes and integer for skipping certain steps
 WRITE(DefStr,WRITEFORMAT) TEnd
@@ -233,31 +224,6 @@ END IF
 END SUBROUTINE InitAnalyze
 
 
-SUBROUTINE InitAnalyzeBasis(N_in,Nanalyze_in,xGP,wBary)
-!===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_Analyze_Vars, ONLY:wAnalyze,Vdm_GaussN_NAnalyze
-USE MOD_Basis,        ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                         :: N_in,Nanalyze_in
-REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP,wBary
-!----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze
-!===================================================================================================================================
-  ALLOCATE(wAnalyze(0:NAnalyze_in),Vdm_GaussN_NAnalyze(0:NAnalyze_in,0:N_in))
-  CALL LegGaussLobNodesAndWeights(NAnalyze_in,XiAnalyze,wAnalyze)
-  CALL InitializeVandermonde(N_in,NAnalyze_in,wBary,xGP,XiAnalyze,Vdm_GaussN_NAnalyze)
-END SUBROUTINE InitAnalyzeBasis
-
-
 #if USE_HDG
 SUBROUTINE CalcError(L_2_Error,L_Inf_Error)
 #else
@@ -271,7 +237,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
-USE MOD_Analyze_Vars       ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_DG_Vars            ,ONLY: U
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
@@ -351,7 +317,7 @@ SUBROUTINE CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: sJ
-USE MOD_Analyze_Vars       ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
@@ -425,11 +391,11 @@ SUBROUTINE CalcErrorStateFiles(nVar,N1,N2,U1,U2)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars     ,ONLY: sJ
-USE MOD_Analyze_Vars  ,ONLY: NAnalyze,wAnalyze
-USE MOD_Mesh_Vars     ,ONLY: nElems
-USE MOD_ChangeBasis   ,ONLY: ChangeBasis3D
-USE MOD_Basis         ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
+USE MOD_Mesh_Vars          ,ONLY: sJ
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,wAnalyze
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
 INTEGER,INTENT(IN)           :: nVar
 INTEGER,INTENT(IN)           :: N1
@@ -455,7 +421,7 @@ REAL                          :: Volume2
 #endif
 CHARACTER(LEN=40)             :: formatStr
 REAL                          :: xGP1(0:N1),xGP2(0:N2),wGP1(0:N1),wGP2(0:N2),wBary1(0:N1),wBary2(0:N2)
-REAL ,DIMENSION(0:Nanalyze)   :: XiAnalyze
+REAL ,DIMENSION(0:NAnalyze)   :: XiAnalyze
 !===================================================================================================================================
 L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
@@ -537,12 +503,12 @@ SUBROUTINE CalcErrorStateFileSigma(nVar,N1,U1)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars     ,ONLY: sJ
-USE MOD_Analyze_Vars  ,ONLY: NAnalyze,wAnalyze
-USE MOD_Equation      ,ONLY: ExactFunc
-USE MOD_Mesh_Vars     ,ONLY: nElems
-USE MOD_ChangeBasis   ,ONLY: ChangeBasis3D
-USE MOD_Basis         ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
+USE MOD_Mesh_Vars          ,ONLY: sJ
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,wAnalyze
+USE MOD_Equation           ,ONLY: ExactFunc
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -555,7 +521,7 @@ REAL,INTENT(IN)              :: U1(1:nVar,0:N1,0:N1,0:N1,nElems)
 REAL                          :: L_2_Error(nVar)   !< L2 error of the solution
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze1(:,:)    ! for interpolation to Analyze points
+REAL,ALLOCATABLE              :: Vdm_GaussN_NAnalyze1(:,:)    ! for interpolation to Analyze points
 INTEGER                       :: iElem,k,l,m
 REAL                          :: L_Inf_Error(nVar),L_2_Error2(nVar),L_Inf_Error2(nVar)
 REAL                          :: U1_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
@@ -567,7 +533,7 @@ REAL                          :: Volume2
 #endif
 CHARACTER(LEN=40)             :: formatStr
 REAL                          :: xGP1(0:N1),wGP1(0:N1),wBary1(0:N1)
-REAL ,DIMENSION(0:Nanalyze)   :: XiAnalyze
+REAL ,DIMENSION(0:NAnalyze)   :: XiAnalyze
 !===================================================================================================================================
 L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
@@ -729,7 +695,7 @@ SUBROUTINE FinalizeAnalyze()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Analyze_Vars,     ONLY: Vdm_GaussN_NAnalyze,wAnalyze,CalcPoyntingInt,PPWCell,AnalyzeInitIsDone
+USE MOD_Analyze_Vars,     ONLY: CalcPoyntingInt,PPWCell,AnalyzeInitIsDone
 USE MOD_AnalyzeField,     ONLY: FinalizePoyntingInt
 USE MOD_TimeAverage_Vars, ONLY: doCalcTimeAverage
 USE MOD_TimeAverage,      ONLY: FinalizeTimeAverage
@@ -740,8 +706,6 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SDEALLOCATE(Vdm_GaussN_NAnalyze)
-SDEALLOCATE(wAnalyze)
 IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
 IF(doCalcTimeAverage) CALL FinalizeTimeAverage
 SDEALLOCATE(PPWCell)
@@ -777,61 +741,57 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
-USE MOD_Analyze_Vars           ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
-USE MOD_Restart_Vars           ,ONLY: DoRestart
-USE MOD_TimeDisc_Vars          ,ONLY: iter,tEnd
-USE MOD_RecordPoints           ,ONLY: RecordPoints
-USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
-USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_AnalyzeField           ,ONLY: AnalyzeField
+USE MOD_Analyze_Vars              ,ONLY: DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
+USE MOD_Analyze_Vars              ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
+USE MOD_Restart_Vars              ,ONLY: DoRestart
+USE MOD_TimeDisc_Vars             ,ONLY: iter,tEnd
+USE MOD_RecordPoints              ,ONLY: RecordPoints
+USE MOD_LoadDistribution          ,ONLY: WriteElemTimeStatistics
+USE MOD_Globals_Vars              ,ONLY: ProjectName
+USE MOD_AnalyzeField              ,ONLY: AnalyzeField
 #ifdef PARTICLES
-USE MOD_Mesh_Vars              ,ONLY: MeshFile
-USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,PartSurfaceModel
-USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
-USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
-USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
-USE MOD_SurfaceModel_Analyze_Vars,ONLY: SurfaceAnalyzeStep
-USE MOD_SurfaceModel_Analyze   ,ONLY: AnalyzeSurface
-USE MOD_DSMC_Vars              ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
-USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution
-USE MOD_Particle_Tracking_vars ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
-USE MOD_LD_Analyze             ,ONLY: LD_data_sampling, LD_output_calc
-USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
-USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
-USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
+USE MOD_Mesh_Vars                 ,ONLY: MeshFile
+USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
+USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
+USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
+USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
+USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfaceAnalyzeStep
+USE MOD_SurfaceModel_Analyze      ,ONLY: AnalyzeSurface
+USE MOD_DSMC_Vars                 ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
+USE MOD_DSMC_Vars                 ,ONLY: DSMC_HOSolution, DSMC_VolumeSample
+USE MOD_Particle_Tracking_vars    ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
+USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep
+USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
+USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
 #if !defined(LSERK)
-USE MOD_DSMC_Vars              ,ONLY: useDSMC
+USE MOD_DSMC_Vars                 ,ONLY: useDSMC
 #endif
-#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
-USE MOD_Particle_Vars          ,ONLY: PartSurfaceModel
-USE MOD_Particle_Boundary_Vars ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall
-USE MOD_DSMC_Analyze           ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
-USE MOD_DSMC_Analyze           ,ONLY: CalcSurfaceValues
-#endif
+USE MOD_Particle_Boundary_Vars    ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh, SampWall, PartBound, CalcSurfaceImpact
+USE MOD_DSMC_Analyze              ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
+USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 #if (PP_TimeDiscMethod!=42) && !defined(LSERK)
-USE MOD_LD_Vars                ,ONLY: useLD
-USE MOD_Particle_Vars          ,ONLY: DelayTime
+USE MOD_Particle_Vars             ,ONLY: DelayTime
 #endif /*PP_TimeDiscMethod!=42 && !defined(LSERK)*/
 #endif /*PARTICLES*/
 #if (PP_nVar>=6)
-USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
+USE MOD_AnalyzeField              ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
 #if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG
-USE MOD_Analyze_Vars           ,ONLY: DoFieldAnalyze
-USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
+USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
+USE MOD_RecordPoints_Vars         ,ONLY: RP_onProc
 #endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS) || USE_HDG*/
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
-USE MOD_Particle_Analyze       ,ONLY: AnalyticParticleMovement
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
+USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
+USE MOD_Particle_Analyze          ,ONLY: AnalyticParticleMovement
+USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime
+USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition
+USE MOD_PICDepo_Vars              ,ONLY: DoDeposition, RelaxDeposition
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -848,9 +808,7 @@ LOGICAL,INTENT(IN)            :: OutputHDF5
 LOGICAL                       :: ProlongToFaceNeeded
 #endif /*Maxwell*/
 #ifdef PARTICLES
-#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
 INTEGER                       :: iSide
-#endif
 #if USE_MPI
 INTEGER                       :: RECI
 REAL                          :: RECR
@@ -858,9 +816,6 @@ REAL                          :: RECR
 #endif /*PARTICLES*/
 #ifdef CODE_ANALYZE
 REAL                          :: TotalSideBoundingBoxVolume,rDummy
-#ifdef PARTICLES
-REAL                          :: PartStateAnalytic(1:6)        !< analytic position and velocity in three dimensions
-#endif /*PARTICLES*/
 #endif /*CODE_ANALYZE*/
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
@@ -1068,32 +1023,21 @@ IF(OutPutHDF5 .OR. FirstOrLastIter) CALL CalculatePartElemData()
 #endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
-! DSMC & LD
+! DSMC
 !----------------------------------------------------------------------------------------------------------------------------------
 ! update of time here
 #ifdef PARTICLES
 
 ! write volume data for DSMC macroscopic values
 IF ((WriteMacroVolumeValues).AND.(.NOT.OutputHDF5))THEN
-#if (PP_TimeDiscMethod==1000)
-  CALL LD_data_sampling()  ! Data sampling for output
-#elif(PP_TimeDiscMethod==1001)
-  CALL LD_DSMC_data_sampling()
-#else
   CALL DSMCHO_data_sampling()
-#endif
   IF (iter.GT.0) iter_macvalout = iter_macvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
-#if (PP_TimeDiscMethod==1000)
-    CALL LD_output_calc()  ! Data sampling for output
-#elif(PP_TimeDiscMethod==1001)
-    CALL LD_DSMC_output_calc()
-#else
     CALL WriteDSMCHOToHDF5(TRIM(MeshFile),OutputTime)
-#endif
     iter_macvalout = 0
     DSMC%SampNum = 0
     DSMC_HOSolution = 0.0
+    DSMC_VolumeSample = 0.0
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%QualityFacSamp(:,:) = 0.
       IF(BGKInitDone) BGK_QualityFacSamp(:,:) = 0.
@@ -1106,19 +1050,26 @@ END IF
 IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
   IF (iter.GT.0) iter_macsurfvalout = iter_macsurfvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
-#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
-    CALL CalcSurfaceValues
+    CALL CalcSurfaceValues()
     DO iSide=1,SurfMesh%nTotalSides
       SampWall(iSide)%State=0.
-      IF (PartSurfaceModel.GT.0) THEN
-        SampWall(iSide)%Adsorption=0.
+      IF (ANY(PartBound%Reactive)) THEN
+        SampWall(iSide)%SurfModelState=0.
         SampWall(iSide)%Accomodation=0.
-        SampWall(iSide)%Reaction=0.
+        SampWall(iSide)%SurfModelReactCount=0.
       END IF
       IF(nPorousBC.GT.0) THEN
         SampWall(iSide)%PumpCapacity=0.
       END IF
+      ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+      IF(CalcSurfaceImpact)THEN
+        SampWall(iSide)%ImpactEnergy=0.
+        SampWall(iSide)%ImpactVector=0.
+        SampWall(iSide)%ImpactAngle=0.
+        SampWall(iSide)%ImpactNumber=0.
+      END IF ! CalcSurfaceImpact
     END DO
+    Adsorption%NumCovsamples=0
     IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
       AnalyzeSurfCollis%Data=0.
       AnalyzeSurfCollis%Spec=0
@@ -1126,7 +1077,6 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
       AnalyzeSurfCollis%Number=0
       !AnalyzeSurfCollis%Rate=0.
     END IF
-#endif
     iter_macsurfvalout = 0
   END IF
 END IF
@@ -1150,6 +1100,7 @@ IF(OutPutHDF5)THEN
         iter_macvalout = 0
         DSMC%SampNum = 0
         DSMC_HOSolution = 0.0
+        DSMC_VolumeSample = 0.0
       END IF
     END IF
     ! surface data
@@ -1173,7 +1124,7 @@ IF(OutPutHDF5)THEN
   END IF
 #else
   IF((LastIter).AND.(useDSMC).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
-    IF ((.NOT. useLD).AND.(DSMC%NumOutput.GT.0)) THEN
+    IF (DSMC%NumOutput.GT.0) THEN
       CALL WriteDSMCHOToHDF5(TRIM(MeshFile),OutputTime)
     END IF
     IF ((OutputTime.GE.DelayTime).AND.(DSMC%NumOutput.GT.0)) THEN

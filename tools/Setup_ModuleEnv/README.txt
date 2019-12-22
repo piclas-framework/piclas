@@ -1,10 +1,10 @@
-These script help setting up an environment for development with piclas
+These scripts help setting up an environment for development with piclas
 
 ------------------------------------------------------------
 Order of how to setup environment
 
 1. open console and run:
-      sudo -i
+      sudo -s
 2. change dir to script directory ( cd /path/to/piclas/tools )
 3. ./InstallPackages.sh
 4. ./InstallModules.sh

@@ -61,7 +61,7 @@ USE MOD_Globals           ,ONLY: LocalTime
 USE MOD_Particle_Vars     ,ONLY: doParticleMerge, nSpecies,vMPFMergeParticleTarget,vMPF_SpecNumElem,vMPFSplitParticleTarget
 USE MOD_Mesh_Vars         ,ONLY: nElems
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools ,ONLY: LBStartTime,LBElemSplitTime
+USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -101,7 +101,7 @@ SUBROUTINE SplitParticle(iPart, deltaE,CSquare)
 ! Split Particles
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,        ONLY : Abort
+  USE MOD_Globals,        ONLY : Abort,DOTPRODUCT
   USE MOD_Particle_Vars,  ONLY : PDM, PartState, PartSpecies, PartMPF, PEM, Species, vMPF_relativistic
   USE MOD_DSMC_Vars,      ONLY : useDSMC, CollisMode, PartStateIntEn
   USE MOD_Equation_Vars,  ONLY : c2
@@ -124,7 +124,7 @@ SUBROUTINE SplitParticle(iPart, deltaE,CSquare)
   REAL                            :: RanVec(3)
 !===================================================================================================================================
 
-  v_old(1:3) = PartState(iPart,4:6)
+  v_old(1:3) = PartState(4:6,iPart)
 
 !.... Get free particle index for the new particle produced
   PDM%ParticleVecLength = PDM%ParticleVecLength + 1
@@ -139,10 +139,10 @@ SUBROUTINE SplitParticle(iPart, deltaE,CSquare)
 !Set new particle parameters
   PDM%ParticleInside(PositionNbr) = .true.
   PartSpecies(PositionNbr) = PartSpecies(iPart)
-  PartState(PositionNbr,1:3) = PartState(iPart,1:3)
+  PartState(1:3,PositionNbr) = PartState(1:3,iPart)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-    PartStateIntEn(PositionNbr, 1) = PartStateIntEn(iPart, 1)
-    PartStateIntEn(PositionNbr, 2) =   PartStateIntEn(iPart, 2)
+    PartStateIntEn(1,PositionNbr) = PartStateIntEn(1,iPart)
+    PartStateIntEn(2,PositionNbr) = PartStateIntEn(2,iPart)
   END IF
   PEM%Element(PositionNbr) = PEM%Element(iPart)
 
@@ -162,26 +162,22 @@ SUBROUTINE SplitParticle(iPart, deltaE,CSquare)
     beta = CalcRelaBeta2(oldEner,RanVec(1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
 
     new_mom(1:3) = old_mom(1:3)/2.0 + beta*RanVec(1:3)
-    PartState(iPart,4:6) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
+    PartState(4:6,iPart) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
     new_mom(1:3) = old_mom(1:3)/2.0 - beta*RanVec(1:3)
-    PartState(PositionNbr,4:6) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
+    PartState(4:6,PositionNbr) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
   ELSE
     beta = SQRT(2*deltaE/(PartMPF(iPart)*Species(PartSpecies(iPart))%MassIC))
     RanVec(1:3) = DiceUnitVector()
-    PartState(iPart,4:6) = v_old(1:3) - beta * RanVec(1:3)
-    PartState(PositionNbr,4:6) = v_old(1:3) + beta * RanVec(1:3)
+    PartState(4:6,iPart) = v_old(1:3) - beta * RanVec(1:3)
+    PartState(4:6,PositionNbr) = v_old(1:3) + beta * RanVec(1:3)
   END IF
 
-  VeloSQ = PartState(iPart,4) * PartState(iPart,4) &
-        + PartState(iPart,5) * PartState(iPart,5) &
-        + PartState(iPart,6) * PartState(iPart,6)
+  VeloSQ =DOTPRODUCT(PartState(4:6,iPart)) 
   IF(VeloSQ.GT.c2) THEN
     CSquare=.true.
     PDM%ParticleInside(PositionNbr)=.false.
   END IF
-  VeloSQ = PartState(PositionNbr,4) * PartState(PositionNbr,4) &
-        + PartState(PositionNbr,5) * PartState(PositionNbr,5) &
-        + PartState(PositionNbr,6) * PartState(PositionNbr,6)
+  VeloSQ = DOTPRODUCT(PartState(4:6,PositionNbr))
   IF(VeloSQ.GT.c2) THEN
     CSquare=.true.
     PDM%ParticleInside(PositionNbr)=.false.
@@ -193,6 +189,7 @@ SUBROUTINE DoEnergyConservation(iPart,iPart2, deltaE,CSquare)
 !===================================================================================================================================
 ! Split Particles
 !===================================================================================================================================
+  USE MOD_Globals,        ONLY : DOTPRODUCT
   USE MOD_Particle_Vars, ONLY : PartState, PartSpecies, PartMPF, Species, vMPF_relativistic
   USE MOD_Equation_Vars,          ONLY : c2
   USE MOD_part_tools,     ONLY : DiceUnitVector
@@ -214,14 +211,14 @@ SUBROUTINE DoEnergyConservation(iPart,iPart2, deltaE,CSquare)
 !===================================================================================================================================
   IF (vMPF_relativistic) THEN
     RanVec(1:3) = DiceUnitVector()
-    v_old(1:3) = PartState(iPart,4:6)
+    v_old(1:3) = PartState(4:6,iPart)
     VeloSQ = v_old(1)*v_old(1)+v_old(2)*v_old(2)+v_old(3)*v_old(3)
     Gamma = VeloSq/c2
     Gamma = 1./SQRT(1.-Gamma)
     oldEner = Species(PartSpecies(iPart))%MassIC * PartMPF(iPart)* (Gamma-1.)*c2
     old_mom(1:3) = Species(PartSpecies(iPart))%MassIC * PartMPF(iPart)* v_old(1:3)*Gamma
 
-    v_old(1:3) = PartState(iPart2,4:6)
+    v_old(1:3) = PartState(4:6,iPart2)
     VeloSQ = v_old(1)*v_old(1)+v_old(2)*v_old(2)+v_old(3)*v_old(3)
     Gamma = VeloSq/c2
     Gamma = 1./SQRT(1.-Gamma)
@@ -231,34 +228,30 @@ SUBROUTINE DoEnergyConservation(iPart,iPart2, deltaE,CSquare)
     beta = CalcRelaBeta2(oldEner,RanVec(1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
 
     new_mom(1:3) = old_mom(1:3)/2.0 + beta*RanVec(1:3)
-    PartState(iPart,4:6) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
+    PartState(4:6,iPart) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
     new_mom(1:3) = old_mom(1:3)/2.0 - beta*RanVec(1:3)
-    PartState(iPart2,4:6) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart2), PartMPF(iPart2))
+    PartState(4:6,iPart2) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart2), PartMPF(iPart2))
   ELSE
-    v_mom(1:3) = (PartState(iPart,4:6)*PartMPF(iPart) + PartState(iPart2,4:6)*PartMPF(iPart2))*Species(PartSpecies(iPart))%MassIC
+    v_mom(1:3) = (PartState(4:6,iPart)*PartMPF(iPart) + PartState(4:6,iPart2)*PartMPF(iPart2))*Species(PartSpecies(iPart))%MassIC
     v_mom2 = v_mom(1)*v_mom(1)+v_mom(2)*v_mom(2)+v_mom(3)*v_mom(3)
     enerpart = 0.5*Species(PartSpecies(iPart))%MassIC*(PartMPF(iPart) &
-        *(PartState(iPart,4)*PartState(iPart,4)+PartState(iPart,5)*PartState(iPart,5)+PartState(iPart,6)*PartState(iPart,6)) &
+        *(PartState(4,iPart)*PartState(4,iPart)+PartState(5,iPart)*PartState(5,iPart)+PartState(6,iPart)*PartState(6,iPart)) &
         + PartMPF(iPart2) &
-        *(PartState(iPart2,4)*PartState(iPart2,4)+PartState(iPart2,5)*PartState(iPart2,5)+PartState(iPart2,6)*PartState(iPart2,6)))
+        *(PartState(4,iPart2)*PartState(4,iPart2)+PartState(5,iPart2)*PartState(5,iPart2)+PartState(6,iPart2)*PartState(6,iPart2)))
 
     !calulating beta = sqrt(deltaE/MPF_old)
     beta = SQRT((enerpart+deltaE)*PartMPF(iPart2)*Species(PartSpecies(iPart))%MassIC-v_mom2/4.0)
     !set new velocity v1
     RanVec(1:3) = DiceUnitVector()
-    PartState(iPart,4:6) = (v_mom(1:3)/2.0 + beta * RanVec(1:3))/(PartMPF(iPart)*Species(PartSpecies(iPart))%MassIC)
-    PartState(iPart2,4:6) = (v_mom(1:3)/2.0 - beta * RanVec(1:3))/(PartMPF(iPart2)*Species(PartSpecies(iPart2))%MassIC)
+    PartState(4:6,iPart ) = (v_mom(1:3)/2.0 + beta * RanVec(1:3))/(PartMPF(iPart)*Species(PartSpecies(iPart))%MassIC)
+    PartState(4:6,iPart2) = (v_mom(1:3)/2.0 - beta * RanVec(1:3))/(PartMPF(iPart2)*Species(PartSpecies(iPart2))%MassIC)
   END IF
 
-  VeloSQ = PartState(iPart,4) * PartState(iPart,4) &
-        + PartState(iPart,5) * PartState(iPart,5) &
-        + PartState(iPart,6) * PartState(iPart,6)
+  VeloSQ = DOTPRODUCT(PartState(4:6,iPart))
   IF(VeloSQ.GT.c2) THEN
     CSquare=.true.
   END IF
-  VeloSQ2 = PartState(iPart2,4) * PartState(iPart2,4) &
-        + PartState(iPart2,5) * PartState(iPart2,5) &
-        + PartState(iPart2,6) * PartState(iPart2,6)
+  VeloSQ2 = DOTPRODUCT(PartState(4:6,iPart2))
   IF(VeloSQ2.GT.c2) THEN
     CSquare=.true.
   END IF
@@ -305,7 +298,7 @@ SUBROUTINE MergeParticles(iElem, NumFinPart, SpecNum, SpecID)
       IF(DoRefMapping)THEN ! here Nearst-GP is missing
         PartStateMap(iLoop2,1:3)=PartPosRef(1:3,iLoop2)
       ELSE
-        CALL GetPositionInRefElem(PartState(iPart,1:3), PartStateMap(iLoop2,1:3), iElem)
+        CALL GetPositionInRefElem(PartState(1:3,iPart), PartStateMap(iLoop2,1:3), iElem)
       END IF
       PartStatevMPFSpec(iLoop2) = iPart
       iLoop2 = iLoop2 + 1
@@ -570,6 +563,7 @@ SUBROUTINE DeleteParticlesMPF(FinPartNum, Temp, SpecNum, SpecID)
 !
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals,        ONLY: DOTPRODUCT
   USE MOD_Particle_Vars, ONLY : PartState, vMPF_oldEngSum, vMPF_oldMomSum ,Species, PartMPF, PDM, &
                                   PartStatevMPFSpec, vMPFOldPos, vMPFOldVelo, vMPFOldMPF, vMPF_relativistic
   USE MOD_Globals_Vars,          ONLY: BoltzmannConst
@@ -595,27 +589,25 @@ SUBROUTINE DeleteParticlesMPF(FinPartNum, Temp, SpecNum, SpecID)
 
   DO iLoop = 1, SpecNum
     IF (vMPF_relativistic) THEN
-      VeloSq = PartState(PartStatevMPFSpec(iLoop),4) * PartState(PartStatevMPFSpec(iLoop),4) &
-               + PartState(PartStatevMPFSpec(iLoop),5) * PartState(PartStatevMPFSpec(iLoop),5) &
-               + PartState(PartStatevMPFSpec(iLoop),6) * PartState(PartStatevMPFSpec(iLoop),6)
+      VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iLoop)))
       Gamma = VeloSq/c2
       Gamma = 1./SQRT(1.-Gamma)
       vMPF_oldEngSum = vMPF_oldEngSum+  Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iLoop)) &
                 * (Gamma-1.)*c2
       vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) + Species(SpecID)%MassIC &
-                      * PartMPF(PartStatevMPFSpec(iLoop)) * PartState(PartStatevMPFSpec(iLoop),4:6)*Gamma
+                      * PartMPF(PartStatevMPFSpec(iLoop)) * PartState(4:6,PartStatevMPFSpec(iLoop))*Gamma
     ELSE
       vMPF_oldEngSum = vMPF_oldEngSum+  0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iLoop)) &
-                * (PartState(PartStatevMPFSpec(iLoop),4)**2 + PartState(PartStatevMPFSpec(iLoop),5)**2  &
-                 + PartState(PartStatevMPFSpec(iLoop),6)**2)
+                * (PartState(4,PartStatevMPFSpec(iLoop))**2 + PartState(5,PartStatevMPFSpec(iLoop))**2  &
+                 + PartState(6,PartStatevMPFSpec(iLoop))**2)
       vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) + Species(SpecID)%MassIC &
-                      * PartMPF(PartStatevMPFSpec(iLoop)) * PartState(PartStatevMPFSpec(iLoop),4:6)
+                      * PartMPF(PartStatevMPFSpec(iLoop)) * PartState(4:6,PartStatevMPFSpec(iLoop))
     END IF
-    PartV_2 = PartV_2 + PartState(PartStatevMPFSpec(iLoop),4:6) * PartMPF(PartStatevMPFSpec(iLoop))
-    PartV2 = PartV2 + PartState(PartStatevMPFSpec(iLoop),4:6)**2 * PartMPF(PartStatevMPFSpec(iLoop))
+    PartV_2 = PartV_2 + PartState(4:6,PartStatevMPFSpec(iLoop)) * PartMPF(PartStatevMPFSpec(iLoop))
+    PartV2 = PartV2 + PartState(4:6,PartStatevMPFSpec(iLoop))**2 * PartMPF(PartStatevMPFSpec(iLoop))
     RealPartNum = RealPartNum + PartMPF(PartStatevMPFSpec(iLoop))
-    vMPFOldVelo(1:3, iLoop) = PartState(PartStatevMPFSpec(iLoop),4:6)
-    vMPFOldPos(1:3, iLoop) = PartState(PartStatevMPFSpec(iLoop),1:3)
+    vMPFOldVelo(1:3, iLoop) = PartState(4:6,PartStatevMPFSpec(iLoop))
+    vMPFOldPos(1:3, iLoop) = PartState(1:3,PartStatevMPFSpec(iLoop))
     vMPFOldMPF(iLoop) = PartMPF(PartStatevMPFSpec(iLoop))
     IF (iLoop.GT.FinPartNum) PDM%ParticleInside(PartStatevMPFSpec(iLoop)) = .false.
   END DO
@@ -669,7 +661,7 @@ SUBROUTINE SetMPFParticlePos(FinPartNum,x)
       END DO
       CALL RANDOM_NUMBER(iRan)
     END DO
-    PartState(iLoop, 1:3) = RandVac
+    PartState(1:3,iLoop) = RandVac
   END DO
 
 END SUBROUTINE SetMPFParticlePos
@@ -722,8 +714,7 @@ SUBROUTINE SetMPFParticlePosCube(iElem, FinPartNum)
     RandVac = RandVac * 2.0 - 1.0
     IF(vMPF_velocityDistribution.EQ.'DENSEST')  vMPF_NewPosRefElem(iLoop, 1:3) = RandVac
     CALL TensorProductInterpolation(RandVac,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
-                       XCL_NGeo(:,:,:,:,iElem),PartState(PartStatevMPFSpec(iLoop),1:3))!,iElem)
-    !PartState(PartStatevMPFSpec(iLoop), 1:3) = MapToGeo(RandVac, P)
+                       XCL_NGeo(:,:,:,:,iElem),PartState(1:3,PartStatevMPFSpec(iLoop)))
   END DO
 
 END SUBROUTINE SetMPFParticlePosCube
@@ -799,14 +790,13 @@ DO iLoop = 1, FinPartNum
   IF(PosFailed) EXIT
   IF(vMPF_velocityDistribution.EQ.'DENSEST')  vMPF_NewPosRefElem(iLoop, 1:3) = RandVac
   CALL TensorProductInterpolation(RandVac,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
-                     XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(PartStatevMPFSpec(iLoop),1:3))!,iElem)
-  !PartState(PartStatevMPFSpec(iLoop), 1:3) = MapToGeo(RandVac, P)
+                     XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(1:3,PartStatevMPFSpec(iLoop)))
 END DO
 
 IF(PosFailed) THEN
   DO iLoop = 1, SpecNum
-    PartState(PartStatevMPFSpec(iLoop), 1:3) = vMPFOldPos(1:3,iLoop)
-    PartState(PartStatevMPFSpec(iLoop), 4:6) = vMPFOldVelo(1:3,iLoop)
+    PartState(1:3,PartStatevMPFSpec(iLoop)) = vMPFOldPos(1:3,iLoop)
+    PartState(4:6,PartStatevMPFSpec(iLoop)) = vMPFOldVelo(1:3,iLoop)
     PartMPF(PartStatevMPFSpec(iLoop)) =  vMPFOldMPF(iLoop)
     PDM%ParticleInside(PartStatevMPFSpec(iLoop)) = .true.
   END DO
@@ -886,21 +876,19 @@ SUBROUTINE SetNewVelos(NewPartNum, Temp, SpecNum, SpecID)
       END IF
 
       DO iPart = 1, NewPartNum - 1
-        PartState(PartStatevMPFSpec(iPart),iDir + 3) = 0.0
+        PartState(iDir + 3,PartStatevMPFSpec(iPart)) = 0.0
         DO iLoop =1, DOF_LMInput
-          PartState(PartStatevMPFSpec(iPart),iDir + 3) = PartState(PartStatevMPFSpec(iPart),iDir + 3) + x(iLoop) &
-                            *PartState(PartStatevMPFSpec(iPart), 1)**(vMPF_OrderVec(1,iLoop)) &
-                            *PartState(PartStatevMPFSpec(iPart), 2)**(vMPF_OrderVec(2,iLoop)) &
-                            *PartState(PartStatevMPFSpec(iPart), 3)**(vMPF_OrderVec(3,iLoop))
+          PartState(iDir + 3,PartStatevMPFSpec(iPart)) = PartState(iDir + 3,PartStatevMPFSpec(iPart)) + x(iLoop) &
+                            *PartState(1,PartStatevMPFSpec(iPart))**(vMPF_OrderVec(1,iLoop)) &
+                            *PartState(2,PartStatevMPFSpec(iPart))**(vMPF_OrderVec(2,iLoop)) &
+                            *PartState(3,PartStatevMPFSpec(iPart))**(vMPF_OrderVec(3,iLoop))
         END DO
       END DO
     END DO
 
     IF(vMPF_relativistic) THEN
       DO iPart=1, NewPartNum -1
-        VeloSq = PartState(PartStatevMPFSpec(iPart),4) * PartState(PartStatevMPFSpec(iPart),4) &
-                 + PartState(PartStatevMPFSpec(iPart),5) * PartState(PartStatevMPFSpec(iPart),5) &
-                 + PartState(PartStatevMPFSpec(iPart),6) * PartState(PartStatevMPFSpec(iPart),6)
+        VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
         IF (VeloSQ.GT.c2) THEN
           Csquare=.true.
           RETURN
@@ -910,13 +898,11 @@ SUBROUTINE SetNewVelos(NewPartNum, Temp, SpecNum, SpecID)
         vMPF_oldEngSum = vMPF_oldEngSum - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
                          * (Gamma-1.)*c2
         vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                             * PartState(PartStatevMPFSpec(iPart),4:6)*Gamma
+                             * PartState(4:6,PartStatevMPFSpec(iPart))*Gamma
       END DO
-      PartState(PartStatevMPFSpec(NewPartNum),4:6) = &
+      PartState(4:6,PartStatevMPFSpec(NewPartNum)) = &
                RelVeloFromMom(vMPF_oldMomSum(1:3), SpecID, PartMPF(PartStatevMPFSpec(NewPartNum)))
-      VeloSq = PartState(PartStatevMPFSpec(NewPartNum),4) * PartState(PartStatevMPFSpec(NewPartNum),4) &
-               + PartState(PartStatevMPFSpec(NewPartNum),5) * PartState(PartStatevMPFSpec(NewPartNum),5) &
-               + PartState(PartStatevMPFSpec(NewPartNum),6) * PartState(PartStatevMPFSpec(NewPartNum),6)
+           VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(NewPartNum)))
       IF (VeloSQ.GT.c2) THEN
         Csquare=.true.
         RETURN
@@ -926,22 +912,23 @@ SUBROUTINE SetNewVelos(NewPartNum, Temp, SpecNum, SpecID)
       vMPF_oldEngSum = vMPF_oldEngSum - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
                          * (Gamma-1.)*c2
       vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-                             * PartState(PartStatevMPFSpec(NewPartNum),4:6)*Gamma
+                             * PartState(4:6,PartStatevMPFSpec(NewPartNum))*Gamma
     ELSE
       DO iPart = 1, NewPartNum -1
         vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                * (PartState(PartStatevMPFSpec(iPart),4)**2 + PartState(PartStatevMPFSpec(iPart),5)**2 &
-                + PartState(PartStatevMPFSpec(iPart),6)**2)
+                * (PartState(4,PartStatevMPFSpec(iPart))**2 + PartState(5,PartStatevMPFSpec(iPart))**2 &
+                + PartState(6,PartStatevMPFSpec(iPart))**2)
         vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                             * PartState(PartStatevMPFSpec(iPart),4:6)
+                             * PartState(4:6,PartStatevMPFSpec(iPart))
       END DO
-      PartState(PartStatevMPFSpec(NewPartNum),4:6) = vMPF_oldMomSum(1:3) &
+      PartState(4:6,PartStatevMPFSpec(NewPartNum)) = vMPF_oldMomSum(1:3) &
                       /(Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)))
       vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-                  * (PartState(PartStatevMPFSpec(NewPartNum),4)**2 + PartState(PartStatevMPFSpec(NewPartNum),5)**2 &
-                  + PartState(PartStatevMPFSpec(NewPartNum),6)**2)
+                  * (PartState(4,PartStatevMPFSpec(NewPartNum))**2 + &
+                     PartState(5,PartStatevMPFSpec(NewPartNum))**2 + &
+                     PartState(6,PartStatevMPFSpec(NewPartNum))**2)
       vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-                             * PartState(PartStatevMPFSpec(NewPartNum),4:6)
+                             * PartState(4:6,PartStatevMPFSpec(NewPartNum))
     END IF
   END IF
 
@@ -967,8 +954,8 @@ IF ((vMPF_oldEngSum.GT.0).AND.(.NOT.CSquare).AND.(.NOT.CSquareFP)) THEN
   IF (CSquare) THEN
     SWRITE(*,*) 'Particles could not be merged/split! Continue without merge/split process. v>c'
     DO iPart = 1, SpecNum
-      PartState(PartStatevMPFSpec(iPart), 1:3) = vMPFOldPos(1:3,iPart)
-      PartState(PartStatevMPFSpec(iPart), 4:6) = vMPFOldVelo(1:3,iPart)
+      PartState(1:3,PartStatevMPFSpec(iPart)) = vMPFOldPos(1:3,iPart)
+      PartState(4:6,PartStatevMPFSpec(iPart)) = vMPFOldVelo(1:3,iPart)
       PartMPF(PartStatevMPFSpec(iPart)) =  vMPFOldMPF(iPart)
       PDM%ParticleInside(PartStatevMPFSpec(iPart)) = .true.
     END DO
@@ -983,8 +970,8 @@ IF ((vMPF_oldEngSum.GT.0).AND.(.NOT.CSquare).AND.(.NOT.CSquareFP)) THEN
 ELSE  !IF (vMPF_oldEngSum.LT.0) THEN
   WRITE(*,*) 'Particles could not be merged/split! Continue without merge/split process.'
   DO iPart = 1, SpecNum
-    PartState(PartStatevMPFSpec(iPart), 1:3) = vMPFOldPos(1:3,iPart)
-    PartState(PartStatevMPFSpec(iPart), 4:6) = vMPFOldVelo(1:3,iPart)
+    PartState(1:3,PartStatevMPFSpec(iPart)) = vMPFOldPos(1:3,iPart)
+    PartState(4:6,PartStatevMPFSpec(iPart)) = vMPFOldVelo(1:3,iPart)
     PartMPF(PartStatevMPFSpec(iPart)) =  vMPFOldMPF(iPart)
     PDM%ParticleInside(PartStatevMPFSpec(iPart)) = .true.
   END DO
@@ -1088,9 +1075,9 @@ SUBROUTINE SetNewTemp(PartIndx, Temp, iPart)                                    
    ran2 = 2*RandVal(2) - 1
    SumRan = ran1**2 + ran2**2
   END DO
-  PartState(PartIndx, 4) = PartState(PartIndx, 4) &
+  PartState(4,PartIndx) = PartState(4,PartIndx) &
               + ran1*SQRT(-2*BoltzmannConst*Temp/Species(PartSpecies(PartIndx))%MassIC*LOG(SumRan)/SumRan)
-  PartState(PartIndx, 5) = PartState(PartIndx, 5) &
+  PartState(5,PartIndx) = PartState(5,PartIndx) &
               + ran2*SQRT(-2*BoltzmannConst*Temp/Species(PartSpecies(PartIndx))%MassIC*LOG(SumRan)/SumRan)
 
   SumRan = 2
@@ -1100,14 +1087,14 @@ SUBROUTINE SetNewTemp(PartIndx, Temp, iPart)                                    
    ran2 = 2*RandVal(2) - 1
    SumRan = ran1**2 + ran2**2
   END DO
-  PartState(PartIndx, 6) =PartState(PartIndx, 6) &
+  PartState(6,PartIndx) =PartState(6,PartIndx) &
               + ran1*SQRT(-2*BoltzmannConst*Temp/Species(PartSpecies(PartIndx))%MassIC*LOG(SumRan)/SumRan)
 
   vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(PartSpecies(PartIndx))%MassIC * PartMPF(PartIndx) &
-          * (PartState(PartIndx,4)**2 + PartState(PartIndx,5)**2 &
-          + PartState(PartIndx,6)**2)
+          * (PartState(4,PartIndx)**2 + PartState(5,PartIndx)**2 &
+          + PartState(6,PartIndx)**2)
   vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) - Species(PartSpecies(PartIndx))%MassIC * PartMPF(PartIndx) &
-                       * PartState(PartIndx,4:6)
+                       * PartState(4:6,PartIndx)
   IF(vMPF_oldEngSum.lT.0) then
    print*, 'mist: ', iPart
     read*
@@ -1148,8 +1135,9 @@ SUBROUTINE SetNewTemp_2(Temp, NewPartNum)                                       
 !
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,         ONLY : PartState, Species, PartSpecies, vMPF_oldEngSum, vMPF_oldMomSum, PartMPF, PartStatevMPFSpec
-  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
+  USE MOD_Globals,        ONLY : DOTPRODUCT
+  USE MOD_Particle_Vars,  ONLY : PartState, Species, PartSpecies, vMPF_oldEngSum, vMPF_oldMomSum, PartMPF, PartStatevMPFSpec
+  USE MOD_Globals_Vars,   ONLY : BoltzmannConst
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    !
@@ -1196,35 +1184,31 @@ SUBROUTINE SetNewTemp_2(Temp, NewPartNum)                                       
 
   DO iPart =1, NewPartNum -1
     vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-            * (PartState(PartStatevMPFSpec(iPart),4)**2 + PartState(PartStatevMPFSpec(iPart),5)**2 &
-            + PartState(PartStatevMPFSpec(iPart),6)**2)
+        * DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
     vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                         * PartState(PartStatevMPFSpec(iPart),4:6)
+                         * PartState(4:6,PartStatevMPFSpec(iPart))
 
-    PartState(PartStatevMPFSpec(iPart),4:6) = PartState(PartStatevMPFSpec(iPart),4:6) &
+    PartState(4:6,PartStatevMPFSpec(iPart)) = PartState(4:6,PartStatevMPFSpec(iPart)) &
                         + (PartTemp(iPart,1:3) - v_sum(1:3)) * maxwellfac(1:3)
     vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-            * (PartState(PartStatevMPFSpec(iPart),4)**2 + PartState(PartStatevMPFSpec(iPart),5)**2 &
-            + PartState(PartStatevMPFSpec(iPart),6)**2)
+        * DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
     vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                         * PartState(PartStatevMPFSpec(iPart),4:6)
+                         * PartState(4:6,PartStatevMPFSpec(iPart))
   END DO
 
   vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-          * (PartState(PartStatevMPFSpec(NewPartNum),4)**2 + PartState(PartStatevMPFSpec(NewPartNum),5)**2 &
-          + PartState(PartStatevMPFSpec(NewPartNum),6)**2)
+      * DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(NewPartNum)))
   vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-                         * PartState(PartStatevMPFSpec(NewPartNum),4:6)
+                         * PartState(4:6,PartStatevMPFSpec(NewPartNum))
 
-  PartState(PartStatevMPFSpec(NewPartNum),4:6) =vMPF_oldMomSum(1:3) &
+  PartState(4:6,PartStatevMPFSpec(NewPartNum)) =vMPF_oldMomSum(1:3) &
                         / (Species(SpecID)%MassIC*PartMPF(PartStatevMPFSpec(NewPartNum)) )
   vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-          * (PartState(PartStatevMPFSpec(NewPartNum),4)**2 + PartState(PartStatevMPFSpec(NewPartNum),5)**2 &
-          + PartState(PartStatevMPFSpec(NewPartNum),6)**2)
+      * DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(NewPartNum)))
 
   IF (vMPF_oldEngSum.LT.0.0) THEN
     DO iPart = 1, NewPartNum
-      TempPartVelo(iPart,1:3) = PartState(PartStatevMPFSpec(iPart),4:6)
+      TempPartVelo(iPart,1:3) = PartState(4:6,PartStatevMPFSpec(iPart))
     END DO
 
     iLoop = 0
@@ -1235,22 +1219,22 @@ SUBROUTINE SetNewTemp_2(Temp, NewPartNum)                                       
       iPart = MINLOC(TempPartVelo(:,iDir-3),1)
       IF (iPart2.EQ.iPart) CYCLE
       vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
-              * (PartState(PartStatevMPFSpec(iPart2),iDir)**2)
+              * (PartState(iDir,PartStatevMPFSpec(iPart2))**2)
       vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-              * (PartState(PartStatevMPFSpec(iPart),iDir)**2)
+              * (PartState(iDir,PartStatevMPFSpec(iPart))**2)
 
       CALL RANDOM_NUMBER(ran1)
-      v_merge = (PartState(PartStatevMPFSpec(iPart2),iDir) - PartState(PartStatevMPFSpec(iPart), iDir))
-      PartState(PartStatevMPFSpec(iPart2),iDir)=PartState(PartStatevMPFSpec(iPart),iDir) + v_merge*ran1
-      PartState(PartStatevMPFSpec(iPart), iDir) =PartState(PartStatevMPFSpec(iPart),iDir) + v_merge*(1.0-ran1)
+      v_merge = (PartState(iDir,PartStatevMPFSpec(iPart2)) - PartState(iDir,PartStatevMPFSpec(iPart)))
+      PartState(iDir,PartStatevMPFSpec(iPart2))=PartState(iDir,PartStatevMPFSpec(iPart)) + v_merge*ran1
+      PartState(iDir,PartStatevMPFSpec(iPart)) =PartState(iDir,PartStatevMPFSpec(iPart)) + v_merge*(1.0-ran1)
 
       vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
-              * (PartState(PartStatevMPFSpec(iPart2),iDir)**2)
+              * (PartState(iDir,PartStatevMPFSpec(iPart2))**2)
       vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-              * (PartState(PartStatevMPFSpec(iPart),iDir)**2)
+              * (PartState(iDir,PartStatevMPFSpec(iPart))**2)
       iLoop= iLoop + 1
-      TempPartVelo(iPart,iDir-3)=PartState(PartStatevMPFSpec(iPart), iDir)
-      TempPartVelo(iPart2,iDir-3)=PartState(PartStatevMPFSpec(iPart2), iDir)
+      TempPartVelo(iPart,iDir-3) =PartState(iDir,PartStatevMPFSpec(iPart))
+      TempPartVelo(iPart2,iDir-3)=PartState(iDir,PartStatevMPFSpec(iPart2))
     END DO
     WRITE(*,*)'Loops for energy transformation needed: ', iLoop
   END IF
@@ -1300,9 +1284,7 @@ SUBROUTINE SetNewDistrVelo(NewPartNum, nDist, SpecNum, Csquare)                 
     DO iPart =1, NewPartNum -1
       IF (iDir.EQ.1) THEN
         IF (vMPF_relativistic) THEN
-          VeloSq = PartState(PartStatevMPFSpec(iPart),4) * PartState(PartStatevMPFSpec(iPart),4) &
-           + PartState(PartStatevMPFSpec(iPart),5) * PartState(PartStatevMPFSpec(iPart),5) &
-           + PartState(PartStatevMPFSpec(iPart),6) * PartState(PartStatevMPFSpec(iPart),6)
+          VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
           IF (VeloSQ.GT.c2) THEN
             Csquare=.true.
             RETURN
@@ -1312,13 +1294,12 @@ SUBROUTINE SetNewDistrVelo(NewPartNum, nDist, SpecNum, Csquare)                 
           vMPF_oldEngSum = vMPF_oldEngSum + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
                            * (Gamma-1.)*c2
           vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                               * PartState(PartStatevMPFSpec(iPart),4:6)*Gamma
+                               * PartState(4:6,PartStatevMPFSpec(iPart))*Gamma
         ELSE
           vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                * (PartState(PartStatevMPFSpec(iPart),4)**2 + PartState(PartStatevMPFSpec(iPart),5)**2 &
-                + PartState(PartStatevMPFSpec(iPart),6)**2)
+              * DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
           vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                           * PartState(PartStatevMPFSpec(iPart),4:6)
+                           * PartState(4:6,PartStatevMPFSpec(iPart))
         END IF
       END IF
 
@@ -1331,7 +1312,7 @@ SUBROUTINE SetNewDistrVelo(NewPartNum, nDist, SpecNum, Csquare)                 
         CALL RANDOM_NUMBER(iRan2)
       END DO
       CALL RANDOM_NUMBER(iRan)
-      PartState(PartStatevMPFSpec(iPart),iDir+3) = PartState(PartStatevMPFSpec(iPart),iDir+3) &
+      PartState(iDir+3,PartStatevMPFSpec(iPart)) = PartState(iDir+3,PartStatevMPFSpec(iPart)) &
                           + (v_min + v_width*(iBar-1) + v_width*iRan)
     END DO
   END DO
@@ -1339,9 +1320,7 @@ SUBROUTINE SetNewDistrVelo(NewPartNum, nDist, SpecNum, Csquare)                 
 
   IF (vMPF_relativistic) THEN
     DO iPart=1, NewPartNum -1
-      VeloSq = PartState(PartStatevMPFSpec(iPart),4) * PartState(PartStatevMPFSpec(iPart),4) &
-               + PartState(PartStatevMPFSpec(iPart),5) * PartState(PartStatevMPFSpec(iPart),5) &
-               + PartState(PartStatevMPFSpec(iPart),6) * PartState(PartStatevMPFSpec(iPart),6)
+      VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
       IF (VeloSQ.GT.c2) THEN
         Csquare=.true.
         RETURN
@@ -1351,12 +1330,10 @@ SUBROUTINE SetNewDistrVelo(NewPartNum, nDist, SpecNum, Csquare)                 
       vMPF_oldEngSum = vMPF_oldEngSum - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
                        * (Gamma-1.)*c2
       vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                           * PartState(PartStatevMPFSpec(iPart),4:6)*Gamma
+                           * PartState(4:6,PartStatevMPFSpec(iPart))*Gamma
     END DO
 
-    VeloSq = PartState(PartStatevMPFSpec(NewPartNum),4) * PartState(PartStatevMPFSpec(NewPartNum),4) &
-             + PartState(PartStatevMPFSpec(NewPartNum),5) * PartState(PartStatevMPFSpec(NewPartNum),5) &
-             + PartState(PartStatevMPFSpec(NewPartNum),6) * PartState(PartStatevMPFSpec(NewPartNum),6)
+    VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(NewPartNum)))
     IF (VeloSQ.GT.c2) THEN
       Csquare=.true.
       RETURN
@@ -1366,12 +1343,10 @@ SUBROUTINE SetNewDistrVelo(NewPartNum, nDist, SpecNum, Csquare)                 
     vMPF_oldEngSum = vMPF_oldEngSum + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
                      * (Gamma-1.)*c2
     vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-                               * PartState(PartStatevMPFSpec(NewPartNum),4:6)*Gamma
-    PartState(PartStatevMPFSpec(NewPartNum),4:6) = &
+                               * PartState(4:6,PartStatevMPFSpec(NewPartNum))*Gamma
+    PartState(4:6,PartStatevMPFSpec(NewPartNum)) = &
              RelVeloFromMom(vMPF_oldMomSum(1:3), SpecID, PartMPF(PartStatevMPFSpec(NewPartNum)))
-    VeloSq = PartState(PartStatevMPFSpec(NewPartNum),4) * PartState(PartStatevMPFSpec(NewPartNum),4) &
-             + PartState(PartStatevMPFSpec(NewPartNum),5) * PartState(PartStatevMPFSpec(NewPartNum),5) &
-             + PartState(PartStatevMPFSpec(NewPartNum),6) * PartState(PartStatevMPFSpec(NewPartNum),6)
+         VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(NewPartNum)))
     IF (VeloSQ.GT.c2) THEN
       Csquare=.true.
       RETURN
@@ -1381,31 +1356,28 @@ SUBROUTINE SetNewDistrVelo(NewPartNum, nDist, SpecNum, Csquare)                 
     vMPF_oldEngSum = vMPF_oldEngSum - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
                        * (Gamma-1.)*c2
     vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-                           * PartState(PartStatevMPFSpec(NewPartNum),4:6)*Gamma
+                           * PartState(4:6,PartStatevMPFSpec(NewPartNum))*Gamma
   ELSE
     DO iPart=1, NewPartNum -1
       vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-              * (PartState(PartStatevMPFSpec(iPart),4)**2 + PartState(PartStatevMPFSpec(iPart),5)**2 &
-              + PartState(PartStatevMPFSpec(iPart),6)**2)
+          * DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
       vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                           * PartState(PartStatevMPFSpec(iPart),4:6)
+                           * PartState(4:6,PartStatevMPFSpec(iPart))
     END DO
     vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-            * (PartState(PartStatevMPFSpec(NewPartNum),4)**2 + PartState(PartStatevMPFSpec(NewPartNum),5)**2 &
-            + PartState(PartStatevMPFSpec(NewPartNum),6)**2)
+        * DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(NewPartNum)))
     vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-                           * PartState(PartStatevMPFSpec(NewPartNum),4:6)
-    PartState(PartStatevMPFSpec(NewPartNum),4:6) =vMPF_oldMomSum(1:3) &
+                           * PartState(4:6,PartStatevMPFSpec(NewPartNum))
+    PartState(4:6,PartStatevMPFSpec(NewPartNum)) =vMPF_oldMomSum(1:3) &
                           / (Species(SpecID)%MassIC*PartMPF(PartStatevMPFSpec(NewPartNum)) )
     vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-            * (PartState(PartStatevMPFSpec(NewPartNum),4)**2 + PartState(PartStatevMPFSpec(NewPartNum),5)**2 &
-            + PartState(PartStatevMPFSpec(NewPartNum),6)**2)
+        * DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(NewPartNum)))
   END IF
 
 
   IF (vMPF_oldEngSum.LT.0.0) THEN
     DO iPart = 1, NewPartNum
-      TempPartVelo(iPart,1:3) = PartState(PartStatevMPFSpec(iPart),4:6)
+      TempPartVelo(iPart,1:3) = PartState(4:6,PartStatevMPFSpec(iPart))
     END DO
 
 !!!!!!!!!!!!!!!!!!
@@ -1418,40 +1390,40 @@ SUBROUTINE SetNewDistrVelo(NewPartNum, nDist, SpecNum, Csquare)                 
 !    iPart = MINLOC(TempPartVeloMean(1:NewPartNum,iDir-3),1)
 !    IF (iPart2.EQ.iPart) CYCLE
 !    IF (iPart2.EQ.NewPartNum) THEN
-!      v_merge = PartState(PartStatevMPFSpec(MAXLOC(TempPartVeloMean(1:NewPartNum-1,iDir-3),1)),iDir) &
-!                - PartState(PartStatevMPFSpec(NewPartNum),iDir)
+!      v_merge = PartState(iDir,PartStatevMPFSpec(MAXLOC(TempPartVeloMean(1:NewPartNum-1,iDir-3),1))) &
+!                - PartState(iDir,PartStatevMPFSpec(NewPartNum))
 !      vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-!              * (PartState(PartStatevMPFSpec(NewPartNum),iDir)**2)
-!      PartState(PartStatevMPFSpec(NewPartNum), iDir) = PartState(PartStatevMPFSpec(NewPartNum), iDir) + v_merge
+!              * (PartState(iDir,PartStatevMPFSpec(NewPartNum))**2)
+!      PartState(iDir,PartStatevMPFSpec(NewPartNum)) = PartState(iDir,PartStatevMPFSpec(NewPartNum)) + v_merge
 !      vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-!        * (PartState(PartStatevMPFSpec(NewPartNum),iDir)**2)
-!      TempPartVeloMean(NewPartNum,iDir-3)=PartState(PartStatevMPFSpec(NewPartNum), iDir)
+!        * (PartState(iDir,PartStatevMPFSpec(NewPartNum))**2)
+!      TempPartVeloMean(NewPartNum,iDir-3)=PartState(iDir,PartStatevMPFSpec(NewPartNum))
 !      v_merge = v_merge / (NewPartNum -1)
 !      DO iPart = 1, NewPartNum - 1
 !        vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-!                * (PartState(PartStatevMPFSpec(iPart),iDir)**2)
-!        PartState(PartStatevMPFSpec(iPart), iDir) = PartState(PartStatevMPFSpec(iPart), iDir) - v_merge
+!                * (PartState(iDir,PartStatevMPFSpec(iPart))**2)
+!        PartState(iDir,PartStatevMPFSpec(iPart)) = PartState(iDir,PartStatevMPFSpec(iPart)) - v_merge
 !        vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-!          * (PartState(PartStatevMPFSpec(iPart),iDir)**2)
-!        TempPartVeloMean(iPart,iDir-3)=PartState(PartStatevMPFSpec(iPart), iDir)
+!          * (PartState(iDir,PartStatevMPFSpec(iPart))*2)
+!        TempPartVeloMean(iPart,iDir-3)=PartState(iDir,PartStatevMPFSpec(iPart))
 !      END DO
 !    ELSE IF(iPart.EQ.NewPartNum) THEN
-!      v_merge = PartState(PartStatevMPFSpec(MINLOC(TempPartVeloMean(1:NewPartNum-1,iDir-3),1)),iDir) &
-!                 - PartState(PartStatevMPFSpec(NewPartNum),iDir)
+!      v_merge = PartState(iDir,PartStatevMPFSpec(MINLOC(TempPartVeloMean(1:NewPartNum-1,iDir-3),1))) &
+!                 - PartState(iDir,PartStatevMPFSpec(NewPartNum))
 !      vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-!              * (PartState(PartStatevMPFSpec(NewPartNum),iDir)**2)
-!      PartState(PartStatevMPFSpec(NewPartNum), iDir) = PartState(PartStatevMPFSpec(NewPartNum), iDir) + v_merge
+!              * (PartState(iDir,PartStatevMPFSpec(NewPartNum))**2)
+!      PartState(iDir,PartStatevMPFSpec(NewPartNum)) = PartState(iDir,PartStatevMPFSpec(NewPartNum)) + v_merge
 !      vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-!        * (PartState(PartStatevMPFSpec(NewPartNum),iDir)**2)
-!      TempPartVeloMean(NewPartNum,iDir-3)=PartState(PartStatevMPFSpec(NewPartNum), iDir)
+!        * (PartState(iDir,PartStatevMPFSpec(NewPartNum))**2)
+!      TempPartVeloMean(NewPartNum,iDir-3)=PartState(iDir,PartStatevMPFSpec(NewPartNum))
 !      v_merge = v_merge / (NewPartNum -1)
 !      DO iPart = 1, NewPartNum - 1
 !        vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-!                * (PartState(PartStatevMPFSpec(iPart),iDir)**2)
-!        PartState(PartStatevMPFSpec(iPart), iDir) = PartState(PartStatevMPFSpec(iPart), iDir) - v_merge
+!                * (PartState(iDir,PartStatevMPFSpec(NewPartNum)))**2)
+!        PartState(iDir,PartStatevMPFSpec(NewPartNum)) = PartState(iDir,PartStatevMPFSpec(NewPartNum)) - v_merge
 !        vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-!          * (PartState(PartStatevMPFSpec(iPart),iDir)**2)
-!        TempPartVeloMean(iPart,iDir-3)=PartState(PartStatevMPFSpec(iPart), iDir)
+!          * (PartState(iDir,PartStatevMPFSpec(NewPartNum)))**2)
+!        TempPartVeloMean(iPart,iDir-3)=PartState(iDir,PartStatevMPFSpec(NewPartNum))
 !      END DO
 !    END IF
 !  END DO
@@ -1487,27 +1459,27 @@ SUBROUTINE SetNewDistrVelo(NewPartNum, nDist, SpecNum, Csquare)                 
 !      IF (iPart2.EQ.iPart) CYCLE
 !      vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC &
 !               * PartMPF(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart2))) &
-!              * (PartState(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart2)),iDir)**2)
+!              * (PartState(iDir,PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart2)))**2)
 !      vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart))) &
-!              * (PartState(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart)),iDir)**2)
+!              * (PartState(iDir,PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart)))**2)
 !      CALL RANDOM_NUMBER(ran1)
-!      v_merge = (PartState(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart2)),iDir) &
-!                - PartState(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart)), iDir))
-!      PartState(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart2)),iDir)= &
-!                PartState(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart)),iDir) + v_merge*ran1
-!      PartState(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart)),iDir) = &
-!                PartState(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart)),iDir) + v_merge*(1.0-ran1)
+!      v_merge = (PartState(iDir,PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart2))) &
+!                - PartState(iDir,PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart))))
+!      PartState(iDir,PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart2)))= &
+!                PartState(iDir,PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart))) + v_merge*ran1
+!      PartState(iDir,PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart))) = &
+!                PartState(iDir,PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart))) + v_merge*(1.0-ran1)
 !      vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC &
 !              * PartMPF(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart2))) &
-!              * (PartState(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart2)),iDir)**2)
+!              * (PartState(iDir,PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart2)))**2)
 !      vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC &
 !              * PartMPF(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart))) &
-!              * (PartState(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart)),iDir)**2)
+!              * (PartState(iDir,PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart)))**2)
 !      iLoop= iLoop + 1
-!      velosbar(iBar,iDir-3, iPart) = PartState(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart)),iDir)
-!      velosbar(iBar,iDir-3, iPart2) = PartState(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart2)),iDir)
-!      TempPartVeloMean(partindxbar(iBar,iDir-3,iPart),iDir-3) = PartState(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart)),iDir)
-!      TempPartVeloMean(partindxbar(iBar,iDir-3,iPart2),iDir-3)= PartState(PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart2)),iDir)
+!      velosbar(iBar,iDir-3, iPart) = PartState(iDir,PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart)))
+!      velosbar(iBar,iDir-3, iPart2) = PartState(iDir,PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart2)))
+!      TempPartVeloMean(partindxbar(iBar,iDir-3,iPart),iDir-3) = PartState(iDir,PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart)))
+!      TempPartVeloMean(partindxbar(iBar,iDir-3,iPart2),iDir-3)= PartState(iDir,PartStatevMPFSpec(partindxbar(iBar,iDir-3,iPart2)))
 !    ELSE
 !!!!!!!!!!!!!!!
 
@@ -1519,81 +1491,71 @@ SUBROUTINE SetNewDistrVelo(NewPartNum, nDist, SpecNum, Csquare)                 
       iPart = MINLOC(TempPartVelo(:,iDir-3),1)
       IF (iPart2.EQ.iPart) CYCLE
       IF (vMPF_relativistic) THEN
-        VeloSq = PartState(PartStatevMPFSpec(iPart2),4) * PartState(PartStatevMPFSpec(iPart2),4) &
-             + PartState(PartStatevMPFSpec(iPart2),5) * PartState(PartStatevMPFSpec(iPart2),5) &
-             + PartState(PartStatevMPFSpec(iPart2),6) * PartState(PartStatevMPFSpec(iPart2),6)
+        VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart2)))
         Gamma = VeloSq/c2
         Gamma = 1./SQRT(1.-Gamma)
         vMPF_oldEngSum = vMPF_oldEngSum + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
                        * (Gamma-1.)*c2
         vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3)  + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
-                           * PartState(PartStatevMPFSpec(iPart2),4:6)*Gamma
-        VeloSq = PartState(PartStatevMPFSpec(iPart),4) * PartState(PartStatevMPFSpec(iPart),4) &
-             + PartState(PartStatevMPFSpec(iPart),5) * PartState(PartStatevMPFSpec(iPart),5) &
-             + PartState(PartStatevMPFSpec(iPart),6) * PartState(PartStatevMPFSpec(iPart),6)
+                           * PartState(4:6,PartStatevMPFSpec(iPart2))*Gamma
+                       VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
         Gamma = VeloSq/c2
         Gamma = 1./SQRT(1.-Gamma)
         vMPF_oldEngSum = vMPF_oldEngSum + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
                        * (Gamma-1.)*c2
         vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3)  + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                           * PartState(PartStatevMPFSpec(iPart),4:6)*Gamma
+                           * PartState(4:6,PartStatevMPFSpec(iPart))*Gamma
         CALL RANDOM_NUMBER(ran1)
-        v_merge = (PartState(PartStatevMPFSpec(iPart2),iDir) - PartState(PartStatevMPFSpec(iPart), iDir))
-        PartState(PartStatevMPFSpec(iPart2),iDir)=PartState(PartStatevMPFSpec(iPart),iDir) + v_merge*ran1
+        v_merge = (PartState(iDir,PartStatevMPFSpec(iPart2)) - PartState(iDir,PartStatevMPFSpec(iPart)))
+        PartState(iDir,PartStatevMPFSpec(iPart2))=PartState(iDir,PartStatevMPFSpec(iPart)) + v_merge*ran1
         !hier mal nur für eine impulsrichtung einbauen!!
-        VeloSq = PartState(PartStatevMPFSpec(iPart2),4) * PartState(PartStatevMPFSpec(iPart2),4) &
-             + PartState(PartStatevMPFSpec(iPart2),5) * PartState(PartStatevMPFSpec(iPart2),5) &
-             + PartState(PartStatevMPFSpec(iPart2),6) * PartState(PartStatevMPFSpec(iPart2),6)
+        VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart2)))
         Gamma = VeloSq/c2
         Gamma = 1./SQRT(1.-Gamma)
         vMPF_oldEngSum = vMPF_oldEngSum - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
                        * (Gamma-1.)*c2
         vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3)  - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
-                           * PartState(PartStatevMPFSpec(iPart2),4:6)*Gamma
-        PartState(PartStatevMPFSpec(iPart),4:6) = RelVeloFromMom(vMPF_oldMomSum(1:3), SpecID, PartMPF(PartStatevMPFSpec(iPart)))
-        VeloSq = PartState(PartStatevMPFSpec(iPart),4) * PartState(PartStatevMPFSpec(iPart),4) &
-             + PartState(PartStatevMPFSpec(iPart),5) * PartState(PartStatevMPFSpec(iPart),5) &
-             + PartState(PartStatevMPFSpec(iPart),6) * PartState(PartStatevMPFSpec(iPart),6)
+                           * PartState(4:6,PartStatevMPFSpec(iPart2))*Gamma
+        PartState(4:6,PartStatevMPFSpec(iPart)) = RelVeloFromMom(vMPF_oldMomSum(1:3), SpecID, PartMPF(PartStatevMPFSpec(iPart)))
+        VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
         Gamma = VeloSq/c2
         Gamma = 1./SQRT(1.-Gamma)
         vMPF_oldEngSum = vMPF_oldEngSum - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
                        * (Gamma-1.)*c2
         vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3)  - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                           * PartState(PartStatevMPFSpec(iPart),4:6)*Gamma
+                           * PartState(4:6,PartStatevMPFSpec(iPart))*Gamma
         iLoop= iLoop + 1
-        TempPartVelo(iPart,iDir-3)=PartState(PartStatevMPFSpec(iPart), iDir)
-        TempPartVelo(iPart2,iDir-3)=PartState(PartStatevMPFSpec(iPart2), iDir)
+        TempPartVelo(iPart,iDir-3)=PartState(iDir,PartStatevMPFSpec(iPart))
+        TempPartVelo(iPart2,iDir-3)=PartState(iDir,PartStatevMPFSpec(iPart2))
         IF(iLoop.GT.50000) THEN
             Csquare=.true.
             RETURN
         END IF
       ELSE
         vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
-                * (PartState(PartStatevMPFSpec(iPart2),iDir)**2)
+                * (PartState(iDir,PartStatevMPFSpec(iPart2))**2)
         vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                * (PartState(PartStatevMPFSpec(iPart),iDir)**2)
+                * (PartState(iDir,PartStatevMPFSpec(iPart))**2)
 
         CALL RANDOM_NUMBER(ran1)
-        v_merge = (PartState(PartStatevMPFSpec(iPart2),iDir) - PartState(PartStatevMPFSpec(iPart), iDir))
-        PartState(PartStatevMPFSpec(iPart2),iDir)=PartState(PartStatevMPFSpec(iPart),iDir) + v_merge*ran1
-        PartState(PartStatevMPFSpec(iPart), iDir) =PartState(PartStatevMPFSpec(iPart),iDir) + v_merge*(1.0-ran1)
+        v_merge = (PartState(iDir,PartStatevMPFSpec(iPart2)) - PartState(iDir,PartStatevMPFSpec(iPart)))
+        PartState(iDir,PartStatevMPFSpec(iPart2))=PartState(iDir,PartStatevMPFSpec(iPart)) + v_merge*ran1
+        PartState(iDir,PartStatevMPFSpec(iPart)) =PartState(iDir,PartStatevMPFSpec(iPart)) + v_merge*(1.0-ran1)
 
         vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
-                * (PartState(PartStatevMPFSpec(iPart2),iDir)**2)
+                * (PartState(iDir,PartStatevMPFSpec(iPart2))**2)
         vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                * (PartState(PartStatevMPFSpec(iPart),iDir)**2)
+                * (PartState(iDir,PartStatevMPFSpec(iPart))**2)
         iLoop= iLoop + 1
-        TempPartVelo(iPart,iDir-3)=PartState(PartStatevMPFSpec(iPart), iDir)
-        TempPartVelo(iPart2,iDir-3)=PartState(PartStatevMPFSpec(iPart2), iDir)
+        TempPartVelo(iPart,iDir-3)=PartState(iDir,PartStatevMPFSpec(iPart))
+        TempPartVelo(iPart2,iDir-3)=PartState(iDir,PartStatevMPFSpec(iPart2))
       END IF
     END DO
     SWRITE(*,*)'Loops for energy transformation needed: ', iLoop
   END IF
 
   DO iPart = 1, NewPartNum
-      VeloSQ = PartState(PartStatevMPFSpec(iPart),4)*PartState(PartStatevMPFSpec(iPart),4) &
-            + PartState(PartStatevMPFSpec(iPart),5) * PartState(PartStatevMPFSpec(iPart),5) &
-            + PartState(PartStatevMPFSpec(iPart),6) * PartState(PartStatevMPFSpec(iPart),6)
+    VeloSQ = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
     IF (VeloSQ.GT.c2) THEN
       Csquare=.true.
       EXIT
@@ -1673,15 +1635,13 @@ DO iDir = 1, 3
           RETURN
       END IF
     END DO
-    PartState(PartStatevMPFSpec(iPart),iDir+3) = 0.5*(iRan+1.0)*(v_max-v_min)+v_min
+    PartState(iDir+3,PartStatevMPFSpec(iPart)) = 0.5*(iRan+1.0)*(v_max-v_min)+v_min
   END DO
 END DO
 
 IF (vMPF_relativistic) THEN
   DO iPart=1, NewPartNum -1
-    VeloSq = PartState(PartStatevMPFSpec(iPart),4) * PartState(PartStatevMPFSpec(iPart),4) &
-             + PartState(PartStatevMPFSpec(iPart),5) * PartState(PartStatevMPFSpec(iPart),5) &
-             + PartState(PartStatevMPFSpec(iPart),6) * PartState(PartStatevMPFSpec(iPart),6)
+    VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
     IF (VeloSQ.GT.c2) THEN
       Csquare=.true.
       RETURN
@@ -1691,12 +1651,10 @@ IF (vMPF_relativistic) THEN
     vMPF_oldEngSum = vMPF_oldEngSum - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
                      * (Gamma-1.)*c2
     vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                         * PartState(PartStatevMPFSpec(iPart),4:6)*Gamma
+                         * PartState(4:6,PartStatevMPFSpec(iPart))*Gamma
   END DO
-  PartState(PartStatevMPFSpec(NewPartNum),4:6) = RelVeloFromMom(vMPF_oldMomSum(1:3), SpecID, PartMPF(PartStatevMPFSpec(NewPartNum)))
-  VeloSq = PartState(PartStatevMPFSpec(NewPartNum),4) * PartState(PartStatevMPFSpec(NewPartNum),4) &
-           + PartState(PartStatevMPFSpec(NewPartNum),5) * PartState(PartStatevMPFSpec(NewPartNum),5) &
-           + PartState(PartStatevMPFSpec(NewPartNum),6) * PartState(PartStatevMPFSpec(NewPartNum),6)
+  PartState(4:6,PartStatevMPFSpec(NewPartNum)) = RelVeloFromMom(vMPF_oldMomSum(1:3), SpecID, PartMPF(PartStatevMPFSpec(NewPartNum)))
+  VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(NewPartNum)))
   IF (VeloSQ.GT.c2) THEN
     Csquare=.true.
     RETURN
@@ -1706,25 +1664,23 @@ IF (vMPF_relativistic) THEN
   vMPF_oldEngSum = vMPF_oldEngSum - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
                      * (Gamma-1.)*c2
   vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-                         * PartState(PartStatevMPFSpec(NewPartNum),4:6)*Gamma
+                         * PartState(4:6,PartStatevMPFSpec(NewPartNum))*Gamma
 ELSE
   DO iPart=1, NewPartNum -1
     vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-            * (PartState(PartStatevMPFSpec(iPart),4)**2 + PartState(PartStatevMPFSpec(iPart),5)**2 &
-            + PartState(PartStatevMPFSpec(iPart),6)**2)
+        * DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
     vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3) - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                         * PartState(PartStatevMPFSpec(iPart),4:6)
+                         * PartState(4:6,PartStatevMPFSpec(iPart))
   END DO
-  PartState(PartStatevMPFSpec(NewPartNum),4:6) =vMPF_oldMomSum(1:3) &
+  PartState(4:6,PartStatevMPFSpec(NewPartNum)) =vMPF_oldMomSum(1:3) &
                         / (Species(SpecID)%MassIC*PartMPF(PartStatevMPFSpec(NewPartNum)) )
   vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(NewPartNum)) &
-          * (PartState(PartStatevMPFSpec(NewPartNum),4)**2 + PartState(PartStatevMPFSpec(NewPartNum),5)**2 &
-          + PartState(PartStatevMPFSpec(NewPartNum),6)**2)
+      * DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(NewPartNum)))
 END IF
 
 IF (vMPF_oldEngSum.LT.0.0) THEN
   DO iPart = 1, NewPartNum
-    TempPartVelo(iPart,1:3) = PartState(PartStatevMPFSpec(iPart),4:6)
+    TempPartVelo(iPart,1:3) = PartState(4:6,PartStatevMPFSpec(iPart))
   END DO
 
   iLoop = 0
@@ -1736,72 +1692,64 @@ IF (vMPF_oldEngSum.LT.0.0) THEN
     iPart = MINLOC(TempPartVelo(:,iDir-3),1)
     IF (iPart2.EQ.iPart) CYCLE
    IF (vMPF_relativistic) THEN
-      VeloSq = PartState(PartStatevMPFSpec(iPart2),4) * PartState(PartStatevMPFSpec(iPart2),4) &
-           + PartState(PartStatevMPFSpec(iPart2),5) * PartState(PartStatevMPFSpec(iPart2),5) &
-           + PartState(PartStatevMPFSpec(iPart2),6) * PartState(PartStatevMPFSpec(iPart2),6)
+     VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart2)))
       Gamma = VeloSq/c2
       Gamma = 1./SQRT(1.-Gamma)
       vMPF_oldEngSum = vMPF_oldEngSum + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
                      * (Gamma-1.)*c2
       vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3)  + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
-                         * PartState(PartStatevMPFSpec(iPart2),4:6)*Gamma
-      VeloSq = PartState(PartStatevMPFSpec(iPart),4) * PartState(PartStatevMPFSpec(iPart),4) &
-           + PartState(PartStatevMPFSpec(iPart),5) * PartState(PartStatevMPFSpec(iPart),5) &
-           + PartState(PartStatevMPFSpec(iPart),6) * PartState(PartStatevMPFSpec(iPart),6)
+                         * PartState(4:6,PartStatevMPFSpec(iPart2))*Gamma
+                     VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
       Gamma = VeloSq/c2
       Gamma = 1./SQRT(1.-Gamma)
       vMPF_oldEngSum = vMPF_oldEngSum + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
                      * (Gamma-1.)*c2
       vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3)  + Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                         * PartState(PartStatevMPFSpec(iPart),4:6)*Gamma
+                         * PartState(4:6,PartStatevMPFSpec(iPart))*Gamma
       CALL RANDOM_NUMBER(ran1)
-      v_merge = (PartState(PartStatevMPFSpec(iPart2),iDir) - PartState(PartStatevMPFSpec(iPart), iDir))
-      PartState(PartStatevMPFSpec(iPart2),iDir)=PartState(PartStatevMPFSpec(iPart),iDir) + v_merge*ran1
+      v_merge = (PartState(iDir,PartStatevMPFSpec(iPart2)) - PartState(iDir,PartStatevMPFSpec(iPart)))
+      PartState(iDir,PartStatevMPFSpec(iPart2))=PartState(iDir,PartStatevMPFSpec(iPart)) + v_merge*ran1
       !hier mal nur für eine impulsrichtung einbauen!!
-      VeloSq = PartState(PartStatevMPFSpec(iPart2),4) * PartState(PartStatevMPFSpec(iPart2),4) &
-           + PartState(PartStatevMPFSpec(iPart2),5) * PartState(PartStatevMPFSpec(iPart2),5) &
-           + PartState(PartStatevMPFSpec(iPart2),6) * PartState(PartStatevMPFSpec(iPart2),6)
+      VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart2)))
       Gamma = VeloSq/c2
       Gamma = 1./SQRT(1.-Gamma)
       vMPF_oldEngSum = vMPF_oldEngSum - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
                      * (Gamma-1.)*c2
       vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3)  - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
-                         * PartState(PartStatevMPFSpec(iPart2),4:6)*Gamma
-      PartState(PartStatevMPFSpec(iPart),4:6) = RelVeloFromMom(vMPF_oldMomSum(1:3), SpecID, PartMPF(PartStatevMPFSpec(iPart)))
-      VeloSq = PartState(PartStatevMPFSpec(iPart),4) * PartState(PartStatevMPFSpec(iPart),4) &
-           + PartState(PartStatevMPFSpec(iPart),5) * PartState(PartStatevMPFSpec(iPart),5) &
-           + PartState(PartStatevMPFSpec(iPart),6) * PartState(PartStatevMPFSpec(iPart),6)
+                         * PartState(4:6,PartStatevMPFSpec(iPart2))*Gamma
+      PartState(4:6,PartStatevMPFSpec(iPart)) = RelVeloFromMom(vMPF_oldMomSum(1:3), SpecID, PartMPF(PartStatevMPFSpec(iPart)))
+      VeloSq = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
       Gamma = VeloSq/c2
       Gamma = 1./SQRT(1.-Gamma)
       vMPF_oldEngSum = vMPF_oldEngSum - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
                      * (Gamma-1.)*c2
       vMPF_oldMomSum(1:3) = vMPF_oldMomSum(1:3)  - Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-                         * PartState(PartStatevMPFSpec(iPart),4:6)*Gamma
+                         * PartState(4:6,PartStatevMPFSpec(iPart))*Gamma
       iLoop= iLoop + 1
-      TempPartVelo(iPart,iDir-3)=PartState(PartStatevMPFSpec(iPart), iDir)
-      TempPartVelo(iPart2,iDir-3)=PartState(PartStatevMPFSpec(iPart2), iDir)
+      TempPartVelo(iPart,iDir-3)=PartState(iDir,PartStatevMPFSpec(iPart))
+      TempPartVelo(iPart2,iDir-3)=PartState(iDir,PartStatevMPFSpec(iPart2))
       IF(iLoop.GT.50000) THEN
           Csquare=.true.
           RETURN
       END IF
     ELSE
       vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
-              * (PartState(PartStatevMPFSpec(iPart2),iDir)**2)
+              * (PartState(iDir,PartStatevMPFSpec(iPart2))**2)
       vMPF_oldEngSum = vMPF_oldEngSum + 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-              * (PartState(PartStatevMPFSpec(iPart),iDir)**2)
+              * (PartState(iDir,PartStatevMPFSpec(iPart))**2)
 
       CALL RANDOM_NUMBER(ran1)
-      v_merge = (PartState(PartStatevMPFSpec(iPart2),iDir) - PartState(PartStatevMPFSpec(iPart), iDir))
-      PartState(PartStatevMPFSpec(iPart2),iDir)=PartState(PartStatevMPFSpec(iPart),iDir) + v_merge*ran1
-      PartState(PartStatevMPFSpec(iPart), iDir) =PartState(PartStatevMPFSpec(iPart),iDir) + v_merge*(1.0-ran1)
+      v_merge = (PartState(iDir,PartStatevMPFSpec(iPart2)) - PartState(iDir,PartStatevMPFSpec(iPart)))
+      PartState(iDir,PartStatevMPFSpec(iPart2))=PartState(iDir,PartStatevMPFSpec(iPart)) + v_merge*ran1
+      PartState(iDir,PartStatevMPFSpec(iPart)) =PartState(iDir,PartStatevMPFSpec(iPart)) + v_merge*(1.0-ran1)
 
       vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart2)) &
-              * (PartState(PartStatevMPFSpec(iPart2),iDir)**2)
+              * (PartState(iDir,PartStatevMPFSpec(iPart2))**2)
       vMPF_oldEngSum = vMPF_oldEngSum - 0.5 * Species(SpecID)%MassIC * PartMPF(PartStatevMPFSpec(iPart)) &
-              * (PartState(PartStatevMPFSpec(iPart),iDir)**2)
+              * (PartState(iDir,PartStatevMPFSpec(iPart))**2)
       iLoop= iLoop + 1
-      TempPartVelo(iPart,iDir-3)=PartState(PartStatevMPFSpec(iPart), iDir)
-      TempPartVelo(iPart2,iDir-3)=PartState(PartStatevMPFSpec(iPart2), iDir)
+      TempPartVelo(iPart,iDir-3)=PartState(iDir,PartStatevMPFSpec(iPart))
+      TempPartVelo(iPart2,iDir-3)=PartState(iDir,PartStatevMPFSpec(iPart2))
       IF(iLoop.GT.200000) THEN
         Csquare=.true.
         RETURN
@@ -1812,9 +1760,7 @@ IF (vMPF_oldEngSum.LT.0.0) THEN
 END IF
 
 DO iPart = 1, NewPartNum
-    VeloSQ = PartState(PartStatevMPFSpec(iPart),4)*PartState(PartStatevMPFSpec(iPart),4) &
-          + PartState(PartStatevMPFSpec(iPart),5) * PartState(PartStatevMPFSpec(iPart),5) &
-          + PartState(PartStatevMPFSpec(iPart),6) * PartState(PartStatevMPFSpec(iPart),6)
+  VeloSQ = DOTPRODUCT(PartState(4:6,PartStatevMPFSpec(iPart)))
   IF (VeloSQ.GT.c2) THEN
     Csquare=.true.
     EXIT

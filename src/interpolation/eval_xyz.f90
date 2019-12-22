@@ -59,11 +59,12 @@ SUBROUTINE EvaluateFieldAtPhysPos(x_in,NVar,N_in,U_In,U_Out,ElemID,PartID)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars,      ONLY:xGP,wBary
-USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
-USE MOD_PICInterpolation_Vars,   ONLY:NBG,BGField,useBGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
-USE MOD_Mesh_Vars,               ONLY:CurvedElem,wBaryCL_NGeo1,XiCL_NGeo1
+USE MOD_Basis                 ,ONLY: LagrangeInterpolationPolys
+USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary
+USE MOD_Mesh_Vars             ,ONLY: dXCL_NGeo,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_PICInterpolation_Vars ,ONLY: useBGField
+USE MOD_Interpolation_Vars    ,ONLY: NBG,BGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
+USE MOD_Mesh_Vars             ,ONLY: CurvedElem,wBaryCL_NGeo1,XiCL_NGeo1
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -81,7 +82,6 @@ REAL,INTENT(OUT)    :: U_Out(1:NVar)                         !< Interpolated sta
 ! LOCAL VARIABLES
 INTEGER             :: i,j,k
 REAL                :: xi(3)
-REAL, PARAMETER     :: EPSONE=1.00000001
 REAL                :: L_xi(3,0:PP_N), L_eta_zeta
 REAL                :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)
@@ -279,9 +279,10 @@ SUBROUTINE EvaluateFieldAtRefPos(xi_in,NVar,N_in,U_In,U_Out,ElemID)
 !> 2) interpolate backgroundfield to position ( U_Out -> U_Out(xi_in)+BG_field(xi_in) )
 !===================================================================================================================================
 ! MODULES
-USE MOD_Basis,                 ONLY: LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars,    ONLY: wBary,xGP
-USE MOD_PICInterpolation_Vars, ONLY:NBG,BGField,useBGField,BGDataSize,BGField_xGP,BGField_wBary,BGType
+USE MOD_Basis                 ,ONLY: LagrangeInterpolationPolys
+USE MOD_Interpolation_Vars    ,ONLY: wBary,xGP
+USE MOD_PICInterpolation_Vars ,ONLY: useBGField
+USE MOD_Interpolation_Vars    ,ONLY: NBG,BGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -494,9 +495,15 @@ DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
   ELSE !shit
    ! Newton has not converged !?!?
    IF(Mode.EQ.1)THEN
+      IPWRITE(UNIT_stdOut,*) ' Particle not inside of element!'
+      IPWRITE(UNIT_stdOut,*) ' sdetJac     ', sdetJac
+      IPWRITE(UNIT_stdOut,*) ' Newton-Iter ', NewtonIter
+      IPWRITE(UNIT_stdOut,*) ' xi          ', xi(1:3)
+      IPWRITE(UNIT_stdOut,*) ' PartPos     ', X_in
+      IPWRITE(UNIT_stdOut,*) ' ElemID      ', ElemID
     CALL abort(&
 __STAMP__&
-, 'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sDetJac)
+, 'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sdetJac)
    ELSE
      Xi(1)=HUGE(1.0)
      Xi(2)=Xi(1)
@@ -547,16 +554,17 @@ __STAMP__&
   IF(ANY(ABS(Xi).GT.1.5)) THEN
     IF(Mode.EQ.1)THEN
       IPWRITE(UNIT_stdOut,*) ' Particle not inside of element, force!!!'
-      IPWRITE(UNIT_stdOut,*) ' Newton-Iter', NewtonIter
-      IPWRITE(UNIT_stdOut,*) ' xi  ', xi(1:3)
-      IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
-      IPWRITE(UNIT_stdOut,*) ' ElemID', ElemID+offSetElem
+      IPWRITE(UNIT_stdOut,*) ' Newton-Iter      ', NewtonIter
+      IPWRITE(UNIT_stdOut,*) ' xi               ', xi(1:3)
+      IPWRITE(UNIT_stdOut,*) ' PartPos          ', X_in
+      IPWRITE(UNIT_stdOut,*) ' ElemID           ', ElemID
+      IPWRITE(UNIT_stdOut,*) ' ElemID+offSetElem', ElemID+offSetElem
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
 #if defined(IMPA)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartisImplicit(PartID)
 #endif
 #if defined(IMAP) || defined(ROS)
-      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' last?', LastPartPos(PartID,1:3)
+      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' last?', LastPartPos(1:3,PartID)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' ElemID-N', PEM%ElementN(PartID)+offSetElem
 #endif /*IMPA or ROS*/
         CALL abort(&

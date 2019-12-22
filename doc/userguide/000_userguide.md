@@ -7,12 +7,14 @@ author:
   - Institute for Aerodynamics and Gas Dynamics (IAG)
   - Institute for Space Systems (IRS)
   - University of Stuttgart, Germany
+  - boltzplatz - Numerical Plasma Dynamics
 institute: IAG IRS
 date: \today
 documentclass: scrreprt
 lang: en-US
 papersize: a4
-geometry: "left=2.5cm,right=2.5cm,top=3.5cm,bottom=3.5cm"
+fontsize: 11pt
+geometry: "left=2.0cm,right=2.0cm,top=3.5cm,bottom=2.5cm"
 colorlinks: yes
 toc: yes
 header-includes:
@@ -26,7 +28,7 @@ link-citations: true
 
 # Introduction
 
- [**PICLas**](http://https://github.com/piclas-framework/piclas)  is a three-dimensional simulation
+ [**PICLas**](https://github.com/piclas-framework/piclas)  is a three-dimensional simulation
  framework for Particle-in-Cell, Direct Simulation Monte Carlo and other particle methods that can be coupled for
  the simulation of collisional plasma flows.
  It features a high-order discontinuous 
@@ -58,7 +60,8 @@ the simulation code's features from a user and a developer point of view.
   provides an overview of the whole simulation framework and the currently implemented features.
 * Chapter \ref{chap:workflow} outlines the workflow starting with mesh generation and concluding with the visualization of results produced with **PICLas**.
 * Chapter \ref{chap:features_models} shall serve as a reference for the models and features implemented in **PICLas**.
-* Chapter \ref{chap:tools} lists tools within the **PICLas** repository, including the post-processing tools. 
+* Chapter \ref{chap:visu_output} presents the options and parameters for the output of particle data, field and flow variables.
+* Chapter \ref{chap:tools} lists tools within the **PICLas** repository, including the post-processing tools.
 * Simulation tutorials are contained in Chapter \ref{chap:tutorials}.
 * Cluster-specific user guidelines are given in Chapter \ref{chap:cluster_guide}.
 <!-- * A complete list of all parameters is given in Chapter \ref{chap:parameterfile}. -->
