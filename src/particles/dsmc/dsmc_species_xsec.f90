@@ -91,7 +91,6 @@ SUBROUTINE ReadCollXSec(iSpec,dsetname)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_Globals_Vars,         ONLY: BoltzmannConst
 USE MOD_DSMC_Vars,            ONLY: MCC_Database, SpecDSMC
 USE MOD_HDF5_Input,           ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING

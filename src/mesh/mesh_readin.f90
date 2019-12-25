@@ -84,7 +84,7 @@ USE MOD_Mesh_Vars   ,ONLY: BoundaryName,BoundaryType,nBCs,nUserBCs
 #if USE_HDG
 USE MOD_Mesh_Vars   ,ONLY: ChangedPeriodicBC
 #endif /*USE_HDG*/
-USE MOD_ReadInTools ,ONLY: GETINTARRAY,CNTSTR,GETSTR
+USE MOD_ReadInTools ,ONLY: GETINTARRAY,CountOption,GETSTR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -100,7 +100,7 @@ INTEGER                        :: iBC,iUserBC
 INTEGER                        :: Offset=0 ! Every process reads all BCs
 !===================================================================================================================================
 ! read in boundary conditions from ini file, will overwrite BCs from meshfile!
-nUserBCs = CNTSTR('BoundaryName')
+nUserBCs = CountOption('BoundaryName')
 IF(nUserBCs.GT.0)THEN
   ALLOCATE(BoundaryName(1:nUserBCs))
   ALLOCATE(BoundaryType(1:nUserBCs,2))
@@ -462,7 +462,7 @@ DO iElem=FirstElemInd,LastElemInd
 
     IF(aSide%MortarType.LE.0)THEN
       aSide%Elem=>aElem
-      oriented=(Sideinfo(SIDE_ID,iSide).GT.0)
+      oriented=(SideInfo(SIDE_ID,iSide).GT.0)
       aSide%Ind=ABS(SideInfo(SIDE_ID,iSide))
       IF(oriented)THEN !oriented side
         aSide%flip=0

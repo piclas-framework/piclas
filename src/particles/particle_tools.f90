@@ -29,8 +29,24 @@ INTERFACE VeloFromDistribution
   MODULE PROCEDURE VeloFromDistribution
 END INTERFACE
 
-INTERFACE CreateParticle
-  MODULE PROCEDURE CreateParticle
+INTERFACE LIQUIDEVAP
+  MODULE PROCEDURE LIQUIDEVAP
+END INTERFACE
+
+INTERFACE LIQUIDREFL
+  MODULE PROCEDURE LIQUIDREFL
+END INTERFACE
+
+INTERFACE ALPHALIQUID
+  MODULE PROCEDURE ALPHALIQUID
+END INTERFACE
+
+INTERFACE BETALIQUID
+  MODULE PROCEDURE BETALIQUID
+END INTERFACE
+
+INTERFACE TSURUTACONDENSCOEFF
+  MODULE PROCEDURE TSURUTACONDENSCOEFF
 END INTERFACE
 
 INTERFACE isChargedParticle
@@ -54,7 +70,8 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CreateParticle, isChargedParticle
+PUBLIC :: LIQUIDEVAP,LIQUIDREFL,ALPHALIQUID,BETALIQUID,TSURUTACONDENSCOEFF
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, isChargedParticle
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle
 !===================================================================================================================================
 
@@ -194,7 +211,6 @@ FUNCTION VeloFromDistribution(distribution,specID,Tempergy)
 USE MOD_Globals                 ,ONLY: Abort,UNIT_stdOut
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_Particle_Boundary_Tools ,ONLY: LIQUIDEVAP,LIQUIDREFL,ALPHALIQUID,BETALIQUID
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -327,84 +343,148 @@ END IF
 
 END FUNCTION GetParticleWeight
 
-SUBROUTINE CreateParticle(Species,Pos,ElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID)
+
+PURE REAL FUNCTION LIQUIDEVAP(beta,x,sigma)
 !===================================================================================================================================
-!> creates a single particle at correct array position and assign properties
+!
 !===================================================================================================================================
-! MODULES                                                                                                                          !
-USE MOD_Globals
-USE MOD_Particle_Vars ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies
-USE MOD_DSMC_Vars     ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn     ! , RadialWeighting
-!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-INTEGER, INTENT(IN)           :: Species
-REAL, INTENT(IN)              :: Pos(1:3)
-INTEGER, INTENT(IN)           :: ElemID
-REAL, INTENT(IN)              :: Velocity(1:3)
-REAL, INTENT(IN)              :: RotEnergy
-REAL, INTENT(IN)              :: VibEnergy
-REAL, INTENT(IN)              :: ElecEnergy
-INTEGER, INTENT(OUT),OPTIONAL :: NewPartID
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-INTEGER :: newParticleID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: beta,x,sigma
+REAL            :: betaLoc
 !===================================================================================================================================
+betaLoc = beta
+IF (betaLoc.GE.2.) betaLoc = 2. - 1e-10
+IF (betaLoc.LT.0.) betaLoc = 0.
+
+liquidEvap=(1-betaLoc*exp(-0.5*(x/sigma)**2))/(1-betaLoc/2)  *   x/sigma**2  *  exp(-0.5*(x/sigma)**2)
+IF (liquidEvap.LT.0.) liquidEvap = 0.
+END FUNCTION
 
 
-!IPWRITE(UNIT_stdOut,*) 'NEW PARTICLE!'
+REAL FUNCTION LIQUIDREFL(alpha,beta,x,sigma)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: alpha,beta,x,sigma
+REAL            :: betaLoc, alphaLoc
+!===================================================================================================================================
+betaLoc = beta
+IF (betaLoc.GE.2.) betaLoc = 2. - 1e-10
+IF (betaLoc.LT.0.) betaLoc = 0.
+alphaLoc = alpha
+IF (alphaLoc.GT.1.) alphaLoc = 1.
+IF (alphaLoc.LT.0.) alphaLoc = 0.
 
-!newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+1) ! add +1 because PDM%CurrentNextFreePosition starts at 0
-!IF (newParticleID .EQ. 0) CALL abort(&
-!__STAMP__&
-!,'ERROR in CreateParticle: newParticleID.EQ.0 - maximum nbr of particles reached?')
-!#if USE_MPI
+if (alphaLoc.GE.1.) then
+  if (betaLoc.LE.0) then
+    liquidRefl = x/sigma**2  *  exp(-0.5*(x/sigma)**2)
+  else
+    liquidRefl = (betaLoc*exp(-0.5*(x/sigma)**2))/(1.-(1.-betaLoc/2.))  *   x/sigma**2  *  exp(-0.5*(x/sigma)**2)
+  end if
+else
+  liquidRefl = (1.-alphaLoc+alphaLoc*betaLoc*exp(-0.5*(x/sigma)**2))/(1.-alphaLoc*(1.-betaLoc/2.)) &
+             * x/sigma**2 * exp(-0.5*(x/sigma)**2)
+end if
 
-! Do not increase the ParticleVecLength for Phantom particles!
-PDM%ParticleVecLength = PDM%ParticleVecLength + 1 ! Increase particle vector length
-newParticleID = PDM%ParticleVecLength
-IF(newParticleID.GT.PDM%MaxParticleNumber)THEN
-  CALL abort(&
-      __STAMP__&
-      ,'CreateParticle: newParticleID.GT.PDM%MaxParticleNumber. newParticleID=',IntInfoOpt=newParticleID)
-END IF
-!IF(Species.LT.0) PDM%PhantomParticles = PDM%PhantomParticles + 1
-!#endif /*USE_MPI*/
+IF (liquidRefl.LT.0.) liquidRefl = 0.
+END FUNCTION
 
-! Increase the NextFreePosition for further particle creation
-!PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
 
-PartSpecies(newParticleID) = Species
-LastPartPos(1:3,newParticleID)=Pos(1:3)
-PartState(1:3,newParticleID) = Pos(1:3)
-PartState(4:6,newParticleID) = Velocity(1:3)
+PURE FUNCTION ALPHALIQUID(specID,temp) RESULT(alpha)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_SurfaceModel_Vars ,ONLY: SpecSurf
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: specID
+REAL,INTENT(IN)    :: temp
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL :: alpha
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SELECT CASE (SpecSurf(specID)%condensCase)
+CASE (1)
+  alpha = SpecSurf(specID)%liquidAlpha
+CASE (2)
+  alpha = exp(-((4-BETALIQUID(specID,temp))/(2*(2-BETALIQUID(specID,temp)))-1))
+END SELECT
+IF (alpha.GT.1.) alpha = 1.
+IF (alpha.LT.0.) alpha = 0.
+END FUNCTION
 
-IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-  PartStateIntEn(1,newParticleID) = VibEnergy
-  PartStateIntEn(2,newParticleID) = RotEnergy
-  IF (DSMC%ElectronicModel) THEN
-    PartStateIntEn(3,newParticleID) = ElecEnergy
-  ENDIF
-END IF
 
-PDM%ParticleInside(newParticleID) = .TRUE.
-PDM%dtFracPush(newParticleID)     = .FALSE.
-PDM%IsNewPart(newParticleID)      = .FALSE.   ! ??????? correct ????
-PEM%Element(newParticleID)        = ElemID
-PEM%lastElement(newParticleID)    = ElemID
+PURE FUNCTION BETALIQUID(specID,temp) RESULT(beta)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_SurfaceModel_Vars ,ONLY: SpecSurf
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: specID
+REAL,INTENT(IN)    :: temp
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL :: beta
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SELECT CASE (SpecSurf(specID)%condensCase)
+CASE (1)
+  beta = SpecSurf(specID)%liquidBeta
+CASE (2)
+  beta = SpecSurf(specID)%liquidBetaCoeff(1)*temp**5 &
+       + SpecSurf(specID)%liquidBetaCoeff(2)*temp**4 &
+       + SpecSurf(specID)%liquidBetaCoeff(3)*temp**3 &
+       + SpecSurf(specID)%liquidBetaCoeff(4)*temp**2 &
+       + SpecSurf(specID)%liquidBetaCoeff(5)*temp    &
+       + SpecSurf(specID)%liquidBetaCoeff(6)
+END SELECT
+IF (beta.GE.2.) beta = 2. - 1e-10
+IF (beta.LT.0.) beta=0.
+END FUNCTION
 
-! ?????? necessary?
-! IF (VarTimeStep%UseVariableTimeStep) THEN
-!   VarTimeStep%ParticleTimeStep(newParticleID) &
-!     = CalcVarTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%Element(newParticleID))
-! END IF
-! IF (RadialWeighting%DoRadialWeighting) THEN
-!   PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID), 1,newParticleID)
-! END IF
-IF (PRESENT(NewPartID)) NewPartID=newParticleID
 
-END SUBROUTINE CreateParticle
-
+FUNCTION TSURUTACONDENSCOEFF(SpecID,normalVelo,temp) RESULT(sigma)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars ,ONLY: Species
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: specID
+REAL,INTENT(IN)    :: normalVelo,temp
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL :: sigma
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+sigma = ALPHALIQUID(specID,temp)*(1-BETALIQUID(specID,temp)*exp(-normalVelo**2*Species(specID)%MassIC/(2*Boltzmannconst*temp)))
+IF (sigma.LT.0.) sigma = 0.
+IF (sigma.GT.1.) sigma = 1.
+END FUNCTION
 
 PURE FUNCTION isChargedParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!

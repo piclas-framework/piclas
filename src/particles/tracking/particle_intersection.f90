@@ -1207,7 +1207,7 @@ SUBROUTINE ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,            ONLY:PI
-USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,CROSSNORM,UNITVECTOR
+USE MOD_Globals,                 ONLY:Cross,abort,CROSSNORM,UNITVECTOR
 USE MOD_Mesh_Vars,               ONLY:NGeo,BC
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,BezierNewtonAngle
@@ -2919,8 +2919,8 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray!,locAlpha
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipLocalTol,FacNchooseK!,BezierClipTolerance
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierSplitLimit
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
-USE MOD_Globals,                 ONLY:UNIT_stdOut
 #ifdef CODE_ANALYZE
+USE MOD_Globals,                 ONLY:UNIT_stdOut
 USE MOD_Globals,                 ONLY:MyRank
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Surfaces,       ONLY:OutputBezierControlPoints
@@ -3394,8 +3394,8 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:EtaArray!,locAlpha
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipLocalTol,FacNchooseK!,BezierClipTolerance
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierSplitLimit
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
-USE MOD_Globals,                 ONLY:UNIT_stdOut
 #ifdef CODE_ANALYZE
+USE MOD_Globals,                 ONLY:UNIT_stdOut
 USE MOD_Globals,                 ONLY:MyRank
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Surfaces,       ONLY:OutputBezierControlPoints

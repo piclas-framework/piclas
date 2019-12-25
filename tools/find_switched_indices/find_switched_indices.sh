@@ -46,6 +46,15 @@ grep -nri --include=*.f90 --color "PEM%NormVec([[:alpha:]]"
 
 grep -nri --include=*.f90 --color "PartPosRef([[:alpha:]]"
 
+grep -nri --include=*.f90 --color "PartData([[:alpha:]]" | grep -inv "ConvertPartData(InputStateFile\|PartData(PartDataSize\|PartData(INT(PartDataSize,IK),\|SurfPartData(SurfPartDataSize" | grep -in --color PartData
+
+grep -nri --include=*.f90 --color "tmpPartData([[:alpha:]]"
+
+grep -nri --include=*.f90 --color "CloneData([[:alpha:]]"
+
+grep -nri --include=*.f90 --color "VibQuantData([[:alpha:]]" | grep -inv "VibQuantData(MaxQuantNum," | grep -in --color VibQuantData
+
+grep -nri --include=*.f90 --color "SurfPartData([[:alpha:]]" |grep -inv "SurfPartData(SurfPartDataSize" | grep -in --color SurfPartData
 
 # octree stuff
 grep -nri --include=*.f90 --color "MappedPartStates([[:alpha:]]"

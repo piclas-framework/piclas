@@ -108,12 +108,6 @@ CALL prms%CreateRealOption(     'InitialIonizationChargeAverage' , 'Average char
 
 CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Maximum number of Particles per proc (used for array init)'&
                                                                  , '1')
-CALL prms%CreateRealOption(     'Particles-dt_part_ratio'     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Factors for td200/201 '//&
-                                                                     'overrelaxation/subcycling ', '3.8')
-CALL prms%CreateRealOption(     'Particles-overrelax_factor'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Factors for td200/201'//&
-                                                                    ' overrelaxation/subcycling', '1.0')
 CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds for Random Number Generator'//&
                                                                 'Choose nRandomSeeds \n'//&
                                                                 '=-1    Random \n'//&
@@ -768,6 +762,10 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-Dielectric' , 'Define if particl
                               'dielectric interface, i.e. an interface between a dielectric and a non-dielectric or a between two'//&
                               ' different dielectrics [.TRUE.] or not [.FALSE.] (requires reflective BC and species swap for nSpecies)'&
                               , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Define if the properties of particles impacting on '//&
+                              'boundary [$] are to be stored in an additional .h5 file for post-processing analysis [.TRUE.] '//&
+                              'or not [.FALSE.].'&
+                              , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Adaptive'  &
   , 'Define if particle boundary [$] is adaptive [.TRUE.] or not [.FALSE.]', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-AdaptiveType'  &
@@ -811,6 +809,15 @@ CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Resample'  &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
                                 , 'Velocity (global x,y,z in [m/s]) of reflective particle boundary [$].' &
+                                , '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp2'  &
+                                , 'Second wall temperature (in [K]) of reflective particle boundary for a temperature gradient.' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Boundary[$]-TemperatureGradientStart'  &
+                                , 'Impose a temperature gradient by supplying a start/end vector and a second wall temperature.' &
+                                , '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Boundary[$]-TemperatureGradientEnd'  &
+                                , 'Impose a temperature gradient by supplying a start/end vector and a second wall temperature.' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 , 'Defining surface to be treated reactively by defining Model used '//&
@@ -1061,6 +1068,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
+USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary,PartStateBoundarySpec
 USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO
 USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, TriaSurfaceFlux
@@ -1444,7 +1452,7 @@ PartPressAddParts = GETLOGICAL('Part-ConstPressAddParts','.TRUE.')
 PartPressRemParts = GETLOGICAL('Part-ConstPressRemParts','.FALSE.')
 
 ! Read particle species data
-!nSpecies = CNTSTR('Part-Species-SpaceIC')
+!nSpecies = CountOption('Part-Species-SpaceIC')
 
 IF (nSpecies.LE.0) THEN
   CALL abort(&
@@ -2130,7 +2138,7 @@ END DO
 CALL InitPartRHS()
 
 ! Read in boundary parameters
-dummy_int = CNTSTR('Part-nBounds')       ! check if Part-nBounds is present in .ini file
+dummy_int = CountOption('Part-nBounds')       ! check if Part-nBounds is present in .ini file
 nPartBound = GETINT('Part-nBounds','1.') ! get number of particle boundaries
 IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
   CALL abort(&
@@ -2141,12 +2149,17 @@ ALLOCATE(PartBound%SourceBoundName(1:nPartBound))
 ALLOCATE(PartBound%TargetBoundCond(1:nPartBound))
 ALLOCATE(PartBound%MomentumACC(1:nPartBound))
 ALLOCATE(PartBound%WallTemp(1:nPartBound))
+ALLOCATE(PartBound%WallTemp2(1:nPartBound))
+ALLOCATE(PartBound%WallTempDelta(1:nPartBound))
 ALLOCATE(PartBound%TransACC(1:nPartBound))
 ALLOCATE(PartBound%VibACC(1:nPartBound))
 ALLOCATE(PartBound%RotACC(1:nPartBound))
 ALLOCATE(PartBound%ElecACC(1:nPartBound))
 ALLOCATE(PartBound%Resample(1:nPartBound))
 ALLOCATE(PartBound%WallVelo(1:3,1:nPartBound))
+ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
+ALLOCATE(PartBound%TempGradEnd(1:3,1:nPartBound))
+ALLOCATE(PartBound%TempGradVec(1:3,1:nPartBound))
 ALLOCATE(PartBound%SurfaceModel(1:nPartBound))
 ALLOCATE(PartBound%Reactive(1:nPartBound))
 ALLOCATE(PartBound%SolidState(1:nPartBound))
@@ -2187,10 +2200,14 @@ IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
   ALLOCATE(PartBound%ProbOfSpeciesSwaps(1:nPartBound))
   ALLOCATE(PartBound%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nPartBound))
 END IF
-!--
+! Dielectric Surfaces
 ALLOCATE(PartBound%Dielectric(1:nPartBound))
 PartBound%Dielectric=.FALSE.
 DoDielectricSurfaceCharge=.FALSE.
+! Surface particle output to .h5
+ALLOCATE(PartBound%BoundaryParticleOutput(1:nPartBound))
+PartBound%BoundaryParticleOutput=.FALSE.
+DoBoundaryParticleOutput=.FALSE.
 
 PartMeshHasPeriodicBCs=.FALSE.
 #if defined(IMPA) || defined(ROS)
@@ -2245,6 +2262,13 @@ DO iPartBound=1,nPartBound
     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
+    PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
+    IF(PartBound%WallTemp2(iPartBound).GT.0.) THEN
+      PartBound%TempGradStart(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TemperatureGradientStart',3)
+      PartBound%TempGradEnd(1:3,iPartBound)   = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TemperatureGradientEnd',3)
+      PartBound%WallTempDelta(iPartBound)   = PartBound%WallTemp2(iPartBound) - PartBound%WallTemp(iPartBound)
+      PartBound%TempGradVec(1:3,iPartBound) = PartBound%TempGradEnd(1:3,iPartBound) - PartBound%TempGradStart(1:3,iPartBound)
+    END IF
     ! check for correct surfacemodel input
     IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
       IF (.NOT.useDSMC) CALL abort(&
@@ -2283,6 +2307,7 @@ DO iPartBound=1,nPartBound
             GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
       END DO
     END IF
+    ! Dielectric Surfaces
     PartBound%Dielectric(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
     ! Sanity check: PartBound%Dielectric=T requires supplying species swap for every species
     IF(PartBound%Dielectric(iPartBound))THEN
@@ -2329,7 +2354,15 @@ DO iPartBound=1,nPartBound
   END SELECT
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
   PartBound%UseForQCrit(iPartBound)     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseForQCrit','.TRUE.')
-  SWRITE(*,*)"PartBound",iPartBound,"is used for the Q-Criterion"
+  IF(PartBound%UseForQCrit(iPartBound))THEN
+    SWRITE(*,*)"PartBound",iPartBound,"is used for the Q-Criterion"
+  END IF ! PartBound%UseForQCrit(iPartBound)
+
+  ! Surface particle output to .h5
+  PartBound%BoundaryParticleOutput(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
+  IF(PartBound%BoundaryParticleOutput(iPartBound))THEN
+    DoBoundaryParticleOutput=.TRUE.
+  END IF ! PartBound%BoundaryParticleOutput(iPartBound)
 END DO
 
 IF (nMacroRestartFiles.GT.0) THEN
@@ -2341,6 +2374,24 @@ IF (nMacroRestartFiles.GT.0) THEN
       SWRITE(*,*) "WARNING: MacroRestartFile: ",FileID," not used for any Init"
     END IF
   END DO
+END IF
+
+! Surface particle output to .h5
+IF(DoBoundaryParticleOutput)THEN
+  ALLOCATE(PartStateBoundary(1:9,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+        __STAMP__&
+        ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
+  END IF
+  PartStateBoundary=0.
+  ALLOCATE(PartStateBoundarySpec(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+        __STAMP__&
+        ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundarySpec array!')
+  END IF
+  PartStateBoundarySpec=0
 END IF
 
 ! Set mapping from field boundary to particle boundary index
@@ -2410,15 +2461,6 @@ ManualTimeStep = GETREAL('Particles-ManualTimeStep', '0.0')
 IF (ManualTimeStep.GT.0.0) THEN
   useManualTimeStep=.True.
 END IF
-#if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
-  dt_part_ratio = GETREAL('Particles-dt_part_ratio', '3.8')
-  overrelax_factor = GETREAL('Particles-overrelax_factor', '1.0')
-#if (PP_TimeDiscMethod==200)
-IF ( ALMOSTEQUAL(overrelax_factor,1.0) .AND. .NOT.ALMOSTEQUAL(dt_part_ratio,3.8) ) THEN
-  overrelax_factor = dt_part_ratio !compatibility
-END IF
-#endif
-#endif
 
 ! initialization of surface model flags
 KeepWallParticles = .FALSE.
@@ -3284,6 +3326,11 @@ SDEALLOCATE(PartBound%SourceBoundName)
 SDEALLOCATE(PartBound%TargetBoundCond)
 SDEALLOCATE(PartBound%MomentumACC)
 SDEALLOCATE(PartBound%WallTemp)
+SDEALLOCATE(PartBound%WallTemp2)
+SDEALLOCATE(PartBound%WallTempDelta)
+SDEALLOCATE(PartBound%TempGradStart)
+SDEALLOCATE(PartBound%TempGradEnd)
+SDEALLOCATE(PartBound%TempGradVec)
 SDEALLOCATE(PartBound%TransACC)
 SDEALLOCATE(PartBound%VibACC)
 SDEALLOCATE(PartBound%RotACC)
@@ -3312,6 +3359,9 @@ SDEALLOCATE(PartBound%SolidAreaIncrease)
 SDEALLOCATE(PartBound%SolidStructure)
 SDEALLOCATE(PartBound%SolidCrystalIndx)
 SDEALLOCATE(PartBound%Dielectric)
+SDEALLOCATE(PartBound%BoundaryParticleOutput)
+SDEALLOCATE(PartStateBoundary)
+SDEALLOCATE(PartStateBoundarySpec)
 SDEALLOCATE(PEM%Element)
 SDEALLOCATE(PEM%lastElement)
 SDEALLOCATE(PEM%pStart)

@@ -204,7 +204,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   IF (PRESENT(IntDataIN))  SurfModelExchange%H2OSendBuf(iProc)%content_int = 0
   IF (PRESENT(RealDataIN)) SurfModelExchange%H2OSendBuf(iProc)%content = 0.
   DO iSurfSide=1,SurfModelExchange%nH2OSidesSend(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%H2OSendList(iSurfSide)
+    SurfSideID=SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%H2OSendList(iSurfSide))
     DO q=1,nSurfSample
       DO p=1,nSurfSample
         iPos=iPos+1
@@ -283,7 +283,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   MessageSize=SurfModelExchange%nH2OSidesRecv(iProc)*(nSurfSample)**2
   iPos=0
   DO iSurfSide=1,SurfModelExchange%nH2OSidesRecv(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%H2ORecvList(iSurfSide)
+    SurfSideID=SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%H2ORecvList(iSurfSide))
     DO q=1,nSurfSample
       DO p=1,nSurfSample
         iPos=iPos+1
@@ -455,7 +455,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   MessageSize=SurfModelExchange%nO2HSidesRecv(iProc)*(nSurfSample)**2
   iPos=0
   DO iSurfSide=1,SurfModelExchange%nO2HSidesRecv(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%O2HRecvList(iSurfSide)
+    SurfSideID=SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%O2HRecvList(iSurfSide))
     DO q=1,nSurfSample
       DO p=1,nSurfSample
         iPos=iPos+1
@@ -539,8 +539,7 @@ SUBROUTINE ExchangeSurfDistSize()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfComm
-USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfModelExchange
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfComm, SurfMesh
 USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfDistSendBuf, SurfDistRecvBuf, SurfModelExchange
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -574,7 +573,7 @@ END DO ! iProc
 
 DO iProc=1,SurfCOMM%nMPINeighbors
   DO iSurfSide=1,SurfModelExchange%nSurfDistSidesSend(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(iSurfSide)
+    SurfSideID=SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(iSurfSide))
     DO q=1,nSurfSample
       DO p=1,nSurfSample
         DO iCoord = 1,3
@@ -681,7 +680,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   iPos=0
   SurfDistSendBuf(iProc)%content_int = 0
   DO iSurfSide=1,SurfModelExchange%nSurfDistSidesSend(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(iSurfSide)
+    SurfSideID=SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%SurfDistSendList(iSurfSide))
     DO q=1,nSurfSample
       DO p=1,nSurfSample
         DO iCoord = 1,3
@@ -737,7 +736,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfModelExchange%nSurfDistSidesRecv(iProc).EQ.0) CYCLE
   iPos=0
   DO iSurfSide=1,SurfModelExchange%nSurfDistSidesRecv(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(iSurfSide)
+    SurfSideID=SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%SurfDistRecvList(iSurfSide))
     DO q=1,nSurfSample
       DO p=1,nSurfSample
         DO iCoord = 1,3
@@ -756,7 +755,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   SurfDistRecvBuf(iProc)%content_int = 0
 END DO ! iProc
 
-IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner BCs on SlaveSide
+IF(SurfMesh%nSides.GT.SurfMesh%nOutputSides) THEN ! There are reflective inner BCs on SlaveSide
   DO iSide=nBCSides+1,nSides
     IF(BC(iSide).EQ.0) CYCLE
     IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
@@ -784,7 +783,7 @@ IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner B
 END IF
 
 ! assign bond order to surface atoms in the surfacelattice for halo sides
-DO iSurfSide = SurfMesh%nMasterSides+1,SurfMesh%nTotalSides
+DO iSurfSide = SurfMesh%nOutputSides+1,SurfMesh%nTotalSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%SurfaceModel(PartboundID).NE.3) CYCLE
@@ -823,7 +822,6 @@ SUBROUTINE MapHaloInnerToOriginInnerSurf(IntDataIN,RealDataIN,AddFlag,Reverse)
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh,nSurfSample,PartBound
 USE MOD_Mesh_Vars              ,ONLY: nBCSides,nSides,BC
-USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -851,14 +849,14 @@ ELSE
   locReverse = .FALSE.
 END IF
 
-IF(SurfMesh%nSides.GT.SurfMesh%nMasterSides) THEN ! There are reflective inner BCs on SlaveSide
+IF(SurfMesh%nSides.GT.SurfMesh%nOutputSides) THEN ! There are reflective inner BCs on SlaveSide
   DO iSide=nBCSides+1,nSides
     IF(BC(iSide).EQ.0) CYCLE
     IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
-      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1) THEN ! SlaveSide
+      TargetHaloSide = SurfMesh%innerBCSideToHaloMap(iSide)
+      IF(TargetHaloSide.NE.-1) THEN ! SlaveSide
         DO q=1,nSurfSample
           DO p=1,nSurfSample
-            TargetHaloSide = SurfMesh%innerBCSideToHaloMap(iSide)
             SurfSideID=SurfMesh%SideIDToSurfID(iSide)
             SurfSideHaloID=SurfMesh%SideIDToSurfID(TargetHaloSide)
             IF (locReverse) THEN

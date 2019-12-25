@@ -414,7 +414,6 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac, iPart_p3)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: abort
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep
@@ -425,6 +424,7 @@ USE MOD_part_tools             ,ONLY: DiceUnitVector
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_part_tools             ,ONLY: GetParticleWeight
+USE MOD_part_operations        ,ONLY: RemoveParticle
 #ifdef CODE_ANALYZE
 USE MOD_Globals                ,ONLY: unit_stdout,myrank
 USE MOD_Particle_Vars          ,ONLY: Symmetry2D
@@ -483,8 +483,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
       NumWeightEduct = 3.
     END IF
     IF(ProductReac(3).EQ.0) THEN
-      PDM%ParticleInside(React3Inx) = .FALSE.
-      IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(React3Inx) = 0
+      CALL RemoveParticle(React3Inx)
     ELSE
       PartSpecies(React3Inx) = ProductReac(3)
       WeightProd = GetParticleWeight(iPart_p3)

@@ -114,19 +114,33 @@ CONTAINS
 SUBROUTINE DefineParametersParticleMesh()
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools ,ONLY: prms
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection('Tracking')
 
-CALL prms%CreateLogicalOption( 'DoRefMapping'&
-  , 'Refmapping [T] or Tracing [F] algorithms are used for tracking of particles.'&
-  , '.TRUE.')
+!CALL prms%CreateLogicalOption( 'DoRefMapping'&
+  !, 'Refmapping [T] or Tracing [F] algorithms are used for tracking of particles.'&
+  !, '.TRUE.')
 
-CALL prms%CreateLogicalOption( 'TriaTracking'&
-  , 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for tracing algorithms.'//&
-  ' Currently flag is only used in DSMC timediscs. Requires DoRefMapping=F.'&
-  ,'.FALSE.')
+!CALL prms%CreateLogicalOption( 'TriaTracking'&
+  !, 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for tracing algorithms.'//&
+  !' Currently flag is only used in DSMC timediscs. Requires DoRefMapping=F.'&
+  !,'.FALSE.')
+
+CALL prms%CreateIntFromStringOption('TrackingMethod', "Define Method that is used for tracking of particles:\n"//&
+                                                      "refmapping (1): reference mapping of particle position"//&
+                                                      " with (bi-)linear and bezier (curved) description of sides.\n"//&
+                                                      "tracing (2): tracing of particle path "//&
+                                                      "with (bi-)linear and bezier (curved) description of sides.\n"//&
+                                                      "triatracking (3): tracing of particle path "//&
+                                                      "with triangle-aproximation of (bi-)linear sides.\n", &
+                                                      "triatracking")
+CALL addStrListEntry('TrackingMethod' , 'refmapping'      , REFMAPPING)
+CALL addStrListEntry('TrackingMethod' , 'tracing'         , TRACING)
+CALL addStrListEntry('TrackingMethod' , 'triatracking'    , TRIATRACKING)
+CALL addStrListEntry('TrackingMethod' , 'default'         , TRIATRACKING)
+
 CALL prms%CreateLogicalOption( 'Write-Tria-DebugMesh'&
   , 'Writes per proc triangulated Surfacemesh used for Triatracking. Requires TriaTracking=T.'&
   ,'.FALSE.')
@@ -215,12 +229,12 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation,BezierControlPoints3DElevated
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts,CartesianPeriodic
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, WriteTriaDebugMesh
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, WriteTriaDebugMesh, TrackingMethod
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 USE MOD_Mesh_Vars              ,ONLY: nElems,nSides,nNodes,SideToElem,ElemToSide,NGeo,NGeoElevated,OffSetElem,ElemToElemGlob
-USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray
+USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux,WriteTriaSurfaceFluxDebugMesh
 USE MOD_Mesh_Vars              ,ONLY: useCurveds,NGeo,MortarType
 ! IMPLICIT VARIABLE HANDLING
@@ -259,8 +273,18 @@ PartElemToSide=-1
 PartSideToElem=-1
 PartElemToElemGlob=-1
 
-DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
-TriaTracking       = GETLOGICAL('TriaTracking','.FALSE.')
+TrackingMethod = GETINTFROMSTR('TrackingMethod')
+SELECT CASE(TrackingMethod)
+CASE(REFMAPPING)
+  DoRefMapping=.TRUE.
+  TriaTracking=.FALSE.
+CASE(TRACING)
+  DoRefMapping=.FALSE.
+  TriaTracking=.FALSE.
+CASE(TRIATRACKING)
+  DoRefMapping=.FALSE.
+  TriaTracking=.TRUE.
+END SELECT
 
 IF ((DoRefMapping.OR.UseCurveds.OR.(NGeo.GT.1)).AND.(TriaTracking)) THEN
   CALL abort(&
@@ -1576,9 +1600,6 @@ USE MOD_CalcTimeStep         ,ONLY: CalcTimeStep
 #endif /*USE_HDG*/
 USE MOD_Equation_Vars        ,ONLY: c
 USE MOD_Particle_Vars        ,ONLY: manualtimestep
-#if (PP_TimeDiscMethod==201)
-USE MOD_Particle_Vars        ,ONLY: dt_part_ratio
-#endif
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis2D
 #if USE_MPI
 USE MOD_Particle_MPI         ,ONLY: InitHALOMesh
@@ -1704,17 +1725,14 @@ ELSE
   deltaT=ManualTimeStep
 END IF
 IF (halo_eps_velo.EQ.0) halo_eps_velo = c
-#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43)
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43)
 IF (halo_eps_velo.EQ.c) THEN
    CALL abort(&
 __STAMP__&
 , 'halo_eps_velo.EQ.c -> Halo Eps Velocity for MPI not defined')
 END IF
 #endif
-#if (PP_TimeDiscMethod==201)
-deltaT=CALCTIMESTEP()
-halo_eps = c*deltaT*SafetyFactor*max(dt_part_ratio,1.0)
-#elif (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 halo_eps = RK_c(2)
 DO iStage=2,nRKStages-1
   halo_eps = MAX(halo_eps,RK_c(iStage+1)-RK_c(iStage))

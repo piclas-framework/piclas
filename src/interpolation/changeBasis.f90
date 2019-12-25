@@ -26,17 +26,19 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE ChangeBasis3D
-  MODULE PROCEDURE ChangeBasis3D
-END INTERFACE
+! no interface because dim on one input argument is one -> Arg(:,:) INPUT: Array(:,:,1)
+!INTERFACE ChangeBasis3D
+  !MODULE PROCEDURE ChangeBasis3D
+!END INTERFACE
 
 INTERFACE ChangeBasis3D_XYZ
   MODULE PROCEDURE ChangeBasis3D_XYZ
 END INTERFACE
 
-INTERFACE ChangeBasis2D
-  MODULE PROCEDURE ChangeBasis2D
-END INTERFACE
+! no interface because dim on one input argument is one -> Arg(:,:) INPUT: Array(:,:,1)
+!INTERFACE ChangeBasis2D
+  !MODULE PROCEDURE ChangeBasis2D
+!END INTERFACE
 
 PUBLIC :: ChangeBasis3D
 PUBLIC :: ChangeBasis2D
@@ -47,7 +49,7 @@ CONTAINS
 
 
 
-SUBROUTINE ChangeBasis3D(Dim1,N_In,N_Out,Vdm,X3D_In,X3D_Out)
+PURE SUBROUTINE ChangeBasis3D(Dim1,N_In,N_Out,Vdm,X3D_In,X3D_Out)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions xi_In(0:N_In)
 ! to another 3D tensor product node positions (number of nodes N_out+1)
