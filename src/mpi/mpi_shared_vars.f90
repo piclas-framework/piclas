@@ -45,12 +45,14 @@ INTEGER            :: nNonUniqueGlobalTrees           !> total nb. of trees
 INTEGER            :: nComputeNodeElems               !> Number of elems on current compute-node
 INTEGER            :: nComputeNodeSides               !> Number of sides on current compute-node
 INTEGER            :: nComputeNodeNodes               !> Number of nodes on current compute-node
+INTEGER            :: nComputeNodeTrees               !> Number of trees on current compute-node
 INTEGER            :: nComputeNodeTotalElems          !> Number of elems on current compute-node (including halo region)
 INTEGER            :: nComputeNodeTotalSides          !> Number of sides on current compute-node (including halo region)
 INTEGER            :: nComputeNodeTotalNodes          !> Number of nodes on current compute-node (including halo region)
 INTEGER            :: offsetComputeNodeElem           !> elem offset of compute-node root
 INTEGER            :: offsetComputeNodeSide           !> side offset of compute-node root
 INTEGER            :: offsetComputeNodeNode           !> node offset of compute-node root
+INTEGER            :: offsetComputeNodeTree           !> tree offset of compute-node root
 
 INTEGER, ALLOCATABLE :: CNTotalElem2GlobalElem(:) !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
 INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:) !> Reverse Mapping

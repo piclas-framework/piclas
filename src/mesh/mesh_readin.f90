@@ -259,9 +259,11 @@ INTEGER                        :: iProc
 INTEGER,ALLOCATABLE            :: MPISideCount(:)
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 INTEGER,ALLOCATABLE            :: ElemInfo_Shared_tmp(:),SideInfo_Shared_tmp(:)
+INTEGER,ALLOCATABLE            :: displsCN(:),recvcountCN(:)
 INTEGER,ALLOCATABLE            :: displsElem(:),recvcountElem(:)
 INTEGER,ALLOCATABLE            :: displsSide(:),recvcountSide(:)
 INTEGER,ALLOCATABLE            :: displsNode(:),recvcountNode(:)
+INTEGER,ALLOCATABLE            :: displsTree(:),recvcountTree(:)
 #endif /*USE_MPI*/
 LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
@@ -781,55 +783,81 @@ CALL CloseDataFile()
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
 IF(myComputeNodeRank.EQ.0)THEN
+  ! Arrays for the compute-node to communicate their offsets
+  ALLOCATE(displsCN(0:nLeaderGroupProcs-1))
+  ALLOCATE(recvcountCN(0:nLeaderGroupProcs-1))
+  DO iProc=0,nLeaderGroupProcs-1
+    displsCN(iProc) = iProc
+  END DO
+  recvcountCN(:) = 1
+  ! Arrays for the compute node to hold the elem offsets
   ALLOCATE(displsElem(0:nLeaderGroupProcs-1))
   ALLOCATE(recvcountElem(0:nLeaderGroupProcs-1))
   displsElem(myLeaderGroupRank) = offsetComputeNodeElem
-  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsElem,nLeaderGroupProcs  &
+  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsElem,recvcountCN,displsCN  &
         ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
   DO iProc=1,nLeaderGroupProcs-1
     recvcountElem(iProc-1) = displsElem(iProc)-displsElem(iProc-1)
   END DO
   recvcountElem(nLeaderGroupProcs-1) = nGlobalElems - displsElem(nLeaderGroupProcs-1)
 
+  ! Broadcast compute node side offset on node
+  offsetComputeNodeSide=offsetSideID
+  CALL MPI_BCAST(offsetComputeNodeSide,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+  ! Arrays for the compute node to hold the side offsets
   ALLOCATE(displsSide(0:nLeaderGroupProcs-1))
   ALLOCATE(recvcountSide(0:nLeaderGroupProcs-1))
   displsSide(myLeaderGroupRank) = offsetComputeNodeSide
-  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsSide,nLeaderGroupProcs  &
+  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsSide,recvcountCN,displsCN &
         ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
   DO iProc=1,nLeaderGroupProcs-1
     recvcountSide(iProc-1) = displsSide(iProc)-displsSide(iProc-1)
   END DO
   recvcountSide(nLeaderGroupProcs-1) = nNonUniqueGlobalSides - displsSide(nLeaderGroupProcs-1)
 
+  ! Broadcast compute node node offset on node
+  offsetComputeNodeNode=offsetNodeID
+  CALL MPI_BCAST(offsetComputeNodeNode,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+  ! Arrays for the compute node to hold the node offsets
   ALLOCATE(displsNode(0:nLeaderGroupProcs-1))
   ALLOCATE(recvcountNode(0:nLeaderGroupProcs-1))
-  displsNode(myLeaderGroupRank) = offsetComputeNodeElem
-  CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsNode,nLeaderGroupProcs  &
+  displsNode(myLeaderGroupRank) = offsetComputeNodeNode
+  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsNode,recvcountCN,displsCN &
         ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
   DO iProc=1,nLeaderGroupProcs-1
     recvcountNode(iProc-1) = displsNode(iProc)-displsNode(iProc-1)
   END DO
   recvcountNode(nLeaderGroupProcs-1) = nNonUniqueGlobalNodes - displsNode(nLeaderGroupProcs-1)
 
-  offsetComputeNodeSide=offsetSideID
-  CALL MPI_BCAST(offsetComputeNodeSide,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-  offsetComputeNodeNode=offsetNodeID
-  CALL MPI_BCAST(offsetComputeNodeNode,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared(1:ELEMINFOSIZE,offsetElem+1:offsetElem+nElems),ELEMINFOSIZE*recvcountElem  &
-      ,ELEMINFOSIZE*displsElem    ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared(1:SIDEINFOSIZE,offsetSideID+1:offsetSideID+nSideIDs),(SIDEINFOSIZE+1)*recvcountSide  &
-      ,(SIDEINFOSIZE+1)*displsSide,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeInfo_Shared(offsetNodeID+1:offsetNodeID+nNodeIDs)          ,recvcountNode  &
-      ,displsNode                 ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeCoords_Shared(3,offsetNodeID+1:offsetNodeID+nNodeIDs)       ,3*recvcountNode  &
-      ,3+recvcountNode            ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
-  IF(isMortarMesh)THEN
-    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,xiMinMax_Shared   ,3*2*nGlobalElems  &
-        ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
-    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemToTree_Shared ,nGlobalElems      &
+  ! Broadcast compute node tree offset on node
+  offsetComputeNodeTree=offsetTree
+  CALL MPI_BCAST(offsetComputeNodeTree,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+  ! Arrays for the compute node to hold the node offsets
+  ALLOCATE(displsTree(0:nLeaderGroupProcs-1))
+  ALLOCATE(recvcountTree(0:nLeaderGroupProcs-1))
+  displsTree(myLeaderGroupRank) = offsetComputeNodeTree
+  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsTree,recvcountCN,displsCN &
         ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,TreeCoords_Shared ,(NGeoTree+1)**3*nNonUniqueGlobalTrees &
-        ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
+  DO iProc=1,nLeaderGroupProcs-1
+    recvcountTree(iProc-1) = displsTree(iProc)-displsTree(iProc-1)
+  END DO
+  recvcountTree(nLeaderGroupProcs-1) = nNonUniqueGlobalTrees - displsTree(nLeaderGroupProcs-1)
+
+  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared,ELEMINFOSIZE    *recvcountElem  &
+      ,ELEMINFOSIZE*displsElem    ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
+  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,(SIDEINFOSIZE+1)*recvcountSide  &
+      ,(SIDEINFOSIZE+1)*displsSide,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
+  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeInfo_Shared,                 recvcountNode  &
+      ,displsNode                 ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
+  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeCoords_Shared,3             *recvcountNode  &
+      ,3*displsNode               ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
+  IF(isMortarMesh)THEN
+    CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,xiMinMax_Shared,3*2           *recvcountElem  &
+        ,3*2*displsElem           ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
+    CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemToTree_Shared ,            recvcountElem  &
+        ,displsElem               ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
+    CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,TreeCoords_Shared ,(NGeoTree+1)**3*recvcountTree &
+        ,displsTree               ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
   END IF
 END IF
 #endif  /*USE_MPI*/
@@ -838,8 +866,14 @@ SideInfo_Shared(SIDEINFOSIZE+1,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_
 DEALLOCATE(ElemInfo_Shared_tmp,SideInfo_Shared_tmp)
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(NodeInfo_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
+IF (isMortarMesh) THEN
+  CALL MPI_WIN_SYNC(xiMinMax_Shared_Win,IERROR)
+  CALL MPI_WIN_SYNC(ElemToTree_Shared_Win,IERROR)
+  CALL MPI_WIN_SYNC(TreeCoords_Shared_Win,IERROR)
+END IF
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-print *,ElemInfo_Shared(5,460:487)
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              COUNT SIDES
