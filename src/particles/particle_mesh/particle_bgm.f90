@@ -124,7 +124,7 @@ CALL MPI_WIN_LOCK_ALL(0,BoundsOfElem_Shared_Win,IERROR)
 firstElem = INT(REAL(myComputeNodeRank*nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
 #else
-! In order to use only one type of variables VarName_Shared in code structure such as tracking etc. for NON_MPI 
+! In order to use only one type of variables VarName_Shared in code structure such as tracking etc. for NON_MPI
 ! the same variables are allocated on the single proc and used from mesh_vars instead of mpi_shared_vars
 ALLOCATE(ElemToBGM_Shared(1:6,1:nElems))
 ALLOCATE(BoundsOfElem_Shared(1:2,1:3,1:nElems)) ! 1-2: Min, Max value; 1-3: x,y,z
@@ -345,8 +345,9 @@ ELSE
       nMPISidesShared = nMPISidesShared + 1
     END IF
   END DO
-  nMPISidesShared = 0
   ALLOCATE(offsetMPISideShared(nMPISidesShared))
+
+  nMPISidesShared = 0
   DO iSide = 1, nNonUniqueGlobalSides
     IF (SideInfo_Shared(SIDEINFOSIZE+1,iSide).EQ.2) THEN
       nMPISidesShared = nMPISidesShared + 1
@@ -371,17 +372,17 @@ ELSE
   DO iSide = 1, nMPISidesShared
     SideID = offsetMPISideShared(iSide)
     ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
-    MPISideBoundsOfElemCenter(1:3,SideID) = (/ SUM(BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                               SUM(BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                               SUM(BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-    MPISideBoundsOfElemCenter(4,SideID) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+    MPISideBoundsOfElemCenter(1:3,iSide) = (/ SUM(BoundsOfElem_Shared(1:2,1,ElemID)), &
+                                              SUM(BoundsOfElem_Shared(1:2,2,ElemID)), &
+                                              SUM(BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+    MPISideBoundsOfElemCenter(4,iSide) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                                       BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                                       BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
   END DO
 
   ! do refined check: (refined halo region reduction)
-  ! check the bounding box of each element in compute-nodes' halo domain 
-  ! against the bounding boxes of the elements of the MPI-surface (inter compute-node MPI sides) 
+  ! check the bounding box of each element in compute-nodes' halo domain
+  ! against the bounding boxes of the elements of the MPI-surface (inter compute-node MPI sides)
   ALLOCATE(BoundsOfElemCenter(1:4))
   DO iElem = firstHaloElem, lastHaloElem
     ElemID = offsetCNHalo2GlobalElem(iElem)
@@ -393,10 +394,9 @@ ELSE
                                         BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                         BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
     DO iSide = 1, nMPISidesShared
-      SideID = offsetMPISideShared(iSide)
       ! compare distance of centers with sum of element outer radii+halo_eps
-      IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,SideID)) &
-          .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,SideID) ) CYCLE
+      IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iSide)) &
+          .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) CYCLE
       ElemInsideHalo = .TRUE.
       EXIT
     END DO ! iSide = 1, nMPISidesShared
@@ -409,6 +409,7 @@ ELSE
       BGMCellYmax = ElemToBGM_Shared(4,ElemID)
       BGMCellZmin = ElemToBGM_Shared(5,ElemID)
       BGMCellZmax = ElemToBGM_Shared(6,ElemID)
+!      print *, BGMCellXMin,BGMCellXMax,BGMCellYMin,BGMCellYMax,BGMCellZMin,BGMCellZMax
       ! add current element to number of BGM-elems
       DO iBGM = BGMCellXmin,BGMCellXmax
         DO jBGM = BGMCellYmin,BGMCellYmax
@@ -480,7 +481,7 @@ CALL MPI_EXSCAN(sendbuf(:,:,:),recvbuf(:,:,:),((BGMimax-BGMimin)+1)*((BGMjmax-BG
 offsetElemsInBGMCell=recvbuf
 DEALLOCATE(recvbuf)
 
-! last proc of compute-node calculates total number of elements in each BGM-cell 
+! last proc of compute-node calculates total number of elements in each BGM-cell
 ! after this loop sendbuf of last proc contains nElems per BGM cell
 IF(myComputeNodeRank.EQ.nComputeNodeProcessors-1)THEN
   DO iBGM = BGMimin,BGMimax
@@ -547,7 +548,7 @@ CALL MPI_WIN_LOCK_ALL(0,FIBGM_Element_Shared_Win,IERROR)
 FIBGM_Element => FIBGM_Element_Shared
 #else
 ALLOCATE( FIBGM_Element(1:FIBGM_offsetElem(BGMimax,BGMjmax,BGMkmax)+FIBGM_nElems(BGMimax,BGMjmax,BGMkmax)) )
-#endif  /*USE_MPI*/ 
+#endif  /*USE_MPI*/
 
 DO kBGM = BGMkmin,BGMkmax
   DO jBGM = BGMjmin,BGMjmax
@@ -581,7 +582,7 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
     END DO ! iBGM
   END DO ! iElem = firstHaloElem, lastHaloElem
 END IF
-#endif  /*USE_MPI*/ 
+#endif  /*USE_MPI*/
 
 DO iElem = offsetElem+1, offsetElem+nElems
   BGMCellXmin = ElemToBGM_Shared(1,iElem)
@@ -598,7 +599,7 @@ DO iElem = offsetElem+1, offsetElem+nElems
         FIBGM_Element( FIBGM_offsetElem(iBGM,jBGM,kBGM) & ! offset of BGM cell in 1D array
 #if USE_MPI
                             + offsetElemsInBGMCell(iBGM,jBGM,kBGM)    & ! offset of BGM nElems in local proc
-#endif  /*USE_MPI*/ 
+#endif  /*USE_MPI*/
                             + GEO%FIBGM(iBGM,jBGM,kBGM)%nElem         ) = iElem
       END DO ! kBGM
     END DO ! jBGM
@@ -623,7 +624,7 @@ END DO ! iElem
 !        FIBGM_Element( FIBGM_offsetElem(iBGM,jBGM,kBGM) & ! offset of BGM cell in 1D array
 !#if USE_MPI
 !                       + offsetElemsInBGMCell(iBGM,jBGM,kBGM)    & ! offset of BGM nElems in local proc
-!#endif  /*USE_MPI*/ 
+!#endif  /*USE_MPI*/
 !                       + GEO%FIBGM(iBGM,jBGM,kBGM)%nElem         ) = iElem
 !      END DO ! kBGM
 !    END DO ! jBGM
@@ -677,7 +678,7 @@ ELSE
     END IF
   END DO
 END IF
-#endif  /*USE_MPI*/ 
+#endif  /*USE_MPI*/
 
 ! and get max number of bgm-elems
 ALLOCATE(Distance    (1:MAXVAL(FIBGM_nElems)) &
