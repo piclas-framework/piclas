@@ -86,7 +86,7 @@ REAL                  :: A(3,3), Work(1000), W(3), trace, CShak
 INTEGER               :: INFO, nNotRelax, nRotRelax, nVibRelax
 REAL                  :: TRot, betaV, OldEnRot, RotExp, VibExp, NewEnRot, NewEnVib, vBulkRelaxOld(3),vBulkRelax(3)
 REAL                  :: CellTempRelax, vBulkAver(3), u2Aver, nPartAver, dtCell
-REAL                  :: partWeight, totalWeight, totalWeightRelax, minPartWeight, totalWeight2
+REAL                  :: partWeight, totalWeight, totalWeightRelax, totalWeight2
 #ifdef CODE_ANALYZE
 REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
 INTEGER               :: iMom
@@ -113,10 +113,8 @@ u2Aver = 0.0; vBulkRelax = 0.0; vBulkRelaxOld = 0.0
 totalWeight = 0.0; dtCell = 0.0; totalWeightRelax = 0.0; totalWeight2 = 0.0
 
 ! 1.) Summing up the relative velocities and their square to calculate the moments
-minPartWeight = HUGE(minPartWeight)
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
-  minPartWeight = MIN(minPartWeight, partWeight)
   totalWeight = totalWeight + partWeight
   totalWeight2 = totalWeight2 + partWeight*partWeight
   V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop))-vBulkAll(1:3)
@@ -283,7 +281,7 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   DO iLoop = 1, nPart
     partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
     CALL RANDOM_NUMBER(iRan)
-    ProbAddPart = (1.-exp(-relaxfreq*dtCell))*minPartWeight/partWeight
+    ProbAddPart = 1.-exp(-relaxfreq*dtCell)
     IF (ProbAddPart.GT.iRan) THEN
       nRelax = nRelax + 1
       iPartIndx_NodeRelax(nRelax) = iPartIndx_Node(iLoop)
@@ -294,7 +292,7 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     END IF
     !Rotation
     CALL RANDOM_NUMBER(iRan)
-    ProbAddPart = (1.-RotExp)*minPartWeight/partWeight
+    ProbAddPart = (1.-RotExp)
     IF (ProbAddPart.GT.iRan) THEN
       nRotRelax = nRotRelax + 1
       iPartIndx_NodeRelaxRot(nRotRelax) = iPartIndx_Node(iLoop)
@@ -303,7 +301,7 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     ! Vibration
     IF(BGKDoVibRelaxation) THEN
       CALL RANDOM_NUMBER(iRan)
-      ProbAddPart = (1.-VibExp)*minPartWeight/partWeight
+      ProbAddPart = (1.-VibExp)
       IF (ProbAddPart.GT.iRan) THEN
         nVibRelax = nVibRelax + 1
         iPartIndx_NodeRelaxVib(nVibRelax) = iPartIndx_Node(iLoop)
@@ -347,7 +345,7 @@ ELSE ! Atoms
   DO iLoop = 1, nPart
     partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
     CALL RANDOM_NUMBER(iRan)
-    ProbAddPart = (1.-exp(-relaxfreq*dtCell))*minPartWeight/partWeight
+    ProbAddPart = 1.-exp(-relaxfreq*dtCell)
     IF (ProbAddPart.GT.iRan) THEN
       nRelax = nRelax + 1
       iPartIndx_NodeRelax(nRelax) = iPartIndx_Node(iLoop)
