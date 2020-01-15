@@ -89,6 +89,7 @@ INTEGER                        :: iElem
 REAL                           :: xmin, xmax, ymin, ymax, zmin, zmax
 INTEGER                        :: iBGM, jBGM, kBGM
 INTEGER                        :: BGMimax, BGMimin, BGMjmax, BGMjmin, BGMkmax, BGMkmin
+INTEGER                        :: BGMiDelta,BGMjDelta,BGMkDelta
 INTEGER                        :: BGMCellXmax, BGMCellXmin, BGMCellYmax, BGMCellYmin, BGMCellZmax, BGMCellZmin
 #if USE_MPI
 INTEGER                        :: iSide, SideID
@@ -153,13 +154,13 @@ DO iElem = firstElem, lastElem
   BoundsOfElem_Shared(1,3,iElem) = zmin
   BoundsOfElem_Shared(2,3,iElem) = zmax
 
-  ! BGM indeces must be >1 --> move by 1
-  ElemToBGM_Shared(1,iElem) = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)) +moveBGMindex
-  ElemToBGM_Shared(2,iElem) = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)) +moveBGMindex
-  ElemToBGM_Shared(3,iElem) = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)) +moveBGMindex
-  ElemToBGM_Shared(4,iElem) = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2)) +moveBGMindex
-  ElemToBGM_Shared(5,iElem) = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)) +moveBGMindex
-  ElemToBGM_Shared(6,iElem) = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)) +moveBGMindex
+  ! BGM indeces must be >0 --> move by 1
+  ElemToBGM_Shared(1,iElem) = FLOOR  ((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)) +moveBGMindex
+  ElemToBGM_Shared(2,iElem) = FLOOR((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)) +moveBGMindex
+  ElemToBGM_Shared(3,iElem) = FLOOR  ((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)) +moveBGMindex
+  ElemToBGM_Shared(4,iElem) = FLOOR((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2)) +moveBGMindex
+  ElemToBGM_Shared(5,iElem) = FLOOR  ((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)) +moveBGMindex
+  ElemToBGM_Shared(6,iElem) = FLOOR((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)) +moveBGMindex
 END DO ! iElem = firstElem, lastElem
 
 #if USE_MPI
@@ -249,14 +250,14 @@ ELSE
   CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
 END IF
 
-moveBGMindex = 2 ! BGM indices must be >1 --> move by 2
+moveBGMindex = 1 ! BGM indices must be >0 --> move by 1
 ! enlarge BGM with halo region (all element outside of this region will be cut off)
-BGMimax = INT((MIN(GEO%CNxmax+halo_eps,GEO%xmaxglob)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1  + moveBGMindex
-BGMimin = INT((MAX(GEO%CNxmin-halo_eps,GEO%xminglob)-GEO%xminglob)/GEO%FIBGMdeltas(1))-1  + moveBGMindex
-BGMjmax = INT((MIN(GEO%CNymax+halo_eps,GEO%ymaxglob)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1  + moveBGMindex
-BGMjmin = INT((MAX(GEO%CNymin-halo_eps,GEO%yminglob)-GEO%yminglob)/GEO%FIBGMdeltas(2))-1  + moveBGMindex
-BGMkmax = INT((MIN(GEO%CNzmax+halo_eps,GEO%zmaxglob)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1  + moveBGMindex
-BGMkmin = INT((MAX(GEO%CNzmin-halo_eps,GEO%zminglob)-GEO%zminglob)/GEO%FIBGMdeltas(3))-1  + moveBGMindex
+BGMimax = FLOOR((MIN(GEO%CNxmax+halo_eps,GEO%xmaxglob)-GEO%xminglob)/GEO%FIBGMdeltas(1))  + moveBGMindex
+BGMimin = FLOOR((  MAX(GEO%CNxmin-halo_eps,GEO%xminglob)-GEO%xminglob)/GEO%FIBGMdeltas(1))  + moveBGMindex
+BGMjmax = FLOOR((MIN(GEO%CNymax+halo_eps,GEO%ymaxglob)-GEO%yminglob)/GEO%FIBGMdeltas(2))  + moveBGMindex
+BGMjmin = FLOOR((  MAX(GEO%CNymin-halo_eps,GEO%yminglob)-GEO%yminglob)/GEO%FIBGMdeltas(2))  + moveBGMindex
+BGMkmax = FLOOR((MIN(GEO%CNzmax+halo_eps,GEO%zmaxglob)-GEO%zminglob)/GEO%FIBGMdeltas(3))  + moveBGMindex
+BGMkmin = FLOOR((  MAX(GEO%CNzmin-halo_eps,GEO%zminglob)-GEO%zminglob)/GEO%FIBGMdeltas(3))  + moveBGMindex
 ! write function-local BGM indices into global variables
 GEO%FIBGMimax=BGMimax
 GEO%FIBGMimin=BGMimin
@@ -403,12 +404,12 @@ ELSE
     IF (.NOT.ElemInsideHalo) THEN
       ElemInfo_Shared(ELEM_HALOFLAG,ElemID)=0
     ELSE
-      BGMCellXmin = ElemToBGM_Shared(1,ElemID)
-      BGMCellXmax = ElemToBGM_Shared(2,ElemID)
-      BGMCellYmin = ElemToBGM_Shared(3,ElemID)
-      BGMCellYmax = ElemToBGM_Shared(4,ElemID)
-      BGMCellZmin = ElemToBGM_Shared(5,ElemID)
-      BGMCellZmax = ElemToBGM_Shared(6,ElemID)
+      BGMCellXmin = MAX(ElemToBGM_Shared(1,ElemID),BGMimin)
+      BGMCellXmax = MIN(ElemToBGM_Shared(2,ElemID),BGMimax)
+      BGMCellYmin = MAX(ElemToBGM_Shared(3,ElemID),BGMjmin)
+      BGMCellYmax = MIN(ElemToBGM_Shared(4,ElemID),BGMjmax)
+      BGMCellZmin = MAX(ElemToBGM_Shared(5,ElemID),BGMkmin)
+      BGMCellZmax = MIN(ElemToBGM_Shared(6,ElemID),BGMkmax)
 !      print *, BGMCellXMin,BGMCellXMax,BGMCellYMin,BGMCellYMax,BGMCellZMin,BGMCellZMax
       ! add current element to number of BGM-elems
       DO iBGM = BGMCellXmin,BGMCellXmax
@@ -494,14 +495,17 @@ IF(myComputeNodeRank.EQ.nComputeNodeProcessors-1)THEN
 END IF
 
 ! allocated shared memory for nElems per BGM cell
-MPISharedSize = INT(((BGMimax-BGMimin)+1)*((BGMjmax-BGMjmin)+1)*((BGMkmax-BGMkmin)+1),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/BGMimax-BGMimin+1,BGMjmax-BGMjmin+1,BGMkmax-BGMkmin+1/) &
+BGMiDelta=(BGMimax-BGMimin)+1
+BGMjDelta=(BGMjmax-BGMjmin)+1
+BGMkDelta=(BGMkmax-BGMkmin)+1
+MPISharedSize = INT(BGMiDelta*BGMjDelta*BGMkDelta,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/BGMiDelta,BGMjDelta,BGMkDelta/) &
                     ,FIBGM_nElems_Shared_Win,FIBGM_nElems_Shared)
 CALL MPI_WIN_LOCK_ALL(0,FIBGM_nElems_Shared_Win,IERROR)
 FIBGM_nElems => FIBGM_nElems_Shared
 ! allocated shared memory for BGM cell offset in 1D array of BGM to element mapping
-MPISharedSize = INT(((BGMimax-BGMimin)+1)*((BGMjmax-BGMjmin)+1)*((BGMkmax-BGMkmin)+1),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/BGMimax-BGMimin+1,BGMjmax-BGMjmin+1,BGMkmax-BGMkmin+1/) &
+MPISharedSize = INT(BGMiDelta*BGMjDelta*BGMkDelta,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/BGMiDelta,BGMjDelta,BGMkDelta/) &
                     ,FIBGM_offsetElem_Shared_Win,FIBGM_offsetElem_Shared)
 CALL MPI_WIN_LOCK_ALL(0,FIBGM_offsetElem_Shared_Win,IERROR)
 FIBGM_offsetElem => FIBGM_offsetElem_Shared
@@ -509,12 +513,12 @@ FIBGM_offsetElem => FIBGM_offsetElem_Shared
 ! last proc of compute-node writes into shared memory to make nElems per BGM accessible for every proc
 IF(myComputeNodeRank.EQ.nComputeNodeProcessors-1)THEN
   currentOffset = 0
-  DO iBGM = BGMimin,BGMimax
-    DO jBGM = BGMjmin,BGMjmax
-      DO kBGM = BGMkmin,BGMkmax
-        FIBGM_nElems(iBGM,jBGM,kBGM) = sendbuf(iBGM,jBGM,kBGM)
+  DO iBGM = 1,BGMiDelta
+    DO jBGM = 1,BGMjDelta
+      DO kBGM = 1,BGMkDelta
+        FIBGM_nElems(iBGM,jBGM,kBGM) = sendbuf(BGMimin+iBGM-1,BGMjmin+jBGM-1,BGMkmin+kBGM-1)
         FIBGM_offsetElem(iBGM,jBGM,kBGM) = currentOffset
-        currentOffset = currentoffset + sendbuf(iBGM,jBGM,kBGM)
+        currentOffset = currentoffset + sendbuf(BGMimin+iBGM-1,BGMjmin+jBGM-1,BGMkmin+kBGM-1)
       END DO ! kBGM
     END DO ! jBGM
   END DO ! iBGM
@@ -524,12 +528,12 @@ CALL MPI_WIN_SYNC(FIBGM_nElems_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(FIBGM_offsetElem_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #else /*NOT USE_MPI*/
-ALLOCATE( FIBGM_nElems( ((BGMimax-BGMimin)+1), ((BGMjmax-BGMjmin)+1), ((BGMkmax-BGMkmin)+1) ) )
-ALLOCATE( FIBGM_offsetElem( ((BGMimax-BGMimin)+1), ((BGMjmax-BGMjmin)+1), ((BGMkmax-BGMkmin)+1) ) )
+ALLOCATE( FIBGM_nElems    (BGMiDelta, BGMjDelta, BGMkDelta ) )
+ALLOCATE( FIBGM_offsetElem(BGMiDelta, BGMjDelta, BGMkDelta ) )
 currentOffset = 0
-DO iBGM = BGMimin,BGMimax
-  DO jBGM = BGMjmin,BGMjmax
-    DO kBGM = BGMkmin,BGMkmax
+DO iBGM = 1,BGMiDelta
+  DO jBGM = 1,BGMjDelta
+    DO kBGM = 1,BGMkDelta
       FIBGM_nElems(iBGM,jBGM,kBGM) = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem
       FIBGM_offsetElem(iBGM,jBGM,kBGM) = currentOffset
       currentOffset = currentoffset + GEO%FIBGM(iBGM,jBGM,kBGM)%nElem
@@ -540,19 +544,19 @@ END DO ! iBGM
 
 #if USE_MPI
 ! allocate 1D array for mapping of BGM cell to Element indeces
-MPISharedSize = INT((FIBGM_offsetElem(BGMimax,BGMjmax,BGMkmax)+FIBGM_nElems(BGMimax,BGMjmax,BGMkmax)) &
+MPISharedSize = INT((FIBGM_offsetElem(BGMiDelta,BGMjDelta,BGMkDelta)+FIBGM_nElems(BGMiDelta,BGMjDelta,BGMkDelta)) &
                      ,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/FIBGM_offsetElem(BGMimax,BGMjmax,BGMkmax)+FIBGM_nElems(BGMimax,BGMjmax,BGMkmax)/)&
+CALL Allocate_Shared(MPISharedSize,(/FIBGM_offsetElem(BGMiDelta,BGMjDelta,BGMkDelta)+FIBGM_nElems(BGMiDelta,BGMjDelta,BGMkDelta)/)&
                      ,FIBGM_Element_Shared_Win,FIBGM_Element_Shared)
 CALL MPI_WIN_LOCK_ALL(0,FIBGM_Element_Shared_Win,IERROR)
 FIBGM_Element => FIBGM_Element_Shared
 #else
-ALLOCATE( FIBGM_Element(1:FIBGM_offsetElem(BGMimax,BGMjmax,BGMkmax)+FIBGM_nElems(BGMimax,BGMjmax,BGMkmax)) )
+ALLOCATE( FIBGM_Element(1:FIBGM_offsetElem(BGMiDelta,BGMjDelta,BGMkDelta)+FIBGM_nElems(BGMiDelta,BGMjDelta,BGMkDelta)) )
 #endif  /*USE_MPI*/
 
-DO kBGM = BGMkmin,BGMkmax
+DO iBGM = BGMimin,BGMimax
   DO jBGM = BGMjmin,BGMjmax
-    DO iBGM = BGMimin,BGMimax
+    DO kBGM = BGMkmin,BGMkmax
       GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = 0
     END DO ! kBGM
   END DO ! jBGM
