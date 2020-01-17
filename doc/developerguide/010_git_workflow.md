@@ -39,15 +39,15 @@ For this purpose, the developer can select the respective template for his merge
 
 ## Release and deploy
 
-For a release, a merge of the master.dev branch into the master branch is required. This merge request should be associated with a milestone (e.g. Release 1.X.X). For this specific merge request, the template `Release` can be chosen, which contains the to-do list as well as the template for the release notes as given below. After the successful completion of all to-do's and regression checks (check-in, nightly, weekly), the master.dev branch can be merged into the master.
+A new release version of PICLas is created from the **master** repository, which requires a merge of the current **master.dev** branch into the **master** branch. The corresponding merge request should be associated with a release milestone (e.g. *Release 1.X.X* within which the merge request is referenced, e.g., "See merge request !283"). Within this specific merge request, the template `Release` is chosen, which contains the to-do list as well as the template for the release notes as given below. After the successful completion of all to-do's and regression checks (check-in, nightly, weekly), the **master.dev** branch can be merged into the **master** branch.
 
 ### Release Tag
 
-A release can be created through the web interface ([Repository -> Tags](https://gitlab.com/piclas/piclas/tags) -> New tag), as the `Tag name` the new version should be used
+A new release tag can be created through the web interface ([Repository -> Tags](https://gitlab.com/piclas/piclas/tags) -> New tag) and as the `Tag name`, the new version number is used, e.g., 
 
     v1.X.X
 
-The tag should be created from the `master` branch and the `Message` left empty. The release notes, which were compiled within the corresponding milestone, shall be given in the following format
+The tag is then created from the **master** branch repository and the `Message` is left empty. The release notes, which were used within the corresponding milestone, shall be given in the following format
 
     ## Release 1.X.X
 
