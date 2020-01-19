@@ -1202,9 +1202,9 @@ DO iSpec = 1, nSpecies
   IF (nSpec(iSpec).EQ.0) CYCLE
   dynamicvis = dynamicvis + REAL(totalWeightSpec(iSpec)) * dynamicvisSpec(iSpec) / Phi(iSpec)
   thermalcond = thermalcond + REAL(totalWeightSpec(iSpec)) * thermalcondspec(iSpec) / Phi(iSpec)
-  C_P = C_P + REAL(totalWeightSpec(iSpec))/REAL(totalWeight)*Species(iSpec)%MassIC*6.022E23
+  C_P = C_P + REAL(totalWeightSpec(iSpec))/REAL(totalWeight)*Species(iSpec)%MassIC
 END DO
-C_P = 5./2.*8.31446/C_P
+C_P = 5./2.*BoltzmannConst/C_P
 
 PrandtlCorrection = 0.
 DO iSpec = 1, nSpecies
