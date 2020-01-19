@@ -904,7 +904,7 @@ __STAMP__,&
               CalcVarTimeStep(PartState(1,ParticleIndexNbr), PartState(2,ParticleIndexNbr),iElem)
           END IF
           IF(RadialWeighting%DoRadialWeighting) THEN
-            PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),1,ParticleIndexNbr)
+            PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),iSpec,ParticleIndexNbr)
           END IF
         ELSE
           CALL abort(&

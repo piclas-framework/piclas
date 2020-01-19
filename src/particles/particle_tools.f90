@@ -420,7 +420,7 @@ PEM%lastElement(newParticleID)    = ElemID
 !     = CalcVarTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%Element(newParticleID))
 ! END IF
 ! IF (RadialWeighting%DoRadialWeighting) THEN
-!   PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID), 1,newParticleID)
+!   PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID), Species,newParticleID)
 ! END IF
 IF (PRESENT(NewPartID)) NewPartID=newParticleID
 
