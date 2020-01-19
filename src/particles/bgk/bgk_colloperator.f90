@@ -1132,7 +1132,7 @@ nTemp = 0
 Ener = 0.0
 EnerTotal = 0.0 ! Brull
 DO iSpec = 1, nSpecies
-  IF (nSpec(iSpec).GE.2) THEN
+  IF ((nSpec(iSpec).GE.2).AND.(.NOT.ALMOSTZERO(u2Spec(iSpec)))) THEN
     SpecTemp(iSpec) = Species(iSpec)%MassIC * u2Spec(iSpec) * nSpec(iSpec) &
         /(totalWeightSpec(iSpec)*3.0*BoltzmannConst*(nSpec(iSpec)-1.))
     nTemp = nTemp +  totalWeightSpec(iSpec)
@@ -1171,14 +1171,14 @@ CellTempRelax = CellTemp
 !temp bei sehr wenig partikeln!!!!
 ! 2.) Calculate the reference dynamic viscosity, Prandtl number and the resulting relaxation frequency of the distribution function
 DO iSpec = 1, nSpecies
-  IF (nSpec(iSpec).LT.2) THEN
-    dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*SpecDSMC(iSpec)%TrefVHS/Pi) &
-          /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**2. &
-          *SpecDSMC(iSpec)%TrefVHS**(SpecDSMC(iSpec)%omegaVHS + 0.5)*CellTemp**(-SpecDSMC(iSpec)%omegaVHS - 0.5))
-  ELSE
+  IF ((nSpec(iSpec).GE.2).AND.(.NOT.ALMOSTZERO(u2Spec(iSpec)))) THEN
     dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*SpecDSMC(iSpec)%TrefVHS/Pi) &
           /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**2. &
           *SpecDSMC(iSpec)%TrefVHS**(SpecDSMC(iSpec)%omegaVHS + 0.5)*SpecTemp(iSpec)**(-SpecDSMC(iSpec)%omegaVHS - 0.5))
+  ELSE
+    dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*SpecDSMC(iSpec)%TrefVHS/Pi) &
+          /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**2. &
+          *SpecDSMC(iSpec)%TrefVHS**(SpecDSMC(iSpec)%omegaVHS + 0.5)*CellTemp**(-SpecDSMC(iSpec)%omegaVHS - 0.5))
   END IF
   ! innerdof pro spec !
   thermalcondspec(iSpec) = 0.25 * (15. + 2. * InnerDOF) &
@@ -1206,13 +1206,13 @@ DO iSpec = 1, nSpecies
 END DO
 C_P = 5./2.*BoltzmannConst/C_P
 
+
 PrandtlCorrection = 0.
 DO iSpec = 1, nSpecies
   PrandtlCorrection = PrandtlCorrection + REAL(totalWeightSpec(iSpec))/REAL(totalWeight)*MassCoef/Species(iSpec)%MassIC
 END DO
 
 
-!Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
 Prandtl = C_P*dynamicvis/thermalcond*PrandtlCorrection
 
 !second way
@@ -1221,6 +1221,19 @@ Prandtl = C_P*dynamicvis/thermalcond*PrandtlCorrection
 !nu= MAX(nu,-Theta/(W(3)-Theta))
 
 relaxfreq = Prandtl*dens*BoltzmannConst*CellTempRelax/dynamicvis
+if (relaxfreq*dt.gt.1)then
+ print*, relaxfreq*dt
+  print*, dynamicvisSpec
+  print*, nSpec, Phi
+  print*, totalWeightSpec
+  print*, CellTempRelax, dynamicvis
+  print*, SpecTemp
+  DO iLoop = 1, nPart
+    iSpec = PartSpecies(iPartIndx_Node(iLoop))
+    IF (iSpec.eq.2)   print*,iLoop,'part', PartState(4:6,iPartIndx_Node(iLoop))
+  END DO
+endif
+
 
 IF(DSMC%CalcQualityFactors) THEN
   BGK_MeanRelaxFactor         = BGK_MeanRelaxFactor + relaxfreq * dt
