@@ -1052,6 +1052,7 @@ REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
 INTEGER               :: iMom
 #endif /* CODE_ANALYZE */
 REAL                  :: totalWeightSpec(nSpecies), totalWeight, partWeight, totalWeightSpec2(nSpecies), totalWeight2
+REAL                  :: tempmass, tempweight
 !===================================================================================================================================
 #ifdef CODE_ANALYZE
 ! Momentum and energy conservation check: summing up old values
@@ -1133,23 +1134,44 @@ SpecTemp = 0.0
 CellTemp = 0.0
 Ener = 0.0
 EnerTotal = 0.0 ! Brull
+
+!DO iSpec = 1, nSpecies
+!  IF ((nSpec(iSpec).GE.2).AND.(.NOT.ALMOSTZERO(u2Spec(iSpec)))) THEN
+!    SpecTemp(iSpec) = Species(iSpec)%MassIC * u2Spec(iSpec) &
+!        /(3.0*BoltzmannConst*(totalWeightSpec(iSpec) - totalWeightSpec2(iSpec)/totalWeightSpec(iSpec)))
+!    Ener(iSpec) =  3./2.*BoltzmannConst*SpecTemp(iSpec) * totalWeightSpec(iSpec)
+!  END IF
+!  vmag2 = vBulkSpec(1,iSpec)**2. + vBulkSpec(2,iSpec)**2. + vBulkSpec(3,iSpec)**2.
+!  Ener(iSpec) = Ener(iSpec) + totalWeightSpec(iSpec) * Species(iSpec)%MassIC / 2. * vmag2
+!  EnerTotal = EnerTotal + Ener(iSpec)
+!END DO
+!vmag2 = vBulkAll(1)*vBulkAll(1) + vBulkAll(2)*vBulkAll(2) + vBulkAll(3)*vBulkAll(3)
+!EnerTotal = EnerTotal -  TotalMass / 2. * vmag2
+
+!CellTemp = 2. * EnerTotal / (3.*totalWeight*BoltzmannConst)
+!u2 = 3. * CellTemp * BoltzmannConst * totalWeight / TotalMass
+
+tempweight = 0.0
+tempmass = 0.0
 DO iSpec = 1, nSpecies
   IF ((nSpec(iSpec).GE.2).AND.(.NOT.ALMOSTZERO(u2Spec(iSpec)))) THEN
     SpecTemp(iSpec) = Species(iSpec)%MassIC * u2Spec(iSpec) &
         /(3.0*BoltzmannConst*(totalWeightSpec(iSpec) - totalWeightSpec2(iSpec)/totalWeightSpec(iSpec)))
     Ener(iSpec) =  3./2.*BoltzmannConst*SpecTemp(iSpec) * totalWeightSpec(iSpec)
+    vmag2 = vBulkSpec(1,iSpec)**2. + vBulkSpec(2,iSpec)**2. + vBulkSpec(3,iSpec)**2.
+    Ener(iSpec) = Ener(iSpec) + totalWeightSpec(iSpec) * Species(iSpec)%MassIC / 2. * vmag2
+    EnerTotal = EnerTotal + Ener(iSpec)
+    tempweight = tempweight + totalWeightSpec(iSpec)
+    tempmass = tempmass +  totalWeightSpec(iSpec) * Species(iSpec)%MassIC 
   END IF
-  vmag2 = vBulkSpec(1,iSpec)**2. + vBulkSpec(2,iSpec)**2. + vBulkSpec(3,iSpec)**2.
-  Ener(iSpec) = Ener(iSpec) + totalWeightSpec(iSpec) * Species(iSpec)%MassIC / 2. * vmag2
-  EnerTotal = EnerTotal + Ener(iSpec)
 END DO
 vmag2 = vBulkAll(1)*vBulkAll(1) + vBulkAll(2)*vBulkAll(2) + vBulkAll(3)*vBulkAll(3)
-EnerTotal = EnerTotal -  TotalMass / 2. * vmag2
+EnerTotal = EnerTotal -  tempmass / 2. * vmag2
+CellTemp = 2. * EnerTotal / (3.*tempweight*BoltzmannConst)
+u2 = 3. * CellTemp * BoltzmannConst * tempweight / tempmass
+u0ij = u0ij* totalWeight / (TotalMass*(totalWeight - totalWeight2/totalWeight))
+u0i(1:3) = u0i(1:3)* totalWeight / (TotalMass*(totalWeight - totalWeight2/totalWeight))
 
-CellTemp = 2. * EnerTotal / (3.*totalWeight*BoltzmannConst)
-u2 = 3. * CellTemp * BoltzmannConst * totalWeight / TotalMass
-u0ij = u0ij/TotalMass
-u0i(1:3) = u0i(1:3)/TotalMass
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   ! totalWeight contains the weighted particle number
   dens = totalWeight / NodeVolume
@@ -1430,6 +1452,7 @@ REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
 INTEGER               :: iMom
 #endif /* CODE_ANALYZE */
 REAL                  :: totalWeightSpec(nSpecies), totalWeight, partWeight, totalWeightSpec2(nSpecies), totalWeight2
+REAL          :: vBulkTarget(1:3,nSpecies), TempTarget, u2target(nSpecies), SMatSpec(3,3,nSpecies), eta_nu
 !===================================================================================================================================
 #ifdef CODE_ANALYZE
 ! Momentum and energy conservation check: summing up old values
@@ -1489,12 +1512,6 @@ DO iLoop = 1, nPart
   V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop))-vBulkSpec(1:3,iSpec)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2  
   u2Spec(iSpec) = u2Spec(iSpec) + vmag2*partWeight
-!  DO fillMa1 =1, 3
-!    DO fillMa2 =fillMa1, 3
-!      u0ijSpec(fillMa1, fillMa2,iSpec)= u0ijSpec(fillMa1, fillMa2,iSpec) + V_rel(fillMa1)*V_rel(fillMa2)
-!    END DO
-!  END DO
-!  u0iSpec(1:3, iSpec) = u0iSpec(1:3, iSpec) + V_rel(1:3)
   V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop))-vBulkAll(1:3)  
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2  
   DO fillMa1 =1, 3
@@ -1583,11 +1600,34 @@ END DO
 
 
 Prandtl = C_P*dynamicvis/thermalcond*PrandtlCorrection
+eta_nu = 5./3. * TotalMass / (totalWeight *( Species(1)%MassIC + Species(2)%MassIC)*1.11)
+TempTarget = CellTemp
+DO iSpec = 1, nSpecies
+  vBulkTarget(1:3, iSpec) =  (1.-eta_nu/Prandtl)*vBulkSpec(1:3,iSpec) + eta_nu/Prandtl*vBulkAll(1:3)
+  V_rel(1:3)=vBulkSpec(1:3,iSpec)-vBulkAll(1:3)
+  vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2 
+  TempTarget = TempTarget - (1.-eta_nu/Prandtl)**2.*vmag2 * Species(iSpec)%MassIC * totalWeightSpec(iSpec) & 
+            / (totalWeight * BoltzmannConst * 3.)
+END DO
 
-!second way
-!nu=1.-1./Prandtl
-!Theta = u2/3.
-!nu= MAX(nu,-Theta/(W(3)-Theta))
+DO iLoop = 1, nPart
+  partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+  iSpec = PartSpecies(iPartIndx_Node(iLoop))  
+  V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop))-vBulkTarget(1:3,iSpec)
+  vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2  
+  DO fillMa1 =1, 3
+    DO fillMa2 =fillMa1, 3
+      u0ijSpec(fillMa1, fillMa2,iSpec)= u0ijSpec(fillMa1, fillMa2,iSpec) + V_rel(fillMa1)*V_rel(fillMa2)*partWeight
+    END DO
+  END DO
+  u0iSpec(1:3, iSpec) = u0iSpec(1:3, iSpec) + V_rel(1:3)*partWeight
+END DO
+
+DO iSpec = 1, nSpecies
+  u2target(iSpec) = 3. * TempTarget * BoltzmannConst / Species(iSpec)%MassIC
+  u0ijSpec(:, :,iSpec) = u0ijSpec(:, :,iSpec) / totalWeightSpec(iSpec)
+  u0iSpec(:, iSpec) = u0iSpec(:, iSpec) / totalWeightSpec(iSpec) 
+END DO
 
 relaxfreq = Prandtl*dens*BoltzmannConst*CellTempRelax/dynamicvis
 if (relaxfreq*dt.gt.1)then
@@ -1641,20 +1681,24 @@ IF (nRelax.GT.0) THEN
       ELSE
         KronDelta = 0.0
       END IF
-      SMat(fillMa1, fillMa2)= KronDelta - (1.-Prandtl)/(2.*Prandtl) &
-        *(3./u2*(u0ij(fillMa1, fillMa2)-u0i(fillMa1)*u0i(fillMa2))-KronDelta) 
+      DO iSpec = 1 ,nSpecies
+        SMatSpec(fillMa1, fillMa2,iSpec)= KronDelta - (1.-Prandtl)/(2.*Prandtl) &
+          *(3./u2target(iSpec)*(u0ijSpec(fillMa1, fillMa2,iSpec)-u0iSpec(fillMa1,iSpec)*u0iSpec(fillMa2,iSpec))-KronDelta) 
+      END DO
+!      SMat(fillMa1, fillMa2)= KronDelta - (1.-Prandtl)/(2.*Prandtl) &
+!        *(3./u2*(u0ij(fillMa1, fillMa2)-u0i(fillMa1)*u0i(fillMa2))-KronDelta) 
     END DO
   END DO
-  SMat(2,1)=SMat(1,2)
-  SMat(3,1)=SMat(1,3)
-  SMat(3,2)=SMat(2,3)
+  SMatSpec(2,1,:)=SMatSpec(1,2,:)
+  SMatSpec(3,1,:)=SMatSpec(1,3,:)
+  SMatSpec(3,2,:)=SMatSpec(2,3,:)
   CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
   
   DO iLoop = 1, nRelax
     iSpec = PartSpecies(iPartIndx_NodeRelax(iLoop))
     partWeight = GetParticleWeight(iPartIndx_NodeRelax(iLoop))
-    tempVelo(1:3) = SQRT(BoltzmannConst*CellTemp/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
-    DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) = vBulkAll(1:3) + MATMUL(SMat,tempVelo)
+    tempVelo(1:3) = SQRT(BoltzmannConst*TempTarget/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
+    DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) = vBulkTarget(1:3,iSpec) + MATMUL(SMatSpec(:,:,iSpec),tempVelo)
     vBulk(1:3) = vBulk(1:3) + DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop))*Species(iSpec)%MassIC*partWeight
   END DO
 END IF ! nRelax.GT.0
