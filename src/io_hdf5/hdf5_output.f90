@@ -1176,9 +1176,6 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
-#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

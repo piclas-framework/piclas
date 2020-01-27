@@ -467,7 +467,6 @@ USE MOD_part_tools           ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
 USE MOD_Globals              ,ONLY: Abort
 USE MOD_Globals              ,ONLY: unit_stdout,myrank
-USE MOD_Particle_Vars        ,ONLY: Symmetry2D
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -492,8 +491,7 @@ USE MOD_Particle_Vars        ,ONLY: Symmetry2D
   LOGICAL                       :: DoElec1, DoElec2
 #ifdef CODE_ANALYZE
   REAL                          :: Energy_old,Energy_new
-  INTEGER                       :: iMom, iMomDim
-  REAL                          :: Weight1, Weight2, Weight3, WeightProd, NumWeightEduct, NumWeightProd
+  REAL                          :: Weight1, Weight2, NumWeightEduct, NumWeightProd
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
   iPart1 = Coll_pData(iPair)%iPart_p1
@@ -804,7 +802,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   USE MOD_part_tools,             ONLY : DiceDeflectedVelocityVector
 #ifdef CODE_ANALYZE
   USE MOD_Globals                ,ONLY: unit_stdout,myrank
-  USE MOD_Particle_Vars          ,ONLY: Symmetry2D, Species
+  USE MOD_Particle_Vars          ,ONLY: Species
   USE MOD_part_tools             ,ONLY: GetParticleWeight
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING

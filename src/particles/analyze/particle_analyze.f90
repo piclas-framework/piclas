@@ -644,7 +644,10 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter, dt, IterDisplayStep
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, BGGas
+USE MOD_DSMC_Vars              ,ONLY: BGGas
+#if (PP_TimeDiscMethod ==42)
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
+#endif
 #endif
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
