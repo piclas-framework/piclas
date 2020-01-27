@@ -285,12 +285,12 @@ SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi
 USE MOD_Globals                 ,ONLY: CROSSNORM,UNITVECTOR,OrthoNormVec
 USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
-USE MOD_Part_Tools              ,ONLY: VeloFromDistribution, CreateParticle
+USE MOD_Part_Tools              ,ONLY: VeloFromDistribution
+USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Vars           ,ONLY: PartState,Species,PartSpecies
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars           ,ONLY: LastPartPos, PEM
-USE MOD_Particle_Analyze        ,ONLY: RemoveParticle
 USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC
 USE MOD_Particle_Boundary_Tools ,ONLY: SurfaceToPartEnergyInternal, CalcWallSample, AnalyzeSurfaceCollisions

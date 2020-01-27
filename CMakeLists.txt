@@ -10,7 +10,7 @@ IF ("${CMAKE_VERSION}" VERSION_GREATER 3.11)
     # From the following TWO settings,  the OLD behavior is deprecated
     # produces a "FATAL_ERROR" if "get_target_property()"is called with a
     # non-existing argument
-    cmake_policy (SET CMP0045 NEW) 
+    cmake_policy (SET CMP0045 NEW)
     # error in non-existing dependencies, NEW report error
     cmake_policy (SET CMP0046 NEW)
 ELSE()
@@ -99,7 +99,6 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                               RK3
                                                               RK4
                                                               RK14
-                                                              ParticleEuler-FieldRK4
                                                               DSMC
                                                               RESERVOIR
                                                               FP-Flow
@@ -113,22 +112,15 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                               ROS3
                                                               ROS4
                                                               ROS46
-                                                              ROS6
-                                                              FieldRelaxation
-                                                              FieldRelaxation-AdaptiveTimeStep)
+                                                              ROS6)
 
 OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
-OPTION(PICLAS_BUILDPOSTI "Build POSTI toolset" OFF)
+OPTION(PICLAS_BUILD_POSTI "Build POSTI toolset" ON)
 OPTION(PICLAS_MPI "Compile SINGLE or MPI version" ON)
-CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use LoadBalance timemeasurement" ON "PICLAS_MPI" OFF)
+CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use load balance time measurement" ON "PICLAS_MPI" OFF)
 OPTION(PICLAS_MKL "Use MKL libraries instead of BLAS/LAPACK" OFF)
-OPTION(PICLAS_PAPI "Use PAPI library to perform performance measurements (e.g. flop counts)." OFF)
 SET(PICLAS_BUILD_HDF5 OFF  CACHE BOOL "Compile and build hdf5 library")
-OPTION(PICLAS_HDF5F90 "enable old HDF5 interface" OFF)
-OPTION(PICLAS_INTKIND8 "enable enables particle numbers larger than 2E+9 (may NOT be compatible with HDF5 in combination with F90)" OFF)
-IF(PICLAS_HDF5F90 AND PICLAS_INTKIND8)
-  MESSAGE(ERROR " PICLAS_HDF5F90 and PICLAS_INTKIND8 may NOT be compatible with HDF5 in combination with F90")
-ENDIF(PICLAS_HDF5F90 AND PICLAS_INTKIND8)
+OPTION(PICLAS_INTKIND8 "Enable particle numbers larger than 2147483647 (on most systems, huge(4-byte-integer)))" OFF)
 
 SET(PICLAS_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
 SET_PROPERTY(CACHE PICLAS_EQNSYSNAME PROPERTY STRINGS ${EQNSYSTEMS})
@@ -146,7 +138,7 @@ IF(PICLAS_NODETYPE STREQUAL "GAUSS")
 ELSEIF(PICLAS_NODETYPE STREQUAL "GAUSS-LOBATTO")
   ADD_DEFINITIONS(-DPP_NodeType=2)
 ELSE()
-  MESSAGE(ERROR "No such node type known.")
+  MESSAGE(SEND_ERROR "Unknown node type.")
 ENDIF()
 ADD_DEFINITIONS(-DPP_nElems=NELEMZ)
 
@@ -162,26 +154,23 @@ IF(PICLAS_EQNSYSNAME STREQUAL "maxwell")
   #SET(PICLAS_C_PREPROC ${F2P_C_PREPROC} -Dmaxwell)
   ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell)
   SET(PICLAS_HDG OFF)
-ELSEIF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
-  ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell_pois -DPOIS)
-  SET(PICLAS_HDG OFF)
-ELSEIF(PICLAS_EQNSYSNAME STREQUAL "electrostatic_pois")
-  ADD_DEFINITIONS(-DPP_nVar=4 -Delectostratic -DPOIS)
-  SET(PICLAS_HDG OFF)
-ELSEIF(PICLAS_EQNSYSNAME STREQUAL "electrostatic")
-  ADD_DEFINITIONS(-DPP_nVar=4 -Delectrostatic)
-  SET(PICLAS_HDG OFF)
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "poisson")
   ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
   SET(PICLAS_HDG ON)
+ELSEIF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
+  ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell_pois -DPOIS)
+  SET(PICLAS_HDG OFF)
+  MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic")
   ADD_DEFINITIONS(-DPP_nVar=3 -Dmagnetostatic)
   SET(PICLAS_HDG ON)
+  MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic_poisson")
   ADD_DEFINITIONS(-DPP_nVar=4 -Dmagnetostatic_poisson)
   SET(PICLAS_HDG ON)
+  MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSE()
-   MESSAGE(ERROR "Unknown equation system.")
+   MESSAGE(SEND_ERROR "Unknown equation system.")
 ENDIF()
 
 # =========================================================================
@@ -192,15 +181,15 @@ IF(PICLAS_PARTICLES)
   ADD_DEFINITIONS(-DPARTICLES)
 ELSE()
   IF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
-    MESSAGE(ERROR " Not allowed to used DSMC without particles.")
+    MESSAGE(SEND_ERROR "DSMC cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
-    MESSAGE(ERROR " Not allowed to used RESERVOIR without particles.")
+    MESSAGE(SEND_ERROR "RESERVOIR cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "MACROBODY")
-    MESSAGE(ERROR " Not allowed to used MACROBODY without particles.")
+    MESSAGE(SEND_ERROR "MACROBODY cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
-    MESSAGE(ERROR " Not allowed to used BGK-Flow without particles.")
+    MESSAGE(SEND_ERROR "BGK-Flow cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
-    MESSAGE(ERROR " Not allowed to used FP-Flow without particles.")
+    MESSAGE(SEND_ERROR "FP-Flow cannot be used without particles.")
   ENDIF()
 ENDIF(PICLAS_PARTICLES)
 
@@ -246,8 +235,6 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK14")
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=6 -DLSERK)
   ENDIF()
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ParticleEuler-FieldRK4")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=5)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=4)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
@@ -285,16 +272,8 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=300)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=200)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation-AdaptiveTimeStep")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=201)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "LD")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=1000)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "LD-DSMC")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=1001)
 ELSE()
-   MESSAGE(ERROR "Unknown timedisc method system.")
+   MESSAGE(SEND_ERROR "Unknown time discretization method.")
 ENDIF()
 IF(PICLAS_IMPLICIT_ANALYZE)
   ADD_DEFINITIONS(-DIMPLICIT_ANALYZE)
@@ -333,7 +312,7 @@ IF(PICLAS_HDG)
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS6")
      MESSAGE(STATUS "use HDG with ROS6")
   ELSE()
-      MESSAGE(ERROR ": Unknown timedisc method system for HDG.")
+      MESSAGE(SEND_ERROR "Unknown time discretization method for HDG.")
   ENDIF()
 ELSE()
   ADD_DEFINITIONS(-DUSE_HDG=0)
@@ -356,7 +335,7 @@ FILE(WRITE ${configuration} "")
 GETLISTOFVARSSTARTINGWITH("PICLAS_" piclasVars)
 FOREACH (_var IN LISTS piclasVars)
   GET_PROPERTY(currentHelpString CACHE "${_var}" PROPERTY HELPSTRING)
-  SET(boolian (${${_var}} STREQUAL "ON" OR ${${_var}} STREQUAL "OFF")) 
+  SET(boolian (${${_var}} STREQUAL "ON" OR ${${_var}} STREQUAL "OFF"))
   IF(${boolian})
     FILE(APPEND ${configuration} "OPTION(${_var} \"${currentHelpString}\" ${${_var}})\n")
   ELSE()
@@ -422,7 +401,7 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -Wunused-parameter -fcheck=bounds,do,mem,pointer -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace -Wall")
   SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -Wunused-parameter -fcheck=all -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace -Wall -fsanitize=address,undefined,leak -fno-omit-frame-pointer -Wc-binding-type -Wuninitialized")
   # add flags only for compiling not linking!
-  SET (PICLAS_COMPILE_FLAGS "-xf95-cpp-input")
+  SET (PICLAS_COMPILE_FLAGS "-xf95-cpp-input -fPIC")
 
 ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
    #environment specific variables
@@ -449,7 +428,7 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
   SET (PICLAS_COMPILE_FLAGS "-F")
 
 ELSE()
-   MESSAGE(ERROR "Unknown compiler")
+   MESSAGE(SEND_ERROR "Unknown compiler.")
 ENDIF()
 
 # =========================================================================
@@ -508,9 +487,10 @@ ELSE()
     ExternalProject_Add(HDF5
       GIT_REPOSITORY ${HDF5DOWNLOAD}
       GIT_TAG ${HDF5TAG}
+      ${${GITSHALLOW}}
       PREFIX ${PICLAS_HDF5_DIR}
       UPDATE_COMMAND ""
-      CONFIGURE_COMMAND FC=${PICLAS_HDF5FC} CC=${PICLAS_HDF5CC} ${PICLAS_HDF5_DIR}/src/HDF5/configure --prefix=${PICLAS_HDF5_DIR} --enable-fortran ${PICLAS_HDF5PARALLEL} --disable-shared --libdir=${PICLAS_HDF5_DIR}/lib
+      CONFIGURE_COMMAND FC=${PICLAS_HDF5FC} CC=${PICLAS_HDF5CC} ${PICLAS_HDF5_DIR}/src/HDF5/configure --prefix=${PICLAS_HDF5_DIR} --with-pic --enable-fortran ${PICLAS_HDF5PARALLEL} --libdir=${PICLAS_HDF5_DIR}/lib
       BUILD_COMMAND ${MAKE}
     )
     LIST(APPEND SELFBUILTEXTERNALS HDF5)
@@ -524,7 +504,7 @@ ELSE()
     #  BUILD_COMMAND ${MAKE}
     #)
   ENDIF()
-  
+
   SET(PICLAS_HDF5_CMAKE FALSE)
   SET(HDF5_hdf5_LIBRARY_RELEASE         ${PICLAS_HDF5_DIR}/lib/libhdf5.a)
   SET(HDF5_hdf5_fortran_LIBRARY_RELEASE ${PICLAS_HDF5_DIR}/lib/libhdf5_fortran.a)
@@ -539,9 +519,6 @@ ELSE()
   LIST(APPEND HDF5_INCLUDE_DIR  ${HDF5_C_INCLUDE_DIR})
   FIND_LIBRARY(HDF5_z_LIBRARY_RELEASE z)
   LIST(APPEND HDF5_LIBRARIES ${HDF5_hdf5_fortran_LIBRARY_RELEASE} ${HDF5_hdf5_LIBRARY_RELEASE} ${HDF5_z_LIBRARY_RELEASE} -ldl)
-ENDIF()
-IF (PICLAS_HDF5F90)
-   ADD_DEFINITIONS(-DHDF5_F90)
 ENDIF()
 IF (PICLAS_INTKIND8)
    ADD_DEFINITIONS(-DINTKIND8)
@@ -606,20 +583,9 @@ ELSE()
   ADD_DEFINITIONS(-DUSE_LOADBALANCE=0)
 ENDIF()
 
-# ========================================================================= 
-# PAPI library 
-# ========================================================================= 
-IF(PICLAS_PAPI)
-  FIND_PACKAGE(PAPI REQUIRED)
-  ADD_DEFINITIONS(-DPAPI)
-  LIST(APPEND linkedlibs ${PAPI_LIBRARIES})
-  INCLUDE_DIRECTORIES(${PAPI_INCLUDE_DIRS})
-  MESSAGE(STATUS "Building PICLas with PAPI benchmark support.") 
-ENDIF()
-
-# ========================================================================= 
+# =========================================================================
 # QDS with DGSEM
-# ========================================================================= 
+# =========================================================================
 IF(PICLAS_QDS_DG)
   MESSAGE(STATUS "Building PICLas with QDS-DGSEM")
   ADD_DEFINITIONS(-DUSE_QDS_DG=1)
@@ -633,18 +599,29 @@ ENDIF()
 
 function(add_exec target)
   ADD_EXECUTABLE(${target} ${ARGN})
-  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o piclaslib userblocklib stacksizelib ${linkedlibs})
-  SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}) 
-  SET_TARGET_PROPERTIES(${target} PROPERTIES LINKER_LANGUAGE Fortran)
+  TARGET_LINK_LIBRARIES(${target} libpiclasshared)
+  SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}
+                                              LINKER_LANGUAGE Fortran)
   INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target} DESTINATION bin)
   STRING(TOUPPER ${target} TARGETUP)
   ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: ${TARGETUP} BUILD COMPLETE!")
 endfunction()
 
-# include piclas.h 
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src) 
+FUNCTION(add_lib target)
+  ADD_LIBRARY(${target} SHARED ${ARGN})
+  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o libpiclasstatic userblocklib stacksizelib ${linkedlibs})
+  SET_TARGET_PROPERTIES(${target} PROPERTIES PREFIX ""
+                                             COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}
+                                             LINKER_LANGUAGE Fortran)
+  INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target} DESTINATION bin)
+  STRING(TOUPPER ${target} TARGETUP)
+  ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: ${TARGETUP} BUILD COMPLETE!")
+ENDFUNCTION()
 
-# collect all F90 files needed for piclaslib
+# include piclas.h
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+# collect all F90 files needed for libpiclasstatic
 FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
                                 ./src/analyze/*.f90
                                 ./src/filter/*.f90
@@ -689,7 +666,7 @@ FILE(GLOB_RECURSE implicitF90 ./src/linearsolver/linearsolver.f90
                               ./src/linearsolver/linearoperator/linearoperator.f90
                               ./src/linearsolver/newton.f90)
 
-                            IF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
+IF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
   FILE(GLOB_RECURSE precondF90 ./src/precond/precond.f90
                                ./src/precond/precond_vars.f90
                                ./src/precond/applypreconditioner.f90
@@ -711,10 +688,12 @@ ELSE()
                                ./src/precond/jac_ex/maxwell/*.f90)
 ENDIF()
 
-FILE(GLOB mainF90 ./src/piclas.f90)
+FILE(GLOB mainF90 ./src/piclas.f90
+                  ./src/piclaslib.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
+                               ./src/posti/superB/*.f90
                                ./src/interpolation/eval_xyz.f90)
-FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90 
+FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90
                          ./src/particles/particle_mesh/particle_mesh_vars.f90
                          ./src/particles/particle_vars.f90
@@ -743,27 +722,34 @@ IF (PICLAS_PARTICLES)
    LIST(APPEND piclasF90 ${noparticlesF90})
  ENDIF(PICLAS_PARTICLES)
  IF(PICLAS_QDS_DG)
-  LIST(APPEND piclasF90 ${QDSF90}) 
+  LIST(APPEND piclasF90 ${QDSF90})
 ENDIF()
 
 # define libs
-ADD_LIBRARY(piclaslibF90 OBJECT ${piclasF90} )
-SET_TARGET_PROPERTIES(piclaslibF90 PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}) 
-ADD_LIBRARY(piclaslib STATIC $<TARGET_OBJECTS:piclaslibF90>)
+ADD_LIBRARY(libpiclasstaticF90 OBJECT ${piclasF90} )
+SET_TARGET_PROPERTIES(libpiclasstaticF90 PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS})
+ADD_LIBRARY(libpiclasstatic STATIC $<TARGET_OBJECTS:libpiclasstaticF90>)
+SET_TARGET_PROPERTIES(libpiclasstatic PROPERTIES PREFIX ""
+                                      OUTPUT_NAME "libpiclasf90")
 IF(SELFBUILTEXTERNALS)
-  ADD_DEPENDENCIES(piclaslibF90 ${SELFBUILTEXTERNALS})
+  ADD_DEPENDENCIES(libpiclasstaticF90 ${SELFBUILTEXTERNALS})
 ENDIF()
 
 ADD_LIBRARY(userblocklib STATIC ./src/output/read_userblock.c)
-SET_TARGET_PROPERTIES(userblocklib PROPERTIES LINKER_LANGUAGE C)
-SET_TARGET_PROPERTIES(userblocklib PROPERTIES COMPILE_FLAGS "-fPIC")
+SET_TARGET_PROPERTIES(userblocklib PROPERTIES LINKER_LANGUAGE C
+                                              COMPILE_FLAGS "-fPIC")
 
 ADD_LIBRARY(stacksizelib STATIC ./src/globals/stacksize.c)
-SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LINKER_LANGUAGE C)
-SET_TARGET_PROPERTIES(stacksizelib PROPERTIES COMPILE_FLAGS "-fPIC")
+SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LINKER_LANGUAGE C
+                                               COMPILE_FLAGS "-fPIC")
 
+
+# we link the statically built libs
+add_lib(libpiclasshared ./src/piclaslib.f90)
+SET_TARGET_PROPERTIES(libpiclasshared PROPERTIES OUTPUT_NAME "libpiclas")
+ADD_DEPENDENCIES(libpiclasshared libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
 add_exec(piclas ./src/piclas.f90)
-ADD_DEPENDENCIES(piclas piclaslib userblocklib stacksizelib ${INTERNALLIBS})
+ADD_DEPENDENCIES(piclas libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
 
 # special compiler flags to avoid warnings for empty functions of testcase.f90 and overwrite of intrinsic abort in globals.f90
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
@@ -784,13 +770,13 @@ ADD_CUSTOM_TARGET(preproc_defines COMMAND echo ${comp_defs_str})
 # Add H5piclas2VTK tool
 # =========================================================================
 add_exec(h5piclas2vtk ./src/h5piclas2vtk.f90)
-ADD_DEPENDENCIES(h5piclas2vtk piclaslib)
+ADD_DEPENDENCIES(h5piclas2vtk libpiclasstatic userblocklib stacksizelib ${INTERNALLIBS})
 
 # =========================================================================
 # Posti
 # =========================================================================
-IF(PICLAS_BUILDPOSTI)
-  INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/posti/CMakeLists.txt)
+IF(PICLAS_BUILD_POSTI)
+  INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/src/posti/CMakeLists.txt)
 ELSE()
   GETLISTOFVARSSTARTINGWITH("POSTI_" postiVars)
   FOREACH (_var IN LISTS postiVars)
@@ -798,22 +784,10 @@ ELSE()
   ENDFOREACH()
 ENDIF()
 
-#   # =========================================================================
-#   # RegressionCheck tool && Examples
-#   # =========================================================================
-#   add_exec(regressioncheck ./regressioncheck/regressioncheck.f90 
-#                            ./regressioncheck/regressioncheck_vars.f90 
-#                            ./regressioncheck/regressioncheck_build.f90 
-#                            ./regressioncheck/regressioncheck_compare.f90 
-#                            ./regressioncheck/regressioncheck_run.f90 
-#                            ./regressioncheck/regressioncheck_tools.f90 )
-#   ADD_DEFINITIONS(-DH5DIFF="${HDF5_DIFF_EXECUTABLE}")
-#   SET(PICLAS_REGRESSIONCHECK_EXAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/regressioncheck/examples")
-
 # =========================================================================
 # Userblock
 # =========================================================================
-ADD_CUSTOM_COMMAND(TARGET piclaslib PRE_BUILD COMMAND 
+ADD_CUSTOM_COMMAND(TARGET libpiclasstatic PRE_BUILD COMMAND
   sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CACHEFILE_DIR} "${CMAKE_CACHE_MAJOR_VERSION}.${CMAKE_CACHE_MINOR_VERSION}.${CMAKE_CACHE_PATCH_VERSION}")
 
 # =========================================================================

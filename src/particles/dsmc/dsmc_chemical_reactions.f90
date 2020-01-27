@@ -423,6 +423,7 @@ USE MOD_part_tools             ,ONLY: DiceDeflectedVelocityVector
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_part_tools             ,ONLY: GetParticleWeight
+USE MOD_part_operations        ,ONLY: RemoveParticle
 #ifdef CODE_ANALYZE
 USE MOD_Globals                ,ONLY: unit_stdout,myrank
 USE MOD_Particle_Vars          ,ONLY: Symmetry2D
@@ -481,8 +482,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
       NumWeightEduct = 3.
     END IF
     IF(ProductReac(3).EQ.0) THEN
-      PDM%ParticleInside(React3Inx) = .FALSE.
-      IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(React3Inx) = 0
+      CALL RemoveParticle(React3Inx)
     ELSE
       PartSpecies(React3Inx) = ProductReac(3)
       WeightProd = GetParticleWeight(iPart_p3)

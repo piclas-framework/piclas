@@ -80,7 +80,7 @@ CALL prms%CreateIntOption('GroupSize', "Define size of MPI subgroups, used to e.
                                        '0')
 END SUBROUTINE DefineParametersMPI
 
-SUBROUTINE InitMPI()
+SUBROUTINE InitMPI(mpi_comm_IN)
 !===================================================================================================================================
 ! Basic MPI initialization.
 !===================================================================================================================================
@@ -90,20 +90,28 @@ USE MOD_Globals
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN),OPTIONAL      :: mpi_comm_IN !< MPI communicator
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!===================================================================================================================================
 #if USE_MPI
-CALL MPI_INIT(iError)
-IF(iError .NE. 0) &
-  CALL Abort(&
-  __STAMP__&
-  ,'Error in MPI_INIT',iError)
+INTEGER :: MPI_COMM_LOC
+LOGICAL :: initDone
+!==================================================================================================================================
+IF (PRESENT(mpi_comm_IN)) THEN
+  MPI_COMM_LOC = mpi_comm_IN
+ELSE
+  CALL MPI_INIT(iError)
+  CALL MPI_INITIALIZED(initDone,iError)
+  IF(.NOT.initDone) CALL MPI_INIT(iError)
+  IF(iError .NE. 0) &
+    CALL Abort(__STAMP__,'Error in MPI_INIT',iError)
+  MPI_COMM_LOC = MPI_COMM_WORLD
+END IF
 
-CALL MPI_COMM_RANK(MPI_COMM_WORLD, myRank     , iError)
-CALL MPI_COMM_SIZE(MPI_COMM_WORLD, nProcessors, iError)
+CALL MPI_COMM_RANK(MPI_COMM_LOC, myRank     , iError)
+CALL MPI_COMM_SIZE(MPI_COMM_LOC, nProcessors, iError)
 IF(iError .NE. 0) &
   CALL Abort(&
   __STAMP__&

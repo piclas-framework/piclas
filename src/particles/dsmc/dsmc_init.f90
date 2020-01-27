@@ -1936,17 +1936,15 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER       :: iPoly
 !===================================================================================================================================
-IF(DSMC%VibRelaxProb.EQ.2) THEN
-  SDEALLOCATE(VarVibRelaxProb%ProbVibAv)
-  SDEALLOCATE(VarVibRelaxProb%ProbVibAvNew)
-  SDEALLOCATE(VarVibRelaxProb%nCollis)
-  SDEALLOCATE(DSMC%QualityFacSampRot)
-  SDEALLOCATE(DSMC%QualityFacSampVib)
-  SDEALLOCATE(DSMC%QualityFacSampRotSamp)
-  SDEALLOCATE(DSMC%QualityFacSampVibSamp)
-  SDEALLOCATE(DSMC%CalcVibProb)
-  SDEALLOCATE(DSMC%CalcRotProb)
-END IF
+SDEALLOCATE(VarVibRelaxProb%ProbVibAv)
+SDEALLOCATE(VarVibRelaxProb%ProbVibAvNew)
+SDEALLOCATE(VarVibRelaxProb%nCollis)
+SDEALLOCATE(DSMC%QualityFacSampRot)
+SDEALLOCATE(DSMC%QualityFacSampVib)
+SDEALLOCATE(DSMC%QualityFacSampRotSamp)
+SDEALLOCATE(DSMC%QualityFacSampVibSamp)
+SDEALLOCATE(DSMC%CalcVibProb)
+SDEALLOCATE(DSMC%CalcRotProb)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(DSMC_RHS)
 SDEALLOCATE(PartStateIntEn)
@@ -2022,12 +2020,91 @@ SDEALLOCATE(MacroSurfaceVal)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_HOSolution)
 SDEALLOCATE(DSMC_Volumesample)
-SDEALLOCATE(ElemNodeVol)
+CALL DeleteElemNodeVol()
 SDEALLOCATE(BGGas%PairingPartner)
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
 END SUBROUTINE FinalizeDSMC
+
+
+SUBROUTINE DeleteElemNodeVol()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Delete the pointer tree ElemNodeVol
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_DSMC_Vars
+USE MOD_Mesh_Vars              ,ONLY: nElems
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: iElem
+!===================================================================================================================================
+IF(.NOT.DSMC%UseOctree) RETURN
+DO iElem=1,nElems
+  CALL DeleteNodeVolume(ElemNodeVol(iElem)%Root)
+  DEALLOCATE(ElemNodeVol(iElem)%Root)
+END DO
+DEALLOCATE(ElemNodeVol)
+END SUBROUTINE DeleteElemNodeVol
+
+
+RECURSIVE SUBROUTINE DeleteNodeVolume(Node)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Check if the Node has subnodes and delete them
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_DSMC_Vars
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES
+TYPE (tNodeVolume), INTENT(IN), POINTER  :: Node
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(ASSOCIATED(Node%SubNode1)) THEN 
+  CALL DeleteNodeVolume(Node%SubNode1)
+  DEALLOCATE(Node%SubNode1)
+END IF
+IF(ASSOCIATED(Node%SubNode2)) THEN
+  CALL DeleteNodeVolume(Node%SubNode2)
+  DEALLOCATE(Node%SubNode2)
+END IF
+IF(ASSOCIATED(Node%SubNode3)) THEN
+  CALL DeleteNodeVolume(Node%SubNode3)
+  DEALLOCATE(Node%SubNode3)
+END IF
+IF(ASSOCIATED(Node%SubNode4)) THEN
+  CALL DeleteNodeVolume(Node%SubNode4)
+  DEALLOCATE(Node%SubNode4)
+END IF
+IF(ASSOCIATED(Node%SubNode5)) THEN
+  CALL DeleteNodeVolume(Node%SubNode5)
+  DEALLOCATE(Node%SubNode5)
+END IF
+IF(ASSOCIATED(Node%SubNode6)) THEN
+  CALL DeleteNodeVolume(Node%SubNode6)
+  DEALLOCATE(Node%SubNode6)
+END IF
+IF(ASSOCIATED(Node%SubNode7)) THEN
+  CALL DeleteNodeVolume(Node%SubNode7)
+  DEALLOCATE(Node%SubNode7)
+END IF
+IF(ASSOCIATED(Node%SubNode8)) THEN
+  CALL DeleteNodeVolume(Node%SubNode8)
+  DEALLOCATE(Node%SubNode8)
+END IF
+END SUBROUTINE DeleteNodeVolume
 
 
 END MODULE MOD_DSMC_Init

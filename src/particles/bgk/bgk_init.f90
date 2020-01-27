@@ -154,7 +154,7 @@ CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
 IF(CoupledBGKDSMC) THEN
   BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
 ELSE
-  IF(RadialWeighting%DoRadialWeighting) RadialWeighting%PerformCloning = .FALSE.
+  IF(RadialWeighting%DoRadialWeighting) RadialWeighting%PerformCloning = .TRUE.
 END IF
 ! Octree-based cell refinement, up to a certain number of particles
 DoBGKCellAdaptation = GETLOGICAL('Particles-BGK-DoCellAdaptation')

@@ -319,11 +319,12 @@ SUBROUTINE PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,ElasticRefl
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: PDM, LastPartPos, PartSpecies
+USE MOD_Particle_Vars          ,ONLY: LastPartPos
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, MapSurfSideToPorousBC, PorousBC, MapSurfSideToPorousSide
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_part_tools             ,ONLY: GetParticleWeight
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_part_operations        ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -337,7 +338,7 @@ LOGICAL,INTENT(INOUT)         :: ElasticReflectionAtPorousBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: point(1:2), intersectionPoint(1:3), radius, iRan
-INTEGER                       :: iSpec, SurfSideID, PorousBCID, pBCSideID
+INTEGER                       :: SurfSideID, PorousBCID, pBCSideID
 LOGICAL                       :: ParticleHitPorousBC
 !===================================================================================================================================
 SurfSideID = SurfMesh%SideIDToSurfID(SideID)
@@ -371,15 +372,9 @@ IF(PorousBCID.GT.0) THEN
       CASE('pump')
         CALL RANDOM_NUMBER(iRan)
         IF(iRan.LE.PorousBC(PorousBCID)%RemovalProbability(pBCSideID)) THEN
-          PDM%ParticleInside(iPart)=.FALSE.
-          alpha=-1.
           ! Counting particles that leave the domain through the porous BC (required for the calculation of the pumping capacity)
           PorousBC(PorousBCID)%Sample(pBCSideID,2) = PorousBC(PorousBCID)%Sample(pBCSideID,2) + GetParticleWeight(iPart)
-          IF(CalcPartBalance) THEN
-            iSpec = PartSpecies(iPart)
-            nPartOut(iSpec)=nPartOut(iSpec) + 1
-            PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(iPart)
-          END IF ! CalcPartBalance
+          CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(BC(SideID)),alpha=alpha)
         END IF
         ! Treat the pump as a perfect reflection (particle is not removed and keeps its temperature)
         ElasticReflectionAtPorousBC = .TRUE.
@@ -554,9 +549,9 @@ SUBROUTINE ExchangeImpingedPartPorousBC()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfComm, nPorousBC, nPorousBCVars, MapSurfSideToPorousSide, MapSurfSideToPorousBC
-USE MOD_Particle_Boundary_Vars      ,ONLY:PorousBC
-USE MOD_Particle_MPI_Vars           ,ONLY:PorousBCSendBuf,PorousBCRecvBuf,SurfExchange
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfComm, nPorousBC, nPorousBCVars, MapSurfSideToPorousSide, MapSurfSideToPorousBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: PorousBC, SurfMesh
+USE MOD_Particle_MPI_Vars       ,ONLY: PorousBCSendBuf, PorousBCRecvBuf, SurfExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -592,7 +587,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   iPos=0
   PorousBCSendBuf(iProc)%content = 0.
   DO iSurfSide=1,SurfExchange%nSidesSend(iProc)
-    SurfSideID = SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
+    SurfSideID = SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide))
     PorousBCID = MapSurfSideToPorousBC(SurfSideID)
     IF(PorousBCID.GT.0) THEN
       PorousBCSideID = MapSurfSideToPorousSide(SurfSideID)
@@ -638,7 +633,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
   iPos=0
   DO iSurfSide=1,SurfExchange%nSidesRecv(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
+    SurfSideID = SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide))
     PorousBCID = MapSurfSideToPorousBC(SurfSideID)
     IF(PorousBCID.GT.0) THEN
       PorousBCSideID = MapSurfSideToPorousSide(SurfSideID)
@@ -663,8 +658,8 @@ SUBROUTINE ExchangeRemovalProbabilityPorousBC
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfComm, MapSurfSideToPorousSide, MapSurfSideToPorousBC, PorousBC
-USE MOD_Particle_MPI_Vars           ,ONLY:SurfExchange
+USE MOD_Particle_Boundary_Vars      ,ONLY: SurfComm, MapSurfSideToPorousSide, MapSurfSideToPorousBC, PorousBC, SurfMesh
+USE MOD_Particle_MPI_Vars           ,ONLY: SurfExchange
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -695,7 +690,7 @@ END DO
 ! These are the halo sides (from which we usually receive information -> using nSidesRecv and RecvList)
 DO iProc=1, SurfCOMM%nMPINeighbors
   DO iCommSide=1, SurfExchange%nSidesRecv(iProc)
-    SurfSideID = SurfCOMM%MPINeighbor(iProc)%RecvList(iCommSide)
+    SurfSideID = SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%RecvList(iCommSide))
     pBCID = MapSurfSideToPorousBC(SurfSideID)
     IF(pBCID.GT.0) THEN
       TempArrayProc(iProc)%SendMsg(iCommSide) = PorousBC(pBCID)%RemovalProbability(MapSurfSideToPorousSide(SurfSideID))
@@ -726,7 +721,7 @@ END DO
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
   DO iCommSide=1,SurfExchange%nSidesSend(iProc)
-    SurfSideID = SurfCOMM%MPINeighbor(iProc)%SendList(iCommSide)
+    SurfSideID = SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%SendList(iCommSide))
     pBCID = MapSurfSideToPorousBC(SurfSideID)
     IF(pBCID.GT.0) THEN
       PorousBC(pBCID)%RemovalProbability(MapSurfSideToPorousSide(SurfSideID)) = TempArrayProc(iProc)%RecvMsg(iCommSide)

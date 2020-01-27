@@ -79,7 +79,6 @@ USE MOD_ReadInTools,ONLY:GETREALARRAY,GETREAL,GETINT
 USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
 USE MOD_Equation_Vars
 USE MOD_Mesh_Vars,ONLY:nSides
-USE MOD_TimeDisc_Vars, ONLY: TEnd
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -89,7 +88,6 @@ USE MOD_TimeDisc_Vars, ONLY: TEnd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-TEnd=GetReal('TEnd')
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    SWRITE(*,*) "InitPoisson not ready to be called or already called."
    RETURN
@@ -350,10 +348,9 @@ FUNCTION shapefunc(r)
 END FUNCTION shapefunc
 
 FUNCTION beta(z,w)
-   USE nr
    IMPLICIT NONE
    REAL beta, w, z
-   beta = exp(gammln(z)+gammln(w)-gammln(z+w))
+   beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)
 END FUNCTION beta
 
 SUBROUTINE FinalizeEquation()
