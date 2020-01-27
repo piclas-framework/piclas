@@ -208,6 +208,8 @@ FUNCTION DiceDeflectedVelocityVector(cRela2,alphaVSS,ur,vr,wr)
  REAL                        :: rRan, rotAngle, cos_scatAngle, sin_scatAngle
  REAL,DIMENSION(3,3)         :: trafoMatrix
 !===================================================================================================================================
+
+IF (alphaVSS.GT.1) THEN ! VSS
   cRela = SQRT ( cRela2 )  ! absolute value of post-collision relative velocity
 
   CALL RANDOM_NUMBER(rRan) ! rRan = (b / d) ^ 2  : dice impact parameter b to distance d relation in y-direction
@@ -230,27 +232,28 @@ FUNCTION DiceDeflectedVelocityVector(cRela2,alphaVSS,ur,vr,wr)
 !  DiceDeflectedVelocityVector(1) = cRela * sin_scatAngle * COS(rotAngle)
 !  DiceDeflectedVelocityVector(2) = cRela * sin_scatAngle * SIN(rotAngle)
 ! for VSS the direction of the velocity is no longer negligible
-  IF (alphaVSS.GT.1) THEN ! VSS
-    IF ((vr.NE.0.) .AND. (wr.NE.0.)) THEN ! if no radial component: collision plane and laboratory identical-> no transformation
-      CrelaTrafo = SQRT(ur**2 + vr**2 + wr**2)
-      ! axis transformation from reduced- mass frame back to center-of-mass frame
-      ! via Bird1994 p.36 (2.22)=A*b MATMUL for performance reasons
-  !    WRITE(*,*) "Entered transformation" !to be solved
-      ! initializing rotation matrix
-      trafoMatrix(1,1) = ur / cRelaTrafo
-      trafoMatrix(1,2) = 0
-      trafoMatrix(1,3) = SQRT (vr ** 2 + wr ** 2) / cRelaTrafo
-      trafoMatrix(2,1) = vr / cRelaTrafo
-      trafoMatrix(2,2) = wr / SQRT (vr ** 2 + wr ** 2)
-      trafoMatrix(2,3) = - ur * vr / (cRelaTrafo * SQRT (vr ** 2 + wr ** 2))
-      trafoMatrix(3,1) = wr / cRelaTrafo
-      trafoMatrix(3,2) = - vr / SQRT (vr ** 2 + wr ** 2)
-      trafoMatrix(3,3) = - ur * wr / (cRelaTrafo * SQRT (vr ** 2 + wr ** 2))
+  IF ((vr.NE.0.) .AND. (wr.NE.0.)) THEN ! if no radial component: collision plane and laboratory identical-> no transformation
+    CrelaTrafo = SQRT(ur**2 + vr**2 + wr**2)
+    ! axis transformation from reduced- mass frame back to center-of-mass frame
+    ! via Bird1994 p.36 (2.22)=A*b MATMUL for performance reasons
+!    WRITE(*,*) "Entered transformation" !to be solved
+    ! initializing rotation matrix
+    trafoMatrix(1,1) = ur / cRelaTrafo
+    trafoMatrix(1,2) = 0
+    trafoMatrix(1,3) = SQRT (vr ** 2 + wr ** 2) / cRelaTrafo
+    trafoMatrix(2,1) = vr / cRelaTrafo
+    trafoMatrix(2,2) = wr / SQRT (vr ** 2 + wr ** 2)
+    trafoMatrix(2,3) = - ur * vr / (cRelaTrafo * SQRT (vr ** 2 + wr ** 2))
+    trafoMatrix(3,1) = wr / cRelaTrafo
+    trafoMatrix(3,2) = - vr / SQRT (vr ** 2 + wr ** 2)
+    trafoMatrix(3,3) = - ur * wr / (cRelaTrafo * SQRT (vr ** 2 + wr ** 2))
 
-      ! relative post collision v elocity transformation from reduced mass to COM frame
-      DiceDeflectedVelocityVector(:) = MATMUL (trafoMatrix , DiceDeflectedVelocityVector)
-    END IF ! transformation
-  END IF ! VSS
+    ! relative post collision v elocity transformation from reduced mass to COM frame
+    DiceDeflectedVelocityVector(:) = MATMUL (trafoMatrix , DiceDeflectedVelocityVector)
+  END IF ! transformation
+ELSE
+  DiceDeflectedVelocityVector(:) = CRela * DiceUnitVector()
+END IF ! VSS
 
 END FUNCTION DiceDeflectedVelocityVector
 
