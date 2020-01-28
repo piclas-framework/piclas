@@ -210,6 +210,7 @@ REAL,INTENT(IN) :: tEnd   !< end time of simulation
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL    :: percent,time_remaining,mins,secs,hours
+REAL              :: factor
 !==================================================================================================================================
 
 IF(.NOT.doPrintStatusLine) RETURN
@@ -227,8 +228,10 @@ IF(MPIroot)THEN
   mins = MOD(time_remaining,60.)
   time_remaining = time_remaining / 60
   hours = MOD(time_remaining,24.)
-  WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,F6.2,A,I6,A1,I0.2,A1,I0.2,A1)',ADVANCE='NO') '   Time = ', t, &
-      '    dt = ', dt, '   ', percent, '% complete   est. Wall time Remaining = ',INT(hours),':',INT(mins),':',INT(secs), ACHAR(13)
+  WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A,A,A1,A,A3,F6.2,A3,A1)',ADVANCE='NO') &
+      '   Time = ', t,'    dt = ', dt, '  ', ' eta = ',INT(hours),':',INT(mins),':',INT(secs),'     |',&
+      REPEAT('=',MAX(CEILING(percent/2)-1,0)),'>',REPEAT(' ',INT((100-percent)/2)),'| [',percent,'%] ',&
+      ACHAR(13) ! ACHAR(13) is carriage return
 #ifdef INTEL
   CLOSE(UNIT_stdOut)
 #endif
