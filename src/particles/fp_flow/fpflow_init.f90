@@ -132,7 +132,7 @@ CoupledFPDSMC = GETLOGICAL('Particles-CoupledFPDSMC')
 IF(CoupledFPDSMC) THEN
   FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens')
 ELSE
-  IF(RadialWeighting%DoRadialWeighting) RadialWeighting%PerformCloning = .FALSE.
+  IF(RadialWeighting%DoRadialWeighting) RadialWeighting%PerformCloning = .TRUE.
 END IF
 
 FPInitDone = .TRUE.
