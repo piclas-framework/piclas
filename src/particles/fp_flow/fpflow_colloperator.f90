@@ -317,7 +317,6 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
 END IF
 
 ALLOCATE(iRanPart(3,nPart))
-!IF ((FPCollModel.EQ.1).AND.(nPart.GE.5)) THEN
 IF (FPCollModel.EQ.1) THEN
   Lambda = (u0ij(1)-1./3.*u2)**2.+2.0*u0ij(2)**2.+2.*u0ij(3)**2.+(u0ij(4)-1./3.*u2)**2.+2.*u0ij(5)**2.+(u0ij(6)-1./3.*u2)**2
   Lambda = -1.*Lambda/(relaxtime*u2**4.0)
@@ -413,9 +412,12 @@ IF (FPCollModel.EQ.1) THEN
   FPCoeffMatr(9,9) = u4 -u2**2.0 + 2.0*u2ij(6) - 2.0*u0ij(6)*u2
 
   FPSolVec(1:6,1)=-2.0*Lambda*u2ij(1:6)
-  FPSolVec(7,1)=5.0/(3.0*relaxtime)*u2i(1) + Lambda*(-3.0*u4i(1)+u2*u2i(1)+2.0*(u0ij(1)*u2i(1)+u0ij(2)*u2i(2)+u0ij(3)*u2i(3)))
-  FPSolVec(8,1)=5.0/(3.0*relaxtime)*u2i(2) + Lambda*(-3.0*u4i(2)+u2*u2i(2)+2.0*(u0ij(2)*u2i(1)+u0ij(4)*u2i(2)+u0ij(5)*u2i(3)))
-  FPSolVec(9,1)=5.0/(3.0*relaxtime)*u2i(3) + Lambda*(-3.0*u4i(3)+u2*u2i(3)+2.0*(u0ij(3)*u2i(1)+u0ij(5)*u2i(2)+u0ij(6)*u2i(3)))
+  FPSolVec(7,1)=(3.0/relaxtime - 2.0*Prandtl/relaxtime)*u2i(1) &
+            + Lambda*(-3.0*u4i(1)+u2*u2i(1)+2.0*(u0ij(1)*u2i(1)+u0ij(2)*u2i(2)+u0ij(3)*u2i(3))) 
+  FPSolVec(8,1)=(3.0/relaxtime - 2.0*Prandtl/relaxtime)*u2i(2) &
+            + Lambda*(-3.0*u4i(2)+u2*u2i(2)+2.0*(u0ij(2)*u2i(1)+u0ij(4)*u2i(2)+u0ij(5)*u2i(3)))
+  FPSolVec(9,1)=(3.0/relaxtime - 2.0*Prandtl/relaxtime)*u2i(3) &
+            + Lambda*(-3.0*u4i(3)+u2*u2i(3)+2.0*(u0ij(3)*u2i(1)+u0ij(5)*u2i(2)+u0ij(6)*u2i(3)))
 
   CALL DGESV(9, 1, FPCoeffMatr, 9, IPIV, FPSolVec, 9, info_dgesv)
 

@@ -1008,7 +1008,7 @@ where $\mathbf{A}$ is the drift vector and $\mathcal{D}$ the diffusion matrix.
 
 The current implementation supports:
 
-- 2 different methods: Cubic (only atomic species) and Ellipsoidal Statistical (ES)
+- 2 different methods: Cubic and Ellipsoidal Statistical (ES)
 - Single species, monoatomic and polyatomic gases
 - Thermal non-equilibrium with rotational and vibrational excitation (continuous or quantized treatment)
 - 2D/Axisymmetric simulations
@@ -1028,7 +1028,7 @@ A parameter file and species initialization file is required, analogous to the D
 
     Particles-FP-CollModel = 2
 
-The **recommended method is ESFP**. The vibrational excitation can be controlled with the following flags, including the choice between continuous and quantized vibrational energy:
+The vibrational excitation can be controlled with the following flags, including the choice between continuous and quantized vibrational energy:
 
     Particles-FP-DoVibRelaxation = T
     Particles-FP-UseQuantVibEn   = T
