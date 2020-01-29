@@ -484,7 +484,7 @@ unsorted_tmp=unsorted
 DO i = 1, EndID
   IF(.NOT.unsorted_tmp(i)) CYCLE
    idx=MINLOC(ArrayB,1,unsorted)
-   ArrayA(i) = ArrayA_temp(idx)
+   ArrayA(idx) = ArrayA_temp(i)
    unsorted(idx) = .FALSE.
 END DO
 
@@ -496,11 +496,12 @@ SUBROUTINE DielectricSurfaceCharge(iPart,ElemID,PartTrajectory,alpha)
 ! description
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals       ,ONLY: abort,myrank
-USE MOD_Mesh_Vars     ,ONLY: nElems
-USE MOD_Part_Tools    ,ONLY: CreateParticle,isChargedParticle
-USE MOD_Particle_Vars ,ONLY: PDM,PartSpecies,LastPartPos
-USE MOD_PICDepo_Tools ,ONLY: DepositParticleOnNodes
+USE MOD_Globals         ,ONLY: abort,myrank
+USE MOD_Mesh_Vars       ,ONLY: nElems
+USE MOD_part_operations ,ONLY: CreateParticle
+USE MOD_part_tools      ,ONLY: isChargedParticle
+USE MOD_Particle_Vars   ,ONLY: PDM,PartSpecies,LastPartPos
+USE MOD_PICDepo_Tools   ,ONLY: DepositParticleOnNodes
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 

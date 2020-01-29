@@ -97,12 +97,6 @@ Following parameters can be used for both schemes.
 | BezierClipMaxIntersec |  2*NGeo  |      Maximum number of roots for curvilinear faces.      |
 |      epsilontol       | 100*epsM |       Tolerance for linear and bilinear algorithm.       |
 
-### Possible outdated  (NEEDS UPDATING)
-
-|        Option         | Values |                    Notes                     |
-| :-------------------: | :----: | :------------------------------------------: |
-| BezierEpsilonBilinear |  T/F   | Tolerance for linear-bilinear side. Obsolet. |
-
 ## Boundary Conditions - Field Solver
 
 To-do: Modification of boundaries with the PICLas parameter file (order is of importance)
@@ -439,9 +433,19 @@ The relaxation factor $f_{\mathrm{relax}}$ is defined by
 
     Part-AdaptiveWeightingFactor = 0.001
 
-The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to overpredict the given mass flow, when the emission area is very small and large sample size would required to have enough particles that leave the method. For `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted, and thus the correct mass flow can be reproduced.
+The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to overpredict the given mass flow, when the emission area is very small and large sample size would be required to have enough particles that leave the domain through the emission area. For the `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted and the mass flow adapted accordingly, thus the correct mass flow can be reproduced.
 
-It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
+Additionally, the `Type=4` method can be utilized in combination with a reflective boundary condition to model diffusion and leakage (e.g. in vacuum tanks) based on a diffusion rate $Q$ [Pa m$^3$ s$^{-1}$]. The input mass flow [kg s$^{-1}$] for the simulation is then determined by
+
+$$\dot{m} = \frac{QM}{1000RT},$$
+
+where $R=8.314$ J mol$^{-1}$K$^{-1}$ is the gas constant, $M$ the molar mass in [g mol$^{-1}$] and $T$ is the gas temperature [K].
+
+To verify the resulting mass flow rate of an adaptive surface flux, the following option can be enabled
+
+    CalcMassflowRate = T
+
+This will output a species-specific mass flow rate [kg s^$-1$] for each surface flux condition in the `PartAnalyze.csv`, which gives the current mass flow for the time step. Positive values correspond to a net mass flux into the domain and negative values vice versa. It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 
 #### Missing descriptions
 

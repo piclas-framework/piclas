@@ -39,7 +39,8 @@ CONTAINS
 SUBROUTINE DefineParametersPIC()
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools ,ONLY: prms
+USE MOD_ReadInTools    ,ONLY: prms
+USE MOD_PICDepo_Method ,ONLY: DefineParametersDepositionMethod
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("PIC")
@@ -98,34 +99,7 @@ CALL prms%CreateLogicalOption(  'PIC-OutputSource'   , 'TODO-DEFINE-PARAMETER\n'
                                                        'Writes the source to hdf5', '.FALSE.')
 
 CALL prms%SetSection("PIC Deposition")
-CALL prms%CreateLogicalOption(  'PIC-DoDeposition'         , 'Switch deposition of charge (and current density) on/off', '.TRUE.')
-CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , '1.1)  shape_function\n'                   //&
-                                                             '1.2)  shape_function_1d\n'                //&
-                                                             '1.3)  shape_function_2d\n'                //&
-                                                             '1.4)  shape_function_cylindrical\n'       //&
-                                                             '1.5)  shape_function_spherical\n'         //&
-                                                             '1.6)  shape_function_simple\n'            //&
-                                                             '      1.1) to 1.6) require\n'            //&
-                                                             '        PIC-shapefunction-radius\n'//&
-                                                             '        PIC-shapefunction-alpha\n' //&
-                                                             '      1.2) and 1.3) require\n'            //&
-                                                             '        PIC-shapefunction1d-direction\n'  //&
-                                                             '      1.4) and 1.5) require\n'            //&
-                                                             '        PIC-shapefunction-radius0\n'      //&
-                                                             '        PIC-shapefunction-scale\n'        //&
-                                                             '2.)   cell_volweight\n'                   //&
-                                                             '3.)   epanechnikov\n'                     //&
-                                                             '4.)   nearest_gausspoint\n'               //&
-                                                             '5.)   delta_distri\n'                     //&
-                                                             '      requires PIC-DeltaType\n'           //&
-                                                             '               PIC-DeltaType-N\n'         //&
-                                                             '6.1)  cartmesh_volumeweighting\n'         //&
-                                                             '6.2)  cartmesh_splines\n'                 //&
-                                                             '      requires PIC-BGMdeltas\n'           //&
-                                                             '               PIC-FactorBGM\n'           //&
-                                                             '7.)   nearest-blurrycenter\n'             //&
-                                                             '8.)   cell_volweight_mean'                &
-                                                           , 'nearest-blurrycenter') ! Default
+CALL DefineParametersDepositionMethod() ! Get PIC-DoDeposition and PIC-Deposition-Type
 CALL prms%CreateStringOption(   'PIC-TimeAverageFile'      , 'TODO-DEFINE-PARAMETER', 'none')
 CALL prms%CreateLogicalOption(  'PIC-RelaxDeposition'      , 'Relaxation of current PartSource with RelaxFac\n'//&
                                                              'into PartSourceOld', '.FALSE.')

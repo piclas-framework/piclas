@@ -25,6 +25,7 @@ SAVE
 LOGICAL                       :: ParticleAnalyzeInitIsDone = .FALSE.
 LOGICAL                       :: CalcNumSpec                         !< Calculate the number of simulated particles per species
 LOGICAL                       :: CalcNumDens                         !< Calculate the number density per species within the domain
+LOGICAL                       :: CalcMassflowRate                    !< Calculate the mass flow through the adaptive inlet boundary
 LOGICAL                       :: CalcCollRates                       !< Calculate the collision rates per collision pair
 LOGICAL                       :: CalcReacRates                       !< Calculate the reaction rate per reaction
 LOGICAL                       :: CalcRelaxProb                       !< Calculate relaxation probabilities
@@ -60,10 +61,8 @@ LOGICAL                       :: DoPartAnalyze                       !< perform 
 INTEGER                       :: PartAnalyzeStep                     !< Analyze is performed each Nth time step
 INTEGER,ALLOCATABLE           :: nPartIn(:)                          !< Number of entry and leaving particles
 INTEGER,ALLOCATABLE           :: nPartOut(:)                         !< Number of entry and leaving particles
-INTEGER,ALLOCATABLE           :: nPartInTmp(:)                       !< Number of entry and leaving particles
 REAL,ALLOCATABLE              :: PartEkinIn(:)                       !< Energy and temperature of input particle
 REAL,ALLOCATABLE              :: PartEkinOut(:)                      !< Energy and temperature of input particle
-REAL,ALLOCATABLE              :: PartEKinInTmp(:)                    !< Energy and temperature of input particle
 
 ! get derived particle properties (for IMD/TTM initialization these values are calculated from the TTM grid values)
 LOGICAL                       :: CalcDebyeLength                     !< Compute the Debye length (min and max) in each cell
@@ -131,5 +130,6 @@ REAL                          :: printDiffTime                       !< TODO
 REAL                          :: printDiffVec(6)                     !< TODO
 REAL                          :: ChemEnergySum                       !< TODO
 LOGICAL                       :: CalcPorousBCInfo                    !< Calculate output for porous BCs (averaged over whole BC)
+REAL,ALLOCATABLE              :: MassflowRate(:,:)
 !===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars

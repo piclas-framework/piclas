@@ -29,11 +29,6 @@ INTERFACE VeloFromDistribution
   MODULE PROCEDURE VeloFromDistribution
 END INTERFACE
 
-INTERFACE CreateParticle
-  MODULE PROCEDURE CreateParticle
-END INTERFACE
-
-
 INTERFACE LIQUIDEVAP
   MODULE PROCEDURE LIQUIDEVAP
 END INTERFACE
@@ -76,7 +71,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: LIQUIDEVAP,LIQUIDREFL,ALPHALIQUID,BETALIQUID,TSURUTACONDENSCOEFF
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CreateParticle, isChargedParticle
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, isChargedParticle
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle
 !===================================================================================================================================
 
@@ -347,84 +342,6 @@ ELSE
 END IF
 
 END FUNCTION GetParticleWeight
-
-SUBROUTINE CreateParticle(Species,Pos,ElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID)
-!===================================================================================================================================
-!> creates a single particle at correct array position and assign properties
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-USE MOD_Globals
-USE MOD_Particle_Vars ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies
-USE MOD_DSMC_Vars     ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn     ! , RadialWeighting
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-INTEGER, INTENT(IN)           :: Species
-REAL, INTENT(IN)              :: Pos(1:3)
-INTEGER, INTENT(IN)           :: ElemID
-REAL, INTENT(IN)              :: Velocity(1:3)
-REAL, INTENT(IN)              :: RotEnergy
-REAL, INTENT(IN)              :: VibEnergy
-REAL, INTENT(IN)              :: ElecEnergy
-INTEGER, INTENT(OUT),OPTIONAL :: NewPartID
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-INTEGER :: newParticleID
-!===================================================================================================================================
-
-
-!IPWRITE(UNIT_stdOut,*) 'NEW PARTICLE!'
-
-!newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+1) ! add +1 because PDM%CurrentNextFreePosition starts at 0
-!IF (newParticleID .EQ. 0) CALL abort(&
-!__STAMP__&
-!,'ERROR in CreateParticle: newParticleID.EQ.0 - maximum nbr of particles reached?')
-!#if USE_MPI
-
-! Do not increase the ParticleVecLength for Phantom particles!
-PDM%ParticleVecLength = PDM%ParticleVecLength + 1 ! Increase particle vector length
-newParticleID = PDM%ParticleVecLength
-IF(newParticleID.GT.PDM%MaxParticleNumber)THEN
-  CALL abort(&
-      __STAMP__&
-      ,'CreateParticle: newParticleID.GT.PDM%MaxParticleNumber. newParticleID=',IntInfoOpt=newParticleID)
-END IF
-!IF(Species.LT.0) PDM%PhantomParticles = PDM%PhantomParticles + 1
-!#endif /*USE_MPI*/
-
-! Increase the NextFreePosition for further particle creation
-!PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-
-PartSpecies(newParticleID) = Species
-LastPartPos(1:3,newParticleID)=Pos(1:3)
-PartState(1:3,newParticleID) = Pos(1:3)
-PartState(4:6,newParticleID) = Velocity(1:3)
-
-IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-  PartStateIntEn(1,newParticleID) = VibEnergy
-  PartStateIntEn(2,newParticleID) = RotEnergy
-  IF (DSMC%ElectronicModel) THEN
-    PartStateIntEn(3,newParticleID) = ElecEnergy
-  ENDIF
-END IF
-
-PDM%ParticleInside(newParticleID) = .TRUE.
-PDM%dtFracPush(newParticleID)     = .FALSE.
-PDM%IsNewPart(newParticleID)      = .FALSE.   ! ??????? correct ????
-PEM%Element(newParticleID)        = ElemID
-PEM%lastElement(newParticleID)    = ElemID
-
-! ?????? necessary?
-! IF (VarTimeStep%UseVariableTimeStep) THEN
-!   VarTimeStep%ParticleTimeStep(newParticleID) &
-!     = CalcVarTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%Element(newParticleID))
-! END IF
-! IF (RadialWeighting%DoRadialWeighting) THEN
-!   PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID), 1,newParticleID)
-! END IF
-IF (PRESENT(NewPartID)) NewPartID=newParticleID
-
-END SUBROUTINE CreateParticle
 
 
 PURE REAL FUNCTION LIQUIDEVAP(beta,x,sigma)
