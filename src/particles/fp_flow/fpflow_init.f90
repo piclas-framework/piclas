@@ -129,11 +129,7 @@ END IF
 FPDoVibRelaxation = GETLOGICAL('Particles-FP-DoVibRelaxation')
 FPUseQuantVibEn = GETLOGICAL('Particles-FP-UseQuantVibEn')
 CoupledFPDSMC = GETLOGICAL('Particles-CoupledFPDSMC')
-IF(CoupledFPDSMC) THEN
-  FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens')
-ELSE
-  IF(RadialWeighting%DoRadialWeighting) RadialWeighting%PerformCloning = .TRUE.
-END IF
+IF(CoupledFPDSMC) FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens')
 
 FPInitDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)') ' INIT FP-FLOW DONE!'
