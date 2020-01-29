@@ -79,7 +79,7 @@ USE MOD_Preproc               ,ONLY: PP_N
 USE MOD_Mesh_Vars             ,ONLY: NGeo, nElems
 USE MOD_Globals_Vars          ,ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_PARTICLE_Vars         ,ONLY: nSpecies, Species
 USE MOD_FPFlow_Vars
