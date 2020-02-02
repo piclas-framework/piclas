@@ -326,12 +326,14 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
+USE MOD_Output                 ,ONLY: PrintStatusLine
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL                         :: tStart                   !> simulation time at the beginning of the simulation
 REAL                         :: tPreviousAnalyze         !> time of previous analyze.
                                                          !> Used for Nextfile info written into previous file if greater tAnalyze
 REAL                         :: tPreviousAverageAnalyze  !> time of previous Average analyze.
@@ -391,6 +393,9 @@ END IF
 !  CALL Deposition(DoInnerParts=.FALSE.)
 !#endif /*USE_MPI*/
 !#endif
+
+tStart = time
+CALL PrintStatusLine(time,dt,tStart,tEnd)
 CALL InitTimeStep() ! Initial time step calculation
 WallTimeStart=PICLASTIME()
 iter=0
@@ -504,6 +509,8 @@ DO !iter_t=0,MaxIter
     END IF
   END IF
 #endif /*NOT USE_HDG*/
+
+  CALL PrintStatusLine(time,dt,tStart,tEnd)
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
