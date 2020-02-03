@@ -2728,9 +2728,7 @@ USE MOD_Globals                ,ONLY: UNIT_stdout,abort
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBezier
 #endif /*CODE_ANALYZE*/
-#if USE_MPI
-USE MOD_Globals                ,ONLY: myrank
-#endif /*USE_MPI*/
+USE MOD_Globals                ,ONLY: MyRank
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

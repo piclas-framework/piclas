@@ -155,7 +155,7 @@ CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected
                                                                 '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
 
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
-#if (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 CALL prms%CreateLogicalOption(  'velocityOutputAtTime' , 'Flag if leapfrog uses an velocity-output at real time' , '.TRUE.')
 #endif
 
@@ -1128,7 +1128,7 @@ REAL                  :: particlenumber_tmp, phimax_tmp
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
-#if (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 velocityOutputAtTime = GETLOGICAL('velocityOutputAtTime','.FALSE.')
 #endif
 
@@ -1143,7 +1143,7 @@ __STAMP__&
 END IF
 Pt_temp=0.
 #endif
-#if (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 IF (velocityOutputAtTime) THEN
   ALLOCATE(velocityAtTime(1:PDM%maxParticleNumber,1:3), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
@@ -1153,7 +1153,7 @@ IF (velocityOutputAtTime) THEN
   END IF
   velocityAtTime=0.
 END IF
-#endif /*(PP_TimeDiscMethod==509)*/
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 
 #ifdef IMPA
 ALLOCATE(PartStage(1:6,1:nRKStages-1,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
@@ -3276,11 +3276,11 @@ IMPLICIT NONE
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 SDEALLOCATE( Pt_temp)
 #endif
-#if (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 IF (velocityOutputAtTime) THEN
   SDEALLOCATE(velocityAtTime)
 END IF
-#endif /*(PP_TimeDiscMethod==509)*/
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 #if defined(ROS) || defined(IMPA)
 SDEALLOCATE(PartStage)
 SDEALLOCATE(PartStateN)

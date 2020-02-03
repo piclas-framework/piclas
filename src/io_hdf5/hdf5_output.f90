@@ -774,9 +774,9 @@ USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Vars          ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell, nSpecies, VarTimeStep
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
-#if (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
-#endif /*(PP_TimeDiscMethod==509)*/
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
@@ -916,19 +916,19 @@ DO iElem_loc=1,PP_nElems
       PartData(1,iPart)=PartState(1,pcount)
       PartData(2,iPart)=PartState(2,pcount)
       PartData(3,iPart)=PartState(3,pcount)
-#if (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
       IF (velocityOutputAtTime) THEN
         PartData(4,iPart)=velocityAtTime(pcount,1)
         PartData(5,iPart)=velocityAtTime(pcount,2)
         PartData(6,iPart)=velocityAtTime(pcount,3)
       ELSE
-#endif /*(PP_TimeDiscMethod==509)*/
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
       PartData(4,iPart)=PartState(4,pcount)
       PartData(5,iPart)=PartState(5,pcount)
       PartData(6,iPart)=PartState(6,pcount)
-#if (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
       END IF
-#endif /*(PP_TimeDiscMethod==509)*/
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
       PartData(7,iPart)=REAL(PartSpecies(pcount))
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN

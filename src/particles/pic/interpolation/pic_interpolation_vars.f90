@@ -44,7 +44,8 @@ LOGICAL                 :: DoInterpolationAnalytic       !< use analytic/algebra
 !                                                        !< particle position
 
 INTEGER                 :: AnalyticInterpolationType     !< Type of the analytic interpolation method
-!                                                        !< 1: magnetostatic field: B = B_z = B_0 * EXP(x/l)
+!                                                        !< 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
+!                                                        !< 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
 !                                                        !<
 
 INTEGER                 :: AnalyticInterpolationSubType  !< Sub-Type for the analytic interpolation method (in combination with

@@ -99,7 +99,8 @@ DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
 IF(DoInterpolationAnalytic)THEN
   AnalyticInterpolationType = GETINT('PIC-AnalyticInterpolation-Type')
   SELECT CASE(AnalyticInterpolationType)
-  CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
+  CASE(0) ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
+  CASE(1) ! 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
     AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
     AnalyticInterpolationP       = GETREAL('PIC-AnalyticInterpolationP')
   CASE DEFAULT
@@ -257,6 +258,10 @@ FieldAtParticle(:,firstPart:lastPart) = 0. ! initialize
 #ifdef CODE_ANALYZE
 IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
   SELECT CASE(AnalyticInterpolationType)
+  CASE(0) ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
+    DO iPart = firstPart, LastPart
+      FieldAtParticle(6,iPart) = 1.0
+    END DO
   CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
     ASSOCIATE( B_0 => 1.0     , &
                l   => 1.0  )
@@ -270,7 +275,7 @@ IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field
   RETURN
 ELSE ! use variable or fixed external field
 #endif /*CODE_ANALYZE*/
-  IF(useVariableExternalField) THEN ! used curved external Bz
+  IF(useVariableExternalField) THEN ! used variable external Bz, which is given as 1D function Bz(z)
     FieldAtParticle(1,firstPart:lastPart) = externalField(1)
     FieldAtParticle(2,firstPart:lastPart) = externalField(2)
     FieldAtParticle(3,firstPart:lastPart) = externalField(3)
