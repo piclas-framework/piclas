@@ -22,7 +22,7 @@ IMPLICIT NONE
 PRIVATE
 
 INTERFACE BGK_CollisionOperator
-  MODULE PROCEDURE BGK_CollisionOperatorMultiSpecTodorova
+  MODULE PROCEDURE BGK_CollisionOperatorMultiSpecBrul
 END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
