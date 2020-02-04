@@ -712,6 +712,7 @@ USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_BGK_Vars              ,ONLY: SpecBGK, ESBGKModel, BGKCollModel, BGKUnifiedCes, BGKMovingAverageLength, BGKMovingAverage
 USE MOD_BGK_Vars              ,ONLY: BGKUseQuantVibEn, BGKDoVibRelaxation, SBGKEnergyConsMethod
 USE MOD_BGK_Vars              ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor
+USE MOD_BGK_Vars              ,ONLY: BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: abort,unit_stdout,myrank
@@ -746,6 +747,9 @@ INTEGER               :: iMom
 #endif /* CODE_ANALYZE */
 REAL                  :: totalWeightSpec(nSpecies), totalWeight, partWeight, totalWeightSpec2(nSpecies), totalWeight2
 REAL                  :: tempmass, tempweight, vBulkTemp(1:3), tempweight2
+
+REAL                  :: A(3,3), Work(1000), W(3), nu, Theta
+INTEGER               :: INFO
 !===================================================================================================================================
 #ifdef CODE_ANALYZE
 ! Momentum and energy conservation check: summing up old values
@@ -832,6 +836,9 @@ EnerTotal = EnerTotal -  tempmass / 2. * vmag2
 CellTemp = 2. * EnerTotal / (3.*tempweight*BoltzmannConst)
 u0ij = u0ij* totalWeight / (TotalMass*(totalWeight - totalWeight2/totalWeight))
 u2 = 3. * CellTemp * BoltzmannConst * (tempweight - tempweight2/tempweight) / tempmass
+A = u0ij
+CALL DSYEV('N','U',3,A,3,W,Work,1000,INFO)
+Theta = u2 / 3.
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   ! totalWeight contains the weighted particle number
@@ -884,12 +891,17 @@ DO iSpec = 1, nSpecies
   PrandtlCorrection = PrandtlCorrection + REAL(totalWeightSpec(iSpec))/REAL(totalWeight)*MassCoef/Species(iSpec)%MassIC
 END DO
 Prandtl = C_P*dynamicvis/thermalcond*PrandtlCorrection
+IF(DSMC%CalcQualityFactors) BGK_ExpectedPrandtlNumber = BGK_ExpectedPrandtlNumber + Prandtl
+nu = 1.-1./Prandtl
+nu= MAX(nu,-Theta/(W(3)-Theta))
+Prandtl = 1./(1.-nu)
 relaxfreq = Prandtl*dens*BoltzmannConst*CellTemp/dynamicvis
 
 IF(DSMC%CalcQualityFactors) THEN
   BGK_MeanRelaxFactor         = BGK_MeanRelaxFactor + relaxfreq * dt
   BGK_MeanRelaxFactorCounter  = BGK_MeanRelaxFactorCounter + 1
   BGK_MaxRelaxFactor          = MAX(BGK_MaxRelaxFactor,relaxfreq*dt)
+  BGK_PrandtlNumber           = BGK_PrandtlNumber + Prandtl
 END IF
 
 vBulk(1:3) = 0.0; nRelax = 0; nNotRelax = 0
@@ -999,7 +1011,7 @@ IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
   END ASSOCIATE
   IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
   IPWRITE(UNIT_StdOut,*)                     " OldEn, alpha           : ", OldEn, alpha
-  IPWRITE(UNIT_StdOut,*)                     " nPart, nRelax, nRotRelax, nVibRelax: ", nPart, nRelax, nRotRelax, nVibRelax
+  IPWRITE(UNIT_StdOut,*)                     " nPart, nRelax, nRotRelax, nVibRelax: ", nPart, nRelax
   CALL abort(&
       __STAMP__&
       ,'CODE_ANALYZE: BGK_CollisionOperator is not energy conserving!')
@@ -1019,7 +1031,7 @@ DO iMom=1,3
     END ASSOCIATE
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance        : ",1.0e-9
     IPWRITE(UNIT_StdOut,*)                     " OldEn, alpha             : ", OldEn, alpha
-    IPWRITE(UNIT_StdOut,*)                     " nPart, nRelax, nRotRelax, nVibRelax: ", nPart, nRelax, nRotRelax, nVibRelax
+    IPWRITE(UNIT_StdOut,*)                     " nPart, nRelax, nRotRelax, nVibRelax: ", nPart, nRelax
     CALL abort(&
         __STAMP__&
         ,'CODE_ANALYZE: BGK_CollisionOperator is not momentum conserving!')

@@ -47,6 +47,8 @@ INTEGER                                        :: BGK_MeanRelaxFactorCounter
 REAL                                           :: BGK_MeanRelaxFactor
 REAL                                           :: BGK_MaxRelaxFactor
 REAL                                           :: BGK_MaxRotRelaxFactor
+REAL                                           :: BGK_PrandtlNumber
+REAL                                           :: BGK_ExpectedPrandtlNumber
 
 TYPE tElemNodeAveraging
     TYPE (tNodeAverage), POINTER               :: Root => null()

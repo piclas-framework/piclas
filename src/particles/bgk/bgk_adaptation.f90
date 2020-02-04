@@ -55,7 +55,7 @@ USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKMovingAverage,ElemNo
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
-USE MOD_BGK_Vars                ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor
+USE MOD_BGK_Vars                ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
 USE MOD_FPFlow_Vars             ,ONLY: FPInitDone, FP_PrandtlNumber, FP_QualityFacSamp
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -77,6 +77,7 @@ TYPE(tTreeNode), POINTER      :: TreeNode
 IF(DSMC%CalcQualityFactors) THEN
   IF(BGKInitDone) THEN
     BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
+    BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.
   END IF
   IF(FPInitDone) THEN
     FP_MeanRelaxFactorCounter = 0; FP_MeanRelaxFactor = 0.; FP_MaxRelaxFactor = 0.; FP_MaxRotRelaxFactor = 0.; FP_PrandtlNumber = 0.
@@ -164,6 +165,8 @@ IF(DSMC%CalcQualityFactors) THEN
       BGK_QualityFacSamp(3,iElem) = BGK_QualityFacSamp(3,iElem) + BGK_MaxRelaxFactor
       BGK_QualityFacSamp(4,iElem) = BGK_QualityFacSamp(4,iElem) + 1.
       BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
+      BGK_QualityFacSamp(6,iElem) = BGK_QualityFacSamp(6,iElem) + BGK_PrandtlNumber
+      BGK_QualityFacSamp(7,iElem) = BGK_QualityFacSamp(7,iElem) + BGK_ExpectedPrandtlNumber
     END IF
     IF(FPInitDone) THEN
       FP_QualityFacSamp(1,iElem) = FP_QualityFacSamp(1,iElem) + FP_MeanRelaxFactor
@@ -557,7 +560,7 @@ USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens!,BGKMo
 USE MOD_DSMC_ParticlePairing    ,ONLY: GeoCoordToMap2D
 USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
-USE MOD_BGK_Vars                ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor
+USE MOD_BGK_Vars                ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
 USE MOD_FPFlow_Vars             ,ONLY: FPInitDone, FP_PrandtlNumber, FP_QualityFacSamp
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -578,6 +581,7 @@ TYPE(tTreeNode), POINTER      :: TreeNode
 IF(DSMC%CalcQualityFactors) THEN
   IF(BGKInitDone) THEN
     BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
+    BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.
   END IF
   IF(FPInitDone) THEN
     FP_MeanRelaxFactorCounter = 0; FP_MeanRelaxFactor = 0.; FP_MaxRelaxFactor = 0.; FP_MaxRotRelaxFactor = 0.; FP_PrandtlNumber = 0.
@@ -658,6 +662,8 @@ IF(DSMC%CalcQualityFactors) THEN
       BGK_QualityFacSamp(3,iElem) = BGK_QualityFacSamp(3,iElem) + BGK_MaxRelaxFactor
       BGK_QualityFacSamp(4,iElem) = BGK_QualityFacSamp(4,iElem) + 1.
       BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
+      BGK_QualityFacSamp(6,iElem) = BGK_QualityFacSamp(6,iElem) + BGK_PrandtlNumber
+      BGK_QualityFacSamp(7,iElem) = BGK_QualityFacSamp(7,iElem) + BGK_ExpectedPrandtlNumber
     END IF
     IF(FPInitDone) THEN
       FP_QualityFacSamp(1,iElem) = FP_QualityFacSamp(1,iElem) + FP_MeanRelaxFactor

@@ -185,8 +185,8 @@ BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
 BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
 
 IF(DSMC%CalcQualityFactors) THEN
-  ALLOCATE(BGK_QualityFacSamp(1:5,nElems))
-  BGK_QualityFacSamp(1:5,1:nElems) = 0.0
+  ALLOCATE(BGK_QualityFacSamp(1:7,nElems))
+  BGK_QualityFacSamp(1:7,1:nElems) = 0.0
 END IF
 
 BGKInitDone = .TRUE.
