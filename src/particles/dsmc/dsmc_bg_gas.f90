@@ -124,7 +124,6 @@ USE MOD_DSMC_Vars           ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemR
 USE MOD_DSMC_Vars           ,ONLY: VarVibRelaxProb
 USE MOD_Particle_Vars       ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
-USE MOD_DSMC_Relaxation     ,ONLY: CalcMeanVibQuaDiatomic
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -193,8 +192,6 @@ USE MOD_DSMC_Relaxation     ,ONLY: CalcMeanVibQuaDiatomic
 
   CollInf%Coll_SpecPartNum(BGGas%BGGasSpecies) = BGGas%BGColl_SpecPartNum
 
-  IF (CollisMode.EQ.3) CALL CalcMeanVibQuaDiatomic()
-
   DO iPair = 1, nPair
     cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
     cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
@@ -239,7 +236,6 @@ USE MOD_part_pos_and_velo       ,ONLY: SetParticleVelocity
 USE MOD_part_tools              ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -368,8 +364,6 @@ ELSE
                                               / Species(BGGas%BGGasSpecies)%MacroParticleFactor
 END IF
 CollInf%Coll_SpecPartNum(BGGas%BGGasSpecies) = BGGas%BGColl_SpecPartNum
-
-IF (CollisMode.EQ.3) CALL CalcMeanVibQuaDiatomic()
 
 IF(DSMC%CalcQualityFactors) THEN
   ! Instead of calculating the translation temperature, simply the input value of the BG gas is taken. If the other species have

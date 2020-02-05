@@ -413,6 +413,8 @@ TYPE tChemReactions
    REAL,  ALLOCATABLE             :: MeanEVib_PerIter(:)    ! MeanEVib per iteration for calculation of
    INTEGER,  ALLOCATABLE          :: MeanEVibQua_PerIter(:) ! MeanEVib per iteration for calculation of
                                                             ! xi_vib per cell (nSpecies)
+   REAL, ALLOCATABLE              :: MeanXiVib_PerIter(:)   ! Mean vibrational degree of freedom user for chemical reactions of
+                                                            ! diatomic species
    REAL,  ALLOCATABLE             :: CEXa(:)                ! CEX log-factor (g-dep. cross section in Angstrom (nReactions)
    REAL,  ALLOCATABLE             :: CEXb(:)                ! CEX const. factor (g-dep. cross section in Angstrom (nReactions)
    REAL,  ALLOCATABLE             :: MEXa(:)                ! MEX log-factor (g-dep. cross section in Angstrom (nReactions)

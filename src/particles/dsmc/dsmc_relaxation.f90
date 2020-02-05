@@ -117,8 +117,15 @@ DO iSpec = 1, nSpecies
         ELSE
           ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(VibQuaTemp), SpecDSMC(iSpec)%MaxVibQuant-1)
         END IF
+        IF(ChemReac%MeanEVibQua_PerIter(iSpec).GT.0) THEN
+          ChemReac%MeanXiVib_PerIter(iSpec) = 2. * ChemReac%MeanEVibQua_PerIter(iSpec) &
+                                            * LOG(1.0/ChemReac%MeanEVibQua_PerIter(iSpec) + 1.0 )
+        ELSE
+          ChemReac%MeanXiVib_PerIter(iSpec) = 0.
+        END IF
       ELSE
         ChemReac%MeanEVibQua_PerIter(iSpec) = 0
+        ChemReac%MeanXiVib_PerIter(iSpec) = 0.
       END IF  ! CollInf%Coll_SpecPartNum(iSpec).GT.0
     END IF    ! .NOT.SpecDSMC(iSpec)%PolyatomicMol
   END IF      ! (SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)

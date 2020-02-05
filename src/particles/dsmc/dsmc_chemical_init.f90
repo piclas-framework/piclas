@@ -131,6 +131,8 @@ __STAMP__&
     ChemReac%MeanEVibQua_PerIter = 0
     ALLOCATE(ChemReac%MeanEVib_PerIter(nSpecies))
     ChemReac%MeanEVib_PerIter = 0.0
+    ALLOCATE(ChemReac%MeanXiVib_PerIter(nSpecies))
+    ChemReac%MeanXiVib_PerIter = 0.0
     ALLOCATE(DummyRecomb(nSpecies,nSpecies))
     DummyRecomb = 0
     ALLOCATE(ChemReac%CEXa(ChemReac%NumOfReact))
@@ -155,9 +157,12 @@ __STAMP__&
               / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1)
           BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(BGGas%BGGasSpecies)%CharaTVib) - DSMC%GammaQuant
           ChemReac%MeanEVibQua_PerIter(BGGas%BGGasSpecies) = MIN(INT(BGGasEVib) + 1, SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant)
+          ChemReac%MeanXiVib_PerIter(BGGas%BGGasSpecies) = 2. * ChemReac%MeanEVibQua_PerIter(BGGas%BGGasSpecies) &
+                                            * LOG(1.0/ChemReac%MeanEVibQua_PerIter(BGGas%BGGasSpecies) + 1.0 )
         END IF
       ELSE
         ChemReac%MeanEVibQua_PerIter(BGGas%BGGasSpecies) = 0
+        ChemReac%MeanXiVib_PerIter(BGGas%BGGasSpecies) = 0.
       END IF
     END IF
 
