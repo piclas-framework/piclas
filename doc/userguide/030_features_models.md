@@ -151,12 +151,12 @@ where the following pre-defined cases are available as given in table \ref{tab:d
 
 Table: Dielectric Test Cases \label{tab:dielectric_test_cases}
 
-| Option                       | Additional Parameters                           | Notes                                                                                                               |
-| :-------------------------:  | :------------------------:                        | :-------------------------------------------------------:                                                           |
-| `FishEyeLens`                | none                                            | function with radial dependence: $\varepsilon_{r}=n_{0}^{2}/(1 + (r/r_{max})^{2})^{2}$                              |
-| `Circle`                     | `DielectricRadiusValue, DielectricRadiusValueB` | Circular dielectric in x-y-direction (constant in z-direction)  with optional cut-out radius DielectricRadiusValueB |
-| `DielectricResonatorAntenna` | `DielectricRadiusValue`                         | Circular dielectric in x-y-direction (only elements with $z>0$)                                                     |
-| `FH_lens`                    | none                                            | specific geometry (see `SUBROUTINE SetGeometry` for more information)                                               |
+  | Option                       | Additional Parameters                                                   | Notes                                                                                                                                                            |
+  | :-------------------------:  | :------------------------:                                              | :-------------------------------------------------------:                                                                                                        |
+  | `FishEyeLens`                | none                                                                    | function with radial dependence: $\varepsilon_{r}=n_{0}^{2}/(1 + (r/r_{max})^{2})^{2}$                                                                           |
+  | `Circle`                     | `DielectricRadiusValue, DielectricRadiusValueB`, `DielectricCircleAxis` | Circular dielectric in x-y-direction (constant in z-direction)  with optional cut-out radius DielectricRadiusValueB along the axis given by DielectricCircleAxis |
+  | `DielectricResonatorAntenna` | `DielectricRadiusValue`                                                 | Circular dielectric in x-y-direction (only elements with $z>0$)                                                                                                  |
+  | `FH_lens`                    | none                                                                    | specific geometry (see `SUBROUTINE SetGeometry` for more information)                                                                                            |
 
 For the Maxwell solver (DGSEM), the interface fluxes between vacuum and dielectric regions can
 either be conserving or non-conserving, which is selected by

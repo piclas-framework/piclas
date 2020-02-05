@@ -62,6 +62,8 @@ CALL prms%CreateLogicalOption(  'DielectricCheckRadius'        , 'Use additional
                                                                //' if a DOF is within a dielectric region' ,'.FALSE.')
 CALL prms%CreateRealOption(     'DielectricRadiusValue'        , 'Additional parameter radius for checking if a DOF is'&
                                                                //' within a dielectric region' , '-1.')
+CALL prms%CreateIntOption(     'DielectricAxis'               , 'Additional parameter spatial direction (cylinder) if a DOF is'&
+                                                               //' within a dielectric region (Default = z-axis)' , '3')
 CALL prms%CreateRealOption(     'DielectricRadiusValueB'        , '2nd radius for cutting out circular areas'&
                                                                //' within a dielectric region' , '-1.')
 CALL prms%CreateRealArrayOption('xyzPhysicalMinMaxDielectric'  , '[xmin, xmax, ymin, ymax, zmin, zmax] vector for defining a '&
@@ -130,6 +132,7 @@ c2_dielectric                    = c*c/(DielectricEpsR*DielectricMuR)    ! c**2/
 DielectricCheckRadius            = GETLOGICAL('DielectricCheckRadius')
 IF(TRIM(DielectricTestCase).EQ.'Circle') DielectricCheckRadius=.TRUE. ! Activate radius check when using 'Circle' test case
 DielectricRadiusValue            = GETREAL('DielectricRadiusValue')
+DielectricCircleAxis             = GETINT('DielectricAxis')
 IF(DielectricRadiusValue.LE.0.0) DielectricCheckRadius=.FALSE.
 DielectricRadiusValueB           = GETREAL('DielectricRadiusValueB')
 ! determine Dielectric elements
@@ -153,13 +156,15 @@ IF(useDielectricMinMax)THEN ! find all elements located inside of 'xyzMinMax'
                            ElementIsInside=.TRUE.,&
                            DoRadius=DielectricCheckRadius,Radius=DielectricRadiusValue,&
                            DisplayInfo=.TRUE.,&
-                           GeometryName=DielectricTestCase)
+                           GeometryName=DielectricTestCase,&
+                           GeometryAxis=DielectricCircleAxis)
 ELSE ! find all elements located outside of 'xyzPhysicalMinMaxDielectric'
   CALL FindElementInRegion(isDielectricElem,xyzPhysicalMinMaxDielectric,&
                            ElementIsInside=.FALSE.,&
                            DoRadius=DielectricCheckRadius,Radius=DielectricRadiusValue,&
                            DisplayInfo=.TRUE.,&
-                           GeometryName=DielectricTestCase)
+                           GeometryName=DielectricTestCase,&
+                           GeometryAxis=DielectricCircleAxis)
 END IF
 
 ! find all faces in the Dielectric region
