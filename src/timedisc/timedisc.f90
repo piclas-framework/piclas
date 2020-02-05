@@ -4153,7 +4153,7 @@ SUBROUTINE TimeStepPoissonByBorisLeapfrog()
 ! Boris-Leapfrog (508) -push with HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT
+USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
@@ -4196,6 +4196,10 @@ USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,Partic
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Analyze       ,ONLY: CalcAnalyticalParticleState
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4210,8 +4214,11 @@ REAL                       :: tLBStart ! load balance
 #ifdef PARTICLES
 REAL                       :: EDiff
 REAL                       :: c_1
-REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime
+REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec
 #endif /*PARTICLES*/
+#ifdef CODE_ANALYZE
+REAL                       :: PartStateAnalytic(6)
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 #ifdef PARTICLES
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
@@ -4269,7 +4276,7 @@ IF (time.GE.DelayTime) THEN
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  !-- get E(x(n))
+  !-- get E(x(n)) and B(x(n))
   CALL InterpolateFieldToParticle(DoInnerParts=.TRUE.)   ! forces on particles
   !CALL InterpolateFieldToParticle(DoInnerParts=.FALSE.) ! only needed when MPI communication changes the number of parts
 #if USE_LOADBALANCE
@@ -4284,18 +4291,29 @@ IF (time.GE.DelayTime) THEN
       IF (PDM%IsNewPart(iPart)) THEN
         ! Don't push the velocity component of neutral particles!
         IF(isPushParticle(iPart))THEN
-          !-- get Pt(1:3,iPart) = a(x(n))
-          CALL CalcPartRHSSingleParticle(iPart)
+#ifdef CODE_ANALYZE
+          ! Calculate the initial velocity of the particle from an analytic expression
+          IF(DoInterpolationAnalytic.AND.ANY((/0/).EQ.AnalyticInterpolationType))THEN
+            !-- set analytic position at x(n) from analytic particle solution
+            CALL CalcAnalyticalParticleState(0.0,PartStateAnalytic)
+            PartState(1:3,iPart) = PartStateAnalytic(1:3)
 
-          !-- v(n) => v(n-0.5) by a(n):
-          PartState(4:6,iPart) = PartState(4:6,iPart) - Pt(1:3,iPart) * dt*0.5
+            !-- set analytic velocity at v(n-0.5) from analytic particle solution
+            CALL CalcAnalyticalParticleState(-dt/2.,PartStateAnalytic)
+            PartState(4:6,iPart) = PartStateAnalytic(4:6)
+            !WRITE (*,*) "PartState(4:6,iPart) =", PartState(4:6,iPart)
+            !stop
+          ELSE
+#endif /*CODE_ANALYZE*/
+            !-- Shift particle velocity back in time by half a time step dt/2.
+            !-- get Pt(1:3,iPart) = a(x(n))
+            CALL CalcPartRHSSingleParticle(iPart)
 
-          !      ! Move back half a time step
-          !      ASSOCIATE( a => -dt/2. )
-          !        PartState(4,iPart) = ABS(SIN(a))
-          !        PartState(5,iPart) = COS(a)
-          !        PartState(6,iPart) = 0.
-          !      END ASSOCIATE
+            !-- v(n) => v(n-0.5) by a(n):
+            PartState(4:6,iPart) = PartState(4:6,iPart) - Pt(1:3,iPart) * dt*0.5
+#ifdef CODE_ANALYZE
+          END IF
+#endif /*CODE_ANALYZE*/
         END IF
         PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
       END IF
@@ -4305,20 +4323,19 @@ IF (time.GE.DelayTime) THEN
         !PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt
 
         !-- const. factor
-        c_1 =  Species(PartSpecies(iPart))%ChargeIC / Species(PartSpecies(iPart))%MassIC * dt / 2.
+        c_1 =  (Species(PartSpecies(iPart))%ChargeIC * dt) / (Species(PartSpecies(iPart))%MassIC * 2.)
 
         !-- v_minus = v(n-1/2) + q/m*E(n)*dt/2
         v_minus = PartState(4:6,iPart) + c_1 * FieldAtParticle(1:3,iPart)
 
-        ASSOCIATE( t => TAN(c_1 * FieldAtParticle(4:6,iPart) ) )
-          !-- v_prime = v_minus + v_minus x (q*B/m)*dt/2
-          v_prime = v_minus + CROSS(v_minus, t )
+        !-- t_vec
+        t_vec = TAN(c_1) * UNITVECTOR(FieldAtParticle(4:6,iPart))
 
-          !-- v_plus = v_minus + v_prime x 2*t/(1+t^2) where t = c_1 * B
-          !v_plus = v_minus + CROSS(v_prime, 2*c_1*FieldAtParticle(4:6,iPart)/(1.+DOTPRODUCT(c_1*FieldAtParticle(4:6,iPart))))
-          !v_plus = v_minus + CROSS(v_prime, 2*t/(1.+DOTPRODUCT(t)))
-          v_plus = v_minus + 2/(1.+DOTPRODUCT(t)) * CROSS(v_prime, t)
-        END ASSOCIATE
+        !-- v_prime = v_minus + v_minus x (q*B/m)*dt/2
+        v_prime = v_minus + CROSS(v_minus, t_vec )
+
+        !-- v_plus = v_minus + v_prime x 2*t_vec/(1+t_vec^2) where t_vec = c_1 * B
+        v_plus = v_minus + (2.0/(1.+DOTPRODUCT(t_vec))) * CROSS(v_prime, t_vec)
 
         !-- v(n+1/2) = v_plus + c_1 * E
         PartState(4:6,iPart) = v_plus + c_1 * FieldAtParticle(1:3,iPart)

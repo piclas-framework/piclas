@@ -53,6 +53,8 @@ INTEGER                 :: AnalyticInterpolationSubType  !< Sub-Type for the ana
 
 REAL                    :: AnalyticInterpolationP        !< parameter "p" for AnalyticInterpolationType = 1
 
+REAL                    :: AnalyticInterpolationPhase    !< Phase shift angle phi that is used for cos(w*t + phi)
+
 REAL                    :: L_2_Error_Part(1:6)           !< L2 error for the particle state
 REAL                    :: L_2_Error_Part_time           !< old time for calculating the time step (when it is variable)
 #endif /*CODE_ANALYZE*/

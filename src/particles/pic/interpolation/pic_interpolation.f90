@@ -98,11 +98,16 @@ END IF
 DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
 IF(DoInterpolationAnalytic)THEN
   AnalyticInterpolationType = GETINT('PIC-AnalyticInterpolation-Type')
+  AnalyticInterpolationPhase = GETREAL('PIC-AnalyticInterpolationPhase')
   SELECT CASE(AnalyticInterpolationType)
   CASE(0) ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
+    ! no special parameters required
   CASE(1) ! 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
     AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
     AnalyticInterpolationP       = GETREAL('PIC-AnalyticInterpolationP')
+  CASE(2) !2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
+          !                                 E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
+    ! no special parameters required
   CASE DEFAULT
     WRITE(TempStr,'(I5)') AnalyticInterpolationType
     CALL abort(&
@@ -270,6 +275,22 @@ IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field
         FieldAtParticle(6,iPart) = B_0 * EXP(PartState(1,iPart) / l)
       END DO
     END ASSOCIATE
+  ! 2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
+  !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
+  ! Example from Paper by H. Qin: Why is Boris algorithm so good? (2013) 
+  ! http://dx.doi.org/10.1063/1.4818428
+  CASE(2)
+    DO iPart = firstPart, LastPart
+      ASSOCIATE( x => PartState(1,iPart) ,&
+                 y => PartState(2,iPart) )
+        !WRITE (*,*) "x,y,PartState(4,iPart) =", x,y,PartState(4,iPart)
+        ! Ex and Ey
+        FieldAtParticle(1,iPart) = 1.0e-2 * (x**2+y**2)**(-1.5) * x
+        FieldAtParticle(2,iPart) = 1.0e-2 * (x**2+y**2)**(-1.5) * y
+        ! Bz
+        FieldAtParticle(6,iPart) = SQRT(x**2+y**2)
+      END ASSOCIATE
+    END DO
   END SELECT
   ! exit the subroutine after field determination
   RETURN
@@ -702,12 +723,15 @@ NotMappedSurfFluxParts=.FALSE.
 FieldAtParticle=0.
 #ifdef CODE_ANALYZE
 IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
-  SELECT CASE(AnalyticInterpolationType)
-  CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
-    FieldAtParticle(6) = EXP(PartState(1,PartID)) ! "B_0" and "l" are dropped here
-  END SELECT
-  ! exit the subroutine after field determination
-  RETURN
+  CALL abort(&
+  __STAMP__&
+  ,'DoInterpolationAnalytic: Do not call subroutine InterpolateFieldToSingleParticle()')
+  !        SELECT CASE(AnalyticInterpolationType)
+  !        CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
+  !          FieldAtParticle(6) = EXP(PartState(1,PartID)) ! "B_0" and "l" are dropped here
+  !        END SELECT
+  !        ! exit the subroutine after field determination
+  !        RETURN
 ELSE ! use variable or fixed external field
 #endif /*CODE_ANALYZE*/
   IF(useVariableExternalField) THEN ! used Variable external Bz

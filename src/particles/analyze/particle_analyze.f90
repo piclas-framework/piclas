@@ -3833,6 +3833,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_PreProc
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpolationSubType,AnalyticInterpolationP
+USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
 USE MOD_PARTICLE_Vars         ,ONLY: PartSpecies,Species
@@ -3861,17 +3862,18 @@ ASSOCIATE( iPart => 1 )
   SELECT CASE(AnalyticInterpolationType)
   ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
   CASE(0)
-    ASSOCIATE( B_0    => 1 ,& ! [T]
-               v_perp => 1 ,& ! [m/s] perpendicular velocity (to guiding center)
-               m      => Species(PartSpecies(iPart))%MassIC ,& ! [kg]
-               q      => Species(PartSpecies(iPart))%ChargeIC ) ! [C]
+    ASSOCIATE( B_0    => 1.0                                    ,& ! [T] cons. magnetic field
+               v_perp => 1.0                                    ,& ! [m/s] perpendicular velocity (to guiding center)
+               m      => Species(PartSpecies(iPart))%MassIC     ,& ! [kg] particle mass
+               q      => Species(PartSpecies(iPart))%ChargeIC   ,& ! [C] particle charge
+               phi    => AnalyticInterpolationPhase             )  ! [rad] phase shift
       ASSOCIATE( omega_c => ABS(q)*B_0/m )
         ASSOCIATE( r_c => v_perp/omega_c )
-          PartStateAnalytic(1) = COS(omega_c*t)*r_c
-          PartStateAnalytic(2) = SIN(omega_c*t)*r_c 
+          PartStateAnalytic(1) = COS(omega_c*t + phi)*r_c
+          PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c 
           PartStateAnalytic(3) = 0.
-          PartStateAnalytic(4) = SIN(omega_c*t)*v_perp
-          PartStateAnalytic(5) = COS(omega_c*t)*v_perp 
+          PartStateAnalytic(4) = -SIN(omega_c*t + phi)*v_perp
+          PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp 
           PartStateAnalytic(6) = 0.
         END ASSOCIATE
       END ASSOCIATE
@@ -3957,6 +3959,9 @@ ASSOCIATE( iPart => 1 )
       theta_out = Theta
       WRITE (*,*) "theta_out =", theta_out
     END IF
+  ! 2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
+  !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
+  CASE(2)
   END SELECT
 END ASSOCIATE
 
