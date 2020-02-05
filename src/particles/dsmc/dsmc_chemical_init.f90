@@ -39,7 +39,7 @@ SUBROUTINE DSMC_chemical_init()
 ! Readin of variables and definition of reaction cases
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY: ChemReac,CollisMode, DSMC, QKAnalytic, SpecDSMC
+  USE MOD_DSMC_Vars,              ONLY: ChemReac,CollisMode, DSMC, QKAnalytic, SpecDSMC, BGGas
   USE MOD_ReadInTools
   USE MOD_Globals
   USE MOD_Globals_Vars,           ONLY: BoltzmannConst
@@ -60,7 +60,7 @@ SUBROUTINE DSMC_chemical_init()
   LOGICAL, ALLOCATABLE  :: YetDefined_Help(:)
   LOGICAL               :: DoScat
   INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact
-  REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec
+  REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib
 !===================================================================================================================================
 
 ! reading reaction values
@@ -126,9 +126,11 @@ __STAMP__&
              ChemReac%EActiv(ChemReac%NumOfReact),&
              ChemReac%EForm(ChemReac%NumOfReact),&
              ChemReac%Hab(ChemReac%NumOfReact))
-    ALLOCATE(ChemReac%MeanEVibQua_PerIter(nSpecies))
-    ALLOCATE(ChemReac%MeanEVib_PerIter(nSpecies))
     ChemReac%Hab=0.0
+    ALLOCATE(ChemReac%MeanEVibQua_PerIter(nSpecies))
+    ChemReac%MeanEVibQua_PerIter = 0
+    ALLOCATE(ChemReac%MeanEVib_PerIter(nSpecies))
+    ChemReac%MeanEVib_PerIter = 0.0
     ALLOCATE(DummyRecomb(nSpecies,nSpecies))
     DummyRecomb = 0
     ALLOCATE(ChemReac%CEXa(ChemReac%NumOfReact))
@@ -140,6 +142,24 @@ __STAMP__&
     ALLOCATE(ChemReac%DoScat(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%ReactInfo(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%TLU_FileName(ChemReac%NumOfReact))
+
+    IF (BGGas%BGGasSpecies.NE.0) THEN
+      ! Background gas: Calculation of the mean vibrational quantum number of diatomic molecules
+      IF((SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.2).OR.(SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.20)) THEN
+        IF(.NOT.SpecDSMC(BGGas%BGGasSpecies)%PolyatomicMol) THEN
+          BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib &
+              + BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib  &
+              /  (EXP(SpecDSMC(BGGas%BGGasSpecies)%CharaTVib / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1) &
+              - BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib * SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant &
+              / (EXP(SpecDSMC(BGGas%BGGasSpecies)%CharaTVib * SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant &
+              / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1)
+          BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(BGGas%BGGasSpecies)%CharaTVib) - DSMC%GammaQuant
+          ChemReac%MeanEVibQua_PerIter(BGGas%BGGasSpecies) = MIN(INT(BGGasEVib) + 1, SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant)
+        END IF
+      ELSE
+        ChemReac%MeanEVibQua_PerIter(BGGas%BGGasSpecies) = 0
+      END IF
+    END IF
 
     DoScat = .false.
     DO iReac = 1, ReadInNumOfReact

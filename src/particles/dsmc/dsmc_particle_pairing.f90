@@ -49,7 +49,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   USE MOD_DSMC_Vars,              ONLY : CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
   USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, VarVibRelaxProb, useRelaxProbCorrFactor
   USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, WriteMacroVolumeValues, VarTimeStep
-  USE MOD_DSMC_Relaxation,        ONLY : SetMeanVibQua
+  USE MOD_DSMC_Relaxation,        ONLY : CalcMeanVibQuaDiatomic
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
   USE MOD_Particle_Analyze_Vars,  ONLY : CalcEkin
   USE MOD_DSMC_CollisionProb,     ONLY : DSMC_prob_calc
@@ -162,7 +162,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   END IF
 
   IF (CollisMode.EQ.3) THEN
-    CALL SetMeanVibQua()
+    CALL CalcMeanVibQuaDiatomic()
   END IF
 
   DO iPair = 1,  PairNum_Node
@@ -358,7 +358,7 @@ USE MOD_DSMC_Vars,              ONLY: CollInf, tTreeNode, CollisMode, ChemReac, 
 USE MOD_DSMC_Vars,              ONLY: DSMC, RadialWeighting, SamplingActive, SpecDSMC, VarVibRelaxProb, useRelaxProbCorrFactor
 USE MOD_DSMC_Symmetry2D,        ONLY: CalcRadWeightMPF
 USE MOD_Particle_Vars,          ONLY: PartState, nSpecies, PartSpecies, PartMPF, WriteMacroVolumeValues, VarTimeStep
-USE MOD_DSMC_Relaxation,        ONLY: SetMeanVibQua
+USE MOD_DSMC_Relaxation,        ONLY: CalcMeanVibQuaDiatomic
 USE MOD_DSMC_Analyze,           ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
 USE MOD_Particle_Analyze_Vars,  ONLY: CalcEkin
 USE MOD_DSMC_CollisionProb,     ONLY: DSMC_prob_calc
@@ -486,7 +486,7 @@ IF ((PairNum_Node.NE.0).AND.(CollisMode.EQ.3).and.(MOD(PartNum, PairNum_Node).NE
 END IF
 
 IF (CollisMode.EQ.3) THEN
-  CALL SetMeanVibQua()
+  CALL CalcMeanVibQuaDiatomic()
 END IF
 DO iPair = 1,  PairNum_Node
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
@@ -1831,7 +1831,7 @@ SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 ! Classic statistical pairing method for the use in the octree routines
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
+USE MOD_DSMC_Relaxation       ,ONLY: CalcMeanVibQuaDiatomic
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY : DSMC_perform_collision, DSMC_calc_var_P_vib
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
@@ -1955,7 +1955,7 @@ END IF
 IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
 
 IF (CollisMode.EQ.3) THEN
-  CALL SetMeanVibQua()
+  CALL CalcMeanVibQuaDiatomic()
 END IF
 
 IF(RadialWeighting%DoRadialWeighting) THEN

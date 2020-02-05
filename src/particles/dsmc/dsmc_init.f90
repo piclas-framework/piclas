@@ -397,7 +397,6 @@ IMPLICIT NONE
 CHARACTER(32)         :: hilf , hilf2
 INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
 REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
-REAL                  :: BGGasEVib
 INTEGER               :: currentBC, ElemID, iSide, BCSideID, VarNum
 #if ( PP_TimeDiscMethod ==42 )
 #ifdef CODE_ANALYZE
@@ -1213,42 +1212,24 @@ ELSE !CollisMode.GT.0
       CollInf%OldCollPartner = 0
     END IF
   ELSE
+    CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.FALSE.')
     IF (CollInf%ProhibitDoubleColl) THEN
-      CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.FALSE.')
       CALL abort(__STAMP__,&
           'ERROR: Prohibiting double collisions is only supported within a 2D/axisymmetric simulation!')
     END IF
   END IF
 
   !-----------------------------------------------------------------------------------------------------------------------------------
-  ! Set mean VibQua of BGGas for dissoc reaction
+  ! Background gas: Check compatibility with other features
   !-----------------------------------------------------------------------------------------------------------------------------------
   IF (BGGas%BGGasSpecies.NE.0) THEN
     IF (DSMC%UseOctree) THEN
       CALL abort(__STAMP__,&
-          'ERROR: Utilization of the octree and nearest neighbour scheme not possible with the background gas')
+          'ERROR: Utilization of the octree and nearest neighbour scheme not possible with the background gas!')
     END IF
     IF(SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.4) THEN
       CALL abort(__STAMP__,&
-          'ERROR: Electrons as background gas are not yet available!!')
-    END IF
-    IF((SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.2).OR.(SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.20)) THEN
-      IF(SpecDSMC(BGGas%BGGasSpecies)%PolyatomicMol) THEN
-        CALL abort(&
-            __STAMP__&
-            ,'ERROR: Polyatomic species as background gas are not yet available!')
-      ELSE
-        BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib &
-            + BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib  &
-            /  (EXP(SpecDSMC(BGGas%BGGasSpecies)%CharaTVib / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1) &
-            - BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib * SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant &
-            / (EXP(SpecDSMC(BGGas%BGGasSpecies)%CharaTVib * SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant &
-            / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1)
-        BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(BGGas%BGGasSpecies)%CharaTVib) - DSMC%GammaQuant
-        BGGas%BGMeanEVibQua = MIN(INT(BGGasEVib) + 1, SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant)
-      END IF
-    ELSE
-      BGGas%BGMeanEVibQua = 0
+          'ERROR: Electrons as background gas are not yet available!')
     END IF
   END IF
 

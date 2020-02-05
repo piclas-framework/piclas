@@ -53,7 +53,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcEkin
 USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib, &
                                      SamplingRotVibRelaxProb
-USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
+USE MOD_DSMC_Relaxation       ,ONLY: CalcMeanVibQuaDiatomic
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision, DSMC_calc_var_P_vib
@@ -134,7 +134,7 @@ DO iElem = 1, nElems ! element/cell main loop
     IF (.NOT.DSMC%UseOctree) THEN                                                               ! no octree
       !Calc the mean evib per cell and iter, necessary for dissociation probability
       IF (CollisMode.EQ.3) THEN
-        CALL SetMeanVibQua()
+        CALL CalcMeanVibQuaDiatomic()
       END IF
 
       IF (KeepWallParticles) THEN

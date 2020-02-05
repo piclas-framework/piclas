@@ -26,7 +26,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_VibRelaxDiatomic, SetMeanVibQua, CalcXiVibPart, CalcXiTotalEqui
+PUBLIC :: DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, CalcXiVibPart, CalcXiTotalEqui
 !===================================================================================================================================
 
 CONTAINS
@@ -77,69 +77,54 @@ PartStateIntEn(1,iPart) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
 END SUBROUTINE DSMC_VibRelaxDiatomic
 
 
-SUBROUTINE SetMeanVibQua()
+SUBROUTINE CalcMeanVibQuaDiatomic()
 !===================================================================================================================================
-! Computes the vibrational quant of species or the mean vibrational temp/energy/dofs (polyatomic)
+! Computes the mean vibrational quantum number of diatomic species in a cell each iteration;
+! ChemReac%MeanEVibQua_PerIter is required for the determination of the vibrational degree of freedom, only used for diatomic
+! molecules. For the polyatomic case, the actual vibrational degree of freedom of each molecule is utilized and not a mean value.
+! The values for polyatomic molecules can have a greater spread, thus a mean value can prohibit reactions of highly excited
+! molecules at lower average temperatures.
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,             ONLY : DSMC, CollInf, SpecDSMC, ChemReac, BGGas, PolyatomMolDSMC
-  USE MOD_Particle_Vars,         ONLY : nSpecies
-  USE MOD_DSMC_Analyze,          ONLY : CalcTVibPoly
+USE MOD_Globals
+USE MOD_Globals_Vars,          ONLY : BoltzmannConst
+USE MOD_DSMC_Vars,             ONLY : DSMC, CollInf, SpecDSMC, ChemReac, BGGas
+USE MOD_Particle_Vars,         ONLY : nSpecies
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER         :: iSpec, iPolyatMole
-  REAL            :: iRan, VibQuaTemp
+INTEGER         :: iSpec
+REAL            :: iRan, VibQuaTemp
 !===================================================================================================================================
 
-  DO iSpec =1, nSpecies
-    ! describe evib as quantum number
-    IF (iSpec.EQ.BGGas%BGGasSpecies) THEN
-      ChemReac%MeanEVibQua_PerIter(iSpec) = BGGas%BGMeanEVibQua
-    ELSE
+DO iSpec = 1, nSpecies
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol) THEN
+      ! Skip the background gas species (value initialized in dsmc_chemical_init.f90)
+      IF(iSpec.EQ.BGGas%BGGasSpecies) CYCLE
+      ! Only treat species present in the cell
       IF(CollInf%Coll_SpecPartNum(iSpec).GT.0) THEN
-        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-          IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-            iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-            ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
-            IF(ChemReac%MeanEVib_PerIter(iSpec).GT.SpecDSMC(iSpec)%EZeroPoint) THEN
-              PolyatomMolDSMC(iPolyatMole)%TVib = CalcTVibPoly(ChemReac%MeanEVib_PerIter(iSpec), iSpec)
-              PolyatomMolDSMC(iPolyatMole)%Xi_Vib_Mean = 2*(ChemReac%MeanEVib_PerIter(iSpec)-SpecDSMC(iSpec)%EZeroPoint) &
-                                                            / (BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%TVib)
-            ELSEIF(ABS(ChemReac%MeanEVib_PerIter(iSpec)-SpecDSMC(iSpec)%EZeroPoint)/SpecDSMC(iSpec)%EZeroPoint.LT.1E-9) THEN
-              ! Check relative difference between vibrational energy and zero-point energy
-              PolyatomMolDSMC(iPolyatMole)%Xi_Vib_Mean = 0.0
-              PolyatomMolDSMC(iPolyatMole)%TVib = 0.0
-            ELSE
-              IPWRITE(*,*) ChemReac%MeanEVib_PerIter(iSpec), CollInf%Coll_SpecPartNum(iSpec), SpecDSMC(iSpec)%EZeroPoint
-              CALL abort(&
-                __STAMP__&
-                ,'ERROR in SetMeanVibQua, energy less than zero-point energy, Species: ',iSpec)
-            END IF
-          ELSE
-            ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
-            VibQuaTemp = ChemReac%MeanEVib_PerIter(iSpec) / (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
-            CALL RANDOM_NUMBER(iRan)
-            IF((VibQuaTemp-INT(VibQuaTemp)).GT.iRan) THEN
-              ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(VibQuaTemp) + 1, SpecDSMC(iSpec)%MaxVibQuant-1)
-            ELSE
-              ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(VibQuaTemp), SpecDSMC(iSpec)%MaxVibQuant-1)
-            END IF
-          END IF
+        ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
+        VibQuaTemp = ChemReac%MeanEVib_PerIter(iSpec) / (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
+        CALL RANDOM_NUMBER(iRan)
+        IF((VibQuaTemp-INT(VibQuaTemp)).GT.iRan) THEN
+          ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(VibQuaTemp) + 1, SpecDSMC(iSpec)%MaxVibQuant-1)
         ELSE
-          ChemReac%MeanEVibQua_PerIter(iSpec) = 0
+          ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(VibQuaTemp), SpecDSMC(iSpec)%MaxVibQuant-1)
         END IF
-      END IF
-    END IF
-  END DO
-END SUBROUTINE SetMeanVibQua
+      ELSE
+        ChemReac%MeanEVibQua_PerIter(iSpec) = 0
+      END IF  ! CollInf%Coll_SpecPartNum(iSpec).GT.0
+    END IF    ! .NOT.SpecDSMC(iSpec)%PolyatomicMol
+  END IF      ! (SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)
+END DO        ! iSpec = 1, nSpecies
+
+END SUBROUTINE CalcMeanVibQuaDiatomic
 
 
 SUBROUTINE CalcXiVibPart(TVib, iSpec, XiVibPart)
