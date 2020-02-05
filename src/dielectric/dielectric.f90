@@ -132,7 +132,7 @@ c2_dielectric                    = c*c/(DielectricEpsR*DielectricMuR)    ! c**2/
 DielectricCheckRadius            = GETLOGICAL('DielectricCheckRadius')
 IF(TRIM(DielectricTestCase).EQ.'Circle') DielectricCheckRadius=.TRUE. ! Activate radius check when using 'Circle' test case
 DielectricRadiusValue            = GETREAL('DielectricRadiusValue')
-DielectricCircleAxis             = GETINT('DielectricAxis','3')
+DielectricCircleAxis             = GETINT('DielectricAxis')
 IF(DielectricRadiusValue.LE.0.0) DielectricCheckRadius=.FALSE.
 DielectricRadiusValueB           = GETREAL('DielectricRadiusValueB')
 ! determine Dielectric elements
