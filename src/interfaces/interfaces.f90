@@ -249,7 +249,7 @@ END DO; END DO; END DO; END DO !iElem,k,j,i
 ! 2.) Additionally check a radius (e.g. half sphere regions)
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! if option 'DoRadius' is applied, elements are double-checked if they are within a certain radius
-IF((DoRadius.AND.Radius.GT.0.0).AND.(.NOT.PRESENT(GeometryName)))THEN
+IF(DoRadius.AND.Radius.GT.0.0)THEN
   DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r = SQRT(Elem_xGP(1,i,j,k,iElem)**2+&
              Elem_xGP(2,i,j,k,iElem)**2+&
