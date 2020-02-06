@@ -301,6 +301,8 @@ ELSE
     BGMCellZmin = ElemToBGM_Shared(5,iElem)
     BGMCellZmax = ElemToBGM_Shared(6,iElem)
     ! add current element to number of BGM-elems
+    ! ATTENTION: THIS ONLY ADDS THE ELEMENT TO THE BGM CELLS ON THE NODE WHILE
+    ! SKIPPING BGM CELLS OUTSIDE. WE END UP WITH PARTIALLY ADDED ELEMENTS
     DO iBGM = BGMCellXmin,BGMCellXmax
       IF(iBGM.LT.BGMimin) CYCLE
       IF(iBGM.GT.BGMimax) CYCLE
@@ -358,8 +360,8 @@ ELSE
 
   ! Distribute nHaloElements evenly on compute-node procs
   IF (nHaloElems.GT.nComputeNodeProcessors) THEN
-    firstHaloElem=INT(REAL(myComputeNodeRank*nHaloElems)/REAL(nComputeNodeProcessors))+1
-    lastHaloElem=INT(REAL((myComputeNodeRank+1)*nHaloElems)/REAL(nComputeNodeProcessors))
+    firstHaloElem = INT(REAL( myComputeNodeRank   *nHaloElems)/REAL(nComputeNodeProcessors))+1
+    lastHaloElem  = INT(REAL((myComputeNodeRank+1)*nHaloElems)/REAL(nComputeNodeProcessors))
   ELSE
     firstHaloElem = myComputeNodeRank + 1
     IF (myComputeNodeRank.LT.nHaloElems) THEN
@@ -407,13 +409,13 @@ ELSE
       ! Only add element to BGM if inside halo region on node.
       ! THIS IS WRONG. WE ARE WORKING ON THE CN HALO REGION. IF WE OMIT THE
       ! ELEMENT HERE, WE LOOSE IT. IF WE KEEP IT, WE BREAK AT 589. YOUR CALL.
+!      print *, ElemID,BoundsOfElem_Shared(1,1,iElem),GEO%xminglob
       BGMCellXmin = MAX(ElemToBGM_Shared(1,ElemID),BGMimin)
       BGMCellXmax = MIN(ElemToBGM_Shared(2,ElemID),BGMimax)
       BGMCellYmin = MAX(ElemToBGM_Shared(3,ElemID),BGMjmin)
       BGMCellYmax = MIN(ElemToBGM_Shared(4,ElemID),BGMjmax)
       BGMCellZmin = MAX(ElemToBGM_Shared(5,ElemID),BGMkmin)
       BGMCellZmax = MIN(ElemToBGM_Shared(6,ElemID),BGMkmax)
-!      print *, BGMCellXMin,BGMCellXMax,BGMCellYMin,BGMCellYMax,BGMCellZMin,BGMCellZMax
       ! add current element to number of BGM-elems
       DO iBGM = BGMCellXmin,BGMCellXmax
         DO jBGM = BGMCellYmin,BGMCellYmax
@@ -572,6 +574,9 @@ DO iBGM = BGMimin,BGMimax
 END DO ! iBGM
 
 #if USE_MPI
+! We might need to expand the halo BGM region
+
+
 IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
   DO iElem = firstHaloElem, lastHaloElem
     ElemID = offsetCNHalo2GlobalElem(iElem)
@@ -582,14 +587,18 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
     BGMCellYmax = ElemToBGM_Shared(4,ElemID)
     BGMCellZmin = ElemToBGM_Shared(5,ElemID)
     BGMCellZmax = ElemToBGM_Shared(6,ElemID)
+    print *,'halo ',GEO%FIBGMimin,GEO%FIBGMimax,GEO%FIBGMjmin,GEO%FIBGMjmax,GEO%FIBGMkmin,GEO%FIBGMkmax
+    print *,'shape', SHAPE(GEO%FIBGM),'rank',myRank
+!    print *,BGMCellXmin,BGMCellXmax,BGMCellYmin,BGMCellYmax,BGMCellZmin,BGMCellZmax
+    print *,ElemInfo_Shared(ELEM_HALOFLAG,ElemID)
     ! add current Element to BGM-Elem
     DO kBGM = BGMCellZmin,BGMCellZmax
       DO jBGM = BGMCellYmin,BGMCellYmax
         DO iBGM = BGMCellXmin,BGMCellXmax
           GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
-          FIBGM_Element( FIBGM_offsetElem(iBGM,jBGM,kBGM) & ! offset of BGM cell in 1D array
-                              + offsetElemsInBGMCell(iBGM,jBGM,kBGM)    & ! offset of BGM nElems in local proc
-                              + GEO%FIBGM(iBGM,jBGM,kBGM)%nElem         ) = ElemID
+          FIBGM_Element( FIBGM_offsetElem(iBGM,jBGM,kBGM)            & ! offset of BGM cell in 1D array
+                              + offsetElemsInBGMCell(iBGM,jBGM,kBGM) & ! offset of BGM nElems in local proc
+                              + GEO%FIBGM(iBGM,jBGM,kBGM)%nElem) = ElemID
         END DO ! kBGM
       END DO ! jBGM
     END DO ! iBGM

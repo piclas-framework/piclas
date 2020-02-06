@@ -699,6 +699,10 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, nNodes
 USE MOD_Mesh_Vars              ,ONLY: Elems, offsetElem, ElemToSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Tracking_Vars ,ONLY: WriteTriaDebugMesh
+#if USE_MPI
+USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -715,97 +719,158 @@ REAL               :: A(3,3),detcon
 REAL,ALLOCATABLE   :: Coords(:,:,:,:)
 CHARACTER(32)      :: hilf
 CHARACTER(LEN=255) :: FileString
+INTEGER            :: FirstElem, LastElem, GlobalSideID
+#if USE_MPI
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+#endif
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
+
+! CGNS Mapping
 NodeMap(:,1)=(/1,4,3,2/)
 NodeMap(:,2)=(/1,2,6,5/)
 NodeMap(:,3)=(/2,3,7,6/)
 NodeMap(:,4)=(/3,4,8,7/)
 NodeMap(:,5)=(/1,5,8,4/)
 NodeMap(:,6)=(/5,6,7,8/)
-ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),       &
-         GEO%ElemSideNodeID(1:4,1:6,1:nElems), &
-         GEO%NodeCoords(1:3,1:nNodes),         &
-         GEO%ConcaveElemSide(1:6,1:nElems), &
-         GEO%ElemMidPoint(1:3,nElems), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
- CALL abort(__STAMP__&
- ,'ERROR in InitParticleGeometry: Cannot allocate GEO%... stuff!')
-END IF
+!ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),       &
+!         GEO%ElemSideNodeID(1:4,1:6,1:nElems), &
+!         GEO%NodeCoords(1:3,1:nNodes),         &
+!         GEO%ConcaveElemSide(1:6,1:nElems), &
+!         GEO%ElemMidPoint(1:3,nElems), STAT=ALLOCSTAT)
+!IF (ALLOCSTAT.NE.0) THEN
+! CALL abort(__STAMP__&
+! ,'ERROR in InitParticleGeometry: Cannot allocate GEO%... stuff!')
+!END IF
+
+#if USE_MPI
+MPISharedSize = INT(6*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/6,nComputeNodeTotalElems/),ConcaveElemSide_Shared_Win,ConcaveElemSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ConcaveElemSide_Shared_Win,IERROR)
+firstElem = INT(REAL(myComputeNodeRank*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+
+MPISharedSize = INT(4*6*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/4,6,nComputeNodeTotalElems/),ElemSideNodeID_Shared_Win,ElemSideNodeID_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemSideNodeID_Shared_Win,IERROR)
+
+MPISharedSize = INT(3*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalElems/),ElemMidPoint_Shared_Win,ElemMidPoint_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemMidPoint_Shared_Win,IERROR)
+#else
+ALLOCATE(ConcaveElemSide_Shared(1:6,1:nElems))
+ALLOCATE(ElemSideNodeID_Shared(1:4,1:6,1:nElems))
+ALLOCATE(ElemMidPoint_Shared(1:4,1:6,1:nElems))
+firstElem = 1
+lastElem  = nElems
+#endif  /*USE_MPI*/
 
 !ALLOCATE(GEO%ElemToNodeIDGlobal(1:8,1:nElems))
 
-GEO%ElemToNodeID(:,:)=0
-GEO%ElemSideNodeID(:,:,:)=0
-GEO%NodeCoords(:,:)=0.
-GEO%ConcaveElemSide(:,:)=.FALSE.
-iNode=0
-DO iElem=1,nElems
-  DO jNode=1,8
-    Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=0
-  END DO
-END DO
-DO iElem=1,nElems
-  !--- Save corners of sides
-  DO jNode=1,8
-    IF (Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID.EQ.0) THEN
-      iNode=iNode+1
-      Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=iNode
-      GEO%NodeCoords(1:3,iNode)=Elems(iElem+offsetElem)%ep%node(jNode)%np%x(1:3)
-    END IF
-    GEO%ElemToNodeID(jNode,iElem)=Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID
-    !GEO%ElemToNodeIDGlobal(jNode,iElem) = Elems(iElem+offsetElem)%ep%node(jNode)%np%ind
-  END DO
-END DO
+!GEO%ElemToNodeID(:,:)=0
+!GEO%ElemSideNodeID(:,:,:)=0
+!GEO%NodeCoords(:,:)=0.
+!GEO%ConcaveElemSide(:,:)=.FALSE.
+ElemSideNodeID_Shared = 0
+ConcaveElemSide_Shared = .FALSE.
 
-DO iElem=1,nElems
-  DO iLocSide=1,6
-    nStart=MAX(0,ElemToSide(E2S_FLIP,iLocSide,iElem)-1)
-    GEO%ElemSideNodeID(1:4,iLocSide,iElem)=(/Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart  ,4)+1,iLocSide))%np%NodeID,&
-                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+1,4)+1,iLocSide))%np%NodeID,&
-                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+2,4)+1,iLocSide))%np%NodeID,&
-                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+3,4)+1,iLocSide))%np%NodeID/)
+!iNode=0
+!DO iElem=1,nElems
+!  DO jNode=1,8
+!    Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=0
+!  END DO
+!END DO
+!DO iElem=1,nElems
+!  !--- Save corners of sides
+!  DO jNode=1,8
+!    IF (Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID.EQ.0) THEN
+!      iNode=iNode+1
+!      Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=iNode
+!      GEO%NodeCoords(1:3,iNode)=Elems(iElem+offsetElem)%ep%node(jNode)%np%x(1:3)
+!    END IF
+!    GEO%ElemToNodeID(jNode,iElem)=Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID
+!    !GEO%ElemToNodeIDGlobal(jNode,iElem) = Elems(iElem+offsetElem)%ep%node(jNode)%np%ind
+!  END DO
+!END DO
+!
+!DO iElem=1,nElems
+!  DO iLocSide=1,6
+!    nStart=MAX(0,ElemToSide(E2S_FLIP,iLocSide,iElem)-1)
+!    GEO%ElemSideNodeID(1:4,iLocSide,iElem)=(/Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart  ,4)+1,iLocSide))%np%NodeID,&
+!                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+1,4)+1,iLocSide))%np%NodeID,&
+!                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+2,4)+1,iLocSide))%np%NodeID,&
+!                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+3,4)+1,iLocSide))%np%NodeID/)
+!  END DO
+!END DO
+DO iElem = firstElem,lastElem
+  DO iLocSide = 1,6
+    ! Get global SideID
+    GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) + iLocSide
+    ! Find start of CGNS mapping from flip
+    nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)-1)
+    IF(iElem.EQ.1) THEN
+      SWRITE(*,*) GlobalSideID
+      SWRITE(*,*) MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)
+    END IF
+    ! Shared memory array starts at 1, but NodeID at 0
+    ElemSideNodeID_Shared(1:4,iLocSide,iElem) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart  ,4)+1,iLocSide)-1, &
+                                                  ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+1,4)+1,iLocSide)-1, &
+                                                  ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+2,4)+1,iLocSide)-1, &
+                                                  ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+3,4)+1,iLocSide)-1/)
   END DO
 END DO
 
 !--- Save whether Side is concave or convex
-DO iElem = 1,nElems
+DO iElem = firstElem,lastElem
   DO iLocSide = 1,6
     !--- Check whether the bilinear side is concave
     !--- Node Number 4 and triangle 1-2-3
     DO NodeNum = 1,3               ! for all 3 nodes of triangle
-      A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,iElem)) &
-                   - GEO%NodeCoords(:,GEO%ElemSideNodeID(4,iLocSide,iElem))
+!      A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,iElem)) &
+!                   - GEO%NodeCoords(:,GEO%ElemSideNodeID(4,iLocSide,iElem))
+       A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,iLocSide,iElem)+1) &
+                    - NodeCoords_Shared(:,ElemSideNodeID_Shared(4      ,iLocSide,iElem)+1)
     END DO
     !--- concave if detcon < 0:
     detcon = ((A(2,1) * A(3,2) - A(3,1) * A(2,2)) * A(1,3) +     &
               (A(3,1) * A(1,2) - A(1,1) * A(3,2)) * A(2,3) +     &
               (A(1,1) * A(2,2) - A(2,1) * A(1,2)) * A(3,3))
-    IF (detcon.LT.0) GEO%ConcaveElemSide(iLocSide,iElem)=.TRUE.
+!    IF (detcon.LT.0) GEO%ConcaveElemSide(iLocSide,iElem)=.TRUE.
+    IF (detcon.LT.0) ConcaveElemSide_Shared(iLocSide,iElem) = .TRUE.
   END DO
 END DO
+SWRITE(*,*) ConcaveElemSide_Shared(:,1)
+STOP
 
 !-- write debug-mesh
-IF (WriteTriaDebugMesh) THEN
-  nSides=6
-  WRITE(UNIT=hilf,FMT='(I4.4)') myRank
-  FileString='TRIA-DebugMesh_PROC'//TRIM(hilf)//'.vtu'
-  ALLOCATE(Coords(1:3,1:4,1:nSides,1:nElems))
-  DO iElem = 1,nElems ; DO iLocSide = 1,nSides ; DO iNode = 1,4
-    Coords(:,iNode,iLocSide,iElem)=GEO%NodeCoords(:,GEO%ElemSideNodeID(iNode,iLocSide,iElem))
-  END DO ; END DO ; END DO
-  CALL WriteTriaDataToVTK(nSides,nElems,Coords(1:3,1:4,1:6,1:nElems),FileString)
-  SDEALLOCATE(Coords)
-END IF !WriteTriaDebugMesh
+! IF (WriteTriaDebugMesh) THEN
+!   nSides=6
+!   WRITE(UNIT=hilf,FMT='(I4.4)') myRank
+!   FileString='TRIA-DebugMesh_PROC'//TRIM(hilf)//'.vtu'
+!   ALLOCATE(Coords(1:3,1:4,1:nSides,1:nElems))
+!   DO iElem = 1,nElems ; DO iLocSide = 1,nSides ; DO iNode = 1,4
+!     Coords(:,iNode,iLocSide,iElem)=GEO%NodeCoords(:,GEO%ElemSideNodeID(iNode,iLocSide,iElem))
+!   END DO ; END DO ; END DO
+!   CALL WriteTriaDataToVTK(nSides,nElems,Coords(1:3,1:4,1:6,1:nElems),FileString)
+!   SDEALLOCATE(Coords)
+! END IF !WriteTriaDebugMesh
 
-DO iElem =1, nElems
-  GEO%ElemMidPoint(:,iElem) = 0.0
+!DO iElem =1, nElems
+!  GEO%ElemMidPoint(:,iElem) = 0.0
+!  DO iNode = 1,8
+!    GEO%ElemMidPoint(1:3,iElem) = GEO%ElemMidPoint(1:3,iElem) + GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
+!  END DO
+!  GEO%ElemMidPoint(1:3,iElem) = GEO%ElemMidPoint(1:3,iElem) / 8.
+!END DO
+
+DO iElem = firstElem,lastElem
+  ElemMidPoint_Shared(:,iElem) = 0.
   DO iNode = 1,8
-    GEO%ElemMidPoint(1:3,iElem) = GEO%ElemMidPoint(1:3,iElem) + GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
+    ElemMidPoint_Shared(1:3,iElem) = ElemMidPoint_Shared(1:3,iElem) + NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+iNode)
   END DO
-  GEO%ElemMidPoint(1:3,iElem) = GEO%ElemMidPoint(1:3,iElem) / 8.
+  ElemMidPoint_Shared(1:3,iElem) = ElemMidPoint_Shared(1:3,iElem) / 8.
 END DO
 
 !--- check for elements with intersecting sides (e.g. very flat elements)
@@ -2510,6 +2575,9 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, WeirdElems
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2518,29 +2586,48 @@ USE MOD_Particle_Mesh_Vars ,ONLY: GEO, WeirdElems
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem, iLocSide, kLocSide, iNode, WeirdElemNbrs(1:nElems)
+INTEGER           :: iElem, iLocSide, kLocSide, iNode
+INTEGER,ALLOCATABLE :: WeirdElemNbrs(:)
 REAL              :: vec(1:3), Node(1:3,1:4),det(1:3)
 LOGICAL           :: WEIRD, TRICHECK, TRIABSCHECK
+INTEGER           :: firstElem,lastElem
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' CHECKING FOR WEIRD ELEMENTS...'
 
+#if USE_MPI
+firstElem = INT(REAL(myComputeNodeRank*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+#else
+firstElem = 1
+lastElem  = nElems
+#endif
+
+ALLOCATE(WeirdElemNbrs(1:lastElem-firstElem+1))
+
+!IF (myRank.EQ.3) THEN
+!  WRITE(*,*) ElemInfo_Shared(ELEM_FIRSTNODEIND,2)
+!  WRITE(*,*) NodeCoords_Shared(1:3,9)
+!  WRITE(*,*) ElemSideNodeID_Shared(1,1,2),ElemSideNodeID_Shared(2,1,2)
+!END IF
+!STOP
+
 WeirdElems = 0
-DO iElem = 1, nElems ! go through all elements
+DO iElem = firstElem,lastElem ! go through all elements
   WEIRD = .FALSE.
   DO iLocSide = 1,5  ! go through local sides
     IF (.not.WEIRD) THEN  ! if one is found there is no need to continue
-      IF (GEO%ConcaveElemSide(iLocSide,iElem)) THEN  ! only concave elements need to be checked
+      IF (ConcaveElemSide_Shared(iLocSide,iElem)) THEN  ! only concave elements need to be checked
         ! build vector from node 1 to node 3
-        vec(:) = GEO%NodeCoords(:,GEO%ElemSideNodeID(3,iLocSide,iElem)) &
-               - GEO%NodeCoords(:,GEO%ElemSideNodeID(1,iLocSide,iElem))
+        vec(:) = NodeCoords_Shared(:,ElemSideNodeID_Shared(3,iLocSide,iElem)+1) &
+               - NodeCoords_Shared(:,ElemSideNodeID_Shared(1,iLocSide,iElem)+1)
         ! check all other sides
         DO kLocSide = iLocSide + 1, 6
-          IF (GEO%ConcaveElemSide(kLocSide,iElem)) THEN  ! only concave elements need to be checked
+          IF (ConcaveElemSide_Shared(kLocSide,iElem)) THEN  ! only concave elements need to be checked
             ! build 4 vectors from point 1 of edge to 4 nodes of kLocSide
             DO iNode = 1,4
-              Node(:,iNode) = GEO%NodeCoords(:,GEO%ElemSideNodeID(1,iLocSide,iElem)) &
-                            - GEO%NodeCoords(:,GEO%ElemSideNodeID(iNode,kLocSide,iElem))
+              Node(:,iNode) = NodeCoords_Shared(:,ElemSideNodeID_Shared(1    ,iLocSide,iElem)+1) &
+                            - NodeCoords_Shared(:,ElemSideNodeID_Shared(iNode,kLocSide,iElem)+1)
             END DO
             ! Compute whether any of the triangle intersects with the vector vec:
             ! If all three volumes built by the vector vec and the vectors Node
@@ -2554,14 +2641,14 @@ DO iElem = 1, nElems ! go through all elements
             TRICHECK = .FALSE.
             TRIABSCHECK = .FALSE.
             DO iNode = 1,3
-              det(:) = GEO%NodeCoords(:,GEO%ElemSideNodeID(1,iLocSide,iElem)) &
-                     - GEO%NodeCoords(:,GEO%ElemSideNodeID(iNode,kLocSide,iElem))
+              det(:) = NodeCoords_Shared(:,ElemSideNodeID_Shared(1    ,iLocSide,iElem)+1) &
+                     - NodeCoords_Shared(:,ElemSideNodeID_Shared(iNode,kLocSide,iElem)+1)
               IF (SUM(abs(det(:))).EQ.0) THEN
                 TRICHECK = .TRUE.
                 IF(iNode.NE.2)TRIABSCHECK = .TRUE.
               END IF
-              det(:) = GEO%NodeCoords(:,GEO%ElemSideNodeID(3,iLocSide,iElem)) &
-                     - GEO%NodeCoords(:,GEO%ElemSideNodeID(iNode,kLocSide,iElem))
+              det(:) = NodeCoords_Shared(:,ElemSideNodeID_Shared(3    ,iLocSide,iElem)+1) &
+                     - NodeCoords_Shared(:,ElemSideNodeID_Shared(iNode,kLocSide,iElem)+1)
               IF (SUM(abs(det(:))).EQ.0) THEN
                 TRICHECK = .TRUE.
                 IF(iNode.NE.2)TRIABSCHECK = .TRUE.
@@ -2585,11 +2672,11 @@ DO iElem = 1, nElems ! go through all elements
             TRICHECK = .FALSE.
             IF (.not.TRIABSCHECK) THEN
               ! Node 4 needs to be checked separately (see above)
-              det(:) = GEO%NodeCoords(:,GEO%ElemSideNodeID(1,iLocSide,iElem)) &
-                     - GEO%NodeCoords(:,GEO%ElemSideNodeID(4,kLocSide,iElem))
+              det(:) = NodeCoords_Shared(:,ElemSideNodeID_Shared(1,iLocSide,iElem)+1) &
+                     - NodeCoords_Shared(:,ElemSideNodeID_Shared(4,kLocSide,iElem)+1)
               IF (SUM(abs(det(:))).EQ.0) TRICHECK = .TRUE.
-              det(:) = GEO%NodeCoords(:,GEO%ElemSideNodeID(3,iLocSide,iElem)) &
-                     - GEO%NodeCoords(:,GEO%ElemSideNodeID(4,kLocSide,iElem))
+              det(:) = NodeCoords_Shared(:,ElemSideNodeID_Shared(3,iLocSide,iElem)+1) &
+                     - NodeCoords_Shared(:,ElemSideNodeID_Shared(4,kLocSide,iElem)+1)
               IF (SUM(abs(det(:))).EQ.0) TRICHECK = .TRUE.
               IF (.not.TRICHECK) THEN
                 det(1) = ((Node(2,1) * Node(3,3) - Node(3,1) * Node(2,3)) * vec(1)  + &
@@ -2611,10 +2698,17 @@ DO iElem = 1, nElems ! go through all elements
     END IF
   END DO
   IF (WEIRD) THEN
+    SWRITE(*,*) iElem
+    DO iNode=1,8
+      SWRITE(*,*) NodeCoords_Shared(:,ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+iNode)
+    END DO
+    EXIT
+
     WeirdElems = WeirdElems + 1
     WeirdElemNbrs(WeirdElems) = iElem
   END IF
 END DO
+STOP
 
 SWRITE(UNIT_stdOut,'(A)')' CHECKING FOR WEIRD ELEMENTS DONE!'
 IF(WeirdElems.GT.0) THEN
@@ -2630,6 +2724,9 @@ IF(WeirdElems.GT.0) THEN
   !  STOP
   END DO
 END IF
+
+DEALLOCATE(WeirdElemNbrs)
+
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE WeirdElementCheck
 
@@ -3033,8 +3130,8 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #else
   ALLOCATE(ElemRadiusNGeo( nElems)
   ALLOCATE(ElemRadius2NGeo(nElems)
-  ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nElems) 
-  ALLOCATE(slenXiEtaZetaBasis(1:6,1:nElems) 
+  ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nElems)
+  ALLOCATE(slenXiEtaZetaBasis(1:6,1:nElems)
   Shift=0
 #endif
 
