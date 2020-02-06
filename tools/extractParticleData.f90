@@ -39,6 +39,7 @@ INTEGER :: error                                     ! Error flags
 
 CHARACTER                   :: tmp                   ! For reading command-line-argument
 INTEGER                     :: iFileFormat=1         ! 1: Tecplot 2: VTK
+INTEGER                     :: nParts, PartDataSize  ! number of particles and number of properties of each particle
 
 
 CALL GETARG(1,filename)
@@ -68,14 +69,14 @@ CALL H5DGET_SPACE_F(dset_id, FileSpace, error)
 
 ! get size
 CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, count, SizeMax, error)
-nParts        = count(2)
-nPartDataSize = count(1)
+nParts       = count(2)
+PartDataSize = count(1)
 
 !
 ! Read data from hyperslab in the file into the hyperslab in
 ! memory and display.
 !
-ALLOCATE(PartData(nPartDataSize,nParts))
+ALLOCATE(PartData(PartDataSize,nParts))
 CALL H5dread_f(dset_id, H5T_NATIVE_DOUBLE, PartData, count, error)
 !
 ! Close the dataset.
