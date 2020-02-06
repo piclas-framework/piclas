@@ -130,7 +130,6 @@ eta_c_dielectric                 = (c_corr-DielectricConstant_RootInv)*c ! ( chi
 c_dielectric                     = c*DielectricConstant_RootInv          ! c/sqrt(EpsR*MuR)
 c2_dielectric                    = c*c/(DielectricEpsR*DielectricMuR)    ! c**2/(EpsR*MuR)
 DielectricCheckRadius            = GETLOGICAL('DielectricCheckRadius')
-IF(TRIM(DielectricTestCase).EQ.'Circle') DielectricCheckRadius=.TRUE. ! Activate radius check when using 'Circle' test case
 DielectricRadiusValue            = GETREAL('DielectricRadiusValue')
 DielectricCircleAxis             = GETINT('DielectricAxis')
 IF(DielectricRadiusValue.LE.0.0) DielectricCheckRadius=.FALSE.
