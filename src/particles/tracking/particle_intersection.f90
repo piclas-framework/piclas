@@ -2727,6 +2727,7 @@ USE MOD_Globals                ,ONLY: UNIT_stdout,abort
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBezier
+USE MOD_Globals                ,ONLY: myrank
 #endif /*CODE_ANALYZE*/
 USE MOD_Globals                ,ONLY: MyRank
 !----------------------------------------------------------------------------------------------------------------------------------!

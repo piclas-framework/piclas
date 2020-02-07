@@ -97,7 +97,7 @@ Overview of the test cases performed during the nightly regression testing.
 
 ### NIG Convergence Tests
 
-### NIG_convtest_maxwell
+#### NIG_convtest_maxwell
 
 Convergence tests (spatially by varying either the polynomial degree of the solution or the number of mesh cells) for Maxwell's equations on conforming, non-conforming (hanging nodes/Mortars) Cartesian or non-orthogonal meshes with open or PEC boundaries: [Link CMAKE-CONFIG](regressioncheck/checks/NIG_convtest/builds.ini).
 
@@ -112,7 +112,7 @@ Convergence tests (spatially by varying either the polynomial degree of the solu
 |    7    |  p_cylinder_TE_wave_linear  |                  |  p-convergence (cylindrical mesh periodic in z and PEC walls, linear polarization)  |   nProcs=4    |               |            |
 |    8    |          p_mortar           |                  |                         p-convergence (non-conforming mesh)                         |   nProcs=1    |               |            |
 
-### NIG_convtest_poisson
+#### NIG_convtest_poisson
 
 Convergence tests (spatially by varying either the number of mesh cells) for Poisson's equations on conforming, non-conforming (hanging nodes/Mortars) Cartesian meshes with exact Dirichlet boundaries: [Link CMAKE-CONFIG](regressioncheck/checks/NIG_convtest_poisson/builds.ini).
 
@@ -120,7 +120,7 @@ Convergence tests (spatially by varying either the number of mesh cells) for Poi
 | :-----: | :---------: | :--------------: | :--------------------------------------: | :-----------: | :-----------: | :----------------------------------------------------------------: |
 |  23-x   | h_N1_mortar |                  | h-convergence (N=1, non-conforming mesh) |   nProcs=1    |               | [Link](regressioncheck/checks/NIG_convtest_poisson/h_N1/readme.md) |
 
-### NIG_convtest_t
+#### NIG_convtest_t
 
 Convergence tests (temporally by varying the time step) for integrating the path of a single particle in a spatially varying and temporally constant magnetic field: [Link CMAKE-CONFIG](regressioncheck/checks/NIG_convtest_t/builds.ini).
 
@@ -137,6 +137,18 @@ Convergence tests (temporally by varying the time step) for integrating the path
 |    9    |      PIC_RK4_magnetostatic_Bz_exp       |                  |             spiral particle drift, Runge-Kutta 4th order             |   nProcs=1    | L2 error of position |            |
 |   10    |     PIC_ROS46_magnetostatic_Bz_exp      |                  | spiral particle drift, Rosenbrock 4th order (resulting in 1st order) |   nProcs=1    | L2 error of position |            |
 
+#### NIG_Dielectric
+
+Different dielectric regions in combination with the HDG solver (Poisson's equation)
+
+| **No.** | **Case**                                | **CMAKE-CONFIG** | **Feature**                                                          | **Execution** | **Comparing**                                      | **Readme**                                                            |
+| :-----: | :-------------------------------------: | :--------------: | :------------------------------------------------------------------: | :-----------: | :------------------:                               | :--------:                                                            |
+| 1       | HDG_cylinder                            |                  | cylindrical dielectric region                                        | nProcs=1      | reference solution for DielectricGlobal            | [Link](/regressioncheck/checks/NIG_dielectric/HDG_cylinder/readme.md) |
+| 2       | HDG_point_charge                        |                  | single charged particle and dielectric region                        | nProcs=1      | reference solution for DielectricGlobal N=3 to N=9 |                                                                       |
+| 3       | HDG_slab                                |                  | dielectric slab                                                      | nProcs=1      | reference solution for DielectricGlobal            |                                                                       |
+| 4       | HDG_sphere_in_box_analytical_BC         |                  | single charged particle and dielectric region                        | nProcs=1      | analytic reference solution and p-convergence rate |                                                                       |
+| 5       | HDG_sphere_in_box_potential_BC          |                  | single charged particle and dielectric region                        | nProcs=1      | analytic reference solution and p-convergence rate |                                                                       |
+| 6       | HDG_sphere_in_sphere_analytical_BC      |                  | single charged particle and dielectric region                        | nProcs=1      | analytic reference solution and p-convergence rate |                                                                       |
 
 #### NIG_Reservoir
 
