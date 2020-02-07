@@ -63,7 +63,8 @@ CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector2'    , 'Vector 2 
 CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector3'    , 'Vector 3 spanning the cuboid', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'PermanentMagnet[$]-Radius'         , 'Radius of a spheric, cylindric and conic (first radius) '//&
                                                                       'permanent magnet', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'PermanentMagnet[$]-Radius2'        , 'Radius of the second radius of the conic permanent magnet', &
+CALL prms%CreateRealOption(     'PermanentMagnet[$]-Radius2'        , 'Radius of the second radius of the conic permanent magnet'//&
+                                                                      ' or inner radius for hollow cylinders', &
                                                                       numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('PermanentMagnet[$]-HeightVector'   , 'Height vector of cylindric and conic permanent magnet', &
                                                                       numberedmulti=.TRUE.)
@@ -182,7 +183,15 @@ IF (NumOfPermanentMagnets.GT.0) THEN
       PermanentMagnetInfo(iMagnet)%Radius             = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius')
     CASE('cylinder')
       PermanentMagnetInfo(iMagnet)%Radius             = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius')
+      PermanentMagnetInfo(iMagnet)%Radius2            = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius2','-1.0') ! set default only here
       PermanentMagnetInfo(iMagnet)%HeightVector(1:3)  = GETREALARRAY('PermanentMagnet'//TRIM(hilf)//'-HeightVector',3)
+
+      IF(PermanentMagnetInfo(iMagnet)%Radius2.GT.0.0.AND.&
+         PermanentMagnetInfo(iMagnet)%Radius2.GT.PermanentMagnetInfo(iMagnet)%Radius)THEN
+         CALL abort(&
+         __STAMP__&
+         ,'Cylindrical magnet: Radius2 cannot be larger than Radius!')
+      END IF ! PermanentMagnetInfo(iMagnet)%Radius2.GT.0.0.AND.
     CASE('conic')
       PermanentMagnetInfo(iMagnet)%Radius             = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius')
       PermanentMagnetInfo(iMagnet)%Radius2            = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius2')
@@ -190,6 +199,16 @@ IF (NumOfPermanentMagnets.GT.0) THEN
     CASE DEFAULT
       CALL abort(__STAMP__, &
         'ERROR SuperB: Given permanent magnet geometry is not implemented! Permanent magnet number:', iMagnet)
+    END SELECT
+
+    ! Sanity Checks
+    SELECT CASE(TRIM(PermanentMagnetInfo(iMagnet)%Type))
+    CASE('sphere','cylinder','conic')
+      IF(PermanentMagnetInfo(iMagnet)%Radius.LE.0.0)THEN
+        CALL abort(&
+        __STAMP__&
+        ,'sphere/cylinder/conic magnet: Radius cannot be <= 0.0')
+      END IF ! PermanentMagnetInfo(iMagnet)%Radius.LE.0.0
     END SELECT
   END DO
 END IF
