@@ -61,17 +61,23 @@ IF(TRIM(MCC_Database).EQ.'none') THEN
   ,'ERROR: No database for the collision cross-section given!')
 END IF
 
-IF (BGGas%BGGasSpecies.EQ.0) THEN
+IF (BGGas%NumberOfSpecies.GT.0) THEN
   CALL abort(&
   __STAMP__&
   ,'ERROR: Usage of read-in collision cross-sections only possible with a background gas!')
 END IF
 
+IF (BGGas%NumberOfSpecies.GT.1) THEN
+  CALL abort(&
+  __STAMP__&
+  ,'ERROR: Collisional cross-section are not supported yet with more than one background species')
+END IF
+
 DO iSpec = 1,nSpecies
-  IF(iSpec.NE.BGGas%BGGasSpecies) THEN
+  IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
     IF(SpecDSMC(iSpec)%UseCollXSec) THEN
       ! Read-in cross-section data for collisions of particles from the background gas and the current species
-      hilf = TRIM(SpecDSMC(BGGas%BGGasSpecies)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
+      hilf = TRIM(SpecDSMC(BGGas%MappingBGSpecToSpec(1))%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
       CALL ReadCollXSec(iSpec, hilf)
       ! Store the energy value in J (read-in was in eV)
       SpecDSMC(iSpec)%CollXSec(1,:) = SpecDSMC(iSpec)%CollXSec(1,:) * ElementaryCharge

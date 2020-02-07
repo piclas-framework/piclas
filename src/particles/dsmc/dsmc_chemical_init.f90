@@ -59,7 +59,7 @@ SUBROUTINE DSMC_chemical_init()
   INTEGER, ALLOCATABLE  :: PairCombID(:,:), DummyRecomb(:,:)
   LOGICAL, ALLOCATABLE  :: YetDefined_Help(:)
   LOGICAL               :: DoScat
-  INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact
+  INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact, bgSpec
   REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib
 !===================================================================================================================================
 
@@ -145,25 +145,28 @@ __STAMP__&
     ALLOCATE(ChemReac%ReactInfo(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%TLU_FileName(ChemReac%NumOfReact))
 
-    IF (BGGas%BGGasSpecies.NE.0) THEN
-      ! Background gas: Calculation of the mean vibrational quantum number of diatomic molecules
-      IF((SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.2).OR.(SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.20)) THEN
-        IF(.NOT.SpecDSMC(BGGas%BGGasSpecies)%PolyatomicMol) THEN
-          BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib &
-              + BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib  &
-              /  (EXP(SpecDSMC(BGGas%BGGasSpecies)%CharaTVib / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1) &
-              - BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib * SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant &
-              / (EXP(SpecDSMC(BGGas%BGGasSpecies)%CharaTVib * SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant &
-              / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1)
-          BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(BGGas%BGGasSpecies)%CharaTVib) - DSMC%GammaQuant
-          ChemReac%MeanEVibQua_PerIter(BGGas%BGGasSpecies) = MIN(INT(BGGasEVib) + 1, SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant)
-          ChemReac%MeanXiVib_PerIter(BGGas%BGGasSpecies) = 2. * ChemReac%MeanEVibQua_PerIter(BGGas%BGGasSpecies) &
-                                            * LOG(1.0/ChemReac%MeanEVibQua_PerIter(BGGas%BGGasSpecies) + 1.0 )
+    IF (BGGas%NumberOfSpecies.GT.0) THEN
+      DO bgSpec = 1, BGGas%NumberOfSpecies
+        iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
+        ! Background gas: Calculation of the mean vibrational quantum number of diatomic molecules
+        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+          IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol) THEN
+            BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib &
+                + BoltzmannConst * SpecDSMC(iSpec)%CharaTVib  &
+                /  (EXP(SpecDSMC(iSpec)%CharaTVib / SpecDSMC(iSpec)%Init(0)%TVib) - 1) &
+                - BoltzmannConst * SpecDSMC(iSpec)%CharaTVib * SpecDSMC(iSpec)%MaxVibQuant &
+                / (EXP(SpecDSMC(iSpec)%CharaTVib * SpecDSMC(iSpec)%MaxVibQuant &
+                / SpecDSMC(iSpec)%Init(0)%TVib) - 1)
+            BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
+            ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(BGGasEVib) + 1, SpecDSMC(iSpec)%MaxVibQuant)
+            ChemReac%MeanXiVib_PerIter(iSpec) = 2. * ChemReac%MeanEVibQua_PerIter(iSpec) &
+                                              * LOG(1.0/ChemReac%MeanEVibQua_PerIter(iSpec) + 1.0 )
+          END IF
+        ELSE
+          ChemReac%MeanEVibQua_PerIter(iSpec) = 0
+          ChemReac%MeanXiVib_PerIter(iSpec) = 0.
         END IF
-      ELSE
-        ChemReac%MeanEVibQua_PerIter(BGGas%BGGasSpecies) = 0
-        ChemReac%MeanXiVib_PerIter(BGGas%BGGasSpecies) = 0.
-      END IF
+      END DO
     END IF
 
     DoScat = .false.

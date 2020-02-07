@@ -227,7 +227,7 @@ DO iSpec=1,nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%nSurfacefluxBCs = GETINT('Part-Species'//TRIM(hilf)//'-nSurfacefluxBCs','0')
   IF (useDSMC) THEN
-    IF (BGGas%BGGasSpecies.EQ.iSpec) THEN
+    IF (BGGas%BackgroundSpecies(iSpec)) THEN
       IF (Species(iSpec)%nSurfacefluxBCs.GT.0 .OR. nAdaptiveBC.GT.0) CALL abort(&
 __STAMP__&
 , 'SurfaceFlux or AdaptiveBCs are not implemented for the BGG-species!')

@@ -90,7 +90,7 @@ IF(.NOT.PRESENT(DoElement)) THEN
 END IF
 DSMCSumOfFormedParticles = 0
 
-IF((BGGas%BGGasSpecies.NE.0).AND.(.NOT.UseMCC)) CALL DSMC_InitBGGas
+IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL DSMC_InitBGGas
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -114,7 +114,7 @@ DO iElem = 1, nElems ! element/cell main loop
     ChemReac%nPairForRec = 0
     IF(UseMCC) THEN
       CALL MCC_pairing_bggas(iElem)
-    ELSE IF(BGGas%BGGasSpecies.NE.0) THEN
+    ELSE IF(BGGas%NumberOfSpecies.GT.0) THEN
       CALL DSMC_pairing_bggas(iElem)
     ELSE IF (nPart.GT.1) THEN
       IF (DSMC%UseOctree) THEN
@@ -237,7 +237,7 @@ END DO ! iElem Loop
 ! Output!
 PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
-IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_FinalizeBGGas
+IF(BGGas%NumberOfSpecies.GT.0) CALL DSMC_FinalizeBGGas
 #if (PP_TimeDiscMethod==42)
 IF ((.NOT.DSMC%ReservoirSimu).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
 #else

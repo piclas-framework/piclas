@@ -282,6 +282,11 @@ TYPE tBGGas
   REAL                          :: BGColl_SpecPartNum       ! PartNum of BGGas per cell
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
+  INTEGER                       :: NumberOfSpecies          ! 
+  LOGICAL, ALLOCATABLE          :: BackgroundSpecies(:)     !
+  INTEGER, ALLOCATABLE          :: MappingBGSpecToSpec(:)   !
+  INTEGER, ALLOCATABLE          :: MappingSpecToBGSpec(:)   !
+  REAL, ALLOCATABLE             :: SpeciesFraction(:)       ! 
 END TYPE tBGGas
 
 TYPE(tBGGas)                        :: BGGas

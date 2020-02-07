@@ -772,7 +772,7 @@ ELSE !CollisMode.GT.0
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TVib needs to be defined in Part-SpeciesXX-TempVib for iSpec',iSpec)
-                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TVib needs to be defined in Part-SpeciesXX-TempVib for BGGas')
@@ -793,7 +793,7 @@ ELSE !CollisMode.GT.0
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TRot needs to be defined in Part-SpeciesXX-TempRot for iSpec',iSpec)
-                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TRot needs to be defined in Part-SpeciesXX-TempRot for BGGas')
@@ -817,7 +817,7 @@ ELSE !CollisMode.GT.0
                     CALL Abort(&
                         __STAMP__&
                         ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for Species',iSpec)
-                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
                     CALL Abort(&
                         __STAMP__&
                         ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for BGGas')
@@ -1222,17 +1222,20 @@ ELSE !CollisMode.GT.0
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! Background gas: Check compatibility with other features
   !-----------------------------------------------------------------------------------------------------------------------------------
-  IF (BGGas%BGGasSpecies.NE.0) THEN
+  IF (BGGas%NumberOfSpecies.GT.0) THEN
     IF (DSMC%UseOctree) THEN
       CALL abort(__STAMP__,&
           'ERROR: Utilization of the octree and nearest neighbour scheme not possible with the background gas!')
     END IF
-    IF(SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.4) THEN
-      CALL abort(__STAMP__,&
-          'ERROR: Electrons as background gas are not yet available!')
-    END IF
+    DO iSpec = 1, nSpecies
+      IF(BGGas%BackgroundSpecies(iSpec)) THEN
+        IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
+          CALL abort(__STAMP__,&
+            'ERROR in BGGas: Electrons as background gas are not yet available!')
+        END IF
+      END IF
+    END DO
   END IF
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate vib collision numbers and characteristic velocity, according to Abe
 !-----------------------------------------------------------------------------------------------------------------------------------

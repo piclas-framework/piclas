@@ -106,7 +106,7 @@ DO iSpec = 1, nSpecies
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol) THEN
       ! Skip the background gas species (value initialized in dsmc_chemical_init.f90)
-      IF(iSpec.EQ.BGGas%BGGasSpecies) CYCLE
+      IF(BGGas%BackgroundSpecies(iSpec)) CYCLE
       ! Only treat species present in the cell
       IF(CollInf%Coll_SpecPartNum(iSpec).GT.0) THEN
         ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
