@@ -175,7 +175,7 @@ ALLOCATE(Velocity(MaxDOF))
 Velocity(1:MaxDOF) = SQRT(2.) * SQRT(8.*SpecDSMC(iSpec)%CollXSec(1,1:MaxDOF)/(Pi*Species(iSpec)%MassIC))
 
 ! Calculate the maximal collision frequency
-SpecDSMC(iSpec)%MaxCollFreq = MAXVAL(Velocity(1:MaxDOF) * SpecDSMC(iSpec)%CollXSec(2,1:MaxDOF) * BGGas%BGGasDensity)
+SpecDSMC(iSpec)%MaxCollFreq = MAXVAL(Velocity(1:MaxDOF) * SpecDSMC(iSpec)%CollXSec(2,1:MaxDOF) * BGGas%NumberDensity)
 
 ! Determine the collision probability
 SpecDSMC(iSpec)%ProbNull = 1. - EXP(-SpecDSMC(iSpec)%MaxCollFreq*ManualTimeStep)

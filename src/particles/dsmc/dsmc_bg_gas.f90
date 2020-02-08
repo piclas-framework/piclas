@@ -22,16 +22,16 @@ MODULE MOD_DSMC_BGGas
 IMPLICIT NONE
 PRIVATE
 
-INTERFACE DSMC_InitBGGas
-  MODULE PROCEDURE DSMC_InitBGGas
+INTERFACE BGGas_InsertParticles
+  MODULE PROCEDURE BGGas_InsertParticles
 END INTERFACE
 
 INTERFACE DSMC_pairing_bggas
   MODULE PROCEDURE DSMC_pairing_bggas
 END INTERFACE
 
-INTERFACE DSMC_FinalizeBGGas
-  MODULE PROCEDURE DSMC_FinalizeBGGas
+INTERFACE BGGas_DeleteParticles
+  MODULE PROCEDURE BGGas_DeleteParticles
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -39,14 +39,118 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_InitBGGas, DSMC_pairing_bggas, MCC_pairing_bggas, DSMC_FinalizeBGGas
+PUBLIC :: BGGas_Initialize, BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
 !===================================================================================================================================
 
 CONTAINS
 
+SUBROUTINE BGGas_Initialize()
+!===================================================================================================================================
+!> Initialization of the background gas: compatibility check, array allocation, background species to species mapping and
+!> calculation of the molar fraction
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals                ,ONLY: Abort
+USE MOD_DSMC_Vars              ,ONLY: BGGas
+USE MOD_Particle_Vars          ,ONLY: PDM, Symmetry2D, nSpecies, VarTimeStep
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iSpec, counterSpec
+REAL              :: SpeciesDensTemp(1:nSpecies)
+!===================================================================================================================================
+
+! 1.) Check compatibility with other features and whether required parameters have been read-in
+IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+  CALL abort(&
+  __STAMP__&
+  ,'ERROR: 2D/Axisymmetric and variable timestep are not implemented with a background gas yet!')
+END IF
+
+IF (BGGas%NumberDensity.EQ.0.) CALL abort(__STAMP__&
+                                          ,'ERROR: BGGas%NumberDensity is zero but must be defined for a background gas!')
+
+! 2.) Allocation
+ALLOCATE(BGGas%PairingPartner(PDM%maxParticleNumber))
+BGGas%PairingPartner = 0
+ALLOCATE(BGGas%MappingBGSpecToSpec(BGGas%NumberOfSpecies))
+SpeciesDensTemp(1:nSpecies) = BGGas%SpeciesFraction(1:nSpecies)
+DEALLOCATE(BGGas%SpeciesFraction)
+ALLOCATE(BGGas%SpeciesFraction(BGGas%NumberOfSpecies))
+
+! 3.) Create a mapping of background species to regular species and calculate the molar fraction
+counterSpec = 0
+DO iSpec = 1, nSpecies
+  IF(BGGas%BackgroundSpecies(iSpec)) THEN
+    counterSpec = counterSpec + 1
+    BGGas%MappingBGSpecToSpec(counterSpec) = iSpec
+    BGGas%SpeciesFraction(counterSpec) = SpeciesDensTemp(iSpec)
+    IF(counterSpec.GT.BGGas%NumberOfSpecies) THEN
+      CALL Abort(&
+        __STAMP__&
+        ,'ERROR in BGGas: More background species detected than previously defined!')
+    END IF
+  END IF
+END DO
+
+BGGas%SpeciesFraction = BGGas%SpeciesFraction / BGGas%NumberDensity
+
+!     IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
+!       .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0) CALL abort(&
+! __STAMP__&
+! ,'BGG species can be used ONLY for BGG!')
+!     IF (Species(BGGas%BGGasSpecies)%Init(0)%UseForInit .OR. Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission) THEN
+!       SWRITE(*,*) 'WARNING: Emission was switched off for BGG species!'
+!       Species(BGGas%BGGasSpecies)%Init(0)%UseForInit=.FALSE.
+!       Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission=.FALSE.
+!     END IF
+!     IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.GT.0 &
+!       .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0 &
+!       .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID .GT.0 ) THEN! &
+!       !-- from MacroRestartFile (inner DOF not yet implemented!):
+!       IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.LE.0 .OR. &
+!         .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureIC)) CALL abort(&
+! __STAMP__&
+! ,'ElemTemperatureIC not defined in Init0 for BGG from MacroRestartFile!')
+!       IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.LE.0 .OR. &
+!         .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensity)) CALL abort(&
+! __STAMP__&
+! ,'ElemPartDensity not defined in Init0 for BGG from MacroRestartFile!')
+!       IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID.LE.0 .OR. &
+!         .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityIC)) THEN
+!         CALL abort(&
+! __STAMP__&
+! ,'ElemVelocityIC not defined in Init0 for BGG from MacroRestartFile!')
+!       ELSE IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') THEN !(use always Init 0 for BGG !!!)
+!         CALL abort(&
+! __STAMP__&
+! ,'only maxwell_lpn is implemened as velocity-distribution for BGG from MacroRestartFile!')
+!       END IF
+!     ELSE
+!       IF (Species(BGGas%BGGasSpecies)%Init(0)%MWTemperatureIC.EQ.0.) CALL abort(&
+! __STAMP__&
+! ,'ERROR: MWTemperatureIC not defined in Init0 for homogeneous BGG!')
+!       SELECT CASE(Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution)
+!         CASE('maxwell','maxwell_lpn')
+!           ! Others have to be tested first.
+!         CASE DEFAULT
+!           CALL abort(&
+! __STAMP__&
+! ,'ERROR: VelocityDistribution not supported/defined in Init0 for homogeneous BGG! Only maxwell/maxwell_lpn is allowed!')
+!       END SELECT
+!     END IF
+
+END SUBROUTINE BGGas_Initialize
+
+
 INTEGER FUNCTION BGGas_GetSpecies()
 !===================================================================================================================================
-!> 
+!> Get a species index of the background gas by randomly choosing a species based on the molar fraction
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort
@@ -77,9 +181,9 @@ END IF
 
 END FUNCTION BGGas_GetSpecies
 
-SUBROUTINE DSMC_InitBGGas()
+SUBROUTINE BGGas_InsertParticles()
 !===================================================================================================================================
-!> Initialization of background gas (BGG): Creating particles of the background species for each actual simulation particle
+!> Creating particles of the background species for each actual simulation particle
 !> 1. Initialize particles (loop over the current ParticleVecLength):
 !>    a) Get the new index from the nextFreePosition array
 !>    b) Same position as the non-BGG particle, set species and initialize the internal energy (if required)
@@ -145,7 +249,7 @@ END DO
 PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart
 
-END SUBROUTINE DSMC_InitBGGas
+END SUBROUTINE BGGas_InsertParticles
 
 
 SUBROUTINE DSMC_pairing_bggas(iElem)
@@ -223,7 +327,7 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
 
   DO bgSpec = 1, BGGas%NumberOfSpecies
     iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-    CollInf%Coll_SpecPartNum(iSpec) = BGGas%SpeciesFraction(bgSpec) * BGGas%BGGasDensity * GEO%Volume(iElem)      &
+    CollInf%Coll_SpecPartNum(iSpec) = BGGas%SpeciesFraction(bgSpec) * BGGas%NumberDensity * GEO%Volume(iElem)      &
                                               / Species(iSpec)%MacroParticleFactor
   END DO
 
@@ -393,7 +497,7 @@ END DO
 
 DO bgSpec = 1, BGGas%NumberOfSpecies
   iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-  CollInf%Coll_SpecPartNum(iSpec) = BGGas%SpeciesFraction(bgSpec) * BGGas%BGGasDensity * GEO%Volume(iElem)      &
+  CollInf%Coll_SpecPartNum(iSpec) = BGGas%SpeciesFraction(bgSpec) * BGGas%NumberDensity * GEO%Volume(iElem)      &
                                             / Species(iSpec)%MacroParticleFactor
 END DO
 
@@ -425,7 +529,7 @@ END DO
 END SUBROUTINE MCC_pairing_bggas
 
 
-SUBROUTINE DSMC_FinalizeBGGas()
+SUBROUTINE BGGas_DeleteParticles()
 !===================================================================================================================================
 ! Kills all BG Particles
 !===================================================================================================================================
@@ -452,6 +556,6 @@ END DO
 BGGas%PairingPartner = 0
 CALL UpdateNextFreePosition()
 
-END SUBROUTINE DSMC_FinalizeBGGas
+END SUBROUTINE BGGas_DeleteParticles
 
 END MODULE MOD_DSMC_BGGas

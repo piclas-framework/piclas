@@ -277,16 +277,13 @@ END TYPE tDSMC
 TYPE(tDSMC)                     :: DSMC
 
 TYPE tBGGas
-  INTEGER                       :: BGGasSpecies             ! Number which Species is Background Gas
-  REAL                          :: BGGasDensity             ! Density of Background Gas
-  REAL                          :: BGColl_SpecPartNum       ! PartNum of BGGas per cell
+  INTEGER                       :: NumberOfSpecies          ! Number of background gas species
+  LOGICAL, ALLOCATABLE          :: BackgroundSpecies(:)     ! Flag, if a species is a background gas species, [1:nSpecies]
+  REAL, ALLOCATABLE             :: SpeciesFraction(:)       ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
+  REAL                          :: NumberDensity            ! Total number density of the background gas
+  INTEGER, ALLOCATABLE          :: MappingBGSpecToSpec(:)   ! Input: [1:BGGas%NumberOfSpecies], output is the corresponding species
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
-  INTEGER                       :: NumberOfSpecies          ! 
-  LOGICAL, ALLOCATABLE          :: BackgroundSpecies(:)     !
-  INTEGER, ALLOCATABLE          :: MappingBGSpecToSpec(:)   !
-  INTEGER, ALLOCATABLE          :: MappingSpecToBGSpec(:)   !
-  REAL, ALLOCATABLE             :: SpeciesFraction(:)       ! 
 END TYPE tBGGas
 
 TYPE(tBGGas)                        :: BGGas

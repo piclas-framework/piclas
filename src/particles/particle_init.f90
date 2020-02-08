@@ -1097,6 +1097,7 @@ USE MOD_Particle_VarTimeStep   ,ONLY: VarTimeStep_CalcElemFacs
 USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
 USE MOD_part_RHS               ,ONLY: InitPartRHS
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1123,8 +1124,6 @@ INTEGER               :: MacroRestartFileID
 LOGICAL,ALLOCATABLE   :: MacroRestartFileUsed(:)
 INTEGER               :: FileID, iElem
 REAL                  :: particlenumber_tmp, phimax_tmp
-REAL, ALLOCATABLE     :: SpeciesDensTemp(:)
-INTEGER               :: counterSpec
 !===================================================================================================================================
 ! Read print flags
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
@@ -1486,14 +1485,12 @@ IF(DoFieldIonization)THEN
   FieldIonizationModel = GETINT('FieldIonizationModel')
 END IF
 
-BGGas%BGGasDensity = 0.
+BGGas%NumberDensity = 0.
 BGGas%NumberOfSpecies = 0
 ALLOCATE(BGGas%BackgroundSpecies(nSpecies))
 BGGas%BackgroundSpecies = .FALSE.
 ALLOCATE(BGGas%SpeciesFraction(nSpecies))
 BGGas%SpeciesFraction = 0.
-ALLOCATE(BGGas%MappingSpecToBGSpec(nSpecies))
-BGGas%MappingSpecToBGSpec = 0
 
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -1703,9 +1700,8 @@ __STAMP__&
       IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
         BGGas%NumberOfSpecies = BGGas%NumberOfSpecies + 1
         BGGas%BackgroundSpecies(iSpec)  = .TRUE.
-        BGGas%MappingSpecToBGSpec(iSpec) = BGGas%NumberOfSpecies
         BGGas%SpeciesFraction(iSpec)    = Species(iSpec)%Init(iInit)%PartDensity
-        BGGas%BGGasDensity              = BGGas%BGGasDensity + Species(iSpec)%Init(iInit)%PartDensity
+        BGGas%NumberDensity             = BGGas%NumberDensity + Species(iSpec)%Init(iInit)%PartDensity
       ELSE
         CALL abort(__STAMP__&
             ,'ERROR: Only one background definition per species is allowed!')
@@ -2912,87 +2908,9 @@ END IF !nCollectChargesBCs .GT. 0
 !   (moved here from dsmc_init for switching off the initial emission)
 IF (useDSMC) THEN
   IF (BGGas%NumberOfSpecies.GT.0) THEN
-    IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
-      CALL abort(&
-      __STAMP__&
-      ,'ERROR: 2D/Axisymmetric and variable timestep are not implemented with a background gas yet!')
-    END IF
-    counterSpec = 0
-    ALLOCATE(BGGas%MappingBGSpecToSpec(BGGas%NumberOfSpecies))
-    ALLOCATE(SpeciesDensTemp(nSpecies))
-    SpeciesDensTemp(1:nSpecies) = BGGas%SpeciesFraction(1:nSpecies)
-    DEALLOCATE(BGGas%SpeciesFraction)
-    ALLOCATE(BGGas%SpeciesFraction(BGGas%NumberOfSpecies))
-
-    DO iSpec = 1, nSpecies
-      IF(BGGas%BackgroundSpecies(iSpec)) THEN
-        counterSpec = counterSpec + 1
-        BGGas%MappingBGSpecToSpec(counterSpec) = iSpec
-        BGGas%SpeciesFraction(counterSpec) = SpeciesDensTemp(iSpec)
-        IF(counterSpec.GT.BGGas%NumberOfSpecies) THEN
-          CALL Abort(&
-            __STAMP__&
-            ,'ERROR in BGGas: More background species detected than previously defined!')
-        END IF
-      END IF
-    END DO
-    BGGas%SpeciesFraction = BGGas%SpeciesFraction / BGGas%BGGasDensity
-    DEALLOCATE(SpeciesDensTemp)
-    ALLOCATE(BGGas%PairingPartner(PDM%maxParticleNumber))
-    BGGas%PairingPartner = 0
+    CALL BGGas_Initialize()
   ELSE
-    DEALLOCATE(BGGas%BackgroundSpecies)
     DEALLOCATE(BGGas%SpeciesFraction)
-    DEALLOCATE(BGGas%MappingSpecToBGSpec)
-!     IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
-!       .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0) CALL abort(&
-! __STAMP__&
-! ,'BGG species can be used ONLY for BGG!')
-!     IF (Species(BGGas%BGGasSpecies)%Init(0)%UseForInit .OR. Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission) THEN
-!       SWRITE(*,*) 'WARNING: Emission was switched off for BGG species!'
-!       Species(BGGas%BGGasSpecies)%Init(0)%UseForInit=.FALSE.
-!       Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission=.FALSE.
-!     END IF
-!     IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.GT.0 &
-!       .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0 &
-!       .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID .GT.0 ) THEN! &
-!       !-- from MacroRestartFile (inner DOF not yet implemented!):
-!       IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.LE.0 .OR. &
-!         .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureIC)) CALL abort(&
-! __STAMP__&
-! ,'ElemTemperatureIC not defined in Init0 for BGG from MacroRestartFile!')
-!       IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.LE.0 .OR. &
-!         .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensity)) CALL abort(&
-! __STAMP__&
-! ,'ElemPartDensity not defined in Init0 for BGG from MacroRestartFile!')
-!       IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID.LE.0 .OR. &
-!         .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityIC)) THEN
-!         CALL abort(&
-! __STAMP__&
-! ,'ElemVelocityIC not defined in Init0 for BGG from MacroRestartFile!')
-!       ELSE IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') THEN !(use always Init 0 for BGG !!!)
-!         CALL abort(&
-! __STAMP__&
-! ,'only maxwell_lpn is implemened as velocity-distribution for BGG from MacroRestartFile!')
-!       END IF
-!     ELSE
-!       !-- constant values (some from init0)
-!       BGGas%BGGasDensity  = GETREAL('Particles-DSMCBackgroundGasDensity','0.')
-!       IF (BGGas%BGGasDensity.EQ.0.) CALL abort(&
-! __STAMP__&
-! ,'BGGas%BGGasDensity must be defined for homogeneous BGG!')
-!       IF (Species(BGGas%BGGasSpecies)%Init(0)%MWTemperatureIC.EQ.0.) CALL abort(&
-! __STAMP__&
-! ,'ERROR: MWTemperatureIC not defined in Init0 for homogeneous BGG!')
-!       SELECT CASE(Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution)
-!         CASE('maxwell','maxwell_lpn')
-!           ! Others have to be tested first.
-!         CASE DEFAULT
-!           CALL abort(&
-! __STAMP__&
-! ,'ERROR: VelocityDistribution not supported/defined in Init0 for homogeneous BGG! Only maxwell/maxwell_lpn is allowed!')
-!       END SELECT
-!     END IF
   END IF ! BGGas%NumberOfSpecies.GT.0
 END IF !useDSMC
 

@@ -42,7 +42,7 @@ SUBROUTINE DSMC_main(DoElement)
 ! MODULES
 USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
 USE MOD_Globals
-USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, MCC_pairing_bggas, DSMC_FinalizeBGGas
+USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, SpecDSMC, VarVibRelaxProb, ConsiderVolumePortions, MCC_TotalPairNum, UseMCC
@@ -90,7 +90,7 @@ IF(.NOT.PRESENT(DoElement)) THEN
 END IF
 DSMCSumOfFormedParticles = 0
 
-IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL DSMC_InitBGGas
+IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_InsertParticles
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -237,7 +237,7 @@ END DO ! iElem Loop
 ! Output!
 PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
-IF(BGGas%NumberOfSpecies.GT.0) CALL DSMC_FinalizeBGGas
+IF(BGGas%NumberOfSpecies.GT.0) CALL BGGas_DeleteParticles
 #if (PP_TimeDiscMethod==42)
 IF ((.NOT.DSMC%ReservoirSimu).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
 #else

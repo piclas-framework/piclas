@@ -1102,7 +1102,7 @@ INTEGER             :: dir
       ! actually inserted at the chosen weighting factor, determined here and used later also for the ReacRates subroutine
       DO bgSpec = 1,BGGas%NumberOfSpecies
         iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-        NumSpecTmp(iSpec) = (BGGas%SpeciesFraction(bgSpec)*BGGas%BGGasDensity * GEO%MeshVolume / Species(iSpec)%MacroParticleFactor)
+        NumSpecTmp(iSpec) = (BGGas%SpeciesFraction(bgSpec)*BGGas%NumberDensity*GEO%MeshVolume/Species(iSpec)%MacroParticleFactor)
         IF(nSpecAnalyze.GT.1)THEN
           NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze)+NumSpecTmp(iSpec)
         END IF
@@ -2065,7 +2065,7 @@ IF (PartMPI%MPIRoot) THEN
   IF(BGGas%NumberOfSpecies.GT.0) THEN
     DO bgSpec = 1,BGGas%NumberOfSpecies
       iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-      NumDens(iSpec) = BGGas%SpeciesFraction(bgSpec)*BGGas%BGGasDensity
+      NumDens(iSpec) = BGGas%SpeciesFraction(bgSpec)*BGGas%NumberDensity
     END DO
   END IF
 
