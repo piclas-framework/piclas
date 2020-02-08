@@ -2940,6 +2940,10 @@ IF (useDSMC) THEN
     DEALLOCATE(SpeciesDensTemp)
     ALLOCATE(BGGas%PairingPartner(PDM%maxParticleNumber))
     BGGas%PairingPartner = 0
+  ELSE
+    DEALLOCATE(BGGas%BackgroundSpecies)
+    DEALLOCATE(BGGas%SpeciesFraction)
+    DEALLOCATE(BGGas%MappingSpecToBGSpec)
 !     IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
 !       .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0) CALL abort(&
 ! __STAMP__&

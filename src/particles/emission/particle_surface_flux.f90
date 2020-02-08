@@ -227,10 +227,12 @@ DO iSpec=1,nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%nSurfacefluxBCs = GETINT('Part-Species'//TRIM(hilf)//'-nSurfacefluxBCs','0')
   IF (useDSMC) THEN
-    IF (BGGas%BackgroundSpecies(iSpec)) THEN
-      IF (Species(iSpec)%nSurfacefluxBCs.GT.0 .OR. nAdaptiveBC.GT.0) CALL abort(&
-__STAMP__&
-, 'SurfaceFlux or AdaptiveBCs are not implemented for the BGG-species!')
+    IF(BGGas%NumberOfSpecies.GT.0) THEN
+      IF (BGGas%BackgroundSpecies(iSpec)) THEN
+        IF (Species(iSpec)%nSurfacefluxBCs.GT.0 .OR. nAdaptiveBC.GT.0) CALL abort(&
+  __STAMP__&
+  , 'SurfaceFlux or AdaptiveBCs are not implemented for the BGG-species!')
+      END IF
     END IF
   END IF
   ! if no surfacefluxes defined and only adaptive boundaries then first allocation with adaptive

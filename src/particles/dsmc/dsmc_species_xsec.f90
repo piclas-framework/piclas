@@ -61,7 +61,7 @@ IF(TRIM(MCC_Database).EQ.'none') THEN
   ,'ERROR: No database for the collision cross-section given!')
 END IF
 
-IF (BGGas%NumberOfSpecies.GT.0) THEN
+IF (BGGas%NumberOfSpecies.EQ.0) THEN
   CALL abort(&
   __STAMP__&
   ,'ERROR: Usage of read-in collision cross-sections only possible with a background gas!')

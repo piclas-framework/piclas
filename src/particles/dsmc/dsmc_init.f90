@@ -139,10 +139,6 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-UseQCrit'&
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseSSD'&
                                          , 'Set [TRUE] to enable steady state detection and sampling start using 3SD routines.' &
                                          , '.FALSE.')
-CALL prms%CreateIntOption(      'Particles-DSMCBackgroundGas'&
-                                         , 'Define Species number that is used as background gas species', '0')
-CALL prms%CreateRealOption(     'Particles-DSMCBackgroundGasDensity'&
-                                         , 'Define Species number density for background gas', '0.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-PolyRelaxSingleMode'&
                                          , 'Set [TRUE] for separate relaxation of each vibrational mode of a polyatomic in a '//&
                                            'loop over all vibrational modes.\n'//&
@@ -1842,6 +1838,10 @@ SDEALLOCATE(DSMC_HOSolution)
 SDEALLOCATE(DSMC_Volumesample)
 CALL DeleteElemNodeVol()
 SDEALLOCATE(BGGas%PairingPartner)
+SDEALLOCATE(BGGas%BackgroundSpecies)
+SDEALLOCATE(BGGas%MappingBGSpecToSpec)
+SDEALLOCATE(BGGas%MappingSpecToBGSpec)
+SDEALLOCATE(BGGas%SpeciesFraction)
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
