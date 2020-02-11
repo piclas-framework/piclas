@@ -419,7 +419,7 @@ SUBROUTINE CalculateCylindricMagneticPotential(iMagnet)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
-USE MOD_Globals            ,ONLY: VECNORM
+USE MOD_Globals            ,ONLY: VECNORM,UNITVECTOR
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights
@@ -486,7 +486,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           magnetNode = MATMUL(TrafoMatrix, magnetNode)
           magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
 
-          normalUnitVector = h
+          normalUnitVector = h / height ! originally: unormalUnitVector = PermanentMagnetInfo(iMagnet)%HeightVector
 
           ! Calculate the distance between the mesh point and the magnet point
           dist = VECNORM(magnetNode-x)
@@ -494,7 +494,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           ! Calculate the magnetic potential of the node with the Gaussian quadrature
           psiMagTemp2 = radius / dist
 
-          IF(radius2.GT.0.0)THEN
+          IF(r2.GT.0.0)THEN
             ! Calculate node coordinates
             magnetNode2 = (/radius2*COS(phi), radius2*SIN(phi), z/)
             magnetNode2 = MATMUL(TrafoMatrix, magnetNode2)
@@ -527,7 +527,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           magnetNode = MATMUL(TrafoMatrix, magnetNode)
           magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
 
-          normalUnitVector = - h
+          normalUnitVector = - h / height ! originally: unormalUnitVector = -PermanentMagnetInfo(iMagnet)%HeightVector
 
           ! Calculate the distance between the mesh point and the magnet point
           dist = VECNORM(magnetNode-x)
@@ -535,7 +535,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           ! Calculate the magnetic potential of the node with the Gaussian quadrature
           psiMagTemp2 = radius / dist
 
-          IF(radius2.GT.0.0)THEN
+          IF(r2.GT.0.0)THEN
             ! Calculate node coordinates
             magnetNode2 = (/radius2*COS(phi), radius2*SIN(phi), z/)
             magnetNode2 = MATMUL(TrafoMatrix, magnetNode2)
@@ -567,10 +567,9 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
 
           normalVector = (/r*COS(phi), r*SIN(phi), 0./)
           normalVector = MATMUL(TrafoMatrix, normalVector)
-          normalLength = SQRT(normalVector(1)**2 + normalVector(2)**2 + normalVector(3)**2)
 
           ! Normal vector direction
-          normalUnitVector = normalVector / normalLength
+          normalUnitVector = UNITVECTOR(normalVector)
 
           ! Calculate the distance between the mesh point and the magnet point
           dist = VECNORM(magnetNode-x)
@@ -593,8 +592,10 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
       d = l - x
       dist = SQRT(DOT_PRODUCT(d, d))
 
-      IF ((tMin.GE.0).AND.(tMin.LE.1).AND.(dist.LE.r).AND.((r2.GT.0.0).NEQV.(dist.LT.r2))) THEN
-        MagnetFlag(i,j,k,iElem) = iMagnet
+      IF ((tMin.GE.0).AND.(tMin.LE.1).AND.(dist.LE.r))THEN!.AND.((r2.GT.0.0).NEQV.(dist.LT.r2))) THEN
+        IF(dist.GE.r2)THEN
+          !MagnetFlag(i,j,k,iElem) = iMagnet
+        END IF ! dist.GE.r2).AND.(dist.LE.r)
       END IF
 
     END DO; END DO; END DO
@@ -619,10 +620,9 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
 
             normalVector = (/r2*COS(phi), r2*SIN(phi), 0./)
             normalVector = MATMUL(TrafoMatrix, normalVector)
-            normalLength = SQRT(normalVector(1)**2 + normalVector(2)**2 + normalVector(3)**2)
 
             ! Reverse normal vector direction
-            normalUnitVector = - normalVector / normalLength
+            normalUnitVector = -UNITVECTOR(normalVector)
 
             ! Calculate the distance between the mesh point and the magnet point
             dist = VECNORM(magnetNode-x)
