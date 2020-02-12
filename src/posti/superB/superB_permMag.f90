@@ -439,7 +439,7 @@ REAL                :: AxisVec1(3), AxisVec2(3), magnetNode(3), normalUnitVector
 REAL                :: TrafoMatrix(3,3), dist2, x(3)
 INTEGER             :: iElem, i, j, k, ii, jj, kk, iPoint
 REAL, ALLOCATABLE   :: xGP(:), wGP(:)
-REAL                :: psiMagTemp, z, radius, phi, dist, height, normalLength, tmin, radius2, psiMagTemp2, radii(2)
+REAL                :: psiMagTemp, z, radius, phi, dist, height, tmin, radius2, psiMagTemp2, radii(2)
 CHARACTER(LEN=26)   :: myFileName
 !===================================================================================================================================
 
@@ -594,7 +594,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
 
       IF ((tMin.GE.0).AND.(tMin.LE.1).AND.(dist.LE.r))THEN!.AND.((r2.GT.0.0).NEQV.(dist.LT.r2))) THEN
         IF(dist.GE.r2)THEN
-          !MagnetFlag(i,j,k,iElem) = iMagnet
+          MagnetFlag(i,j,k,iElem) = iMagnet
         END IF ! dist.GE.r2).AND.(dist.LE.r)
       END IF
 
