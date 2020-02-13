@@ -435,11 +435,11 @@ INTEGER, INTENT(IN) :: iMagnet
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                :: AxisVec1(3), AxisVec2(3), magnetNode(3), normalUnitVector(3), normalVector(3), l(3), d(3), magnetNode2(3)
-REAL                :: TrafoMatrix(3,3), dist2, x(3)
+REAL                :: AxisVec1(3), AxisVec2(3), magnetNode(3), normalUnitVector(3), normalVector(3), l(3), d(3)
+REAL                :: TrafoMatrix(3,3), x(3)
 INTEGER             :: iElem, i, j, k, ii, jj, kk, iPoint
 REAL, ALLOCATABLE   :: xGP(:), wGP(:)
-REAL                :: psiMagTemp, z, radius, phi, dist, height, tmin, radius2, psiMagTemp2, radii(2)
+REAL                :: psiMagTemp, z, radius, phi, dist, height, tmin, radii(2)
 CHARACTER(LEN=26)   :: myFileName
 !===================================================================================================================================
 
@@ -477,8 +477,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
       psiMagTemp = 0
       z = height / 2.
       DO ii=1,nNodes
-        radius  = r / 2. * (1 + xGP(ii))
-        radius2 = r2 / 2. * (1 + xGP(ii))
+        radius  = r2 + (r-r2) / 2. * (1 + xGP(ii))
         DO jj=1,2*nNodes
           phi = jj * PI / nNodes
           ! Calculate node coordinates
@@ -486,28 +485,14 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           magnetNode = MATMUL(TrafoMatrix, magnetNode)
           magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
 
+          ! Normal vector direction, which points in positive h-vector direction
           normalUnitVector = h / height ! originally: unormalUnitVector = PermanentMagnetInfo(iMagnet)%HeightVector
 
           ! Calculate the distance between the mesh point and the magnet point
           dist = VECNORM(magnetNode-x)
 
           ! Calculate the magnetic potential of the node with the Gaussian quadrature
-          psiMagTemp2 = radius / dist
-
-          IF(r2.GT.0.0)THEN
-            ! Calculate node coordinates
-            magnetNode2 = (/radius2*COS(phi), radius2*SIN(phi), z/)
-            magnetNode2 = MATMUL(TrafoMatrix, magnetNode2)
-            magnetNode2 = magnetNode2 + PermanentMagnetInfo(iMagnet)%BasePoint
-
-            ! Calculate the distance between the mesh point and the magnet point
-            dist2 = VECNORM(magnetNode2-x)
-            
-            ! Calculate the magnetic potential of the node with the Gaussian quadrature
-            psiMagTemp2 = psiMagTemp2 - radius2 / dist2
-          END IF ! radius2.GT.0.0
-
-          psiMagTemp = psiMagTemp + psiMagTemp2 * wGP(ii) / (4 * PI) * DOT_PRODUCT(normalUnitVector, M)
+          psiMagTemp = psiMagTemp + radius / dist * wGP(ii) / (4 * PI) * DOT_PRODUCT(normalUnitVector, M)
         END DO
       END DO
       psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * r / 2. * psiMagTemp
@@ -518,8 +503,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
       psiMagTemp = 0
       z = -height / 2.
       DO ii=1,nNodes
-        radius = r / 2. * (1 + xGP(ii))
-        radius2 = r2 / 2. * (1 + xGP(ii))
+        radius  = r2 + (r-r2) / 2. * (1 + xGP(ii))
         DO jj=1,2*nNodes
           phi = jj * PI / nNodes
           ! Calculate node coordinates
@@ -527,28 +511,14 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           magnetNode = MATMUL(TrafoMatrix, magnetNode)
           magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
 
-          normalUnitVector = - h / height ! originally: unormalUnitVector = -PermanentMagnetInfo(iMagnet)%HeightVector
+          ! Normal vector direction, which points in negative h-vector direction
+          normalUnitVector = - h / height
 
           ! Calculate the distance between the mesh point and the magnet point
           dist = VECNORM(magnetNode-x)
 
           ! Calculate the magnetic potential of the node with the Gaussian quadrature
-          psiMagTemp2 = radius / dist
-
-          IF(r2.GT.0.0)THEN
-            ! Calculate node coordinates
-            magnetNode2 = (/radius2*COS(phi), radius2*SIN(phi), z/)
-            magnetNode2 = MATMUL(TrafoMatrix, magnetNode2)
-            magnetNode2 = magnetNode2 + PermanentMagnetInfo(iMagnet)%BasePoint
-            
-            ! Calculate the distance between the mesh point and the magnet point
-            dist2 = VECNORM(magnetNode2-x)
-
-            ! Calculate the magnetic potential of the node with the Gaussian quadrature
-            psiMagTemp2 = psiMagTemp2 - radius2 / dist2
-          END IF ! radius2.GT.0.0
-
-          psiMagTemp = psiMagTemp + psiMagTemp2 * wGP(ii) / (4 * PI) * DOT_PRODUCT(normalUnitVector, M)
+          psiMagTemp = psiMagTemp + radius / dist * wGP(ii) / (4 * PI) * DOT_PRODUCT(normalUnitVector, M)
         END DO
       END DO
       psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * r / 2. * psiMagTemp
@@ -568,7 +538,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           normalVector = (/r*COS(phi), r*SIN(phi), 0./)
           normalVector = MATMUL(TrafoMatrix, normalVector)
 
-          ! Normal vector direction
+          ! Normal vector direction, which points radially outwards
           normalUnitVector = UNITVECTOR(normalVector)
 
           ! Calculate the distance between the mesh point and the magnet point
@@ -621,7 +591,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
             normalVector = (/r2*COS(phi), r2*SIN(phi), 0./)
             normalVector = MATMUL(TrafoMatrix, normalVector)
 
-            ! Reverse normal vector direction
+            ! Reverse normal vector direction as the vector points radially inwards
             normalUnitVector = -UNITVECTOR(normalVector)
 
             ! Calculate the distance between the mesh point and the magnet point
