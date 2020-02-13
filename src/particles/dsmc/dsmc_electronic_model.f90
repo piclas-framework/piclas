@@ -37,12 +37,17 @@ INTERFACE ReadSpeciesLevel
   MODULE PROCEDURE ReadSpeciesLevel
 END INTERFACE
 
+INTERFACE RelaxElectronicShellWallInter
+  MODULE PROCEDURE RelaxElectronicShellWallInter
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel, CalcXiElec
+PUBLIC :: RelaxElectronicShellWallInter
 !===================================================================================================================================
 CONTAINS
 
@@ -109,6 +114,55 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 #endif
   PartStateIntEn(3,iPart) = BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
 END SUBROUTINE InitElectronShell
+
+
+SUBROUTINE RelaxElectronicShellWallInter(iPart,TWall)
+!===================================================================================================================================
+! init electronic shell
+!===================================================================================================================================
+  USE MOD_Globals,                ONLY : abort
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn
+  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)           :: iPart
+  REAL, INTENT(IN)              :: TWall
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                       :: iQua, iSpecies
+  REAL                          :: iRan, ElectronicPartition, ElectronicPartitionTemp, iRan2
+!===================================================================================================================================
+  ElectronicPartition  = 0.
+  ElectronicPartitionTemp = 0.
+  iSpecies = PartSpecies(iPart)
+  ! calculate sum over all energy levels == qartition function for temperature Telec
+  DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
+    ElectronicPartitionTemp = SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
+            EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TWall)
+    IF ( ElectronicPartitionTemp .GT. ElectronicPartition ) THEN
+      ElectronicPartition = ElectronicPartitionTemp
+    END IF
+  END DO
+  iQua = INT( ( SpecDSMC(iSpecies)%MaxElecQuant ) * iRan)
+  ElectronicPartitionTemp  = SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
+           EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TWall)
+  ! select level
+  CALL RANDOM_NUMBER(iRan2)
+  DO WHILE ( iRan2 .GE. ElectronicPartitionTemp / ElectronicPartition )
+    CALL RANDOM_NUMBER(iRan)
+    iQua = int( ( SpecDSMC(iSpecies)%MaxElecQuant ) * iRan)
+    ElectronicPartitionTemp  = SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
+             EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / TWall)
+    CALL RANDOM_NUMBER(iRan2)
+  END DO
+  PartStateIntEn(3,iPart) = BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
+
+END SUBROUTINE RelaxElectronicShellWallInter
 
 
 SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi)
