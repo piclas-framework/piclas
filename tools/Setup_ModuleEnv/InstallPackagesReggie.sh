@@ -52,3 +52,6 @@ sudo apt-get install python-h5py
 
 # Further libs
 sudo apt-get install hdf5-tools libhdf5-dev # this is maybe not required (do not install them if it works without these packages)
+
+# Linux Standard Base (LSB): required on, e.g., Ubuntu Server that is equipped only thinly with pre-installed software
+sudo apt-get install lsb

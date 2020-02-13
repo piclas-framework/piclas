@@ -174,7 +174,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitInterfaces
 
 
-SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,DisplayInfo,GeometryName)
+SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,DisplayInfo,GeometryName,GeometryAxis)
 !===================================================================================================================================
 !> Determine whether an element resides within or outside of a special region (e.g. PML or dielectric region)
 !> Additionally, a radius can be supplied for determining if an element belongs to a special region or not
@@ -200,12 +200,13 @@ LOGICAL,INTENT(IN)                     :: DoRadius        ! Check if DOF is insi
 REAL,INTENT(IN)                        :: Radius          ! Check if DOF is inside/outside of radius
 LOGICAL,INTENT(IN),OPTIONAL            :: DisplayInfo     ! Output to stdOut with region size info
 CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: GeometryName    ! Name of special geometry with user-defined coordinates
+INTEGER,INTENT(IN),OPTIONAL            :: GeometryAxis    ! Spatial direction for circle/cylinder definition
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem,i,j,k,m
+INTEGER             :: iElem,i,j,k,m, dim_1, dim_2
 REAL                :: r
 REAL                :: rInterpolated
 !===================================================================================================================================
@@ -309,12 +310,28 @@ IF(PRESENT(GeometryName))THEN
         END IF ! Elem_xGP(3,i,j,k,iElem).GT.0.0
       END IF ! isElem(iElem).EQV.ElementIsInside
     END DO; END DO; END DO; END DO !iElem,k,j,i
-  CASE('Circle') ! Radius is checked, but only in x-y (not z)
+  CASE('Circle') ! Radius is checked
+    SELECT CASE(GeometryAxis)
+      CASE(1) ! x-axis
+        dim_1 = 2
+        dim_2 = 3
+      CASE(2) ! y-axis
+        dim_1 = 1
+        dim_2 = 3
+      CASE(3) ! z-axis
+        dim_1 = 1
+        dim_2 = 2
+      CASE DEFAULT
+        SWRITE(UNIT_stdOut,'(A)') ' '
+        CALL abort(&
+            __STAMP__,&
+            'Error in CALL FindElementInRegion(GeometryName): GeometryAxis is wrong!')
+    END SELECT
     DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
 
         ! Calculate 2D radius for x-y-plane
-        r = SQRT(Elem_xGP(1,i,j,k,iElem)**2 + Elem_xGP(2,i,j,k,iElem)**2)
+        r = SQRT(Elem_xGP(dim_1,i,j,k,iElem)**2 + Elem_xGP(dim_2,i,j,k,iElem)**2)
 
         ! Check if r is larger than the supplied value .AND. if r is not almost equal to the radius
         IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN

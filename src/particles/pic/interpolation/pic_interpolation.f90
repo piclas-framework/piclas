@@ -137,7 +137,7 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
 END SUBROUTINE InitializeParticleInterpolation
 
 
-SUBROUTINE InterpolateFieldToParticle(doInnerParts)
+SUBROUTINE InterpolateFieldToParticle(DoInnerParts)
 !===================================================================================================================================
 ! Calculates the electromagnetic fields at all the particle's positions
 !===================================================================================================================================
@@ -187,7 +187,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL                          :: doInnerParts
+LOGICAL                          :: DoInnerParts
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -225,7 +225,7 @@ NotMappedSurfFluxParts=.FALSE.
 ! null field vector
 field=0.
 
-IF(doInnerParts)THEN
+IF(DoInnerParts)THEN
   firstPart=1
   lastPart =PDM%ParticleVecLength
 ELSE

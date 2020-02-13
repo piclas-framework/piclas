@@ -2,7 +2,7 @@
 
 # Cluster guidelines \label{chap:cluster_guide}
 
-## Simulating at the HLRS \label{sec:cloninghlrs}
+## Simulating at HLRS \label{sec:cloninghlrs}
 
 Unfortunately, the GitHub and GitLab servers are not available on machines at the HLRS, such as the Hazelhen, due to restricted internet access. The workaround is to use ssh tunneling and remote forwarding to access the repositories.
 
@@ -23,6 +23,18 @@ and login with `ssh hlrs`. Now you can clone the repository when logged onto the
 
     git clone ssh://git@localhost:7777/piclas/piclas.git
 
+Note that if you experience problems when connecting, e.g., when the warning
+
+    Warning: remote port forwarding failed for listen port 7777
+
+is issued,
+you have to choose a different port, e.g., 1827 (or any other 4-digit number) and re-connect.
+If the code has already been cloned using the original port, the number of the port must be changed
+in `./git/config` to the new number for git fetch/pull operations, which would then look like
+
+    [remote "origin"]
+      url = ssh://git@localhost:1827/piclas/piclas.git
+      fetch = +refs/heads/*:refs/remotes/origin/*
 
 ### Cloning with the HTTPS protocol
 
@@ -72,7 +84,7 @@ Section last updated: 27.03.2019
 * Program has to finish normally! Enough time during execution. Note, that the profiled version is slower, hence, the testqueue is maybe too short. 
 * Visualize the *.app2 files 
 
-## Simulating at the forHLR \label{sec:forhlr}
+## Simulating at forHLR \label{sec:forhlr}
 
 For building with *CMake* on the forhlr1 cluster, the following modules (Intel compiler) should be loaded and included in the .bashrc or .profile:
   
@@ -101,7 +113,7 @@ More information about the cluster and the batch system can be found at the [For
 
 Section last updated: 27.03.2019
 
-## Simulating at the bwUniCluster \label{sec:bwuni}
+## Simulating at bwUniCluster \label{sec:bwuni}
 
 For building with *CMake* on the bwUniCluster cluster, the following modules (Intel compiler) should be loaded and included in the .bashrc or .profile:
   

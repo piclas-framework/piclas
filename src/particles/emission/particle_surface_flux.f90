@@ -451,12 +451,6 @@ __STAMP__&
       ELSE
         Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = 0.
       END IF
-      IF (PartBound%TargetBoundCond(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.PartBound%ReflectiveBC) THEN ! iSF on refelctive BC
-        IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-          CALL abort(__STAMP__&
-            ,'ERROR in adaptive surface flux: using a reflective BC without circularInflow is not allowed!')
-        END IF
-      END IF
       Species(iSpec)%Surfaceflux(iSF)%AdaptiveType         = GETINT('Part-Species'//TRIM(hilf2)//'-Adaptive-Type')
       SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType)
       ! Farbar2014 - Case 1: Inlet Type 1, constant pressure and temperature
@@ -473,10 +467,21 @@ __STAMP__&
           CALL abort(__STAMP__&
             ,'ERROR in init of adaptive inlet: positive initial guess of velocity for Type 3/Type 4 condition required!')
         END IF
-        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1:nElems,1:3))
-        Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity = 0.0
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1:3,1:nElems))
+        ! Initializing the array with the given velocity vector and magnitude. It is used as a fallback, when the sampled velocity
+        ! in the cell is zero (e.g. when starting a simulation with zero particles)
+        DO iElem = 1, nElems
+          Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1:3,iElem) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+                                                                                * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
+        END DO
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
       END SELECT
+      IF (PartBound%TargetBoundCond(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.PartBound%ReflectiveBC) THEN ! iSF on reflective BC
+        IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow.AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.NE.4)) THEN
+          CALL abort(__STAMP__&
+            ,'ERROR in adaptive surface flux: using a reflective BC without circularInflow is only allowed for Type 4!')
+        END IF
+      END IF
     ELSE
       Species(iSpec)%Surfaceflux(iSF)%AdaptiveType = 0
     END IF
@@ -567,9 +572,9 @@ DO iBC=1,nDataBC
         IF (UseCircularInflow .AND. (iSF .LE. Species(iSpec)%nSurfacefluxBCs)) THEN
           ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(1:TmpSideNumber(iBC)) )
         END IF
-      END IF
-      IF(RadialWeighting%DoRadialWeighting) THEN
-        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
+        IF(RadialWeighting%DoRadialWeighting) THEN
+          ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
+        END IF
       END IF
     END DO
   END DO
@@ -1157,7 +1162,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
-USE MOD_part_tools              ,ONLY: UpdateNextFreePosition
+USE MOD_part_tools              ,ONLY: UpdateNextFreePosition,GetParticleWeight
 USE MOD_MacroBody_vars          ,ONLY: UseMacroBody
 USE MOD_MacroBody_tools         ,ONLY: INSIDEMACROBODY
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, RadialWeighting
@@ -1169,7 +1174,7 @@ USE MOD_DSMC_Symmetry           ,ONLY: CalcRadWeightMPF
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMesh, PartBound, nAdaptiveBC, nSurfSample
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
-USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,CalcMassflowRate
 USE MOD_Particle_Analyze_Vars   ,ONLY: nPartIn,PartEkinIn
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
@@ -1259,6 +1264,11 @@ DO iSpec=1,nSpecies
     currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
     NbrOfParticle = 0 ! calculated within (sub)side-Loops!
     iPartTotal=0
+
+    IF(CalcMassflowRate) THEN
+    ! Reset the mass flow rate counter for the next time step
+      Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
+    END IF
 
     IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
       dir   =Species(iSpec)%Surfaceflux(iSF)%dir
@@ -1476,12 +1486,12 @@ __STAMP__&
               IF(veloNormal.GT.0.0) THEN
                 ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow &
                                   / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
-                Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,1:3) = VeloVec(1:3)
+                Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1:3,ElemID) = VeloVec(1:3)
               ELSE
                 ! Using the old velocity vector, overwriting the sampled value with the old one
-                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,1)
-                Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,2)
-                Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,3)
+                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1,ElemID)
+                Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(2,ElemID)
+                Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(3,ElemID)
                 VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
                 VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
                 VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
@@ -1819,6 +1829,7 @@ __STAMP__&
         END IF
         PartInsSubSide = PartInsSubSide - allowedRejections
         NbrOfParticle = NbrOfParticle - allowedRejections
+        
         ParticleIndexNbr = 1
         DO iPart=1,PartInsSubSide
           IF ((iPart.EQ.1).OR.PDM%ParticleInside(ParticleIndexNbr)) THEN
@@ -2003,6 +2014,10 @@ __STAMP__&
             IF (RadialWeighting%DoRadialWeighting) THEN
               PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), 1,ParticleIndexNbr)
             END IF
+            IF(CalcMassflowRate) THEN
+              Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow &
+                                                                + GetParticleWeight(ParticleIndexNbr)
+            END IF
           ELSE
             CALL abort(&
 __STAMP__&
@@ -2059,45 +2074,15 @@ __STAMP__&
         iPart = iPart + 1
       END DO
     END IF
-!    CALL UpdateNextFreePosition()
 
-    ! compute number of input particles and energy
     IF(CalcPartBalance) THEN
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
-      ! IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
-      !   !print*,'herre' ! TODO: does this need fixing? (see IMPA or Ros)
-      !   nPartInTmp(iSpec)=nPartInTmp(iSpec) + NBrofParticle
-      !   DO iPart=1,NbrOfparticle
-      !     PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-      !     IF (PositionNbr .ne. 0) PartEkinInTmp(PartSpecies(PositionNbr)) = &
-      !                             PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-      !   END DO ! iPart
-      ! ELSE
-        !print*,'or here' ! TODO: does this need fixing? (see IMPA or Ros)
-        nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
-        DO iPart=1,NbrOfparticle
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
-                                  PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-        END DO ! iPart
-      !END IF
-#elif  defined(IMPA) || defined(ROS)
-      !IF(iStage.EQ.nRKStages)THEN
-        nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
-        DO iPart=1,NbrOfparticle
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
-                                  PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-        END DO ! iPart
-      !END IF
-#else
+    ! Compute number of input particles and energy
       nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
       DO iPart=1,NbrOfparticle
         PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
         IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
                                 PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
       END DO ! iPart
-#endif
     END IF ! CalcPartBalance
 
     ! instead of an UpdateNextfreePosition we update the particleVecLength only - enough ?!?
@@ -2251,12 +2236,12 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
     IF(veloNormal.GT.0.0) THEN
       ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow &
                         / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
-      Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,1:3) = VeloVec(1:3)
+      Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1:3,ElemID) = VeloVec(1:3)
     ELSE
       ! Using the old velocity vector, overwriting the sampled value with the old one
-      Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,1)
-      Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,2)
-      Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,3)
+      Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1,ElemID)
+      Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(2,ElemID)
+      Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(3,ElemID)
       VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
       VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
       VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)

@@ -3419,18 +3419,18 @@ IF (SFResampleAnalyzeSurfCollis) THEN
 END IF !SFResampleAnalyzeSurfCollis
 
 DO iSpec=1,nSpecies
-  ALLOCATE(PartData(offsetnPart(iSpec)+1:offsetnPart(iSpec)+locnPart(iSpec),PartDataSize))
+  ALLOCATE(PartData(PartDataSize,offsetnPart(iSpec)+1:offsetnPart(iSpec)+locnPart(iSpec)))
   DO iPart=1,locnPart(iSpec)
-    PartData(offsetnPart(iSpec)+iPart,1)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),1)
-    PartData(offsetnPart(iSpec)+iPart,2)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),2)
-    PartData(offsetnPart(iSpec)+iPart,3)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),3)
-    PartData(offsetnPart(iSpec)+iPart,4)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),4)
-    PartData(offsetnPart(iSpec)+iPart,5)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),5)
-    PartData(offsetnPart(iSpec)+iPart,6)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),6)
-    PartData(offsetnPart(iSpec)+iPart,7)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),7)
-    PartData(offsetnPart(iSpec)+iPart,8)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),8)
-    PartData(offsetnPart(iSpec)+iPart,9)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),9)
-    PartData(offsetnPart(iSpec)+iPart,10)=REAL(AnalyzeSurfCollis%BCid(SpeciesPositions(iSpec,iPart)))
+    PartData(1,offsetnPart(iSpec)+iPart)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),1)
+    PartData(2,offsetnPart(iSpec)+iPart)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),2)
+    PartData(3,offsetnPart(iSpec)+iPart)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),3)
+    PartData(4,offsetnPart(iSpec)+iPart)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),4)
+    PartData(5,offsetnPart(iSpec)+iPart)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),5)
+    PartData(6,offsetnPart(iSpec)+iPart)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),6)
+    PartData(7,offsetnPart(iSpec)+iPart)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),7)
+    PartData(8,offsetnPart(iSpec)+iPart)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),8)
+    PartData(9,offsetnPart(iSpec)+iPart)=AnalyzeSurfCollis%Data(SpeciesPositions(iSpec,iPart),9)
+    PartData(10,offsetnPart(iSpec)+iPart)=REAL(AnalyzeSurfCollis%BCid(SpeciesPositions(iSpec,iPart)))
   END DO
   WRITE(H5_Name,'(A,I3.3)') 'SurfCollisData_Spec',iSpec
 
@@ -3441,17 +3441,17 @@ DO iSpec=1,nSpecies
         locnPart     => INT(locnPart(iSpec),IK)           ,&
         offsetnPart  => INT(offsetnPart(iSpec),IK) )
     IF(minnParts(iSpec).EQ.0)THEN
-      CALL WriteArrayToHDF5(DataSetName=TRIM(H5_Name) , rank=2              , &
-                            nValGlobal =(/nPart_glob  , PartDataSize/)      , &
-                            nVal       =(/locnPart    , PartDataSize  /)    , &
-                            offset     =(/offsetnPart , 0_IK  /)            , &
-                            collective =.FALSE.       , RealArray=PartData)
+      CALL WriteArrayToHDF5(DataSetName=TRIM(H5_Name)  , rank=2        , &
+                            nValGlobal =(/PartDataSize , nPart_glob /) , &
+                            nVal       =(/PartDataSize , locnPart   /) , &
+                            offset     =(/0_IK         , offsetnPart/) , &
+                            collective =.FALSE.        , RealArray=PartData)
     ELSE
-      CALL WriteArrayToHDF5(DataSetName=TRIM(H5_Name) , rank=2              , &
-                            nValGlobal =(/nPart_glob  , PartDataSize/)      , &
-                            nVal       =(/locnPart    , PartDataSize  /)    , &
-                            offset     =(/offsetnPart , 0_IK  /)            , &
-                            collective =.TRUE.        , RealArray=PartData)
+      CALL WriteArrayToHDF5(DataSetName=TRIM(H5_Name)  , rank=2        , &
+                            nValGlobal =(/PartDataSize , nPart_glob /) , &
+                            nVal       =(/PartDataSize , locnPart   /) , &
+                            offset     =(/0_IK         , offsetnPart/) , &
+                            collective =.TRUE.         , RealArray=PartData)
     END IF
   END ASSOCIATE
   DEALLOCATE(PartData)
