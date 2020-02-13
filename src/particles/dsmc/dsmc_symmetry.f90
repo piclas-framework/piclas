@@ -184,9 +184,7 @@ SUBROUTINE DSMC_1D_InitVolumes()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars            ,ONLY: Pi
 USE MOD_Mesh_Vars               ,ONLY: nElems, BC, ElemToSide
-USE MOD_Particle_Vars           ,ONLY: Symmetry
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
@@ -198,7 +196,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iSide, iElem, SideID, iDim
-REAL                            :: radius, X(2)
+REAL                            :: X(2)
 LOGICAL                         :: SideInPlane, X1Occupied
 !===================================================================================================================================
 

@@ -1166,8 +1166,8 @@ RECURSIVE SUBROUTINE AddDoTreeNode(TreeNode, iElem, NodeVol)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Analyze      ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, RadialWeighting, CollInf
-USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies, VarTimeStep
+USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, CollInf
+USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies
 USE MOD_DSMC_Vars         ,ONLY: ElemNodeVol
 USE MOD_part_tools        ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
