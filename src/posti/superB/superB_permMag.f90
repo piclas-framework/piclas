@@ -457,9 +457,6 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
 
   height = VECNORM(h)
 
-  !height = SQRT(PermanentMagnetInfo(iMagnet)%HeightVector(1)**2 + PermanentMagnetInfo(iMagnet)%HeightVector(2)**2 +&
-                !PermanentMagnetInfo(iMagnet)%HeightVector(3)**2)
-
   ! Transformation matrix from the cylindrical coordinates to the original coordinate system
   CALL FindLinIndependentVectors(h, AxisVec1, AxisVec2)
   CALL GramSchmidtAlgo(h, AxisVec1, AxisVec2)
@@ -474,10 +471,13 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
       ! ------
       ! Top
       ! ------
+      ! Outer Radius r
+      ! Inner Radius r2
       psiMagTemp = 0
       z = height / 2.
       DO ii=1,nNodes
-        radius  = r2 + (r-r2) / 2. * (1 + xGP(ii))
+        radius  = r2 + (r-r2) / 2. * (1 + xGP(ii)) ! mapping [-1,1] -> [r2,r]
+        !radius  = r / 2. * (1 + xGP(ii)) ! mapping [-1,1] -> [0,r]
         DO jj=1,2*nNodes
           phi = jj * PI / nNodes
           ! Calculate node coordinates
@@ -486,7 +486,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
 
           ! Normal vector direction, which points in positive h-vector direction
-          normalUnitVector = h / height ! originally: unormalUnitVector = PermanentMagnetInfo(iMagnet)%HeightVector
+          normalUnitVector = h / height
 
           ! Calculate the distance between the mesh point and the magnet point
           dist = VECNORM(magnetNode-x)
@@ -495,15 +495,20 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           psiMagTemp = psiMagTemp + radius / dist * wGP(ii) / (4 * PI) * DOT_PRODUCT(normalUnitVector, M)
         END DO
       END DO
-      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * r / 2. * psiMagTemp
+      !psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * r / 2. * psiMagTemp
+      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * (r-r2) / 2. * psiMagTemp
+
 
       ! ------
       ! Bottom
       ! ------
+      ! Outer Radius r
+      ! Inner Radius r2
       psiMagTemp = 0
       z = -height / 2.
       DO ii=1,nNodes
-        radius  = r2 + (r-r2) / 2. * (1 + xGP(ii))
+        radius  = r2 + (r-r2) / 2. * (1 + xGP(ii)) ! mapping [-1,1] -> [r2,r]
+        !radius  = r2 / 2. * (1 + xGP(ii)) ! mapping [-1,1] -> [r2,r]
         DO jj=1,2*nNodes
           phi = jj * PI / nNodes
           ! Calculate node coordinates
@@ -521,7 +526,11 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           psiMagTemp = psiMagTemp + radius / dist * wGP(ii) / (4 * PI) * DOT_PRODUCT(normalUnitVector, M)
         END DO
       END DO
-      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * r / 2. * psiMagTemp
+      !psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * r / 2. * psiMagTemp
+      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * (r-r2) / 2. * psiMagTemp
+
+
+
 
       ! ------
       ! Side (cylinder) or Outer mantle (hollow cylinder)
@@ -553,19 +562,21 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
       ! ------
       ! Check if the mesh point is in the cylinder
       ! ------
-      tMin = (DOT_PRODUCT(x, height*h) -&
-              DOT_PRODUCT(PermanentMagnetInfo(iMagnet)%BasePoint - height*h/2, &
-                          height*h)) /&
-              DOT_PRODUCT(height*h, height*h)
-      l = PermanentMagnetInfo(iMagnet)%BasePoint(:) - height*h(:)/2 +&
-          tMin * height*h(:)
-      d = l - x
-      dist = SQRT(DOT_PRODUCT(d, d))
+      ASSOCIATE( h2 => h*height )
+        tMin = (DOT_PRODUCT(x, h2) -&
+                DOT_PRODUCT(PermanentMagnetInfo(iMagnet)%BasePoint - h2/2, &
+                            h2)) /&
+                DOT_PRODUCT(h2, h2)
+        l = PermanentMagnetInfo(iMagnet)%BasePoint(:) - h2(:)/2 +&
+            tMin * h2(:)
+        d = l - x
+        dist = SQRT(DOT_PRODUCT(d, d))
+      END ASSOCIATE
 
-      IF ((tMin.GE.0).AND.(tMin.LE.1).AND.(dist.LE.r))THEN!.AND.((r2.GT.0.0).NEQV.(dist.LT.r2))) THEN
+      IF ((tMin.GE.0).AND.(tMin.LE.1).AND.(dist.LE.r))THEN
         IF(dist.GE.r2)THEN
           MagnetFlag(i,j,k,iElem) = iMagnet
-        END IF ! dist.GE.r2).AND.(dist.LE.r)
+        END IF ! dist.GE.r2
       END IF
 
     END DO; END DO; END DO
