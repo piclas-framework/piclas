@@ -486,16 +486,16 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
 
           ! Normal vector direction, which points in positive h-vector direction
-          normalUnitVector = h / height ! originally: unormalUnitVector = PermanentMagnetInfo(iMagnet)%HeightVector
+          normalUnitVector = h  ! originally: unormalUnitVector = PermanentMagnetInfo(iMagnet)%HeightVector
 
           ! Calculate the distance between the mesh point and the magnet point
           dist = VECNORM(magnetNode-x)
 
           ! Calculate the magnetic potential of the node with the Gaussian quadrature
-          psiMagTemp = psiMagTemp + radius / dist * wGP(ii) / (4 * PI) * DOT_PRODUCT(normalUnitVector, M)
+          psiMagTemp = psiMagTemp + radius / dist * wGP(ii) / (4. * PI) * DOT_PRODUCT(normalUnitVector, M)
         END DO
       END DO
-      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * r / 2. * psiMagTemp
+      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * (r-r2) / 2. * psiMagTemp
 
       ! ------
       ! Bottom
@@ -512,16 +512,16 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
 
           ! Normal vector direction, which points in negative h-vector direction
-          normalUnitVector = - h / height
+          normalUnitVector = - h 
 
           ! Calculate the distance between the mesh point and the magnet point
           dist = VECNORM(magnetNode-x)
 
           ! Calculate the magnetic potential of the node with the Gaussian quadrature
-          psiMagTemp = psiMagTemp + radius / dist * wGP(ii) / (4 * PI) * DOT_PRODUCT(normalUnitVector, M)
+          psiMagTemp = psiMagTemp + radius / dist * wGP(ii) / (4. * PI) * DOT_PRODUCT(normalUnitVector, M)
         END DO
       END DO
-      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * r / 2. * psiMagTemp
+      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * (r-r2) / 2. * psiMagTemp
 
       ! ------
       ! Side (cylinder) or Outer mantle (hollow cylinder)

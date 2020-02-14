@@ -110,7 +110,7 @@ Vector2(:) = Vector2(:) / SQRT(Vector2(1)**2 + Vector2(2)**2 + Vector2(3)**2)
 
 ! v3 = w3 - <v1,w3>*v1 - <v2,w3>*v2
 Vector3(:) = Vector3(:) - DOT_PRODUCT(Vector1, Vector3) * Vector1(:) -&
-                          DOT_PRODUCT(Vector2,Vector3) *  Vector3(:)
+                          DOT_PRODUCT(Vector2,Vector3) *  Vector2(:)
 ! v3 = v3/||v3||
 Vector3(:) = Vector3(:) / SQRT(Vector3(1)**2 + Vector3(2)**2 + Vector3(3)**2)
 
