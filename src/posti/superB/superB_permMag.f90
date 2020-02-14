@@ -485,7 +485,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
 
           ! Normal vector direction, which points in positive h-vector direction
-          normalUnitVector = h  ! originally: unormalUnitVector = PermanentMagnetInfo(iMagnet)%HeightVector
+          normalUnitVector = h
 
           ! Calculate the distance between the mesh point and the magnet point
           dist = VECNORM(magnetNode-x)
