@@ -65,7 +65,7 @@ CALL prms%CreateRealOption(     'PermanentMagnet[$]-Radius'         , 'Radius of
                                                                       'permanent magnet', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'PermanentMagnet[$]-Radius2'        , 'Radius of the second radius of the conic permanent magnet'//&
                                                                       ' or inner radius for hollow cylinders', &
-                                                                      '0.0', numberedmulti=.TRUE.)
+                                                                      numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('PermanentMagnet[$]-HeightVector'   , 'Height vector of cylindric and conic permanent magnet', &
                                                                       numberedmulti=.TRUE.)
 
@@ -183,7 +183,9 @@ IF (NumOfPermanentMagnets.GT.0) THEN
       PermanentMagnetInfo(iMagnet)%Radius             = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius')
     CASE('cylinder')
       PermanentMagnetInfo(iMagnet)%Radius             = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius')
-      PermanentMagnetInfo(iMagnet)%Radius2            = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius2') ! set default only here
+      ! Default value for Radius2 is required because numberedmulti=.TRUE.
+      ! For hollow cylinder (ring magnet) choose Radius2 < Radius
+      PermanentMagnetInfo(iMagnet)%Radius2            = GETREAL('PermanentMagnet'//TRIM(hilf)//'-Radius2','0.')
       PermanentMagnetInfo(iMagnet)%HeightVector(1:3)  = GETREALARRAY('PermanentMagnet'//TRIM(hilf)//'-HeightVector',3)
 
       IF(PermanentMagnetInfo(iMagnet)%Radius2.GT.0.0.AND.&
