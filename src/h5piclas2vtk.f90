@@ -823,9 +823,10 @@ SUBROUTINE ConvertPartData(InputStateFile)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY: ProjectName
-USE MOD_IO_HDF5,                ONLY: HSize
-USE MOD_HDF5_Input,             ONLY: OpenDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize,CloseDataFile
+USE MOD_Globals_Vars ,ONLY: ProjectName
+USE MOD_IO_HDF5      ,ONLY: HSize
+USE MOD_HDF5_Input   ,ONLY: OpenDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize,CloseDataFile
+USE MOD_HDF5_Input   ,ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -840,12 +841,48 @@ INTEGER,ALLOCATABLE             :: ConnectInfo(:,:)
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesParticle(:), tmpArray(:)
 CHARACTER(LEN=255)              :: FileString
 REAL, ALLOCATABLE               :: PartData(:,:), tmpPartData(:,:)
-REAL                            :: OutputTime
+REAL                            :: OutputTime, FileVersionHDF5
+LOGICAL                         :: FileVersionExists
 !===================================================================================================================================
 
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+
+! check file version
+CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
+IF (FileVersionExists) THEN
+  CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
+ELSE
+  CALL abort(&
+      __STAMP__&
+      ,'Error in InitRestart(): Attribute "File_Version" does not exist!')
+END IF
+IF(FileVersionHDF5.LT.1.5)THEN
+  SWRITE(UNIT_StdOut,'(A)')' '
+  SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
+  SWRITE(UNIT_StdOut,'(A)')' '
+  SWRITE(UNIT_StdOut,'(A)')' Restart file is too old! "File_Version" in restart file < 1.5!'
+  SWRITE(UNIT_StdOut,'(A)')' The format used in the restart file is not compatible with this version of PICLas.'
+  SWRITE(UNIT_StdOut,'(A)')' Among others, the particle format (PartData) has changed.'
+  SWRITE(UNIT_StdOut,'(A)')' Run python script '
+  SWRITE(UNIT_StdOut,'(A)')' '
+  SWRITE(UNIT_StdOut,'(A)')'     python  ./tools/flip_PartState/flip_PartState.py  --help'
+  SWRITE(UNIT_StdOut,'(A)')' '
+  SWRITE(UNIT_StdOut,'(A)')' for info regarding the usage and run the script against the restart file, e.g., '
+  SWRITE(UNIT_StdOut,'(A)')' '
+  SWRITE(UNIT_StdOut,'(A)')'     python  ./tools/flip_PartState/flip_PartState.py  ProjectName_State_000.0000xxxxxx.h5'
+  SWRITE(UNIT_StdOut,'(A)')' '
+  SWRITE(UNIT_StdOut,'(A)')' to update the format and file version number.'
+  SWRITE(UNIT_StdOut,'(A)')' Note that the format can be changed back to the old one by running the script a second time.'
+  SWRITE(UNIT_StdOut,'(A)')' '
+  SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
+  CALL abort(&
+  __STAMP__&
+  ,'Error in InitRestart(): "File_Version" in restart file < 1.5. See error message above to fix. File version in restart file =',&
+  RealInfoOpt=FileVersionHDF5)
+END IF ! FileVersionHDF5.LT.1.5
+
 ! Read-in of dimensions of the particle array (1: Number of particles, 2: Number of variables)
 CALL GetDataSize(File_ID,'PartData',nDims,HSize)
 ! First 3 entries are the particle positions, which are used as the coordinates for the output and not included as a variable
@@ -857,7 +894,7 @@ CALL ReadAttribute(File_ID,'VarNamesParticles',nPartsVar+3,StrArray=tmpArray)
 VarNamesParticle(1:nPartsVar)=tmpArray(4:nPartsVar+3)
 
 IF(nParts.GT.0) THEN
-  ALLOCATE(PartData(1:nPartsVar+3,1:nParts),tmpPartData(1:nParts,1:nPartsVar+3))
+  ALLOCATE(PartData(1:nPartsVar+3,1:nParts),tmpPartData(1:nPartsVar+3,1:nParts))
   PartData = 0.
   tmpPartData = 0.
   SDEALLOCATE(ConnectInfo)
