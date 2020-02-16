@@ -1,2 +1,2 @@
-# SuperB: Cuboid permanent magnet
-* Magnetic field of a hexahedral permanent magnet below the computational domain
+# SuperB: Cylindrical permanent magnet
+* Magnetic field of a cylindrical permanent magnet that has been placed below the computational domain
