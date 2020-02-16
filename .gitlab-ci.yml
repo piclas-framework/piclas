@@ -283,14 +283,21 @@ gnu_NIG_tracking_DSMC:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_superB_nightly": Build and run superB examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_NIG_SuperB:
+gnu_NIG_SuperB_piclas:
   <<: *defaults_gnu
   stage: reggie_superB_nightly
   tags:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/piclas ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/superB ; fi
+
+gnu_NIG_SuperB_standalone:
+  <<: *defaults_gnu
+  stage: reggie_superB_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/superB ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run
