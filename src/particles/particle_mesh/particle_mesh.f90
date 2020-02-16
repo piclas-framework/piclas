@@ -1603,9 +1603,6 @@ USE MOD_CalcTimeStep         ,ONLY: CalcTimeStep
 #endif /*USE_HDG*/
 USE MOD_Equation_Vars        ,ONLY: c
 USE MOD_Particle_Vars        ,ONLY: manualtimestep
-#if (PP_TimeDiscMethod==201)
-USE MOD_Particle_Vars        ,ONLY: dt_part_ratio
-#endif
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis2D
 #if USE_MPI
 USE MOD_Particle_MPI         ,ONLY: InitHALOMesh
@@ -1731,17 +1728,14 @@ ELSE
   deltaT=ManualTimeStep
 END IF
 IF (halo_eps_velo.EQ.0) halo_eps_velo = c
-#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43)
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43)
 IF (halo_eps_velo.EQ.c) THEN
    CALL abort(&
 __STAMP__&
 , 'halo_eps_velo.EQ.c -> Halo Eps Velocity for MPI not defined')
 END IF
 #endif
-#if (PP_TimeDiscMethod==201)
-deltaT=CALCTIMESTEP()
-halo_eps = c*deltaT*SafetyFactor*max(dt_part_ratio,1.0)
-#elif (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 halo_eps = RK_c(2)
 DO iStage=2,nRKStages-1
   halo_eps = MAX(halo_eps,RK_c(iStage+1)-RK_c(iStage))

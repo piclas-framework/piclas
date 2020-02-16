@@ -7,6 +7,7 @@ author:
   - Institute for Aerodynamics and Gas Dynamics (IAG)
   - Institute for Space Systems (IRS)
   - University of Stuttgart, Germany
+  - boltzplatz - Numerical Plasma Dynamics
 institute: IAG IRS
 date: \today
 documentclass: scrreprt
@@ -59,7 +60,8 @@ the simulation code's features from a user and a developer point of view.
   provides an overview of the whole simulation framework and the currently implemented features.
 * Chapter \ref{chap:workflow} outlines the workflow starting with mesh generation and concluding with the visualization of results produced with **PICLas**.
 * Chapter \ref{chap:features_models} shall serve as a reference for the models and features implemented in **PICLas**.
-* Chapter \ref{chap:tools} lists tools within the **PICLas** repository, including the post-processing tools. 
+* Chapter \ref{chap:visu_output} presents the options and parameters for the output of particle data, field and flow variables.
+* Chapter \ref{chap:tools} lists tools within the **PICLas** repository, including the post-processing tools.
 * Simulation tutorials are contained in Chapter \ref{chap:tutorials}.
 * Cluster-specific user guidelines are given in Chapter \ref{chap:cluster_guide}.
 <!-- * A complete list of all parameters is given in Chapter \ref{chap:parameterfile}. -->

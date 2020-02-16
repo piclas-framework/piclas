@@ -10,9 +10,10 @@ The documentation is a work in progress. For an installation guide please refer 
 2. [Installation](doc/userguide/010_installation.md)
 3. [Workflow](doc/userguide/020_workflow.md)
 4. [Features & Models](doc/userguide/030_features_models.md)
-5. [Tools](doc/userguide/040_tools.md)
-6. [Tutorials](doc/userguide/050_tutorials.md)
-7. [Development Guide](doc/userguide/080_cluster_guide.md)
+5. [Visualization & Output](doc/userguide/040_visu_output.md)
+6. [Tools](doc/userguide/050_tools.md)
+7. [Tutorials](doc/userguide/060_tutorials.md)
+8. [Development Guide](doc/userguide/080_cluster_guide.md)
 
 A PDF file can be generated simply by executing *make* in the *doc/userguide/* folder. This requires `pandoc`, `pandoc-citeproc` and `LaTeX`. More information about pandoc and its installation can be found [here](https://pandoc.org/installing.html).
 

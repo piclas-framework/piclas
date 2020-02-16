@@ -55,10 +55,12 @@ Small test cases to check features with DSMC timedisc: [Link to build](regressio
 
 Both methods share the same regression tests in the different folders (CHE_BGK: [BGK build](regressioncheck/checks/CHE_BGK/builds.ini), CHE_FPFlow: [FPFlow build](regressioncheck/checks/CHE_FPFlow/builds.ini)
 
-|        |         2D_VTS_Insert_CellLocal          |                  |                2D/Axisymmetric, linear time step scaling: Initial particle insertion by cell_local                |   nProcs=2    |     PartAnalyze: NumDens, Temp     |         [Link](regressioncheck/checks/CHE_BGK/2D_VTS_Insert_CellLocal/readme.md)          |
-|        |           2D_VTS_SurfFlux_Tria           |                  |                 2D/Axisymmetric, linear time step scaling: Particle emission through surface flux                 |   nProcs=2    |     PartAnalyze: NumDens, Temp     |           [Link](regressioncheck/checks/CHE_BGK/2D_VTS_SurfFlux_Tria/readme.md)           |
-|       |              CHE_BGK/RELAX_N2               |     | N2: Relax to thermal equi. continuous/quantized vibration  |    nProcs=1    | T_rot,T_vib,T_trans |  [Link](regressioncheck/checks/CHE_BGK/RELAX_N2/readme.md)   |
-|       |              CHE_BGK/RELAX_CH4              |     | CH4: Relax to thermal equi. continuous/quantized vibration |    nProcs=1    | T_rot,T_vib,T_trans |  [Link](regressioncheck/checks/CHE_BGK/RELAX_CH4/readme.md)  |
+| **No.** | **Case**                     | **CMAKE-CONFIG**     | **Feature**                                                                         | **Execution**   | **Comparing**                                    | **Readme**                                                               |
+| :-----: | :--------------------------: | :------------------: | :---------------------------------------------------:                               | :-------------: | :----------------------------------------------: | :----------------------------------------------------------------------: |
+|         | 2D_VTS_Insert_CellLocal      |                      | 2D/Axisymmetric, linear time step scaling: Initial particle insertion by cell_local | nProcs=2        | PartAnalyze: NumDens, Temp                       | [Link](regressioncheck/checks/CHE_BGK/2D_VTS_Insert_CellLocal/readme.md) |
+|         | 2D_VTS_SurfFlux_Tria         |                      | 2D/Axisymmetric, linear time step scaling: Particle emission through surface flux   | nProcs=2        | PartAnalyze: NumDens, Temp                       | [Link](regressioncheck/checks/CHE_BGK/2D_VTS_SurfFlux_Tria/readme.md)    |
+|         | CHE_BGK/RELAX_N2             |                      | N2: Relax to thermal equi. continuous/quantized vibration                           | nProcs=1        | T_rot,T_vib,T_trans                              | [Link](regressioncheck/checks/CHE_BGK/RELAX_N2/readme.md)                |
+|         | CHE_BGK/RELAX_CH4            |                      | CH4: Relax to thermal equi. continuous/quantized vibration                          | nProcs=1        | T_rot,T_vib,T_trans                              | [Link](regressioncheck/checks/CHE_BGK/RELAX_CH4/readme.md)               |
 
 
 ## Nightly
@@ -95,7 +97,7 @@ Overview of the test cases performed during the nightly regression testing.
 
 ### NIG Convergence Tests
 
-### NIG_convtest_maxwell
+#### NIG_convtest_maxwell
 
 Convergence tests (spatially by varying either the polynomial degree of the solution or the number of mesh cells) for Maxwell's equations on conforming, non-conforming (hanging nodes/Mortars) Cartesian or non-orthogonal meshes with open or PEC boundaries: [Link CMAKE-CONFIG](regressioncheck/checks/NIG_convtest/builds.ini).
 
@@ -110,7 +112,7 @@ Convergence tests (spatially by varying either the polynomial degree of the solu
 |    7    |  p_cylinder_TE_wave_linear  |                  |  p-convergence (cylindrical mesh periodic in z and PEC walls, linear polarization)  |   nProcs=4    |               |            |
 |    8    |          p_mortar           |                  |                         p-convergence (non-conforming mesh)                         |   nProcs=1    |               |            |
 
-### NIG_convtest_poisson
+#### NIG_convtest_poisson
 
 Convergence tests (spatially by varying either the number of mesh cells) for Poisson's equations on conforming, non-conforming (hanging nodes/Mortars) Cartesian meshes with exact Dirichlet boundaries: [Link CMAKE-CONFIG](regressioncheck/checks/NIG_convtest_poisson/builds.ini).
 
@@ -118,7 +120,7 @@ Convergence tests (spatially by varying either the number of mesh cells) for Poi
 | :-----: | :---------: | :--------------: | :--------------------------------------: | :-----------: | :-----------: | :----------------------------------------------------------------: |
 |  23-x   | h_N1_mortar |                  | h-convergence (N=1, non-conforming mesh) |   nProcs=1    |               | [Link](regressioncheck/checks/NIG_convtest_poisson/h_N1/readme.md) |
 
-### NIG_convtest_t
+#### NIG_convtest_t
 
 Convergence tests (temporally by varying the time step) for integrating the path of a single particle in a spatially varying and temporally constant magnetic field: [Link CMAKE-CONFIG](regressioncheck/checks/NIG_convtest_t/builds.ini).
 
@@ -135,6 +137,18 @@ Convergence tests (temporally by varying the time step) for integrating the path
 |    9    |      PIC_RK4_magnetostatic_Bz_exp       |                  |             spiral particle drift, Runge-Kutta 4th order             |   nProcs=1    | L2 error of position |            |
 |   10    |     PIC_ROS46_magnetostatic_Bz_exp      |                  | spiral particle drift, Rosenbrock 4th order (resulting in 1st order) |   nProcs=1    | L2 error of position |            |
 
+#### NIG_Dielectric
+
+Different dielectric regions in combination with the HDG solver (Poisson's equation)
+
+| **No.** | **Case**                                | **CMAKE-CONFIG** | **Feature**                                                          | **Execution** | **Comparing**                                      | **Readme**                                                            |
+| :-----: | :-------------------------------------: | :--------------: | :------------------------------------------------------------------: | :-----------: | :------------------:                               | :--------:                                                            |
+| 1       | HDG_cylinder                            |                  | cylindrical dielectric region                                        | nProcs=1      | reference solution for DielectricGlobal            | [Link](/regressioncheck/checks/NIG_dielectric/HDG_cylinder/readme.md) |
+| 2       | HDG_point_charge                        |                  | single charged particle and dielectric region                        | nProcs=1      | reference solution for DielectricGlobal N=3 to N=9 |                                                                       |
+| 3       | HDG_slab                                |                  | dielectric slab                                                      | nProcs=1      | reference solution for DielectricGlobal            |                                                                       |
+| 4       | HDG_sphere_in_box_analytical_BC         |                  | single charged particle and dielectric region                        | nProcs=1      | analytic reference solution and p-convergence rate |                                                                       |
+| 5       | HDG_sphere_in_box_potential_BC          |                  | single charged particle and dielectric region                        | nProcs=1      | analytic reference solution and p-convergence rate |                                                                       |
+| 6       | HDG_sphere_in_sphere_analytical_BC      |                  | single charged particle and dielectric region                        | nProcs=1      | analytic reference solution and p-convergence rate |                                                                       |
 
 #### NIG_Reservoir
 
@@ -161,7 +175,7 @@ Testing more complex DSMC routines with reservoir (heat bath) simulations: [Link
 |   17    |         VarRelaxProb_hot          |                  |       Relaxation of a hot reservoir of N2 and O2 with variable relaxation probabilities       |  nProcs=2,3   |               |         [Link](regressioncheck/checks/NIG_Reservoir/VarRelaxProb_hot/readme.md)          |
 |   18    |       VarRelaxProb_Restart        |                  |                  Initial Autorestart with variable relaxation probabilities                   |  nProcs=1,2   |               |       [Link](regressioncheck/checks/NIG_Reservoir/VarRelaxProb_Restart/readme.md)        |
 
-#### NIG_tracking_DSMC
+#### NIG_MacroBody
 
 Testing of routines when using MacroBodies: [Link to build](regressioncheck/checks/NIG_MacroBody/builds.ini).
 
@@ -188,6 +202,20 @@ Testing of different tracking routines with DSMC: [Link to build](regressionchec
 |    8    |    sphere_soft    |                  |                                 | DoRefMapping=T;RefMappingGuess=1,3,nProcs=1,2  |     PartPos in bounding box      |            |
 |    9    | tracing_cylinder1 |                  |  mortar,curved,single particle  |            DoRefMapping=F, nProcs=1            |    PartPos-X in bounding box     |            |
 |   10    | tracing_cylinder2 |                  |  mortar,curved,single particle  |            DoRefMapping=F, nProcs=1            |    PartPos-X in bounding box     |            |
+
+#### NIG_SuperB
+
+Testing of different SuperB examples (via piclas or standalone superB binary), which generate a 3D magnetic field distribution to be used in piclas: [Link to build](regressioncheck/checks/NIG_SuperB/builds.ini).
+
+| **No.** | **Case**             | **CMAKE-CONFIG**                             | **Feature**                      | **Execution**                                  | **Comparing**                                                    | **Readme**                                                               |
+| :-----: | :---------------:    | :-------------------------:                  | :-----------------------------:  | :--------------------------------------------: | :------------------------------:                                 | :--------:                                                               |
+| 1       | LinearConductor      | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | straight conducting line         | piclas, superB binaries (single-core)          | convergence test with number of segments of the linear conductor | [Link](regressioncheck/checks/NIG_SuperB/LinearConductor/readme.md)      |
+| 2       | CircularCoil         | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | circular shaped coil             | piclas, superB binaries (single-core)          | reference solution h5diff                                        | [Link](regressioncheck/checks/NIG_SuperB/CircularCoil/readme.md)         |
+| 3       | RectangularCoil      | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | rectangular shaped coil          | piclas, superB binaries (single-core)          | reference solution h5diff                                        | [Link](regressioncheck/checks/NIG_SuperB/RectangularCoil/readme.md)      |
+| 4       | SphericalMagnet      | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | spherically shaped hard magnet   | piclas, superB binaries (single-core)          | convergence test with number of nodes of the spherical magnet    | [Link](regressioncheck/checks/NIG_SuperB/SphericalMagnet/readme.md)      |
+| 5       | CubicMagnet          | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | cubic shaped hard magnet         | piclas, superB binaries (single-core)          | magnetic field reference solution h5diff                         | [Link](regressioncheck/checks/NIG_SuperB/CubicMagnet/readme.md)          |
+| 6       | CylindricalMagnet    | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | cylindrically shaped hard magnet | piclas, superB binaries (single-core)          | magnetic field reference solution h5diff                         | [Link](regressioncheck/checks/NIG_SuperB/CylindricalMagnet/readme.md)    |
+| 7       | HollowCylinderMagnet | PICLAS_BUILD_POSTI=ON, POSTI_BUILD_SUPERB=ON | hollow cylinder hard magnet      | piclas, superB binaries (single-core)          | magnetic field reference solution h5diff                         | [Link](regressioncheck/checks/NIG_SuperB/HollowCylinderMagnet/readme.md) |
 
 #### NIG_PIC_poisson_RK3
 

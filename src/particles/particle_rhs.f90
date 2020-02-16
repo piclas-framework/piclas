@@ -40,10 +40,10 @@ PUBLIC :: PartRHS
 
 ABSTRACT INTERFACE
   SUBROUTINE PartRHSInterface(PartID,FieldAtParticle,Push,LorentzFacInvIn)
-    INTEGER,INTENT(IN)              :: PartID
-    REAL,DIMENSION(1:6),INTENT(IN)  :: FieldAtParticle
-    REAL,DIMENSION(1:3),INTENT(OUT) :: Push
-    REAL,INTENT(IN),OPTIONAL        :: LorentzFacInvIn
+    INTEGER,INTENT(IN)              :: PartID          ! Particle ID
+    REAL,DIMENSION(1:6),INTENT(IN)  :: FieldAtParticle ! Electric and magnetic fields E, B at the position of the particle
+    REAL,DIMENSION(1:3),INTENT(OUT) :: Push            ! dP/dt: acceleration of the particle (change of momentum)
+    REAL,INTENT(IN),OPTIONAL        :: LorentzFacInvIn ! Reciprocal Lorentz factor
   END SUBROUTINE
 END INTERFACE
 

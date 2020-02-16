@@ -281,6 +281,12 @@ __STAMP__&
   END IF
 END DO
 
+ASSOCIATE( StartID => nBCSides+1            ,&
+           EndID   => nSides  & !nSides &
+          )
+CALL SortArray(EndID-StartID+1,SurfMesh%SideIDToSurfID(StartID:EndID),GlobalUniqueSideID(StartID:EndID))
+END ASSOCIATE
+
 ! --------------------------------------------------
 ! 3. HALO BCs
 ! --------------------------------------------------
@@ -331,12 +337,6 @@ END DO
 DEALLOCATE(ElemOfInnerBC)
 DEALLOCATE(NBElemOfHalo)
 DEALLOCATE(IsSlaveSide)
-
-ASSOCIATE( StartID => nBCSides+1            ,&
-           EndID   => nSides  & !nSides &
-          )
-CALL SortArray(EndID-StartID+1,SurfMesh%SideIDToSurfID(StartID:EndID),GlobalUniqueSideID(StartID:EndID))
-END ASSOCIATE
 
 ALLOCATE(SurfMesh%SurfIDToSideID(1:SurfMesh%nTotalSides))
 SurfMesh%SurfIDToSideID(:) = -1
@@ -1055,7 +1055,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       IF(ElemID.LE.1)THEN
        IPWRITE(UNIT_stdOut,*) ' Error in PartSideToElem'
       END IF
-      SurfCOMM%MPINeighbor(iProc)%SendList(iSendSide)=SurfSideID
+      SurfCOMM%MPINeighbor(iProc)%SendList(iSendSide)=iSide
 !       IPWRITE(*,*) 'negative elem id',PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),PartSideToElem(S2E_LOC_SIDE_ID,iSide)
       SurfSendBuf(iProc)%content(iPos  )= REAL(TargetElem)
       SurfSendBuf(iProc)%content(iPos+1)= REAL(LocSideID)
@@ -1132,7 +1132,7 @@ __STAMP__&
 __STAMP__&
           ,' Side is not even a reflective BC side! ', SideID )
     END IF
-    SurfCOMM%MPINeighbor(iProc)%RecvList(iRecvSide)=SurfSideID
+    SurfCOMM%MPINeighbor(iProc)%RecvList(iRecvSide)=SideID
     iPos=iPos+2
   END DO ! RecvSide=1,SurfExchange%nSidesRecv(iProc)-1,2
 END DO ! iProc
@@ -1236,7 +1236,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   iPos=0
   SurfSendBuf(iProc)%content = 0.
   DO iSurfSide=1,SurfExchange%nSidesSend(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
+    SurfSideID=SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide))
     DO q=1,nSurfSample
       DO p=1,nSurfSample
         SurfSendBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)= SampWall(SurfSideID)%State(:,p,q)
@@ -1332,7 +1332,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
   iPos=0
   DO iSurfSide=1,SurfExchange%nSidesRecv(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
+    SurfSideID=SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide))
     DO q=1,nSurfSample
       DO p=1,nSurfSample
         SampWall(SurfSideID)%State(:,p,q)=SampWall(SurfSideID)%State(:,p,q) &

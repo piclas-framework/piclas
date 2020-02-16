@@ -57,13 +57,6 @@ CHARACTER(255)        :: IMDCutOff                                           ! c
                                                                              !                                      2.) Epot
                                                                              !                                      3.) coordinates
                                                                              !                                      4.) velocity
-REAL                  :: dt_max_particles                                    ! Maximum timestep for particles (for static fields!)
-REAL                  :: dt_maxwell                                          ! timestep for field solver (for static fields only!)
-REAL                  :: dt_adapt_maxwell                                    ! adapted timestep for field solver dependent
-                                                                             ! on particle velocity (for static fields only!)
-REAL                  :: dt_part_ratio, overrelax_factor                     ! factors for td200/201 overrelaxation/subcycling
-INTEGER               :: NextTimeStepAdjustmentIter                          ! iteration of next timestep change
-INTEGER               :: MaxwellIterNum                                      ! number of iterations for the maxwell solver
 INTEGER               :: WeirdElems                                          ! Number of Weird Elements (=Elements which are folded
                                                                              ! into themselves)
 REAL    , ALLOCATABLE :: PartState(:,:)                                      ! 1st index: x,y,z,vx,vy,vz
@@ -302,6 +295,7 @@ TYPE typeSurfaceflux
                                                                              ! through Monte Carlo integration (initially)
   INTEGER                                :: AdaptivePartNumOut               ! Adaptive, Type 4: Number of particles exiting through
                                                                              ! the adaptive boundary condition
+  REAL                                   :: SampledMassflow                  ! Actual mass flow rate through a surface flux boundary
   REAL, ALLOCATABLE                      :: nVFRSub(:,:)                     ! normal volume flow rate through subsubside
 END TYPE
 

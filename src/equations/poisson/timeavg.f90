@@ -54,7 +54,7 @@ SUBROUTINE InitTimeAverage()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_ReadInTools,    ONLY: CNTSTR,GETSTR,GETLOGICAL,GETINT
+USE MOD_ReadInTools,    ONLY: CountOption,GETSTR,GETLOGICAL,GETINT
 USE MOD_Mesh_Vars,      ONLY: nElems
 USE MOD_Timeaverage_Vars
 USE MOD_Equation_Vars,  ONLY: StrVarNames
@@ -77,8 +77,8 @@ CHARACTER(LEN=2)               :: strhelp
 #endif /*PARTICLES*/
 !==================================================================================================================================
 
-nVarAvg  = CNTSTR('VarNameAvg')
-nVarFluc = CNTSTR('VarNameFluc')
+nVarAvg  = CountOption('VarNameAvg')
+nVarFluc = CountOption('VarNameFluc')
 IF((nVarAvg.EQ.0).AND.(nVarFluc.EQ.0))THEN
   CALL CollectiveStop(__STAMP__, &
     'No quantities for time averaging have been specified. Please specify quantities or disable time averaging!')

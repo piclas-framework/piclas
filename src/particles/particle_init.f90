@@ -108,12 +108,6 @@ CALL prms%CreateRealOption(     'InitialIonizationChargeAverage' , 'Average char
 
 CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Maximum number of Particles per proc (used for array init)'&
                                                                  , '1')
-CALL prms%CreateRealOption(     'Particles-dt_part_ratio'     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Factors for td200/201 '//&
-                                                                     'overrelaxation/subcycling ', '3.8')
-CALL prms%CreateRealOption(     'Particles-overrelax_factor'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Factors for td200/201'//&
-                                                                    ' overrelaxation/subcycling', '1.0')
 CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds for Random Number Generator'//&
                                                                 'Choose nRandomSeeds \n'//&
                                                                 '=-1    Random \n'//&
@@ -1458,7 +1452,7 @@ PartPressAddParts = GETLOGICAL('Part-ConstPressAddParts','.TRUE.')
 PartPressRemParts = GETLOGICAL('Part-ConstPressRemParts','.FALSE.')
 
 ! Read particle species data
-!nSpecies = CNTSTR('Part-Species-SpaceIC')
+!nSpecies = CountOption('Part-Species-SpaceIC')
 
 IF (nSpecies.LE.0) THEN
   CALL abort(&
@@ -2144,7 +2138,7 @@ END DO
 CALL InitPartRHS()
 
 ! Read in boundary parameters
-dummy_int = CNTSTR('Part-nBounds')       ! check if Part-nBounds is present in .ini file
+dummy_int = CountOption('Part-nBounds')       ! check if Part-nBounds is present in .ini file
 nPartBound = GETINT('Part-nBounds','1.') ! get number of particle boundaries
 IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
   CALL abort(&
@@ -2467,15 +2461,6 @@ ManualTimeStep = GETREAL('Particles-ManualTimeStep', '0.0')
 IF (ManualTimeStep.GT.0.0) THEN
   useManualTimeStep=.True.
 END IF
-#if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
-  dt_part_ratio = GETREAL('Particles-dt_part_ratio', '3.8')
-  overrelax_factor = GETREAL('Particles-overrelax_factor', '1.0')
-#if (PP_TimeDiscMethod==200)
-IF ( ALMOSTEQUAL(overrelax_factor,1.0) .AND. .NOT.ALMOSTEQUAL(dt_part_ratio,3.8) ) THEN
-  overrelax_factor = dt_part_ratio !compatibility
-END IF
-#endif
-#endif
 
 ! initialization of surface model flags
 KeepWallParticles = .FALSE.

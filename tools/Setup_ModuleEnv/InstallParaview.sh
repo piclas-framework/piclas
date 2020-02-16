@@ -1,4 +1,15 @@
-#!/bin/bash
+#!/bin/bash -i
+
+#==============================================================================
+# title       : InstallParaview.sh
+# description : This script installs paraview with specific setting in a 
+#               pre-installed module env
+# date        : Nov 27, 2019
+# version     : 1.0   
+# usage       : bash InstallParaview.sh
+# notes       : Bash in run interactively via "-i" to use "module load/purge" 
+#               commands
+#==============================================================================
 
 # Function for checken modules
 check_module () {
