@@ -47,7 +47,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, VarTimeStep, Species
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, VarTimeStep, Species, usevMPF
   USE MOD_part_tools,             ONLY : DiceUnitVector
   USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -71,7 +71,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
   iSpec1 = PartSpecies(iPart1)
   iSpec2 = PartSpecies(iPart2)
 
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     FracMassCent1 = Species(iSpec1)%MassIC *GetParticleWeight(iPart1)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
           + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
     FracMassCent2 = Species(iSpec2)%MassIC *GetParticleWeight(iPart2)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
@@ -294,14 +294,13 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, &
-                                       SpecDSMC, PartStateIntEn, RadialWeighting
-USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, Species, VarTimeStep, PEM
-USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
-USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
-USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
-USE MOD_part_tools,             ONLY : DiceUnitVector
-USE MOD_part_tools                ,ONLY: GetParticleWeight
+USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC_RHS, DSMC, &
+                                      SpecDSMC, PartStateIntEn, RadialWeighting
+USE MOD_Particle_Vars,          ONLY: PartSpecies, PartState, Species, VarTimeStep, PEM, usevMPF
+USE MOD_DSMC_ElectronicModel,   ONLY: ElectronicEnergyExchange, TVEEnergyExchange
+USE MOD_DSMC_PolyAtomicModel,   ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
+USE MOD_DSMC_Relaxation,        ONLY: DSMC_VibRelaxDiatomic
+USE MOD_part_tools,             ONLY: DiceUnitVector, GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -338,7 +337,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   iSpec2 = PartSpecies(iPart2)
   iElem  = PEM%Element(iPart1)
 
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ReducedMass = (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) * Species(iSpec2)%MassIC*GetParticleWeight(iPart2))  &
                 / (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) + Species(iSpec2)%MassIC*GetParticleWeight(iPart2))
   ELSE
@@ -509,7 +508,7 @@ END IF
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,Coll_pData(iPair)%iPart_p1)
       FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
     END IF
-    IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
       PartStateIntEn(2,iPart1) = PartStateIntEn(2,iPart1)/GetParticleWeight(iPart1)
     END IF
   END IF
@@ -525,7 +524,7 @@ END IF
       PartStateIntEn(2,Coll_pData(iPair)%iPart_p2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,Coll_pData(iPair)%iPart_p2)
     END IF
-    IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
       PartStateIntEn(2,iPart2) = PartStateIntEn(2,iPart2)/GetParticleWeight(iPart2)
     END IF
   END IF
@@ -534,7 +533,7 @@ END IF
 ! Calculation of new particle velocities
 !--------------------------------------------------------------------------------------------------!
 
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     FracMassCent1 = Species(iSpec1)%MassIC *GetParticleWeight(iPart1)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
           + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
     FracMassCent2 = Species(iSpec2)%MassIC *GetParticleWeight(iPart2)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
@@ -875,7 +874,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
-  USE MOD_DSMC_Vars,          ONLY : CollisMode, Coll_pData, SelectionProc
+  USE MOD_DSMC_Vars,          ONLY : CollisMode, Coll_pData, SelectionProc, BGGas
   USE MOD_DSMC_Vars,          ONLY : DSMC
   USE MOD_Particle_Vars,      ONLY : PartState, WriteMacroVolumeValues, Symmetry2D
   USE MOD_TimeDisc_Vars,      ONLY : TEnd, Time
@@ -895,7 +894,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
   REAL                          :: Distance
 !===================================================================================================================================
 
-  IF(DSMC%CalcQualityFactors) THEN
+  IF(DSMC%CalcQualityFactors.AND.(BGGas%BGGasSpecies.EQ.0)) THEN
     IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
       IF(Symmetry2D) THEN
         Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
@@ -981,7 +980,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
   USE MOD_Globals,                ONLY : Abort
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst, ElementaryCharge
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep
+  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep, usevMPF
   USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_QK_PROCEDURES,     ONLY : QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization, QK_IonRecombination
@@ -1021,7 +1020,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
     nPartNode = PEM%pNumber(iElem)
   END IF
   nPair = INT(nPartNode/2)
-  IF(RadialWeighting%DoRadialWeighting) THEN
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
     NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume
   ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
     NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume * Species(1)%MacroParticleFactor
