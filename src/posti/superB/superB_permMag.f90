@@ -415,10 +415,11 @@ END SUBROUTINE CalculateSphericMagneticPotential
 
 SUBROUTINE CalculateCylindricMagneticPotential(iMagnet)
 !===================================================================================================================================
-!> Calculates the magnetic potential of a cylindric permanent magnet
+!> Calculates the magnetic potential of a cylindrical permanent magnet
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
+USE MOD_Globals            ,ONLY: VECNORM,UNITVECTOR
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights
@@ -435,192 +436,292 @@ INTEGER, INTENT(IN) :: iMagnet
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                :: AxisVec1(3), AxisVec2(3), magnetNode(3), normalUnitVector(3), normalVector(3), l(3), d(3)
-REAL                :: TrafoMatrix(3,3)
+REAL                :: TrafoMatrix(3,3), x(3)
 INTEGER             :: iElem, i, j, k, ii, jj, kk, iPoint
 REAL, ALLOCATABLE   :: xGP(:), wGP(:)
-REAL                :: psiMagTemp, z, radius, phi, dist, height, normalLength, tmin
+REAL                :: psiMagTemp, z, radius, phi, dist, height, tmin, radii(2)
 CHARACTER(LEN=26)   :: myFileName
 !===================================================================================================================================
 
-ALLOCATE(xGP(PermanentMagnetInfo(iMagnet)%NumNodes))
-ALLOCATE(wGP(PermanentMagnetInfo(iMagnet)%NumNodes))
+ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
+           r2     => PermanentMagnetInfo(iMagnet)%Radius2      ,& ! inner radius (only required for hollow cylinders)
+           h      => PermanentMagnetInfo(iMagnet)%HeightVector ,&
+           M      => PermanentMagnetInfo(iMagnet)%Magnetisation,&
+           nNodes => PermanentMagnetInfo(iMagnet)%NumNodes     )
+  ALLOCATE(xGP(nNodes))
+  ALLOCATE(wGP(nNodes))
 
-! Get the Gauss-Legendre nodes and weights of the polar angle
-! ATTENTION: The nodes are still in [-1,1] and need to be mapped to an angle
-CALL LegendreGaussNodesAndWeights(PermanentMagnetInfo(iMagnet)%NumNodes - 1, xGP, wGP)
+  ! Get the Gauss-Legendre nodes and weights of the polar angle
+  ! ATTENTION: The nodes are still in [-1,1] and need to be mapped to an angle
+  CALL LegendreGaussNodesAndWeights(nNodes - 1, xGP, wGP)
 
-height = SQRT(PermanentMagnetInfo(iMagnet)%HeightVector(1)**2 + PermanentMagnetInfo(iMagnet)%HeightVector(2)**2 +&
-              PermanentMagnetInfo(iMagnet)%HeightVector(3)**2)
+  height = VECNORM(h)
 
-! Transformation matrix from the cylindric coordinates to the original coordiante system
-CALL FindLinIndependentVectors(PermanentMagnetInfo(iMagnet)%HeightVector, AxisVec1, AxisVec2)
-CALL GramSchmidtAlgo(PermanentMagnetInfo(iMagnet)%HeightVector, AxisVec1, AxisVec2)
-TrafoMatrix(:,1) = AxisVec1
-TrafoMatrix(:,2) = AxisVec2
-TrafoMatrix(:,3) = PermanentMagnetInfo(iMagnet)%HeightVector
+  ! Transformation matrix from the cylindrical coordinates to the original coordinate system
+  CALL FindLinIndependentVectors(h, AxisVec1, AxisVec2)
+  CALL GramSchmidtAlgo(h, AxisVec1, AxisVec2)
+  TrafoMatrix(:,1) = AxisVec1
+  TrafoMatrix(:,2) = AxisVec2
+  TrafoMatrix(:,3) = h
 
-DO iElem=1,nElems
-  DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
-    psiMagTemp = 0
-    ! Top
-    z = height / 2.
-    DO ii=1,PermanentMagnetInfo(iMagnet)%NumNodes
-      radius = PermanentMagnetInfo(iMagnet)%Radius / 2. * (1 + xGP(ii))
-      DO jj=1,2*PermanentMagnetInfo(iMagnet)%NumNodes
-        phi = jj * PI / PermanentMagnetInfo(iMagnet)%NumNodes
-        magnetNode = (/radius*COS(phi), radius*SIN(phi), z/)
-        magnetNode = MATMUL(TrafoMatrix, magnetNode)
-        magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
+  DO iElem=1,nElems
+    DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
+      x = Elem_xGP(1:3,i,j,k,iElem)
 
-        normalUnitVector = PermanentMagnetInfo(iMagnet)%HeightVector
+      ! ------
+      ! Top
+      ! ------
+      ! Outer Radius r
+      ! Inner Radius r2
+      psiMagTemp = 0
+      z = height / 2.
+      DO ii=1,nNodes
+        radius  = r2 + (r-r2) / 2. * (1 + xGP(ii)) ! mapping [-1,1] -> [r2,r]
+        DO jj=1,2*nNodes
+          phi = jj * PI / nNodes
+          ! Calculate node coordinates
+          magnetNode = (/radius*COS(phi), radius*SIN(phi), z/)
+          magnetNode = MATMUL(TrafoMatrix, magnetNode)
+          magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
 
-        ! Calculate the distance between the mesh point and the magnet point
-        dist = SQRT((magnetNode(1) - Elem_xGP(1,i,j,k,iElem))**2 +&
-                    (magnetNode(2) - Elem_xGP(2,i,j,k,iElem))**2 +&
-                    (magnetNode(3) - Elem_xGP(3,i,j,k,iElem))**2)
+          ! Normal vector direction, which points in positive h-vector direction
+          normalUnitVector = h
 
-        ! Calculate the magnetic potential of the node with the Gaussian quadrature
-        psiMagTemp = psiMagTemp + wGP(ii) / (4 * PI) / dist * radius *&
-                     DOT_PRODUCT(normalUnitVector, PermanentMagnetInfo(iMagnet)%Magnetisation)
+          ! Calculate the distance between the mesh point and the magnet point
+          dist = VECNORM(magnetNode-x)
+
+          ! Calculate the magnetic potential of the node with the Gaussian quadrature
+          psiMagTemp = psiMagTemp + radius / dist * wGP(ii) / (4. * PI) * DOT_PRODUCT(normalUnitVector, M)
+        END DO
       END DO
-    END DO
-    psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / PermanentMagnetInfo(iMagnet)%NumNodes *&
-                          PermanentMagnetInfo(iMagnet)%Radius / 2. * psiMagTemp
+      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * (r-r2) / 2. * psiMagTemp
 
-    ! Bottom
-    psiMagTemp = 0
-    z = -height / 2.
-    DO ii=1,PermanentMagnetInfo(iMagnet)%NumNodes
-      radius = PermanentMagnetInfo(iMagnet)%Radius / 2. * (1 + xGP(ii))
-      DO jj=1,2*PermanentMagnetInfo(iMagnet)%NumNodes
-        phi = jj * PI / PermanentMagnetInfo(iMagnet)%NumNodes
-        magnetNode = (/radius*COS(phi), radius*SIN(phi), z/)
-        magnetNode = MATMUL(TrafoMatrix, magnetNode)
-        magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
+      ! ------
+      ! Bottom
+      ! ------
+      ! Outer Radius r
+      ! Inner Radius r2
+      psiMagTemp = 0
+      z = -height / 2.
+      DO ii=1,nNodes
+        radius  = r2 + (r-r2) / 2. * (1 + xGP(ii)) ! mapping [-1,1] -> [r2,r]
+        DO jj=1,2*nNodes
+          phi = jj * PI / nNodes
+          ! Calculate node coordinates
+          magnetNode = (/radius*COS(phi), radius*SIN(phi), z/)
+          magnetNode = MATMUL(TrafoMatrix, magnetNode)
+          magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
 
-        normalUnitVector = - PermanentMagnetInfo(iMagnet)%HeightVector
+          ! Normal vector direction, which points in negative h-vector direction
+          normalUnitVector = - h 
 
-        ! Calculate the distance between the mesh point and the magnet point
-        dist = SQRT((magnetNode(1) - Elem_xGP(1,i,j,k,iElem))**2 +&
-                    (magnetNode(2) - Elem_xGP(2,i,j,k,iElem))**2 +&
-                    (magnetNode(3) - Elem_xGP(3,i,j,k,iElem))**2)
+          ! Calculate the distance between the mesh point and the magnet point
+          dist = VECNORM(magnetNode-x)
 
-        ! Calculate the magnetic potential of the node with the Gaussian quadrature
-        psiMagTemp = psiMagTemp + wGP(ii) / (4 * PI) / dist * radius *&
-                     DOT_PRODUCT(normalUnitVector, PermanentMagnetInfo(iMagnet)%Magnetisation)
+          ! Calculate the magnetic potential of the node with the Gaussian quadrature
+          psiMagTemp = psiMagTemp + radius / dist * wGP(ii) / (4. * PI) * DOT_PRODUCT(normalUnitVector, M)
+        END DO
       END DO
-    END DO
-    psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / PermanentMagnetInfo(iMagnet)%NumNodes *&
-                          PermanentMagnetInfo(iMagnet)%Radius / 2. * psiMagTemp
+      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * (r-r2) / 2. * psiMagTemp
 
-    ! Side
-    psiMagTemp = 0
-    radius = PermanentMagnetInfo(iMagnet)%Radius
-    DO kk=1,PermanentMagnetInfo(iMagnet)%NumNodes
-      z = height / 2. * xGP(kk)
-      DO jj=1,2*PermanentMagnetInfo(iMagnet)%NumNodes
-        phi = jj * PI / PermanentMagnetInfo(iMagnet)%NumNodes
-        magnetNode = (/radius*COS(phi), radius*SIN(phi), z/)
-        magnetNode = MATMUL(TrafoMatrix, magnetNode)
-        magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
+      ! ------
+      ! Side (cylinder) or Outer mantle (hollow cylinder)
+      ! ------
+      psiMagTemp = 0
+      DO kk=1,nNodes
+        z = height / 2. * xGP(kk)
+        DO jj=1,2*nNodes
+          phi = jj * PI / nNodes
+          magnetNode = (/r*COS(phi), r*SIN(phi), z/)
+          magnetNode = MATMUL(TrafoMatrix, magnetNode)
+          magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
 
-        normalVector = (/radius*COS(phi), radius*SIN(phi), 0./)
-        normalVector = MATMUL(TrafoMatrix, normalVector)
-        normalLength = SQRT(normalVector(1)**2 + normalVector(2)**2 + normalVector(3)**2)
-        normalUnitVector = normalVector / normalLength
+          normalVector = (/r*COS(phi), r*SIN(phi), 0./)
+          normalVector = MATMUL(TrafoMatrix, normalVector)
 
-        ! Calculate the distance between the mesh point and the magnet point
-        dist = SQRT((magnetNode(1) - Elem_xGP(1,i,j,k,iElem))**2 +&
-                    (magnetNode(2) - Elem_xGP(2,i,j,k,iElem))**2 +&
-                    (magnetNode(3) - Elem_xGP(3,i,j,k,iElem))**2)
+          ! Normal vector direction, which points radially outwards
+          normalUnitVector = UNITVECTOR(normalVector)
 
-        ! Calculate the magnetic potential of the node with the Gaussian quadrature
-        psiMagTemp = psiMagTemp + wGP(kk) / (4 * PI) / dist *&
-                     DOT_PRODUCT(normalUnitVector, PermanentMagnetInfo(iMagnet)%Magnetisation)
+          ! Calculate the distance between the mesh point and the magnet point
+          dist = VECNORM(magnetNode-x)
+
+          ! Calculate the magnetic potential of the node with the Gaussian quadrature
+          psiMagTemp = psiMagTemp + wGP(kk) / dist / (4 * PI) * DOT_PRODUCT(normalUnitVector, M)
+        END DO
       END DO
+      psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * height / 2. * psiMagTemp
+
+      ! ------
+      ! Check if the mesh point is in the cylinder
+      ! ------
+      ASSOCIATE( h2 => h*height )
+        tMin = (DOT_PRODUCT(x, h2) -&
+                DOT_PRODUCT(PermanentMagnetInfo(iMagnet)%BasePoint - h2/2, &
+                            h2)) /&
+                DOT_PRODUCT(h2, h2)
+        l = PermanentMagnetInfo(iMagnet)%BasePoint(:) - h2(:)/2 +&
+            tMin * h2(:)
+        d = l - x
+        dist = SQRT(DOT_PRODUCT(d, d))
+      END ASSOCIATE
+
+      IF ((tMin.GE.0).AND.(tMin.LE.1).AND.(dist.LE.r))THEN
+        IF(dist.GE.r2)THEN
+          MagnetFlag(i,j,k,iElem) = iMagnet
+        END IF ! dist.GE.r2
+      END IF
+
+    END DO; END DO; END DO
+  END DO
+
+  ! ------
+  ! Inner mantle (only for hollow cylinder when r2 > 0.)
+  ! ------
+  IF(r2.GT.0.0)THEN
+    DO iElem=1,nElems
+      DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
+        x = Elem_xGP(1:3,i,j,k,iElem)
+
+        psiMagTemp = 0
+        DO kk=1,nNodes
+          z = height / 2. * xGP(kk)
+          DO jj=1,2*nNodes
+            phi = jj * PI / nNodes
+            magnetNode = (/r2*COS(phi), r2*SIN(phi), z/)
+            magnetNode = MATMUL(TrafoMatrix, magnetNode)
+            magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
+
+            normalVector = (/r2*COS(phi), r2*SIN(phi), 0./)
+            normalVector = MATMUL(TrafoMatrix, normalVector)
+
+            ! Reverse normal vector direction as the vector points radially inwards
+            normalUnitVector = -UNITVECTOR(normalVector)
+
+            ! Calculate the distance between the mesh point and the magnet point
+            dist = VECNORM(magnetNode-x)
+
+            ! Calculate the magnetic potential of the node with the Gaussian quadrature
+            psiMagTemp = psiMagTemp + wGP(kk) / dist / (4 * PI) * DOT_PRODUCT(normalUnitVector, M)
+          END DO
+        END DO
+        psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / nNodes * height / 2. * psiMagTemp
+
+      END DO; END DO; END DO
     END DO
-    psiMag(i,j,k,iElem) = psiMag(i,j,k,iElem) + PI / PermanentMagnetInfo(iMagnet)%NumNodes * height / 2. * psiMagTemp
+  END IF ! r2.GT.0.0
 
-    ! Check if the mesh point is in the cylinder
-    tMin = (DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem), height*PermanentMagnetInfo(iMagnet)%HeightVector) -&
-            DOT_PRODUCT(PermanentMagnetInfo(iMagnet)%BasePoint - height*PermanentMagnetInfo(iMagnet)%HeightVector/2, &
-                        height*PermanentMagnetInfo(iMagnet)%HeightVector)) /&
-            DOT_PRODUCT(height*PermanentMagnetInfo(iMagnet)%HeightVector, height*PermanentMagnetInfo(iMagnet)%HeightVector)
-    l = PermanentMagnetInfo(iMagnet)%BasePoint(:) - height*PermanentMagnetInfo(iMagnet)%HeightVector(:)/2 +&
-        tMin * height*PermanentMagnetInfo(iMagnet)%HeightVector(:)
-    d = l - Elem_xGP(:,i,j,k,iElem)
-    dist = SQRT(DOT_PRODUCT(d, d))
+  SDEALLOCATE( xGP)
+  SDEALLOCATE( wGP)
 
-    IF ((tMin.GE.0).AND.(tMin.LE.1).AND.(dist.LE.PermanentMagnetInfo(iMagnet)%Radius)) THEN
-      MagnetFlag(i,j,k,iElem) = iMagnet
-    END IF
+  IF(BGFieldVTKOutput) THEN
+    WRITE(myFileName,'(A11,I2.2,A4)')'MagnetMesh_',iMagnet,'.vtk'
+    OPEN(1112,FILE=myFileName,STATUS='replace')
+    WRITE(1112,'(A)')'# vtk DataFile Version 2.0 '
+    WRITE(1112,'(A)')'Debug Mesh '
+    WRITE(1112,'(A)')'ASCII'
+    WRITE(1112,'(A)')'DATASET UNSTRUCTURED_GRID'
+    WRITE(1112,'(A)')''
 
-  END DO; END DO; END DO
-END DO
+    IF(r2.GT.0.0)THEN ! hollow cylinder
+      WRITE(1112,'(A,I0,A)')'POINTS ',4*(1+1)*nNodes,' FLOAT'
 
-SDEALLOCATE( xGP)
-SDEALLOCATE( wGP)
+      ! Output the 3D points (4 blocks, one for each circle)
+      radii=(/r,r2/)
+      DO J = 1, 2
+        ! I=-1 : bottom points
+        ! I=+1 : top points
+        DO I = -1, 1, 2
+          z=REAL(I)*height/2
+          DO iPoint=2*nNodes+1,4*nNodes
+            phi = iPoint * PI / nNodes
+            magnetNode = (/radii(J)*COS(phi), radii(J)*SIN(phi), z/)
+            magnetNode = MATMUL(TrafoMatrix, magnetNode)
+            magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
+            WRITE(1112,*) magnetNode(1:3)
+          END DO
+        END DO ! I = -1, 1, 2
+      END DO ! J = 1, 2
 
-IF(BGFieldVTKOutput) THEN
-  WRITE(myFileName,'(A11,I2.2,A4)')'MagnetMesh_',iMagnet,'.vtk'
-  OPEN(1112,FILE=myFileName,STATUS='replace')
-  WRITE(1112,'(A)')'# vtk DataFile Version 2.0 '
-  WRITE(1112,'(A)')'Debug Mesh '
-  WRITE(1112,'(A)')'ASCII'
-  WRITE(1112,'(A)')'DATASET UNSTRUCTURED_GRID'
-  WRITE(1112,'(A)')''
-  WRITE(1112,'(A,I0,A)')'POINTS ',4 * PermanentMagnetInfo(iMagnet)%NumNodes,' FLOAT'
-  z=-height/2
-  radius = PermanentMagnetInfo(iMagnet)%Radius
-  DO iPoint=1,2*PermanentMagnetInfo(iMagnet)%NumNodes
-    phi = iPoint * PI / PermanentMagnetInfo(iMagnet)%NumNodes
+      WRITE(1112,*)''
+      WRITE(1112,'(A,I0,1X,I0)')'CELLS ',3+1, 4*(4*nNodes+2 + 1 ) ! 4 Cells (4 mantles)
 
-    magnetNode = (/radius*COS(phi), radius*SIN(phi), z/)
-    magnetNode = MATMUL(TrafoMatrix, magnetNode)
-    magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
+      ! Output the node connectivity
+      ! 1.) outer mantle
+      ! 2.) bottom
+      ! 3.) top
+      ! 4.) inner mantle
+      DO I = -1, 2
+        ASSOCIATE( idx1 => 2*MAX(I,0),  & ! gives 0, 0, 2, 4
+                   idx2 => 2*MIN(I+2,3) ) ! gives 2, 4, 6, 6
+               WRITE (*,*) "idx1,idx2 =", idx1,idx2
+          WRITE(1112,'(I0)',ADVANCE="NO") 4*nNodes+2
+          DO iPoint=0,2*nNodes-1
+            WRITE(1112,'(1X,I0)',ADVANCE="NO") idx1*nNodes + iPoint
+            WRITE(1112,'(1X,I0)',ADVANCE="NO") idx2*nNodes + iPoint
+          END DO
+          WRITE(1112,'(1X,I0)',ADVANCE="NO") idx1*nNodes
+          WRITE(1112,'(1X,I0)',ADVANCE="NO") idx2*nNodes
+          WRITE(1112,*)''
+        END ASSOCIATE
+      END DO ! I = -2, 1
 
-    WRITE(1112,*) magnetNode(1:3)
-  END DO
-  z=height/2
-  radius = PermanentMagnetInfo(iMagnet)%Radius
-  DO iPoint=2*PermanentMagnetInfo(iMagnet)%NumNodes+1,4*PermanentMagnetInfo(iMagnet)%NumNodes
-    phi = iPoint * PI / PermanentMagnetInfo(iMagnet)%NumNodes
+      WRITE(1112,*)''
+      WRITE(1112,'(A,I0)')'CELL_TYPES ',4
+      WRITE(1112,'(1X,I0,1X,I0,1X,I0,1X,I0)') 6,6,6,6 ! all 6 = VTK_TRIANGLE_
 
-    magnetNode = (/radius*COS(phi), radius*SIN(phi), z/)
-    magnetNode = MATMUL(TrafoMatrix, magnetNode)
-    magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
+    ELSE ! full cylinder
+      WRITE(1112,'(A,I0,A)')'POINTS ',4 * nNodes,' FLOAT'
 
-    WRITE(1112,*) magnetNode(1:3)
-  END DO
-  WRITE(1112,*)''
-  WRITE(1112,'(A,I0,1X,I0)')'CELLS ',3,8*PermanentMagnetInfo(iMagnet)%NumNodes+5
-  ! Side
-  WRITE(1112,'(I0)',ADVANCE="NO") 4*PermanentMagnetInfo(iMagnet)%NumNodes+2
-  DO iPoint=1,2*PermanentMagnetInfo(iMagnet)%NumNodes
-    WRITE(1112,'(1X,I0)',ADVANCE="NO") iPoint - 1
-    WRITE(1112,'(1X,I0)',ADVANCE="NO") 2*PermanentMagnetInfo(iMagnet)%NumNodes + iPoint -1
-  END DO
-  WRITE(1112,'(1X,I0)',ADVANCE="NO") 0
-  WRITE(1112,'(1X,I0)',ADVANCE="NO") 2*PermanentMagnetInfo(iMagnet)%NumNodes
-  WRITE(1112,*)''
-  ! Button
-  WRITE(1112,'(I0)',ADVANCE="NO") 2*PermanentMagnetInfo(iMagnet)%NumNodes
-  DO iPoint=1,2*PermanentMagnetInfo(iMagnet)%NumNodes
-    WRITE(1112,'(1X,I0)',ADVANCE="NO") iPoint - 1
-  END DO
-  WRITE(1112,*)''
-  ! Top
-  WRITE(1112,'(I0)',ADVANCE="NO") 2*PermanentMagnetInfo(iMagnet)%NumNodes
-  DO iPoint=1,2*PermanentMagnetInfo(iMagnet)%NumNodes
-    WRITE(1112,'(1X,I0)',ADVANCE="NO") 2*PermanentMagnetInfo(iMagnet)%NumNodes + iPoint - 1
-  END DO
-  WRITE(1112,*)''
-  WRITE(1112,*)''
-  WRITE(1112,'(A,I0)')'CELL_TYPES ',3
-  WRITE(1112,'(1X,I0,1X,I0,1X,I0)') 6,7,7
+      ! I=-1 : bottom points
+      ! I=+1 : top points
+      DO I = -1, 1, 2
+        z=REAL(I)*height/2
+        DO iPoint=2*nNodes+1,4*nNodes
+          phi = iPoint * PI / nNodes
 
-  CLOSE(1112)
-END IF
+          magnetNode = (/r*COS(phi), r*SIN(phi), z/)
+          magnetNode = MATMUL(TrafoMatrix, magnetNode)
+          magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
+
+          WRITE(1112,*) magnetNode(1:3)
+        END DO
+      END DO ! I = -1, 1, 2
+      
+      WRITE(1112,*)''
+      WRITE(1112,'(A,I0,1X,I0)')'CELLS ',3,8*nNodes+5
+
+      ! Side
+      WRITE(1112,'(I0)',ADVANCE="NO") 4*nNodes+2
+      DO iPoint=1,2*nNodes
+        WRITE(1112,'(1X,I0)',ADVANCE="NO") iPoint - 1
+        WRITE(1112,'(1X,I0)',ADVANCE="NO") 2*nNodes + iPoint -1
+      END DO
+      WRITE(1112,'(1X,I0)',ADVANCE="NO") 0
+      WRITE(1112,'(1X,I0)',ADVANCE="NO") 2*nNodes
+      WRITE(1112,*)''
+
+      ! Bottom
+      WRITE(1112,'(I0)',ADVANCE="NO") 2*nNodes
+      DO iPoint=1,2*nNodes
+        WRITE(1112,'(1X,I0)',ADVANCE="NO") iPoint - 1
+      END DO
+      WRITE(1112,*)''
+
+      ! Top
+      WRITE(1112,'(I0)',ADVANCE="NO") 2*nNodes
+      DO iPoint=1,2*nNodes
+        WRITE(1112,'(1X,I0)',ADVANCE="NO") 2*nNodes + iPoint - 1
+      END DO
+      WRITE(1112,*)''
+      WRITE(1112,*)''
+      WRITE(1112,'(A,I0)')'CELL_TYPES ',3
+      WRITE(1112,'(1X,I0,1X,I0,1X,I0)') 6,7,7
+
+    END IF ! r2.GT.0.0 (hollow cylinder)
+
+    CLOSE(1112)
+  END IF
+END ASSOCIATE
 
 END SUBROUTINE CalculateCylindricMagneticPotential
 
@@ -818,7 +919,7 @@ IF(BGFieldVTKOutput) THEN
   WRITE(1112,'(1X,I0)',ADVANCE="NO") 0
   WRITE(1112,'(1X,I0)',ADVANCE="NO") 2*PermanentMagnetInfo(iMagnet)%NumNodes
   WRITE(1112,*)''
-  ! Button
+  ! Bottom
   WRITE(1112,'(I0)',ADVANCE="NO") 2*PermanentMagnetInfo(iMagnet)%NumNodes
   DO iPoint=1,2*PermanentMagnetInfo(iMagnet)%NumNodes
     WRITE(1112,'(1X,I0)',ADVANCE="NO") iPoint - 1

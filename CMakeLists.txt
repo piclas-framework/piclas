@@ -594,6 +594,17 @@ ELSE()
 ENDIF()
 
 # =========================================================================
+# Coffee Lib
+# =========================================================================
+OPTION(CMAKE_ANS_COFFEE "Enable coffee lib" OFF)
+MARK_AS_ADVANCED(CMAKE_ANS_COFFEE)
+IF(CMAKE_ANS_COFFEE)
+  ADD_DEFINITIONS(-DUSE_COFFEE=1)
+ELSE()
+  ADD_DEFINITIONS(-DUSE_COFFEE=0)
+ENDIF()
+
+# =========================================================================
 # PICLas sources & targets
 # =========================================================================
 
