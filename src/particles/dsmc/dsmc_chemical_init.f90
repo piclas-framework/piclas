@@ -152,11 +152,7 @@ __STAMP__&
         IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
           IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol) THEN
             BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib &
-                + BoltzmannConst * SpecDSMC(iSpec)%CharaTVib  &
-                /  (EXP(SpecDSMC(iSpec)%CharaTVib / SpecDSMC(iSpec)%Init(0)%TVib) - 1) &
-                - BoltzmannConst * SpecDSMC(iSpec)%CharaTVib * SpecDSMC(iSpec)%MaxVibQuant &
-                / (EXP(SpecDSMC(iSpec)%CharaTVib * SpecDSMC(iSpec)%MaxVibQuant &
-                / SpecDSMC(iSpec)%Init(0)%TVib) - 1)
+              + BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib / SpecDSMC(iSpec)%Init(0)%TVib) - 1)
             BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
             ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(BGGasEVib) + 1, SpecDSMC(iSpec)%MaxVibQuant)
             ChemReac%MeanXiVib_PerIter(iSpec) = 2. * ChemReac%MeanEVibQua_PerIter(iSpec) &
