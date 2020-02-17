@@ -227,6 +227,9 @@ CASE(2) !sinus
   Amplitude=0.3
   Omega=2.*Pi*Frequency
   Resu(:)=1.+Amplitude*SIN(Omega*SUM(Cent))
+CASE(30) !sinus: shifted by PI into the future (ACamplitude -> -1*ACamplitude)
+  Omega=2.*Pi*ACfrequency
+  Resu(:)=-ACamplitude*SIN(Omega*t)
 CASE(31) !sinus
   Omega=2.*Pi*ACfrequency
   Resu(:)=ACamplitude*SIN(Omega*t)
