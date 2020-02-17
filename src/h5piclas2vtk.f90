@@ -840,7 +840,7 @@ INTEGER                         :: nParts, nPartsVar, iPart, nDims
 INTEGER,ALLOCATABLE             :: ConnectInfo(:,:)
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesParticle(:), tmpArray(:)
 CHARACTER(LEN=255)              :: FileString
-REAL, ALLOCATABLE               :: PartData(:,:), tmpPartData(:,:)
+REAL, ALLOCATABLE               :: PartData(:,:)
 REAL                            :: OutputTime, FileVersionHDF5
 LOGICAL                         :: FileVersionExists
 !===================================================================================================================================
@@ -894,9 +894,8 @@ CALL ReadAttribute(File_ID,'VarNamesParticles',nPartsVar+3,StrArray=tmpArray)
 VarNamesParticle(1:nPartsVar)=tmpArray(4:nPartsVar+3)
 
 IF(nParts.GT.0) THEN
-  ALLOCATE(PartData(1:nPartsVar+3,1:nParts),tmpPartData(1:nPartsVar+3,1:nParts))
+  ALLOCATE(PartData(1:nPartsVar+3,1:nParts))
   PartData = 0.
-  tmpPartData = 0.
   SDEALLOCATE(ConnectInfo)
   ALLOCATE(ConnectInfo(1,1:nParts))
   ConnectInfo = 0
@@ -904,11 +903,10 @@ END IF
 
 ASSOCIATE(nParts    => INT(nParts,IK),  &
           nPartsVar => INT(nPartsVar,IK))
-CALL ReadArray('PartData',2,(/nPartsVar+3_IK,nParts/),0_IK,1,RealArray=tmpPartData)
+CALL ReadArray('PartData',2,(/nPartsVar+3_IK,nParts/),0_IK,1,RealArray=PartData)
 END ASSOCIATE
 
 DO iPart=1,nParts
-  PartData(1:nPartsVar+3,iPart) = tmpPartData(1:nPartsVar+3,iPart)
   ConnectInfo(1,iPart)=iPart-1
 END DO
 
@@ -920,7 +918,6 @@ SDEALLOCATE(VarNamesParticle)
 SDEALLOCATE(tmpArray)
 SDEALLOCATE(PartData)
 SDEALLOCATE(ConnectInfo)
-SDEALLOCATE(tmpPartData)
 
 CALL CloseDataFile()
 
