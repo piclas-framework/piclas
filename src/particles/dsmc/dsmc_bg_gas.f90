@@ -52,7 +52,7 @@ SUBROUTINE BGGas_Initialize()
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort
 USE MOD_DSMC_Vars              ,ONLY: BGGas
-USE MOD_Particle_Vars          ,ONLY: PDM, Symmetry2D, nSpecies, VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: PDM, Symmetry2D, Species, nSpecies, VarTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -71,6 +71,48 @@ IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
   __STAMP__&
   ,'ERROR: 2D/Axisymmetric and variable timestep are not implemented with a background gas yet!')
 END IF
+
+DO iSpec = 1, nSpecies
+  IF(BGGas%BackgroundSpecies(iSpec)) THEN
+    IF (Species(iSpec)%NumberOfInits.NE.0 .OR. Species(iSpec)%StartnumberOfInits.NE.0) &
+      CALL abort(&
+        __STAMP__&
+        ,'ERROR: BGG species can be used ONLY for BGG!')
+    IF (Species(iSpec)%Init(0)%ElemTemperatureFileID.GT.0 .OR. Species(iSpec)%Init(0)%ElemPartDensityFileID.GT.0 &
+        .OR. Species(iSpec)%Init(0)%ElemVelocityICFileID .GT.0 ) THEN! &
+      !-- from MacroRestartFile (inner DOF not yet implemented!):
+      IF(Species(iSpec)%Init(0)%ElemTemperatureFileID.LE.0 .OR. .NOT.ALLOCATED(Species(iSpec)%Init(0)%ElemTemperatureIC)) &
+        CALL abort(&
+          __STAMP__&
+          ,'ERROR: ElemTemperatureIC not defined in Init0 for BGG from MacroRestartFile!')
+      IF(Species(iSpec)%Init(0)%ElemPartDensityFileID.LE.0 .OR. .NOT.ALLOCATED(Species(iSpec)%Init(0)%ElemPartDensity)) &
+        CALL abort(&
+          __STAMP__&
+          ,'ERROR: ElemPartDensity not defined in Init0 for BGG from MacroRestartFile!')
+      IF(Species(iSpec)%Init(0)%ElemVelocityICFileID.LE.0 .OR. .NOT.ALLOCATED(Species(iSpec)%Init(0)%ElemVelocityIC)) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'ERROR: ElemVelocityIC not defined in Init0 for BGG from MacroRestartFile!')
+      ELSE IF (Species(iSpec)%Init(0)%velocityDistribution.NE.'maxwell_lpn') THEN
+        CALL abort(&
+          __STAMP__&
+          ,'ERROR: Only maxwell_lpn is implemened as velocity-distribution for BGG from MacroRestartFile!')
+      END IF
+    ELSE
+      IF (Species(iSpec)%Init(0)%MWTemperatureIC.EQ.0.) CALL abort(&
+          __STAMP__&
+          ,'ERROR: MWTemperatureIC not defined in Init0 for homogeneous BGG!')
+      SELECT CASE(Species(iSpec)%Init(0)%velocityDistribution)
+        CASE('maxwell_lpn')
+          ! Others have to be tested first.
+        CASE DEFAULT
+          CALL abort(&
+            __STAMP__&
+            ,'ERROR: VelocityDistribution not supported/defined in Init0 for homogeneous BGG! Only maxwell_lpn is allowed!')
+      END SELECT
+    END IF
+  END IF
+END DO
 
 IF (BGGas%NumberDensity.EQ.0.) CALL abort(__STAMP__&
                                           ,'ERROR: BGGas%NumberDensity is zero but must be defined for a background gas!')
@@ -99,51 +141,6 @@ DO iSpec = 1, nSpecies
 END DO
 
 BGGas%SpeciesFraction = BGGas%SpeciesFraction / BGGas%NumberDensity
-
-!     IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
-!       .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0) CALL abort(&
-! __STAMP__&
-! ,'BGG species can be used ONLY for BGG!')
-!     IF (Species(BGGas%BGGasSpecies)%Init(0)%UseForInit .OR. Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission) THEN
-!       SWRITE(*,*) 'WARNING: Emission was switched off for BGG species!'
-!       Species(BGGas%BGGasSpecies)%Init(0)%UseForInit=.FALSE.
-!       Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission=.FALSE.
-!     END IF
-!     IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.GT.0 &
-!       .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0 &
-!       .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID .GT.0 ) THEN! &
-!       !-- from MacroRestartFile (inner DOF not yet implemented!):
-!       IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.LE.0 .OR. &
-!         .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureIC)) CALL abort(&
-! __STAMP__&
-! ,'ElemTemperatureIC not defined in Init0 for BGG from MacroRestartFile!')
-!       IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.LE.0 .OR. &
-!         .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensity)) CALL abort(&
-! __STAMP__&
-! ,'ElemPartDensity not defined in Init0 for BGG from MacroRestartFile!')
-!       IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID.LE.0 .OR. &
-!         .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityIC)) THEN
-!         CALL abort(&
-! __STAMP__&
-! ,'ElemVelocityIC not defined in Init0 for BGG from MacroRestartFile!')
-!       ELSE IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') THEN !(use always Init 0 for BGG !!!)
-!         CALL abort(&
-! __STAMP__&
-! ,'only maxwell_lpn is implemened as velocity-distribution for BGG from MacroRestartFile!')
-!       END IF
-!     ELSE
-!       IF (Species(BGGas%BGGasSpecies)%Init(0)%MWTemperatureIC.EQ.0.) CALL abort(&
-! __STAMP__&
-! ,'ERROR: MWTemperatureIC not defined in Init0 for homogeneous BGG!')
-!       SELECT CASE(Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution)
-!         CASE('maxwell','maxwell_lpn')
-!           ! Others have to be tested first.
-!         CASE DEFAULT
-!           CALL abort(&
-! __STAMP__&
-! ,'ERROR: VelocityDistribution not supported/defined in Init0 for homogeneous BGG! Only maxwell/maxwell_lpn is allowed!')
-!       END SELECT
-!     END IF
 
 END SUBROUTINE BGGas_Initialize
 
@@ -200,7 +197,6 @@ USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn
-USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -372,7 +368,6 @@ USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_emission_tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF
 USE MOD_part_pos_and_velo       ,ONLY: SetParticleVelocity
-USE MOD_part_tools              ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
 ! IMPLICIT VARIABLE HANDLING
