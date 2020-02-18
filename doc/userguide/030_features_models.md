@@ -574,26 +574,25 @@ where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|}$ is the distance betwe
 grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$ and
 $R$ is the cut-off radius.
 
-## Background Field \label{sec:superB}
+## Magnetic Background Field (superB) \label{sec:superB}
 
-Certain application cases allow the utilization of a constant magnetic background field. The magnetic field resulting from certain types of coils and permanent magnets can be calculated during the initialization within PICLas or with the standalone tool **superB** (see Section \ref{sec:compileroptions} for compilation).
+Certain application cases allow the utilization of a constant magnetic background field. The magnetic field resulting from certain types of coils and permanent magnets can be calculated during the initialization within PICLas or with the standalone tool **superB** (see Section \ref{sec:compileroptions} for compilation), which can be used to solely create a .h5 file that contains the B-field data via
 
-The background field can be enabled by
+    superB parameter_superB.ini
+
+For usage in PICLas, the background field can be enabled by
 
     PIC-BG-Field = T
 
 The first option is to use a previously calculated background field. It can be read-in with
 
-    PIC-BGFileName = BField.h5
-    PIC-NBG = 1
-    PIC-BGFieldScaling = 1.
+    PIC-BGFileName     = BField.h5 ! Path to a .h5 file that contains the B-field data
+    PIC-NBG            = 1         ! Polynomial degree of the B-field
+    PIC-BGFieldScaling = 1.        ! Scaling factor for the B-field
 
-Additionally, the polynomial degree for the background field can be set by ``PIC-NBG`` and might differ from the actually read-in polynomial degree. Optionally, the read-in field can be scaled by the last of the three parameters above.
+Additionally, the polynomial degree for the background field can be set by ``PIC-NBG`` and might differ from the actually read-in polynomial degree that is used to represent the numerical solution for the field solver. Optionally, the read-in field can be scaled by the last of the three parameters above.
 
-The second option is to calculate the magnetic field during the initialization, which will produce an output of the field. The calculation is enabled by
-
-    PIC-CalcBField = T
-
+The second option is to calculate the magnetic field during the initialization, which will produce an output .h5 file of the field. The field will automatically be calculated from the supplied parameters, if the corresponding .h5 file does not exist.
 For this purpose, different coil and permanent magnet geometries can be defined. For visualization purposes, the geometry of the respective coils and permanent magnets can be directly written out as a VTK with
 
     PIC-CalcBField-OutputVTK = T
@@ -607,7 +606,7 @@ First, the total number of permanent magnets has to be defined and the type sele
     NumOfPermanentMagnets = 1
     PermanentMagnet1-Type = cuboid
                             sphere
-                            cylinder
+                            cylinder ! also used for hollow cylinders
                             conic
 
 All options require the input of a base/origin vector, a number of discretization nodes (results in a different number of total points depending on the chosen geometry) and a magnetisation in [A/m]
@@ -626,7 +625,8 @@ The geometries require different input parameters given below
     PermanentMagnet1-Radius = 1.
     ! Height vector required for a cylindrical and conical magnet
     PermanentMagnet1-HeightVector = (/0.,0.,1./)
-    ! Second radius only required for a conical magnet
+    ! Second radius only required for a conical magnet or a hollow cylinder with inner radius
+    ! 'Radius2' and outer radius "Radius1'
     PermanentMagnet1-Radius2 = 1.
 
 ### Magnetic Field by Coils
