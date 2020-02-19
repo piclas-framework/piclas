@@ -4087,7 +4087,7 @@ IF (time.GE.DelayTime) THEN
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         !-- v(n+0.5) => v(n+1) by a(n+1):
-        velocityAtTime(iPart,1:3) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt*0.5
+        velocityAtTime(1:3,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt*0.5
       END IF
     END DO
 #if USE_LOADBALANCE
@@ -4391,7 +4391,7 @@ IF (time.GE.DelayTime) THEN
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         !-- v(n+0.5) => v(n+1) by a(n+1):
-        velocityAtTime(iPart,1:3) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt*0.5
+        velocityAtTime(1:3,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt*0.5
       END IF
     END DO
 #if USE_LOADBALANCE

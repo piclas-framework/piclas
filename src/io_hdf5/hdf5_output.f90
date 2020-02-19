@@ -918,9 +918,9 @@ DO iElem_loc=1,PP_nElems
       PartData(3,iPart)=PartState(3,pcount)
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
       IF (velocityOutputAtTime) THEN
-        PartData(4,iPart)=velocityAtTime(pcount,1)
-        PartData(5,iPart)=velocityAtTime(pcount,2)
-        PartData(6,iPart)=velocityAtTime(pcount,3)
+        PartData(4,iPart)=velocityAtTime(1,pcount)
+        PartData(5,iPart)=velocityAtTime(2,pcount)
+        PartData(6,iPart)=velocityAtTime(3,pcount)
       ELSE
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
       PartData(4,iPart)=PartState(4,pcount)

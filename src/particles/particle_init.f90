@@ -156,7 +156,7 @@ CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected
 
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
-CALL prms%CreateLogicalOption(  'velocityOutputAtTime' , 'Flag if leapfrog uses an velocity-output at real time' , '.TRUE.')
+CALL prms%CreateLogicalOption(  'velocityOutputAtTime'        , 'Flag if leapfrog uses a velocity-output at real time' , '.FALSE.')
 #endif
 
 CALL prms%CreateLogicalOption(  'Part-DoFieldIonization'      , 'Do Field Ionization by quantum tunneling.', '.FALSE.')
@@ -1145,7 +1145,7 @@ Pt_temp=0.
 #endif
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 IF (velocityOutputAtTime) THEN
-  ALLOCATE(velocityAtTime(1:PDM%maxParticleNumber,1:3), STAT=ALLOCSTAT)
+  ALLOCATE(velocityAtTime(1:3,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
       __STAMP__&
