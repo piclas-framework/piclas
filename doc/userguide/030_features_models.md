@@ -88,7 +88,7 @@ Following parameters can be used for both schemes.
 |                       |          |     construct a tighter bounding box for each side.      |
 |     BezierSampleN     |   NGeo   |  Polynomial degree to sample sides for SurfaceFlux and   |
 |                       |          |              Sampling of DSMC surface data.              |
-|   BezierNewtonAngle   |  $<PI/2$   | Angle to switch between Clipping and a Newton algorithm. |
+|   BezierNewtonAngle   | $<PI/2$  | Angle to switch between Clipping and a Newton algorithm. |
 |  BezierClipTolerance  |   1e-8   |      Tolerance of Bezier-Clipping and Bezier-Newton      |
 |     BezierClipHit     |   1e-6   | Tolerance to increase sides and path during Bezier-Algo. |
 |   BezierSplitLimit    |   0.6    |    Minimum degrees of side during clipping. A larger     |
@@ -151,12 +151,12 @@ where the following pre-defined cases are available as given in table \ref{tab:d
 
 Table: Dielectric Test Cases \label{tab:dielectric_test_cases}
 
-  | Option                       | Additional Parameters                                                   | Notes                                                                                                                                                            |
-  | :-------------------------:  | :------------------------:                                              | :-------------------------------------------------------:                                                                                                        |
-  | `FishEyeLens`                | none                                                                    | function with radial dependence: $\varepsilon_{r}=n_{0}^{2}/(1 + (r/r_{max})^{2})^{2}$                                                                           |
-  | `Circle`                     | `DielectricRadiusValue, DielectricRadiusValueB`, `DielectricCircleAxis` | Circular dielectric in x-y-direction (constant in z-direction)  with optional cut-out radius DielectricRadiusValueB along the axis given by DielectricCircleAxis |
-  | `DielectricResonatorAntenna` | `DielectricRadiusValue`                                                 | Circular dielectric in x-y-direction (only elements with $z>0$)                                                                                                  |
-  | `FH_lens`                    | none                                                                    | specific geometry (see `SUBROUTINE SetGeometry` for more information)                                                                                            |
+  |            Option            |                          Additional Parameters                          |                                                                              Notes                                                                               |
+  | :--------------------------: | :---------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+  |        `FishEyeLens`         |                                  none                                   |                                      function with radial dependence: $\varepsilon_{r}=n_{0}^{2}/(1 + (r/r_{max})^{2})^{2}$                                      |
+  |           `Circle`           | `DielectricRadiusValue, DielectricRadiusValueB`, `DielectricCircleAxis` | Circular dielectric in x-y-direction (constant in z-direction)  with optional cut-out radius DielectricRadiusValueB along the axis given by DielectricCircleAxis |
+  | `DielectricResonatorAntenna` |                         `DielectricRadiusValue`                         |                                                 Circular dielectric in x-y-direction (only elements with $z>0$)                                                  |
+  |          `FH_lens`           |                                  none                                   |                                              specific geometry (see `SUBROUTINE SetGeometry` for more information)                                               |
 
 For the Maxwell solver (DGSEM), the interface fluxes between vacuum and dielectric regions can
 either be conserving or non-conserving, which is selected by
@@ -186,9 +186,9 @@ Within the parameter file it is possible to define different particle boundary c
 
 The `Part-Boundary1-SourceName=` corresponds to the name given during the preprocessing step with HOPR. The available conditions (`Part-Boundary1-Condition=`) are described in the table below.
 
-| Condition    | Description                                                                                                                                                                                 |
-| :----------: | :----------------------------------------------------------------------------------------------                                                                      |
-| `open`       | Every particle crossing the boundary will be deleted.                                                                                                                                       |
+|  Condition   | Description                                                                                                                                                                                 |
+| :----------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+|    `open`    | Every particle crossing the boundary will be deleted.                                                                                                                                       |
 | `reflective` | Allows the definition of specular and diffuse reflection. A perfect specular reflection is performed, if no other parameters are given (discussed in more detail in the following section). |
 | `symmetric`  | A perfect specular reflection, without sampling of particle impacts.                                                                                                                        |
 
@@ -283,13 +283,13 @@ appropriate particle boundary surface model `Part-BoundaryX-SurfaceModel`.
 The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the table below.
 
 | SurfaceModel | Description                                                                                                                                                                     |
-| :----------: | :-----------------------------------------------------------------                                                                                                              |
+| :----------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 0 (default)  | Standard extended Maxwellian scattering                                                                                                                                         |
-| 2            | Simple recombination on surface collision, where an impinging particle as given by Ref. [@Reschke2019].                                                                         |
-| 3            | Kinetic Monte Carlo surface: Replicates surfaces with a specified lattice structure, either fcc(100) or fcc(111) and models complete catalysis as given by Ref. [@Reschke2019]. |
-| 5            | Secondary electron emission as given by Ref. [@Levko2015].                                                                                                                      |
-| 101          | Evaporation from surfaces according to a Maxwellian velocity distribution.                                                                                                      |
-| 102          | Evaporation according to MD-fitted velocity distributions.                                                                                                                      |
+|      2       | Simple recombination on surface collision, where an impinging particle as given by Ref. [@Reschke2019].                                                                         |
+|      3       | Kinetic Monte Carlo surface: Replicates surfaces with a specified lattice structure, either fcc(100) or fcc(111) and models complete catalysis as given by Ref. [@Reschke2019]. |
+|      5       | Secondary electron emission as given by Ref. [@Levko2015].                                                                                                                      |
+|     101      | Evaporation from surfaces according to a Maxwellian velocity distribution.                                                                                                      |
+|     102      | Evaporation according to MD-fitted velocity distributions.                                                                                                                      |
 
 For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
 
@@ -344,41 +344,65 @@ Regardless whether a standalone PIC, DSMC, or a coupled simulation is performed,
 
 Species that are not part of the initialization or emission but might occur as a result of e.g. chemical reactions should also be defined with these parameters.
 
-**WORK IN PROGRESS**
-
-Different velocity distributions are available for the initialization of particles.
+Different velocity distributions are available for the initialization/emission of particles.
 
 | Distribution | Description                                             |
 | ------------ | ------------------------------------------------------- |
 | maxwell      | Maxwell-Boltzmann distribution                          |
 | maxwell_lpn  | Maxwell-Boltzmann distribution for low particle numbers |
-| ...          | many many more                                          |
+| WIP          | **WORK IN PROGRESS**                                    |
 
-### Initialization
+### Initialization \label{sec:particle_insertion}
 
-### Surface Flux
+At the beginning of a simulation, particles can be inserted using different initialization routines. Initialization regions are defined per species and can overlap. First, the number of initialization conditions/regions has to be defined
 
-A surface flux enables the emission of particles at a boundary in order to simulate, e.g. a free-stream. They are defined species-specific and can overlap. First, the number of surface fluxes has to be given
+    Part-Species1-nInits = 1
+
+The type of the region is defined by the following parameter
+
+    Part-Species1-Init1-SpaceIC = cell_local
+
+Different `SpaceIC` are available and described in the table below.
+
+| Distribution | Description                                                       |
+| ------------ | ----------------------------------------------------------------- |
+| cell_local   | Particles are inserted in every cell at a constant number density |
+| WIP          | **WORK IN PROGRESS**                                              |
+
+The parameters required for the `cell_local`-SpaceIC insertion are given below. The drift velocity is defined by the direction vector `VeloVecIC`, which is a unit vector, and a velocity magnitude [m/s]. The thermal velocity of particle is determined based on the defined velocity distribution and the given translation temperature `MWTemperatureIC` [K]. Finally, the 'real' number density is defined by `PartDensity` [1/m$^3$], from which the actual number of simulation particles will be determined (depending on the chosen weighting factor).
+
+    Part-Species1-Init1-VeloIC=1500
+    Part-Species1-Init1-VeloVecIC=(/-1.0,0.0,0.0/)
+    Part-Species1-Init1-velocityDistribution=maxwell_lpn
+    Part-Species1-Init1-MWTemperatureIC=300.
+    Part-Species1-Init1-PartDensity=1E20
+
+In the case of molecules, the rotational and vibrational temperature [K] have to be defined. If electronic excitation is considered, the electronic temperature [K] has to be defined
+
+    Part-Species1-Init1-TempRot=300.
+    Part-Species1-Init1-TempVib=300.
+    Part-Species1-Init1-TempElec=300.
+
+### Surface Flux \label{sec:particle_surface_flux}
+
+A surface flux enables the emission of particles at a boundary in order to simulate, e.g. a free-stream. They are defined species-specifically and can overlap. First, the number of surface fluxes has to be given
 
     Part-Species1-nSurfaceFluxBCs=1
 
 The surface flux is mapped to a certain boundary by giving its boundary number (e.g. `BC=1` corresponds to the previously defined boundary `BC_OPEN`)
 
     Part-Species1-Surfaceflux1-BC=1
+
+The remaining parameters such as flow velocity, temperature and number density are given analogously to the initial particle insertion presented in Section \ref{sec:particle_insertion}. An example to define the surface flux for a diatomic species is given below 
+
     Part-Species1-Surfaceflux1-VeloIC=1500
     Part-Species1-Surfaceflux1-VeloVecIC=(/-1.0,0.0,0.0/)
     Part-Species1-Surfaceflux1-velocityDistribution=maxwell_lpn
     Part-Species1-Surfaceflux1-MWTemperatureIC=300.
     Part-Species1-Surfaceflux1-PartDensity=1E20
-
-The drift velocity is defined by the direction vector `VeloVecIC`, which is a unit vector, and a velocity magnitude [m/s]. The thermal velocity of particle is determined based on the defined velocity distribution and the given translation temperature `MWTemperatureIC` [K]. Finally, the 'real' number density is defined by `PartDensity` [1/m$^3$], from which the actual number of simulation particles will be determined (depending on the chosen weighting factor).
-
-In the case of molecules, the rotational and vibrational temperature [K] have to be defined. If electronic excitation is considered, the electronic temperature [K] has to be defined
-
     Part-Species1-Surfaceflux1-TempRot=300.
     Part-Species1-Surfaceflux1-TempVib=300.
     Part-Species1-Surfaceflux1-TempElec=300.
-
 
 #### Circular Inflow
 
@@ -961,25 +985,18 @@ where $d_{\mathrm{ref}}$ is the reference diameter and $n$ the number density. H
 
 ## Background Gas
 
-A constant background gas can be utilized to enable efficient particle collisions between the background gas and other particle species (represented by actual simulation particles). The assumption is that the density of the background gas $n_{\mathrm{gas}}$ is much greater than the density of the particle species, e.g. the charged species in a plasma, $n_{\mathrm{charged}}$
+A constant background gas (single species or mixture) can be utilized to enable efficient particle collisions between the background gas and other particle species (represented by actual simulation particles). The assumption is that the density of the background gas $n_{\mathrm{gas}}$ is much greater than the density of the particle species, e.g. the charged species in a plasma, $n_{\mathrm{charged}}$
 
 $$ n_{\mathrm{gas}} >> n_{\mathrm{charged}}.$$
 
-Under this assumption, collisions within the particle species can be neglected and collisions between the background gas and particle species do not change the conditions of the background gas. It can be activated by defining the species (as defined in Section \ref{sec:dsmc_species}) that should act as the background gas and the number density in m$^{-3}$.
+Under this assumption, collisions within the particle species can be neglected and collisions between the background gas and particle species do not alter the background gas conditions. It can be activated by using the regular particle insertion parameters (as defined in Section \ref{sec:particle_insertion}, the `-Init1` construct can be neglected since no other initialization regions are allowed if the species is already defined a background species) and by defining the `SpaceIC` as `background` as well as the number density [1/m$^3$] as shown below
 
-    Particles-DSMCBackgroundGas        = 1
-    Particles-DSMCBackgroundGasDensity = 9.64E+21
+    Part-Species1-SpaceIC     = background
+    Part-Species1-PartDensity = 1E+22
 
-Other species parameters such as mass, charge, temperature and velocity distribution for the background are defined by the regular read-in parameters
+Other species parameters such as mass, charge, temperature and velocity distribution for the background are also defined by the regular read-in parameters. A mixture as a background gas can be simulated by simply defining multiple background species.
 
-    Part-Species1-SpaceIC              = cuboid
-    Part-Species1-velocityDistribution = maxwell_lpn
-    Part-Species1-MWTemperatureIC      = 300.0
-    Part-Species1-ChargeIC             = 0
-    Part-Species1-MassIC               = 6.6464764E-27
-    Part-Species1-TempElec             = 300.0
-
-Every time step, particles are generated from the background species and paired with the particle species. Consequently, the collision probabilities are calculated using the conventional DSMC routines and the VHS cross-section model. Aftwards, the collilsion process is performed (if the probability is greater than a random number) and it is tested whether additional energy exchange and chemical reactions occur. While the VHS model is sufficient to model collisions between neutral species, it cannot reproduce the phenomena of a neutral-electron interaction. For this purpose, the cross-section based collision probabilities should be utilized, which are discussed in the following.
+Every time step particles are generated from the background gas (for a mixture, the species of the generated particle is chosen based on the species composition) and paired with the particle species. Consequently, the collision probabilities are calculated using the conventional DSMC routines and the VHS cross-section model. Aftwards, the collilsion process is performed (if the probability is greater than a random number) and it is tested whether additional energy exchange and chemical reactions occur. While the VHS model is sufficient to model collisions between neutral species, it cannot reproduce the phenomena of a neutral-electron interaction. For this purpose, the cross-section based collision probabilities should be utilized, which are discussed in the following.
 
 ### Cross-section based collision probability
 
@@ -1152,11 +1169,11 @@ with:
     Particles-nPointsMCVolumeEstimate=1000.
 
 
-|   octree level | Total MC points per Element     |
-| -------------: | :------------------------------ |
-|     lvl=0      |                  1000           |
-|     lvl=1      |                  8000           |
-|     lvl=2      |                  56000          |
+| octree level | Total MC points per Element |
+| -----------: | :-------------------------- |
+|        lvl=0 | 1000                        |
+|        lvl=1 | 8000                        |
+|        lvl=2 | 56000                       |
 
 ### Macroscopic bodies, which move trough domain
 Note: Currently, restart and nProcs>1 only works for non-moving and non-size-changing Macro bodies.
