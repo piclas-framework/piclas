@@ -547,7 +547,7 @@ USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_DSMC_ParticlePairing    ,ONLY: GeoCoordToMap2D
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState,Species,WriteMacroVolumeValues, usevMPF
+USE MOD_Particle_Vars           ,ONLY: PEM, PartState, Species,WriteMacroVolumeValues, usevMPF
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens!,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength
 USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator

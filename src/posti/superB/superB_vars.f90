@@ -96,7 +96,7 @@ TYPE tPermanentMagnetInfo
   REAL                  :: Magnetisation(3)                     !< Magnetisation vector in [A/m]
   REAL                  :: Radius                               !< Radius in [m] for sphere, cylinder, conic magnets
   REAL                  :: HeightVector(3)                      !< Height vector [m] for cylinder, conic magnets
-  REAL                  :: Radius2                              !< Second radius for conic magnets
+  REAL                  :: Radius2                              !< Second radius for conic magnets or inner radius for hollow cylinders
 END TYPE tPermanentMagnetInfo
 
 TYPE(tPermanentMagnetInfo),ALLOCATABLE :: PermanentMagnetInfo(:)!< Container for the permanent magnet info [1:NumOfPermanentMagnets]
