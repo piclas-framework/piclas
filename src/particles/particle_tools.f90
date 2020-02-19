@@ -29,10 +29,6 @@ INTERFACE VeloFromDistribution
   MODULE PROCEDURE VeloFromDistribution
 END INTERFACE
 
-INTERFACE DiceDeflectedVelocityVector
-  MODULE PROCEDURE DiceDeflectedVelocityVector
-END INTERFACE
-
 INTERFACE DiceUnitVector
   MODULE PROCEDURE DiceUnitVector
 END INTERFACE
@@ -81,7 +77,6 @@ END INTERFACE
 PUBLIC :: LIQUIDEVAP,LIQUIDREFL,ALPHALIQUID,BETALIQUID,TSURUTACONDENSCOEFF
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, isChargedParticle
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle
-PUBLIC :: DiceDeflectedVelocityVector
 !===================================================================================================================================
 
 CONTAINS
@@ -180,82 +175,6 @@ CALL LBPauseTime(LB_UNFP,tLBStart)
   RETURN
 END SUBROUTINE UpdateNextFreePosition
 
-FUNCTION DiceDeflectedVelocityVector(cRela2,alphaVSS,ur,vr,wr)
-!===================================================================================================================================
-!> Calculation of post collision velocity vector
-!>
-!> Calculates deflection angle and resulting deflection relative velocity vector including the coordinate transformation
-!> from the reduced mass system back to the COM frame - see Bird 1994 p.36
-!> VHS: isotropic    scattering vector for alphaVSS = 1
-!> VSS: anisotropic  scattering vector     alphaVSS e [1,2] see collision parameters in dsmc_init for sources
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-  USE MOD_Globals_Vars,      ONLY : Pi
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  REAL,INTENT(IN)            :: cRela2                 ! squared relative velocity of particle pair for scaling
-  REAL,INTENT(IN)            :: alphaVSS               ! Variable Soft Sphere scattering exponent
-  REAL,INTENT(IN), OPTIONAL  :: ur, vr, wr             ! pre-collision relative velocity cRela=(/ur,vr,wr/) for transformation
-
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-  REAL                       :: DiceDeflectedVelocityVector(3) ! post-collision relative velocity vector cRela*
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
- REAL                        :: cRela,CRelaTrafo               ! absolute value of pre-coll relative velocity abs(cRela), Bird1994 (2.3),(2.8)
- REAL                        :: rRan, rotAngle, cos_scatAngle, sin_scatAngle
- REAL,DIMENSION(3,3)         :: trafoMatrix
-!===================================================================================================================================
-
-IF (alphaVSS.GT.1) THEN ! VSS
-  cRela = SQRT ( cRela2 )  ! absolute value of post-collision relative velocity
-
-  CALL RANDOM_NUMBER(rRan) ! rRan = (b / d) ^ 2  : dice impact parameter b to distance d relation in y-direction
-                           ! 0                   : frontal collision
-                           ! 1                   : brush without change of direction
-
-  cos_scatAngle = 2. * rRan ** ( 1. / alphaVSS ) - 1. ! deflection x-component in collision plane  (chi e [-1,1], away from center)
-  sin_scatAngle = SQRT ( 1. - cos_scatAngle ** 2. )   ! deflection y-component in collision plane  (                      -of-mass)
-
-  ! transfer 2D collision vector to 3D space through relation of collision to reference plane
-  CALL RANDOM_NUMBER(rRan) ! dice rotation angle between collision and reference plane :  epsilon e [0,2*pi]
-  rotAngle = 2. * Pi * rRan
-
-  DiceDeflectedVelocityVector(1) = cRela * cos_scatAngle                 ! x-component in collision plane
-  DiceDeflectedVelocityVector(2) = cRela * sin_scatAngle * COS(rotAngle) ! y-component between collision and reference plane
-  DiceDeflectedVelocityVector(3) = cRela * sin_scatAngle * SIN(rotAngle) ! z-component between collision and reference plane
-
-! !ALTER ORDER JUST FOR DEBUGGING: NOT VALID FOR VSS !to be solved
-!  DiceDeflectedVelocityVector(3) = - cRela * cos_scatAngle
-!  DiceDeflectedVelocityVector(1) = cRela * sin_scatAngle * COS(rotAngle)
-!  DiceDeflectedVelocityVector(2) = cRela * sin_scatAngle * SIN(rotAngle)
-! for VSS the direction of the velocity is no longer negligible
-  IF ((vr.NE.0.) .AND. (wr.NE.0.)) THEN ! if no radial component: collision plane and laboratory identical-> no transformation
-    CrelaTrafo = SQRT(ur**2 + vr**2 + wr**2)
-    ! axis transformation from reduced- mass frame back to center-of-mass frame
-    ! via Bird1994 p.36 (2.22)=A*b MATMUL for performance reasons
-!    WRITE(*,*) "Entered transformation" !to be solved
-    ! initializing rotation matrix
-    trafoMatrix(1,1) = ur / cRelaTrafo
-    trafoMatrix(1,2) = 0
-    trafoMatrix(1,3) = SQRT (vr ** 2 + wr ** 2) / cRelaTrafo
-    trafoMatrix(2,1) = vr / cRelaTrafo
-    trafoMatrix(2,2) = wr / SQRT (vr ** 2 + wr ** 2)
-    trafoMatrix(2,3) = - ur * vr / (cRelaTrafo * SQRT (vr ** 2 + wr ** 2))
-    trafoMatrix(3,1) = wr / cRelaTrafo
-    trafoMatrix(3,2) = - vr / SQRT (vr ** 2 + wr ** 2)
-    trafoMatrix(3,3) = - ur * wr / (cRelaTrafo * SQRT (vr ** 2 + wr ** 2))
-
-    ! relative post collision v elocity transformation from reduced mass to COM frame
-    DiceDeflectedVelocityVector(:) = MATMUL (trafoMatrix , DiceDeflectedVelocityVector)
-  END IF ! transformation
-ELSE
-  DiceDeflectedVelocityVector(:) = CRela * DiceUnitVector()
-END IF ! VSS
-
-END FUNCTION DiceDeflectedVelocityVector
 
 FUNCTION DiceUnitVector()
 !===================================================================================================================================

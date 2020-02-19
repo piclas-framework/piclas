@@ -436,6 +436,7 @@ USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPic
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, PartBound
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_DSMC_SpecXSec          ,ONLY: MCC_Init
+USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -450,6 +451,7 @@ INTEGER               :: iColl, jColl, pColl, nCollision ! for collision paramet
 REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
 REAL                  :: BGGasEVib
 INTEGER               :: currentBC, ElemID, iSide, BCSideID, VarNum
+LOGICAL               :: PostCollPointerSet
 #if ( PP_TimeDiscMethod ==42 )
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=64)     :: DebugElectronicStateFilename
@@ -712,6 +714,20 @@ END IF
         ,'ERROR: Check set parameter Part-Collision'//TRIM(hilf)//'-alphaVSS must not be lower 1 or greater 2')
       END IF ! alphaVSS parameter check
     END DO ! iColl=nColl
+
+    PostCollVec => DiceVelocityVector4Coll
+    PostCollPointerSet = .FALSE.
+    DO iSpec = 1 , nSpecies
+      DO jSpec = iSpec , nSpecies
+        IF ( CollInf%alphaVSS(iSpec,jSpec).GT.1 ) THEN
+          PostCollVec => DiceDeflectedVelocityVector4Coll
+          PostCollPointerSet = .TRUE.
+          EXIT
+        END IF
+      END DO ! jSpec = nSpecies
+      IF (PostCollPointerSet) EXIT
+    END DO ! iSpec = nSpecies
+
     IF(CollInf%crossSectionConstantMode.EQ.0) THEN ! one omega for all - DEFAULT
       CollInf%omegaLaux(:,:)=CollInf%omegaLaux(1,1)
     END IF ! CollInf%crossSectionConstantMode=0

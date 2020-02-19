@@ -419,7 +419,7 @@ USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosR
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange, CalcXiElec
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
 USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiTotalEqui
-USE MOD_part_tools             ,ONLY: DiceDeflectedVelocityVector
+USE MOD_DSMC_CollisVec         ,ONLY: PostCollVec
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_part_tools             ,ONLY: GetParticleWeight
@@ -448,7 +448,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
   REAL, ALLOCATABLE             :: Xi_Vib1(:), Xi_Vib2(:), Xi_Vib3(:), XiVibPart(:,:)
   REAL                          :: VxPseuMolec, VyPseuMolec, VzPseuMolec
   REAL                          :: Weight1, Weight2, Weight3, WeightProd, NumWeightEduct, NumWeightProd, ReducedMass
-  REAL                          :: cRelaOld(3),cRelaNew(3) !relative velocity
+  REAL                          :: cRelaNew(3) !relative velocity
 #ifdef CODE_ANALYZE
   REAL                          :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
   INTEGER                       :: iMom, iMomDim
@@ -878,17 +878,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
 
     Coll_pData(iPair)%CRela2 = 2 * ERel_React1_React2 / MassRed
 
-    IF (CollInf%alphaVSS(ProductReac(1) , ProductReac(2)).GT.1) THEN
-      ! Calculate relative velocites and the squared velocities
-      cRelaOld(1:3) = PartState(4:6,React1Inx) - PartState(4:6,React2Inx)
-
-      ! Calculation of post collision velocity vector in reference frame and retransformation to center-of-mass frame
-      cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 ,CollInf%alphaVSS(ProductReac(1) , ProductReac(2)) &
-                                                 ,cRelaOld(1),cRelaOld(2),cRelaOld(3))
-    ELSE ! alphaVSS .LE. 1
-      ! Calculation of post collision velocity vector in reference frame
-      cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2,CollInf%alphaVSS(ProductReac(1) , ProductReac(2)))
-    END IF  ! alphaVSS
+    cRelaNew(1:3) = PostCollVec(iPair)
 
     DSMC_RHS(1,React2Inx) = VeloMx - FracMassCent1*cRelaNew(1) - PartState(4,React2Inx)
     DSMC_RHS(2,React2Inx) = VeloMy - FracMassCent1*cRelaNew(2) - PartState(5,React2Inx)
@@ -925,18 +915,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
 
     Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / ReducedMass
 
-    IF (CollInf%alphaVSS(ProductReac(1) , ProductReac(3)).GT.1) THEN
-      ! Calculate relative velocites and the squared velocities
-      cRelaOld(1:3) = PartState(4:6,React1Inx) - PartState(4:6,React3Inx)
-
-      ! Calculation of post collision velocity vector in reference frame and retransformation to center-of-mass frame
-      cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 ,CollInf%alphaVSS(ProductReac(1) , ProductReac(3)) &
-                                                 ,cRelaOld(1),cRelaOld(2),cRelaOld(3))
-
-    ELSE ! alphaVSS .LE. 1
-      ! Calculation of post collision velocity vector in reference frame
-      cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2,CollInf%alphaVSS(ProductReac(1) , ProductReac(3)))
-    END IF  ! alphaVSS
+    cRelaNew(1:3) = PostCollVec(iPair)
 
     !deltaV particle 1
     DSMC_RHS(1,React1Inx) = VxPseuMolec + FracMassCent2*cRelaNew(1) - PartState(4,React1Inx)
@@ -1014,19 +993,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     END IF
 
     Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / ReducedMass
-
-    IF (CollInf%alphaVSS(ProductReac(1) , ProductReac(2)).GT.1) THEN
-      ! Calculate relative velocites and the squared velocities
-      cRelaOld(1:3) = PartState(4:6,React1Inx) - PartState(4:6,React2Inx)
-
-      ! Calculation of post collision velocity vector in reference frame and retransformation to center-of-mass frame
-      cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 ,CollInf%alphaVSS(ProductReac(1) , ProductReac(2)) &
-                                                 ,cRelaOld(1),cRelaOld(2),cRelaOld(3))
-
-    ELSE ! alphaVSS .LE. 1
-      ! Calculation of post collision velocity vector in reference frame
-      cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2,CollInf%alphaVSS(ProductReac(1) , ProductReac(2)))
-    END IF  ! alphaVSS
+    cRelaNew(1:3) = PostCollVec(iPair)
 
     !deltaV particle 1
     DSMC_RHS(1,React1Inx) = VxPseuMolec + FracMassCent2*cRelaNew(1) - PartState(4,React1Inx)

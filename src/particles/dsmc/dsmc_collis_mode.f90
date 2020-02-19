@@ -155,7 +155,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, RadialWeighting
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, VarTimeStep, Species
-  USE MOD_part_tools,             ONLY : DiceDeflectedVelocityVector
+  USE MOD_DSMC_CollisVec,         ONLY : PostCollVec
   USE MOD_part_tools              ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
   USE MOD_Globals                ,ONLY: Abort
@@ -173,7 +173,6 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
 ! LOCAL VARIABLES
   REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
-  REAL                          :: cRelaOld(3)                      ! pre-collision relative velocities
   REAL                          :: cRelaNew(3)                      ! post-collision relative velocities
   INTEGER                       :: iPart1, iPart2, iSpec1, iSpec2   ! Colliding particles 1 and 2, their species
 #ifdef CODE_ANALYZE
@@ -207,19 +206,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
   VeloMy = FracMassCent1 * PartState(5,iPart1) + FracMassCent2 * PartState(5,iPart2)
   VeloMz = FracMassCent1 * PartState(6,iPart1) + FracMassCent2 * PartState(6,iPart2)
 
-  IF (CollInf%alphaVSS(iSpec1,iSpec2).GT.1) THEN
-    ! Calculation of relative velocities
-    cRelaOld(1:3) = PartState(4:6,iPart1) - PartState(4:6,iPart2)
-
-    ! Calculation of post collision velocity vector in reference frame and retransformation to center-of-mass frame
-    cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 ,CollInf%alphaVSS(iSpec1,iSpec2) &
-                                               ,cRelaOld(1),cRelaOld(2),cRelaOld(3))
-  ELSE ! alphaVSS .LE. 1
-    ! Calculation of post collision velocity vector in reference frame and retransformation to center-of-mass frame
-    cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2,CollInf%alphaVSS(iSpec1,iSpec2))
-  END IF  ! alphaVSS
-
-  !    WRITE(*,*) "DiceDeflectedVector in Elastic ",cRelaNew/sqrt(Coll_pData(iPair)%cRela2) !to be solved
+  cRelaNew(1:3) = PostCollVec(iPair)
 
  ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
   DSMC_RHS(1,iPart1) = VeloMx + FracMassCent2 * cRelaNew(1) - PartState(4,iPart1)
@@ -462,7 +449,7 @@ USE MOD_Particle_Vars        ,ONLY: PartSpecies, PartState, Species, VarTimeStep
 USE MOD_DSMC_ElectronicModel ,ONLY: ElectronicEnergyExchange, TVEEnergyExchange
 USE MOD_DSMC_PolyAtomicModel ,ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
 USE MOD_DSMC_Relaxation      ,ONLY: DSMC_VibRelaxDiatomic
-USE MOD_part_tools           ,ONLY: DiceDeflectedVelocityVector
+USE MOD_DSMC_CollisVec       ,ONLY: PostCollVec
 USE MOD_part_tools           ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
 USE MOD_Globals              ,ONLY: Abort
@@ -481,7 +468,6 @@ USE MOD_Globals              ,ONLY: unit_stdout,myrank
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL (KIND=8)                 :: iRan                             ! Random number
   LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2   ! Check whether rot or vib relax is performed
-  REAL                          :: cRelaOld(3)                      ! pre-collision relative velocities
   REAL (KIND=8)                 :: Xi_rel, Xi, FakXi                ! Factors of DOF
   REAL                          :: cRelaNew(3)                       ! random relative velocity
   REAL                          :: ReducedMass
@@ -726,16 +712,7 @@ USE MOD_Globals              ,ONLY: unit_stdout,myrank
   VeloMz = FracMassCent1 * PartState(6,iPart1) + FracMassCent2 * PartState(6,iPart2)
 
   Coll_pData(iPair)%cRela2 = 2 * Coll_pData(iPair)%Ec/ReducedMass
-  IF (CollInf%alphaVSS(iSpec1,iSpec2).GT.1) THEN
-    !Calculate relative velocities and new squared velocity
-    cRelaOld(1:3) = PartState(4:6,iPart1) - PartState(4:6,iPart2)
-    ! Calculation of post collision velocity vector in reference frame and retransformation to center-of-mass frame
-    cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 ,CollInf%alphaVSS(iSpec1,iSpec2) &
-                                               ,cRelaOld(1),cRelaOld(2),cRelaOld(3))
-  ELSE ! alphaVSS .LE. 1
-    ! Calculation of post collision velocity vector in reference frame
-    cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2,CollInf%alphaVSS(iSpec1,iSpec2))
-  END IF  ! alphaVSS
+  cRelaNew(1:3) = PostCollVec(iPair)
 
 !  WRITE(*,*) "DiceDeflectedVector in Relax LauxTHSO",cRelaNew/sqrt(Coll_pData(iPair)%cRela2) !to be solved
 
@@ -799,11 +776,11 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, PEM
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly, DSMC_VibRelaxPolySingle
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
-  USE MOD_part_tools,             ONLY : DiceDeflectedVelocityVector
+  USE MOD_DSMC_CollisVec,         ONLY : PostCollVec
 #ifdef CODE_ANALYZE
-  USE MOD_Globals                ,ONLY: unit_stdout,myrank
-  USE MOD_Particle_Vars          ,ONLY: Species
-  USE MOD_part_tools             ,ONLY: GetParticleWeight
+  USE MOD_Globals                ,ONLY : unit_stdout,myrank
+  USE MOD_Particle_Vars          ,ONLY : Species
+  USE MOD_part_tools             ,ONLY : GetParticleWeight
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -825,7 +802,6 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   REAL                          :: ProbFrac1, ProbFrac2, ProbFrac3, ProbFrac4   ! probability-fractions according to Zhang
   REAL                          :: ProbRot1, ProbRot2, ProbVib1, ProbVib2       ! probabilities for rot-/vib-relax for part 1/2
   REAL                          :: BLCorrFact, ProbRotMax1, ProbRotMax2         ! Correction factor for BL-redistribution of energy
-  REAL                          :: cRelaOld(3)                                  ! pre-collision relative velocities
   INTEGER                       :: iPart1, iPart2, iSpec1, iSpec2               ! Colliding particles 1 and 2 and their species
 #ifdef CODE_ANALYZE
   REAL                          :: Energy_old,Energy_new
@@ -1078,20 +1054,7 @@ __STAMP__&
 
   Coll_pData(iPair)%cRela2 = 2. * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
 
-  IF (CollInf%alphaVSS(iSpec1,iSpec2).GT.1) THEN
-    ! Calculate relative velocites and the squared velocities
-    cRelaOld(1:3) = PartState(4:6,iPart1) - PartState(4:6,iPart2)
-
-    ! Calculation of post collision velocity vector in reference frame and retransformation to center-of-mass frame
-    cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2 ,CollInf%alphaVSS(iSpec1,iSpec2) &
-                                               ,cRelaOld(1),cRelaOld(2),cRelaOld(3))
-
-  ELSE ! alphaVSS .LE. 1
-    ! Calculation of post collision velocity vector in reference frame
-    cRelaNew(1:3) = DiceDeflectedVelocityVector(Coll_pData(iPair)%cRela2,CollInf%alphaVSS(iSpec1,iSpec2))
-  END IF  ! alphaVSS
-
-!WRITE(*,*) "DiceDeflectedVector in Relax Gimelshein",cRelaNew/sqrt(Coll_pData(iPair)%cRela2) !to be solved
+  cRelaNew(1:3) = PostCollVec(iPair)
 
   ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
   DSMC_RHS(1,iPart1) = VeloMx + FracMassCent2*cRelaNew(1) - PartState(4,iPart1)
@@ -3016,6 +2979,7 @@ SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
   END IF
 
 END SUBROUTINE DSMC_calc_var_P_vib
+
 
 !--------------------------------------------------------------------------------------------------!
 END MODULE MOD_DSMC_Collis
