@@ -4154,7 +4154,6 @@ SUBROUTINE TimeStepPoissonByBorisLeapfrog()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR
-USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
@@ -4167,7 +4166,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell
-USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
+USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies
 USE MOD_Particle_Analyze       ,ONLY: CalcCoupledPowerPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
@@ -4207,7 +4206,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                    :: iPart
-REAL                       :: RandVal, dtFrac
+REAL                       :: dtFrac
 #if USE_LOADBALANCE
 REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
