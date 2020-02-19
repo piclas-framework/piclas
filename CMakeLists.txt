@@ -95,8 +95,8 @@ SUBDIRLIST(EQNSYSTEMS ${CMAKE_CURRENT_SOURCE_DIR}/src/equations/)
 OPTION(PICLAS_PARTICLES "Particles" ON)
 SET(PICLAS_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
 SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
-                                                          Boris-Leapfrog
                                                           Leapfrog
+                                                          Boris-Leapfrog
                                                           RK3
                                                           RK4
                                                           RK14
