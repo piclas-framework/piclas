@@ -4161,7 +4161,7 @@ SUBROUTINE TimeStepPoissonByBorisLeapfrog()
 ! Boris-Leapfrog (508) -push with HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR
+USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
@@ -4315,7 +4315,7 @@ IF (time.GE.DelayTime) THEN
         v_minus = PartState(4:6,iPart) + c_1 * FieldAtParticle(1:3,iPart)
 
         !-- t_vec
-        t_vec = TAN(c_1) * UNITVECTOR(FieldAtParticle(4:6,iPart))
+        t_vec = TAN(c_1*VECNORM(FieldAtParticle(4:6,iPart))) * UNITVECTOR(FieldAtParticle(4:6,iPart))
 
         !-- v_prime = v_minus + v_minus x (q*B/m)*dt/2
         v_prime = v_minus + CROSS(v_minus, t_vec )
