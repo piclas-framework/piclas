@@ -74,6 +74,8 @@ END IF
 
 DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
+    IF (BGGas%NumberDensity(iSpec).EQ.0.) CALL abort(__STAMP__&
+                                          ,'ERROR: NumberDensity is zero but must be defined for a background gas!')
     IF (Species(iSpec)%NumberOfInits.NE.0 .OR. Species(iSpec)%StartnumberOfInits.NE.0) &
       CALL abort(&
         __STAMP__&
@@ -114,15 +116,14 @@ DO iSpec = 1, nSpecies
   END IF
 END DO
 
-IF (BGGas%NumberDensity.EQ.0.) CALL abort(__STAMP__&
-                                          ,'ERROR: BGGas%NumberDensity is zero but must be defined for a background gas!')
-
 ! 2.) Allocation
 ALLOCATE(BGGas%PairingPartner(PDM%maxParticleNumber))
 BGGas%PairingPartner = 0
-ALLOCATE(BGGas%MappingBGSpecToSpec(BGGas%NumberOfSpecies))
-SpeciesDensTemp(1:nSpecies) = BGGas%SpeciesFraction(1:nSpecies)
-DEALLOCATE(BGGas%SpeciesFraction)
+ALLOCATE(BGGas%MapSpecToBGSpec(nSpecies))
+BGGas%MapSpecToBGSpec = 0
+SpeciesDensTemp(1:nSpecies) = BGGas%NumberDensity(1:nSpecies)
+DEALLOCATE(BGGas%NumberDensity)
+ALLOCATE(BGGas%NumberDensity(BGGas%NumberOfSpecies))
 ALLOCATE(BGGas%SpeciesFraction(BGGas%NumberOfSpecies))
 
 ! 3.) Create a mapping of background species to regular species and calculate the molar fraction
@@ -130,8 +131,9 @@ counterSpec = 0
 DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
     counterSpec = counterSpec + 1
-    BGGas%MappingBGSpecToSpec(counterSpec) = iSpec
-    BGGas%SpeciesFraction(counterSpec) = SpeciesDensTemp(iSpec)
+    BGGas%MapSpecToBGSpec(iSpec) = counterSpec
+    BGGas%NumberDensity(counterSpec) = SpeciesDensTemp(iSpec)
+    BGGas%SpeciesFraction(counterSpec) = BGGas%NumberDensity(counterSpec) / SUM(SpeciesDensTemp)
     IF(counterSpec.GT.BGGas%NumberOfSpecies) THEN
       CALL Abort(&
         __STAMP__&
@@ -139,8 +141,6 @@ DO iSpec = 1, nSpecies
     END IF
   END IF
 END DO
-
-BGGas%SpeciesFraction = BGGas%SpeciesFraction / BGGas%NumberDensity
 
 END SUBROUTINE BGGas_Initialize
 
@@ -150,8 +150,9 @@ INTEGER FUNCTION BGGas_GetSpecies()
 !> Get a species index of the background gas by randomly choosing a species based on the molar fraction
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort
-USE MOD_DSMC_Vars              ,ONLY: BGGas
+USE MOD_Globals               ,ONLY: Abort
+USE MOD_Particle_Vars         ,ONLY: nSpecies
+USE MOD_DSMC_Vars             ,ONLY: BGGas
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -161,20 +162,22 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL              :: iRan
-INTEGER           :: bgSpec
+INTEGER           :: iSpec
 !===================================================================================================================================
 
-IF(BGGas%NumberOfSpecies.GT.1) THEN
-  CALL RANDOM_NUMBER(iRan)
-  DO bgSpec = 1, BGGas%NumberOfSpecies
-    IF(SUM(BGGas%SpeciesFraction(1:bgSpec)).GT.iRan) THEN
-      BGGas_GetSpecies = BGGas%MappingBGSpecToSpec(bgSpec)
-      RETURN
+CALL RANDOM_NUMBER(iRan)
+DO iSpec = 1, nSpecies
+  IF(BGGas%BackgroundSpecies(iSpec)) THEN
+    IF(BGGas%NumberOfSpecies.GT.1) THEN
+      IF(SUM(BGGas%SpeciesFraction(1:BGGas%MapSpecToBGSpec(iSpec))).GT.iRan) THEN
+        BGGas_GetSpecies = iSpec
+        RETURN
+      END IF
+    ELSE
+      BGGas_GetSpecies = iSpec
     END IF
-  END DO
-ELSE
-  BGGas_GetSpecies = BGGas%MappingBGSpecToSpec(1)
-END IF
+  END IF
+END DO
 
 END FUNCTION BGGas_GetSpecies
 
@@ -268,7 +271,7 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: nPair, iPair, iPart, iLoop, nPart, iSpec, bgSpec
+  INTEGER                       :: nPair, iPair, iPart, iLoop, nPart, iSpec
   INTEGER                       :: cSpec1, cSpec2, iCase
 !===================================================================================================================================
   nPart = PEM%pNumber(iElem)
@@ -313,18 +316,20 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
     ! Instead of calculating the translation temperature, simply the input value of the BG gas is taken. If the other species have
     ! an impact on the temperature, a background gas should not be utilized in the first place.
     DSMC%InstantTransTemp(nSpecies+1) = 0.
-    DO bgSpec = 1, BGGas%NumberOfSpecies
-      iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-      DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies+1) &
-                                          + BGGas%SpeciesFraction(bgSpec) * Species(iSpec)%Init(0)%MWTemperatureIC
+    DO iSpec = 1, nSpecies
+      IF(BGGas%BackgroundSpecies(iSpec)) THEN
+        DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies+1) &
+                                    + BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec)) * Species(iSpec)%Init(0)%MWTemperatureIC
+      END IF
     END DO
     IF(SelectionProc.EQ.2) CALL CalcGammaVib()
   END IF
 
-  DO bgSpec = 1, BGGas%NumberOfSpecies
-    iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-    CollInf%Coll_SpecPartNum(iSpec) = BGGas%SpeciesFraction(bgSpec) * BGGas%NumberDensity * GEO%Volume(iElem)      &
-                                              / Species(iSpec)%MacroParticleFactor
+  DO iSpec = 1, nSpecies
+    IF(BGGas%BackgroundSpecies(iSpec)) THEN
+      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec)) * GEO%Volume(iElem) &
+                                        / Species(iSpec)%MacroParticleFactor
+    END IF
   END DO
 
   DO iPair = 1, nPair
@@ -360,7 +365,7 @@ SUBROUTINE MCC_pairing_bggas(iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
@@ -379,8 +384,8 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, PositionNbr, PairCount, RandomPart, bgSpec
-INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNum(nSpecies), SpecPairNumCounter(nSpecies), SpecPartNum(nSpecies)
+INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, jSpec, bgSpec, PositionNbr, PairCount, RandomPart
+INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNum(nSpecies), SpecPartNum(nSpecies), SpecPairNumTemp
 INTEGER,ALLOCATABLE           :: iPartIndex(:), PairingPartner(:), iPartIndexSpec(:,:)
 REAL                          :: iRan, ProbRest
 !===================================================================================================================================
@@ -395,7 +400,6 @@ ALLOCATE(iPartIndexSpec(nPart,nSpecies))
 iPartIndexSpec = 0
 
 SpecPairNum = 0
-SpecPairNumCounter = 0
 SpecPartNum = 0
 
 IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
@@ -410,23 +414,33 @@ DO iLoop = 1, nPart
   IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(1,iPart)
   ! Create particle index list for pairing
   iPartIndex(iLoop) = iPart
-  iPartIndexSpec(SpecPartNum(iSpec) ,iSpec) = iPart
+  iPartIndexSpec(SpecPartNum(iSpec),iSpec) = iPart
   iPart = PEM%pNext(iPart)
 END DO
 
 ! 2.) Determining the total number of pairs
 DO iSpec = 1,nSpecies
-  IF(SpecDSMC(iSpec)%UseCollXSec) THEN
-    ! Number of pairs to check is calculated with a constant collision probability at the maximum collision frequency
-    SpecPairNum(iSpec) = INT(CollInf%Coll_SpecPartNum(iSpec)*SpecDSMC(iSpec)%ProbNull)
-    ProbRest = CollInf%Coll_SpecPartNum(iSpec)*SpecDSMC(iSpec)%ProbNull - REAL(SpecPairNum(iSpec))
-    CALL RANDOM_NUMBER(iRan)
-    IF (ProbRest.GT.iRan) SpecPairNum(iSpec) = SpecPairNum(iSpec) + 1
-    MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNum(iSpec)
-  ELSE
-    ! Regular background gas creates pairs for every particle
-    SpecPairNum(iSpec) = SpecPartNum(iSpec)
-    MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNum(iSpec)
+  IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN    ! Loop over all non-background species
+    DO jSpec = 1, nSpecies
+      IF(BGGas%BackgroundSpecies(jSpec)) THEN     ! Loop over all background species
+        bgSpec = BGGas%MapSpecToBGSpec(jSpec)
+        IF(SpecDSMC(iSpec)%UseCollXSec) THEN
+          ! MCC: The maximum number of pairs to check is collision pair specific and depends on the null collision probability
+          SpecPairNumTemp = INT(BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull)
+        ELSE
+          ! Regular: The maximum number of pairs corresponds to the particle number
+          SpecPairNumTemp = INT(BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec))
+        END IF
+        ! Randomly deciding whether an additional pair is added based on the difference between the real and integer value
+        ProbRest = BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull &
+                    - REAL(SpecPairNumTemp)
+        CALL RANDOM_NUMBER(iRan)
+        IF (ProbRest.GT.iRan) SpecPairNumTemp = SpecPairNumTemp + 1
+        ! Adding the number of pairs to the species-specific number and the cell total
+        SpecPairNum(iSpec) = SpecPairNum(iSpec) + SpecPairNumTemp
+        MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNumTemp
+      END IF
+    END DO
   END IF
 END DO
 
@@ -452,6 +466,7 @@ __STAMP__&
   IF(DoRefMapping)THEN ! here Nearst-GP is missing
     PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,iPart)
   END IF
+  ! Get the species of the background gas particle (for a mixture, the species depends on the species composition)
   iSpec = BGGas_GetSpecies()
   PartSpecies(PositionNbr) = iSpec
   IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
@@ -490,20 +505,22 @@ DO iSpec = 1, nSpecies
   END DO
 END DO
 
-DO bgSpec = 1, BGGas%NumberOfSpecies
-  iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-  CollInf%Coll_SpecPartNum(iSpec) = BGGas%SpeciesFraction(bgSpec) * BGGas%NumberDensity * GEO%Volume(iElem)      &
-                                            / Species(iSpec)%MacroParticleFactor
+DO iSpec = 1, nSpecies
+  IF(BGGas%BackgroundSpecies(iSpec)) THEN
+    CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec)) * GEO%Volume(iElem) &
+                                      / Species(iSpec)%MacroParticleFactor
+  END IF
 END DO
 
 IF(DSMC%CalcQualityFactors) THEN
   ! Instead of calculating the translation temperature, simply the input value of the BG gas is taken. If the other species have
   ! an impact on the temperature, a background gas should not be utilized in the first place.
   DSMC%InstantTransTemp(nSpecies+1) = 0.
-  DO bgSpec = 1, BGGas%NumberOfSpecies
-    iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-    DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies+1) &
-                                        + BGGas%SpeciesFraction(bgSpec) * Species(iSpec)%Init(0)%MWTemperatureIC
+  DO iSpec = 1, nSpecies
+    IF(BGGas%BackgroundSpecies(iSpec)) THEN
+      DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies+1) &
+                                    + BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec)) * Species(iSpec)%Init(0)%MWTemperatureIC
+    END IF
   END DO
 END IF
 

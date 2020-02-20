@@ -667,7 +667,7 @@ REAL,INTENT(IN)                 :: Time
 ! LOCAL VARIABLES
 LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, iSpec, OutputCounter, iPBC, iSF, MaxSurfaceFluxBCs, bgSpec
+INTEGER             :: unit_index, iSpec, OutputCounter, iPBC, iSF, MaxSurfaceFluxBCs
 INTEGER(KIND=8)     :: SimNumSpec(nSpecAnalyze)
 REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
@@ -1100,11 +1100,12 @@ INTEGER             :: dir
     IF(BGGas%NumberOfSpecies.GT.0) THEN
       ! Calculation of mean free path and reactions rates requires the number of particles the background species would have if
       ! actually inserted at the chosen weighting factor, determined here and used later also for the ReacRates subroutine
-      DO bgSpec = 1,BGGas%NumberOfSpecies
-        iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-        NumSpecTmp(iSpec) = (BGGas%SpeciesFraction(bgSpec)*BGGas%NumberDensity*GEO%MeshVolume/Species(iSpec)%MacroParticleFactor)
-        IF(nSpecAnalyze.GT.1)THEN
-          NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze)+NumSpecTmp(iSpec)
+      DO iSpec = 1, nSpecies
+        IF(BGGas%BackgroundSpecies(iSpec)) THEN
+          NumSpecTmp(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))*GEO%MeshVolume/Species(iSpec)%MacroParticleFactor
+          IF(nSpecAnalyze.GT.1) THEN
+            NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze) + NumSpecTmp(iSpec)
+          END IF
         END IF
       END DO
     END IF
@@ -1989,7 +1990,7 @@ REAL,INTENT(OUT)                   :: NumSpec(nSpecAnalyze)
 INTEGER(KIND=8),INTENT(OUT)        :: SimNumSpec(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                            :: iPart, iSpec, bgSpec
+INTEGER                            :: iPart, iSpec
 !===================================================================================================================================
 
 NumSpec    = 0.
@@ -2003,10 +2004,11 @@ DO iPart=1,PDM%ParticleVecLength
   END IF
 END DO
 IF(BGGas%NumberOfSpecies.GT.0) THEN
-  DO bgSpec = 1,BGGas%NumberOfSpecies
-    iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-    NumSpec(iSpec) = 0.
-    SimNumSpec(iSpec) = 0
+  DO iSpec = 1, nSpecies
+    IF(BGGas%BackgroundSpecies(iSpec)) THEN
+      NumSpec(iSpec) = 0.
+      SimNumSpec(iSpec) = 0
+    END IF
   END DO
 END IF
 IF(nSpecAnalyze.GT.1)THEN
@@ -2052,7 +2054,7 @@ REAL,INTENT(IN)                   :: NumSpec(nSpecAnalyze)
 REAL,INTENT(OUT)                  :: NumDens(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: bgSpec, iSpec
+INTEGER                           :: iSpec
 !===================================================================================================================================
 
 IF (PartMPI%MPIRoot) THEN
@@ -2063,9 +2065,10 @@ IF (PartMPI%MPIRoot) THEN
   END IF
 
   IF(BGGas%NumberOfSpecies.GT.0) THEN
-    DO bgSpec = 1,BGGas%NumberOfSpecies
-      iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-      NumDens(iSpec) = BGGas%SpeciesFraction(bgSpec)*BGGas%NumberDensity
+    DO iSpec = 1, nSpecies
+      IF(BGGas%BackgroundSpecies(iSpec)) THEN
+        NumDens(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))
+      END IF
     END DO
   END IF
 
