@@ -59,6 +59,10 @@ CALL prms%CreateIntOption(    'Particles-ESBGK-Model',              'Select samp
                                                                     '1: Approximative\n'//&
                                                                     '2: Exact\n'//&
                                                                     '3: Metropolis-Hastings', '1')
+CALL prms%CreateIntOption(    'Particles-BGK-MixtureModel',         'Select model for mixture transport properties:\n'//&
+                                                                    '1: Wilke\n'//&
+                                                                    '2: Brokaw\n'//&
+                                                                    '3: Collision Integrals Kestin', '1')
 CALL prms%CreateIntOption(    'Particles-SBGK-EnergyConsMethod',    'Select the SBGK energy conservation scheme:\n'//&
                                                                     '1: Method includes all particles for energy conservation\n'//&
                                                                     '2: Number of particles included in the conservation scheme '//&
@@ -125,6 +129,7 @@ DO iSpec=1, nSpecies
 END DO
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
+BGKMixtureModel = GETINT('Particles-BGK-MixtureModel')
 ! ESBGK options
 ESBGKModel = GETINT('Particles-ESBGK-Model')         ! 1: Approximative, 2: Exact, 3: MetropolisHastings
 ! Shakov BGK options

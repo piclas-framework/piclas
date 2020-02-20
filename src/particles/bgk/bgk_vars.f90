@@ -31,7 +31,8 @@ END TYPE tSpeciesBGK
 TYPE(tSpeciesBGK), ALLOCATABLE                 :: SpecBGK(:)                  ! Species DSMC params (nSpec)
 LOGICAL                                        :: DoBGKCellAdaptation
 INTEGER                                        :: BGKCollModel                  ! 1 ES-BGK; 2 S-BGK; 3 BGK; 4 Unified
-INTEGER                                        :: ESBGKModel                    ! 1 Approx Levin; 2 Exact Solution A; 3 Metropolis
+INTEGER                                        :: ESBGKModel                    ! 1 Approx; 2 Exact Solution A; 3 Metropolis
+INTEGER                                        :: BGKMixtureModel                    ! 1 Approx; 2 Exact Solution A; 3 Metropolis
 REAL                                           :: BGKUnifiedCes
 INTEGER                                        :: BGKMinPartPerCell
 LOGICAL                                        :: BGKMovingAverage
