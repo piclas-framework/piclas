@@ -3946,6 +3946,11 @@ ASSOCIATE( iPart => 1 )
       !read*
     END SELECT
 
+    ! Set analytic velocity
+    PartStateAnalytic(4) = COS(Theta)
+    PartStateAnalytic(5) = SIN(Theta)
+    PartStateAnalytic(6) = 0.
+
     ! Optional output variables
     IF(PRESENT(alpha_out))THEN
       ASSOCIATE( dot_theta => SIN(Theta) - AnalyticInterpolationP )

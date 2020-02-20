@@ -120,7 +120,8 @@ IF(DoInterpolationAnalytic)THEN
 
   ! Calculate the initial velocity of the particle from an analytic expression: must be implemented for the different 
   ! AnalyticInterpolationType methods
-  IF(DoInterpolationAnalytic.AND.ANY((/0/).EQ.AnalyticInterpolationType))THEN
+  ! Note that for time-staggered methods, Leapfrog and Boris, the initial velocity in shifted by -dt/2 into the past
+  IF(DoInterpolationAnalytic.AND.ANY((/0,1/).EQ.AnalyticInterpolationType))THEN
     DoInitAnalyticalParticleState = .TRUE.
   ELSE
     DoInitAnalyticalParticleState = .FALSE.
@@ -1186,15 +1187,15 @@ IF(.NOT.DoInitAnalyticalParticleState) RETURN
 ! Calculate the initial velocity of the particle from an analytic expression
 DO iPart=1,PDM%ParticleVecLength
   !-- set analytic position at x(n) from analytic particle solution
-  CALL CalcAnalyticalParticleState(0.0,PartStateAnalytic)
+  CALL CalcAnalyticalParticleState(0.0, PartStateAnalytic)
   PartState(1:6,iPart) = PartStateAnalytic(1:6)
 
-  !-- Only for time-staggered methods (Leapfrog and Boris-Leapfrog:
+  !-- Only for time-staggered methods (Leapfrog and Boris-Leapfrog):
   ! Set analytic velocity at v(n-0.5) from analytic particle solution
-#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)            
-  CALL CalcAnalyticalParticleState(-dt/2.,PartStateAnalytic)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+  CALL CalcAnalyticalParticleState(-dt/2., PartStateAnalytic)
   PartState(4:6,iPart) = PartStateAnalytic(4:6)
-#endif /*(PP_TimeDiscMethod>=508) && (PP_TimeDiscMethod<=509)*/
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 
   ! Set new part to false to prevent calculation of velocity in timedisc
   PDM%IsNewPart(iPart) = .FALSE.
