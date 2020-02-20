@@ -4203,10 +4203,6 @@ USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,Partic
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Analyze       ,ONLY: CalcAnalyticalParticleState
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
-#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -1168,7 +1168,7 @@ SUBROUTINE InitAnalyticalParticleState()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType,DoInitAnalyticalParticleState
 USE MOD_Particle_Analyze       ,ONLY: CalcAnalyticalParticleState
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM
 USE MOD_TimeDisc_Vars          ,ONLY: dt
@@ -1180,6 +1180,9 @@ IMPLICIT NONE
 REAL    :: PartStateAnalytic(6)
 INTEGER :: iPart
 !===================================================================================================================================
+! Return here, if no analytical function can be used
+IF(.NOT.DoInitAnalyticalParticleState) RETURN
+
 ! Calculate the initial velocity of the particle from an analytic expression
 DO iPart=1,PDM%ParticleVecLength
   !-- set analytic position at x(n) from analytic particle solution
