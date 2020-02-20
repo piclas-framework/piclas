@@ -3962,6 +3962,7 @@ ASSOCIATE( iPart => 1 )
   ! 2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
   !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
   CASE(2)
+    ! missing ...
   END SELECT
 END ASSOCIATE
 

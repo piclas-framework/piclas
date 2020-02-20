@@ -230,7 +230,7 @@ IF(DoImportTTMFile)THEN
 END IF
 #endif /*PARTICLES*/
 
-CALL InitInterfaces() ! set riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
+CALL InitInterfaces() ! set Riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
 
 #if USE_QDS_DG
 CALL InitQDS()

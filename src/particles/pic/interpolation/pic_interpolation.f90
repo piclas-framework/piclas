@@ -23,6 +23,9 @@ PUBLIC :: InterpolateFieldToParticle
 PUBLIC :: InitializeParticleInterpolation
 PUBLIC :: InterpolateFieldToSingleParticle
 PUBLIC :: InterpolateVariableExternalField
+#ifdef CODE_ANALYZE
+PUBLIC :: InitAnalyticalParticleState
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 INTERFACE InitializeParticleInterpolation
   MODULE PROCEDURE InitializeParticleInterpolation
@@ -114,6 +117,14 @@ IF(DoInterpolationAnalytic)THEN
         __STAMP__ &
         ,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_interpolation.f90')
   END SELECT
+
+  ! Calculate the initial velocity of the particle from an analytic expression: must be implemented for the different 
+  ! AnalyticInterpolationType methods
+  IF(DoInterpolationAnalytic.AND.ANY((/0/).EQ.AnalyticInterpolationType))THEN
+    DoInitAnalyticalParticleState = .TRUE.
+  ELSE
+    DoInitAnalyticalParticleState = .FALSE.
+  END IF
 END IF
 #endif /*CODE_ANALYZE*/
 
@@ -1147,5 +1158,46 @@ ELSE ! Linear Interpolation between iPos and iPos+1 B point
                              * (Pos - VariableExternalField(1,iPos) ) + VariableExternalField(2,iPos)    ! *(z - z_i) + z_i
 END IF
 END FUNCTION InterpolateVariableExternalField
+
+
+#ifdef CODE_ANALYZE
+SUBROUTINE InitAnalyticalParticleState()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Calculates the initial particle position and velocity depending on an analytical expression
+! The velocity is time-shifted for staggered-in-time methods (Leapfrog and Boris-Leapfrog)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
+USE MOD_Particle_Analyze       ,ONLY: CalcAnalyticalParticleState
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM
+USE MOD_TimeDisc_Vars          ,ONLY: dt
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL    :: PartStateAnalytic(6)
+INTEGER :: iPart
+!===================================================================================================================================
+! Calculate the initial velocity of the particle from an analytic expression
+DO iPart=1,PDM%ParticleVecLength
+  !-- set analytic position at x(n) from analytic particle solution
+  CALL CalcAnalyticalParticleState(0.0,PartStateAnalytic)
+  PartState(1:6,iPart) = PartStateAnalytic(1:6)
+
+  !-- Only for time-staggered methods (Leapfrog and Boris-Leapfrog:
+  ! Set analytic velocity at v(n-0.5) from analytic particle solution
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)            
+  CALL CalcAnalyticalParticleState(-dt/2.,PartStateAnalytic)
+  PartState(4:6,iPart) = PartStateAnalytic(4:6)
+#endif /*(PP_TimeDiscMethod>=508) && (PP_TimeDiscMethod<=509)*/
+
+  ! Set new part to false to prevent calculation of velocity in timedisc
+  PDM%IsNewPart(iPart) = .FALSE.
+END DO
+END SUBROUTINE InitAnalyticalParticleState
+#endif /*CODE_ANALYZE*/
+
 
 END MODULE MOD_PICInterpolation

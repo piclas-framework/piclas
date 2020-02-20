@@ -42,6 +42,7 @@ INTEGER                 :: nIntPoints                    !< number of all interp
 #ifdef CODE_ANALYZE
 LOGICAL                 :: DoInterpolationAnalytic       !< use analytic/algebraic functions for the field at the
 !                                                        !< particle position
+LOGICAL                 :: DoInitAnalyticalParticleState !< Calculate the initial velocity of the particle from an analytic expression
 
 INTEGER                 :: AnalyticInterpolationType     !< Type of the analytic interpolation method
 !                                                        !< 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.

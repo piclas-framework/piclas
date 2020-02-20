@@ -329,6 +329,9 @@ USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIPar
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 USE MOD_Output                 ,ONLY: PrintStatusLine
+#ifdef CODE_ANALYZE
+USE MOD_PICInterpolation       ,ONLY: InitAnalyticalParticleState
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -425,6 +428,11 @@ IF (DoInitialAutoRestart) THEN
   END IF
 END IF
 #endif /*USE_LOADBALANCE*/
+
+#ifdef CODE_ANALYZE
+! Set specific particle position and velocity (calculated from an analytical expression)
+CALL InitAnalyticalParticleState()
+#endif /*CODE_ANALYZE*/
 
 CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 
@@ -4290,29 +4298,12 @@ IF (time.GE.DelayTime) THEN
       IF (PDM%IsNewPart(iPart)) THEN
         ! Don't push the velocity component of neutral particles!
         IF(isPushParticle(iPart))THEN
-#ifdef CODE_ANALYZE
-          ! Calculate the initial velocity of the particle from an analytic expression
-          IF(DoInterpolationAnalytic.AND.ANY((/0/).EQ.AnalyticInterpolationType))THEN
-            !-- set analytic position at x(n) from analytic particle solution
-            CALL CalcAnalyticalParticleState(0.0,PartStateAnalytic)
-            PartState(1:3,iPart) = PartStateAnalytic(1:3)
-
-            !-- set analytic velocity at v(n-0.5) from analytic particle solution
-            CALL CalcAnalyticalParticleState(-dt/2.,PartStateAnalytic)
-            PartState(4:6,iPart) = PartStateAnalytic(4:6)
-            !WRITE (*,*) "PartState(4:6,iPart) =", PartState(4:6,iPart)
-            !stop
-          ELSE
-#endif /*CODE_ANALYZE*/
             !-- Shift particle velocity back in time by half a time step dt/2.
             !-- get Pt(1:3,iPart) = a(x(n))
             CALL CalcPartRHSSingleParticle(iPart)
 
             !-- v(n) => v(n-0.5) by a(n):
             PartState(4:6,iPart) = PartState(4:6,iPart) - Pt(1:3,iPart) * dt*0.5
-#ifdef CODE_ANALYZE
-          END IF
-#endif /*CODE_ANALYZE*/
         END IF
         PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
       END IF
