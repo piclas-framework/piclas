@@ -42,7 +42,7 @@ SUBROUTINE DSMC_main(DoElement)
 ! MODULES
 USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
 USE MOD_Globals
-USE MOD_DSMC_BGGas            ,ONLY: DSMC_InitBGGas, DSMC_pairing_bggas, MCC_pairing_bggas, DSMC_FinalizeBGGas
+USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, SpecDSMC, VarVibRelaxProb, ConsiderVolumePortions, MCC_TotalPairNum, UseMCC
@@ -53,7 +53,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcEkin
 USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib, &
                                      SamplingRotVibRelaxProb
-USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
+USE MOD_DSMC_Relaxation       ,ONLY: CalcMeanVibQuaDiatomic
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision, DSMC_calc_var_P_vib
@@ -90,7 +90,7 @@ IF(.NOT.PRESENT(DoElement)) THEN
 END IF
 DSMCSumOfFormedParticles = 0
 
-IF((BGGas%BGGasSpecies.NE.0).AND.(.NOT.UseMCC)) CALL DSMC_InitBGGas
+IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_InsertParticles
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -114,7 +114,7 @@ DO iElem = 1, nElems ! element/cell main loop
     ChemReac%nPairForRec = 0
     IF(UseMCC) THEN
       CALL MCC_pairing_bggas(iElem)
-    ELSE IF(BGGas%BGGasSpecies.NE.0) THEN
+    ELSE IF(BGGas%NumberOfSpecies.GT.0) THEN
       CALL DSMC_pairing_bggas(iElem)
     ELSE IF (nPart.GT.1) THEN
       IF (DSMC%UseOctree) THEN
@@ -134,7 +134,7 @@ DO iElem = 1, nElems ! element/cell main loop
     IF (.NOT.DSMC%UseOctree) THEN                                                               ! no octree
       !Calc the mean evib per cell and iter, necessary for dissociation probability
       IF (CollisMode.EQ.3) THEN
-        CALL SetMeanVibQua()
+        CALL CalcMeanVibQuaDiatomic()
       END IF
 
       IF (KeepWallParticles) THEN
@@ -237,7 +237,7 @@ END DO ! iElem Loop
 ! Output!
 PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
-IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_FinalizeBGGas
+IF(BGGas%NumberOfSpecies.GT.0) CALL BGGas_DeleteParticles
 #if (PP_TimeDiscMethod==42)
 IF ((.NOT.DSMC%ReservoirSimu).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
 #else

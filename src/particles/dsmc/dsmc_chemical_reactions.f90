@@ -162,10 +162,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
                 / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(1,React1Inx), EductReac(1)))
       END IF
     ELSE
-      IF(ChemReac%MeanEVibQua_PerIter(EductReac(1)).GT.0.0) THEN
-        Xi_vib1 = 2.*ChemReac%MeanEVibQua_PerIter(EductReac(1)) &
-              * LOG(1.0/ ChemReac%MeanEVibQua_PerIter(EductReac(1)) + 1.0 )
-      END IF
+      Xi_vib1 = ChemReac%MeanXiVib_PerIter(EductReac(1))
     END IF
   END IF
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -179,10 +176,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
                 / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(1,React2Inx), EductReac(2)))
       END IF
     ELSE
-      IF(ChemReac%MeanEVibQua_PerIter(EductReac(2)).GT.0.0) THEN
-        Xi_vib2 = 2.*ChemReac%MeanEVibQua_PerIter(EductReac(2)) &
-        * LOG(1.0/ ChemReac%MeanEVibQua_PerIter(EductReac(2)) + 1.0 )
-      END IF
+      Xi_vib2 = ChemReac%MeanXiVib_PerIter(EductReac(2))
     END IF
   END IF
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -197,10 +191,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
                   / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(1,iPart_p3), EductReac(3)))
         END IF
       ELSE
-        IF(ChemReac%MeanEVibQua_PerIter(EductReac(3)).GT.0.0) THEN
-          Xi_vib3 = 2.0*ChemReac%MeanEVibQua_PerIter(EductReac(3)) &
-                  * LOG(1.0/ChemReac%MeanEVibQua_PerIter(EductReac(3)) + 1.0)
-        END IF
+        Xi_vib3 = ChemReac%MeanXiVib_PerIter(EductReac(3))
       END IF
     END IF
   END IF

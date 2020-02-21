@@ -277,10 +277,11 @@ END TYPE tDSMC
 TYPE(tDSMC)                     :: DSMC
 
 TYPE tBGGas
-  INTEGER                       :: BGGasSpecies             ! Number which Species is Background Gas
-  REAL                          :: BGGasDensity             ! Density of Background Gas
-  REAL                          :: BGColl_SpecPartNum       ! PartNum of BGGas per cell
-  INTEGER                       :: BGMeanEVibQua            ! Mean EVib qua number for dissociation probability
+  INTEGER                       :: NumberOfSpecies          ! Number of background gas species
+  LOGICAL, ALLOCATABLE          :: BackgroundSpecies(:)     ! Flag, if a species is a background gas species, [1:nSpecies]
+  REAL, ALLOCATABLE             :: SpeciesFraction(:)       ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
+  REAL                          :: NumberDensity            ! Total number density of the background gas
+  INTEGER, ALLOCATABLE          :: MappingBGSpecToSpec(:)   ! Input: [1:BGGas%NumberOfSpecies], output is the corresponding species
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
 END TYPE tBGGas
@@ -414,6 +415,8 @@ TYPE tChemReactions
    REAL,  ALLOCATABLE             :: MeanEVib_PerIter(:)    ! MeanEVib per iteration for calculation of
    INTEGER,  ALLOCATABLE          :: MeanEVibQua_PerIter(:) ! MeanEVib per iteration for calculation of
                                                             ! xi_vib per cell (nSpecies)
+   REAL, ALLOCATABLE              :: MeanXiVib_PerIter(:)   ! Mean vibrational degree of freedom user for chemical reactions of
+                                                            ! diatomic species
    REAL,  ALLOCATABLE             :: CEXa(:)                ! CEX log-factor (g-dep. cross section in Angstrom (nReactions)
    REAL,  ALLOCATABLE             :: CEXb(:)                ! CEX const. factor (g-dep. cross section in Angstrom (nReactions)
    REAL,  ALLOCATABLE             :: MEXa(:)                ! MEX log-factor (g-dep. cross section in Angstrom (nReactions)
@@ -437,20 +440,16 @@ END TYPE
 
 TYPE(tQKAnalytic), ALLOCATABLE    :: QKAnalytic(:)
 
-REAL                              :: realtime               ! realtime of simulation
-
 TYPE tPolyatomMolDSMC !DSMC Species Param
   LOGICAL                         :: LinearMolec            ! Is a linear Molec?
   INTEGER                         :: NumOfAtoms             ! Number of Atoms in Molec
   INTEGER                         :: VibDOF                 ! DOF in Vibration, equals number of independent SHO's
-  REAL, ALLOCATABLE              :: CharaTVibDOF(:)        ! Chara TVib for each DOF
-  INTEGER,ALLOCATABLE           :: LastVibQuantNums(:,:)    ! Last quantum numbers for vibrational inserting (VibDOF,nInits)
-  INTEGER, ALLOCATABLE          :: MaxVibQuantDOF(:)      ! Max Vib Quant for each DOF
-  REAL                            :: Xi_Vib_Mean            ! mean xi vib for chemical reactions
-  REAL                            :: TVib
-  REAL, ALLOCATABLE              :: GammaVib(:)            ! GammaVib: correction factor for Gimelshein Relaxation Procedure
-  REAL, ALLOCATABLE              :: VibRelaxProb(:)
-  REAL, ALLOCATABLE              :: CharaTRotDOF(:)        ! Chara TRot for each DOF
+  REAL, ALLOCATABLE               :: CharaTVibDOF(:)        ! Chara TVib for each DOF
+  INTEGER,ALLOCATABLE             :: LastVibQuantNums(:,:)  ! Last quantum numbers for vibrational inserting (VibDOF,nInits)
+  INTEGER, ALLOCATABLE            :: MaxVibQuantDOF(:)      ! Max Vib Quant for each DOF
+  REAL, ALLOCATABLE               :: GammaVib(:)            ! GammaVib: correction factor for Gimelshein Relaxation Procedure
+  REAL, ALLOCATABLE               :: VibRelaxProb(:)
+  REAL, ALLOCATABLE               :: CharaTRotDOF(:)        ! Chara TRot for each DOF
 END TYPE
 
 TYPE (tPolyatomMolDSMC), ALLOCATABLE    :: PolyatomMolDSMC(:)        ! Infos for Polyatomic Molecule

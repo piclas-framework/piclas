@@ -139,10 +139,6 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-UseQCrit'&
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseSSD'&
                                          , 'Set [TRUE] to enable steady state detection and sampling start using 3SD routines.' &
                                          , '.FALSE.')
-CALL prms%CreateIntOption(      'Particles-DSMCBackgroundGas'&
-                                         , 'Define Species number that is used as background gas species', '0')
-CALL prms%CreateRealOption(     'Particles-DSMCBackgroundGasDensity'&
-                                         , 'Define Species number density for background gas', '0.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-PolyRelaxSingleMode'&
                                          , 'Set [TRUE] for separate relaxation of each vibrational mode of a polyatomic in a '//&
                                            'loop over all vibrational modes.\n'//&
@@ -397,7 +393,6 @@ IMPLICIT NONE
 CHARACTER(32)         :: hilf , hilf2
 INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
 REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
-REAL                  :: BGGasEVib
 INTEGER               :: currentBC, ElemID, iSide, BCSideID, VarNum
 #if ( PP_TimeDiscMethod ==42 )
 #ifdef CODE_ANALYZE
@@ -773,7 +768,7 @@ ELSE !CollisMode.GT.0
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TVib needs to be defined in Part-SpeciesXX-TempVib for iSpec',iSpec)
-                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TVib needs to be defined in Part-SpeciesXX-TempVib for BGGas')
@@ -794,7 +789,7 @@ ELSE !CollisMode.GT.0
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TRot needs to be defined in Part-SpeciesXX-TempRot for iSpec',iSpec)
-                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
                     CALL Abort(&
                         __STAMP__&
                         ,'Error! TRot needs to be defined in Part-SpeciesXX-TempRot for BGGas')
@@ -818,7 +813,7 @@ ELSE !CollisMode.GT.0
                     CALL Abort(&
                         __STAMP__&
                         ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for Species',iSpec)
-                  ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
                     CALL Abort(&
                         __STAMP__&
                         ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for BGGas')
@@ -1213,45 +1208,30 @@ ELSE !CollisMode.GT.0
       CollInf%OldCollPartner = 0
     END IF
   ELSE
+    CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.FALSE.')
     IF (CollInf%ProhibitDoubleColl) THEN
-      CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.FALSE.')
       CALL abort(__STAMP__,&
           'ERROR: Prohibiting double collisions is only supported within a 2D/axisymmetric simulation!')
     END IF
   END IF
 
   !-----------------------------------------------------------------------------------------------------------------------------------
-  ! Set mean VibQua of BGGas for dissoc reaction
+  ! Background gas: Check compatibility with other features
   !-----------------------------------------------------------------------------------------------------------------------------------
-  IF (BGGas%BGGasSpecies.NE.0) THEN
+  IF (BGGas%NumberOfSpecies.GT.0) THEN
     IF (DSMC%UseOctree) THEN
       CALL abort(__STAMP__,&
-          'ERROR: Utilization of the octree and nearest neighbour scheme not possible with the background gas')
+          'ERROR: Utilization of the octree and nearest neighbour scheme not possible with the background gas!')
     END IF
-    IF(SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.4) THEN
-      CALL abort(__STAMP__,&
-          'ERROR: Electrons as background gas are not yet available!!')
-    END IF
-    IF((SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.2).OR.(SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.20)) THEN
-      IF(SpecDSMC(BGGas%BGGasSpecies)%PolyatomicMol) THEN
-        CALL abort(&
-            __STAMP__&
-            ,'ERROR: Polyatomic species as background gas are not yet available!')
-      ELSE
-        BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib &
-            + BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib  &
-            /  (EXP(SpecDSMC(BGGas%BGGasSpecies)%CharaTVib / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1) &
-            - BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib * SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant &
-            / (EXP(SpecDSMC(BGGas%BGGasSpecies)%CharaTVib * SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant &
-            / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1)
-        BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(BGGas%BGGasSpecies)%CharaTVib) - DSMC%GammaQuant
-        BGGas%BGMeanEVibQua = MIN(INT(BGGasEVib) + 1, SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant)
+    DO iSpec = 1, nSpecies
+      IF(BGGas%BackgroundSpecies(iSpec)) THEN
+        IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
+          CALL abort(__STAMP__,&
+            'ERROR in BGGas: Electrons as background gas are not yet available!')
+        END IF
       END IF
-    ELSE
-      BGGas%BGMeanEVibQua = 0
-    END IF
+    END DO
   END IF
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate vib collision numbers and characteristic velocity, according to Abe
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1829,6 +1809,7 @@ SDEALLOCATE(ChemReac%EActiv)
 SDEALLOCATE(ChemReac%EForm)
 SDEALLOCATE(ChemReac%MeanEVib_PerIter)
 SDEALLOCATE(ChemReac%MeanEVibQua_PerIter)
+SDEALLOCATE(ChemReac%MeanXiVib_PerIter)
 SDEALLOCATE(ChemReac%CEXa)
 SDEALLOCATE(ChemReac%CEXb)
 SDEALLOCATE(ChemReac%MEXa)
@@ -1857,6 +1838,9 @@ SDEALLOCATE(DSMC_HOSolution)
 SDEALLOCATE(DSMC_Volumesample)
 CALL DeleteElemNodeVol()
 SDEALLOCATE(BGGas%PairingPartner)
+SDEALLOCATE(BGGas%BackgroundSpecies)
+SDEALLOCATE(BGGas%MappingBGSpecToSpec)
+SDEALLOCATE(BGGas%SpeciesFraction)
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
