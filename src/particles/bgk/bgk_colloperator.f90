@@ -34,7 +34,7 @@ PUBLIC :: BGK_CollisionOperator, ARShakhov, CalcTEquiPoly, CalcTEqui
 
 CONTAINS
 
-SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, vBulkAll, AveragingPara, CorrectStep)
+SUBROUTINE BGK_CollisionOperator_SingleSpecies(iPartIndx_Node, nPart, NodeVolume, vBulkAll, AveragingPara, CorrectStep)
 !===================================================================================================================================
 !> Subroutine for the cell-local BGK collision operator:
 !> 1.) Moment calculation: Summing up the relative velocities and their squares
@@ -214,15 +214,15 @@ IF (BGKMovingAverage) THEN
     u2Aver = SUM(AveragingPara(4,:))
     nPartAver = SUM(AveragingPara(5,:))
     CellTempRelax = Species(1)%MassIC / (3.*BoltzmannConst) &
-                  * 1./(nPartAver-1.)*(u2Aver - (vBulkAver(1)**2. &
-                  + vBulkAver(2)**2. + vBulkAver(3)**2.)/nPartAver)
+                  * 1./(nPartAver-1.)*(u2Aver - (vBulkAver(1)**(2.) &
+                  + vBulkAver(2)**(2.) + vBulkAver(3)**(2.))/nPartAver)
   ELSE
     AveragingPara(1:3,1) = AveragingPara(1:3,1) + vBulkAll(1:3)*nPart
     AveragingPara(4,1) = AveragingPara(4,1) + u2Aver
     AveragingPara(5,1) = AveragingPara(5,1) + nPart
     CellTempRelax = Species(1)%MassIC / (3.*BoltzmannConst) &
-                  * 1./(AveragingPara(5,1)-1.)*(AveragingPara(4,1) - (AveragingPara(1,1)**2. &
-                  + AveragingPara(2,1)**2. + AveragingPara(3,1)**2.)/AveragingPara(5,1))
+                  * 1./(AveragingPara(5,1)-1.)*(AveragingPara(4,1) - (AveragingPara(1,1)**(2.) &
+                  + AveragingPara(2,1)**(2.) + AveragingPara(3,1)**(2.))/AveragingPara(5,1))
   END IF
 ELSE
   CellTempRelax = CellTemp
@@ -230,7 +230,7 @@ END IF
 
 ! 2.) Calculate the reference dynamic viscosity, Prandtl number and the resulting relaxation frequency of the distribution function
 dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*SpecDSMC(1)%TrefVHS/Pi) &
-        /(4.*(4.- 2.*SpecDSMC(1)%omegaVHS) * (6. - 2.*SpecDSMC(1)%omegaVHS)* SpecDSMC(1)%DrefVHS**2.)
+        /(4.*(4.- 2.*SpecDSMC(1)%omegaVHS) * (6. - 2.*SpecDSMC(1)%omegaVHS)* SpecDSMC(1)%DrefVHS**(2.))
 Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
 CShak= Prandtl*(1.-BGKUnifiedCes)
 IF (BGKCollModel.EQ.1) THEN
@@ -363,16 +363,16 @@ ELSE ! Atoms
     IF (nRelax.GT.2) THEN
       DO iLoop = 1, nRelax
         partWeight = GetParticleWeight(iPartIndx_NodeRelax(iLoop))
-        OldEn = OldEn + 0.5*Species(1)%MassIC*((PartState(4,iPartIndx_NodeRelax(iLoop))-vBulkRelaxOld(1))**2.0 &
-                                             + (PartState(5,iPartIndx_NodeRelax(iLoop))-vBulkRelaxOld(2))**2.0 &
-                                             + (PartState(6,iPartIndx_NodeRelax(iLoop))-vBulkRelaxOld(3))**2.0) * partWeight
+        OldEn = OldEn + 0.5*Species(1)%MassIC*((PartState(4,iPartIndx_NodeRelax(iLoop))-vBulkRelaxOld(1))**(2.0) &
+                                             + (PartState(5,iPartIndx_NodeRelax(iLoop))-vBulkRelaxOld(2))**(2.0) &
+                                             + (PartState(6,iPartIndx_NodeRelax(iLoop))-vBulkRelaxOld(3))**(2.0)) * partWeight
       END DO
     ELSE
       DO iLoop = 1, nPart
         partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
-        OldEn = OldEn + 0.5*Species(1)%MassIC*((PartState(4,iPartIndx_Node(iLoop))-vBulkAll(1))**2.0 &
-                                             + (PartState(5,iPartIndx_Node(iLoop))-vBulkAll(2))**2.0 &
-                                             + (PartState(6,iPartIndx_Node(iLoop))-vBulkAll(3))**2.0) * partWeight
+        OldEn = OldEn + 0.5*Species(1)%MassIC*((PartState(4,iPartIndx_Node(iLoop))-vBulkAll(1))**(2.0) &
+                                             + (PartState(5,iPartIndx_Node(iLoop))-vBulkAll(2))**(2.0) &
+                                             + (PartState(6,iPartIndx_Node(iLoop))-vBulkAll(3))**(2.0)) * partWeight
       END DO
     END IF
   END IF
@@ -509,18 +509,18 @@ IF ((SBGKEnergyConsMethod.EQ.2).AND.(nRelax.GT.2)) THEN
   DO iLoop = 1, nRelax
     partWeight = GetParticleWeight(iPartIndx_NodeRelax(iLoop))
     V_rel(1:3) = DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) - vBulkRelax(1:3)
-    NewEn = NewEn + (V_rel(1)**2. + V_rel(2)**2. + V_rel(3)**2.)*0.5*Species(1)%MassIC*partWeight
+    NewEn = NewEn + (V_rel(1)**(2.) + V_rel(2)**(2.) + V_rel(3)**(2.))*0.5*Species(1)%MassIC*partWeight
   END DO
 ELSE
   DO iLoop = 1, nRelax
     partWeight = GetParticleWeight(iPartIndx_NodeRelax(iLoop))
     V_rel(1:3) = DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) - vBulk(1:3)
-    NewEn = NewEn + (V_rel(1)**2. + V_rel(2)**2. + V_rel(3)**2.)*0.5*Species(1)%MassIC*partWeight
+    NewEn = NewEn + (V_rel(1)**(2.) + V_rel(2)**(2.) + V_rel(3)**(2.))*0.5*Species(1)%MassIC*partWeight
   END DO
   DO iLoop = 1, nPart-nRelax
     partWeight = GetParticleWeight(iPartIndx_NodeRelaxTemp(iLoop))
     V_rel(1:3) = PartState(4:6,iPartIndx_NodeRelaxTemp(iLoop)) - vBulk(1:3)
-    NewEn = NewEn + (V_rel(1)**2. + V_rel(2)**2. + V_rel(3)**2.)*0.5*Species(1)%MassIC*partWeight
+    NewEn = NewEn + (V_rel(1)**(2.) + V_rel(2)**(2.) + V_rel(3)**(2.))*0.5*Species(1)%MassIC*partWeight
   END DO
 END IF
 
@@ -639,9 +639,9 @@ DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   Momentum_new(1:3) = Momentum_new(1:3) + (DSMC_RHS(1:3,iPartIndx_Node(iLoop)) + PartState(4:6,iPartIndx_Node(iLoop)))*partWeight
   Energy_new = Energy_new &
-          + ((DSMC_RHS(1,iPartIndx_Node(iLoop)) + PartState(4,iPartIndx_Node(iLoop)))**2. &
-          +  (DSMC_RHS(2,iPartIndx_Node(iLoop)) + PartState(5,iPartIndx_Node(iLoop)))**2. &
-          +  (DSMC_RHS(3,iPartIndx_Node(iLoop)) + PartState(6,iPartIndx_Node(iLoop)))**2.)*0.5*Species(1)%MassIC*partWeight
+          + ((DSMC_RHS(1,iPartIndx_Node(iLoop)) + PartState(4,iPartIndx_Node(iLoop)))**(2.) &
+          +  (DSMC_RHS(2,iPartIndx_Node(iLoop)) + PartState(5,iPartIndx_Node(iLoop)))**(2.) &
+          +  (DSMC_RHS(3,iPartIndx_Node(iLoop)) + PartState(6,iPartIndx_Node(iLoop)))**(2.))*0.5*Species(1)%MassIC*partWeight
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     Energy_new = Energy_new + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop)))*partWeight
   END IF
@@ -687,7 +687,7 @@ DO iMom=1,3
 END DO
 #endif /* CODE_ANALYZE */
 
-END SUBROUTINE BGK_CollisionOperator
+END SUBROUTINE BGK_CollisionOperator_SingleSpecies
 
 
 SUBROUTINE BGK_CollisionOperatorMultiSpecBrul(iPartIndx_Node, nPart, NodeVolume, vBulkAll, AveragingPara, CorrectStep)
@@ -758,8 +758,8 @@ DO iLoop = 1, nPart
   iSpec = PartSpecies(iPartIndx_Node(iLoop))
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   Momentum_old(1:3) = Momentum_old(1:3) + PartState(4:6,iPartIndx_Node(iLoop))*Species(iSpec)%MassIC*partWeight
-  Energy_old = Energy_old + (PartState(4,iPartIndx_Node(iLoop))**2. + PartState(5,iPartIndx_Node(iLoop))**2. &
-           + PartState(6,iPartIndx_Node(iLoop))**2.)*0.5*Species(iSpec)%MassIC*partWeight
+  Energy_old = Energy_old + (PartState(4,iPartIndx_Node(iLoop))**(2.) + PartState(5,iPartIndx_Node(iLoop))**(2.) &
+           + PartState(6,iPartIndx_Node(iLoop))**(2.))*0.5*Species(iSpec)%MassIC*partWeight
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     Energy_old = Energy_old + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop)))*partWeight
   END IF
@@ -774,6 +774,8 @@ vBulkSpec = 0.0
 nSpec = 0
 vBulkAll = 0.0
 TotalMass = 0.0
+CellTempSpec = 0.
+
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   iSpec = PartSpecies(iPartIndx_Node(iLoop))
@@ -822,7 +824,7 @@ DO iSpec = 1, nSpecies
     SpecTemp(iSpec) = Species(iSpec)%MassIC * u2Spec(iSpec) &
         /(3.0*BoltzmannConst*(totalWeightSpec(iSpec) - totalWeightSpec2(iSpec)/totalWeightSpec(iSpec)))
     EnerTotal =  EnerTotal + 3./2.*BoltzmannConst*SpecTemp(iSpec) * totalWeightSpec(iSpec)
-    vmag2 = vBulkSpec(1,iSpec)**2. + vBulkSpec(2,iSpec)**2. + vBulkSpec(3,iSpec)**2.
+    vmag2 = vBulkSpec(1,iSpec)**(2.) + vBulkSpec(2,iSpec)**(2.) + vBulkSpec(3,iSpec)**(2.)
     EnerTotal = EnerTotal + totalWeightSpec(iSpec) * Species(iSpec)%MassIC / 2. * vmag2
     tempweight = tempweight + totalWeightSpec(iSpec)
     tempweight2 = tempweight2 + totalWeightSpec2(iSpec)
@@ -854,11 +856,11 @@ IF (BGKMixtureModel.EQ.1) THEN
   DO iSpec = 1, nSpecies
     IF ((nSpec(iSpec).GE.2).AND.(.NOT.ALMOSTZERO(u2Spec(iSpec)))) THEN
       dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*SpecDSMC(iSpec)%TrefVHS/Pi) &
-            /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**2. &
+            /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**(2.) &
             *SpecDSMC(iSpec)%TrefVHS**(SpecDSMC(iSpec)%omegaVHS + 0.5)*SpecTemp(iSpec)**(-SpecDSMC(iSpec)%omegaVHS - 0.5))
     ELSE
       dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*SpecDSMC(iSpec)%TrefVHS/Pi) &
-            /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**2. &
+            /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**(2.) &
             *SpecDSMC(iSpec)%TrefVHS**(SpecDSMC(iSpec)%omegaVHS + 0.5)*CellTemp**(-SpecDSMC(iSpec)%omegaVHS - 0.5))
     END IF
     ! innerdof pro spec !
@@ -872,7 +874,7 @@ IF (BGKMixtureModel.EQ.1) THEN
       Phi(iSpec) =  Phi(iSpec) &
                  + REAL(totalWeightSpec(jSpec)) &
                  * ( 1.0+SQRT(dynamicvisSpec(iSpec)/dynamicvisSpec(jSpec)) &
-                 * (Species(jSpec)%MassIC/Species(iSpec)%MassIC)**0.25 )** 2.0 &
+                 * (Species(jSpec)%MassIC/Species(iSpec)%MassIC)**(0.25) )**(2.0) &
                  / ( SQRT(8.0 * (1.0 + Species(iSpec)%MassIC/Species(jSpec)%MassIC)) )
     END DO
   END DO
@@ -889,7 +891,7 @@ IF (BGKMixtureModel.EQ.1) THEN
 ELSE
   C_P = 0.0
   DO iSpec = 1, nSpecies
-    IF (nSpec(iSpec).EQ.0) THEN
+    IF ((nSpec(iSpec).LT.2).OR.ALMOSTZERO(u2Spec(iSpec))) THEN
       CellTempSpec(iSpec) = CellTemp
     ELSE
       C_P = C_P + REAL(totalWeightSpec(iSpec))/REAL(totalWeight)*Species(iSpec)%MassIC
@@ -898,7 +900,7 @@ ELSE
   END DO
   C_P = 5./2.*BoltzmannConst/C_P
   CellTempSpec(nSpecies+1) = CellTemp
-  CALL CalcViscosityThermalCondPOCS(CellTempSpec, totalWeightSpec(:)/totalWeight, dynamicvis, thermalcond)
+  CALL CalcViscosityThermalCondPOCS(CellTempSpec(1:nSpecies+1), totalWeightSpec(1:nSpecies)/totalWeight, dynamicvis, thermalcond)
 END IF
 
 PrandtlCorrection = 0.
@@ -975,13 +977,13 @@ DO iLoop = 1, nRelax
   iSpec = PartSpecies(iPartIndx_NodeRelax(iLoop))
   partWeight = GetParticleWeight(iPartIndx_NodeRelax(iLoop))
   V_rel(1:3) = DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) - vBulk(1:3)
-  NewEn = NewEn + (V_rel(1)**2. + V_rel(2)**2. + V_rel(3)**2.)*0.5*Species(iSpec)%MassIC*partWeight
+  NewEn = NewEn + (V_rel(1)**(2.) + V_rel(2)**(2.) + V_rel(3)**(2.))*0.5*Species(iSpec)%MassIC*partWeight
 END DO
 DO iLoop = 1, nPart-nRelax 
   iSpec = PartSpecies(iPartIndx_NodeRelaxTemp(iLoop))
   partWeight = GetParticleWeight(iPartIndx_NodeRelaxTemp(iLoop))
   V_rel(1:3) = PartState(4:6,iPartIndx_NodeRelaxTemp(iLoop)) - vBulk(1:3)
-  NewEn = NewEn + (V_rel(1)**2. + V_rel(2)**2. + V_rel(3)**2.)*0.5*Species(iSpec)%MassIC*partWeight
+  NewEn = NewEn + (V_rel(1)**(2.) + V_rel(2)**(2.) + V_rel(3)**(2.))*0.5*Species(iSpec)%MassIC*partWeight
 END DO
 
 ! 8.) Determine the new particle state (for molecules including rotational energy) and ensure energy conservation by scaling the new
@@ -1007,9 +1009,9 @@ DO iLoop = 1, nPart
   Momentum_new(1:3) = Momentum_new(1:3) + (DSMC_RHS(1:3,iPartIndx_Node(iLoop)) + PartState(4:6,iPartIndx_Node(iLoop))) & 
           * Species(iSpec)%MassIC*partWeight
   Energy_new = Energy_new &
-          + ((DSMC_RHS(1,iPartIndx_Node(iLoop)) + PartState(4,iPartIndx_Node(iLoop)))**2. &
-          +  (DSMC_RHS(2,iPartIndx_Node(iLoop)) + PartState(5,iPartIndx_Node(iLoop)))**2. &
-          +  (DSMC_RHS(3,iPartIndx_Node(iLoop)) + PartState(6,iPartIndx_Node(iLoop)))**2.)*0.5*Species(iSpec)%MassIC*partWeight
+          + ((DSMC_RHS(1,iPartIndx_Node(iLoop)) + PartState(4,iPartIndx_Node(iLoop)))**(2.) &
+          +  (DSMC_RHS(2,iPartIndx_Node(iLoop)) + PartState(5,iPartIndx_Node(iLoop)))**(2.) &
+          +  (DSMC_RHS(3,iPartIndx_Node(iLoop)) + PartState(6,iPartIndx_Node(iLoop)))**(2.))*0.5*Species(iSpec)%MassIC*partWeight
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     Energy_new = Energy_new + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop)))*partWeight
   END IF
@@ -1129,8 +1131,8 @@ DO iLoop = 1, nPart
   iSpec = PartSpecies(iPartIndx_Node(iLoop))
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   Momentum_old(1:3) = Momentum_old(1:3) + PartState(4:6,iPartIndx_Node(iLoop))*Species(iSpec)%MassIC*partWeight
-  Energy_old = Energy_old + (PartState(4,iPartIndx_Node(iLoop))**2. + PartState(5,iPartIndx_Node(iLoop))**2. &
-           + PartState(6,iPartIndx_Node(iLoop))**2.)*0.5*Species(iSpec)%MassIC*partWeight
+  Energy_old = Energy_old + (PartState(4,iPartIndx_Node(iLoop))**(2.) + PartState(5,iPartIndx_Node(iLoop))**(2.) &
+           + PartState(6,iPartIndx_Node(iLoop))**(2.))*0.5*Species(iSpec)%MassIC*partWeight
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     Energy_old = Energy_old + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop)))*partWeight
   END IF
@@ -1206,7 +1208,7 @@ DO iSpec = 1, nSpecies
     SpecTemp(iSpec) = Species(iSpec)%MassIC * u2Spec(iSpec) &
         /(3.0*BoltzmannConst*(totalWeightSpec(iSpec) - totalWeightSpec2(iSpec)/totalWeightSpec(iSpec)))
     Ener(iSpec) =  3./2.*BoltzmannConst*SpecTemp(iSpec) * totalWeightSpec(iSpec)
-    vmag2 = vBulkSpec(1,iSpec)**2. + vBulkSpec(2,iSpec)**2. + vBulkSpec(3,iSpec)**2.
+    vmag2 = vBulkSpec(1,iSpec)**(2.) + vBulkSpec(2,iSpec)**(2.) + vBulkSpec(3,iSpec)**(2.)
     Ener(iSpec) = Ener(iSpec) + totalWeightSpec(iSpec) * Species(iSpec)%MassIC / 2. * vmag2
     EnerTotal = EnerTotal + Ener(iSpec)
     tempweight = tempweight + totalWeightSpec(iSpec)
@@ -1234,11 +1236,11 @@ CellTempRelax = CellTemp
 DO iSpec = 1, nSpecies
   IF ((nSpec(iSpec).GE.2).AND.(.NOT.ALMOSTZERO(u2Spec(iSpec)))) THEN
     dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*SpecDSMC(iSpec)%TrefVHS/Pi) &
-          /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**2. &
+          /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**(2.) &
           *SpecDSMC(iSpec)%TrefVHS**(SpecDSMC(iSpec)%omegaVHS + 0.5)*SpecTemp(iSpec)**(-SpecDSMC(iSpec)%omegaVHS - 0.5))
   ELSE
     dynamicvisSpec(iSpec) = 30.*SQRT(Species(iSpec)%MassIC* BoltzmannConst*SpecDSMC(iSpec)%TrefVHS/Pi) &
-          /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**2. &
+          /(4.*(4.- 2.*SpecDSMC(iSpec)%omegaVHS) * (6. - 2.*SpecDSMC(iSpec)%omegaVHS)* SpecDSMC(iSpec)%DrefVHS**(2.) &
           *SpecDSMC(iSpec)%TrefVHS**(SpecDSMC(iSpec)%omegaVHS + 0.5)*CellTemp**(-SpecDSMC(iSpec)%omegaVHS - 0.5))
   END IF
   ! innerdof pro spec !
@@ -1252,7 +1254,7 @@ DO iSpec = 1, nSpecies
     Phi(iSpec) =  Phi(iSpec) &
                + REAL(totalWeightSpec(jSpec)) &
                * ( 1.0+SQRT(dynamicvisSpec(iSpec)/dynamicvisSpec(jSpec)) &
-               * (Species(jSpec)%MassIC/Species(iSpec)%MassIC)**0.25 )** 2.0 &
+               * (Species(jSpec)%MassIC/Species(iSpec)%MassIC)**(0.25) )**(2.0) &
                / ( SQRT(8.0 * (1.0 + Species(iSpec)%MassIC/Species(jSpec)%MassIC)) )
   END DO
 END DO
@@ -1281,7 +1283,7 @@ DO iSpec = 1, nSpecies
   vBulkTarget(1:3, iSpec) =  (1.-eta_nu/Prandtl)*vBulkSpec(1:3,iSpec) + eta_nu/Prandtl*vBulkAll(1:3)
   V_rel(1:3)=vBulkSpec(1:3,iSpec)-vBulkAll(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2 
-  TempTarget = TempTarget - (1.-eta_nu/Prandtl)**2.*vmag2 * Species(iSpec)%MassIC * totalWeightSpec(iSpec) & 
+  TempTarget = TempTarget - (1.-eta_nu/Prandtl)**(2.)*vmag2 * Species(iSpec)%MassIC * totalWeightSpec(iSpec) & 
             / (totalWeight * BoltzmannConst * 3.)
 END DO
 IF (TempTarget.LT.0.0) THEN
@@ -1398,13 +1400,13 @@ DO iLoop = 1, nRelax
   iSpec = PartSpecies(iPartIndx_NodeRelax(iLoop))
   partWeight = GetParticleWeight(iPartIndx_NodeRelax(iLoop))
   V_rel(1:3) = DSMC_RHS(1:3,iPartIndx_NodeRelax(iLoop)) - vBulk(1:3)
-  NewEn = NewEn + (V_rel(1)**2. + V_rel(2)**2. + V_rel(3)**2.)*0.5*Species(iSpec)%MassIC*partWeight
+  NewEn = NewEn + (V_rel(1)**(2.) + V_rel(2)**(2.) + V_rel(3)**(2.))*0.5*Species(iSpec)%MassIC*partWeight
 END DO
 DO iLoop = 1, nPart-nRelax 
   iSpec = PartSpecies(iPartIndx_NodeRelaxTemp(iLoop))
   partWeight = GetParticleWeight(iPartIndx_NodeRelaxTemp(iLoop))
   V_rel(1:3) = PartState(4:6,iPartIndx_NodeRelaxTemp(iLoop)) - vBulk(1:3)
-  NewEn = NewEn + (V_rel(1)**2. + V_rel(2)**2. + V_rel(3)**2.)*0.5*Species(iSpec)%MassIC*partWeight
+  NewEn = NewEn + (V_rel(1)**(2.) + V_rel(2)**(2.) + V_rel(3)**(2.))*0.5*Species(iSpec)%MassIC*partWeight
 END DO
 
 ! 8.) Determine the new particle state (for molecules including rotational energy) and ensure energy conservation by scaling the new
@@ -1430,9 +1432,9 @@ DO iLoop = 1, nPart
   Momentum_new(1:3) = Momentum_new(1:3) + (DSMC_RHS(1:3,iPartIndx_Node(iLoop)) + PartState(4:6,iPartIndx_Node(iLoop))) & 
           * Species(iSpec)%MassIC*partWeight
   Energy_new = Energy_new &
-          + ((DSMC_RHS(1,iPartIndx_Node(iLoop)) + PartState(4,iPartIndx_Node(iLoop)))**2. &
-          +  (DSMC_RHS(2,iPartIndx_Node(iLoop)) + PartState(5,iPartIndx_Node(iLoop)))**2. &
-          +  (DSMC_RHS(3,iPartIndx_Node(iLoop)) + PartState(6,iPartIndx_Node(iLoop)))**2.)*0.5*Species(iSpec)%MassIC*partWeight
+          + ((DSMC_RHS(1,iPartIndx_Node(iLoop)) + PartState(4,iPartIndx_Node(iLoop)))**(2.) &
+          +  (DSMC_RHS(2,iPartIndx_Node(iLoop)) + PartState(5,iPartIndx_Node(iLoop)))**(2.) &
+          +  (DSMC_RHS(3,iPartIndx_Node(iLoop)) + PartState(6,iPartIndx_Node(iLoop)))**(2.))*0.5*Species(iSpec)%MassIC*partWeight
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     Energy_new = Energy_new + (PartStateIntEn(1,iPartIndx_Node(iLoop)) + PartStateIntEn(2,iPartIndx_Node(iLoop)))*partWeight
   END IF
@@ -1875,7 +1877,7 @@ ELSE
 END IF
 maxexp = LOG(HUGE(maxexp))
 !  Xi_rel = 2.*(2. - SpecDSMC(1)%omegaVHS)
-!  correctFac = 1. + (2.*SpecDSMC(1)%CharaTVib / (CellTemp*(EXP(SpecDSMC(1)%CharaTVib / CellTemp)-1.)))**2. &
+!  correctFac = 1. + (2.*SpecDSMC(1)%CharaTVib / (CellTemp*(EXP(SpecDSMC(1)%CharaTVib / CellTemp)-1.)))**(2.) &
 !        * EXP(SpecDSMC(1)%CharaTVib /CellTemp) / (2.*Xi_rel)
 !  correctFacRot = 1. + 2./Xi_rel
 
@@ -1989,7 +1991,7 @@ iPolyatMole = SpecDSMC(1)%SpecToPolyArray
 !  DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
 !    correctFac = correctFac &
 !        + (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (CellTemp           &
-!        *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / CellTemp)-1.)))**2.  &
+!        *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / CellTemp)-1.)))**(2.)  &
 !        * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / CellTemp) / 2.
 !  END DO
 !  correctFac = 1. + correctFac/Xi_rel
@@ -2092,6 +2094,8 @@ REAL                            :: Sigma_11, Sigma_22, reducedTemp, B_12, A_12, 
 REAL        :: EnergyScalePar, InteractDiam, Mass, ViscSpec(nSpecies+1), ThermalCondSpec(nSpecies+1), X, Y, Z, U1, U2, UY, UZ
 INTEGER       :: iSpec
 !===================================================================================================================================
+ViscSpec = 0.; ThermalCondSpec = 0.
+
 DO iSpec = 1, 3
   IF (iSpec.EQ.1) THEN
     InteractDiam = 3.34E-10
@@ -2119,35 +2123,37 @@ DO iSpec = 1, 3
   IF (CellTemp(iSpec).EQ.0.0)   reducedTemp = CellTemp(3) / EnergyScalePar
   Sigma_22 = CalcSigma_22POCS(reducedTemp, DispCoeff, EnergyParam, HighTempCorrect)
   IF (iSpec.EQ.3) CALL CalcSigma_11POCS(reducedTemp, DispCoeff, EnergyParam, HighTempCorrect, Sigma_11, B_12)
-  ViscSpec(iSpec) = 5./16.*(Mass*BoltzmannConst*CellTemp(iSpec)/Pi)**(1./2.)/(InteractDiam**2.*Sigma_22)
-  ThermalCondSpec(iSpec) = 15./4.*ViscSpec(iSpec)*BoltzmannConst / Mass
+  ViscSpec(iSpec) = (5./16.)*(Mass*BoltzmannConst*CellTemp(iSpec)/Pi)**(1./2.)/(InteractDiam**(2.)*Sigma_22)
+  ThermalCondSpec(iSpec) = (15./4.)*ViscSpec(iSpec)*BoltzmannConst / Mass
 END DO
 A_12 = Sigma_22 / Sigma_11
-X = Xi(1)**2./ViscSpec(1) + 2.*Xi(1)*Xi(2)/ViscSpec(3) + Xi(2)**2./ViscSpec(2) 
-Y = 3./5.*A_12*(Xi(1)**2./ViscSpec(1)*Species(1)%MassIC/Species(2)%MassIC &
-   + 2.*Xi(1)*Xi(2)/ViscSpec(3) * (Species(1)%MassIC + Species(2)%MassIC)**2./(4.*Species(1)%MassIC*Species(2)%MassIC) & 
-   * ViscSpec(3)**2./(ViscSpec(1)*ViscSpec(2)) + Xi(2)**2./ViscSpec(2)*Species(2)%MassIC/Species(1)%MassIC)
-Z = 3./5.*A_12*(Xi(1)**2.*Species(1)%MassIC/Species(2)%MassIC &
-   + 2.*Xi(1)*Xi(2) * ((Species(1)%MassIC + Species(2)%MassIC)**2./(4.*Species(1)%MassIC*Species(2)%MassIC) &
-   * (ViscSpec(3)/ViscSpec(1) + ViscSpec(2)/ViscSpec(1)) - 1.) + Xi(2)**2.*Species(2)%MassIC/Species(1)%MassIC)
+X = Xi(1)**(2.)/ViscSpec(1) + 2.*Xi(1)*Xi(2)/ViscSpec(3) + Xi(2)**(2.)/ViscSpec(2) 
+Y = (3./5.)*A_12*(Xi(1)**(2.)/ViscSpec(1)*Species(1)%MassIC/Species(2)%MassIC &
+   + 2.*Xi(1)*Xi(2)/ViscSpec(3) * (Species(1)%MassIC + Species(2)%MassIC)**(2.)/(4.*Species(1)%MassIC*Species(2)%MassIC) & 
+   * ViscSpec(3)**(2.)/(ViscSpec(1)*ViscSpec(2)) + Xi(2)**(2.)/ViscSpec(2)*Species(2)%MassIC/Species(1)%MassIC)
+Z = (3./5.)*A_12*(Xi(1)**(2.)*Species(1)%MassIC/Species(2)%MassIC &
+   + 2.*Xi(1)*Xi(2) * ((Species(1)%MassIC + Species(2)%MassIC)**(2.)/(4.*Species(1)%MassIC*Species(2)%MassIC) &
+   * (ViscSpec(3)/ViscSpec(1) + ViscSpec(2)/ViscSpec(1)) - 1.) + Xi(2)**(2.)*Species(2)%MassIC/Species(1)%MassIC)
 
 Visc = (1.+Z)/(X+Y)
 
-X = Xi(1)**2./ThermalCondSpec(1) + 2.*Xi(1)*Xi(2)/ThermalCondSpec(3) + Xi(2)**2./ThermalCondSpec(2) 
-U1 = 4./15.*A_12 - 1./12.*(12./5.*B_12 + 1.)*Species(1)%MassIC/Species(2)%MassIC & 
-   + 1./2.*(Species(1)%MassIC - Species(2)%MassIC)**2./(Species(1)%MassIC*Species(2)%MassIC)
-U2 = 4./15.*A_12 - 1./12.*(12./5.*B_12 + 1.)*Species(2)%MassIC/Species(1)%MassIC & 
-   + 1./2.*(Species(2)%MassIC - Species(1)%MassIC)**2./(Species(1)%MassIC*Species(2)%MassIC)
-UY = 4./15.*A_12*(Species(2)%MassIC + Species(1)%MassIC)**2./(4.*Species(1)%MassIC*Species(2)%MassIC) &
-   * ThermalCondSpec(3)**2./(ThermalCondSpec(1)*ThermalCondSpec(2)) - 1./12.*(12./5.*B_12 + 1.) & 
-   - 5./(32.*A_12)*(12./5.*B_12-5.)*(Species(1)%MassIC - Species(2)%MassIC)**2./(Species(1)%MassIC*Species(2)%MassIC)
-UZ = 4./15.*A_12*((Species(2)%MassIC + Species(1)%MassIC)**2./(4.*Species(1)%MassIC*Species(2)%MassIC) &
+X = Xi(1)**(2.)/ThermalCondSpec(1) + 2.*Xi(1)*Xi(2)/ThermalCondSpec(3) + Xi(2)**(2.)/ThermalCondSpec(2)
+
+U1 = (4./15.)*A_12 - (1./12.)*((12./5.)*B_12 + 1.)*Species(1)%MassIC/Species(2)%MassIC & 
+   + (1./2.)*(Species(1)%MassIC - Species(2)%MassIC)**(2.)/(Species(1)%MassIC*Species(2)%MassIC)
+U2 = (4./15.)*A_12 - (1./12.)*((12./5.)*B_12 + 1.)*Species(2)%MassIC/Species(1)%MassIC & 
+   + (1./2.)*(Species(2)%MassIC - Species(1)%MassIC)**(2.)/(Species(1)%MassIC*Species(2)%MassIC)
+UY = (4./15.)*A_12*(Species(2)%MassIC + Species(1)%MassIC)**(2.)/(4.*Species(1)%MassIC*Species(2)%MassIC) &
+   * ThermalCondSpec(3)**(2.)/(ThermalCondSpec(1)*ThermalCondSpec(2)) - (1./12.)*((12./5.)*B_12 + 1.) & 
+   - 5./(32.*A_12)*((12./5.)*B_12-5.)*(Species(1)%MassIC - Species(2)%MassIC)**(2.)/(Species(1)%MassIC*Species(2)%MassIC)
+UZ = (4./15.)*A_12*((Species(2)%MassIC + Species(1)%MassIC)**(2.)/(4.*Species(1)%MassIC*Species(2)%MassIC) &
    * (ThermalCondSpec(3)/ThermalCondSpec(1) + ThermalCondSpec(3)/ThermalCondSpec(2)) - 1.) &
-   - 1./12.*(12./5.*B_12 + 1.)
-Y = Xi(1)**2./ThermalCondSpec(1)*U1 + 2.*Xi(1)*Xi(2)/ThermalCondSpec(3)*UY + Xi(2)**2./ThermalCondSpec(2)*U2 
-Z = Xi(1)**2.*U1 + 2.*Xi(1)*Xi(2)*UZ + Xi(2)**2.*U2
+   - (1./12.)*((12./5.)*B_12 + 1.)
+Y = Xi(1)**(2.)/ThermalCondSpec(1)*U1 + 2.*Xi(1)*Xi(2)/ThermalCondSpec(3)*UY + Xi(2)**(2.)/ThermalCondSpec(2)*U2 
+Z = Xi(1)**(2.)*U1 + 2.*Xi(1)*Xi(2)*UZ + Xi(2)**(2.)*U2
 
 ThermalCond = (1.+Z)/(X+Y)
+
 END SUBROUTINE CalcViscosityThermalCondPOCS
 
 
@@ -2175,7 +2181,7 @@ IF (ReducedTemp.LT.1.2) THEN
   a5 = 44.3202 - 53.0817*DispCoeff**(-1./3.)
   a6 = -15.2912 + 18.8125*DispCoeff**(-1./3.)
   Sigma_11 = 1.1874*(DispCoeff/ReducedTemp)**(1./3.)*(1.+ a3*ReducedTemp + a4*ReducedTemp**(4./3.) & 
-          + a5*ReducedTemp**(5./3.) + a6*ReducedTemp**2.)
+          + a5*ReducedTemp**(5./3.) + a6*ReducedTemp**(2.))
   dSigma_11 = 1.1874*DispCoeff**(1./3.)*(-1./3.*ReducedTemp**(-4./3.)+ 2./3.*a3*ReducedTemp**(-1./3.) + a4 & 
           + a5*4./3.*ReducedTemp**(1./3.) + a6*5./3.*ReducedTemp**(2./3.))
   Sigma_12 = ReducedTemp/3.*dSigma_11 + Sigma_11
@@ -2184,30 +2190,30 @@ IF (ReducedTemp.LT.1.2) THEN
   Sigma_13 = ReducedTemp/4.*(1./3.*dTdsigma_11 + dSigma_11) + Sigma_12
   B_12 = (5.*Sigma_12 - 4.*Sigma_13)/Sigma_11
 ELSE IF ((ReducedTemp.GE.1.2).AND.(ReducedTemp.LT.10)) THEN
-  Sigma_11 = EXP(0.357588 - 0.472513*LOG(ReducedTemp) + 0.0700902*(LOG(ReducedTemp))**2. + 0.016574*(LOG(ReducedTemp))**3. & 
-          - 0.00592022*(LOG(ReducedTemp))**4.)
+  Sigma_11 = EXP(0.357588 - 0.472513*LOG(ReducedTemp) + 0.0700902*(LOG(ReducedTemp))**(2.) + 0.016574*(LOG(ReducedTemp))**(3.) & 
+          - 0.00592022*(LOG(ReducedTemp))**(4.))
   dLogSigma_11 = -0.472513/ReducedTemp + 0.0700902*2.*(LOG(ReducedTemp))/ReducedTemp  &
-          + 0.016574*3.*(LOG(ReducedTemp))**2./ReducedTemp - 0.00592022*4.*(LOG(ReducedTemp))**3./ReducedTemp
+          + 0.016574*3.*(LOG(ReducedTemp))**(2.)/ReducedTemp - 0.00592022*4.*(LOG(ReducedTemp))**(3.)/ReducedTemp
   Sigma_12 = Sigma_11*(1.+ReducedTemp/3.*dLogSigma_11)
-  d2LogSigma_11 = 0.472513/ReducedTemp**2. + 0.0700902*(2.-2.*(LOG(ReducedTemp)))/ReducedTemp**2.  &
-          + 0.016574*3.*(2.-(LOG(ReducedTemp)))*(LOG(ReducedTemp))/ReducedTemp**2. &
-          + 0.00592022*(4.*((LOG(ReducedTemp))-3.)*(LOG(ReducedTemp))**2./ReducedTemp**2.)
+  d2LogSigma_11 = 0.472513/ReducedTemp**(2.) + 0.0700902*(2.-2.*(LOG(ReducedTemp)))/ReducedTemp**(2.)  &
+          + 0.016574*3.*(2.-(LOG(ReducedTemp)))*(LOG(ReducedTemp))/ReducedTemp**(2.) &
+          + 0.00592022*(4.*((LOG(ReducedTemp))-3.)*(LOG(ReducedTemp))**(2.)/ReducedTemp**(2.))
   C_12 = Sigma_12/Sigma_11
-  B_12 = 1. + 3.*C_12 - 3.*C_12**2. - ReducedTemp**2./3.*d2LogSigma_11
+  B_12 = 1. + 3.*C_12 - 3.*C_12**(2.) - ReducedTemp**(2.)/3.*d2LogSigma_11
 ELSE
   a1 = LOG(EnergyParam/10.)
-  a2 = -267.00 + (a1*HighTempCorrect)**-2.*(201.570 + 174.672/a1 + (7.36916/a1)**2.)
-  a3 = 26.7E3 - (a1*HighTempCorrect)**-2.*(19.2265 + 27.6938/a1 + (3.29559/a1)**2.)*10.**3.
-  a4 = -8.9E5 + (a1*HighTempCorrect)**-2.*(6.31013 + 10.2266/a1 + (2.33033/a1)**2.)*10.**5.
+  a2 = -267.00 + (a1*HighTempCorrect)**(-2.)*(201.570 + 174.672/a1 + (7.36916/a1)**(2.))
+  a3 = 26.7E3 - (a1*HighTempCorrect)**(-2.)*(19.2265 + 27.6938/a1 + (3.29559/a1)**(2.))*10.**(3.)
+  a4 = -8.9E5 + (a1*HighTempCorrect)**(-2.)*(6.31013 + 10.2266/a1 + (2.33033/a1)**(2.))*10.**(5.)
   LogRedTemp = LOG(EnergyParam)-LOG(ReducedTemp)
-  Sigma_11 = HighTempCorrect**2.*LogRedTemp**2.*(0.89 + a2*ReducedTemp**-2. &
-        + a3*ReducedTemp**-4. + a4*ReducedTemp**-6.)
-  dSigma_11 = HighTempCorrect**2.*(-0.89*2.*LogRedTemp/ReducedTemp - 2.*a2*LogRedTemp*(LogRedTemp+1.)/ReducedTemp**3. &
-         - 2.*a3*LogRedTemp*(2.*LogRedTemp + 1.)/ReducedTemp**5. - 2.*a4*LogRedTemp*(3.*LogRedTemp + 1.)/ReducedTemp**7.)
+  Sigma_11 = HighTempCorrect**(2.)*LogRedTemp**(2.)*(0.89 + a2*ReducedTemp**(-2.) &
+        + a3*ReducedTemp**(-4.) + a4*ReducedTemp**(-6.))
+  dSigma_11 = HighTempCorrect**(2.)*(-0.89*2.*LogRedTemp/ReducedTemp - 2.*a2*LogRedTemp*(LogRedTemp+1.)/ReducedTemp**(3.) &
+         - 2.*a3*LogRedTemp*(2.*LogRedTemp + 1.)/ReducedTemp**(5.) - 2.*a4*LogRedTemp*(3.*LogRedTemp + 1.)/ReducedTemp**(7.))
   Sigma_12 = ReducedTemp/3.*dSigma_11 + Sigma_11
-  dTdsigma_11 = HighTempCorrect**2.*(0.89*2./ReducedTemp + 2.*a2*(2.*LogRedTemp**2. + 4.*LogRedTemp + 1.)/ReducedTemp**3. &
-         + 2.*a3*(8.*LogRedTemp**2. + 8.*LogRedTemp + 1.)/ReducedTemp**5. &
-         + 2.*a4*(18.*LogRedTemp**2. + 12.*LogRedTemp + 1.)/ReducedTemp**7.)
+  dTdsigma_11 = HighTempCorrect**(2.)*(0.89*2./ReducedTemp + 2.*a2*(2.*LogRedTemp**(2.) + 4.*LogRedTemp + 1.)/ReducedTemp**(3.) &
+         + 2.*a3*(8.*LogRedTemp**(2.) + 8.*LogRedTemp + 1.)/ReducedTemp**(5.) &
+         + 2.*a4*(18.*LogRedTemp**(2.) + 12.*LogRedTemp + 1.)/ReducedTemp**(7.))
   Sigma_13 = ReducedTemp/4.*(1./3.*dTdsigma_11 + dSigma_11) + Sigma_12
   B_12 = (5.*Sigma_12 - 4.*Sigma_13)/Sigma_11
 END IF
@@ -2238,17 +2244,17 @@ IF (ReducedTemp.LT.1.2) THEN
   a5 = 16.6295 - 31.3613*DispCoeff**(-1./3.)
   a6 = -6.73805 + 12.6611*DispCoeff**(-1./3.)
   CalcSigma_22POCS = 1.1943*(DispCoeff/ReducedTemp)**(1./3.)*(1.+ a1*ReducedTemp**(1./3.) + a3*ReducedTemp +a4*ReducedTemp**(4./3.)& 
-          + a5*ReducedTemp**(5./3.) + a6*ReducedTemp**2.)
+          + a5*ReducedTemp**(5./3.) + a6*ReducedTemp**(2.))
 ELSE IF ((ReducedTemp.GE.1.2).AND.(ReducedTemp.LT.10)) THEN
-  CalcSigma_22POCS = EXP(0.46641 - 0.56991*LOG(ReducedTemp) + 0.19591*(LOG(ReducedTemp))**2. - 0.03879*(LOG(ReducedTemp))**3. & 
-          + 0.00259*(LOG(ReducedTemp))**4.)
+  CalcSigma_22POCS = EXP(0.46641 - 0.56991*LOG(ReducedTemp) + 0.19591*(LOG(ReducedTemp))**(2.) - 0.03879*(LOG(ReducedTemp))**(3.) & 
+          + 0.00259*(LOG(ReducedTemp))**(4.))
 ELSE
   a1 = LOG(EnergyParam/10.)
-  a2 = -33.0838 + (a1*HighTempCorrect)**-2.*(20.0862 + 72.1059/a1 + (8.27648/a1)**2.)
-  a3 = 101.571 - (a1*HighTempCorrect)**-2.*(56.4472 + 286.393/a1 + (17.7610/a1)**2.)
-  a4 = -87.7036 + (a1*HighTempCorrect)**-2.*(46.3130 + 277.146/a1 + (19.0573/a1)**2.)
-  CalcSigma_22POCS = HighTempCorrect**2.*(LOG(EnergyParam)-LOG(ReducedTemp))**2.*(1.04 + a2*(LOG(ReducedTemp))**-2. &
-        + a3*(LOG(ReducedTemp))**-3. + a4*(LOG(ReducedTemp))**-4.)
+  a2 = -33.0838 + (a1*HighTempCorrect)**(-2.)*(20.0862 + 72.1059/a1 + (8.27648/a1)**(2.))
+  a3 = 101.571 - (a1*HighTempCorrect)**(-2.)*(56.4472 + 286.393/a1 + (17.7610/a1)**(2.))
+  a4 = -87.7036 + (a1*HighTempCorrect)**(-2.)*(46.3130 + 277.146/a1 + (19.0573/a1)**(2.))
+  CalcSigma_22POCS = HighTempCorrect**(2.)*(LOG(EnergyParam)-LOG(ReducedTemp))**(2.)*(1.04 + a2*(LOG(ReducedTemp))**(-2.) &
+        + a3*(LOG(ReducedTemp))**(-3.) + a4*(LOG(ReducedTemp))**(-4.))
 END IF
 
 END FUNCTION CalcSigma_22POCS
