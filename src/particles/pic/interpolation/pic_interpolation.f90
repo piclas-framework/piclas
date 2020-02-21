@@ -705,7 +705,7 @@ USE MOD_Equation_Vars,        ONLY:B,E
 USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
 #ifdef CODE_ANALYZE
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic!,AnalyticInterpolationType
 #endif /* CODE_ANALYZE */
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
@@ -1169,7 +1169,7 @@ SUBROUTINE InitAnalyticalParticleState()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType,DoInitAnalyticalParticleState
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInitAnalyticalParticleState
 USE MOD_Particle_Analyze       ,ONLY: CalcAnalyticalParticleState
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM
 USE MOD_TimeDisc_Vars          ,ONLY: dt

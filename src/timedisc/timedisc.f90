@@ -4219,9 +4219,6 @@ REAL                       :: EDiff
 REAL                       :: c_1
 REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec
 #endif /*PARTICLES*/
-#ifdef CODE_ANALYZE
-REAL                       :: PartStateAnalytic(6)
-#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 #ifdef PARTICLES
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
