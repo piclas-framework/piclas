@@ -3925,7 +3925,7 @@ ASSOCIATE( iPart => 1 )
         ! y-pos
         PartStateAnalytic(2) = p*t + Theta - Theta_0
       END ASSOCIATE
-    CASE(11,21) ! old CASE(1,2)
+    CASE(11,21) ! old version of CASE(1,2)
       ASSOCIATE( p       => AnalyticInterpolationP , &
             Theta_0 => 0.d0 ) !0.785398163397448d0    )
         beta = ACOS(p)
@@ -3940,7 +3940,7 @@ ASSOCIATE( iPart => 1 )
         ! y-pos
         PartStateAnalytic(2) = p*t - (Theta-Theta_0)
       END ASSOCIATE
-    CASE(31) ! old CASE(3)
+    CASE(31) ! old version of CASE(3)
       ASSOCIATE( p       => AnalyticInterpolationP , &
                  Theta_0 => 0.d0                   )
         gamma_0 = SQRT(p*p-1.)
@@ -3953,14 +3953,20 @@ ASSOCIATE( iPart => 1 )
         ! y-pos
         PartStateAnalytic(2) = p*t - (Theta-Theta_0)
       END ASSOCIATE
-      !WRITE (*,*) "PartStateAnalytic =", PartStateAnalytic
-      !read*
     END SELECT
 
-    ! Set analytic velocity
-    PartStateAnalytic(4) = COS(Theta)
-    PartStateAnalytic(5) = SIN(Theta)
-    PartStateAnalytic(6) = 0.
+    SELECT CASE(AnalyticInterpolationSubType)
+    CASE(1,2,3)
+      ! Set analytic velocity
+      PartStateAnalytic(4) = COS(Theta)
+      PartStateAnalytic(5) = SIN(Theta)
+      PartStateAnalytic(6) = 0.
+    CASE(11,21,31)
+      ! Set analytic velocity
+      PartStateAnalytic(4) = SIN(Theta)
+      PartStateAnalytic(5) = COS(Theta)
+      PartStateAnalytic(6) = 0.
+    END SELECT
 
     ! Optional output variables
     IF(PRESENT(alpha_out))THEN
