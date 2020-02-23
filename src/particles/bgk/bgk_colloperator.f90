@@ -850,6 +850,11 @@ ELSE
 END IF
 InnerDOF = 0.
 
+PrandtlCorrection = 0.
+DO iSpec = 1, nSpecies
+  PrandtlCorrection = PrandtlCorrection + REAL(totalWeightSpec(iSpec))/REAL(totalWeight)*MassCoef/Species(iSpec)%MassIC
+END DO
+
 IF (BGKMixtureModel.EQ.1) THEN
   !temp bei sehr wenig partikeln!!!!
   ! 2.) Calculate the reference dynamic viscosity, Prandtl number and the resulting relaxation frequency of the distribution function
@@ -888,7 +893,7 @@ IF (BGKMixtureModel.EQ.1) THEN
     C_P = C_P + REAL(totalWeightSpec(iSpec))/REAL(totalWeight)*Species(iSpec)%MassIC
   END DO
   C_P = 5./2.*BoltzmannConst/C_P
-ELSE
+ELSE IF (BGKMixtureModel.EQ.2) THEN
   C_P = 0.0
   DO iSpec = 1, nSpecies
     IF ((nSpec(iSpec).LT.2).OR.ALMOSTZERO(u2Spec(iSpec))) THEN
@@ -901,12 +906,21 @@ ELSE
   C_P = 5./2.*BoltzmannConst/C_P
   CellTempSpec(nSpecies+1) = CellTemp
   CALL CalcViscosityThermalCondPOCS(CellTempSpec(1:nSpecies+1), totalWeightSpec(1:nSpecies)/totalWeight, dynamicvis, thermalcond)
+ELSE
+  C_P = 0.0
+  DO iSpec = 1, nSpecies
+    IF ((nSpec(iSpec).LT.2).OR.ALMOSTZERO(u2Spec(iSpec))) THEN
+      CellTempSpec(iSpec) = CellTemp
+    ELSE
+      C_P = C_P + REAL(totalWeightSpec(iSpec))/REAL(totalWeight)*Species(iSpec)%MassIC
+      CellTempSpec(iSpec) = SpecTemp(iSpec)
+    END IF
+  END DO
+  C_P = 5./2.*BoltzmannConst/C_P
+  CellTempSpec(nSpecies+1) = CellTemp
+  CALL CalcViscosityThermalCondPOCSVHS(CellTempSpec(1:nSpecies+1), totalWeightSpec(1:nSpecies)/totalWeight, dynamicvis, thermalcond)
 END IF
 
-PrandtlCorrection = 0.
-DO iSpec = 1, nSpecies
-  PrandtlCorrection = PrandtlCorrection + REAL(totalWeightSpec(iSpec))/REAL(totalWeight)*MassCoef/Species(iSpec)%MassIC
-END DO
 Prandtl = C_P*dynamicvis/thermalcond*PrandtlCorrection
 
 IF(DSMC%CalcQualityFactors) BGK_ExpectedPrandtlNumber = BGK_ExpectedPrandtlNumber + Prandtl
@@ -2155,6 +2169,99 @@ Z = Xi(1)**(2.)*U1 + 2.*Xi(1)*Xi(2)*UZ + Xi(2)**(2.)*U2
 ThermalCond = (1.+Z)/(X+Y)
 
 END SUBROUTINE CalcViscosityThermalCondPOCS
+
+
+SUBROUTINE CalcViscosityThermalCondPOCSVHS(CellTemp, Xi, Visc, ThermalCond)
+!===================================================================================================================================
+! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars,              ONLY : SpecDSMC
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst, Pi
+USE MOD_Particle_Vars,          ONLY : Species, nSpecies
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: CellTemp(nSpecies+1), Xi(nSpecies)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)               :: Visc,ThermalCond
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL                            :: Sigma_11, Sigma_22, reducedTemp, B_12, A_12, DispCoeff, EnergyParam, HighTempCorrect
+REAL        :: EnergyScalePar, Mass, ViscSpec(nSpecies+1), ThermalCondSpec(nSpecies+1), X, Y, Z, U1, U2, UY, UZ, TVHS, omegaVHS
+REAL        :: InteractDiam
+INTEGER       :: iSpec
+!===================================================================================================================================
+ViscSpec = 0.; ThermalCondSpec = 0.
+
+DO iSpec = 1, 3
+  IF (iSpec.EQ.1) THEN
+    InteractDiam = SpecDSMC(1)%DrefVHS
+    EnergyScalePar = 141.5
+    DispCoeff = 2.210
+    EnergyParam = 5.117E-5
+    HighTempCorrect = 0.0836
+    Mass = Species(1)%MassIC
+    TVHS = SpecDSMC(1)%TrefVHS
+    omegaVHS = SpecDSMC(1)%omegaVHS
+  ELSE IF (iSpec.EQ.2) THEN
+    InteractDiam = SpecDSMC(2)%DrefVHS
+    EnergyScalePar = 10.4
+    DispCoeff = 3.09
+    EnergyParam = 8.5E-5
+    HighTempCorrect = 0.0797
+    Mass = Species(2)%MassIC
+    TVHS = SpecDSMC(2)%TrefVHS
+    omegaVHS = SpecDSMC(2)%omegaVHS
+  ELSE
+    InteractDiam = (SpecDSMC(1)%DrefVHS + SpecDSMC(2)%DrefVHS)/2.
+    EnergyScalePar = 30.01
+    DispCoeff = 2.681
+    EnergyParam = 9.74E-5
+    HighTempCorrect = 0.0791
+    Mass = 2.*Species(1)%MassIC*Species(2)%MassIC/(Species(1)%MassIC + Species(2)%MassIC)
+    TVHS = SQRT(SpecDSMC(1)%TrefVHS*SpecDSMC(2)%TrefVHS)
+    omegaVHS = (SpecDSMC(1)%omegaVHS + SpecDSMC(2)%omegaVHS)/2.
+  END IF
+  reducedTemp = CellTemp(iSpec) / EnergyScalePar
+  IF (CellTemp(iSpec).EQ.0.0)   reducedTemp = CellTemp(3) / EnergyScalePar
+  Sigma_22 = CalcSigma_22POCS(reducedTemp, DispCoeff, EnergyParam, HighTempCorrect)
+  IF (iSpec.EQ.3) CALL CalcSigma_11POCS(reducedTemp, DispCoeff, EnergyParam, HighTempCorrect, Sigma_11, B_12)
+  ViscSpec(iSpec) = 30.*SQRT(Mass* BoltzmannConst* TVHS/Pi)/(4.*(4.- 2.*omegaVHS) * (6. - 2.*omegaVHS)* InteractDiam**(2.) &
+        *TVHS**(omegaVHS + 0.5)*CellTemp(iSpec)**(-omegaVHS - 0.5))
+  ThermalCondSpec(iSpec) = (15./4.)*ViscSpec(iSpec)*BoltzmannConst / Mass
+END DO
+A_12 = Sigma_22 / Sigma_11
+X = Xi(1)**(2.)/ViscSpec(1) + 2.*Xi(1)*Xi(2)/ViscSpec(3) + Xi(2)**(2.)/ViscSpec(2) 
+Y = (3./5.)*A_12*(Xi(1)**(2.)/ViscSpec(1)*Species(1)%MassIC/Species(2)%MassIC &
+   + 2.*Xi(1)*Xi(2)/ViscSpec(3) * (Species(1)%MassIC + Species(2)%MassIC)**(2.)/(4.*Species(1)%MassIC*Species(2)%MassIC) & 
+   * ViscSpec(3)**(2.)/(ViscSpec(1)*ViscSpec(2)) + Xi(2)**(2.)/ViscSpec(2)*Species(2)%MassIC/Species(1)%MassIC)
+Z = (3./5.)*A_12*(Xi(1)**(2.)*Species(1)%MassIC/Species(2)%MassIC &
+   + 2.*Xi(1)*Xi(2) * ((Species(1)%MassIC + Species(2)%MassIC)**(2.)/(4.*Species(1)%MassIC*Species(2)%MassIC) &
+   * (ViscSpec(3)/ViscSpec(1) + ViscSpec(2)/ViscSpec(1)) - 1.) + Xi(2)**(2.)*Species(2)%MassIC/Species(1)%MassIC)
+
+Visc = (1.+Z)/(X+Y)
+
+X = Xi(1)**(2.)/ThermalCondSpec(1) + 2.*Xi(1)*Xi(2)/ThermalCondSpec(3) + Xi(2)**(2.)/ThermalCondSpec(2)
+
+U1 = (4./15.)*A_12 - (1./12.)*((12./5.)*B_12 + 1.)*Species(1)%MassIC/Species(2)%MassIC & 
+   + (1./2.)*(Species(1)%MassIC - Species(2)%MassIC)**(2.)/(Species(1)%MassIC*Species(2)%MassIC)
+U2 = (4./15.)*A_12 - (1./12.)*((12./5.)*B_12 + 1.)*Species(2)%MassIC/Species(1)%MassIC & 
+   + (1./2.)*(Species(2)%MassIC - Species(1)%MassIC)**(2.)/(Species(1)%MassIC*Species(2)%MassIC)
+UY = (4./15.)*A_12*(Species(2)%MassIC + Species(1)%MassIC)**(2.)/(4.*Species(1)%MassIC*Species(2)%MassIC) &
+   * ThermalCondSpec(3)**(2.)/(ThermalCondSpec(1)*ThermalCondSpec(2)) - (1./12.)*((12./5.)*B_12 + 1.) & 
+   - 5./(32.*A_12)*((12./5.)*B_12-5.)*(Species(1)%MassIC - Species(2)%MassIC)**(2.)/(Species(1)%MassIC*Species(2)%MassIC)
+UZ = (4./15.)*A_12*((Species(2)%MassIC + Species(1)%MassIC)**(2.)/(4.*Species(1)%MassIC*Species(2)%MassIC) &
+   * (ThermalCondSpec(3)/ThermalCondSpec(1) + ThermalCondSpec(3)/ThermalCondSpec(2)) - 1.) &
+   - (1./12.)*((12./5.)*B_12 + 1.)
+Y = Xi(1)**(2.)/ThermalCondSpec(1)*U1 + 2.*Xi(1)*Xi(2)/ThermalCondSpec(3)*UY + Xi(2)**(2.)/ThermalCondSpec(2)*U2 
+Z = Xi(1)**(2.)*U1 + 2.*Xi(1)*Xi(2)*UZ + Xi(2)**(2.)*U2
+
+ThermalCond = (1.+Z)/(X+Y)
+
+END SUBROUTINE CalcViscosityThermalCondPOCSVHS
 
 
 SUBROUTINE CalcSigma_11POCS(ReducedTemp, DispCoeff, EnergyParam, HighTempCorrect, Sigma_11, B_12)
