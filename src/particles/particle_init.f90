@@ -2301,7 +2301,7 @@ DO iPartBound=1,nPartBound
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
       CASE (0)
         PartBound%Reactive(iPartBound)        = .FALSE.
-      CASE (2,3,5,6,101,102)
+      CASE (2,3,5,6,7,101,102)
         PartBound%Reactive(iPartBound)        = .TRUE.
       CASE DEFAULT
         CALL abort(&

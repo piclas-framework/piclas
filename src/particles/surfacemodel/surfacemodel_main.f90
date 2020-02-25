@@ -469,9 +469,10 @@ CASE (4)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! TODO
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE (5,6) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
-           ! 5: SEE by Levko2015
-           ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
+CASE (5,6,7) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
+             ! 5: SEE by Levko2015
+             ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
+             ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Get electron emission probability
   CALL SecondaryElectronEmission(PartBound%SurfaceModel(locBCID),PartID,locBCID,Adsorption_prob,ReflectionIndex,ProductSpec,&
