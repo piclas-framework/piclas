@@ -342,7 +342,7 @@ END IF
 OutputCounter = 0
 
 DO iSurfSide=1,SurfMesh%nSides
-  IF(iSurfSide.GT.nBCSides) THEN
+  IF(iSurfSide.GT.SurfMesh%nBCSides) THEN
     IF(SurfMesh%innerBCSideToHaloMap(SurfMesh%SurfIDToSideID(iSurfSide)).NE.-1) CYCLE
   END IF
   OutputCounter = OutputCounter + 1
