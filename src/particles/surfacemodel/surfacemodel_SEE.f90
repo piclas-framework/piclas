@@ -147,7 +147,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
           ProductSpec(1) = 0 ! just for sanity check
         END IF
       END ASSOCIATE
-    ELSEIF(Species(PartSpecies(PartID_IN))%ChargeIC.NE.0.0)THEN ! Positive bombarding ion
+    ELSEIF(Species(PartSpecies(PartID_IN))%ChargeIC.GT.0.0)THEN ! Positive bombarding ion
       CALL RANDOM_NUMBER(iRan)
       !IF(iRan.LT.1.)THEN ! SEE-I: gamma=0.02 for the N2^+ ions and copper material
       IF(iRan.LT.0.02)THEN ! SEE-I: gamma=0.02 for the N2^+ ions and copper material
@@ -191,10 +191,11 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
   velocityDistribution(1) = ''
   velocityDistribution(2) = 'deltadistribution'
   ProductSpecNbr = 0 ! do not create new particle (default value)
+  v_new = 0. ! initialize zero
 
   IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
     RETURN ! nothing to do
-  ELSEIF(Species(PartSpecies(PartID_IN))%ChargeIC.NE.0.0)THEN ! Positive bombarding ion
+  ELSEIF(Species(PartSpecies(PartID_IN))%ChargeIC.GT.0.0)THEN ! Positive bombarding ion
     CALL RANDOM_NUMBER(iRan)
     IF(iRan.LT.0.13)THEN ! SEE-I: gamma=0.13 for the Ar^+ ions bombarding different metals, see 
                          ! D. Depla, Magnetron sputter deposition: Linking discharge voltage with target properties, 2009
