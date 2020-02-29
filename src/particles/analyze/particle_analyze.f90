@@ -180,6 +180,7 @@ CALL prms%CreateLogicalOption(  'CalcPorousBCInfo'         , 'Calculate output o
                                                              'Values are averaged over the whole porous BC.' , '.FALSE.')
 
 CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , ' Calculate output of Power that is coupled into plasma' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'DisplayCoupledPower'      , ' Display coupled power in UNIT_stdOut' , '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleAnalyze
 
@@ -478,9 +479,10 @@ ELSE
   nSpecAnalyze = 1
 END IF
 
-CalcCoupledPower = GETLOGICAL('CalcCoupledPower','.FALSE.')
+CalcCoupledPower = GETLOGICAL('CalcCoupledPower')
 
 IF(CalcCoupledPower) THEN
+  DisplayCoupledPower = GETLOGICAL('DisplayCoupledPower')
   DoPartAnalyze = .TRUE.
   PCouplAverage = 0.0
 #if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
@@ -1271,7 +1273,7 @@ END IF
 
 IF(CalcCoupledPower) THEN
   ! Moving Average of PCoupl for each species
-  IF(MOD(iter,IterDisplayStep).EQ.0) CALL DisplayCoupledPowerPart()
+  IF((DisplayCoupledPower).AND.(MOD(iter,IterDisplayStep).EQ.0)) CALL DisplayCoupledPowerPart()
 END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
