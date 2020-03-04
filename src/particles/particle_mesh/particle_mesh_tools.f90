@@ -171,7 +171,8 @@ Bounds(:,3)=(/zmin,zmax/)
 END SUBROUTINE BoundsOfElement
 
 
-PURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
+!PURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
+SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 !===================================================================================================================================
 !> Checks if particle is inside of a linear element with triangulated faces, compatible with mortars
 !> Regular element: The determinant of a 3x3 matrix, where the three vectors point from the particle to the nodes of a triangle, is
@@ -184,6 +185,9 @@ PURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO,PartElemToSide,PartElemToElemAndSide
 USE MOD_Mesh_Vars             ,ONLY: MortarType
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -201,22 +205,34 @@ INTEGER                       :: ilocSide, NodeNum, SideID, SideIDMortar, ind, N
 LOGICAL                       :: PosCheck, NegCheck, InElementCheckMortar, InElementCheckMortarNb
 REAL                          :: A(1:3,1:4), crossP(3)
 !===================================================================================================================================
+print *,PartStateLoc
+DO NodeNum = 1,8
+  print *,NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeNum),ElemID
+END DO
+
 InElementCheck = .TRUE.
 InElementCheckMortar = .TRUE.
 !--- Loop over the 6 sides of the element
 DO iLocSide = 1,6
   DO NodeNum = 1,4
     !--- A = vector from particle to node coords
-    A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,ElemID)) - PartStateLoc(1:3)
+    A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,iLocSide,ElemID)+1) - PartStateLoc(1:3)
   END DO
-  SideID =PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-  SideIDMortar=MortarType(2,SideID)
+  IF (ElemID.EQ.1 .AND. iLocSide.EQ.1) print *, NodeCoords_Shared(:,ElemSideNodeID_Shared(1,iLocSide,ElemID)+1)
+  IF (ElemID.EQ.1 .AND. iLocSide.EQ.1) print *, NodeCoords_Shared(:,ElemSideNodeID_Shared(2,iLocSide,ElemID)+1)
+  IF (ElemID.EQ.1 .AND. iLocSide.EQ.1) print *, NodeCoords_Shared(:,ElemSideNodeID_Shared(3,iLocSide,ElemID)+1)
+  IF (ElemID.EQ.1 .AND. iLocSide.EQ.1) print *, NodeCoords_Shared(:,ElemSideNodeID_Shared(4,iLocSide,ElemID)+1)
+  IF (ElemID.EQ.1 .AND. iLocSide.EQ.1) STOP
+
+  SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  SideIDMortar = MortarMapping_Shared(SideID)
+  IF(ElemID.EQ.1) print *, SideIDMortar
   !--- Treatment of sides which are adjacent to mortar elements
   IF (SideIDMortar.GT.0) THEN
     PosCheck = .FALSE.
     NegCheck = .FALSE.
     !--- Checking the concave part of the side
-    IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+    IF (ConcaveElemSide_Shared(iLocSide,ElemID)) THEN
       ! If the element is actually concave, CalcDetOfTrias determines its determinants
       Det(iLocSide,1:2) = CalcDetOfTrias(A,1)
       IF (Det(iLocSide,1).GE.0) PosCheck = .TRUE.
@@ -234,7 +250,7 @@ DO iLocSide = 1,6
     !--- Checking the convex part of the side
     IF (.NOT.InElementCheckMortar) THEN
       InElementCheckMortar = .TRUE.
-      IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+      IF (ConcaveElemSide_Shared(iLocSide,ElemID)) THEN
         Det(iLocSide,1:2) = CalcDetOfTrias(A,2)
         IF (Det(iLocSide,1).LT.0) NegCheck = .TRUE.
         IF (Det(iLocSide,2).LT.0) NegCheck = .TRUE.
@@ -250,16 +266,10 @@ DO iLocSide = 1,6
       !--- Particle is in a convex elem but not in concave, checking additionally the mortar neighbors. If particle is not inside
       !    the mortar elements, it has to be in the original element.
       IF (InElementCheckMortar) THEN
-        IF (MortarType(1,SideID).EQ.1) THEN
-          nNbMortars = 4
-        ELSE
-          nNbMortars = 2
-        END IF
-        !--- Loop over the number of neighbouring mortar elements, leave the routine if the particle is found within one of the
-        !    mortar elements
+        nNbMortars = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
         DO ind = 1, nNbMortars
           InElementCheckMortarNb = .TRUE.
-          NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
+          NbElemID = SideInfo_Shared(SIDE_ELEMID,MortarInfo_Shared(ind,MortarMapping_Shared(SideID)))
           ! If small mortar element not defined, skip it for now, likely not inside the halo region (additional check is performed
           ! after the MPI communication: ParticleInsideQuad3D_MortarMPI)
           IF (NbElemID.LT.1) CYCLE
@@ -300,12 +310,111 @@ DO iLocSide = 1,6
       PosCheck = .TRUE.
     END IF
     !--- final determination whether particle is in element
-    IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+    IF (ElemID.EQ.1) print *, InElementCheck,posCheck,NegCheck,ConcaveElemSide_Shared(iLocSide,ElemID)
+    IF (ConcaveElemSide_Shared(iLocSide,ElemID)) THEN
       IF (.NOT.PosCheck) InElementCheck = .FALSE.
     ELSE
       IF (NegCheck) InElementCheck = .FALSE.
     END IF
   END IF ! Mortar element or regular element
+
+!  SideID =PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+!  SideIDMortar=MortarType(2,SideID)
+!  !--- Treatment of sides which are adjacent to mortar elements
+!  IF (SideIDMortar.GT.0) THEN
+!    PosCheck = .FALSE.
+!    NegCheck = .FALSE.
+!    !--- Checking the concave part of the side
+!    IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+!      ! If the element is actually concave, CalcDetOfTrias determines its determinants
+!      Det(iLocSide,1:2) = CalcDetOfTrias(A,1)
+!      IF (Det(iLocSide,1).GE.0) PosCheck = .TRUE.
+!      IF (Det(iLocSide,2).GE.0) PosCheck = .TRUE.
+!      !--- final determination whether particle is in element
+!      IF (.NOT.PosCheck) InElementCheckMortar = .FALSE.
+!    ELSE
+!      ! If its a convex element, CalcDetOfTrias determines the concave determinants
+!      Det(iLocSide,1:2) = CalcDetOfTrias(A,2)
+!      IF (Det(iLocSide,1).GE.0) PosCheck = .TRUE.
+!      IF (Det(iLocSide,2).GE.0) PosCheck = .TRUE.
+!      !--- final determination whether particle is in element
+!      IF (.NOT.PosCheck) InElementCheckMortar= .FALSE.
+!    END IF
+!    !--- Checking the convex part of the side
+!    IF (.NOT.InElementCheckMortar) THEN
+!      InElementCheckMortar = .TRUE.
+!      IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+!        Det(iLocSide,1:2) = CalcDetOfTrias(A,2)
+!        IF (Det(iLocSide,1).LT.0) NegCheck = .TRUE.
+!        IF (Det(iLocSide,2).LT.0) NegCheck = .TRUE.
+!        !--- final determination whether particle is in element
+!        IF (NegCheck) InElementCheckMortar = .FALSE.
+!      ELSE
+!        Det(iLocSide,1:2) = CalcDetOfTrias(A,1)
+!        IF (Det(iLocSide,1).LT.0) NegCheck = .TRUE.
+!        IF (Det(iLocSide,2).LT.0) NegCheck = .TRUE.
+!        !--- final determination whether particle is in element
+!        IF (NegCheck) InElementCheckMortar= .FALSE.
+!      END IF
+!      !--- Particle is in a convex elem but not in concave, checking additionally the mortar neighbors. If particle is not inside
+!      !    the mortar elements, it has to be in the original element.
+!      IF (InElementCheckMortar) THEN
+!        IF (MortarType(1,SideID).EQ.1) THEN
+!          nNbMortars = 4
+!        ELSE
+!          nNbMortars = 2
+!        END IF
+!        !--- Loop over the number of neighbouring mortar elements, leave the routine if the particle is found within one of the
+!        !    mortar elements
+!        DO ind = 1, nNbMortars
+!          InElementCheckMortarNb = .TRUE.
+!          NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
+!          ! If small mortar element not defined, skip it for now, likely not inside the halo region (additional check is performed
+!          ! after the MPI communication: ParticleInsideQuad3D_MortarMPI)
+!          IF (NbElemID.LT.1) CYCLE
+!          CALL ParticleInsideNbMortar(PartStateLoc,NbElemID,InElementCheckMortarNb)
+!          IF (InElementCheckMortarNb) THEN
+!            InElementCheck = .FALSE.
+!            EXIT
+!          END IF
+!        END DO
+!      ELSE
+!        InElementCheck = .FALSE.
+!      END IF
+!    END IF
+!  ELSE ! Treatment of regular elements without mortars
+!    PosCheck = .FALSE.
+!    NegCheck = .FALSE.
+!    !--- compute cross product for vector 1 and 3
+!    crossP(1) = A(2,1) * A(3,3) - A(3,1) * A(2,3)
+!    crossP(2) = A(3,1) * A(1,3) - A(1,1) * A(3,3)
+!    crossP(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
+!    !--- negative determinant of triangle 1 (points 1,3,2):
+!    Det(iLocSide,1) = crossP(1) * A(1,2) + &
+!                      crossP(2) * A(2,2) + &
+!                      crossP(3) * A(3,2)
+!    Det(iLocSide,1) = -det(iLocSide,1)
+!    !--- determinant of triangle 2 (points 1,3,4):
+!    Det(iLocSide,2) = crossP(1) * A(1,4) + &
+!                      crossP(2) * A(2,4) + &
+!                      crossP(3) * A(3,4)
+!    IF (Det(iLocSide,1).LT.0) THEN
+!      NegCheck = .TRUE.
+!    ELSE
+!      PosCheck = .TRUE.
+!    END IF
+!    IF (Det(iLocSide,2).LT.0) THEN
+!      NegCheck = .TRUE.
+!    ELSE
+!      PosCheck = .TRUE.
+!    END IF
+!    !--- final determination whether particle is in element
+!    IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+!      IF (.NOT.PosCheck) InElementCheck = .FALSE.
+!    ELSE
+!      IF (NegCheck) InElementCheck = .FALSE.
+!    END IF
+!  END IF ! Mortar element or regular element
 END DO ! iLocSide = 1,6
 
 RETURN
@@ -321,6 +430,9 @@ PURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
 ! MODULES
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO, PartElemToSide
 USE MOD_Mesh_Vars             ,ONLY: MortarType
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -342,15 +454,15 @@ InElementCheck = .TRUE.
 DO iLocSide = 1,6                 ! for all 6 sides of the element
   DO NodeNum = 1,4
   !--- A = vector from particle to node coords
-    A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,ElemID)) - PartStateLoc(1:3)
+    A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,iLocSide,ElemID)+1) - PartStateLoc(1:3)
   END DO
-  SideID = PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-  IF (MortarType(2,SideID).GT.0) THEN ! Mortar side
+  SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  IF (MortarMapping_Shared(SideID).GT.0) THEN ! Mortar side
     !--- initialize flags for side checks
     PosCheck = .FALSE.
     NegCheck = .FALSE.
     !--- Check if the particle is inside the convex element. If its outside, it has to be inside the original element
-    IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+    IF (ConcaveElemSide_Shared(iLocSide,ElemID)) THEN
       Det(1:2) = CalcDetOfTrias(A,2)
       IF (Det(1).LT.0) NegCheck = .TRUE.
       IF (Det(2).LT.0) NegCheck = .TRUE.
@@ -396,7 +508,7 @@ DO iLocSide = 1,6                 ! for all 6 sides of the element
       PosCheck = .TRUE.
     END IF
     !--- final determination whether particle is in element
-    IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+    IF (ConcaveElemSide_Shared(iLocSide,ElemID)) THEN
       IF (.NOT.PosCheck) THEN
         InElementCheck = .FALSE.
         RETURN
@@ -480,6 +592,9 @@ SUBROUTINE ParticleInsideQuad3D_MortarMPI(PartStateLoc,ElemID,PartInside)
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO,PartElemToSide,PartElemToElemAndSide
 USE MOD_Mesh_Vars             ,ONLY: MortarType
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -591,7 +706,7 @@ END SUBROUTINE InitGetGlobalElemID
 !==================================================================================================================================!
 PURE FUNCTION GetGlobalElemID_iElem(iElem)
 ! MODULES
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -610,7 +725,7 @@ END FUNCTION GetGlobalElemID_iElem
 PURE FUNCTION GetGlobalElemID_fromTotalElem(iElem)
 ! MODULES
 USE MOD_MPI_Shared_Vars, ONLY:CNTotalElem2GlobalElem
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -662,7 +777,7 @@ END SUBROUTINE InitGetCNElemID
 !==================================================================================================================================!
 PURE FUNCTION GetCNElemID_iElem(iElem)
 ! MODULES
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -681,7 +796,7 @@ END FUNCTION GetCNElemID_iElem
 PURE FUNCTION GetCNElemID_fromTotalElem(iElem)
 ! MODULES
 USE MOD_MPI_Shared_Vars, ONLY:GlobalElem2CNTotalElem
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)              :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES

@@ -322,7 +322,7 @@ IF (meshMode.GT.0) THEN
 END IF
 
 IF (meshMode.GT.1) THEN
-  
+
   ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
 
   ! volume data
@@ -1037,7 +1037,7 @@ SDEALLOCATE(XiCL_NGeo1)
 SDEALLOCATE(CurvedElem)
 SDEALLOCATE(VolToSideIJKA)
 MeshInitIsDone = .FALSE.
-SDEALLOCATE(ElemBaryNGeo)
+ADEALLOCATE(ElemBaryNGeo)
 SDEALLOCATE(ElemGlobalID)
 END SUBROUTINE FinalizeMesh
 

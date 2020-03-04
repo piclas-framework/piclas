@@ -336,6 +336,8 @@ END IF
 
 IF (TriaTracking) THEN
   CALL InitParticleGeometry()
+  ! Compute convex element radius^2
+  CALL BuildElementRadiusTria()
 ELSE
   CALL CalcParticleMeshMetrics()
   CALL CalcBezierControlPoints()
@@ -404,6 +406,7 @@ ELSE
   ! Get basevectors for (bi-)linear sides
   CALL GetLinearSideBaseVectors()
 END IF
+
 
 ! BezierAreaSample stuff:
 WRITE(hilf,'(L1)') TriaTracking
@@ -514,6 +517,7 @@ CALL InitializeVandermonde(NGeo,NGeo,wBaryCL_NGeo,Xi_NGeo,XiCL_NGeo,Vdm_NGeo_CLN
 #if USE_MPI
 MPISharedSize = INT((3*(NGeo+1)**3*nComputeNodeElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/3,NGeo+1,NGeo+1,NGeo+1,nComputeNodeElems/),XCL_NGeo_Shared_Win,XCL_NGeo_Shared)
+print *, SHAPE(XCL_Ngeo_Shared)
 MPISharedSize = INT((3*3*(NGeo+1)**3*nComputeNodeElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/3,3,NGeo+1,NGeo+1,NGeo+1,nComputeNodeElems/),dXCL_NGeo_Shared_Win,dXCL_NGeo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,XCL_NGeo_Shared_Win,IERROR)
@@ -810,11 +814,12 @@ DO iElem = firstElem,lastElem
     GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) + iLocSide
     ! Find start of CGNS mapping from flip
     nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)-1)
-    IF(iElem.EQ.1) THEN
-      SWRITE(*,*) GlobalSideID
-      SWRITE(*,*) MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)
-    END IF
+!    IF(iElem.EQ.1) THEN
+!      SWRITE(*,*) GlobalSideID
+!      SWRITE(*,*) MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)
+!    END IF
     ! Shared memory array starts at 1, but NodeID at 0
+    !TODO: THIS IS WHERE WE FAIL! THIS IS NOT A TRIANGLE!
     ElemSideNodeID_Shared(1:4,iLocSide,iElem) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart  ,4)+1,iLocSide)-1, &
                                                   ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+1,4)+1,iLocSide)-1, &
                                                   ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+2,4)+1,iLocSide)-1, &
@@ -841,8 +846,8 @@ DO iElem = firstElem,lastElem
     IF (detcon.LT.0) ConcaveElemSide_Shared(iLocSide,iElem) = .TRUE.
   END DO
 END DO
-SWRITE(*,*) ConcaveElemSide_Shared(:,1)
-STOP
+!SWRITE(*,*) ConcaveElemSide_Shared(:,25)
+!SideInfo_Shared(SIDE_NBELEMID,ElemInfo_Shared(ELEM_FIRSTSIDEIND,1)+1)
 
 !-- write debug-mesh
 ! IF (WriteTriaDebugMesh) THEN
@@ -2708,7 +2713,7 @@ DO iElem = firstElem,lastElem ! go through all elements
     WeirdElemNbrs(WeirdElems) = iElem
   END IF
 END DO
-STOP
+!STOP
 
 SWRITE(UNIT_stdOut,'(A)')' CHECKING FOR WEIRD ELEMENTS DONE!'
 IF(WeirdElems.GT.0) THEN
@@ -3112,6 +3117,8 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
   CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),ElemRadiusNGeo_Shared_Win,ElemRadiusNGEO_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemRadiusNGeo_Shared_Win,IERROR)
   CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),ElemRadius2NGeo_Shared_Win,ElemRadius2NGEO_Shared)
+  print *, 'ncompute',ncomputenodetotalelems
+  read *
   CALL MPI_WIN_LOCK_ALL(0,ElemRadius2NGeo_Shared_Win,IERROR)
   MPISharedSize = INT((3*6*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
   CALL Allocate_Shared(MPISharedSize,(/3,6,nComputeNodeTotalElems/),XiEtaZetaBasis_Shared_Win,XiEtaZetaBasis_Shared)
@@ -3210,6 +3217,77 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 END SUBROUTINE BuildElementBasisAndRadius
 
+SUBROUTINE BuildElementRadiusTria()
+!================================================================================================================================
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
+USE MOD_Mesh_Vars              ,ONLY: ElemBaryNGeo
+#if USE_MPI
+USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars
+#else
+USE MOD_Mesh_Vars              ,ONLY: nELems
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: iElem,iNode,ALLOCSTAT
+REAL                           :: xPos(3),Radius
+INTEGER                        :: firstElem, lastElem
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+!================================================================================================================================
+#if USE_MPI
+  MPISharedSize = INT((3*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalElems/),ElemBaryNGeo_Shared_Win,ElemBaryNGeo_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ElemBaryNGeo_Shared_Win,IERROR)
+  MPISharedSize = INT((nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),ElemRadius2NGeo_Shared_Win,ElemRadius2NGEO_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ElemRadius2NGeo_Shared_Win,IERROR)
+  ElemRadius2NGeo    => ElemRadius2NGeo_Shared
+  ElemBaryNGeo       => ElemBaryNGeo_Shared
+#else
+  ALLOCATE(ElemBaryNGeo(1:3,nElems)
+  ALLOCATE(ElemRadius2NGeo(nElems)
+#endif
+
+ElemRadius2NGeo=0.
+
+#if USE_MPI
+firstElem=INT(REAL(myComputeNodeRank*    nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem =INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+#else
+firstElem=1
+lastElem=nElems
+#endif
+
+DO iElem=firstElem,lastElem
+  Radius=0.
+  xPos  =0.
+  DO iNode=1,8
+    xPos = xPos + NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+iNode)
+  END DO
+    ElemBaryNGeo(:,iElem) = xPos/8.
+  DO iNode=1,8
+    xPos   = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+iNode) - ElemBaryNGeo(:,iElem)
+    Radius = MAX(Radius,VECNORM(xPos))
+  END DO
+  ElemRadius2NGeo(iElem) = Radius*Radius
+
+  print *,  iElem,MortarMapping_Shared(ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)+1:ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)+6)
+END DO ! iElem
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(ElemRadius2NGeo_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ElemBaryNGeo_Shared_Win,IERROR)
+#endif
+
+END SUBROUTINE BuildElementRadiusTria
 
 !SUBROUTINE MapElemToFIBGM()
 !!----------------------------------------------------------------------------------------------------------------------------------!
@@ -7006,7 +7084,7 @@ DO iElem=firstElem,lastElem
       buf=Lag(2,j)*Lag(3,k)
       DO i=0,NGeo
         ! Add +1 here due to shared array
-        xPos=xPos+XCL_NGeo(:,i+Shift,j+Shift,k+Shift,iElem)*Lag(1,i)*buf
+        xPos=xPos+XCL_NGeo(1:3,i+Shift,j+Shift,k+Shift,iElem)*Lag(1,i)*buf
       END DO !i=0,NGeo
     END DO !j=0,NGeo
   END DO !k=0,NGeo

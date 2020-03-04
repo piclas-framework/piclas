@@ -47,7 +47,7 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: PartID
 LOGICAL,INTENT(IN) :: doHalo
 !-----------------------------------------------------------------------------------------------------------------------------------

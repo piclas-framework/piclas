@@ -42,6 +42,7 @@ INTEGER            :: MPI_COMM_LEADERS_SHARED         !> Communicator compute-no
 INTEGER            :: nNonUniqueGlobalSides           !> total nb. of non-unique sides of mesh (hexahedral: 6*nElems)
 INTEGER            :: nNonUniqueGlobalNodes           !> total nb. of non-unique nodes of mesh (hexahedral: 8**NGeo * nElems)
 INTEGER            :: nNonUniqueGlobalTrees           !> total nb. of trees
+INTEGER            :: nUniqueMasterMortarSides        !> total nb. of master mortar sides in the mesh
 INTEGER            :: nComputeNodeElems               !> Number of elems on current compute-node
 INTEGER            :: nComputeNodeSides               !> Number of sides on current compute-node
 INTEGER            :: nComputeNodeNodes               !> Number of nodes on current compute-node
@@ -63,6 +64,11 @@ INTEGER         :: ElemInfo_Shared_Win
 
 INTEGER,POINTER :: SideInfo_Shared(:,:)
 INTEGER         :: SideInfo_Shared_Win
+
+INTEGER,POINTER :: MortarMapping_Shared(:)
+INTEGER         :: MortarMapping_Shared_Win
+INTEGER,POINTER :: MortarInfo_Shared(:,:)
+INTEGER         :: MortarInfo_Shared_Win
 
 INTEGER,POINTER :: NodeInfo_Shared(:)
 INTEGER         :: NodeInfo_Shared_Win
