@@ -254,7 +254,7 @@ USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
 #endif
 USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry2D
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
-USE MOD_Mesh_Vars                  ,ONLY: MeshFile, BC, nBCSides
+USE MOD_Mesh_Vars                  ,ONLY: MeshFile, BC
 USE MOD_Restart_Vars               ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
