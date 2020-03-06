@@ -879,6 +879,12 @@ These parameters allow the simulation of non-reactive gases. Additional paramete
 
 ### Pairing & Collision Modelling \label{sec:dsmc_collision}
 
+By default, a conventional statistical pairing algorithm randomly pairs particles within a cell. Here, the mesh should resolve the mean free path to avoid numerical diffusion.
+
+The octree-based sorting and cell refinement in combination with the nearest neighbour pairing can be enabled by
+
+    Particles-DSMC-UseOctree = T
+
 WIP: octree, nearest neighbor, VHS
 
 Particles-DSMC-ProhibitDoubleCollision [@Shevyrin2005,@Akhlaghi2018]
@@ -965,7 +971,59 @@ An electronic state database can be created using a Fortran tool in `piclas/tool
 
 ### Chemistry & Ionization \label{sec:dsmc_chemistry}
 
-WIP
+Chemical reactions and ionization processes require
+
+    Particles-DSMC-CollisMode = 3
+
+The reactions paths can then be defined in the species parameter file. First, the number of reactions to read-in has to be defined
+
+    DSMC-NumOfReactions = 2
+
+A reaction is then defined by
+
+    DSMC-Reaction1-ReactionType=D
+    DSMC-Reaction1-Reactants=(/1,1,0/)
+    DSMC-Reaction1-Products=(/2,1,2/)
+
+where the reaction type can be defined as follows
+
+| Type | Description                                |
+| ---: | ------------------------------------------ |
+|    D | Dissociation (e.g. N$_2$ + M -> N + N + M) |
+|    E | Exchange (e.g. N$_2$ + O -> NO + N)        |
+|    R | Recombination (e.g. N + O + M -> NO + M)   |
+|  iQK | Ionization (e.g. N + e -> N$^+$ + e + e)   |
+
+The reactants (left-hand side) and products (right-hand side) are defined by their respective species index. It should be noted that for the dissociation reaction, the first given species is the molecule to be dissociated. The second given species is the non-reacting partner, which can either be defined specifically or set to zero to define multiple possible collision partners. In the latter case, the number of non-reactive partners and their species have to be given by
+
+    DSMC-Reaction1-Reactants=(/1,0,0/)
+    DSMC-Reaction1-Products=(/2,0,2/)
+    DSMC-Reaction1-NumberOfNonReactives=3
+    DSMC-Reaction1-NonReactiveSpecies=(/1,2,3/)
+
+This allows to define a single reaction for an arbitrary number of collision partners. In the following, two possibilities to model the reaction rate are presented.
+
+#### Arrhenius-based Chemistry (TCE)
+
+The Total Collision Energy (TCE) model [@Bird1994] utilizes Arrhenius type reaction rates to reproduce the probabilities for a chemical reaction. The extended Arrhenius equation is
+
+$$k(T) = A T^b e^{-E_\mathrm{a}/T}$$
+
+where $A$ is the prefactor ([$1/s$, $m^3/s$, $m^6/s$] depending on the reaction type), $b$ the powerfactor and $E_\mathrm{a}$ the activation energy [K]. These parameters can be defined in PICLas as follows
+
+    DSMC-Reaction1-Arrhenius-Prefactor=6.170E-9
+    DSMC-Reaction1-Arrhenius-Powerfactor=-1.60
+    DSMC-Reaction1-Activation-Energy_K=113200.0
+
+#### Quantum-Kinetic Chemistry (QK)
+
+The quantum-kinetic (QK) model [@Bird2011] choses a different approach and models the chemical reaction on the microscopic level
+
+    DSMC-Reaction1-QKProcedure = T
+
+#### Backward Reaction Rates
+
+$$ K_\mathrm{equi} = \frac{k_\mathrm{f}}{k_\mathrm{b}}$$
 
 ### Ensuring Physical Simulation Results \label{sec:dsmc_quality}
 
