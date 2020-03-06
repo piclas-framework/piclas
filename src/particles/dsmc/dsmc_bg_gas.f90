@@ -358,8 +358,9 @@ SUBROUTINE MCC_pairing_bggas(iElem)
 !> probability at the maximal collision frequency. For the regular background gas case, for every particle a pair is created.
 !> 1.) Counting the number of particles per species and creating a species-specific particle index list
 !> 2.) Determining the total number of pairs
-!> 3.) Creating the background particles as required by the determined numbers of collision pairs
-!> 4.) Pairing the newly created background particles with the actual simulation particles
+!> 3a.) Creating the background particles as required by the determined numbers of collision pairs
+!> 3b.) Pairing the newly created background particles with the actual simulation particles
+!> 
 !> 5.) Calculate the square of the relative collision velocity
 !===================================================================================================================================
 ! MODULES
@@ -384,10 +385,10 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, jSpec, bgSpec, PositionNbr, PairCount, RandomPart
-INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNum(nSpecies), SpecPartNum(nSpecies), SpecPairNumTemp
-INTEGER,ALLOCATABLE           :: iPartIndex(:), PairingPartner(:), iPartIndexSpec(:,:)
-REAL                          :: iRan, ProbRest
+INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, jSpec, bgSpec, PartIndex, bggPartIndex, PairCount, RandomPart
+INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNumTemp
+INTEGER,ALLOCATABLE           :: iPartIndex(:), PairingPartner(:), iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:,:)
+REAL                          :: iRan, ProbRest, SpecPairNumReal
 !===================================================================================================================================
 nPart = PEM%pNumber(iElem)
 MCC_TotalPairNum = 0
@@ -399,8 +400,8 @@ CollInf%Coll_CaseNum = 0
 ALLOCATE(iPartIndexSpec(nPart,nSpecies))
 iPartIndexSpec = 0
 
-SpecPairNum = 0
-SpecPartNum = 0
+ALLOCATE(SpecPartNum(nSpecies),SpecPairNum(nSpecies,BGGas%NumberOfSpecies))
+SpecPairNum = 0; SpecPairNumTemp = 0; SpecPairNumReal = 0.; SpecPartNum = 0
 
 IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
 
@@ -414,6 +415,7 @@ DO iLoop = 1, nPart
   IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(1,iPart)
   ! Create particle index list for pairing
   iPartIndex(iLoop) = iPart
+  ! Create species-specific particle index list for cross-section based pairing
   iPartIndexSpec(SpecPartNum(iSpec),iSpec) = iPart
   iPart = PEM%pNext(iPart)
 END DO
@@ -425,20 +427,24 @@ DO iSpec = 1,nSpecies
       IF(BGGas%BackgroundSpecies(jSpec)) THEN     ! Loop over all background species
         bgSpec = BGGas%MapSpecToBGSpec(jSpec)
         IF(SpecDSMC(iSpec)%UseCollXSec) THEN
-          ! MCC: The maximum number of pairs to check is collision pair specific and depends on the null collision probability
+          ! Collision cross-section: The maximum number of pairs to check is collision pair specific and depends on the null collision probability
+          SpecPairNumReal = BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull
           SpecPairNumTemp = INT(BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull)
         ELSE
           ! Regular: The maximum number of pairs corresponds to the particle number
+          SpecPairNumReal = BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec)
           SpecPairNumTemp = INT(BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec))
         END IF
-        ! Randomly deciding whether an additional pair is added based on the difference between the real and integer value
-        ProbRest = BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull &
-                    - REAL(SpecPairNumTemp)
-        CALL RANDOM_NUMBER(iRan)
-        IF (ProbRest.GT.iRan) SpecPairNumTemp = SpecPairNumTemp + 1
-        ! Adding the number of pairs to the species-specific number and the cell total
-        SpecPairNum(iSpec) = SpecPairNum(iSpec) + SpecPairNumTemp
-        MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNumTemp
+        ! Avoid creating more pairs than currently particles in the simulation
+        IF(SpecPairNum(iSpec,jSpec) + SpecPairNumTemp.LT.SpecPartNum(iSpec)) THEN
+          ! Randomly deciding whether an additional pair is added based on the difference between the real and integer value
+          ProbRest = SpecPairNumReal - REAL(SpecPairNumTemp)
+          CALL RANDOM_NUMBER(iRan)
+          IF (ProbRest.GT.iRan) SpecPairNumTemp = SpecPairNumTemp + 1
+          ! Adding the number of pairs to the species-specific number and the cell total
+          SpecPairNum(iSpec,jSpec) = SpecPairNum(iSpec,jSpec) + SpecPairNumTemp
+          MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNumTemp
+        END IF
       END IF
     END DO
   END IF
@@ -448,63 +454,66 @@ ALLOCATE(Coll_pData(MCC_TotalPairNum))
 Coll_pData%Ec = 0.
 ALLOCATE(PairingPartner(MCC_TotalPairNum))
 PairingPartner = 0
-PositionNbr = 0
-
-! 3.) Creating the background particles as required by the determined numbers of collision pairs
-DO iLoop = 1, MCC_TotalPairNum
-  ! Taking a particle from the cell to get the position of the new particle
-  iPart = iPartIndex(iLoop)
-  ! Creating a new background gas particle
-  DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-  PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-  IF (PositionNbr.EQ.0) THEN
-    CALL Abort(&
-__STAMP__&
-,'ERROR in MCC: MaxParticleNumber should be twice the expected number of particles, to account for the BGG/MCC particles!')
-  END IF
-  PartState(1:3,PositionNbr) = PartState(1:3,iPart)
-  IF(DoRefMapping)THEN ! here Nearst-GP is missing
-    PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,iPart)
-  END IF
-  ! Get the species of the background gas particle (for a mixture, the species depends on the species composition)
-  iSpec = BGGas_GetSpecies()
-  PartSpecies(PositionNbr) = iSpec
-  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-    CALL DSMC_SetInternalEnr_Poly(iSpec,0,PositionNbr,1)
-  ELSE
-    CALL DSMC_SetInternalEnr_LauxVFD(iSpec,0,PositionNbr,1)
-  END IF
-  PEM%Element(PositionNbr) = iElem
-  PDM%ParticleInside(PositionNbr) = .TRUE.
-  ! Saving the particle index for later
-  PairingPartner(iLoop) = PositionNbr
-  ! Determine the particle velocity
-  CALL CalcVelocity_maxwell_lpn(FractNbr=iSpec, Vec3D=PartState(4:6,PositionNbr), iInit=0)
-END DO
-
-! 4.) Pairing the newly created background particles with the actual simulation particles
+PartIndex = 0
 PairCount = 0
-DO iSpec = 1, nSpecies
-  DO iPair = 1, SpecPairNum(iSpec)
-    IF(SpecDSMC(iSpec)%UseCollXSec) THEN
-      ! MCC: Choosing random particles from the available number of particles
-      IF(SpecPartNum(iSpec).GT.0) THEN
-        CALL RANDOM_NUMBER(iRan)
-        RandomPart = INT(SpecPartNum(iSpec)*iRan) + 1
-        iPart = iPartIndexSpec(RandomPart,iSpec)
-        iPartIndexSpec(RandomPart, iSpec) = iPartIndexSpec(SpecPartNum(iSpec),iSpec)
-        SpecPartNum(iSpec) = SpecPartNum(iSpec) - 1
+
+! 3a.) Creating the background particles as required by the determined numbers of collision pairs
+! 3b.) Pairing the newly created background particles with the actual simulation particles
+DO iSpec = 1,nSpecies                             ! Loop over all non-background species
+  IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
+    DO jSpec = 1, nSpecies                        ! Loop over all background species
+      IF(BGGas%BackgroundSpecies(jSpec)) THEN
+        DO iLoop = 1, SpecPairNum(iSpec,jSpec)    ! Loop over all the number of pairs required for this species pairing
+          ! Getting the index of the simulation particle
+          IF(SpecDSMC(iSpec)%UseCollXSec) THEN
+            ! MCC: Choosing random particles from the available number of particles
+            IF(SpecPartNum(iSpec).GT.0) THEN
+              CALL RANDOM_NUMBER(iRan)
+              RandomPart = INT(SpecPartNum(iSpec)*iRan) + 1
+              PartIndex = iPartIndexSpec(RandomPart,iSpec)
+              iPartIndexSpec(RandomPart, iSpec) = iPartIndexSpec(SpecPartNum(iSpec),iSpec)
+              SpecPartNum(iSpec) = SpecPartNum(iSpec) - 1
+            END IF
+          ELSE
+            ! Regular: Pairing every particle with a background gas particle
+            PartIndex = iPartIndexSpec(iLoop,iSpec)
+          END IF
+          ! Creating a new background gas particle
+          DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
+          bggPartIndex = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
+          IF (bggPartIndex.EQ.0) THEN
+            CALL Abort(&
+        __STAMP__&
+        ,'ERROR in MCC: MaxParticleNumber should be twice the expected number of particles, to account for the BGG/MCC particles!')
+          END IF
+          ! Position the background particle at the simulation particle
+          PartState(1:3,bggPartIndex) = PartState(1:3,PartIndex)
+          IF(DoRefMapping)THEN ! here Nearst-GP is missing
+            PartPosRef(1:3,bggPartIndex)=PartPosRef(1:3,PartIndex)
+          END IF
+          ! Set the species of the background gas particle
+          PartSpecies(bggPartIndex) = jSpec
+          IF(SpecDSMC(jSpec)%PolyatomicMol) THEN
+            CALL DSMC_SetInternalEnr_Poly(jSpec,0,bggPartIndex,1)
+          ELSE
+            CALL DSMC_SetInternalEnr_LauxVFD(jSpec,0,bggPartIndex,1)
+          END IF
+          PEM%Element(bggPartIndex) = iElem
+          PDM%ParticleInside(bggPartIndex) = .TRUE.
+          ! Determine the particle velocity
+          CALL CalcVelocity_maxwell_lpn(FractNbr=jSpec, Vec3D=PartState(4:6,bggPartIndex), iInit=0)
+          ! Advance the total count
+          PairCount = PairCount + 1
+          ! Pairing
+          Coll_pData(PairCount)%iPart_p1 = PartIndex
+          Coll_pData(PairCount)%iPart_p2 = bggPartIndex
+        END DO
       END IF
-    ELSE
-      ! Regular: Pairing every particle with a background gas particle
-      iPart = iPartIndexSpec(iPair, iSpec)
-    END IF
-    PairCount = PairCount + 1
-    Coll_pData(PairCount)%iPart_p1 = iPart
-    Coll_pData(PairCount)%iPart_p2 = PairingPartner(PairCount)
-  END DO
+    END DO
+  END IF
 END DO
 
+! 4.) Determine the particle number of the background species and calculate the cell tempreature
 DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
     CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec)) * GEO%Volume(iElem) &
