@@ -85,8 +85,8 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle RHS")
 CALL prms%CreateIntFromStringOption('Part-LorentzType', "Lorentz force calculation for charged particles: "//&
-                                                        "non-relativistic, default, wrong, relativistic-new, relativistic-EM", &
-                                                        "relativistic-new, constant-EM")
+                                                        "non-relativistic, default, wrong, relativistic-new, relativistic-EM, "//&
+                                                        "constant-EM", "relativistic-new")
 CALL addStrListEntry('Part-LorentzType' , 'non-relativistic'      , PRM_PART_RHS_NR)
 CALL addStrListEntry('Part-LorentzType' , 'default'               , PRM_PART_RHS_D)
 CALL addStrListEntry('Part-LorentzType' , 'wrong'                 , PRM_PART_RHS_W)
