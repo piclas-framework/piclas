@@ -62,6 +62,9 @@ END INTERFACE
 INTERFACE AnalyticParticleMovement
   MODULE PROCEDURE AnalyticParticleMovement
 END INTERFACE
+INTERFACE CalcAnalyticalParticleState
+  MODULE PROCEDURE CalcAnalyticalParticleState
+END INTERFACE
 #endif /*CODE_ANALYZE*/
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
@@ -70,7 +73,7 @@ PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
 #ifdef CODE_ANALYZE
-PUBLIC:: AnalyticParticleMovement
+PUBLIC:: AnalyticParticleMovement,CalcAnalyticalParticleState
 #if (PP_TimeDiscMethod==42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
@@ -480,7 +483,7 @@ CalcCoupledPower = GETLOGICAL('CalcCoupledPower','.FALSE.')
 IF(CalcCoupledPower) THEN
   DoPartAnalyze = .TRUE.
   PCouplAverage = 0.0
-#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==509))
+#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
   CALL abort(__STAMP__,&
       'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
 #endif
@@ -3839,13 +3842,15 @@ END SUBROUTINE CalculatePartElemData
 !===================================================================================================================================
 !> Calculate the analytical position and velocity depending on the pre-defined function
 !===================================================================================================================================
-SUBROUTINE CalcAnalyticalParticleState(t,PartStateAnalytic)
+SUBROUTINE CalcAnalyticalParticleState(t,PartStateAnalytic,alpha_out,theta_out)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_PreProc
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpolationSubType,AnalyticInterpolationP
+USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+USE MOD_PARTICLE_Vars         ,ONLY: PartSpecies,Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -3854,6 +3859,8 @@ REAL,INTENT(IN)               :: t                        !< simulation time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)              :: PartStateAnalytic(1:6)   !< analytic position and velocity
+REAL,INTENT(OUT),OPTIONAL     :: alpha_out                    !< dimensionless parameter: alpha_out = q*B_0*l / (m*v_perpendicular)
+REAL,INTENT(OUT),OPTIONAL     :: theta_out                    !< angle
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !REAL    :: p
@@ -3864,75 +3871,125 @@ REAL    :: beta
 !===================================================================================================================================
 PartStateAnalytic=0. ! default
 
-! select the analytical solution
-SELECT CASE(AnalyticInterpolationType)
-CASE(1)
-  SELECT CASE(AnalyticInterpolationSubType)
-  CASE(1,2)
-    ASSOCIATE( p       => AnalyticInterpolationP , &
-               Theta_0 => -PI/2.0                     , &
-               t       => t - TEnd/2. )
-               !t       => t )
-      ! gamma
-      gamma_0 = SQRT(ABS(p*p - 1.))
-
-      ! angle
-      Theta   = -2.*ATAN( SQRT((1.+p)/(1.-p)) * TANH(0.5*gamma_0*t) ) + Theta_0
-
-      ! x-pos
-      PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
-
-      ! y-pos
-      PartStateAnalytic(2) = p*t + Theta - Theta_0
+ASSOCIATE( iPart => 1 )
+  ! Select analytical solution depending on the type of the selected (analytic) interpolation
+  SELECT CASE(AnalyticInterpolationType)
+  ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
+  CASE(0)
+    ASSOCIATE( B_0    => 1.0                                    ,& ! [T] cons. magnetic field
+               v_perp => 1.0                                    ,& ! [m/s] perpendicular velocity (to guiding center)
+               m      => Species(PartSpecies(iPart))%MassIC     ,& ! [kg] particle mass
+               q      => Species(PartSpecies(iPart))%ChargeIC   ,& ! [C] particle charge
+               phi    => AnalyticInterpolationPhase             )  ! [rad] phase shift
+      ASSOCIATE( omega_c => ABS(q)*B_0/m )
+        ASSOCIATE( r_c => v_perp/omega_c )
+          PartStateAnalytic(1) = COS(omega_c*t + phi)*r_c
+          PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c 
+          PartStateAnalytic(3) = 0.
+          PartStateAnalytic(4) = -SIN(omega_c*t + phi)*v_perp
+          PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp 
+          PartStateAnalytic(6) = 0.
+        END ASSOCIATE
+      END ASSOCIATE
     END ASSOCIATE
-  CASE(3)
-    ASSOCIATE( p       => AnalyticInterpolationP , &
-               Theta_0 => -PI/2.0                      &
-                )
-      ! gamma
-      gamma_0 = SQRT(ABS(p*p - 1.))
+  ! 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
+  CASE(1)
+    SELECT CASE(AnalyticInterpolationSubType)
+    CASE(1,2)
+      ASSOCIATE( p       => AnalyticInterpolationP , &
+                 Theta_0 => -PI/2.0                     , &
+                 t       => t - TEnd/2. )
+                 !t       => t )
+        ! gamma
+        gamma_0 = SQRT(ABS(p*p - 1.))
 
-      ! angle
-      Theta   = -2.*ATAN( SQRT((p+1.)/(p-1.)) * TAN(0.5*gamma_0*t) ) -2.*PI*REAL(NINT((gamma_0*t)/(2.*PI))) + Theta_0
+        ! angle
+        Theta   = -2.*ATAN( SQRT((1.+p)/(1.-p)) * TANH(0.5*gamma_0*t) ) + Theta_0
 
-      ! x-pos
-      PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
+        ! x-pos
+        PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
 
-      ! y-pos
-      PartStateAnalytic(2) = p*t + Theta - Theta_0
-    END ASSOCIATE
-  CASE(11,21) ! old CASE(1,2)
-    ASSOCIATE( p       => AnalyticInterpolationP , &
-          Theta_0 => 0.d0 ) !0.785398163397448d0    )
-      beta = ACOS(p)
-      !beta = ASIN(-p)
-      ! phase shift
-      phi_0   = ATANH( (1./TAN(beta/2.)) * TAN(Theta_0/2.) )
-      ! angle
-      Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*t*SIN(beta)-phi_0) )
-      Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*SIN(beta*t)-phi_0) )
-      ! x-pos
-      PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
-      ! y-pos
-      PartStateAnalytic(2) = p*t - (Theta-Theta_0)
-    END ASSOCIATE
-  CASE(31) ! old CASE(3)
-    ASSOCIATE( p       => AnalyticInterpolationP , &
-          Theta_0 => 0.d0                   )
-      gamma_0 = SQRT(p*p-1.)
-      ! phase shift
-      phi_0   = ATAN( (gamma_0/(p-1.)) * TAN(Theta_0/2.) )
-      ! angle
-      Theta   = 2.*ATAN( SQRT((p-1)/(p+1)) * TAN(0.5*gamma_0*t - phi_0) ) + 2*Pi*REAL(NINT((t*gamma_0)/(2*Pi) - phi_0/Pi))
-      ! x-pos
-      PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
-      ! y-pos
-      PartStateAnalytic(2) = p*t - (Theta-Theta_0)
-    END ASSOCIATE
-    !WRITE (*,*) "PartStateAnalytic =", PartStateAnalytic
-    !read*
+        ! y-pos
+        PartStateAnalytic(2) = p*t + Theta - Theta_0
+      END ASSOCIATE
+    CASE(3)
+      ASSOCIATE( p       => AnalyticInterpolationP , &
+                 Theta_0 => -PI/2.0                      &
+                  )
+        ! gamma
+        gamma_0 = SQRT(ABS(p*p - 1.))
+
+        ! angle
+        Theta   = -2.*ATAN( SQRT((p+1.)/(p-1.)) * TAN(0.5*gamma_0*t) ) -2.*PI*REAL(NINT((gamma_0*t)/(2.*PI))) + Theta_0
+
+        ! x-pos
+        PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
+
+        ! y-pos
+        PartStateAnalytic(2) = p*t + Theta - Theta_0
+      END ASSOCIATE
+    CASE(11,21) ! old version of CASE(1,2)
+      ASSOCIATE( p       => AnalyticInterpolationP , &
+            Theta_0 => 0.d0 ) !0.785398163397448d0    )
+        beta = ACOS(p)
+        !beta = ASIN(-p)
+        ! phase shift
+        phi_0   = ATANH( (1./TAN(beta/2.)) * TAN(Theta_0/2.) )
+        ! angle
+        Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*t*SIN(beta)-phi_0) )
+        Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*SIN(beta*t)-phi_0) )
+        ! x-pos
+        PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
+        ! y-pos
+        PartStateAnalytic(2) = p*t - (Theta-Theta_0)
+      END ASSOCIATE
+    CASE(31) ! old version of CASE(3)
+      ASSOCIATE( p       => AnalyticInterpolationP , &
+                 Theta_0 => 0.d0                   )
+        gamma_0 = SQRT(p*p-1.)
+        ! phase shift
+        phi_0   = ATAN( (gamma_0/(p-1.)) * TAN(Theta_0/2.) )
+        ! angle
+        Theta   = 2.*ATAN( SQRT((p-1)/(p+1)) * TAN(0.5*gamma_0*t - phi_0) ) + 2*Pi*REAL(NINT((t*gamma_0)/(2*Pi) - phi_0/Pi))
+        ! x-pos
+        PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
+        ! y-pos
+        PartStateAnalytic(2) = p*t - (Theta-Theta_0)
+      END ASSOCIATE
+    END SELECT
+
+    SELECT CASE(AnalyticInterpolationSubType)
+    CASE(1,2,3)
+      ! Set analytic velocity
+      PartStateAnalytic(4) = COS(Theta)
+      PartStateAnalytic(5) = SIN(Theta)
+      PartStateAnalytic(6) = 0.
+    CASE(11,21,31)
+      ! Set analytic velocity
+      PartStateAnalytic(4) = SIN(Theta)
+      PartStateAnalytic(5) = COS(Theta)
+      PartStateAnalytic(6) = 0.
+    END SELECT
+
+    ! Optional output variables
+    IF(PRESENT(alpha_out))THEN
+      ASSOCIATE( dot_theta => SIN(Theta) - AnalyticInterpolationP )
+        ASSOCIATE( alpha_0 => -dot_theta / EXP(PartStateAnalytic(1)) )
+          alpha_out = alpha_0
+          WRITE (*,*) "alpha_out =", alpha_out
+        END ASSOCIATE
+      END ASSOCIATE
+    END IF
+    IF(PRESENT(theta_out))THEN
+      theta_out = Theta
+      WRITE (*,*) "theta_out =", theta_out
+    END IF
+  ! 2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
+  !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
+  CASE(2)
+    ! missing ...
   END SELECT
-END SELECT
+END ASSOCIATE
 
 END SUBROUTINE CalcAnalyticalParticleState
 

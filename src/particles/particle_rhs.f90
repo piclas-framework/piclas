@@ -24,6 +24,10 @@ INTERFACE CalcPartRHS
   MODULE PROCEDURE CalcPartRHS
 END INTERFACE
 
+INTERFACE CalcPartRHSSingleParticle
+  MODULE PROCEDURE CalcPartRHSSingleParticle
+END INTERFACE
+
 INTERFACE PartVeloToImp
   MODULE PROCEDURE PartVeloToImp
 END INTERFACE
@@ -36,6 +40,7 @@ END INTERFACE
 PUBLIC :: CalcPartRHS
 PUBLIC :: PartVeloToImp
 PUBLIC :: PartRHS
+PUBLIC :: CalcPartRHSSingleParticle
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
@@ -173,6 +178,30 @@ DO iPart = 1,PDM%ParticleVecLength
   Pt(:,iPart)=0.
 END DO
 END SUBROUTINE CalcPartRHS
+
+
+SUBROUTINE CalcPartRHSSingleParticle(iPart)
+!===================================================================================================================================
+! Computes the acceleration from the Lorentz force with respect to the species data and velocity
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars         ,ONLY: PDM,Pt
+USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLE
+INTEGER,INTENT(IN)            :: iPart
+!===================================================================================================================================
+! Particle is inside and not a neutral particle
+IF(PDM%ParticleInside(iPart))THEN
+  CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
+  RETURN
+END IF ! PDM%ParticleInside(iPart)
+Pt(:,iPart)=0.
+END SUBROUTINE CalcPartRHSSingleParticle
 
 
 PURE SUBROUTINE PartRHS_NR(PartID,FieldAtParticle,Pt,LorentzFacInvIn)

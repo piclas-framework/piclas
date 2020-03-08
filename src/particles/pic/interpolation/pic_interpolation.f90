@@ -23,6 +23,9 @@ PUBLIC :: InterpolateFieldToParticle
 PUBLIC :: InitializeParticleInterpolation
 PUBLIC :: InterpolateFieldToSingleParticle
 PUBLIC :: InterpolateVariableExternalField
+#ifdef CODE_ANALYZE
+PUBLIC :: InitAnalyticalParticleState
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 INTERFACE InitializeParticleInterpolation
   MODULE PROCEDURE InitializeParticleInterpolation
@@ -98,16 +101,31 @@ END IF
 DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
 IF(DoInterpolationAnalytic)THEN
   AnalyticInterpolationType = GETINT('PIC-AnalyticInterpolation-Type')
+  AnalyticInterpolationPhase = GETREAL('PIC-AnalyticInterpolationPhase')
   SELECT CASE(AnalyticInterpolationType)
-  CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
+  CASE(0) ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
+    ! no special parameters required
+  CASE(1) ! 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
     AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
     AnalyticInterpolationP       = GETREAL('PIC-AnalyticInterpolationP')
+  CASE(2) !2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
+          !                                 E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
+    ! no special parameters required
   CASE DEFAULT
     WRITE(TempStr,'(I5)') AnalyticInterpolationType
     CALL abort(&
         __STAMP__ &
         ,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_interpolation.f90')
   END SELECT
+
+  ! Calculate the initial velocity of the particle from an analytic expression: must be implemented for the different 
+  ! AnalyticInterpolationType methods
+  ! Note that for time-staggered methods, Leapfrog and Boris, the initial velocity in shifted by -dt/2 into the past
+  IF(DoInterpolationAnalytic.AND.ANY((/0,1/).EQ.AnalyticInterpolationType))THEN
+    DoInitAnalyticalParticleState = .TRUE.
+  ELSE
+    DoInitAnalyticalParticleState = .FALSE.
+  END IF
 END IF
 #endif /*CODE_ANALYZE*/
 
@@ -257,6 +275,10 @@ FieldAtParticle(:,firstPart:lastPart) = 0. ! initialize
 #ifdef CODE_ANALYZE
 IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
   SELECT CASE(AnalyticInterpolationType)
+  CASE(0) ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
+    DO iPart = firstPart, LastPart
+      FieldAtParticle(6,iPart) = 1.0
+    END DO
   CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
     ASSOCIATE( B_0 => 1.0     , &
                l   => 1.0  )
@@ -265,12 +287,28 @@ IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field
         FieldAtParticle(6,iPart) = B_0 * EXP(PartState(1,iPart) / l)
       END DO
     END ASSOCIATE
+  ! 2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
+  !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
+  ! Example from Paper by H. Qin: Why is Boris algorithm so good? (2013) 
+  ! http://dx.doi.org/10.1063/1.4818428
+  CASE(2)
+    DO iPart = firstPart, LastPart
+      ASSOCIATE( x => PartState(1,iPart) ,&
+                 y => PartState(2,iPart) )
+        !WRITE (*,*) "x,y,PartState(4,iPart) =", x,y,PartState(4,iPart)
+        ! Ex and Ey
+        FieldAtParticle(1,iPart) = 1.0e-2 * (x**2+y**2)**(-1.5) * x
+        FieldAtParticle(2,iPart) = 1.0e-2 * (x**2+y**2)**(-1.5) * y
+        ! Bz
+        FieldAtParticle(6,iPart) = SQRT(x**2+y**2)
+      END ASSOCIATE
+    END DO
   END SELECT
   ! exit the subroutine after field determination
   RETURN
 ELSE ! use variable or fixed external field
 #endif /*CODE_ANALYZE*/
-  IF(useVariableExternalField) THEN ! used curved external Bz
+  IF(useVariableExternalField) THEN ! used variable external Bz, which is given as 1D function Bz(z)
     FieldAtParticle(1,firstPart:lastPart) = externalField(1)
     FieldAtParticle(2,firstPart:lastPart) = externalField(2)
     FieldAtParticle(3,firstPart:lastPart) = externalField(3)
@@ -667,7 +705,7 @@ USE MOD_Equation_Vars,        ONLY:B,E
 USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
 #ifdef CODE_ANALYZE
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic!,AnalyticInterpolationType
 #endif /* CODE_ANALYZE */
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
@@ -697,12 +735,15 @@ NotMappedSurfFluxParts=.FALSE.
 FieldAtParticle=0.
 #ifdef CODE_ANALYZE
 IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
-  SELECT CASE(AnalyticInterpolationType)
-  CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
-    FieldAtParticle(6) = EXP(PartState(1,PartID)) ! "B_0" and "l" are dropped here
-  END SELECT
-  ! exit the subroutine after field determination
-  RETURN
+  CALL abort(&
+  __STAMP__&
+  ,'DoInterpolationAnalytic: Do not call subroutine InterpolateFieldToSingleParticle()')
+  !        SELECT CASE(AnalyticInterpolationType)
+  !        CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
+  !          FieldAtParticle(6) = EXP(PartState(1,PartID)) ! "B_0" and "l" are dropped here
+  !        END SELECT
+  !        ! exit the subroutine after field determination
+  !        RETURN
 ELSE ! use variable or fixed external field
 #endif /*CODE_ANALYZE*/
   IF(useVariableExternalField) THEN ! used Variable external Bz
@@ -1118,5 +1159,49 @@ ELSE ! Linear Interpolation between iPos and iPos+1 B point
                              * (Pos - VariableExternalField(1,iPos) ) + VariableExternalField(2,iPos)    ! *(z - z_i) + z_i
 END IF
 END FUNCTION InterpolateVariableExternalField
+
+
+#ifdef CODE_ANALYZE
+SUBROUTINE InitAnalyticalParticleState()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Calculates the initial particle position and velocity depending on an analytical expression
+! The velocity is time-shifted for staggered-in-time methods (Leapfrog and Boris-Leapfrog)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInitAnalyticalParticleState
+USE MOD_Particle_Analyze       ,ONLY: CalcAnalyticalParticleState
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM
+USE MOD_TimeDisc_Vars          ,ONLY: dt
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL    :: PartStateAnalytic(6)
+INTEGER :: iPart
+!===================================================================================================================================
+! Return here, if no analytical function can be used
+IF(.NOT.DoInitAnalyticalParticleState) RETURN
+
+! Calculate the initial velocity of the particle from an analytic expression
+DO iPart=1,PDM%ParticleVecLength
+  !-- set analytic position at x(n) from analytic particle solution
+  CALL CalcAnalyticalParticleState(0.0, PartStateAnalytic)
+  PartState(1:6,iPart) = PartStateAnalytic(1:6)
+
+  !-- Only for time-staggered methods (Leapfrog and Boris-Leapfrog):
+  ! Set analytic velocity at v(n-0.5) from analytic particle solution
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+  CALL CalcAnalyticalParticleState(-dt/2., PartStateAnalytic)
+  PartState(4:6,iPart) = PartStateAnalytic(4:6)
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
+
+  ! Set new part to false to prevent calculation of velocity in timedisc
+  PDM%IsNewPart(iPart) = .FALSE.
+END DO
+END SUBROUTINE InitAnalyticalParticleState
+#endif /*CODE_ANALYZE*/
+
 
 END MODULE MOD_PICInterpolation
