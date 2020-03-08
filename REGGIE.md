@@ -13,11 +13,11 @@ Overview of the test cases performed after a commit.
 |    01   |                  run_basic                  |         maxwell,RK4         |                       DG-Operator                       | nProcs=1,2,5,8 |      L2,Linf      |                                                               |
 |    02   |                 CHE_maxwell                 | maxwell, RK4, Particles=OFF |          DG-Operator, only Maxwell field solver         | nProcs=1,2,5,8 |      L2,Linf      |                                                               |
 |    03   |                 CHE_poisson                 |         Poisson,RK3         | HDG-Operator, secondary electron emission (SEE-I model) | nProcs=1,2,5,8 |      L2,Linf      | [Link](/regressioncheck/checks/CHE_poisson/poisson/readme.md) |
-|    04   | [CHE_PIC_maxwell_RK4](#CHE_PIC_maxwell_RK4) |      PIC (maxwell, RK4)     |                                                         |                |                   |                                                               |
-|    05   |            [CHE_DSMC](#CHE_DSMC)            |             DSMC            |                                                         |                |                   |                                                               |
+|    04   | [CHE_PIC_maxwell_RK4](#che_pic_maxwell_rk4) |      PIC (maxwell, RK4)     |                                                         |                |                   |                                                               |
+|    05   |            [CHE_DSMC](#che_dsmc)            |             DSMC            |                                                         |                |                   |                                                               |
 |    06   |          CHE_PIC_maxwell_implicitBC         |    maxwell,PIC,ImplicitO4   |             Implicit reflective particle BC             |    nProcs=1    | Particle Position |                                                               |
-|    07   |          [CHE_BGK](#CHE_BGK/FPFlow)         |           BGK-Flow          |                                                         |                |                   |                                                               |
-|    08   |        [CHE_FPFlow](#CHE_BGK/FPFlow)        |           FP-Flow           |                                                         |                |                   |                                                               |
+|    07   |          [CHE_BGK](#che_bgkfpflow)          |           BGK-Flow          |                                                         |                |                   |                                                               |
+|    08   |         [CHE_FPFlow](#che_bgkfpflow)        |           FP-Flow           |                                                         |                |                   |                                                               |
 
 
 #### CHE_PIC_maxwell_RK4
