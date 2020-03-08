@@ -517,10 +517,13 @@ CASE(1,2) ! (particle is treated in boundary condition)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) ! reactive interaction case
 !-----------------------------------------------------------------------------------------------------------------------------------
+  ! Old particle
   IF (ProductSpec(1).LT.0) THEN
     SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(1))) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(1))) + 1
     SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
   END IF
+
+  ! New particle
   IF (ProductSpec(2).NE.0) THEN
     SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(2))) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(2))) &
                                                                 - SIGN(1,ProductSpec(2))

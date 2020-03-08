@@ -832,7 +832,7 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 '6: SEE-E (secondary e- emission due to e- bombardment) '//&
                                     'by Pagonakis2016 for molybdenum (originally from Harrower1956)'//&
                                 '7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for '//&
-                                'secondary e- emission) by Depla2009\n'//&
+                                'secondary e- emission with 0.13 probability) by Depla2009\n'//&
                                 '101: Maxwell scattering\n'//&
                                 '102: MD dsitributionfunction' &
                                 , '0', numberedmulti=.TRUE.)
