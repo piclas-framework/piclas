@@ -369,7 +369,7 @@ END IF
 #endif
 
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-CALL readBCs()
+CALL ReadBCs()
 !----------------------------------------------------------------------------------------------------------------------------
 !                              ELEMENTS
 !----------------------------------------------------------------------------------------------------------------------------
@@ -416,6 +416,25 @@ END IF
 ALLOCATE(ElemInfo_Shared(1:ELEMINFOSIZE,1:nElems))
 ElemInfo_Shared(1:ELEMINFOSIZE_H5,1:nElems) = ElemInfo(:,:)
 #endif  /*USE_MPI*/
+
+
+
+! Create global element index to global processor index mapping
+#if USE_MPI
+MPISharedSize = INT(nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nGlobalElems/),ElemToProcID_Shared_Win,ElemToProcID_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemToProcID_Shared_Win,IERROR)
+IF(myComputeNodeRank.EQ.0)THEN
+  DO iProc = 1, nProcessors
+    ElemToProcID_Shared(offsetElemMPI(iProc-1)+1:offsetElemMPI(iProc)) = iProc - 1
+  END DO ! iProc = 1, nProcessors
+END IF
+CALL MPI_WIN_SYNC(ElemToProcID_Shared_Win,IERROR)
+!#else
+!ALLOCATE(ElemToProcID_Shared(1:MORTARINFOSIZE,1:nSideIDs))
+!MortarInfo_Shared(1:MORTARINFOSIZE,1:nSideIDs) = MortarInfo(:,:)
+#endif  /*USE_MPI*/
+
 !----------------------------------------------------------------------------------------------------------------------------
 !                              SIDES
 !----------------------------------------------------------------------------------------------------------------------------
@@ -620,25 +639,25 @@ ALLOCATE(MortarMapping_Shared(1:nSideIDs))
 MortarMapping_Shared(1:nSideIDs) = MortarMapping(:)
 #endif  /*USE_MPI*/
 
-IF(MPIROOT) THEN
-  CALL GetDataSize(File_ID,'MortarInfo',nDims,HSize)
-  CHECKSAFEINT(HSize(2),4)
-  nUniqueMasterMortarSides=INT(HSize(2),4)
-  DEALLOCATE(HSize)
+CALL GetDataSize(File_ID,'MortarInfo',nDims,HSize)
+CHECKSAFEINT(HSize(2),4)
+nUniqueMasterMortarSides=INT(HSize(2),4)
+DEALLOCATE(HSize)
 
-  ALLOCATE(MortarInfo(1:MORTARINFOSIZE,1:nUniqueMasterMortarSides))
-  CALL ReadArray('MortarInfo',2,(/MORTARINFOSIZE,nUniqueMasterMortarSides/),0,2,IntegerArray_i4=MortarInfo(:,:))
+ALLOCATE(MortarInfo(1:MORTARINFOSIZE,1:nUniqueMasterMortarSides))
+CALL ReadArray('MortarInfo',2,(/MORTARINFOSIZE,nUniqueMasterMortarSides/),0,2,IntegerArray_i4=MortarInfo(:,:))
 #if USE_MPI
-  MPISharedSize = INT(MORTARINFOSIZE*nUniqueMasterMortarSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/MORTARINFOSIZE,nUniqueMasterMortarSides/),MortarInfo_Shared_Win,MortarInfo_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,MortarInfo_Shared_Win,IERROR)
+MPISharedSize = INT(MORTARINFOSIZE*nUniqueMasterMortarSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/MORTARINFOSIZE,nUniqueMasterMortarSides/),MortarInfo_Shared_Win,MortarInfo_Shared)
+CALL MPI_WIN_LOCK_ALL(0,MortarInfo_Shared_Win,IERROR)
+IF(myComputeNodeRank.EQ.0)THEN
   MortarInfo_Shared(:,:) = MortarInfo(:,:)
-  CALL MPI_WIN_SYNC(MortarInfo_Shared_Win,IERROR)
-#else
-  ALLOCATE(MortarInfo_Shared(1:MORTARINFOSIZE,1:nSideIDs))
-  MortarInfo_Shared(1:MORTARINFOSIZE,1:nSideIDs) = MortarInfo(:,:)
-#endif  /*USE_MPI*/
 END IF
+CALL MPI_WIN_SYNC(MortarInfo_Shared_Win,IERROR)
+#else
+ALLOCATE(MortarInfo_Shared(1:MORTARINFOSIZE,1:nSideIDs))
+MortarInfo_Shared(1:MORTARINFOSIZE,1:nSideIDs) = MortarInfo(:,:)
+#endif  /*USE_MPI*/
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              NODES
@@ -687,7 +706,7 @@ ALLOCATE(Nodes(1:nNodes)) ! pointer list, entry is known by INVMAP(i,nNodes,Node
 DO iNode=1,nNodes
   NULLIFY(Nodes(iNode)%np)
 END DO
-! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is build
+! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
 CornerNodeIDswitch(1)=1
 CornerNodeIDswitch(2)=(Ngeo+1)
 CornerNodeIDswitch(3)=(Ngeo+1)**2
@@ -1146,7 +1165,7 @@ END FUNCTION INVMAP
 
 
 #if USE_MPI
-FUNCTION ELEMIPROC(ElemID)
+PURE FUNCTION ELEMIPROC(ElemID)
 !===================================================================================================================================
 !> Find the id of a processor on which an element with a given ElemID lies, based on the MPI element offsets defined earlier.
 !> Use a bisection algorithm for faster search.

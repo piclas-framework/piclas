@@ -700,7 +700,7 @@ USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nElems, nNodes
-USE MOD_Mesh_Vars              ,ONLY: Elems, offsetElem, ElemToSide
+USE MOD_Mesh_Vars              ,ONLY: Elems, offsetElem, ElemToSide, NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Tracking_Vars ,ONLY: WriteTriaDebugMesh
 #if USE_MPI
@@ -727,18 +727,34 @@ INTEGER            :: FirstElem, LastElem, GlobalSideID
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #endif
+INTEGER            :: CornerNodeIDswitch(8)
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
 
-! CGNS Mapping
-NodeMap(:,1)=(/1,4,3,2/)
-NodeMap(:,2)=(/1,2,6,5/)
-NodeMap(:,3)=(/2,3,7,6/)
-NodeMap(:,4)=(/3,4,8,7/)
-NodeMap(:,5)=(/1,5,8,4/)
-NodeMap(:,6)=(/5,6,7,8/)
+
+! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
+CornerNodeIDswitch(1)=1
+CornerNodeIDswitch(2)=(Ngeo+1)
+CornerNodeIDswitch(3)=(Ngeo+1)**2
+CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
+CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
+CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
+CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
+CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
+
+! New crazy corner node switch (philipesque)
+ASSOCIATE(CNS => CornerNodeIDswitch )
+  ! CGNS Mapping
+  NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
+  NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
+  NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
+  NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
+  NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
+  NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
+END ASSOCIATE
+
 !ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),       &
 !         GEO%ElemSideNodeID(1:4,1:6,1:nElems), &
 !         GEO%NodeCoords(1:3,1:nNodes),         &
@@ -819,7 +835,6 @@ DO iElem = firstElem,lastElem
 !      SWRITE(*,*) MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)
 !    END IF
     ! Shared memory array starts at 1, but NodeID at 0
-    !TODO: THIS IS WHERE WE FAIL! THIS IS NOT A TRIANGLE!
     ElemSideNodeID_Shared(1:4,iLocSide,iElem) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart  ,4)+1,iLocSide)-1, &
                                                   ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+1,4)+1,iLocSide)-1, &
                                                   ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+2,4)+1,iLocSide)-1, &
@@ -3117,8 +3132,6 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
   CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),ElemRadiusNGeo_Shared_Win,ElemRadiusNGEO_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemRadiusNGeo_Shared_Win,IERROR)
   CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),ElemRadius2NGeo_Shared_Win,ElemRadius2NGEO_Shared)
-  print *, 'ncompute',ncomputenodetotalelems
-  read *
   CALL MPI_WIN_LOCK_ALL(0,ElemRadius2NGeo_Shared_Win,IERROR)
   MPISharedSize = INT((3*6*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
   CALL Allocate_Shared(MPISharedSize,(/3,6,nComputeNodeTotalElems/),XiEtaZetaBasis_Shared_Win,XiEtaZetaBasis_Shared)

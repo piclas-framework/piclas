@@ -62,6 +62,9 @@ INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:) !> Reverse Mapping
 INTEGER,POINTER :: ElemInfo_Shared(:,:)
 INTEGER         :: ElemInfo_Shared_Win
 
+INTEGER,POINTER :: ElemToProcID_Shared(:)
+INTEGER         :: ElemToProcID_Shared_Win
+
 INTEGER,POINTER :: SideInfo_Shared(:,:)
 INTEGER         :: SideInfo_Shared_Win
 

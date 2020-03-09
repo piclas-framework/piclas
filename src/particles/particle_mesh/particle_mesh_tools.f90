@@ -204,12 +204,19 @@ LOGICAL,INTENT(OUT)           :: InElementCheck
 INTEGER                       :: ilocSide, NodeNum, SideID, SideIDMortar, ind, NbElemID, nNbMortars
 LOGICAL                       :: PosCheck, NegCheck, InElementCheckMortar, InElementCheckMortarNb
 REAL                          :: A(1:3,1:4), crossP(3)
+INTEGER                       :: firstElem, lastElem
 !===================================================================================================================================
-print *,PartStateLoc
-DO NodeNum = 1,8
-  print *,NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeNum),ElemID
-END DO
-
+#if USE_MPI
+firstElem=INT(REAL(myComputeNodeRank*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem=INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+#else
+firstElem=1
+lastElem=nElems
+#endif
+IF((ElemID.LT.firstElem).OR.(ElemID.GT.lastElem))THEN
+  InElementCheck = .FALSE.
+  RETURN
+END IF
 InElementCheck = .TRUE.
 InElementCheckMortar = .TRUE.
 !--- Loop over the 6 sides of the element
@@ -218,15 +225,10 @@ DO iLocSide = 1,6
     !--- A = vector from particle to node coords
     A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,iLocSide,ElemID)+1) - PartStateLoc(1:3)
   END DO
-  IF (ElemID.EQ.1 .AND. iLocSide.EQ.1) print *, NodeCoords_Shared(:,ElemSideNodeID_Shared(1,iLocSide,ElemID)+1)
-  IF (ElemID.EQ.1 .AND. iLocSide.EQ.1) print *, NodeCoords_Shared(:,ElemSideNodeID_Shared(2,iLocSide,ElemID)+1)
-  IF (ElemID.EQ.1 .AND. iLocSide.EQ.1) print *, NodeCoords_Shared(:,ElemSideNodeID_Shared(3,iLocSide,ElemID)+1)
-  IF (ElemID.EQ.1 .AND. iLocSide.EQ.1) print *, NodeCoords_Shared(:,ElemSideNodeID_Shared(4,iLocSide,ElemID)+1)
-  IF (ElemID.EQ.1 .AND. iLocSide.EQ.1) STOP
+  !IF (ElemID.EQ.1 .AND. iLocSide.EQ.1) STOP
 
   SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
   SideIDMortar = MortarMapping_Shared(SideID)
-  IF(ElemID.EQ.1) print *, SideIDMortar
   !--- Treatment of sides which are adjacent to mortar elements
   IF (SideIDMortar.GT.0) THEN
     PosCheck = .FALSE.
@@ -310,7 +312,6 @@ DO iLocSide = 1,6
       PosCheck = .TRUE.
     END IF
     !--- final determination whether particle is in element
-    IF (ElemID.EQ.1) print *, InElementCheck,posCheck,NegCheck,ConcaveElemSide_Shared(iLocSide,ElemID)
     IF (ConcaveElemSide_Shared(iLocSide,ElemID)) THEN
       IF (.NOT.PosCheck) InElementCheck = .FALSE.
     ELSE
