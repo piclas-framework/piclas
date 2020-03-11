@@ -469,20 +469,18 @@ __STAMP__&
         ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
         ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
         DO iReac2 = 1, ChemReac%NumOfReact
-          IF(ChemReac%QKProcedure(iReac2)) THEN
-            IF ((TRIM(ChemReac%ReactType(iReac2)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac2))) THEN
-              IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
-                  PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-                Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-                Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-                ChemReac%ReactCase(Reactant1, Reactant2) = 20
-                ChemReac%ReactCase(Reactant2, Reactant1) = 20
-                ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-                ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-                ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-                ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-                YetDefined_Help(iReac2) = .TRUE.
-              END IF
+          IF ((TRIM(ChemReac%ReactType(iReac2)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac2))) THEN
+            IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
+                PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
+              Reactant1 = ChemReac%DefinedReact(iReac,1,1)
+              Reactant2 = ChemReac%DefinedReact(iReac,1,2)
+              ChemReac%ReactCase(Reactant1, Reactant2) = 20
+              ChemReac%ReactCase(Reactant2, Reactant1) = 20
+              ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
+              ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
+              ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
+              ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
+              YetDefined_Help(iReac2) = .TRUE.
             END IF
           END IF
         END DO

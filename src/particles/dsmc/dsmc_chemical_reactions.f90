@@ -86,7 +86,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                       :: React1Inx, React2Inx, ProductReac(1:3), EductReac(1:3), iReacForward
-  REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, EReact, ReducedMass
+  REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, EReact, ReducedMass, ReducedMassUnweighted
   REAL                          :: Xi_vib1, Xi_vib2, Xi_vib3, Xi_Total, Xi_elec1, Xi_elec2, Xi_elec3, WeightProd
   REAL                          :: BetaReaction, BackwardRate
   REAL                          :: Rcoll, Tcoll, Telec, b, TiQK, Weight1, Weight2, Weight3, NumWeightEduct, NumWeightProd
@@ -128,8 +128,10 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
   IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ReducedMass = (Species(EductReac(1))%MassIC *Weight1  * Species(EductReac(2))%MassIC * Weight2) &
       / (Species(EductReac(1))%MassIC * Weight1+ Species(EductReac(2))%MassIC * Weight2)
+    ReducedMassUnweighted = ReducedMass * 2./(Weight1+Weight2)
   ELSE
     ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
+    ReducedMassUnweighted = CollInf%MassRed(Coll_pData(iPair)%PairType)
   END IF
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -141,9 +143,8 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
                + (PartStateIntEn(1,React2Inx) + PartStateIntEn(2,React2Inx)) * Weight2
 
   IF(EductReac(3).NE.0) THEN
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (0.5 * Species(EductReac(3))%MassIC                         &
-                         * DOTPRODUCT(PartState(4:6,iPart_p3)) &
-                   + PartStateIntEn(1,iPart_p3) + PartStateIntEn(2,iPart_p3)) * Weight3
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (0.5 * Species(EductReac(3))%MassIC * DOTPRODUCT(PartState(4:6,iPart_p3)) &
+                                                  + PartStateIntEn(1,iPart_p3) + PartStateIntEn(2,iPart_p3)) * Weight3
     NumWeightEduct = 3.
   END IF
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -315,14 +316,12 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
           'CalcReactionProb: Number density required for recombination reaction: ',iReac)
       END IF
       IF(DSMC%BackwardReacRate.AND.((iReac.GT.ChemReac%NumOfReact/2))) THEN
-        Tcoll =ReducedMass*Coll_pData(iPair)%CRela2*2./(Weight1+Weight2)  &
-              / (BoltzmannConst * 2.*(2.-SpecDSMC(EductReac(1))%omegaVHS))
+        Tcoll =ReducedMassUnweighted*Coll_pData(iPair)%CRela2 / (BoltzmannConst * 2.*(2.-SpecDSMC(EductReac(1))%omegaVHS))
         b=     (0.5 - SpecDSMC(EductReac(1))%omegaVHS)
         Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
           * (SpecDSMC(EductReac(1))%DrefVHS/2. + SpecDSMC(EductReac(2))%DrefVHS/2.)**2 &
           * (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omegaVHS) &
-          * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS &
-          / (ReducedMass* 2./(Weight1+Weight2)))
+          * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS / ReducedMassUnweighted)
         Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omegaVHS)**b &
              * gamma(2.-SpecDSMC(EductReac(1))%omegaVHS)/gamma(2.-SpecDSMC(EductReac(1))%omegaVHS+b)
         ReactionProb = BackwardRate / Rcoll * NumDens
@@ -332,32 +331,30 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
                  * EReact**(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 + SpecDSMC(EductReac(3))%omegaVHS)
       END IF
     ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
-      TiQK = (ReducedMass*Coll_pData(iPair)%CRela2*2./(Weight1+Weight2)  &
+      TiQK = (ReducedMassUnweighted*Coll_pData(iPair)%CRela2  &
                 + 2.*PartStateIntEn(3,React1Inx))/((2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS) &
                 + Xi_elec1)*BoltzmannConst)
-      Tcoll = ReducedMass*Coll_pData(iPair)%CRela2 * 2./(Weight1+Weight2)  &
+      Tcoll = ReducedMassUnweighted*Coll_pData(iPair)%CRela2  &
               / (BoltzmannConst * 2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS))
       b=     (0.5 - SpecDSMC(EductReac(1))%omegaVHS)
       Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
         * (SpecDSMC(EductReac(1))%DrefVHS/2. + SpecDSMC(EductReac(2))%DrefVHS/2.)**2 &
         * (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omegaVHS) &
-        * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS &
-        / (ReducedMass * 2./(Weight1+Weight2)))
+        * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS / ReducedMassUnweighted)
       Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omegaVHS)**b &
            * gamma(2.-SpecDSMC(EductReac(1))%omegaVHS)/gamma(2.-SpecDSMC(EductReac(1))%omegaVHS+b)
       ReactionProb = GetQKAnalyticRate(iReac,TiQK) / Rcoll
     ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D'.AND.ChemReac%QKProcedure(iReac)) THEN
-      TiQK = (ReducedMass*Coll_pData(iPair)%CRela2*2./(Weight1+Weight2)  &
+      TiQK = (ReducedMassUnweighted*Coll_pData(iPair)%CRela2  &
                 + 2.*PartStateIntEn(1,React1Inx))/((2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS) &
                 + Xi_vib1)*BoltzmannConst)
-      Tcoll = ReducedMass*Coll_pData(iPair)%CRela2 * 2./(Weight1+Weight2)  &
+      Tcoll = ReducedMassUnweighted*Coll_pData(iPair)%CRela2  &
               / (BoltzmannConst * 2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS))
       b=     (0.5 - SpecDSMC(EductReac(1))%omegaVHS)
       Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
         * (SpecDSMC(EductReac(1))%DrefVHS/2. + SpecDSMC(EductReac(2))%DrefVHS/2.)**2 &
         * (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omegaVHS) &
-        * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS &
-        / (ReducedMass * 2./(Weight1+Weight2)))
+        * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS / ReducedMassUnweighted)
       Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omegaVHS)**b &
            * gamma(2.-SpecDSMC(EductReac(1))%omegaVHS)/gamma(2.-SpecDSMC(EductReac(1))%omegaVHS+b)
       ! Get the analytic forward rate for QK

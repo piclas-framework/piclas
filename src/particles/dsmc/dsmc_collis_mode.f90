@@ -2590,36 +2590,36 @@ __STAMP__&
 ! ############################################################################################################################### !
       iReac  = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
       iReac2 = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 2)
-      IF (ChemReac%QKProcedure(iReac).AND.ChemReac%QKProcedure(iReac2)) THEN ! both Reaction QK
-        ! first pseudo reaction probability
-        IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
-          PartToExec = Coll_pData(iPair)%iPart_p1
-          PartReac2 = Coll_pData(iPair)%iPart_p2
-        ELSE
-          PartToExec = Coll_pData(iPair)%iPart_p2
-          PartReac2 = Coll_pData(iPair)%iPart_p1
-        END IF
-        ! Determine the collision energy (only relative translational)
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
-        IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,PartToExec)
-        ! ionization level is last known energy level of species
-        iQuaMax=SpecDSMC(PartSpecies(PartToExec))%MaxElecQuant - 1
-        IonizationEnergy=SpecDSMC(PartSpecies(PartToExec))%ElectronicState(2,iQuaMax)*BoltzmannConst
-        ! if you have electronic levels above the ionization limit, such limits should be used instead of
-        ! the pure energy comparison
-        IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy)THEN
-          CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ELSE
-          ReactionProb = 0.
-        END IF
-        ! second pseudo reaction probability
-        IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
-          PartToExec = Coll_pData(iPair)%iPart_p1
-          PartReac2 = Coll_pData(iPair)%iPart_p2
-        ELSE
-          PartToExec = Coll_pData(iPair)%iPart_p2
-          PartReac2 = Coll_pData(iPair)%iPart_p1
-        END IF
+      ! First pseudo reaction probability (is always ionization, here only with QK)
+      IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
+        PartToExec = Coll_pData(iPair)%iPart_p1
+        PartReac2 = Coll_pData(iPair)%iPart_p2
+      ELSE
+        PartToExec = Coll_pData(iPair)%iPart_p2
+        PartReac2 = Coll_pData(iPair)%iPart_p1
+      END IF
+      ! Determine the collision energy (only relative translational)
+      Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
+      IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,PartToExec)
+      ! ionization level is last known energy level of species
+      iQuaMax=SpecDSMC(PartSpecies(PartToExec))%MaxElecQuant - 1
+      IonizationEnergy=SpecDSMC(PartSpecies(PartToExec))%ElectronicState(2,iQuaMax)*BoltzmannConst
+      ! if you have electronic levels above the ionization limit, such limits should be used instead of
+      ! the pure energy comparison
+      IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy)THEN
+        CALL CalcReactionProb(iPair,iReac,ReactionProb)
+      ELSE
+        ReactionProb = 0.
+      END IF
+      ! second pseudo reaction probability
+      IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
+        PartToExec = Coll_pData(iPair)%iPart_p1
+        PartReac2 = Coll_pData(iPair)%iPart_p2
+      ELSE
+        PartToExec = Coll_pData(iPair)%iPart_p2
+        PartReac2 = Coll_pData(iPair)%iPart_p1
+      END IF
+      IF (ChemReac%QKProcedure(iReac2)) THEN ! both Reaction QK
         ! Determine the collision energy (relative translational + vibrational energy of dissociating molecule)
         Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
                                 + PartStateIntEn(1,PartToExec)
@@ -2635,43 +2635,65 @@ __STAMP__&
         ELSE
           ReactionProb2 = 0.
         END IF
+      ELSE
+        CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
+      END IF
 #if (PP_TimeDiscMethod==42)
-        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-          ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
-          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
-          ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
-          ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
-        END IF
+      IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+        ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
+        ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+        ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
+        ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
+      END IF
 #endif
-        ReacToDo = 0
-        IF(ReactionProb*ReactionProb2.LE.0.0) THEN
-          IF(ReactionProb.GT.0.0) THEN
-            ReacToDo = iReac
-          END IF
-          IF(ReactionProb2.GT.0.0) THEN
+      ReacToDo = 0
+      ! Check whether both reaction probabilities are exactly zero (in case of one of the QK reactions without enough energy)
+      IF(ReactionProb*ReactionProb2.LE.0.0) THEN
+        ! Check if the first reaction probability is above zero, for the QK case this means the reaction will occur
+        IF(ReactionProb.GT.0.0) THEN
+          ReacToDo = iReac
+        END IF
+        ! Check if the second reaction probability is above zero: QK = reaction occurs, TCE = comparison with random number
+        IF(ReactionProb2.GT.0.0) THEN
+          IF(ChemReac%QKProcedure(iReac2)) THEN
             ReacToDo = iReac2
-          ENDIF
-        ELSE
-          CALL RANDOM_NUMBER(iRan)
-          IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
-            ReacToDo = iReac
           ELSE
+            CALL RANDOM_NUMBER(iRan)
+            IF(ReactionProb2.GT.iRan) THEN
+              ReacToDo = iReac2
+            END IF
+          END IF
+        ENDIF
+      ELSE
+        ! If both reaction probabilities are above zero, decide for the reaction channel
+        CALL RANDOM_NUMBER(iRan)
+        IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
+          ! First reaction channel: QK, reaction occurs
+          ReacToDo = iReac
+        ELSE
+          ! Second reaction: QK or TCE (test with random number first)
+          IF(ChemReac%QKProcedure(iReac2)) THEN
             ReacToDo = iReac2
+          ELSE
+            CALL RANDOM_NUMBER(iRan)
+            IF(ReactionProb2.GT.iRan) THEN
+              ReacToDo = iReac2
+            END IF
           END IF
         END IF
-        IF(ReacToDo.NE.0) THEN
+      END IF
+      IF(ReacToDo.NE.0) THEN
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirSimuRate) THEN
+        IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-            CALL DSMC_Chemistry(iPair, ReacToDo)
+          CALL DSMC_Chemistry(iPair, ReacToDo)
 #if (PP_TimeDiscMethod==42)
-          END IF
-          IF (DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(ReacToDo) = ChemReac%NumReac(ReacToDo) + 1  ! for calculation of reaction rate coefficient
-          END IF
-#endif
-          RelaxToDo = .FALSE.
         END IF
+        IF (DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(ReacToDo) = ChemReac%NumReac(ReacToDo) + 1  ! for calculation of reaction rate coefficient
+        END IF
+#endif
+        RelaxToDo = .FALSE.
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE DEFAULT
