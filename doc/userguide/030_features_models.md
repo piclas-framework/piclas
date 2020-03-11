@@ -1001,7 +1001,12 @@ The reactants (left-hand side) and products (right-hand side) are defined by the
     DSMC-Reaction1-NumberOfNonReactives=3
     DSMC-Reaction1-NonReactiveSpecies=(/1,2,3/)
 
-This allows to define a single reaction for an arbitrary number of collision partners. In the following, two possibilities to model the reaction rate are presented.
+This allows to define a single reaction for an arbitrary number of collision partners. Ionization reactions require for the correct calculation of the reaction enthalpy, an additional entry for each ionic species about its previous state. This is done by providing the species index, an example is given below assuming that the first species is C, while the second and thirds species are the first and second ionization levels, respectively.
+
+    Part-Species2-PreviousState = 1
+    Part-Species3-PreviousState = 2
+
+In the following, two possibilities to model the reaction rate are presented.
 
 #### Arrhenius-based Chemistry (TCE)
 
@@ -1015,15 +1020,39 @@ where $A$ is the prefactor ([$1/s$, $m^3/s$, $m^6/s$] depending on the reaction 
     DSMC-Reaction1-Arrhenius-Powerfactor=-1.60
     DSMC-Reaction1-Activation-Energy_K=113200.0
 
+An example initialization file for a TCE-based chemistry model can be found in the regression tests (e.g. NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec)
+
 #### Quantum-Kinetic Chemistry (QK)
 
-The quantum-kinetic (QK) model [@Bird2011] choses a different approach and models the chemical reaction on the microscopic level
+The quantum-kinetic (QK) model [@Bird2011] chooses a different approach and models chemical reactions on the microscopic level. It can be enabled for each reaction separately by
 
     DSMC-Reaction1-QKProcedure = T
 
+Currently, the QK model is only available for ionization (Type: iQK) and dissociation reactions (Type: D). While it is possible to utilize TCE- and QK-based reactions in the same simulation for different reactions paths, it is currently not possible to use different reaction models for the same collision pair. The only exception being the ionization and dissociation reactions paths (e.g. N$_2$ + e can lead to a dissociation with the TCE model and to an ionization with the QK model). An example setup can be found in the regression tests (e.g. NIG_Reservoir/CHEM_QK_multi-ionization_C_to_C6+).
+
 #### Backward Reaction Rates
 
-$$ K_\mathrm{equi} = \frac{k_\mathrm{f}}{k_\mathrm{b}}$$
+Backward reaction rates can be calculated for any given forward reaction rate by using the equilibrium constant
+
+$$K_\mathrm{equi} = \frac{k_\mathrm{f}}{k_\mathrm{b}}$$
+
+where $K_\mathrm{equi}$ is calculated through partition functions. This option can be enabled by
+
+    Particles-DSMC-BackwardReacRate = T
+    Particles-DSMC-PartitionMaxTemp = 120000.
+    Particles-DSMC-PartitionInterval = 20.
+
+Since the partition functions are tabulated, a maximum temperature and the interval are required to define the temperature range which is expected during the simulation. Should a collision temperature be outside of that range, the partition function will be calculated on the fly. Additional species-specific parameters are required in the species initialization file to calculate the rotational partition functions
+
+    Part-Species1-SymmetryFactor=2
+    ! Linear poly- and diatomic molecules
+    Part-Species1-CharaTempRot=2.1
+    ! Non-linear polyatomic molecules
+    Part-Species1-CharaTempRot1=2.1
+    Part-Species1-CharaTempRot2=2.1
+    Part-Species1-CharaTempRot3=2.1
+
+The rotational symmetry factor depends on the symmetry point group of the molecule and can be found in e.g. Table 2 in [@Fernandez-Ramos2007]. While linear polyatomic and diatomic molecules require a single characteristic rotational temperature, three values have to be supplied for non-linear polyatomic molecules. Finally, electronic energy levels have to be supplied to consider the electronic partition function. For this purpose, the user should provide an electronic state database as presented in Section \ref{sec:dsmc_electronic_relaxation}.
 
 ### Ensuring Physical Simulation Results \label{sec:dsmc_quality}
 
