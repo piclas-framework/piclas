@@ -156,7 +156,7 @@ Table: Dielectric Test Cases \label{tab:dielectric_test_cases}
   |        `FishEyeLens`         |                                  none                                   |                                      function with radial dependence: $\varepsilon_{r}=n_{0}^{2}/(1 + (r/r_{max})^{2})^{2}$                                      |
   |           `Circle`           | `DielectricRadiusValue, DielectricRadiusValueB`, `DielectricCircleAxis` | Circular dielectric in x-y-direction (constant in z-direction)  with optional cut-out radius DielectricRadiusValueB along the axis given by DielectricCircleAxis |
   | `DielectricResonatorAntenna` |                         `DielectricRadiusValue`                         |                                                 Circular dielectric in x-y-direction (only elements with $z>0$)                                                  |
-  |          `FH_lens`           |                                  none                                   |                                              specific geometry (see `SUBROUTINE SetGeometry` for more information)                                               |
+  |          `FH_lens`           |                                  none                                   |                                              specific geometry (`SUBROUTINE SetGeometry` yields more information)                                               |
 
 For the Maxwell solver (DGSEM), the interface fluxes between vacuum and dielectric regions can
 either be conserving or non-conserving, which is selected by
@@ -288,6 +288,7 @@ The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the t
 |      2       | Simple recombination on surface collision, where an impinging particle as given by Ref. [@Reschke2019].                                                                         |
 |      3       | Kinetic Monte Carlo surface: Replicates surfaces with a specified lattice structure, either fcc(100) or fcc(111) and models complete catalysis as given by Ref. [@Reschke2019]. |
 |      5       | Secondary electron emission as given by Ref. [@Levko2015].                                                                                                                      |
+|      7       | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. [@Pflug2014] and given by Ref. [@Depla2009] with a constant yield of 13 \%.                                                                                                                      |
 |     101      | Evaporation from surfaces according to a Maxwellian velocity distribution.                                                                                                      |
 |     102      | Evaporation according to MD-fitted velocity distributions.                                                                                                                      |
 

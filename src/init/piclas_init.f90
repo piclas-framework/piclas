@@ -405,9 +405,10 @@ IF(.NOT.IsLoadBalance)THEN
   !ParticlesInitIsDone=.FALSE.
   CALL FinalizeLoadBalance()
 #endif /*USE_LOADBALANCE*/
-  SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',Time-StartTime,' sec ]'
+  CALL DisplaySimulationTime(Time, StartTime, 'FINISHED')
 ELSE
   SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS RUNNING! [',Time-StartTime,' sec ]'
+  CALL DisplaySimulationTime(Time, StartTime, 'RUNNING')
 END IF ! .NOT.IsLoadBalance
 SWRITE(UNIT_stdOut,'(132("="))')
 
@@ -435,6 +436,44 @@ InitLoadBalanceIsDone = .FALSE.
 
 END SUBROUTINE FinalizeLoadBalance
 #endif /*USE_LOADBALANCE*/
+
+
+SUBROUTINE DisplaySimulationTime(Time, StartTime, Message)
+!===================================================================================================================================
+! Finalizes variables necessary for analyse subroutines
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: Message         !< Output message
+REAL,INTENT(IN)             :: Time, StartTime !< Current simulation time and beginning of simulation time
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL :: SimulationTime,mins,secs,hours,days
+!===================================================================================================================================
+IF(.NOT.MPIRoot) RETURN
+
+SimulationTime = Time-StartTime
+
+! Get secs, mins, hours and days
+secs = MOD(SimulationTime,60.)
+SimulationTime = SimulationTime / 60
+mins = MOD(SimulationTime,60.)
+SimulationTime = SimulationTime / 60
+hours = MOD(SimulationTime,24.)
+SimulationTime = SimulationTime / 24
+!days = MOD(SimulationTime,365.) ! Use this if years are also to be displayed
+days = SimulationTime
+
+! Output
+WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [',Time-StartTime,' sec ]'
+WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
+END SUBROUTINE DisplaySimulationTime
 
 
 SUBROUTINE FinalizeTimeDisc()

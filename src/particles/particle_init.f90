@@ -830,7 +830,9 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) '//&
                                     'by Levko2015 for copper electrondes\n'//&
                                 '6: SEE-E (secondary e- emission due to e- bombardment) '//&
-                                    'by Pagonakis2016 for molybdenum (originally from Harrower1956)'&
+                                    'by Pagonakis2016 for molybdenum (originally from Harrower1956)'//&
+                                '7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for '//&
+                                'secondary e- emission with 0.13 probability) by Depla2009\n'//&
                                 '101: Maxwell scattering\n'//&
                                 '102: MD dsitributionfunction' &
                                 , '0', numberedmulti=.TRUE.)
@@ -2299,7 +2301,7 @@ DO iPartBound=1,nPartBound
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
       CASE (0)
         PartBound%Reactive(iPartBound)        = .FALSE.
-      CASE (2,3,5,6,101,102)
+      CASE (2,3,5,6,7,101,102)
         PartBound%Reactive(iPartBound)        = .TRUE.
       CASE DEFAULT
         CALL abort(&
