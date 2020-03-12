@@ -874,41 +874,61 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 ! Collision mode is selected (1: Elastic, 2: Non-elastic, 3: Non-elastic with chemical reactions)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,            ONLY : Abort
-  USE MOD_DSMC_Vars,          ONLY : CollisMode, Coll_pData, SelectionProc
-  USE MOD_DSMC_Vars,          ONLY : DSMC
-  USE MOD_Particle_Vars,      ONLY : PartState, WriteMacroVolumeValues, Symmetry2D
-  USE MOD_TimeDisc_Vars,      ONLY : TEnd, Time
+USE MOD_Globals               ,ONLY: Abort
+USE MOD_DSMC_Vars             ,ONLY: CollisMode, Coll_pData, SelectionProc
+USE MOD_DSMC_Vars             ,ONLY: DSMC
+USE MOD_Particle_Vars         ,ONLY: PartState, WriteMacroVolumeValues, Symmetry2D
+USE MOD_TimeDisc_Vars         ,ONLY: TEnd, Time
+#if (PP_TimeDiscMethod==42)
+USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
+USE MOD_Particle_Vars         ,ONLY: usevMPF, Species, PartSpecies
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcCollRates
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+#endif
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPair
-  INTEGER, INTENT(IN)           :: iElem
-  REAL, INTENT(IN), OPTIONAL    :: NodeVolume
-  INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
+INTEGER, INTENT(IN)           :: iPair
+INTEGER, INTENT(IN)           :: iElem
+REAL, INTENT(IN), OPTIONAL    :: NodeVolume
+INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  LOGICAL                       :: RelaxToDo
-  REAL                          :: Distance
+LOGICAL                       :: RelaxToDo
+REAL                          :: Distance, MacroParticleFactor, PairWeight
 !===================================================================================================================================
 
-  IF(DSMC%CalcQualityFactors) THEN
-    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-      IF(Symmetry2D) THEN
-        Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
-                       +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2)
-      ELSE
-        Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
-                       +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2 &
-                       +(PartState(3,Coll_pData(iPair)%iPart_p1) - PartState(3,Coll_pData(iPair)%iPart_p2))**2)
-      END IF
-      DSMC%CollSepDist = DSMC%CollSepDist + Distance
-      DSMC%CollSepCount = DSMC%CollSepCount + 1
-    END IF
+#if (PP_TimeDiscMethod==42)
+IF(CalcCollRates) THEN
+  PairWeight = (GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))/2.
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    ! Weighting factor already included in the PairWeight
+    MacroParticleFactor = 1.
+  ELSE
+    ! Weighting factor should be the same for all species anyway (BGG: first species is the non-BGG particle species)
+    MacroParticleFactor = Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor
   END IF
+  DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + PairWeight*MacroParticleFactor
+END IF
+#endif
+
+IF(DSMC%CalcQualityFactors) THEN
+  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+    IF(Symmetry2D) THEN
+      Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
+                      +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2)
+    ELSE
+      Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
+                      +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2 &
+                      +(PartState(3,Coll_pData(iPair)%iPart_p1) - PartState(3,Coll_pData(iPair)%iPart_p2))**2)
+    END IF
+    DSMC%CollSepDist = DSMC%CollSepDist + Distance
+    DSMC%CollSepCount = DSMC%CollSepCount + 1
+  END IF
+END IF
 
   SELECT CASE(CollisMode)
     CASE(1) ! elastic collision

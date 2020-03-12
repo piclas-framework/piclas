@@ -709,6 +709,7 @@ INTEGER             :: dir
     IF (CollisMode.NE.0) THEN
       SDEALLOCATE(CRate)
       ALLOCATE(CRate(CollInf%NumCase + 1))
+      CRate = 0.0
       IF (CollisMode.EQ.3) THEN
         SDEALLOCATE(RRate)
         ALLOCATE(RRate(ChemReac%NumOfReact))
@@ -1278,10 +1279,12 @@ END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the collision rates and reaction rate coefficients (Arrhenius-type chemistry)
 #if (PP_TimeDiscMethod==42)
-  IF(CalcCollRates) CALL CollRates(CRate)
-  IF(CalcReacRates) THEN
-    IF ((CollisMode.EQ.3).AND.(iter.GT.0)) THEN
-      CALL ReacRates(RRate, NumSpecTmp, iter)
+  IF(iter.GT.0) THEN
+    IF(CalcCollRates) CALL CollRates(CRate)
+    IF(CalcReacRates) THEN
+      IF (CollisMode.EQ.3) THEN
+        CALL ReacRates(RRate, NumSpecTmp, iter)
+      END IF
     END IF
   END IF
 #endif
@@ -2613,27 +2616,55 @@ END SUBROUTINE CalcIntTempsAndEn
 #if (PP_TimeDiscMethod==42)
 SUBROUTINE CollRates(CRate)
 !===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
+!> Calculate the collision rate per species pairing by diving the summed up variables by the current timestep
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: CollInf, DSMC
-USE MOD_TimeDisc_Vars ,ONLY: dt
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: CollInf, DSMC
+USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
+USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: CRate(:)
+REAL,INTENT(OUT)              :: CRate(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iCase
+INTEGER                       :: iCase
 !===================================================================================================================================
 
+#if USE_MPI
+IF(PartMPI%MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%NumColl,CollInf%NumCase + 1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+ELSE
+  CALL MPI_REDUCE(DSMC%NumColl,DSMC%NumColl,CollInf%NumCase + 1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+END IF
+#endif /*USE_MPI*/
+
+IF(PartMPI%MPIRoot)THEN
+  DSMC%NumColl(CollInf%NumCase + 1) = SUM(DSMC%NumColl(1:CollInf%NumCase))
   DO iCase=1, CollInf%NumCase + 1
     CRate(iCase) =  DSMC%NumColl(iCase) / dt
   END DO
-  DSMC%NumColl = 0
+  ! Consider Part-AnalyzeStep
+  IF(PartAnalyzeStep.GT.1)THEN
+    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
+      DO iCase=1, CollInf%NumCase + 1
+        CRate(iCase) = CRate(iCase) / iter
+      END DO ! iCase=1, CollInf%NumCase + 1
+    ELSE
+      DO iCase=1, CollInf%NumCase + 1
+        CRate(iCase) = CRate(iCase) / MIN(PartAnalyzeStep,iter)
+      END DO ! iCase=1, CollInf%NumCase + 1
+    END IF
+  END IF
+END IF
+
+DSMC%NumColl = 0.
+
 END SUBROUTINE CollRates
 
 SUBROUTINE ReacRates(RRate, NumSpec,iter)

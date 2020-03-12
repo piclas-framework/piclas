@@ -197,7 +197,7 @@ TYPE tDSMC
   REAL                          :: EpsElecBin               ! percentage parameter of electronic energy level merging
   REAL                          :: GammaQuant               ! GammaQuant for zero point energy in Evib (perhaps also Erot),
                                                             ! should be 0.5 or 0
-  INTEGER(KIND=8), ALLOCATABLE  :: NumColl(:)               ! Number of Collision for each case + entire Collision number
+  REAL, ALLOCATABLE             :: NumColl(:)               ! Number of Collision for each case + entire Collision number
   REAL                          :: TimeFracSamp=0.          ! %-of simulation time for sampling
   INTEGER                       :: SampNum                  ! number of Samplingsteps
   INTEGER                       :: NumOutput                ! number of Outputs

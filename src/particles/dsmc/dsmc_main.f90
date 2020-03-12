@@ -175,14 +175,6 @@ DO iElem = 1, nElems ! element/cell main loop
           CALL DSMC_prob_calc(iElem, iPair)
           CALL RANDOM_NUMBER(iRan)
           IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
-#if (PP_TimeDiscMethod==42)
-            IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN
-#else
-            IF(CalcEkin) THEN
-#endif
-              DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
-              DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
-            END IF
             CALL DSMC_perform_collision(iPair,iElem)
           END IF
         END IF

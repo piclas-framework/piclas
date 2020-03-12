@@ -587,7 +587,7 @@ ELSE !CollisMode.GT.0
   nCase = iCase
   CollInf%NumCase = nCase
   ALLOCATE(DSMC%NumColl(nCase +1))
-  DSMC%NumColl = 0
+  DSMC%NumColl = 0.
   ALLOCATE(CollInf%Coll_CaseNum(nCase))
   CollInf%Coll_CaseNum = 0
   ALLOCATE(CollInf%Coll_SpecPartNum(nSpecies))
