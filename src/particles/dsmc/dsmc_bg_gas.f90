@@ -444,6 +444,9 @@ DO iSpec = 1,nSpecies
           ! Adding the number of pairs to the species-specific number and the cell total
           SpecPairNum(iSpec,jSpec) = SpecPairNum(iSpec,jSpec) + SpecPairNumTemp
           MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNumTemp
+        ELSE IF(SpecPairNum(iSpec,jSpec) + SpecPairNumTemp.EQ.SpecPartNum(iSpec)) THEN
+          SpecPairNum(iSpec,jSpec) = SpecPairNum(iSpec,jSpec) + SpecPairNumTemp
+          MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNumTemp
         END IF
       END IF
     END DO
