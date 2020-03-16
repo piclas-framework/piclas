@@ -50,9 +50,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER       :: iSpec, jSpec
+REAL          :: TotalProb
 !===================================================================================================================================
 
 XSec_Database = TRIM(GETSTR('Particles-CollXSec-Database'))
+! XSec_Verification = 
 
 IF(TRIM(XSec_Database).EQ.'none') THEN
   CALL abort(&
@@ -67,6 +69,7 @@ IF (BGGas%NumberOfSpecies.EQ.0) THEN
 END IF
 
 ALLOCATE(SpecXSec(nSpecies,nSpecies))
+TotalProb = 0.
 
 DO iSpec = 1,nSpecies
   IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
@@ -79,6 +82,12 @@ DO iSpec = 1,nSpecies
           SpecXSec(iSpec,jSpec)%CollXSecData(1,:) = SpecXSec(iSpec,jSpec)%CollXSecData(1,:) * ElementaryCharge
           ! ! Determine the maximum collision frequency for the null collision method
           CALL DetermineNullCollProb(iSpec,jSpec)
+          TotalProb = TotalProb + SpecXSec(iSpec,jSpec)%ProbNull
+          IF(TotalProb.GT.1.0) THEN
+            CALL abort(&
+              __STAMP__&
+              ,'ERROR: Total null collision probability is above unity. Please reduce the time step!')
+          END IF
         END IF
       END DO
     END IF

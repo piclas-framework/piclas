@@ -727,8 +727,8 @@ INTEGER             :: dir
     ! of the second species is added to the filename
       IF (DSMC%ReservoirSimuRate) THEN
         IF ( SpecDSMC(1)%InterID .EQ. 2 .OR. SpecDSMC(1)%InterID .EQ. 20 ) THEN
-          iTvib = INT(SpecDSMC(1)%Init(0)%Tvib)
-          WRITE( hilf, '(I5.5)') iTvib
+          iTvib = INT(Species(4)%Init(0)%VeloIC)
+          WRITE( hilf, '(I8.8)') iTvib
           outfile = 'Database_Tvib_'//TRIM(hilf)//'.csv'
         ELSE
           !iTvib = INT(SpecDSMC(1)%Telec )

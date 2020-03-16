@@ -400,7 +400,7 @@ CollInf%Coll_CaseNum = 0
 ALLOCATE(iPartIndexSpec(nPart,nSpecies))
 iPartIndexSpec = 0
 
-ALLOCATE(SpecPartNum(nSpecies),SpecPairNum(nSpecies,BGGas%NumberOfSpecies))
+ALLOCATE(SpecPartNum(nSpecies),SpecPairNum(nSpecies,nSpecies))
 SpecPairNum = 0; SpecPairNumTemp = 0; SpecPairNumReal = 0.; SpecPartNum = 0
 
 IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
@@ -428,8 +428,8 @@ DO iSpec = 1,nSpecies
         bgSpec = BGGas%MapSpecToBGSpec(jSpec)
         IF(SpecDSMC(iSpec)%UseCollXSec) THEN
           ! Collision cross-section: The maximum number of pairs to check is collision pair specific and depends on the null collision probability
-          SpecPairNumReal = BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull
-          SpecPairNumTemp = INT(BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull)
+          SpecPairNumReal = CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull
+          SpecPairNumTemp = INT(CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull)
         ELSE
           ! Regular: The maximum number of pairs corresponds to the particle number
           SpecPairNumReal = BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec)
