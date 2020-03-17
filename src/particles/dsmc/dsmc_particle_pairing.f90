@@ -1220,7 +1220,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)                       :: iElem
-INTEGER, INTENT(INOUT)                    :: NodeDepth
+INTEGER, INTENT(IN)                       :: NodeDepth
 TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1272,7 +1272,7 @@ SUBROUTINE DSMC_CalcSubNodeVolumes(iElem, NodeDepth, Node)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)                       :: iElem
-  INTEGER, INTENT(INOUT)                    :: NodeDepth
+  INTEGER, INTENT(IN)                       :: NodeDepth
   TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1313,7 +1313,8 @@ RECURSIVE SUBROUTINE InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(INOUT)                    :: NodeDepth, LocalDepth
+  INTEGER, INTENT(IN)                       :: NodeDepth
+  INTEGER, INTENT(INOUT)                    :: LocalDepth
   REAL, INTENT(OUT)                         :: LocalVdm(0:2**NodeDepth-1,0:PP_N)
   TYPE (tOctreeVdm), POINTER, INTENT(INOUT) :: OctreeVdmLoc
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1351,7 +1352,7 @@ RECURSIVE SUBROUTINE AddNodeVolumes(NodeDepth, Node, DetJac, VdmLocal, SubNodesI
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(INOUT)                    :: NodeDepth
+  INTEGER, INTENT(IN)                       :: NodeDepth
   INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
   TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
   REAL, INTENT(INOUT)                       :: DetJac(1,0:2**NodeDepth-1,0:2**NodeDepth-1,0:2**NodeDepth-1)
@@ -1460,7 +1461,7 @@ SUBROUTINE CalcSubNodeMPVolumePortions(iElem, NodeDepth, Node)
 !>     a. allocate and initialize container for treenode of current node level
 !>     b. insert (nPointsMCVolumeEstimate*(8**(NodeDepth))) number of points into element and match which are inside of macrobody
 !>     c. find volume portions of each node by matching the inserted points to each subnode
-!> 3.2 If macroscopic body occupies the total element or element has no macroscopic body then set all subnodes to 1 or 0 
+!> 3.2 If macroscopic body occupies the total element or element has no macroscopic body then set all subnodes to 1 or 0
 !>     (MPVolumePortion of total element)
 !===================================================================================================================================
 ! MODULES
@@ -1543,17 +1544,17 @@ END SUBROUTINE CalcSubNodeMPVolumePortions
 RECURSIVE SUBROUTINE AddNodeMPVolumePortions(iElem, NodeDepth, Node, TreeNode, LocalNodeDepth)
 !===================================================================================================================================
 !> 1. TreeNode Mode:
-!>   Select whether deepest octree level is reached 
-!>     1-A. not deepest level: 
+!>   Select whether deepest octree level is reached
+!>     1-A. not deepest level:
 !>       1-A.1. find the correct childnode ID for each point in the current treenode and assign to childnode arrays
 !>       1-A.2. move to deeper level
-!>     1-B. deepest level: 
+!>     1-B. deepest level:
 !>       assign correct volumeportion to octree subnode
-!> 2. LocalNodeDepth: 
-!>   Select whether deepest octree level is reached 
-!>     2-A. not deepest level: 
+!> 2. LocalNodeDepth:
+!>   Select whether deepest octree level is reached
+!>     2-A. not deepest level:
 !>       move to deeper level
-!>     2-B. deepest level: 
+!>     2-B. deepest level:
 !>       assign correct volumeportion to octree subnode
 !===================================================================================================================================
 ! MODULES
@@ -1733,7 +1734,7 @@ USE MOD_Particle_Vars   ,ONLY: Symmetry2DAxisymmetric
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(INOUT)                    :: NodeDepth
+INTEGER, INTENT(IN)                       :: NodeDepth
 INTEGER, INTENT(IN)                       :: iElem
 INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
 TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
@@ -2114,7 +2115,7 @@ INTEGER FUNCTION OCTANTCUBEID(centerPoint,coord)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 REAL,INTENT(IN) :: centerPoint(1:3)
 REAL,INTENT(IN) :: coord(1:3)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2149,7 +2150,7 @@ FUNCTION OCTANTCUBEMIDPOINT(CubeID,octantDepth,octantCenter)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 INTEGER,INTENT(IN) :: CubeID
 INTEGER,INTENT(IN) :: octantDepth
 REAL,INTENT(IN)    :: octantCenter(1:3)
@@ -2234,7 +2235,7 @@ LOGICAL RECURSIVE FUNCTION GETMPVOLDONE(maxDepth,currentDepth,Node) RESULT(doneF
 USE MOD_DSMC_Vars ,ONLY: tNodeVolume
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 INTEGER,INTENT(IN)                      :: maxDepth
 INTEGER,INTENT(IN)                      :: currentDepth
 TYPE (tNodeVolume), INTENT(IN), POINTER :: Node
