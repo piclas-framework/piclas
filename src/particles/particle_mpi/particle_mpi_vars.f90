@@ -65,18 +65,18 @@ END TYPE
 
 #if USE_MPI
 TYPE tPartMPIConnect
-  TYPE(tPeriodicPtr)       , ALLOCATABLE :: Periodic(:)                     ! data for different periodic borders for process
+  TYPE(tPeriodicPtr)       , ALLOCATABLE :: Periodic(:)                      ! data for different periodic borders for process
   LOGICAL                                :: isBGMNeighbor                    ! Flag: which process is neighber wrt. bckgrnd mesh
   LOGICAL                                :: isBGMPeriodicNeighbor            ! Flag: which process is neighber wrt. bckgrnd mesh
-  INTEGER                  , ALLOCATABLE :: BGMBorder(:,:)            ! indices of border nodes (1=min 2=max,xyz)
-  INTEGER                                :: BGMPeriodicBorderCount            ! Number(#) of overlapping areas due to periodic bc
+  INTEGER                  , ALLOCATABLE :: BGMBorder(:,:)                   ! indices of border nodes (1=min 2=max,xyz)
+  INTEGER                                :: BGMPeriodicBorderCount           ! Number(#) of overlapping areas due to periodic bc
 END TYPE
 #endif /*USE_MPI*/
 
 TYPE tNodeSendList
   INTEGER                               :: COMMProcID
-  INTEGER,ALLOCATABLE                   :: SendList(:)                   ! list containing surfsideid of sides to send to proc
-  INTEGER,ALLOCATABLE                   :: RecvList(:)                   ! list containing surfsideid of sides to recv from proc
+  INTEGER,ALLOCATABLE                   :: SendList(:)                       ! list containing surfsideid of sides to send to proc
+  INTEGER,ALLOCATABLE                   :: RecvList(:)                       ! list containing surfsideid of sides to recv from proc
 END TYPE
 
 TYPE tPartMPIVAR
@@ -128,38 +128,48 @@ TYPE(tMPIMessage),ALLOCATABLE  :: PorousBCRecvBuf(:)                         ! S
 TYPE(tMPIMessage),ALLOCATABLE  :: PorousBCSendBuf(:)                         ! SurfSendBuf with all requried types
 
 TYPE tParticleMPIExchange
-  INTEGER,ALLOCATABLE            :: nPartsSend(:,:)     ! Only MPI neighbors
-  INTEGER,ALLOCATABLE            :: nPartsRecv(:,:)     ! Only MPI neighbors
-  INTEGER                        :: nMPIParticles     ! Number of all received particles
-  INTEGER,ALLOCATABLE            :: SendRequest(:,:)  ! Send request message handle 1 - Number, 2-Message
-  INTEGER,ALLOCATABLE            :: RecvRequest(:,:)  ! Receive request message handle,  1 - Number, 2-Message
-  TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)   ! Message, required for particle emission
+  INTEGER,ALLOCATABLE            :: nPartsSend(:,:)                          ! Only MPI neighbors
+  INTEGER,ALLOCATABLE            :: nPartsRecv(:,:)                          ! Only MPI neighbors
+  INTEGER                        :: nMPIParticles                            ! Number of all received particles
+  INTEGER,ALLOCATABLE            :: SendRequest(:,:)                         ! Send request message handle 1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: RecvRequest(:,:)                         ! Receive request message handle,  1 - Number, 2-Message
+  TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)                          ! Message, required for particle emission
 END TYPE
  TYPE (tParticleMPIExchange)     :: PartMPIExchange
 
 TYPE tParticleMPIExchange2
-  INTEGER,ALLOCATABLE            :: nPartsSend(:)     ! Only MPI neighbors
-  INTEGER,ALLOCATABLE            :: nPartsRecv(:)     ! Only MPI neighbors
-  INTEGER                        :: nMPIParticles     ! Number of all received particles
-  INTEGER,ALLOCATABLE            :: SendRequest(:,:)  ! Send requires message handle 1 - Number, 2-Message
-  INTEGER,ALLOCATABLE            :: RecvRequest(:,:)  ! Receive request message handle,  1 - Number, 2-Message
-  TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)   ! Message, required for particle emission
+  INTEGER,ALLOCATABLE            :: nPartsSend(:,:)                          ! Only same init communicator
+  INTEGER,ALLOCATABLE            :: nPartsRecv(:,:)                          ! Only same init communicator
+  INTEGER                        :: nMPIParticles                            ! Number of all received particles
+  INTEGER,ALLOCATABLE            :: SendRequest(:,:)                         ! Send requires message handle 1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: RecvRequest(:,:)                         ! Receive request message handle,  1 - Number, 2-Message
+  TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)                          ! Message, required for particle emission
 END TYPE
 TYPE (tParticleMPIExchange2)     :: PartMPIInsert
 
+TYPE tParticleMPIExchange3
+  INTEGER,ALLOCATABLE            :: nPartsSend(:,:)                          ! Only same init communicator
+  INTEGER,ALLOCATABLE            :: nPartsRecv(:,:)                          ! Only same init communicator
+  INTEGER                        :: nMPIParticles                            ! Number of all received particles
+  INTEGER,ALLOCATABLE            :: SendRequest(:,:)                         ! Send requires message handle 1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: RecvRequest(:,:)                         ! Receive request message handle,  1 - Number, 2-Message
+  TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)                          ! Message, required for particle emission
+END TYPE
+TYPE (tParticleMPIExchange3)     :: PartMPILocate
+
 TYPE tSurfMPIExchange
-  INTEGER,ALLOCATABLE            :: nSidesSend(:)     ! Only MPI neighbors
-  INTEGER,ALLOCATABLE            :: nSidesRecv(:)     ! Only MPI neighbors
-  INTEGER,ALLOCATABLE            :: SendRequest(:)   ! Send requires message handle 1 - Number, 2-Message
-  INTEGER,ALLOCATABLE            :: RecvRequest(:)   ! Receive request message handle,  1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: nSidesSend(:)                            ! Only MPI neighbors
+  INTEGER,ALLOCATABLE            :: nSidesRecv(:)                            ! Only MPI neighbors
+  INTEGER,ALLOCATABLE            :: SendRequest(:)                           ! Send requires message handle 1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: RecvRequest(:)                           ! Receive request message handle,  1 - Number, 2-Message
 END TYPE
 TYPE (tSurfMPIExchange)          :: SurfExchange
 
 TYPE tNodeMPIExchange
-  INTEGER,ALLOCATABLE            :: nNodesSend(:)     ! only mpi neighbors
-  INTEGER,ALLOCATABLE            :: nNodesRecv(:)     ! only mpi neighbors
-  INTEGER,ALLOCATABLE            :: SendRequest(:)   ! send requirest message handle 1 - Number, 2-Message
-  INTEGER,ALLOCATABLE            :: RecvRequest(:)   ! recv request message handle,  1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: nNodesSend(:)                            ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: nNodesRecv(:)                            ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: SendRequest(:)                           ! send requirest message handle 1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: RecvRequest(:)                           ! recv request message handle,  1 - Number, 2-Message
 END TYPE
 TYPE (tNodeMPIExchange)          :: NodeExchange
 

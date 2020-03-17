@@ -103,7 +103,7 @@
 #define SIDE_BCID         5
 #define SIDE_ELEMID       6
 ! number of entries in each line of MortarInfo
-#define MORTARINFOSIZE    4
+#define MORTARINFOSIZE    5
 
 ! Predefined "PARAMETER-like" variables
 #define XI_MINUS   5

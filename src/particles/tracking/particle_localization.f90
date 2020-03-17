@@ -148,7 +148,8 @@ DO iBGMElem=1,nBGMElems
   IF (ALMOSTEQUAL(Distance(iBGMElem),-1.)) CYCLE
   ElemID=ListDistance(iBGMElem)
   IF (.NOT.DoHALO) THEN
-    IF (ElemID.GT.PP_nElems) CYCLE
+    ! TODO: THIS NEEDS TO BE ADJUSTED FOR MPI3-SHARED
+    ! IF (ElemID.GT.PP_nElems) CYCLE
   END IF
   IF (TriaTracking) THEN
     CALL ParticleInsideQuad3D(Pos3D(1:3),ElemID,InElementCheck,Det)

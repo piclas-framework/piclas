@@ -204,19 +204,7 @@ LOGICAL,INTENT(OUT)           :: InElementCheck
 INTEGER                       :: ilocSide, NodeNum, SideID, SideIDMortar, ind, NbElemID, nNbMortars
 LOGICAL                       :: PosCheck, NegCheck, InElementCheckMortar, InElementCheckMortarNb
 REAL                          :: A(1:3,1:4), crossP(3)
-INTEGER                       :: firstElem, lastElem
 !===================================================================================================================================
-#if USE_MPI
-firstElem=INT(REAL(myComputeNodeRank*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem=INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-#else
-firstElem=1
-lastElem=nElems
-#endif
-IF((ElemID.LT.firstElem).OR.(ElemID.GT.lastElem))THEN
-  InElementCheck = .FALSE.
-  RETURN
-END IF
 InElementCheck = .TRUE.
 InElementCheckMortar = .TRUE.
 !--- Loop over the 6 sides of the element

@@ -211,6 +211,7 @@ USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE,createSides
 USE MOD_IO_HDF5
 #if USE_MPI
 USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc
+USE MOD_MPI_Vars             ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared           ,ONLY: Allocate_Shared
 USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
