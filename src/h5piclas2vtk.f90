@@ -567,7 +567,7 @@ INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nElems)      ! Statevecto
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iVal,iElem,Offset,nBytes,nVTKElems,nVTKCells,ivtk=44,iVar,iNode, int_size, ElemType
+INTEGER                       :: iVal,iElem,Offset,nBytes,nVTKPoints,nVTKCells,ivtk=44,iVar,iNode, int_size, ElemType
 INTEGER                       :: Vertex(data_size,nElems), iLen, str_len
 CHARACTER(LEN=35)             :: StrOffset,TempStr1,TempStr2
 CHARACTER(LEN=200)            :: Buffer, tmp, tmp2, VarNameString
@@ -576,7 +576,7 @@ REAL(KIND=4)                  :: float
 INTEGER,ALLOCATABLE           :: VarNameCombine(:), VarNameCombineLen(:)
 !===================================================================================================================================
 
-nVTKElems=nNodes
+nVTKPoints=nNodes
 nVTKCells=nElems
 
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE 3D DATA TO VTX XML BINARY (VTU) FILE..."
@@ -623,7 +623,7 @@ Buffer='<?xml version="1.0"?>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">'//lf;WRITE(ivtk) TRIM(Buffer)
 
 Buffer='  <UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
-WRITE(TempStr1,'(I16)')nVTKElems
+WRITE(TempStr1,'(I16)')nVTKPoints
 WRITE(TempStr2,'(I16)')nVTKCells
 Buffer='    <Piece NumberOfPoints="'//TRIM(ADJUSTL(TempStr1))//&
 '" NumberOfCells="'//TRIM(ADJUSTL(TempStr2))//'">'//lf;WRITE(ivtk) TRIM(Buffer)
@@ -657,7 +657,7 @@ Buffer='      </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended"'// &
        ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+INT(SIZEOF(int_size),4)+3*nVTKElems*INT(SIZEOF(float),4)
+Offset=Offset+INT(SIZEOF(int_size),4)+3*nVTKPoints*INT(SIZEOF(float),4)
 WRITE(StrOffset,'(I16)')Offset
 Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)
 ! Specify necessary cell data
@@ -694,9 +694,9 @@ DO iVal=1,nVar
   ENDIF
 END DO
 ! Points
-nBytes = 3*nVTKElems*INT(SIZEOF(FLOAT),4)
+nBytes = 3*nVTKPoints*INT(SIZEOF(FLOAT),4)
 WRITE(ivtk) nBytes
-WRITE(ivtk) REAL(Coords(1:3,1:nVTKElems),4)
+WRITE(ivtk) REAL(Coords(1:3,1:nVTKPoints),4)
 ! Connectivity
 DO iElem=1,nVTKCells
   DO iNode=1,data_size
@@ -907,7 +907,7 @@ CALL ReadArray('PartData',2,(/nPartsVar+3_IK,nParts/),0_IK,1,RealArray=PartData)
 END ASSOCIATE
 
 DO iPart=1,nParts
-  ConnectInfo(1,iPart)=iPart-1
+  ConnectInfo(1,iPart)=iPart
 END DO
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuPart',OutputTime))//'.vtu'

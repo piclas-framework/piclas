@@ -16,7 +16,7 @@ The basic command for either mesh generation or conversion of an extermal mesh i
 hopr hopr.ini
 ~~~~~~~
 
-Note that the path to the **HOPR** executable is omitted in the command (see \ref{sec:installation_directory}).
+Note that the path to the **HOPR** executable is omitted in the command (visit \ref{sec:installation_directory}).
 
 ### Mesh generation with HEXPRESS
 
@@ -70,7 +70,7 @@ HOPR can then read-in the mesh with following mode option:
 
     Mode = 4
 
-More recent versions of GridPro also support a CGNS output. Here, the option *Export* -> *Grid* -> *CGNS* -> *Elementary* should be chosen. For different boundary labels, different property types have to be defined (Note: The property type *Wall* seems to be causing problems during the HOPR read-in and should be avoided). The following errors can be ignored as long as HOPR finishes successfully and a mesh file is written out
+More recent versions of GridPro also support a CGNS output. Here, the option *Export* -> *Grid* -> *CGNS* -> *Elementary* should be chosen. For different boundary labels, different property types have to be defined (Note: The property type *Wall* might be causing problems during the HOPR read-in and should be avoided). The following errors can be ignored as long as HOPR finishes successfully and a mesh file is written out
 
     ERROR: number of zones in inifile does not correspond to number of zones in meshfile(s)
     ERROR - Could not find corresponding boundary definition of ws.Interblck
