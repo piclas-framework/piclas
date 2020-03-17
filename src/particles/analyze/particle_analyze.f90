@@ -722,27 +722,7 @@ INTEGER             :: dir
   IF (PartMPI%MPIRoot) THEN
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
-#if (PP_TimeDiscMethod==42)
-    ! if only the reaction rate is desired (resevoir) the initial temperature
-    ! of the second species is added to the filename
-      IF (DSMC%ReservoirSimuRate) THEN
-        IF ( SpecDSMC(1)%InterID .EQ. 2 .OR. SpecDSMC(1)%InterID .EQ. 20 ) THEN
-          iTvib = INT(Species(4)%Init(0)%VeloIC)
-          WRITE( hilf, '(I8.8)') iTvib
-          outfile = 'Database_Tvib_'//TRIM(hilf)//'.csv'
-        ELSE
-          !iTvib = INT(SpecDSMC(1)%Telec )
-          iTvib = INT(Species(1)%Init(0)%MWTemperatureIC) !wrong name, if MWTemp is defined in %Init!!!
-          WRITE( hilf, '(I5.5)') iTvib
-          outfile = 'Database_Ttrans_'//TRIM(hilf)//'.csv'
-        END IF
-      ELSE
-        outfile = 'PartAnalyze.csv'
-      END IF
-#else
       outfile = 'PartAnalyze.csv'
-#endif
-
       IF (isRestart .and. FILEEXISTS(outfile)) THEN
         OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
         !CALL FLUSH (unit_index)
