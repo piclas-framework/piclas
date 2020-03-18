@@ -965,6 +965,7 @@ USE MOD_Particle_Boundary_Porous   ,ONLY: InitPorousBoundaryCondition
 USE MOD_Restart_Vars               ,ONLY: DoRestart
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
+USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
 #endif
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
@@ -999,6 +1000,10 @@ IF(useBGField) CALL InitializeBackgroundField()
 
 ! Read-in number of porous boundaries
 nPorousBC = GETINT('Part-nPorousBC', '0')
+
+#if USE_MPI
+CALL InitEmissionParticlesToProcs()
+#endif
 
 CALL InitializeParticleEmission()
 CALL InitializeParticleSurfaceflux()
@@ -3280,6 +3285,9 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars
+#if USE_MPI
+USE MOD_Particle_MPI_Emission      ,ONLY: FinalizeEmissionParticlesToProcs
+#endif
 !USE MOD_DSMC_Vars,                  ONLY: SampDSMC
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -3289,6 +3297,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+#if USE_MPI
+CALL FinalizeEmissionParticlesToProcs()
+#endif
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 SDEALLOCATE( Pt_temp)

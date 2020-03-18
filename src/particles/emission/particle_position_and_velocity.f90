@@ -371,7 +371,7 @@ END IF
 ! communication
 IF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle') nChunks=1
 
-!IF (mode.EQ.1) THEN
+IF (mode.EQ.1) THEN
   chunkSize = INT(nbrOfParticle/nChunks)
   IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
     IF( Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) ) THEN
@@ -393,14 +393,11 @@ IF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle') nChunks=1
     END IF
     chunkSize = chunkSize + ( nbrOfParticle - (nChunks*chunkSize) )
   END IF
-  IF (PartMPI%InitGroup(InitGroup)%MPIROOT .OR. nChunks.GT.1) THEN
+  IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
 #endif
     ALLOCATE( particle_positions(1:chunkSize*DimSend), STAT=allocStat )
-    IF (allocStat .NE. 0) THEN
-      CALL abort(&
-__STAMP__&
-,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
-    END IF
+    IF (allocStat .NE. 0) &
+      CALL abort(__STAMP__,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
 
     chunkSize2=chunkSize !will be changed during insertion for:
                          !  1.: vpi with PartDensity (orig. chunksize is for buffer region)
@@ -1245,15 +1242,36 @@ __STAMP__&
     chunkSize=chunkSize2
 
 #if USE_MPI
+    ! TODO: mode=2 should not be required anymore except for special emissions. Only MPIRoot arrives here, so we would hang
+    ! indefinitely. Skip it altogether for now
     IF (nChunks.GT.1) THEN
-      CALL SendEmissionParticlesToProcs(chunkSize,DimSend,particle_positions,FractNbr,iInit)
+      CALL SendEmissionParticlesToProcs(chunkSize,DimSend,particle_positions,FractNbr,iInit,mySumOfMatchedParticles)
+    ELSE
+    ! Finish emission on local proc
+      mySumOfMatchedParticles = 0
+      ParticleIndexNbr        = 1
+      DO i=1,chunkSize
+        ! Find a free position in the PDM array
+        IF ((i.EQ.1).OR.PDM%ParticleInside(ParticleIndexNbr)) THEN
+          ParticleIndexNbr = PDM%nextFreePosition(mySumOfMatchedParticles + 1 + PDM%CurrentNextFreePosition)
+        END IF
+        IF (ParticleIndexNbr.NE.0) THEN
+          PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
+          PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
+          CALL LocateParticleInElement(ParticleIndexNbr,doHALO=.FALSE.)
+          IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
+            mySumOfMatchedParticles = mySumOfMatchedParticles + 1
+          END IF
+        END IF
+      END DO
     END IF
 #endif /*USE_MPI*/
 
-!           #if USE_MPI
-!            ELSE !no mpi root, nchunks=1
-!              chunkSize=0
-!            END IF
+#if USE_MPI
+   ELSE !no mpi root, nchunks=1
+     chunkSize=0
+   END IF
+#endif
 !            IF(nChunks.GT.1) THEN
 !              ALLOCATE( PartMPIInsert%nPartsSend  (0:PartMPI%InitGroup(InitGroup)%nProcs-1), STAT=allocStat )
 !              ALLOCATE( PartMPIInsert%nPartsRecv  (0:PartMPI%InitGroup(InitGroup)%nProcs-1), STAT=allocStat )
@@ -1571,7 +1589,6 @@ __STAMP__&
 #if USE_MPI
 END IF ! mode 1/2
 #endif
-IPWRITE (*,*) "mySumOfMatchedParticles, =", mySumOfMatchedParticles
 
 END SUBROUTINE SetParticlePosition
 
