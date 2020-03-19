@@ -59,7 +59,7 @@ SUBROUTINE DSMC_chemical_init()
   INTEGER, ALLOCATABLE  :: PairCombID(:,:), DummyRecomb(:,:)
   LOGICAL, ALLOCATABLE  :: YetDefined_Help(:)
   LOGICAL               :: DoScat
-  INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact, bgSpec
+  INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact
   REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec, BGGasEVib
 !===================================================================================================================================
 
@@ -146,21 +146,22 @@ __STAMP__&
     ALLOCATE(ChemReac%TLU_FileName(ChemReac%NumOfReact))
 
     IF (BGGas%NumberOfSpecies.GT.0) THEN
-      DO bgSpec = 1, BGGas%NumberOfSpecies
-        iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-        ! Background gas: Calculation of the mean vibrational quantum number of diatomic molecules
-        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-          IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol) THEN
-            BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib &
-              + BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib / SpecDSMC(iSpec)%Init(0)%TVib) - 1)
-            BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
-            ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(BGGasEVib) + 1, SpecDSMC(iSpec)%MaxVibQuant)
-            ChemReac%MeanXiVib_PerIter(iSpec) = 2. * ChemReac%MeanEVibQua_PerIter(iSpec) &
-                                              * LOG(1.0/ChemReac%MeanEVibQua_PerIter(iSpec) + 1.0 )
+      DO iSpec = 1, nSpecies
+        IF(BGGas%BackgroundSpecies(iSpec)) THEN
+          ! Background gas: Calculation of the mean vibrational quantum number of diatomic molecules
+          IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+            IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol) THEN
+              BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib &
+                + BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib / SpecDSMC(iSpec)%Init(0)%TVib) - 1)
+              BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
+              ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(BGGasEVib) + 1, SpecDSMC(iSpec)%MaxVibQuant)
+              ChemReac%MeanXiVib_PerIter(iSpec) = 2. * ChemReac%MeanEVibQua_PerIter(iSpec) &
+                                                * LOG(1.0/ChemReac%MeanEVibQua_PerIter(iSpec) + 1.0 )
+            END IF
+          ELSE
+            ChemReac%MeanEVibQua_PerIter(iSpec) = 0
+            ChemReac%MeanXiVib_PerIter(iSpec) = 0.
           END IF
-        ELSE
-          ChemReac%MeanEVibQua_PerIter(iSpec) = 0
-          ChemReac%MeanXiVib_PerIter(iSpec) = 0.
         END IF
       END DO
     END IF
@@ -468,20 +469,18 @@ __STAMP__&
         ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
         ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
         DO iReac2 = 1, ChemReac%NumOfReact
-          IF(ChemReac%QKProcedure(iReac2)) THEN
-            IF ((TRIM(ChemReac%ReactType(iReac2)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac2))) THEN
-              IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
-                  PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-                Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-                Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-                ChemReac%ReactCase(Reactant1, Reactant2) = 20
-                ChemReac%ReactCase(Reactant2, Reactant1) = 20
-                ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-                ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-                ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-                ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-                YetDefined_Help(iReac2) = .TRUE.
-              END IF
+          IF ((TRIM(ChemReac%ReactType(iReac2)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac2))) THEN
+            IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
+                PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
+              Reactant1 = ChemReac%DefinedReact(iReac,1,1)
+              Reactant2 = ChemReac%DefinedReact(iReac,1,2)
+              ChemReac%ReactCase(Reactant1, Reactant2) = 20
+              ChemReac%ReactCase(Reactant2, Reactant1) = 20
+              ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
+              ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
+              ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
+              ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
+              YetDefined_Help(iReac2) = .TRUE.
             END IF
           END IF
         END DO
