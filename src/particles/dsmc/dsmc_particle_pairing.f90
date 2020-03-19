@@ -51,7 +51,6 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, WriteMacroVolumeValues, VarTimeStep
   USE MOD_DSMC_Relaxation,        ONLY : CalcMeanVibQuaDiatomic
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
-  USE MOD_Particle_Analyze_Vars,  ONLY : CalcEkin
   USE MOD_DSMC_CollisionProb,     ONLY : DSMC_prob_calc
   USE MOD_DSMC_Collis,            ONLY : DSMC_perform_collision, DSMC_calc_var_P_vib
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
@@ -352,7 +351,6 @@ USE MOD_DSMC_Symmetry2D,        ONLY: CalcRadWeightMPF
 USE MOD_Particle_Vars,          ONLY: PartState, nSpecies, PartSpecies, PartMPF, WriteMacroVolumeValues, VarTimeStep
 USE MOD_DSMC_Relaxation,        ONLY: CalcMeanVibQuaDiatomic
 USE MOD_DSMC_Analyze,           ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
-USE MOD_Particle_Analyze_Vars,  ONLY: CalcEkin
 USE MOD_DSMC_CollisionProb,     ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis,            ONLY: DSMC_perform_collision, DSMC_calc_var_P_vib
 USE MOD_TimeDisc_Vars,          ONLY: TEnd, Time

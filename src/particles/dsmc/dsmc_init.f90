@@ -350,6 +350,10 @@ CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXb'  &
 CALL prms%CreateStringOption(     'DSMC-Reaction[$]-TLU_FileName'  &
                                 , 'with DoScat=F: No TLU-File needed '//&
                                 '(def.: )', '0' , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Particles-Chemistry-NumDeleteProducts','Number of species, which should be deleted if they are '//&
+                                'a product of chemical reactions', '0')
+CALL prms%CreateIntArrayOption( 'Particles-Chemistry-DeleteProductsList','List of the species indices to be deleted if they are '//&
+                                'a product of chemical reactions')
 
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
                                            ,'Utilize collision cross sections for the determination of collision probabilities' &

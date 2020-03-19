@@ -87,6 +87,12 @@ __STAMP__&
       ChemReac%NumOfReact = ChemReac%NumOfReact + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
     END IF
   END DO
+  ! Delete products if they belong to a certain species
+  ChemReac%NumDeleteProducts = GETINT('Particles-Chemistry-NumDeleteProducts')
+  IF(ChemReac%NumDeleteProducts.GT.0) THEN
+    ALLOCATE(ChemReac%DeleteProductsList(ChemReac%NumDeleteProducts))
+    ChemReac%DeleteProductsList = GETINTARRAY('Particles-Chemistry-DeleteProductsList', ChemReac%NumDeleteProducts)
+  END IF
   ! Calculation of the backward reaction rates
   IF(DSMC%BackwardReacRate) THEN
    ChemReac%NumOfReact = 2 * ChemReac%NumOfReact

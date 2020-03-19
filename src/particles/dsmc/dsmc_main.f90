@@ -50,7 +50,6 @@ USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D, PartSpecies
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcEkin
 USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib, &
                                      SamplingRotVibRelaxProb
 USE MOD_DSMC_Relaxation       ,ONLY: CalcMeanVibQuaDiatomic
