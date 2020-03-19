@@ -1055,6 +1055,13 @@ Since the partition functions are tabulated, a maximum temperature and the inter
 
 The rotational symmetry factor depends on the symmetry point group of the molecule and can be found in e.g. Table 2 in [@Fernandez-Ramos2007]. While linear polyatomic and diatomic molecules require a single characteristic rotational temperature, three values have to be supplied for non-linear polyatomic molecules. Finally, electronic energy levels have to be supplied to consider the electronic partition function. For this purpose, the user should provide an electronic state database as presented in Section \ref{sec:dsmc_electronic_relaxation}.
 
+#### Additional features
+
+Specified product species can be deleted immediately after the reaction occurs, e.g. if an ionization process with a background gas is simulated and the neutral species as a result from dissociation are not of interest. To do so, the number of species to be deleted and there indices have to be defined
+
+    Particles-Chemistry-NumDeleteProducts = 2
+    Particles-Chemistry-DeleteProductsList = (/2,3/)
+
 ### Ensuring Physical Simulation Results \label{sec:dsmc_quality}
 
 To determine whether the DSMC related parameters are chosen correctly, so-called quality factors can be written out as part of the regular DSMC state file output by
