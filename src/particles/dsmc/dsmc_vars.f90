@@ -172,26 +172,32 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
   LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
   INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
-!                                                           ! ionization)
+                                                            ! ionization)
   ! Collision cross-sections for MCC
   LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
                                                             ! treated with read-in collision cross-section (currently only with BGG)
-  REAL,ALLOCATABLE                  :: CollXSec(:,:)        ! Collision cross-section as read-in from the database
+END TYPE tSpeciesDSMC
+
+TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
+
+TYPE tSpeciesXSec
+  REAL,ALLOCATABLE                  :: CollXSecData(:,:)    ! Collision cross-section as read-in from the database
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
   REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
                                                             ! null collision method of MCC
   REAL                              :: MaxCollFreq          ! Maximal collision frequency at certain energy level and cross-section
-END TYPE tSpeciesDSMC
+END TYPE tSpeciesXSec
 
-TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
+TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:,:)        ! Species cross-section related data (nSpec,nSpec). First column is used
+                                                            ! for the particle species, second column for the background species
 
 TYPE tDSMC
   INTEGER                       :: ElectronSpecies          ! Species of the electron
   REAL                          :: EpsElecBin               ! percentage parameter of electronic energy level merging
   REAL                          :: GammaQuant               ! GammaQuant for zero point energy in Evib (perhaps also Erot),
                                                             ! should be 0.5 or 0
-  INTEGER(KIND=8), ALLOCATABLE  :: NumColl(:)               ! Number of Collision for each case + entire Collision number
+  REAL, ALLOCATABLE             :: NumColl(:)               ! Number of Collision for each case + entire Collision number
   REAL                          :: TimeFracSamp=0.          ! %-of simulation time for sampling
   INTEGER                       :: SampNum                  ! number of Samplingsteps
   INTEGER                       :: NumOutput                ! number of Outputs
@@ -279,9 +285,9 @@ TYPE(tDSMC)                     :: DSMC
 TYPE tBGGas
   INTEGER                       :: NumberOfSpecies          ! Number of background gas species
   LOGICAL, ALLOCATABLE          :: BackgroundSpecies(:)     ! Flag, if a species is a background gas species, [1:nSpecies]
+  INTEGER, ALLOCATABLE          :: MapSpecToBGSpec(:)       ! Input: [1:nSpecies], output is the corresponding background species
   REAL, ALLOCATABLE             :: SpeciesFraction(:)       ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
-  REAL                          :: NumberDensity            ! Total number density of the background gas
-  INTEGER, ALLOCATABLE          :: MappingBGSpecToSpec(:)   ! Input: [1:BGGas%NumberOfSpecies], output is the corresponding species
+  REAL, ALLOCATABLE             :: NumberDensity(:)         ! Number densities of the background gas, [1:BGGas%NumberOfSpecies]
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
 END TYPE tBGGas
@@ -289,7 +295,7 @@ END TYPE tBGGas
 TYPE(tBGGas)                        :: BGGas
 
 LOGICAL                             :: UseMCC
-CHARACTER(LEN=256)                  :: MCC_Database
+CHARACTER(LEN=256)                  :: XSec_Database
 INTEGER                             :: MCC_TotalPairNum
 
 TYPE tPairData

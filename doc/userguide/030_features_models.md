@@ -1092,7 +1092,7 @@ For modelling of particle collisions with the Particle-in-Cell method, often the
 
     Particles-CollXSec-Database = MCC_Database.h5
 
-An example database, containing the effective collision cross-sections of Argon-electron and Helium-electron, is provided in the tools folder: `piclas/tools/crosssection_database`. Details on how to create an own database with custom cross-section data is given in Section \ref{sec:tools_mcc}. Finally, the input which species should be treated with the MCC model is required
+Cross-section data can be retrieved from the [LXCat database](https://fr.lxcat.net/home/) and converted with a Python script provided in the tools folder: `piclas/tools/crosssection_database`. Details on how to create an own database with custom cross-section data is given in Section \ref{sec:tools_mcc}. Finally, the input which species should be treated with the MCC model is required
 
     Part-Species2-SpeciesName = electron
     Part-Species2-UseCollXSec = T

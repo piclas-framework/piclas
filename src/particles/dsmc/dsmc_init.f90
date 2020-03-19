@@ -587,7 +587,7 @@ ELSE !CollisMode.GT.0
   nCase = iCase
   CollInf%NumCase = nCase
   ALLOCATE(DSMC%NumColl(nCase +1))
-  DSMC%NumColl = 0
+  DSMC%NumColl = 0.
   ALLOCATE(CollInf%Coll_CaseNum(nCase))
   CollInf%Coll_CaseNum = 0
   ALLOCATE(CollInf%Coll_SpecPartNum(nSpecies))
@@ -645,6 +645,11 @@ ELSE !CollisMode.GT.0
   DO iSpec = 1, nSpecies
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
+    IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) THEN
+      CALL Abort(&
+          __STAMP__&
+          ,'ERROR: Please supply the collision cross-section data for the particle species and NOT the background species!')
+    END IF
   END DO
   IF(ANY(SpecDSMC(:)%UseCollXSec)) THEN
     UseMCC = .TRUE.
@@ -1839,11 +1844,13 @@ SDEALLOCATE(DSMC_Volumesample)
 CALL DeleteElemNodeVol()
 SDEALLOCATE(BGGas%PairingPartner)
 SDEALLOCATE(BGGas%BackgroundSpecies)
-SDEALLOCATE(BGGas%MappingBGSpecToSpec)
+SDEALLOCATE(BGGas%MapSpecToBGSpec)
 SDEALLOCATE(BGGas%SpeciesFraction)
+SDEALLOCATE(BGGas%NumberDensity)
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
+SDEALLOCATE(SpecXSec)
 END SUBROUTINE FinalizeDSMC
 
 

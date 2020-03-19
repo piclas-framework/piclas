@@ -6,37 +6,24 @@ This section gives an overview over the tools and scripts contained in the **PIC
 
 ## Collision cross-section database \label{sec:tools_mcc}
 
-A tool to create the database containing the cross-sections can be found in the *tools* folder: `piclas/tools/crosssection_database/`. The python script `create_MCC_database.py` can be used to populate the MCC database, using the `numpy` and `h5py` packages.
+A tool to create a database containing cross-section data can be found in the *tools* folder: `piclas/tools/crosssection_database/`. The Python script (python3.7) `create_xsec_db_lxcat.py` can be used to populate a PICLas-compatible cross-section database, using the `numpy`, `h5py` and `lxcat_data_parser` packages.
 
-    import numpy as np
-    import h5py
+    python3.7 create_xsec_db_lxcat.py
 
-A text file can be easily read-in via the `numpy` package and the `genfromtxt` function
+A database (containing multiple species and cross-section types) downloaded directly from the Plasma Data Exchange Project and the [LXCat database](https://fr.lxcat.net/home/) and the name of output database can be supplied to the script with
 
-    datatype = np.dtype(np.float64)
-    data_Ar = np.genfromtxt('Ar-e_effective.txt',delimiter='\t',skip_header=1,dtype=datatype,)
+    database_input = "Database.txt"
+    database_output = "Database.h5"
 
-The format of the input text file with data (sorted by an ascending energy value) from e.g. the Plasma Data Exchange Project and the [LXCat database](https://fr.lxcat.net/home/) is given below
+Currently, PICLas only utilizes effective cross-sections between neutral species and electrons and as such only these cross-section types are stored in the output file. By defining a species list, only certain species can be included in the output database
 
-    Energy (eV)  Cross section (m2)
-    0.000000e+0  4.960000e-20
-    1.000000e-3  4.980000e-20
-    2.000000e-3  5.020000e-20
+    species_list = ["Ar","CO"]
 
-The HDF5 database (including an optional "Info" attribute) is then created using the `h5py` package
+Finally, the utilized cross-section data should be properly referenced by adding the information to the HDF5 database as an attribute
 
-    hdf = h5py.File('MCC_Database.h5', 'w')
-    hdf.attrs['Info'] = 'Collision cross-section database for MCC-based probability calculation with PICLas. First column is the collision energy in [eV], second column is the cross-section in [m^2]'
+    reference = 'XXX database, www.lxcat.net, retrieved on MMMM DD, YYYY.'
 
-The read-in data is then added as a dataset to the database. Additional attributes such as the type of the cross-section (e.g. effective) and the source of the data should be supplied.
-
-    dataset1 = hdf.create_dataset('Ar-electron', data=data_Ar)
-    dataset1.attrs['Type'] = 'effective'
-    dataset1.attrs['Source'] = 'Phelps database, www.lxcat.net, retrieved on October 27, 2019. COMMENT: Yamabe, Buckman, and Phelps, Phys. Rev. 27, 1345 (1983). Revised Oct 1997.'
-
-Finally, the HDF5 file should be closed.
-
-    hdf.close()
+Users of cross-section data are encouraged to download the data directly from the [LXCat project website](https://fr.lxcat.net/home/) and to consider the guidelines regarding referencing and publication.
 
 ## Visualization (NEEDS AN UPDATE)
 
