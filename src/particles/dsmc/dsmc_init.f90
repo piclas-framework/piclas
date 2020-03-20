@@ -350,6 +350,10 @@ CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXb'  &
 CALL prms%CreateStringOption(     'DSMC-Reaction[$]-TLU_FileName'  &
                                 , 'with DoScat=F: No TLU-File needed '//&
                                 '(def.: )', '0' , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Particles-Chemistry-NumDeleteProducts','Number of species, which should be deleted if they are '//&
+                                'a product of chemical reactions', '0')
+CALL prms%CreateIntArrayOption( 'Particles-Chemistry-DeleteProductsList','List of the species indices to be deleted if they are '//&
+                                'a product of chemical reactions')
 
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
                                            ,'Utilize collision cross sections for the determination of collision probabilities' &
@@ -587,7 +591,7 @@ ELSE !CollisMode.GT.0
   nCase = iCase
   CollInf%NumCase = nCase
   ALLOCATE(DSMC%NumColl(nCase +1))
-  DSMC%NumColl = 0
+  DSMC%NumColl = 0.
   ALLOCATE(CollInf%Coll_CaseNum(nCase))
   CollInf%Coll_CaseNum = 0
   ALLOCATE(CollInf%Coll_SpecPartNum(nSpecies))
@@ -645,6 +649,11 @@ ELSE !CollisMode.GT.0
   DO iSpec = 1, nSpecies
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
+    IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) THEN
+      CALL Abort(&
+          __STAMP__&
+          ,'ERROR: Please supply the collision cross-section data for the particle species and NOT the background species!')
+    END IF
   END DO
   IF(ANY(SpecDSMC(:)%UseCollXSec)) THEN
     UseMCC = .TRUE.
@@ -1821,6 +1830,7 @@ SDEALLOCATE(ChemReac%ReactInfo)
 SDEALLOCATE(ChemReac%TLU_FileName)
 SDEALLOCATE(ChemReac%ReactNumRecomb)
 SDEALLOCATE(ChemReac%Hab)
+SDEALLOCATE(ChemReac%DeleteProductsList)
 SDEALLOCATE(CollInf%Coll_Case)
 SDEALLOCATE(CollInf%Coll_CaseNum)
 SDEALLOCATE(CollInf%Coll_SpecPartNum)
@@ -1839,11 +1849,13 @@ SDEALLOCATE(DSMC_Volumesample)
 CALL DeleteElemNodeVol()
 SDEALLOCATE(BGGas%PairingPartner)
 SDEALLOCATE(BGGas%BackgroundSpecies)
-SDEALLOCATE(BGGas%MappingBGSpecToSpec)
+SDEALLOCATE(BGGas%MapSpecToBGSpec)
 SDEALLOCATE(BGGas%SpeciesFraction)
+SDEALLOCATE(BGGas%NumberDensity)
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
+SDEALLOCATE(SpecXSec)
 END SUBROUTINE FinalizeDSMC
 
 

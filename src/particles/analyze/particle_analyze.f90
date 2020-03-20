@@ -672,7 +672,7 @@ REAL,INTENT(IN)                 :: Time
 ! LOCAL VARIABLES
 LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, iSpec, OutputCounter, iPBC, iSF, MaxSurfaceFluxBCs, bgSpec
+INTEGER             :: unit_index, iSpec, OutputCounter, iPBC, iSF, MaxSurfaceFluxBCs
 INTEGER(KIND=8)     :: SimNumSpec(nSpecAnalyze)
 REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
@@ -692,12 +692,11 @@ INTEGER             :: RECBIM(nSpecies)
 #endif /*USE_MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
-INTEGER             :: iCase, iTvib,jSpec
+INTEGER             :: iCase,jSpec
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
 INTEGER             :: ii, iunit
 #endif
-CHARACTER(LEN=350)  :: hilf
 #endif
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
@@ -711,6 +710,7 @@ INTEGER             :: dir
     IF (CollisMode.NE.0) THEN
       SDEALLOCATE(CRate)
       ALLOCATE(CRate(CollInf%NumCase + 1))
+      CRate = 0.0
       IF (CollisMode.EQ.3) THEN
         SDEALLOCATE(RRate)
         ALLOCATE(RRate(ChemReac%NumOfReact))
@@ -723,27 +723,7 @@ INTEGER             :: dir
   IF (PartMPI%MPIRoot) THEN
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
-#if (PP_TimeDiscMethod==42)
-    ! if only the reaction rate is desired (resevoir) the initial temperature
-    ! of the second species is added to the filename
-      IF (DSMC%ReservoirSimuRate) THEN
-        IF ( SpecDSMC(1)%InterID .EQ. 2 .OR. SpecDSMC(1)%InterID .EQ. 20 ) THEN
-          iTvib = INT(SpecDSMC(1)%Init(0)%Tvib)
-          WRITE( hilf, '(I5.5)') iTvib
-          outfile = 'Database_Tvib_'//TRIM(hilf)//'.csv'
-        ELSE
-          !iTvib = INT(SpecDSMC(1)%Telec )
-          iTvib = INT(Species(1)%Init(0)%MWTemperatureIC) !wrong name, if MWTemp is defined in %Init!!!
-          WRITE( hilf, '(I5.5)') iTvib
-          outfile = 'Database_Ttrans_'//TRIM(hilf)//'.csv'
-        END IF
-      ELSE
-        outfile = 'PartAnalyze.csv'
-      END IF
-#else
       outfile = 'PartAnalyze.csv'
-#endif
-
       IF (isRestart .and. FILEEXISTS(outfile)) THEN
         OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
         !CALL FLUSH (unit_index)
@@ -1105,11 +1085,12 @@ INTEGER             :: dir
     IF(BGGas%NumberOfSpecies.GT.0) THEN
       ! Calculation of mean free path and reactions rates requires the number of particles the background species would have if
       ! actually inserted at the chosen weighting factor, determined here and used later also for the ReacRates subroutine
-      DO bgSpec = 1,BGGas%NumberOfSpecies
-        iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-        NumSpecTmp(iSpec) = (BGGas%SpeciesFraction(bgSpec)*BGGas%NumberDensity*GEO%MeshVolume/Species(iSpec)%MacroParticleFactor)
-        IF(nSpecAnalyze.GT.1)THEN
-          NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze)+NumSpecTmp(iSpec)
+      DO iSpec = 1, nSpecies
+        IF(BGGas%BackgroundSpecies(iSpec)) THEN
+          NumSpecTmp(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))*GEO%MeshVolume/Species(iSpec)%MacroParticleFactor
+          IF(nSpecAnalyze.GT.1) THEN
+            NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze) + NumSpecTmp(iSpec)
+          END IF
         END IF
       END DO
     END IF
@@ -1279,10 +1260,12 @@ END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the collision rates and reaction rate coefficients (Arrhenius-type chemistry)
 #if (PP_TimeDiscMethod==42)
-  IF(CalcCollRates) CALL CollRates(CRate)
-  IF(CalcReacRates) THEN
-    IF ((CollisMode.EQ.3).AND.(iter.GT.0)) THEN
-      CALL ReacRates(RRate, NumSpecTmp, iter)
+  IF(iter.GT.0) THEN
+    IF(CalcCollRates) CALL CollRates(CRate)
+    IF(CalcReacRates) THEN
+      IF (CollisMode.EQ.3) THEN
+        CALL ReacRates(RRate, NumSpecTmp, iter)
+      END IF
     END IF
   END IF
 #endif
@@ -1994,7 +1977,7 @@ REAL,INTENT(OUT)                   :: NumSpec(nSpecAnalyze)
 INTEGER(KIND=8),INTENT(OUT)        :: SimNumSpec(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                            :: iPart, iSpec, bgSpec
+INTEGER                            :: iPart, iSpec
 !===================================================================================================================================
 
 NumSpec    = 0.
@@ -2008,10 +1991,11 @@ DO iPart=1,PDM%ParticleVecLength
   END IF
 END DO
 IF(BGGas%NumberOfSpecies.GT.0) THEN
-  DO bgSpec = 1,BGGas%NumberOfSpecies
-    iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-    NumSpec(iSpec) = 0.
-    SimNumSpec(iSpec) = 0
+  DO iSpec = 1, nSpecies
+    IF(BGGas%BackgroundSpecies(iSpec)) THEN
+      NumSpec(iSpec) = 0.
+      SimNumSpec(iSpec) = 0
+    END IF
   END DO
 END IF
 IF(nSpecAnalyze.GT.1)THEN
@@ -2057,7 +2041,7 @@ REAL,INTENT(IN)                   :: NumSpec(nSpecAnalyze)
 REAL,INTENT(OUT)                  :: NumDens(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: bgSpec, iSpec
+INTEGER                           :: iSpec
 !===================================================================================================================================
 
 IF (PartMPI%MPIRoot) THEN
@@ -2068,9 +2052,10 @@ IF (PartMPI%MPIRoot) THEN
   END IF
 
   IF(BGGas%NumberOfSpecies.GT.0) THEN
-    DO bgSpec = 1,BGGas%NumberOfSpecies
-      iSpec = BGGas%MappingBGSpecToSpec(bgSpec)
-      NumDens(iSpec) = BGGas%SpeciesFraction(bgSpec)*BGGas%NumberDensity
+    DO iSpec = 1, nSpecies
+      IF(BGGas%BackgroundSpecies(iSpec)) THEN
+        NumDens(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))
+      END IF
     END DO
   END IF
 
@@ -2612,27 +2597,55 @@ END SUBROUTINE CalcIntTempsAndEn
 #if (PP_TimeDiscMethod==42)
 SUBROUTINE CollRates(CRate)
 !===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
+!> Calculate the collision rate per species pairing by diving the summed up variables by the current timestep
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: CollInf, DSMC
-USE MOD_TimeDisc_Vars ,ONLY: dt
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: CollInf, DSMC
+USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
+USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: CRate(:)
+REAL,INTENT(OUT)              :: CRate(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iCase
+INTEGER                       :: iCase
 !===================================================================================================================================
 
+#if USE_MPI
+IF(PartMPI%MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%NumColl,CollInf%NumCase + 1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+ELSE
+  CALL MPI_REDUCE(DSMC%NumColl,DSMC%NumColl,CollInf%NumCase + 1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+END IF
+#endif /*USE_MPI*/
+
+IF(PartMPI%MPIRoot)THEN
+  DSMC%NumColl(CollInf%NumCase + 1) = SUM(DSMC%NumColl(1:CollInf%NumCase))
   DO iCase=1, CollInf%NumCase + 1
     CRate(iCase) =  DSMC%NumColl(iCase) / dt
   END DO
-  DSMC%NumColl = 0
+  ! Consider Part-AnalyzeStep
+  IF(PartAnalyzeStep.GT.1)THEN
+    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
+      DO iCase=1, CollInf%NumCase + 1
+        CRate(iCase) = CRate(iCase) / iter
+      END DO ! iCase=1, CollInf%NumCase + 1
+    ELSE
+      DO iCase=1, CollInf%NumCase + 1
+        CRate(iCase) = CRate(iCase) / MIN(PartAnalyzeStep,iter)
+      END DO ! iCase=1, CollInf%NumCase + 1
+    END IF
+  END IF
+END IF
+
+DSMC%NumColl = 0.
+
 END SUBROUTINE CollRates
 
 SUBROUTINE ReacRates(RRate, NumSpec,iter)

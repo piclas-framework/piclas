@@ -12,7 +12,7 @@
 #include "piclas.h"
 
 !===================================================================================================================================
-!> Provides parameters, used globally (please use EXTREMLY carefully!)
+!> Provides parameters, used globally (please use EXTREMELY carefully!)
 !===================================================================================================================================
 MODULE MOD_Globals_Vars
 ! MODULES
@@ -22,7 +22,7 @@ IMPLICIT NONE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=6),PARAMETER   :: ProgramName    = 'PICLas'             !> name of this program
-REAL,PARAMETER               :: FileVersion    = 1.52                 !> FileVersion number saved in each hdf5 file with hdf5 header
+REAL,PARAMETER               :: FileVersion    = 1.6                  !> FileVersion number saved in each hdf5 file with hdf5 header
 REAL                         :: FileVersionHDF5                       !> FileVersion number read from hdf5 restart file
 REAL                         :: WallTime                              !> Wall time needed by a simulation (is not reset by
                                                                       !> performing a load balance step, only by user restart)

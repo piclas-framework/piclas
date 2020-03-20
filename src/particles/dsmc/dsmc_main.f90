@@ -50,7 +50,6 @@ USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D, PartSpecies
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcEkin
 USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib, &
                                      SamplingRotVibRelaxProb
 USE MOD_DSMC_Relaxation       ,ONLY: CalcMeanVibQuaDiatomic
@@ -175,14 +174,6 @@ DO iElem = 1, nElems ! element/cell main loop
           CALL DSMC_prob_calc(iElem, iPair)
           CALL RANDOM_NUMBER(iRan)
           IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
-#if (PP_TimeDiscMethod==42)
-            IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN
-#else
-            IF(CalcEkin) THEN
-#endif
-              DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
-              DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
-            END IF
             CALL DSMC_perform_collision(iPair,iElem)
           END IF
         END IF

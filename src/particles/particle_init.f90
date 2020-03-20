@@ -1487,12 +1487,11 @@ IF(DoFieldIonization)THEN
   FieldIonizationModel = GETINT('FieldIonizationModel')
 END IF
 
-BGGas%NumberDensity = 0.
 BGGas%NumberOfSpecies = 0
 ALLOCATE(BGGas%BackgroundSpecies(nSpecies))
 BGGas%BackgroundSpecies = .FALSE.
-ALLOCATE(BGGas%SpeciesFraction(nSpecies))
-BGGas%SpeciesFraction = 0.
+ALLOCATE(BGGas%NumberDensity(nSpecies))
+BGGas%NumberDensity = 0.
 
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -1702,8 +1701,7 @@ __STAMP__&
       IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
         BGGas%NumberOfSpecies = BGGas%NumberOfSpecies + 1
         BGGas%BackgroundSpecies(iSpec)  = .TRUE.
-        BGGas%SpeciesFraction(iSpec)    = Species(iSpec)%Init(iInit)%PartDensity
-        BGGas%NumberDensity             = BGGas%NumberDensity + Species(iSpec)%Init(iInit)%PartDensity
+        BGGas%NumberDensity(iSpec)      = Species(iSpec)%Init(iInit)%PartDensity
       ELSE
         CALL abort(__STAMP__&
             ,'ERROR: Only one background definition per species is allowed!')
@@ -2912,7 +2910,7 @@ IF (useDSMC) THEN
   IF (BGGas%NumberOfSpecies.GT.0) THEN
     CALL BGGas_Initialize()
   ELSE
-    DEALLOCATE(BGGas%SpeciesFraction)
+    DEALLOCATE(BGGas%NumberDensity)
   END IF ! BGGas%NumberOfSpecies.GT.0
 END IF !useDSMC
 
