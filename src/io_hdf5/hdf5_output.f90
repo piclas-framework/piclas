@@ -141,7 +141,7 @@ REAL                           :: PreviousTime_loc
 INTEGER(KIND=IK)               :: PP_nVarTmp
 LOGICAL                        :: usePreviousTime_loc
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
 #if USE_MPI
 StartT=MPI_WTIME()
 #else
@@ -160,6 +160,7 @@ END IF
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'.h5'
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') '['//TRIM(FileName)//'] ...'
 RestartFile=Filename
 #if USE_HDG
 #if PP_nVar==1

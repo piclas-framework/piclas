@@ -25,42 +25,44 @@ SAVE
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
-INTEGER                                 :: TrackingMethod                ! Method that is used for tracking of particles
-LOGICAL                                 :: DoRefMapping                  ! tracking by mapping particle into reference element
-LOGICAL                                 :: TriaTracking                  ! tracking by using surface representation by triangles
-LOGICAL                                 :: WriteTriaDebugMesh            !
-REAL                                    :: tTracking                     ! Tracking time
-REAL                                    :: tLocalization                 ! localization time
-INTEGER                                 :: nTracks                       ! number of tracked particles
-INTEGER                                 :: nCurrentParts                 ! current number of particles
-LOGICAL                                 :: MeasureTrackTime              ! switch, if tracking time is measure
-LOGICAL                                 :: FastPeriodic                  ! moves the particle along whole periodic vector,
-                                                                         ! neglecting possible reflexions
-LOGICAL                                 :: CountNbOfLostParts            ! logical, to count the lost particles
-LOGICAL                                 :: CartesianPeriodic             ! old periodic for refmapping and ALL bcs periocic
-INTEGER                                 :: nLostParts                    ! Counter for lost particle
-REAL,ALLOCATABLE                        :: Distance(:)                   ! list of distance between particle and element-origin
-                                                                         ! to all elements in the same background element
-INTEGER,ALLOCATABLE                     :: ListDistance(:)               ! the corresponding element id
+INTEGER               :: TrackingMethod       ! Method that is used for tracking of particles
+LOGICAL               :: DoRefMapping         ! tracking by mapping particle into reference element
+LOGICAL               :: TriaTracking         ! tracking by using surface representation by triangles
+LOGICAL               :: WriteTriaDebugMesh   !
+REAL                  :: tTracking            ! Tracking time
+REAL                  :: tLocalization        ! localization time
+INTEGER               :: nTracks              ! number of tracked particles
+INTEGER               :: nCurrentParts        ! current number of particles
+LOGICAL               :: MeasureTrackTime     ! switch, if tracking time is measure
+LOGICAL               :: FastPeriodic         ! moves the particle along whole periodic vector,
+                                              ! neglecting possible reflexions
+LOGICAL               :: DisplayLostParticles ! Display position, velocity, species and hots element of particles lost during 
+!                                             ! particle tracking (TrackingMethod = triatracking, tracing). Default=F
+LOGICAL               :: CountNbrOfLostParts  ! logical, to count the lost particles
+LOGICAL               :: CartesianPeriodic    ! old periodic for refmapping and ALL bcs periocic
+INTEGER               :: nLostParts           ! Counter for lost particle
+REAL,ALLOCATABLE      :: Distance(:)          ! list of distance between particle and element-origin
+                                              ! to all elements in the same background element
+INTEGER,ALLOCATABLE   :: ListDistance(:)      ! the corresponding element id
 
 TYPE tTrackingInfo
-  INTEGER                               :: CurrElem
-  INTEGER                               :: LocSide
-  INTEGER                               :: GlobSide
-  INTEGER                               :: flip
-  INTEGER                               :: TriNum
-  REAL                                  :: xi
-  REAL                                  :: eta
-  REAL                                  :: alpha
-  REAL                                  :: PartTrajectory(1:3)
-  REAL                                  :: LengthPartTrajectory
+  INTEGER             :: CurrElem
+  INTEGER             :: LocSide
+  INTEGER             :: GlobSide
+  INTEGER             :: flip
+  INTEGER             :: TriNum
+  REAL                :: xi
+  REAL                :: eta
+  REAL                :: alpha
+  REAL                :: PartTrajectory(1:3)
+  REAL                :: LengthPartTrajectory
 END TYPE
 
-TYPE(tTrackingInfo)                     :: TrackInfo
+TYPE(tTrackingInfo)   :: TrackInfo
 
 #ifdef CODE_ANALYZE
-INTEGER                                 :: PartOut
-INTEGER                                 :: MPIRankOut
+INTEGER               :: PartOut
+INTEGER               :: MPIRankOut
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 
