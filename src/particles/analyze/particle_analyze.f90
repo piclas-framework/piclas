@@ -692,12 +692,11 @@ INTEGER             :: RECBIM(nSpecies)
 #endif /*USE_MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
-INTEGER             :: iCase, iTvib,jSpec
+INTEGER             :: iCase,jSpec
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
 INTEGER             :: ii, iunit
 #endif
-CHARACTER(LEN=350)  :: hilf
 #endif
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal

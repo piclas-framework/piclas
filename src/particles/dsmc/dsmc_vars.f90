@@ -372,16 +372,15 @@ END TYPE
 
 TYPE tChemReactions
   INTEGER                         :: NumOfReact             ! Number of possible Reactions
-  TYPE(tArbDiss), ALLOCATABLE     :: ArbDiss(:)  !
+  TYPE(tArbDiss), ALLOCATABLE     :: ArbDiss(:)             !
   LOGICAL, ALLOCATABLE            :: QKProcedure(:)         ! Defines if QK Procedure is selected
   INTEGER, ALLOCATABLE            :: QKMethod(:)            ! Recombination method for Q-K model (1 by Bird / 2 by Gallis)
   REAL,ALLOCATABLE,DIMENSION(:,:) :: QKCoeff                ! QKRecombiCoeff for Birds method
-  REAL, ALLOCATABLE               :: NumReac(:)             ! Number of occured reactions for each reaction number
+  REAL, ALLOCATABLE               :: NumReac(:)             ! Number of occurred reactions for each reaction number
   INTEGER, ALLOCATABLE            :: ReacCount(:)           ! Counter of chemical reactions for the determination of rate
                                                             ! coefficient based on the reaction probabilities
   REAL, ALLOCATABLE               :: ReacCollMean(:)        ! Mean Collision Probability for each reaction number
   INTEGER, ALLOCATABLE            :: ReacCollMeanCount(:)   ! counter for mean Collision Probability max for each reaction number
-!  INTEGER(KIND=8), ALLOCATABLE    :: NumReac(:)            ! Number of occured reactions for each reaction number
   CHARACTER(LEN=5),ALLOCATABLE    :: ReactType(:)           ! Type of Reaction (reaction num)
                                                             !    i (electron impact ionization)
                                                             !    R (molecular recombination
@@ -389,7 +388,7 @@ TYPE tChemReactions
                                                             !    E (molecular exchange reaction)
                                                             !    x (simple charge exchange reaction)
   INTEGER, ALLOCATABLE            :: DefinedReact(:,:,:)    ! Defined Reaction
-                                                            !(reaction num; 1:reactant, 2:product;
+                                                            ! (reaction num; 1:reactant, 2:product;
                                                             !  1-3 spezieses of reactants and products,
                                                             ! 0: no spezies -> only 2 reactants or products)
   INTEGER, ALLOCATABLE            :: ReactCase(:,:)             ! Case of reaction in combination of (spec1, spec2)
@@ -413,28 +412,30 @@ TYPE tChemReactions
                                                                 ! Case 15: 1 exchange and 1 recomb possible
                                                                 ! Case 16: simple CEX, only 1
                                                                 ! Case 17: associative ionization and recombination possible
-   INTEGER, ALLOCATABLE           :: ReactNumRecomb(:,:,:)      ! Number of Reaction of (spec1, spec2, spec3)
-   REAL,  ALLOCATABLE             :: Arrhenius_Prefactor(:)     ! pre-exponential factor af of Arrhenius ansatz (nReactions)
-   REAL,  ALLOCATABLE             :: Arrhenius_Powerfactor(:)   ! powerfactor bf of temperature in Arrhenius ansatz (nReactions)
-   REAL,  ALLOCATABLE             :: EActiv(:)              ! activation energy (relative to k) (nReactions)
-   REAL,  ALLOCATABLE             :: EForm(:)               ! heat of formation  (relative to k) (nReactions)
-   REAL,  ALLOCATABLE             :: MeanEVib_PerIter(:)    ! MeanEVib per iteration for calculation of
-   INTEGER,  ALLOCATABLE          :: MeanEVibQua_PerIter(:) ! MeanEVib per iteration for calculation of
+  INTEGER, ALLOCATABLE            :: ReactNumRecomb(:,:,:)      ! Number of Reaction of (spec1, spec2, spec3)
+  REAL,  ALLOCATABLE              :: Arrhenius_Prefactor(:)     ! pre-exponential factor af of Arrhenius ansatz (nReactions)
+  REAL,  ALLOCATABLE              :: Arrhenius_Powerfactor(:)   ! powerfactor bf of temperature in Arrhenius ansatz (nReactions)
+  REAL,  ALLOCATABLE              :: EActiv(:)              ! activation energy (relative to k) (nReactions)
+  REAL,  ALLOCATABLE              :: EForm(:)               ! heat of formation  (relative to k) (nReactions)
+  REAL,  ALLOCATABLE              :: MeanEVib_PerIter(:)    ! MeanEVib per iteration for calculation of
+  INTEGER,  ALLOCATABLE           :: MeanEVibQua_PerIter(:) ! MeanEVib per iteration for calculation of
                                                             ! xi_vib per cell (nSpecies)
-   REAL, ALLOCATABLE              :: MeanXiVib_PerIter(:)   ! Mean vibrational degree of freedom user for chemical reactions of
+  REAL, ALLOCATABLE               :: MeanXiVib_PerIter(:)   ! Mean vibrational degree of freedom user for chemical reactions of
                                                             ! diatomic species
-   REAL,  ALLOCATABLE             :: CEXa(:)                ! CEX log-factor (g-dep. cross section in Angstrom (nReactions)
-   REAL,  ALLOCATABLE             :: CEXb(:)                ! CEX const. factor (g-dep. cross section in Angstrom (nReactions)
-   REAL,  ALLOCATABLE             :: MEXa(:)                ! MEX log-factor (g-dep. cross section in Angstrom (nReactions)
-   REAL,  ALLOCATABLE             :: MEXb(:)                ! MEX const. factor (g-dep. cross section in Angstrom (nReactions)
-   REAL,  ALLOCATABLE             :: ELa(:)                 ! EL log-factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
-   REAL,  ALLOCATABLE             :: ELb(:)                 ! EL const. factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
-   LOGICAL, ALLOCATABLE           :: DoScat(:)              ! Do Scattering Calculation by Lookup table
-   CHARACTER(LEN=200),ALLOCATABLE :: TLU_FileName(:)        ! Name of file containing table lookup data for Scattering
-   INTEGER                       :: RecombParticle = 0      ! P. Index for Recombination, if zero -> no recomb particle avaible
-   INTEGER                       :: nPairForRec
-   REAL, ALLOCATABLE             :: Hab(:)                  ! Factor Hab of Arrhenius Ansatz for diatomic/polyatomic molecs
-   TYPE(tReactInfo), ALLOCATABLE  :: ReactInfo(:)           ! Informations of Reactions (nReactions)
+  REAL,  ALLOCATABLE              :: CEXa(:)                ! CEX log-factor (g-dep. cross section in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: CEXb(:)                ! CEX const. factor (g-dep. cross section in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: MEXa(:)                ! MEX log-factor (g-dep. cross section in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: MEXb(:)                ! MEX const. factor (g-dep. cross section in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: ELa(:)                 ! EL log-factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: ELb(:)                 ! EL const. factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
+  LOGICAL, ALLOCATABLE            :: DoScat(:)              ! Do Scattering Calculation by Lookup table
+  CHARACTER(LEN=200),ALLOCATABLE  :: TLU_FileName(:)        ! Name of file containing table lookup data for Scattering
+  INTEGER                         :: RecombParticle = 0     ! P. Index for Recombination, if zero -> no recomb particle avaible
+  INTEGER                         :: nPairForRec            !
+  REAL, ALLOCATABLE               :: Hab(:)                 ! Factor Hab of Arrhenius Ansatz for diatomic/polyatomic molecs
+  TYPE(tReactInfo), ALLOCATABLE   :: ReactInfo(:)           ! Informations of Reactions (nReactions)
+  INTEGER                         :: NumDeleteProducts      !
+  INTEGER, ALLOCATABLE            :: DeleteProductsList(:)  !
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
