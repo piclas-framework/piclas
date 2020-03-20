@@ -67,6 +67,7 @@ INTEGER                        :: iArgs,iElem                       ! Loop count
 INTEGER                        :: iExt                              ! Stores position where the filename extension begins
 CHARACTER(LEN=255)             :: InputStateFile,MeshFile
 INTEGER                        :: nVar_State,N_State,nElems_State   ! Properties read from state file
+INTEGER                        :: nVar_Solution
 CHARACTER(LEN=255)             :: NodeType_State                    !     "
 REAL,ALLOCATABLE               :: U(:,:,:,:,:)                      ! Solution from state file
 REAL,ALLOCATABLE               :: U_first(:,:,:,:,:)                ! Solution from state file
@@ -85,7 +86,8 @@ INTEGER                        :: N_State_first                     ! first stat
 CHARACTER(LEN=255)             :: MeshFile_old                      !     "
 CHARACTER(LEN=255)             :: NodeType_State_old                !     "
 CHARACTER(LEN=255)             :: FileString_DG
-CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:), StrVarNamesTemp2(:)
+CHARACTER(LEN=255)             :: StrVarNamesTemp(4)
 REAL                           :: OutputTime
 INTEGER                        :: iDG
 CHARACTER(LEN=255)             :: FileString_multiblock
@@ -98,7 +100,7 @@ LOGICAL                        :: CalcDiffError                     ! Use first 
 LOGICAL                        :: AllowChangedMesh
 LOGICAL                        :: CalcDiffSigma                     ! Use last state file as state for L2 sigma calculation
 LOGICAL                        :: CalcAverage                       ! Calculate and write arithmetic mean of alle StateFile
-LOGICAL                        :: VisuSource, DGSourceExists, skip, DGSolutionExists, ElemDataExists, SurfaceDataExists
+LOGICAL                        :: DGSourceExists, skip, DGSolutionExists, ElemDataExists, SurfaceDataExists
 CHARACTER(LEN=40)              :: DefStr
 INTEGER                        :: iArgsStart
 LOGICAL                        :: MeshInitFinished, ReadMeshFinished
@@ -242,7 +244,6 @@ ELSE
   AllowChangedMesh = .FALSE. !dummy(?)
   CalcAverage    = GETLOGICAL('CalcAverage','.FALSE.')
 END IF
-VisuSource    = GETLOGICAL('VisuSource','.FALSE.')
 VisuParticles    = GETLOGICAL('VisuParticles','.FALSE.')
 ! Initialization of I/O routines
 CALL InitIOHDF5()
@@ -301,35 +302,35 @@ DO iArgs = iArgsStart,nArgs
   ! === DG_Solution ================================================================================================================
   ! Read in parameters from the State file
   IF(DGSolutionExists) THEN
-    CALL GetDataProps('DG_Solution',nVar_State,N_State,nElems_State,NodeType_State)
+    CALL GetDataProps('DG_Solution',nVar_Solution,N_State,nElems_State,NodeType_State)
     CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
     CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 
-    IF (VisuSource) THEN
-      CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
-    ELSE
-      DGSourceExists=.FALSE.
-    END IF
+    ! Check if the DG_Source container exists, and if it does save the variable names and increase the nVar_State variable
+    CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
     IF (DGSourceExists) THEN
-      nVar_State=4
-      ! Check if we need to reallocate the var names array
-      IF (nVar_State.NE.nVar_State_old) THEN
-        SDEALLOCATE(StrVarNames)
-        ALLOCATE(StrVarNames(nVar_State))
-      END IF
-      CALL ReadAttribute(File_ID,'VarNamesSource',nVar_State,StrArray=StrVarNames)
+      CALL ReadAttribute(File_ID,'VarNamesSource',4,StrArray=StrVarNamesTemp)
+      nVar_State = nVar_Solution + 4
     ELSE
-      VisuSource=.FALSE.
-      ! Check if we need to reallocate the var names array
-      IF (nVar_State.NE.nVar_State_old) THEN
-        SDEALLOCATE(StrVarNames)
-        ALLOCATE(StrVarNames(nVar_State))
-      END IF
-      CALL ReadAttribute(File_ID,'VarNames',nVar_State,StrArray=StrVarNames)
+      nVar_State = nVar_Solution
     END IF
+    ! Save the variable names for the regular DG_Solution in a temporary array
+    SDEALLOCATE(StrVarNamesTemp2)
+    ALLOCATE(StrVarNamesTemp2(nVar_Solution))
+    CALL ReadAttribute(File_ID,'VarNames',nVar_Solution,StrArray=StrVarNamesTemp2)
+
+    ! Allocate the variable names array used for the output and copy the names from the DG_Solution and DG_Source (if it exists)
+    IF (nVar_State.NE.nVar_State_old) THEN
+      SDEALLOCATE(StrVarNames)
+      ALLOCATE(StrVarNames(nVar_State))
+    END IF
+    StrVarNames(1:nVar_Solution) = StrVarNamesTemp2
+    IF (DGSourceExists) THEN
+      StrVarNames(nVar_Solution+1:nVar_State) = StrVarNamesTemp(1:4)
+    END IF
+
     CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
     CALL CloseDataFile()
-
     ! Check if the mesh has changed
     IF(CalcDiffError.AND.(iArgs.GT.2).AND.AllowChangedMesh)THEN
       skip=.TRUE.
@@ -405,13 +406,15 @@ DO iArgs = iArgsStart,nArgs
     ! Associate construct for integer KIND=8 possibility
     ASSOCIATE (&
           nVar_State => INT(nVar_State,IK) ,&
+          nVar_Solution => INT(nVar_Solution,IK) ,&
           offsetElem => INT(offsetElem,IK),&
           N_State    => INT(N_State,IK),&
           nElems     => INT(nElems,IK)    )
-      IF(VisuSource)THEN
-        CALL ReadArray('DG_Source',5,(/nVar_State,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5,RealArray=U)
-      ELSE
-        CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5,RealArray=U)
+      CALL ReadArray('DG_Solution',5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+                      RealArray=U(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems))
+      IF(DGSourceExists) THEN
+        CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+                        RealArray=U(nVar_Solution+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
       END IF
     END ASSOCIATE
 
