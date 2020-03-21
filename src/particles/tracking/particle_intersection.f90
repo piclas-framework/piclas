@@ -68,6 +68,9 @@ SUBROUTINE IntersectionWithWall(PartTrajectory,alpha,iPart,iLocSide,Element,TriN
 ! MODULES
 USE MOD_Particle_Vars,          ONLY : lastPartPos,PartState
 USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -96,22 +99,32 @@ PnewX = PartState(1,iPart)
 PnewY = PartState(2,iPart)
 PnewZ = PartState(3,iPart)
 
-xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
-yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
-zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
+!xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
+!yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
+!zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
+xNod = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,Element)+1)
+yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,iLocSide,Element)+1)
+zNod = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,iLocSide,Element)+1)
 
 !---- Calculate normal vector:
 
 Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
 Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
 
-Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - xNod
-Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - yNod
-Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - zNod
+!Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - xNod
+!Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - yNod
+!Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - zNod
+Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,iLocSide,Element)+1) - xNod
+Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,iLocSide,Element)+1) - yNod
+Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,iLocSide,Element)+1) - zNod
 
-Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - xNod
-Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - yNod
-Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - zNod
+!Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - xNod
+!Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - yNod
+!Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - zNod
+Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,iLocSide,Element)+1) - xNod
+Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,iLocSide,Element)+1) - yNod
+Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,iLocSide,Element)+1) - zNod
+
 
 nx = Vector1(2) * Vector2(3) - Vector1(3) * Vector2(2)
 ny = Vector1(3) * Vector2(1) - Vector1(1) * Vector2(3)

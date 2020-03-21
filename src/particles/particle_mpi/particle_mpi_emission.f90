@@ -59,152 +59,152 @@ INTEGER          :: iBGMElem,nBGMElems,TotalNbrOfRecvParts,TotalNbrOfSendParts
 LOGICAL          :: InsideMyBGM(chunkSize)
 REAL,ALLOCATABLE :: recvPartPos(:)
 !===================================================================================================================================
-ALLOCATE( PartMPIInsert%nPartsSend  (0:PartMPI%InitGroup(InitGroup)%nProcs-1), STAT=allocStat )
-ALLOCATE( PartMPIInsert%nPartsRecv  (0:PartMPI%InitGroup(InitGroup)%nProcs-1), STAT=allocStat )
-ALLOCATE( PartMPIInsert%SendRequest (0:PartMPI%InitGroup(InitGroup)%nProcs-1,1:2), STAT=allocStat )
-ALLOCATE( PartMPIInsert%RecvRequest (0:PartMPI%InitGroup(InitGroup)%nProcs-1,1:2), STAT=allocStat )
-ALLOCATE( PartMPIInsert%send_message(0:PartMPI%InitGroup(InitGroup)%nProcs-1), STAT=allocStat )
-PartMPIInsert%nPartsSend(:)=0
+!ALLOCATE( PartMPIInsert%nPartsSend  (0:PartMPI%InitGroup(InitGroup)%nProcs-1), STAT=allocStat )
+!ALLOCATE( PartMPIInsert%nPartsRecv  (0:PartMPI%InitGroup(InitGroup)%nProcs-1), STAT=allocStat )
+!ALLOCATE( PartMPIInsert%SendRequest (0:PartMPI%InitGroup(InitGroup)%nProcs-1,1:2), STAT=allocStat )
+!ALLOCATE( PartMPIInsert%RecvRequest (0:PartMPI%InitGroup(InitGroup)%nProcs-1,1:2), STAT=allocStat )
+!ALLOCATE( PartMPIInsert%send_message(0:PartMPI%InitGroup(InitGroup)%nProcs-1), STAT=allocStat )
+!PartMPIInsert%nPartsSend(:)=0
 
-!--- 1/4 Open receive buffer
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  !--- MPI_IRECV lengths of lists of particles entering local mesh
-  CALL MPI_IRECV(PartMPIInsert%nPartsRecv(iProc), 1, MPI_INTEGER, iProc, 1011, PartMPI%InitGroup(InitGroup)%COMM, &
-      PartMPIInsert%RecvRequest(iProc,1), IERROR)
-END DO
+!!--- 1/4 Open receive buffer
+!DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+!  !--- MPI_IRECV lengths of lists of particles entering local mesh
+!  CALL MPI_IRECV(PartMPIInsert%nPartsRecv(iProc), 1, MPI_INTEGER, iProc, 1011, PartMPI%InitGroup(InitGroup)%COMM, &
+!      PartMPIInsert%RecvRequest(iProc,1), IERROR)
+!END DO
 
-! Identify particles that are on the node (or in the halo region of the node) or on other nodes
-DO i=1,chunkSize
+!! Identify particles that are on the node (or in the halo region of the node) or on other nodes
+!DO i=1,chunkSize
 
-  ! Set BGM cell index
-  ASSOCIATE( xMin   => (/GEO%xminglob  , GEO%yminglob  , GEO%zminglob/)  , &
-             BGMMin => (/GEO%FIBGMimin , GEO%FIBGMjmin , GEO%FIBGMkmin/) , &
-             BGMMax => (/GEO%FIBGMimax , GEO%FIBGMjmax , GEO%FIBGMkmax/) )
-    DO iDir = 1, 3
-      ijkBGM(iDir,i) = INT((particle_positions(DimSend*(i-1)+iDir)-xMin(iDir))/GEO%FIBGMdeltas(iDir))+1
-    END DO ! iDir = 1, 3
-  END ASSOCIATE
+!  ! Set BGM cell index
+!  ASSOCIATE( xMin   => (/GEO%xminglob  , GEO%yminglob  , GEO%zminglob/)  , &
+!             BGMMin => (/GEO%FIBGMimin , GEO%FIBGMjmin , GEO%FIBGMkmin/) , &
+!             BGMMax => (/GEO%FIBGMimax , GEO%FIBGMjmax , GEO%FIBGMkmax/) )
+!    DO iDir = 1, 3
+!      ijkBGM(iDir,i) = INT((particle_positions(DimSend*(i-1)+iDir)-xMin(iDir))/GEO%FIBGMdeltas(iDir))+1
+!    END DO ! iDir = 1, 3
+!  END ASSOCIATE
 
-  ! Check BGM cell index
-  InsideMyBGM(i)=.TRUE.
-  DO iDir = 1, 3
-    IF(ijkBGM(iDir,i).GT.BGMMin(iDir)) THEN
-      InsideMyBGM(i)=.FALSE.
-      EXIT
-    END IF
-    IF(ijkBGM(iDir,i).LT.BGMMax(iDir)) THEN
-      InsideMyBGM(i)=.FALSE.
-      EXIT
-    END IF
-  END DO ! iDir = 1, 3
+!  ! Check BGM cell index
+!  InsideMyBGM(i)=.TRUE.
+!  DO iDir = 1, 3
+!    IF(ijkBGM(iDir,i).GT.BGMMin(iDir)) THEN
+!      InsideMyBGM(i)=.FALSE.
+!      EXIT
+!    END IF
+!    IF(ijkBGM(iDir,i).LT.BGMMax(iDir)) THEN
+!      InsideMyBGM(i)=.FALSE.
+!      EXIT
+!    END IF
+!  END DO ! iDir = 1, 3
 
-  IF(InsideMyBGM(i))THEN
-    !--- check all cells associated with this background mesh cell
-    nBGMElems = FIBGM_nElems(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))
+!  IF(InsideMyBGM(i))THEN
+!    !--- check all cells associated with this background mesh cell
+!    nBGMElems = FIBGM_nElems(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))
 
-    DO iBGMElem = 1, nBGMElems
-      ElemID = GetCNElemID(FIBGM_Element(FIBGM_offsetElem(iBGM,jBGM,kBGM)+iBGMElem))
+!    DO iBGMElem = 1, nBGMElems
+!      ElemID = GetCNElemID(FIBGM_Element(FIBGM_offsetElem(iBGM,jBGM,kBGM)+iBGMElem))
 
-      ! Check if element is on node (or halo region of node)
-      IF(ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.1)THEN ! it is 0 or 2
-        InsideMyBGM(i) = .FALSE.
-      END IF ! ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.1
-    END DO ! iBGMElem = 1, nBGMElems
-  END IF ! InsideMyBGM(i)
-END DO ! i = 1, chunkSize
+!      ! Check if element is on node (or halo region of node)
+!      IF(ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.1)THEN ! it is 0 or 2
+!        InsideMyBGM(i) = .FALSE.
+!      END IF ! ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.1
+!    END DO ! iBGMElem = 1, nBGMElems
+!  END IF ! InsideMyBGM(i)
+!END DO ! i = 1, chunkSize
 
-!--- Find particles for sending to other nodes
-DO i = 1, chunkSize
-  IF(.NOT.InsideMyBGM(i))THEN
-    !--- check all cells associated with this beckground mesh cell
-    nBGMElems = FIBGM_nElems(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))
+!!--- Find particles for sending to other nodes
+!DO i = 1, chunkSize
+!  IF(.NOT.InsideMyBGM(i))THEN
+!    !--- check all cells associated with this beckground mesh cell
+!    nBGMElems = FIBGM_nElems(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))
 
-    ! Loop over all BGM elements and count number of particles per procs for sending
-    DO iBGMElem = 1, nBGMElems
-      ElemID = GetCNElemID(FIBGM_Element(FIBGM_offsetElem(iBGM,jBGM,kBGM)+iBGMElem))
-      ProcID = ElemToProcID_Shared(ElemID)
+!    ! Loop over all BGM elements and count number of particles per procs for sending
+!    DO iBGMElem = 1, nBGMElems
+!      ElemID = GetCNElemID(FIBGM_Element(FIBGM_offsetElem(iBGM,jBGM,kBGM)+iBGMElem))
+!      ProcID = ElemToProcID_Shared(ElemID)
 
-      tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
-      IF(tProc.EQ.-1)CYCLE ! Processor is not on emission communicator
-      PartMPIInsert%nPartsSend(tProc)=PartMPIInsert%nPartsSend(tProc)+1
-    END DO
-  END IF ! .NOT.InsideMyBGM(i)
-END DO ! i = 1, chunkSize
-
-
-!--- 2/4 Send number of particles
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  ! send particles
-  !--- MPI_ISEND lengths of lists of particles leaving local mesh
-  CALL MPI_ISEND(PartMPIInsert%nPartsSend(iProc), 1, MPI_INTEGER, iProc, 1011, PartMPI%InitGroup(InitGroup)%COMM, &
-      PartMPIInsert%SendRequest(iProc,1), IERROR)
-  IF (PartMPIInsert%nPartsSend(iProc).GT.0) THEN
-    ALLOCATE( PartMPIInsert%send_message(iProc)%content(1:DimSend*PartMPIInsert%nPartsSend(iProc)), STAT=allocStat )
-  END IF
-END DO
+!      tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
+!      IF(tProc.EQ.-1)CYCLE ! Processor is not on emission communicator
+!      PartMPIInsert%nPartsSend(tProc)=PartMPIInsert%nPartsSend(tProc)+1
+!    END DO
+!  END IF ! .NOT.InsideMyBGM(i)
+!END DO ! i = 1, chunkSize
 
 
-!--- 3/4 Send actual particles
-PartMPIInsert%nPartsSend(:)=0
-DO i = 1, chunkSize
-  IF(.NOT.InsideMyBGM(i))THEN
-    !--- check all cells associated with this beckground mesh cell
-    nBGMElems = FIBGM_nElems(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))
-
-    ! Loop over all BGM elements and count number of particles per procs for sending
-    DO iBGMElem = 1, nBGMElems
-      ElemID = GetCNElemID(FIBGM_Element(FIBGM_offsetElem(iBGM,jBGM,kBGM)+iBGMElem))
-      ProcID = ElemToProcID_Shared(ElemID)
-
-      tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
-      IF(tProc.EQ.-1)CYCLE ! Processor is not on emission communicator
-      PartMPIInsert%nPartsSend(tProc)=PartMPIInsert%nPartsSend(tProc)+1
-      TotalNbrOfSendParts=PartMPIInsert%nPartsSend(tProc)
-      PartMPIInsert%send_message(tProc)%content(DimSend*(TotalNbrOfSendParts-1)+1:DimSend*TotalNbrOfSendParts)=&
-          particle_positions(DimSend*(i-1)+1:DimSend*i)
-    END DO
-  END IF ! .NOT.InsideMyBGM(i)
-END DO ! i = 1, chunkSize
+!!--- 2/4 Send number of particles
+!DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+!  ! send particles
+!  !--- MPI_ISEND lengths of lists of particles leaving local mesh
+!  CALL MPI_ISEND(PartMPIInsert%nPartsSend(iProc), 1, MPI_INTEGER, iProc, 1011, PartMPI%InitGroup(InitGroup)%COMM, &
+!      PartMPIInsert%SendRequest(iProc,1), IERROR)
+!  IF (PartMPIInsert%nPartsSend(iProc).GT.0) THEN
+!    ALLOCATE( PartMPIInsert%send_message(iProc)%content(1:DimSend*PartMPIInsert%nPartsSend(iProc)), STAT=allocStat )
+!  END IF
+!END DO
 
 
-!--- 4/4 Receive actual particles 
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  CALL MPI_WAIT(PartMPIInsert%RecvRequest(iProc,1),msg_status(:),IERROR)
-END DO
-TotalNbrOfRecvParts=SUM(PartMPIInsert%nPartsRecv)
-ALLOCATE(recvPartPos(1:TotalNbrOfRecvParts*DimSend), STAT=allocStat)
-TotalNbrOfRecvParts=0
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  IF (PartMPIInsert%nPartsRecv(iProc).GT.0) THEN
-  !--- MPI_IRECV lengths of lists of particles entering local mesh
-    CALL MPI_IRECV(recvPartPos(TotalNbrOfRecvParts*DimSend+1), DimSend*PartMPIInsert%nPartsRecv(iProc),&
-                                              MPI_DOUBLE_PRECISION, iProc, 1022,   &
-                                              PartMPI%InitGroup(InitGroup)%COMM, PartMPIInsert%RecvRequest(iProc,2), IERROR)
-    TotalNbrOfRecvParts=TotalNbrOfRecvParts+PartMPIInsert%nPartsRecv(iProc)
-  END IF
-  !--- (non-blocking:) send messages to all procs receiving particles from myself
-  IF (PartMPIInsert%nPartsSend(iProc).GT.0) THEN
-    CALL MPI_ISEND(PartMPIInsert%send_message(iProc)%content, DimSend*PartMPIInsert%nPartsSend(iProc),&
-     MPI_DOUBLE_PRECISION, iProc, 1022, PartMPI%InitGroup(InitGroup)%COMM, PartMPIInsert%SendRequest(iProc,2), IERROR)
-  END IF
-END DO
+!!--- 3/4 Send actual particles
+!PartMPIInsert%nPartsSend(:)=0
+!DO i = 1, chunkSize
+!  IF(.NOT.InsideMyBGM(i))THEN
+!    !--- check all cells associated with this beckground mesh cell
+!    nBGMElems = FIBGM_nElems(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))
+
+!    ! Loop over all BGM elements and count number of particles per procs for sending
+!    DO iBGMElem = 1, nBGMElems
+!      ElemID = GetCNElemID(FIBGM_Element(FIBGM_offsetElem(iBGM,jBGM,kBGM)+iBGMElem))
+!      ProcID = ElemToProcID_Shared(ElemID)
+
+!      tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
+!      IF(tProc.EQ.-1)CYCLE ! Processor is not on emission communicator
+!      PartMPIInsert%nPartsSend(tProc)=PartMPIInsert%nPartsSend(tProc)+1
+!      TotalNbrOfSendParts=PartMPIInsert%nPartsSend(tProc)
+!      PartMPIInsert%send_message(tProc)%content(DimSend*(TotalNbrOfSendParts-1)+1:DimSend*TotalNbrOfSendParts)=&
+!          particle_positions(DimSend*(i-1)+1:DimSend*i)
+!    END DO
+!  END IF ! .NOT.InsideMyBGM(i)
+!END DO ! i = 1, chunkSize
 
 
-!--- Locate local (node or halo of node) particles
-DO i = 1, chunkSize
-  IF(InsideMyBGM(i))THEN
-    ! TODO: continue programming philipesque here ...
-    CALL LocateParticleInsideELement()
-  END IF
-END DO ! i = 1, chunkSize
+!!--- 4/4 Receive actual particles 
+!DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+!  CALL MPI_WAIT(PartMPIInsert%RecvRequest(iProc,1),msg_status(:),IERROR)
+!END DO
+!TotalNbrOfRecvParts=SUM(PartMPIInsert%nPartsRecv)
+!ALLOCATE(recvPartPos(1:TotalNbrOfRecvParts*DimSend), STAT=allocStat)
+!TotalNbrOfRecvParts=0
+!DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+!  IF (PartMPIInsert%nPartsRecv(iProc).GT.0) THEN
+!  !--- MPI_IRECV lengths of lists of particles entering local mesh
+!    CALL MPI_IRECV(recvPartPos(TotalNbrOfRecvParts*DimSend+1), DimSend*PartMPIInsert%nPartsRecv(iProc),&
+!                                              MPI_DOUBLE_PRECISION, iProc, 1022,   &
+!                                              PartMPI%InitGroup(InitGroup)%COMM, PartMPIInsert%RecvRequest(iProc,2), IERROR)
+!    TotalNbrOfRecvParts=TotalNbrOfRecvParts+PartMPIInsert%nPartsRecv(iProc)
+!  END IF
+!  !--- (non-blocking:) send messages to all procs receiving particles from myself
+!  IF (PartMPIInsert%nPartsSend(iProc).GT.0) THEN
+!    CALL MPI_ISEND(PartMPIInsert%send_message(iProc)%content, DimSend*PartMPIInsert%nPartsSend(iProc),&
+!     MPI_DOUBLE_PRECISION, iProc, 1022, PartMPI%InitGroup(InitGroup)%COMM, PartMPIInsert%SendRequest(iProc,2), IERROR)
+!  END IF
+!END DO
 
 
-!--- 5/4 Receive actual particles 
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  IF (PartMPIInsert%nPartsRecv(iProc).GT.0) THEN
-    CALL MPI_WAIT(PartMPIInsert%RecvRequest(iProc,2),msg_status(:),IERROR)
-  END IF
-END DO
+!!--- Locate local (node or halo of node) particles
+!DO i = 1, chunkSize
+!  IF(InsideMyBGM(i))THEN
+!    ! TODO: continue programming philipesque here ...
+!    CALL LocateParticleInsideELement()
+!  END IF
+!END DO ! i = 1, chunkSize
+
+
+!!--- 5/4 Receive actual particles 
+!DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+!  IF (PartMPIInsert%nPartsRecv(iProc).GT.0) THEN
+!    CALL MPI_WAIT(PartMPIInsert%RecvRequest(iProc,2),msg_status(:),IERROR)
+!  END IF
+!END DO
 
 
 

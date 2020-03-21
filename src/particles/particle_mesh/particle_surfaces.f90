@@ -313,6 +313,9 @@ USE MOD_Particle_Mesh_Vars,                   ONLY:GEO,PartSideToElem,PartElemTo
 USE MOD_Mesh_Vars,                            ONLY:XCL_NGeo,NGeo
 USE MOD_Particle_Tracking_Vars,               ONLY:TrackInfo,TriaTracking
 USE MOD_Particle_Surfaces_Vars,               ONLY:SideNormVec, SideType
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -336,13 +339,21 @@ IF (PRESENT(ElemID_opt).AND.PRESENT(LocSideID_opt)) THEN
   ElemID=ElemID_opt
   LocSideID=LocSideID_opt
 ELSE IF (PRESENT(SideID)) THEN
-  ElemID = PartSideToElem(S2E_ELEM_ID,SideID)
-  IF (ElemID .EQ. TrackInfo%CurrElem) THEN
-    LocSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
-  ELSE
-    ElemID = PartSideToElem(S2E_NB_ELEM_ID,SideID)
-    LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-  END IF
+  ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+!  IF (ElemID .EQ. TrackInfo%CurrElem) THEN
+    LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID) 
+!  ELSE
+!    ElemID = PartSideToElem(S2E_NB_ELEM_ID,SideID)
+!    LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+!  END IF
+
+!  ElemID = PartSideToElem(S2E_ELEM_ID,SideID)
+!  IF (ElemID .EQ. TrackInfo%CurrElem) THEN
+!    LocSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
+!  ELSE
+!    ElemID = PartSideToElem(S2E_NB_ELEM_ID,SideID)
+!    LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+!  END IF
 ELSE
   CALL abort(&
 __STAMP__&
@@ -350,9 +361,9 @@ __STAMP__&
 END IF
 
 IF (TriaTracking) THEN
-  xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,LocSideID,ElemID))
-  yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,LocSideID,ElemID))
-  zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,LocSideID,ElemID))
+  xNod = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
+  yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
+  zNod = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
 ELSE
 ! -- .NOT.TriaTracking: GEO%NodeCoords do not exist -> build Points in same way (cf. InitTriaParticleGeometry in particle_surface.f90)
 ! -- but consider only the min/max of edges (i.e., 0,NGeo). This is required, since Vector1 and Vector2 must give the right nVec and
@@ -436,13 +447,13 @@ END IF
 
 Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
 Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-IF (TriaTracking) THEN
-  Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - xNod
-  Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - yNod
-  Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - zNod
-  Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - xNod
-  Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - yNod
-  Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - zNod
+IF (TriaTracking) THEN  
+  Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - xNod
+  Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - yNod
+  Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - zNod
+  Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - xNod
+  Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - yNod
+  Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - zNod
 ELSE IF (TriNum.EQ.1) THEN
   Vector1 = SideCoord(:,1,0) - (/xNod,yNod,zNod/)
   Vector2 = SideCoord(:,1,1) - (/xNod,yNod,zNod/)

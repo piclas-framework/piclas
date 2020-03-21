@@ -210,7 +210,7 @@ USE MOD_Mesh_Vars            ,ONLY: Elems,Nodes
 USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE,createSides
 USE MOD_IO_HDF5
 #if USE_MPI
-USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc
+USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc, offsetElemMPI
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared           ,ONLY: Allocate_Shared
 USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
@@ -252,8 +252,8 @@ INTEGER                        :: iSide
 INTEGER                        :: FirstNodeInd,LastNodeInd,FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
 INTEGER                        :: nPeriodicSides,nMPIPeriodics
 INTEGER                        :: ReduceData(11)
-INTEGER                        :: nSideIDs,offsetSideID
-INTEGER                        :: iMortar,jMortar,nMortars
+INTEGER                        :: nSideIDs,offsetSideID, nlocSides, sideCount, nlocSidesNb, NbElemID, jLocSide
+INTEGER                        :: iMortar,jMortar,nMortars, NbSideID
 #if USE_MPI
 INTEGER                        :: iNbProc
 INTEGER                        :: iProc
@@ -464,6 +464,25 @@ DO iElem=FirstElemInd,LastElemInd
   ! and the next 2 (-2, -3) or 4 (-1) sides are the subsides
   ! Consequently, a hexahedral element can have more than 6 non-unique sides
   SideInfo(SIDE_ELEMID,iSide+1:ElemInfo(ELEM_LASTSIDEIND,iElem)) = iElem
+  sideCount = 0
+  nlocSides = ElemInfo(ELEM_LASTSIDEIND,iElem) -  ElemInfo(ELEM_FIRSTSIDEIND,iElem)
+  DO iLocSide = 1,nlocSides
+    iSide = ElemInfo(ELEM_FIRSTSIDEIND,iElem) + iLocSide
+    IF (SideInfo(SIDE_TYPE,iSide).GT.4) THEN
+      NbElemID = SideInfo(SIDE_NBELEMID,iSide)
+      nlocSidesNb = ElemInfo(ELEM_LASTSIDEIND,NbElemID) -  ElemInfo(ELEM_FIRSTSIDEIND,NbElemID)
+      DO jLocSide = 1,nlocSidesNb
+        NbSideID = ElemInfo(ELEM_FIRSTSIDEIND,NbElemID) + jLocSide
+        IF (ABS(SideInfo(SIDE_ID,iSide)).EQ.ABS(SideInfo(SIDE_ID,NbSideID))) THEN
+          SideInfo(SIDE_LOCALID,iSide) = -NbSideID  
+          EXIT
+        END IF
+      END DO
+    ELSE
+      sideCount = sideCount + 1
+      SideInfo(SIDE_LOCALID,iSide) = sideCount
+    END IF
+  END DO
 END DO
 ! all procs on my compute-node communicate the number of non-unique sides
 CALL MPI_ALLREDUCE(nSideIDs,nComputeNodeSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)

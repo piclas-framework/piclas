@@ -369,8 +369,6 @@ END IF
 
 ! communication
 IF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle') nChunks=1
-
-IF (mode.EQ.1) THEN
   chunkSize = INT(nbrOfParticle/nChunks)
   IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
     IF( Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) ) THEN
@@ -404,7 +402,11 @@ __STAMP__&
     chunkSize2=chunkSize !will be changed during insertion for:
                          !  1.: vpi with PartDensity (orig. chunksize is for buffer region)
                          !  2.: excludeRegions (orig. chunksize is for SpaceIC without taking excludeRegions into account)
-    !------------------SpaceIC-cases: start-----------------------------------------------------------!
+
+
+
+
+!    ------------------SpaceIC-cases: start-----------------------------------------------------------!
     SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
     !------------------SpaceIC-case: point------------------------------------------------------------------------------------------
     CASE ('point')
@@ -1242,10 +1244,11 @@ __STAMP__&
     END SELECT
     !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
     chunkSize=chunkSize2
-
+ 
 #if USE_MPI
+    END IF
     IF (nChunks.GT.1) THEN
-      CALL SendEmissionParticlesToProcs(chunkSize,DimSend,particle_positions)
+!      CALL SendEmissionParticlesToProcs(chunkSize,DimSend,particle_positions)
     END IF
 #endif /*USE_MPI*/
 
@@ -1566,10 +1569,7 @@ __STAMP__&
     CALL abort(&
 __STAMP__&
 ,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
-  END IF
-#if USE_MPI
-END IF ! mode 1/2
-#endif
+END IF
 IPWRITE (*,*) "mySumOfMatchedParticles, =", mySumOfMatchedParticles
 
 END SUBROUTINE SetParticlePosition

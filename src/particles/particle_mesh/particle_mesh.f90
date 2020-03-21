@@ -723,7 +723,7 @@ REAL               :: A(3,3),detcon
 REAL,ALLOCATABLE   :: Coords(:,:,:,:)
 CHARACTER(32)      :: hilf
 CHARACTER(LEN=255) :: FileString
-INTEGER            :: FirstElem, LastElem, GlobalSideID
+INTEGER            :: FirstElem, LastElem, GlobalSideID, nlocSides, localSideID
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #endif
@@ -825,9 +825,12 @@ ConcaveElemSide_Shared = .FALSE.
 !  END DO
 !END DO
 DO iElem = firstElem,lastElem
-  DO iLocSide = 1,6
+  nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) 
+  DO iLocSide = 1,nlocSides
     ! Get global SideID
     GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) + iLocSide
+    IF (SideInfo_Shared(SIDE_LOCALID,GlobalSideID).LE.0) CYCLE
+    localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
     ! Find start of CGNS mapping from flip
     nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)-1)
 !    IF(iElem.EQ.1) THEN
@@ -835,30 +838,34 @@ DO iElem = firstElem,lastElem
 !      SWRITE(*,*) MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)
 !    END IF
     ! Shared memory array starts at 1, but NodeID at 0
-    ElemSideNodeID_Shared(1:4,iLocSide,iElem) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart  ,4)+1,iLocSide)-1, &
-                                                  ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+1,4)+1,iLocSide)-1, &
-                                                  ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+2,4)+1,iLocSide)-1, &
-                                                  ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+3,4)+1,iLocSide)-1/)
+    ElemSideNodeID_Shared(1:4,localSideID,iElem) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart  ,4)+1,localSideID)-1, &
+                                                  ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+1,4)+1,localSideID)-1, &
+                                                  ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+2,4)+1,localSideID)-1, &
+                                                  ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+3,4)+1,localSideID)-1/)
   END DO
 END DO
 
 !--- Save whether Side is concave or convex
 DO iElem = firstElem,lastElem
-  DO iLocSide = 1,6
+  nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) 
+  DO iLocSide = 1,nlocSides
     !--- Check whether the bilinear side is concave
     !--- Node Number 4 and triangle 1-2-3
+    GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) + iLocSide
+    IF (SideInfo_Shared(SIDE_LOCALID,GlobalSideID).LE.0) CYCLE
+    localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
     DO NodeNum = 1,3               ! for all 3 nodes of triangle
 !      A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,iElem)) &
 !                   - GEO%NodeCoords(:,GEO%ElemSideNodeID(4,iLocSide,iElem))
-       A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,iLocSide,iElem)+1) &
-                    - NodeCoords_Shared(:,ElemSideNodeID_Shared(4      ,iLocSide,iElem)+1)
+       A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,localSideID,iElem)+1) &
+                    - NodeCoords_Shared(:,ElemSideNodeID_Shared(4      ,localSideID,iElem)+1)
     END DO
     !--- concave if detcon < 0:
     detcon = ((A(2,1) * A(3,2) - A(3,1) * A(2,2)) * A(1,3) +     &
               (A(3,1) * A(1,2) - A(1,1) * A(3,2)) * A(2,3) +     &
               (A(1,1) * A(2,2) - A(2,1) * A(1,2)) * A(3,3))
 !    IF (detcon.LT.0) GEO%ConcaveElemSide(iLocSide,iElem)=.TRUE.
-    IF (detcon.LT.0) ConcaveElemSide_Shared(iLocSide,iElem) = .TRUE.
+    IF (detcon.LT.0) ConcaveElemSide_Shared(localSideID,iElem) = .TRUE.
   END DO
 END DO
 !SWRITE(*,*) ConcaveElemSide_Shared(:,25)

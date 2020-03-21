@@ -201,7 +201,7 @@ REAL   ,INTENT(OUT)           :: Det(6,2)
 LOGICAL,INTENT(OUT)           :: InElementCheck
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ilocSide, NodeNum, SideID, SideIDMortar, ind, NbElemID, nNbMortars
+INTEGER                       :: ilocSide, NodeNum, SideID, SideIDMortar, ind, NbElemID, nNbMortars, nlocSides, localSideID
 LOGICAL                       :: PosCheck, NegCheck, InElementCheckMortar, InElementCheckMortarNb
 REAL                          :: A(1:3,1:4), crossP(3)
 INTEGER                       :: firstElem, lastElem
@@ -220,48 +220,50 @@ END IF
 InElementCheck = .TRUE.
 InElementCheckMortar = .TRUE.
 !--- Loop over the 6 sides of the element
-DO iLocSide = 1,6
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+DO iLocSide = 1,nlocSides
+  SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  IF (SideInfo_Shared(SIDE_LOCALID,SideID).LE.0) CYCLE
+  localSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
   DO NodeNum = 1,4
     !--- A = vector from particle to node coords
-    A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,iLocSide,ElemID)+1) - PartStateLoc(1:3)
+    A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,localSideID,ElemID)+1) - PartStateLoc(1:3)
   END DO
-  !IF (ElemID.EQ.1 .AND. iLocSide.EQ.1) STOP
 
-  SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
-  SideIDMortar = MortarMapping_Shared(SideID)
+  NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
   !--- Treatment of sides which are adjacent to mortar elements
-  IF (SideIDMortar.GT.0) THEN
+  IF (NbElemID.LT.0) THEN
     PosCheck = .FALSE.
     NegCheck = .FALSE.
     !--- Checking the concave part of the side
-    IF (ConcaveElemSide_Shared(iLocSide,ElemID)) THEN
+    IF (ConcaveElemSide_Shared(localSideID,ElemID)) THEN
       ! If the element is actually concave, CalcDetOfTrias determines its determinants
-      Det(iLocSide,1:2) = CalcDetOfTrias(A,1)
-      IF (Det(iLocSide,1).GE.0) PosCheck = .TRUE.
-      IF (Det(iLocSide,2).GE.0) PosCheck = .TRUE.
+      Det(localSideID,1:2) = CalcDetOfTrias(A,1)
+      IF (Det(localSideID,1).GE.0) PosCheck = .TRUE.
+      IF (Det(localSideID,2).GE.0) PosCheck = .TRUE.
       !--- final determination whether particle is in element
       IF (.NOT.PosCheck) InElementCheckMortar = .FALSE.
     ELSE
       ! If its a convex element, CalcDetOfTrias determines the concave determinants
-      Det(iLocSide,1:2) = CalcDetOfTrias(A,2)
-      IF (Det(iLocSide,1).GE.0) PosCheck = .TRUE.
-      IF (Det(iLocSide,2).GE.0) PosCheck = .TRUE.
+      Det(localSideID,1:2) = CalcDetOfTrias(A,2)
+      IF (Det(localSideID,1).GE.0) PosCheck = .TRUE.
+      IF (Det(localSideID,2).GE.0) PosCheck = .TRUE.
       !--- final determination whether particle is in element
       IF (.NOT.PosCheck) InElementCheckMortar= .FALSE.
     END IF
     !--- Checking the convex part of the side
     IF (.NOT.InElementCheckMortar) THEN
       InElementCheckMortar = .TRUE.
-      IF (ConcaveElemSide_Shared(iLocSide,ElemID)) THEN
-        Det(iLocSide,1:2) = CalcDetOfTrias(A,2)
-        IF (Det(iLocSide,1).LT.0) NegCheck = .TRUE.
-        IF (Det(iLocSide,2).LT.0) NegCheck = .TRUE.
+      IF (ConcaveElemSide_Shared(localSideID,ElemID)) THEN
+        Det(localSideID,1:2) = CalcDetOfTrias(A,2)
+        IF (Det(localSideID,1).LT.0) NegCheck = .TRUE.
+        IF (Det(localSideID,2).LT.0) NegCheck = .TRUE.
         !--- final determination whether particle is in element
         IF (NegCheck) InElementCheckMortar = .FALSE.
       ELSE
-        Det(iLocSide,1:2) = CalcDetOfTrias(A,1)
-        IF (Det(iLocSide,1).LT.0) NegCheck = .TRUE.
-        IF (Det(iLocSide,2).LT.0) NegCheck = .TRUE.
+        Det(localSideID,1:2) = CalcDetOfTrias(A,1)
+        IF (Det(localSideID,1).LT.0) NegCheck = .TRUE.
+        IF (Det(localSideID,2).LT.0) NegCheck = .TRUE.
         !--- final determination whether particle is in element
         IF (NegCheck) InElementCheckMortar= .FALSE.
       END IF
@@ -271,7 +273,8 @@ DO iLocSide = 1,6
         nNbMortars = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
         DO ind = 1, nNbMortars
           InElementCheckMortarNb = .TRUE.
-          NbElemID = SideInfo_Shared(SIDE_ELEMID,MortarInfo_Shared(ind,MortarMapping_Shared(SideID)))
+          SideIDMortar = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide + ind
+          NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideIDMortar)
           ! If small mortar element not defined, skip it for now, likely not inside the halo region (additional check is performed
           ! after the MPI communication: ParticleInsideQuad3D_MortarMPI)
           IF (NbElemID.LT.1) CYCLE
@@ -293,26 +296,26 @@ DO iLocSide = 1,6
     crossP(2) = A(3,1) * A(1,3) - A(1,1) * A(3,3)
     crossP(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
     !--- negative determinant of triangle 1 (points 1,3,2):
-    Det(iLocSide,1) = crossP(1) * A(1,2) + &
+    Det(localSideID,1) = crossP(1) * A(1,2) + &
                       crossP(2) * A(2,2) + &
                       crossP(3) * A(3,2)
-    Det(iLocSide,1) = -det(iLocSide,1)
+    Det(localSideID,1) = -det(localSideID,1)
     !--- determinant of triangle 2 (points 1,3,4):
-    Det(iLocSide,2) = crossP(1) * A(1,4) + &
+    Det(localSideID,2) = crossP(1) * A(1,4) + &
                       crossP(2) * A(2,4) + &
                       crossP(3) * A(3,4)
-    IF (Det(iLocSide,1).LT.0) THEN
+    IF (Det(localSideID,1).LT.0) THEN
       NegCheck = .TRUE.
     ELSE
       PosCheck = .TRUE.
     END IF
-    IF (Det(iLocSide,2).LT.0) THEN
+    IF (Det(localSideID,2).LT.0) THEN
       NegCheck = .TRUE.
     ELSE
       PosCheck = .TRUE.
     END IF
     !--- final determination whether particle is in element
-    IF (ConcaveElemSide_Shared(iLocSide,ElemID)) THEN
+    IF (ConcaveElemSide_Shared(localSideID,ElemID)) THEN
       IF (.NOT.PosCheck) InElementCheck = .FALSE.
     ELSE
       IF (NegCheck) InElementCheck = .FALSE.
@@ -446,24 +449,29 @@ REAL   ,INTENT(IN)            :: PartStateLoc(3)
 LOGICAL,INTENT(OUT)           :: InElementCheck
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ilocSide, NodeNum, SideID
+INTEGER                       :: ilocSide, NodeNum, SideID, nlocSides, localSideID, NbElemID
 LOGICAL                       :: PosCheck, NegCheck
 REAL                          :: A(1:3,1:4), cross(3)
 REAL                          :: Det(2)
 !===================================================================================================================================
 InElementCheck = .TRUE.
-DO iLocSide = 1,6                 ! for all 6 sides of the element
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+DO iLocSide = 1,nlocSides
+  SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  IF (SideInfo_Shared(SIDE_LOCALID,SideID).LE.0) CYCLE
+  localSideID = SideInfo_Shared(SIDE_LOCALID,SideID)      ! for all 6 sides of the element
   DO NodeNum = 1,4
   !--- A = vector from particle to node coords
-    A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,iLocSide,ElemID)+1) - PartStateLoc(1:3)
+    A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,localSideID,ElemID)+1) - PartStateLoc(1:3)
   END DO
-  SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
-  IF (MortarMapping_Shared(SideID).GT.0) THEN ! Mortar side
+  NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
+  !--- Treatment of sides which are adjacent to mortar elements
+  IF (NbElemID.LT.0) THEN
     !--- initialize flags for side checks
     PosCheck = .FALSE.
     NegCheck = .FALSE.
     !--- Check if the particle is inside the convex element. If its outside, it has to be inside the original element
-    IF (ConcaveElemSide_Shared(iLocSide,ElemID)) THEN
+    IF (ConcaveElemSide_Shared(localSideID,ElemID)) THEN
       Det(1:2) = CalcDetOfTrias(A,2)
       IF (Det(1).LT.0) NegCheck = .TRUE.
       IF (Det(2).LT.0) NegCheck = .TRUE.
@@ -509,7 +517,7 @@ DO iLocSide = 1,6                 ! for all 6 sides of the element
       PosCheck = .TRUE.
     END IF
     !--- final determination whether particle is in element
-    IF (ConcaveElemSide_Shared(iLocSide,ElemID)) THEN
+    IF (ConcaveElemSide_Shared(localSideID,ElemID)) THEN
       IF (.NOT.PosCheck) THEN
         InElementCheck = .FALSE.
         RETURN

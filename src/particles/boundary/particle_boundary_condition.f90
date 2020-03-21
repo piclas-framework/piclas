@@ -75,7 +75,7 @@ USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_Particle_Boundary_Tools  ,ONLY: BoundaryParticleOutput,DielectricSurfaceCharge
 #if USE_MPI
-USE MOD_MPI_Shared_Vars          ,ONLY: SideInfo_Shared
+USE MOD_MPI_Shared_Vars          !,ONLY: SideInfo_Shared,NodeCoords_Shared
 #endif /* USE_MPI */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -93,7 +93,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
-INTEGER                              :: ReflectionIndex, BCSideID
+INTEGER                              :: ReflectionIndex, BCSideID, iNode, iSide
 LOGICAL                              :: isSpeciesSwap, ElasticReflectionAtPorousBC
 !===================================================================================================================================
 

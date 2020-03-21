@@ -100,6 +100,9 @@ USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetI
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -116,10 +119,10 @@ LOGICAL                          :: doParticle
 LOGICAL                          :: doPartInExists
 #endif
 INTEGER                          :: i, NblocSideID, NbElemID, ind, nbSideID, nMortarElems, SideIDMortar, BCType
-INTEGER                          :: ElemID,flip,OldElemID
+INTEGER                          :: ElemID,flip,OldElemID,nlocSides
 INTEGER                          :: LocalSide
 INTEGER                          :: NrOfThroughSides, ind2
-INTEGER                          :: SideID,TempSideID,iLocSide
+INTEGER                          :: SideID,TempSideID,iLocSide, localSideID
 INTEGER                          :: TriNum, LocSidesTemp(1:6),TriNumTemp(1:6), GlobSideTemp(1:6)
 INTEGER                          :: SecondNrOfThroughSides, indSide
 INTEGER                          :: DoneLastElem(1:4,1:6) ! 1:3: 1=Element,2=LocalSide,3=TriNum 1:2: 1=last 2=beforelast
@@ -191,22 +194,36 @@ DO i = 1,PDM%ParticleVecLength
                                  +PartTrajectory(2)*PartTrajectory(2) &
                                  +PartTrajectory(3)*PartTrajectory(3) )
         IF(ABS(lengthPartTrajectory).GT.0.) PartTrajectory=PartTrajectory/lengthPartTrajectory
-        DO iLocSide=1,6
-          TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-          SideIDMortar=MortarType(2,TempSideID)
-          IF (SideIDMortar.GT.0) THEN ! Mortar side
-            IF (MortarType(1,TempSideID).EQ.1) THEN
-              nMortarElems = 4
-            ELSE
-              nMortarElems = 2
-            END IF
+        nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+        DO iLocSide=1,nlocSides
+          TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+          localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID) 
+          IF (localSideID.LE.0) CYCLE
+          NbElemID = SideInfo_Shared(SIDE_NBELEMID,TempSideID)
+!          TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+!          SideIDMortar=MortarType(2,TempSideID)
+          print*, 'PartState', PartState(1:4,i)
+          print*,'sideid,lcoside,elem,mortarid',TempSideID, iLocSide, ElemID, SideIDMortar
+          IF (NbElemID.LT.0) THEN ! Mortar side           
+!            IF (MortarType(1,TempSideID).EQ.1) THEN
+!              nMortarElems = 4
+!            ELSE
+!              nMortarElems = 2
+!            END IF
+            nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.-1)
+            print*, 'numbernmortar', nMortarElems
             DO ind = 1, nMortarElems
-              NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
+              nbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide + ind
+              NbElemID = SideInfo_Shared(SIDE_NBELEMID,nbSideID)
+!              NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
               ! If small mortar element not defined, skip it for now, likely not inside the halo region (additional check is
               ! performed after the MPI communication: ParticleInsideQuad3D_MortarMPI)
               IF (NbElemID.LT.1) CYCLE
-              NblocSideID = PartElemToElemAndSide(ind+4,iLocSide,ElemID)
-              nbSideID = PartElemToSide(E2S_SIDE_ID,NblocSideID,NbElemID)
+!              NblocSideID = PartElemToElemAndSide(ind+4,iLocSide,ElemID)
+!              nbSideID = PartElemToSide(E2S_SIDE_ID,NblocSideID,NbElemID)
+              nbSideID = ABS(SideInfo_Shared(SIDE_LOCALID,nbSideID))
+              print*, 'smallmortarElem,sideId,firstSideID',ElemID, NbElemID, nbSideID,  ElemInfo_Shared(ELEM_FIRSTSIDEIND,NbElemID)
+              NblocSideID = SideInfo_Shared(SIDE_LOCALID,nbSideID)
               DO TriNum = 1,2
                 ThroughSide = .FALSE.
                 CALL ParticleThroughSideCheck3DFast(i,PartTrajectory,NblocSideID,NbElemID,ThroughSide,TriNum, .TRUE.)
@@ -225,16 +242,16 @@ DO i = 1,PDM%ParticleVecLength
             END DO
           ELSE  ! Regular side
             DO TriNum = 1,2
-              IF (det(iLocSide,TriNum).le.-eps) THEN
+              IF (det(localSideID,TriNum).le.-eps) THEN
                 ThroughSide = .FALSE.
-                CALL ParticleThroughSideCheck3DFast(i,PartTrajectory,iLocSide,ElemID,ThroughSide,TriNum)
+                CALL ParticleThroughSideCheck3DFast(i,PartTrajectory,localSideID,ElemID,ThroughSide,TriNum)
                 IF (ThroughSide) THEN
                   NrOfThroughSides = NrOfThroughSides + 1
-                  LocSidesTemp(NrOfThroughSides) = iLocSide
+                  LocSidesTemp(NrOfThroughSides) = localSideID
                   TriNumTemp(NrOfThroughSides) = TriNum
                   GlobSideTemp(NrOfThroughSides) = TempSideID
                   SideID = TempSideID
-                  LocalSide = iLocSide
+                  LocalSide = localSideID
                 END IF
               END IF
             END DO
@@ -277,11 +294,12 @@ DO i = 1,PDM%ParticleVecLength
               IF (doCheckSide) THEN
                 IF (isMortarSideTemp(ind2)) THEN  ! Mortar side
                   ! Get the element number of the smaller neighboring element
-                  IF (PartSideToElem(S2E_ELEM_ID,GlobSideTemp(ind2)).GT.0) THEN
-                    NbElemID = PartSideToElem(S2E_ELEM_ID,GlobSideTemp(ind2))
-                  ELSE
-                    NbElemID = PartSideToElem(S2E_NB_ELEM_ID,GlobSideTemp(ind2))
-                  END IF
+                  NbElemID = SideInfo_Shared(SIDE_ELEMID,GlobSideTemp(ind2))
+!                  IF (PartSideToElem(S2E_ELEM_ID,GlobSideTemp(ind2)).GT.0) THEN
+!                    NbElemID = PartSideToElem(S2E_ELEM_ID,GlobSideTemp(ind2))
+!                  ELSE
+!                    NbElemID = PartSideToElem(S2E_NB_ELEM_ID,GlobSideTemp(ind2))
+!                  END IF
                   ! Get the determinant between the old and new particle position and the nodes of the triangle which was crossed
                   CALL ParticleThroughSideLastPosCheck(i,LocSidesTemp(ind2),NbElemID,InElementCheck,TriNumTemp(ind2),detM, &
                                                         isMortarSide=.TRUE.,detPartPos=detPartPos)
@@ -319,7 +337,8 @@ DO i = 1,PDM%ParticleVecLength
                     ! and LastPartPos->Tri-Nodes
                     IF((detM.EQ.0).AND.(minRatio.EQ.0))THEN
                       SecondNrOfThroughSides = SecondNrOfThroughSides + 1
-                      SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
+!                      SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
+                      SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + LocSidesTemp(ind2)
                       LocalSide = LocSidesTemp(ind2)
                       TriNum = TriNumTemp(ind2)
                       oldElemIsMortar = .FALSE.
@@ -331,7 +350,8 @@ DO i = 1,PDM%ParticleVecLength
                       IF (ratio.LT.minRatio) THEN
                         minRatio = ratio
                         SecondNrOfThroughSides = SecondNrOfThroughSides + 1
-                        SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
+!                        SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
+                        SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + LocSidesTemp(ind2)
                         LocalSide = LocSidesTemp(ind2)
                         TriNum = TriNumTemp(ind2)
                         oldElemIsMortar = .FALSE.
@@ -358,10 +378,13 @@ DO i = 1,PDM%ParticleVecLength
         ! ----------------------------------------------------------------------------
         ! 3) In case of a boundary, perform the appropriate boundary interaction
         crossedBC=.FALSE.
-        flip =PartElemToSide(E2S_FLIP,LocalSide,ElemID)
-        IF(BC(SideID).GT.0) THEN
+!        flip =PartElemToSide(E2S_FLIP,LocalSide,ElemID)
+        flip =SideInfo_Shared(SIDE_FLIP,SideID)
+        IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
+        print*, 'tracking', i, ElemID, SideID, BC(SideID), PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+!        IF(BC(SideID).GT.0) THEN
           OldElemID=ElemID
-          BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID)))
+          BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
           IF(BCType.NE.1) CALL IntersectionWithWall(PartTrajectory,alpha,i,LocalSide,ElemID,TriNum)
           CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
                                                                        ,xi    &
@@ -391,14 +414,17 @@ DO i = 1,PDM%ParticleVecLength
           DoneLastElem(3,1) = TriNum
           DoneLastElem(4,1) = SideID
           IF (oldElemIsMortar) THEN
-            IF (PartSideToElem(S2E_NB_ELEM_ID,SideID).EQ.-1) THEN
-             ElemID = PartSideToElem(S2E_ELEM_ID,SideID)
-            ELSE
-             ElemID = PartSideToElem(S2E_NB_ELEM_ID,SideID)
-            END IF
+            ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+!            IF (PartSideToElem(S2E_NB_ELEM_ID,SideID).EQ.-1) THEN
+!             ElemID = PartSideToElem(S2E_ELEM_ID,SideID)
+!            ELSE
+!             ElemID = PartSideToElem(S2E_NB_ELEM_ID,SideID)
+!            END IF
           ELSE
-            ElemID = PartElemToElemAndSide(1  ,LocalSide,ElemID)
+            ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
+!            ElemID = PartElemToElemAndSide(1  ,LocalSide,ElemID)
           END IF
+          print*, DoneLastElem(1,1), ElemID
         END IF  ! BC(SideID).GT./.LE. 0
         IF (ElemID.LT.1) THEN
           IPWRITE(UNIT_stdout,*) 'Particle Velocity: ',SQRT(DOTPRODUCT(PartState(4:6,i)))
@@ -2500,6 +2526,9 @@ SUBROUTINE ParticleThroughSideCheck3DFast(PartID,PartTrajectory,iLocSide,Element
 ! MODULES
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars, ONLY : GEO
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2524,7 +2553,7 @@ REAL                             :: eps
 eps = 0.
 
 ThroughSide = .FALSE.
-
+print*,'lokalsidelem in throught sidefast', iLocSide, Element
 Px = lastPartPos(1,PartID)
 Py = lastPartPos(2,PartID)
 Pz = lastPartPos(3,PartID)
@@ -2534,9 +2563,12 @@ Vx = PartTrajectory(1)
 Vy = PartTrajectory(2)
 Vz = PartTrajectory(3)
 ! Get the coordinates of the first node and the vector from the particle position to the node
-xNode(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
-yNode(1) = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
-zNode(1) = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
+xNode(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,Element)+1)
+yNode(1) = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,iLocSide,Element)+1)
+zNode(1) = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,iLocSide,Element)+1)
+!xNode(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
+!yNode(1) = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
+!zNode(1) = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
 Ax(1) = xNode(1) - Px
 Ay(1) = yNode(1) - Py
 Az(1) = zNode(1) - Pz
@@ -2544,17 +2576,23 @@ Az(1) = zNode(1) - Pz
 IF(PRESENT(IsMortar)) THEN
   ! Note: reverse orientation in the mortar case, as the side is treated from the perspective of the smaller neighbouring element
   !       (TriNum=1: NodeID=3,2; TriNum=2: NodeID=4,3)
-  xNode(2) = GEO%NodeCoords(1,GEO%ElemSideNodeID(2+TriNum,iLocSide,Element))
-  yNode(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(2+TriNum,iLocSide,Element))
-  zNode(2) = GEO%NodeCoords(3,GEO%ElemSideNodeID(2+TriNum,iLocSide,Element))
+!  xNode(2) = GEO%NodeCoords(1,GEO%ElemSideNodeID(2+TriNum,iLocSide,Element))
+!  yNode(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(2+TriNum,iLocSide,Element))
+!  zNode(2) = GEO%NodeCoords(3,GEO%ElemSideNodeID(2+TriNum,iLocSide,Element))
+  xNode(2) = NodeCoords_Shared(1,ElemSideNodeID_Shared(2+TriNum,iLocSide,Element)+1)
+  yNode(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(2+TriNum,iLocSide,Element)+1)
+  zNode(2) = NodeCoords_Shared(3,ElemSideNodeID_Shared(2+TriNum,iLocSide,Element)+1)
 
   Ax(2) = xNode(2) - Px
   Ay(2) = yNode(2) - Py
   Az(2) = zNode(2) - Pz
 
-  xNode(3) = GEO%NodeCoords(1,GEO%ElemSideNodeID(1+TriNum,iLocSide,Element))
-  yNode(3) = GEO%NodeCoords(2,GEO%ElemSideNodeID(1+TriNum,iLocSide,Element))
-  zNode(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(1+TriNum,iLocSide,Element))
+  xNode(3) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1+TriNum,iLocSide,Element)+1)
+  yNode(3) = NodeCoords_Shared(2,ElemSideNodeID_Shared(1+TriNum,iLocSide,Element)+1)
+  zNode(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(1+TriNum,iLocSide,Element)+1)
+!  xNode(3) = GEO%NodeCoords(1,GEO%ElemSideNodeID(1+TriNum,iLocSide,Element))
+!  yNode(3) = GEO%NodeCoords(2,GEO%ElemSideNodeID(1+TriNum,iLocSide,Element))
+!  zNode(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(1+TriNum,iLocSide,Element))
 
   Ax(3) = xNode(3) - Px
   Ay(3) = yNode(3) - Py
@@ -2562,9 +2600,12 @@ IF(PRESENT(IsMortar)) THEN
 ELSE
   DO n = 2,3
     NodeID = n+TriNum-1       ! m = true node number of the sides (TriNum=1: NodeID=2,3; TriNum=2: NodeID=3,4)
-    xNode(n) = GEO%NodeCoords(1,GEO%ElemSideNodeID(NodeID,iLocSide,Element))
-    yNode(n) = GEO%NodeCoords(2,GEO%ElemSideNodeID(NodeID,iLocSide,Element))
-    zNode(n) = GEO%NodeCoords(3,GEO%ElemSideNodeID(NodeID,iLocSide,Element))
+!    xNode(n) = GEO%NodeCoords(1,GEO%ElemSideNodeID(NodeID,iLocSide,Element))
+!    yNode(n) = GEO%NodeCoords(2,GEO%ElemSideNodeID(NodeID,iLocSide,Element))
+!    zNode(n) = GEO%NodeCoords(3,GEO%ElemSideNodeID(NodeID,iLocSide,Element))
+    xNode(n) = NodeCoords_Shared(1,ElemSideNodeID_Shared(NodeID,iLocSide,Element)+1)
+    yNode(n) = NodeCoords_Shared(2,ElemSideNodeID_Shared(NodeID,iLocSide,Element)+1)
+    zNode(n) = NodeCoords_Shared(3,ElemSideNodeID_Shared(NodeID,iLocSide,Element)+1)
 
     Ax(n) = xNode(n) - Px
     Ay(n) = yNode(n) - Py
@@ -2604,6 +2645,9 @@ SUBROUTINE ParticleThroughSideLastPosCheck(i,iLocSide,Element,InElementCheck,Tri
 ! MODULES
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars,  ONLY : GEO
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2626,19 +2670,24 @@ InElementCheck = .TRUE.
 
 !--- coords of first node:
 DO ind = 1,3
-  NodeCoord(ind,1) = GEO%NodeCoords(ind,GEO%ElemSideNodeID(1,iLocSide,Element))
+  NodeCoord(ind,1) = NodeCoords_Shared(ind,ElemSideNodeID_Shared(1,iLocSide,Element)+1)
+!  NodeCoord(ind,1) = GEO%NodeCoords(ind,GEO%ElemSideNodeID(1,iLocSide,Element))
 END DO
 
 !--- coords of other two nodes (depending on triangle):
 IF(PRESENT(isMortarSide)) THEN
   ! Note: reversed orientation as the triangle is treated from the perspective of the smaller neighbouring mortar element
-  NodeCoord(1:3,2)  = GEO%NodeCoords(1:3,GEO%ElemSideNodeID(2+TriNum,iLocSide,Element))
-  NodeCoord(1:3,3) = GEO%NodeCoords(1:3,GEO%ElemSideNodeID(1+TriNum,iLocSide,Element))
+!  NodeCoord(1:3,2)  = GEO%NodeCoords(1:3,GEO%ElemSideNodeID(2+TriNum,iLocSide,Element))
+!  NodeCoord(1:3,3) = GEO%NodeCoords(1:3,GEO%ElemSideNodeID(1+TriNum,iLocSide,Element))
+
+  NodeCoord(1:3,2) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(2+TriNum,iLocSide,Element)+1)
+  NodeCoord(1:3,3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1+TriNum,iLocSide,Element)+1)
 ELSE
   DO iNode = 2,3
     NodeNum = iNode + TriNum - 1
     DO ind = 1,3
-      NodeCoord(ind,iNode) = GEO%NodeCoords(ind,GEO%ElemSideNodeID(NodeNum,iLocSide,Element))
+!      NodeCoord(ind,iNode) = GEO%NodeCoords(ind,GEO%ElemSideNodeID(NodeNum,iLocSide,Element))
+      NodeCoord(ind,iNode) = NodeCoords_Shared(ind,ElemSideNodeID_Shared(NodeNum,iLocSide,Element)+1)
     END DO
   END DO
 END IF

@@ -95,15 +95,16 @@
 #define ELEM_HALOFLAG     8
 ! number of entries in each line of SideInfo
 #define SIDEINFOSIZE_H5   5
-#define SIDEINFOSIZE      6
+#define SIDEINFOSIZE      7
 #define SIDE_TYPE         1
 #define SIDE_ID           2
 #define SIDE_NBELEMID     3
 #define SIDE_FLIP         4
 #define SIDE_BCID         5
 #define SIDE_ELEMID       6
+#define SIDE_LOCALID      7
 ! number of entries in each line of MortarInfo
-#define MORTARINFOSIZE    4
+#define MORTARINFOSIZE    5
 
 ! Predefined "PARAMETER-like" variables
 #define XI_MINUS   5
