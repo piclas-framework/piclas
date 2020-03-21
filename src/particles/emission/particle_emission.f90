@@ -638,7 +638,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping!,TriaTracking
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation
 ! IMPLICIT VARIABLE HANDLING
@@ -735,7 +735,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping!,TriaTracking
 USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation
 USE MOD_DSMC_Vars              ,ONLY: CollisMode
 ! IMPLICIT VARIABLE HANDLING

@@ -495,7 +495,7 @@ PURE FUNCTION isChargedParticle(iPart)
 USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: iPart
 LOGICAL             :: isChargedParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -524,7 +524,7 @@ USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: iPart
 LOGICAL             :: isPushParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -553,7 +553,7 @@ USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: iPart
 LOGICAL             :: isDepositParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -583,7 +583,7 @@ USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: iPart
 LOGICAL             :: isInterpolateParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
