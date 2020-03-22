@@ -41,7 +41,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting, SpecXSec
   USE MOD_DSMC_Vars,              ONLY : ConsiderVolumePortions
   USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, PartState, VarTimeStep
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
@@ -131,25 +131,18 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
         CollEnergy = 0.5 * Species(iSpec_p1)%MassIC * VeloSquare
         ! Determining whether a real collision or a "null" collisions happens by comparing the current cross-section with the
         ! maximal collision cross section
-        Coll_pData(iPair)%Prob = SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity &
-                                  / SpecDSMC(iSpec_p1)%MaxCollFreq
+        Coll_pData(iPair)%Prob = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,iSpec_p2,CollEnergy) &
+                                  * SpecNum2*MacroParticleFactor/Volume*dt)
+        ! Correct the collision probability in the case of the second species being a background species as the number of pairs was
+        ! determined based on ProbNull
+        IF(BGGas%BackgroundSpecies(iSpec_p2)) Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / SpecXSec(iSpec_p1,iSpec_p2)%ProbNull
       ELSE
-        IF (BGGas%BGGasSpecies.NE.0) THEN
-          Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
-                  * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
-                  * Species(iSpec_p1)%MacroParticleFactor                  &
-                          ! weighting Fact, here only one MPF is used!!!
-                  * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(iSpec_p1)%omegaVHS) &
-                          ! relative velo to the power of (1 -2omega) !! only one omega is used!!
-                  * dtCell / Volume
-        ELSE
-          Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
-                  * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
-                  * MacroParticleFactor / CollCaseNum                                                     &
-                  * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(iSpec_p1)%omegaVHS) &
-                          ! relative velo to the power of (1 -2omega) !! only one omega is used!!
-                  * dtCell / Volume
-        END IF
+        Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
+                * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
+                * MacroParticleFactor / CollCaseNum                                                     &
+                * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(iSpec_p1)%omegaVHS) &
+                        ! relative velo to the power of (1 -2omega) !! only one omega is used!!
+                * dtCell / Volume
       END IF
     CASE(8) !Electron - Electron
       Coll_pData(iPair)%Prob = 0
@@ -189,24 +182,14 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       IF (Coll_pData(iPair)%CRela2.eq.0.) THEN !avoid log(0)
         Coll_pData(iPair)%Prob=0.
       ELSE
-        IF (BGGas%BGGasSpecies.NE.0) THEN
-          Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
-            !* CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
-            * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  &
-              ! weighting Fact, here only one MPF is used!!!
-            * 1.0E-20 * SQRT(Coll_pData(iPair)%CRela2) * sigma_tot &
-              ! CEX/MEX-relation to relative velo
-            * dt / Volume                   ! timestep (should be sclaed in time disc)  divided by cell volume
-        ELSE
-          Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
-            !* CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
-            * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  &
-              ! weighting Fact, here only one MPF is used!!!
-            / CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType)                                      & ! sum of coll cases Sab
-            * 1.0E-20 * SQRT(Coll_pData(iPair)%CRela2) * sigma_tot  &
-              ! CEX/MEX-relation to relative velo
-            * dt / Volume                   ! timestep (should be sclaed in time disc)  divided by cell volume
-        END IF
+        Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
+          !* CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
+          * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  &
+            ! weighting Fact, here only one MPF is used!!!
+          / CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType)                                      & ! sum of coll cases Sab
+          * 1.0E-20 * SQRT(Coll_pData(iPair)%CRela2) * sigma_tot  &
+            ! CEX/MEX-relation to relative velo
+          * dt / Volume                   ! timestep (should be sclaed in time disc)  divided by cell volume
       END IF !avoid log(0)
     CASE(19) !Electron - Atomic CEX/MEX Ion
       Coll_pData(iPair)%Prob = 0
@@ -230,7 +213,7 @@ __STAMP__&
   IF(DSMC%CalcQualityFactors) THEN
     IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
       ! Calculate the collision probability for cross section case
-      CollProb = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
+      IF(BGGas%BackgroundSpecies(iSpec_p2)) CollProb = Coll_pData(iPair)%Prob * SpecXSec(iSpec_p1,iSpec_p2)%ProbNull
     ELSE
       CollProb = Coll_pData(iPair)%Prob
     END IF
@@ -245,8 +228,8 @@ __STAMP__&
       iReac=ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2),iSpec)
       IF (iReac.NE.0) THEN
         IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
-          ! Calculate the collision probability for cross section case
-          CollProb = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,CollEnergy)*BGGas%BGGasDensity*dt)
+          ! Calculate the collision probability for the cross section case with background gas
+          IF(BGGas%BackgroundSpecies(iSpec_p2)) CollProb = Coll_pData(iPair)%Prob * SpecXSec(iSpec_p1,iSpec_p2)%ProbNull
         ELSE
           CollProb = Coll_pData(iPair)%Prob
         END IF

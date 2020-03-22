@@ -57,13 +57,6 @@ CHARACTER(255)        :: IMDCutOff                                           ! c
                                                                              !                                      2.) Epot
                                                                              !                                      3.) coordinates
                                                                              !                                      4.) velocity
-REAL                  :: dt_max_particles                                    ! Maximum timestep for particles (for static fields!)
-REAL                  :: dt_maxwell                                          ! timestep for field solver (for static fields only!)
-REAL                  :: dt_adapt_maxwell                                    ! adapted timestep for field solver dependent
-                                                                             ! on particle velocity (for static fields only!)
-REAL                  :: dt_part_ratio, overrelax_factor                     ! factors for td200/201 overrelaxation/subcycling
-INTEGER               :: NextTimeStepAdjustmentIter                          ! iteration of next timestep change
-INTEGER               :: MaxwellIterNum                                      ! number of iterations for the maxwell solver
 INTEGER               :: WeirdElems                                          ! Number of Weird Elements (=Elements which are folded
                                                                              ! into themselves)
 REAL    , ALLOCATABLE :: PartState(:,:)                                      ! 1st index: x,y,z,vx,vy,vz
@@ -76,10 +69,10 @@ REAL    , ALLOCATABLE :: Pt(:,:)                                             ! D
                                                                              ! PartState(4:6,:) as Pt(1:3)
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
 LOGICAL               :: DoForceFreeSurfaceFlux                              ! switch if the stage reconstruction uses a force
-#if (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 LOGICAL               :: velocityOutputAtTime
 REAL    , ALLOCATABLE :: velocityAtTime(:,:)
-#endif /*(PP_TimeDiscMethod==509)*/
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 #if defined(ROS) || defined(IMPA)
 REAL    , ALLOCATABLE :: PartStage (:,:,:)                                   ! ERK4 additional function values
 REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! ParticleState at t^n

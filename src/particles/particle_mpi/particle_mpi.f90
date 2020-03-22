@@ -2312,6 +2312,7 @@ DO iSpec=1,nSpecies
        RegionOnProc=BoxInProc(xCoords,8)
     CASE ('IMD')
        RegionOnProc=.TRUE.
+    CASE ('background')
     CASE DEFAULT
       IPWRITE(*,*) 'ERROR: Species ', iSpec, 'of', iInit, 'is using an unknown SpaceIC!'
       CALL abort(&

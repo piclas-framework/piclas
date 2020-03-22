@@ -200,6 +200,13 @@ Latest tests on
     ```
     sudo chown -R gitlab-runner:gitlab-runner /var/lib/gitlab-runner/.ssh/
     ```
+    If the runner is used to push to remote repositories, add the public key under *deploy keys*
+    and execute, e.g., 
+    ```
+    sudo -u gitlab-runner git clone git@github.com:piclas-framework/piclas.git piclas_github
+    ```
+    to establish the first connection with the new repository and add the repo IP to the list of
+    known hosts.
 6. Start pipeline in gitlab or github for testing of reggie
 
 NOTE: Interesting information is found in `/etc/systemd/system/gitlab-runner.service`.
@@ -270,13 +277,19 @@ check_interval = 0
 ```
 
 ### Automatic Deployment to other platforms
+
 1. Add the required ssh key to the deploy keys on the respective platform (e.g. github)
 1. Clone a code from the platform to update the list of known hosts. Do not forget to copy the
     information to the correct location for the runner to have access to the platform
     ```
     sudo cp~/.ssh/.ssh/known_hosts /var/lib/gitlab-runner/.ssh/known_hosts
     ```
-1. PICLas deployment in performed by the gitlab runner in the *deployment stage*
+    This might have to be performed via the gitlab-runner user, which can be accomplished by
+    executing the following command
+    ```
+    sudo -u gitlab-runner git clone git@github.com:piclas-framework/piclas.git piclas_github
+    ```
+1. PICLas deployment is performed by the gitlab runner in the *deployment stage*
     ```
     github:
       stage: deploy

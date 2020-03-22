@@ -879,8 +879,12 @@ REAL            :: invL
 ! LOCAL VARIABLES
 !===================================================================================================================================
 invL=SQRT(v1(1)*v1(1)+v1(2)*v1(2)+v1(3)*v1(3))
-invL=1./invL
-UNITVECTOR=v1*invL
+IF(ABS(invL).GT.0.0)THEN
+  invL=1./invL
+  UNITVECTOR=v1*invL
+ELSE
+  UNITVECTOR = (/ 0. , 0. , 0./)
+END IF ! ABS(invL).GT.0.0
 END FUNCTION UNITVECTOR
 
 

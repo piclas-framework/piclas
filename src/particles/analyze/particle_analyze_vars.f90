@@ -34,6 +34,7 @@ LOGICAL                       :: CalcEtot                            !< Compute 
 LOGICAL                       :: CalcEint                            !< Compute the internal energy of each species
 LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcCoupledPower                    !< Computation of the power that is coupled into plasma
+LOGICAL                       :: DisplayCoupledPower                 !< Display coupled power in UNIT_stdOut
 REAL                          :: PCoupl                              !< Power that is coupled into plasma in [W]
 REAL                          :: PCouplAverage                       !< Power that is coupled into plasma (moving average) in [W]
 TYPE tPCoupl

@@ -1369,8 +1369,8 @@ IMPLICIT NONE
 
   CALL GetDataSize(File_ID,'CloneData',nDimsClone,SizeClone)
 
-  CloneDataSize = INT(SizeClone(2),4)
-  ClonePartNum = INT(SizeClone(1),4)
+  CloneDataSize = INT(SizeClone(1),4)
+  ClonePartNum = INT(SizeClone(2),4)
   DEALLOCATE(SizeClone)
 
   IF(ClonePartNum.GT.0) THEN
