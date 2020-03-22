@@ -87,6 +87,9 @@ USE MOD_Particle_Vars        ,ONLY: PDM,PEM, PartSpecies, doParticleMerge, vMPF_
 USE MOD_Particle_Vars        ,ONLY: KeepWallParticles, PartState, VarTimeStep
 USE MOD_DSMC_Vars            ,ONLY: useDSMC, CollInf
 USE MOD_Particle_VarTimeStep ,ONLY: CalcVarTimeStep
+#if USE_MPI
+USE MOD_MPI_Vars             ,ONLY: OffSetElemMPI
+#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers   ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -99,6 +102,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: counter1,i,n
+INTEGER            :: ElemID
+#if !USE_MPI
+INTEGER            :: OffSetElemMPI(0) = 0            !> Dummy offset for single-thread mode
+#endif
 #if USE_LOADBALANCE
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -113,10 +120,12 @@ IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
   PEM%pNumber(:) = 0
   IF (KeepWallParticles) PEM%wNumber(:) = 0
 END IF
+
 n = PDM%ParticleVecLength !PDM%maxParticleNumber
 PDM%ParticleVecLength = 0
 PDM%insideParticleNumber = 0
 IF (doParticleMerge) vMPF_SpecNumElem = 0
+
 IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
   DO i=1,n
     IF (.NOT.PDM%ParticleInside(i)) THEN
@@ -124,24 +133,25 @@ IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
       PDM%nextFreePosition(counter1) = i
       counter1 = counter1 + 1
     ELSE
-      IF (PEM%pNumber(PEM%Element(i)).EQ.0) THEN
-        PEM%pStart(PEM%Element(i)) = i                    ! Start of Linked List for Particles in Elem
+      ElemID = PEM%Element(i) - OffSetElemMPI(MyRank)
+      IF (PEM%pNumber(ElemID).EQ.0) THEN
+        PEM%pStart(ElemID) = i                     ! Start of Linked List for Particles in Elem
       ELSE
-        PEM%pNext(PEM%pEnd(PEM%Element(i))) = i ! Next Particle of same Elem (Linked List)
+        PEM%pNext(PEM%pEnd(ElemID)) = i            ! Next Particle of same Elem (Linked List)
       END IF
-      PEM%pEnd(PEM%Element(i)) = i
-      PEM%pNumber(PEM%Element(i)) = &                      ! Number of Particles in Element
-          PEM%pNumber(PEM%Element(i)) + 1
+      PEM%pEnd(ElemID) = i
+      PEM%pNumber(ElemID) = &                      ! Number of Particles in Element
+          PEM%pNumber(ElemID) + 1
       IF (VarTimeStep%UseVariableTimeStep) THEN
-        VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),PEM%Element(i))
+        VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),ElemID)
       END IF
       IF (KeepWallParticles) THEN
         IF (PDM%ParticleAtWall(i)) THEN
-          PEM%wNumber(PEM%Element(i)) = PEM%wNumber(PEM%Element(i)) + 1
+          PEM%wNumber(ElemID) = PEM%wNumber(ElemID) + 1
         END IF
       END IF
       PDM%ParticleVecLength = i
-      IF(doParticleMerge) vMPF_SpecNumElem(PEM%Element(i),PartSpecies(i)) = vMPF_SpecNumElem(PEM%Element(i),PartSpecies(i)) + 1
+      IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
     END IF
   END DO
 ELSE ! no DSMC
