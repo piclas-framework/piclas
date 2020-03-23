@@ -420,13 +420,19 @@ USE MOD_Globals_Vars           ,ONLY: PI
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
-INTEGER,INTENT(IN)  :: iPart
-REAL,INTENT(IN)     :: PartPos(1:3)
-REAL,INTENT(IN)     :: PartTrajectory(1:3)
-REAL,INTENT(IN)     :: SurfaceNormal(1:3)
+INTEGER,INTENT(IN)   :: iPart
+REAL,INTENT(IN)      :: PartPos(1:3)
+REAL,INTENT(IN)      :: PartTrajectory(1:3)
+REAL,INTENT(IN)      :: SurfaceNormal(1:3)
+INTEGER              :: dims(2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL              :: MPF
+REAL                 :: MPF
+! Temporary arrays
+REAL, ALLOCATABLE    :: PartStateBoundary_tmp(:,:)   ! (1:9,1:NParts) 1st index: x,y,z,vx,vy,vz,MPF,time,impact angle
+!                                                    !                2nd index: 1 to number of boundary-crossed particles
+INTEGER, ALLOCATABLE :: PartStateBoundarySpec_tmp(:) ! Species ID of boundary-crossed particles
+INTEGER              :: ALLOCSTAT
 !===================================================================================================================================
 IF (usevMPF) THEN
   MPF = PartMPF(iPart)
@@ -434,13 +440,60 @@ ELSE
   MPF = Species(PartSpecies(iPart))%MacroParticleFactor
 END IF
 
+dims = SHAPE(PartStateBoundary)
+
 ASSOCIATE( iMax => PartStateBoundaryVecLength )
   iMax = iMax + 1
-  IF(iMax.GT.PDM%MaxParticleNumber)THEN
-    CALL abort(&
-        __STAMP__&
-        ,'BoundaryParticleOutput: PartStateBoundaryVecLength.GT.PDM%MaxParticleNumber. iMax=', IntInfoOpt=iMax)
+
+  ! Check if array maximum is reached. 
+  ! If this happens, re-allocate the arrays and increase their size (every time this barrier is reached, double the size)
+  IF(iMax.GT.dims(2))THEN
+
+    ! --- 1/2 PartStateBoundary ---
+    ALLOCATE(PartStateBoundary_tmp(1:9,1:dims(2)), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(&
+          __STAMP__&
+          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary_tmp temporary array!')
+    END IF
+    ! Save old data
+    PartStateBoundary_tmp(1:9,1:dims(2)) = PartStateBoundary(1:9,1:dims(2))
+
+    ! Re-allocate PartStateBoundary to twice the size
+    DEALLOCATE(PartStateBoundary)
+    ALLOCATE(PartStateBoundary(1:9,1:2*dims(2)), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(&
+          __STAMP__&
+          ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
+    END IF
+    PartStateBoundary(1:9,        1:  dims(2)) = PartStateBoundary_tmp(1:9,1:dims(2))
+    PartStateBoundary(1:9,dims(2)+1:2*dims(2)) = 0.
+
+
+    ! --- 2/2 PartStateBoundarySpec ---
+    ALLOCATE(PartStateBoundarySpec_tmp(1:dims(2)), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(&
+          __STAMP__&
+          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundarySpec_tmp temporary array!')
+    END IF
+    ! Save old data
+    PartStateBoundarySpec_tmp(1:dims(2)) = PartStateBoundarySpec(1:dims(2))
+
+    ! Re-allocate PartStateBoundarySpec to twice the size 
+    DEALLOCATE(PartStateBoundarySpec)
+    ALLOCATE(PartStateBoundarySpec(1:2*dims(2)), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(&
+          __STAMP__&
+          ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundarySpec array!')
+    END IF
+    PartStateBoundarySpec(        1:  dims(2)) = PartStateBoundarySpec_tmp(1:dims(2))
+    PartStateBoundarySpec(dims(2)+1:2*dims(2)) = 0.
+
   END IF
+
   PartStateBoundary(1:3,iMax) = PartPos
   PartStateBoundary(4:6,iMax) = PartState(4:6,iPart)
   PartStateBoundary(7,iMax)   = MPF
