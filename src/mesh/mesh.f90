@@ -790,16 +790,20 @@ SUBROUTINE InitElemVolumes()
 ! Calculate Element volumes for later use in particle routines
 !===================================================================================================================================
 ! MODULES                                               ! MODULES
-#if USE_MPI
-USE mpi
-USE MOD_Globals            ,ONLY: IERROR,MPIRoot
-#endif /*USE_MPI*/
+USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,ABORT
 USE MOD_PreProc
-USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,abort
-USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Mesh_Vars          ,ONLY: nElems,nGlobalElems,offsetElem,sJ
+USE MOD_Particle_Mesh_Vars ,ONLY: LocalVolume,MeshVolume
 USE MOD_ReadInTools
+#if USE_MPI
+USE MPI
+USE MOD_Globals            ,ONLY: IERROR,MPIRoot
+USE MOD_MPI_Shared         ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeElems,myComputeNodeRank,offsetComputeNodeElem
+USE MOD_MPI_Shared_Vars    ,ONLY: ElemVolume_Shared,ElemVolume_Shared_Win,ElemCharLength_Shared,ElemCharLength_Shared_Win
+USE MOD_MPI_Shared_Vars    ,ONLY: ElemMPVolumePortion_Shared,ElemMPVolumePortion_Shared_Win
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -812,43 +816,95 @@ INTEGER           :: iElem
 INTEGER           :: i,j,k
 INTEGER           :: ALLOCSTAT
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+INTEGER           :: offsetElemCNProc
+#if USE_MPI
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+#endif
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
-ALLOCATE(GEO%Volume(nElems),&
-         GEO%MPVolumePortion(nElems),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'ERROR in InitElemGeometry: Cannot allocate GEO%Volume!')
+
+#if USE_MPI
+! J_N is only build for local DG elements. Therefore, array is only filled for elements on the same compute node
+offsetElemCNProc = offsetElem - offsetComputeNodeElem
+#else
+offsetElemCNProc = 0
+#endif  /*USE_MPI*/
+
+#if USE_MPI
+MPISharedSize = INT(nComputeNodeElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemVolume_Shared_Win,ElemVolume_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemVolume_Shared_Win,IERROR)
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemMPVolumePortion_Shared_Win,ElemMPVolumePortion_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemMPVolumePortion_Shared_Win,IERROR)
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemCharLength_Shared_Win,ElemCharLength_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemCharLength_Shared_Win,IERROR)
+
+IF (myComputeNodeRank.EQ.0) THEN
+  ElemVolume_Shared(:)          = 0.
+  ElemMPVolumePortion_Shared(:) = 0.
+  ElemCharLength_Shared(:)      = 0.
 END IF
-GEO%MPVolumePortion(:)=0.
-ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'ERROR in InitElemGeometry: Cannot allocate GEO%CharLength!')
-END IF
+#else
+ALLOCATE(ElemVolume_Shared(nElems))
+ALLOCATE(ElemCharLength_Shared(nElems))
+ElemVolume_Shared(:)     = 0.
+ElemCharLength_Shared(:) = 0.
+#endif  /*USE_MPI*/
 
 ! Calculate element volumes and characteristic lengths
-DO iElem=1,nElems
+DO iElem = 1,nElems
   !--- Calculate and save volume of element iElem
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  GEO%Volume(iElem) = 0.
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    GEO%Volume(iElem)   = GEO%Volume(iElem) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
+    ElemVolume_Shared(iElem-offsetElemCNProc) = ElemVolume_Shared(iElem-offsetElemCNProc) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
   END DO; END DO; END DO
-  GEO%CharLength(iElem) = GEO%Volume(iElem)**(1./3.) ! Calculate characteristic cell length: V^(1/3)
+  !---- Calculate characteristic cell length: V^(1/3)
+  ElemCharLength_Shared(iElem-offsetElemCNProc) = ElemVolume_Shared(iElem-offsetElemCNProc)**(1./3.)
 END DO
 
-GEO%LocalVolume=SUM(GEO%Volume)
 #if USE_MPI
-CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
-#else
-GEO%MeshVolume=GEO%LocalVolume
-#endif /*USE_MPI*/
+CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
+#endif
 
-SWRITE(UNIT_StdOut,'(A,E18.8)') ' |              Total MESH Volume |                ', GEO%MeshVolume
+LocalVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
+MeshVolume  = SUM(ElemVolume_Shared(:))
+
+!ALLOCATE(GEO%Volume(nElems),&
+!         GEO%MPVolumePortion(nElems),STAT=ALLOCSTAT)
+!IF (ALLOCSTAT.NE.0) THEN
+!  CALL abort(&
+!      __STAMP__&
+!      ,'ERROR in InitElemGeometry: Cannot allocate GEO%Volume!')
+!END IF
+!GEO%MPVolumePortion(:)=0.
+!ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
+!IF (ALLOCSTAT.NE.0) THEN
+!  CALL abort(&
+!      __STAMP__&
+!      ,'ERROR in InitElemGeometry: Cannot allocate GEO%CharLength!')
+!END IF
+!
+!! Calculate element volumes and characteristic lengths
+!DO iElem=1,nElems
+!  !--- Calculate and save volume of element iElem
+!  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+!  GEO%Volume(iElem) = 0.
+!  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+!    GEO%Volume(iElem)   = GEO%Volume(iElem) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
+!  END DO; END DO; END DO
+!  GEO%CharLength(iElem) = GEO%Volume(iElem)**(1./3.) ! Calculate characteristic cell length: V^(1/3)
+!END DO
+!
+!GEO%LocalVolume=SUM(GEO%Volume)
+!#if USE_MPI
+!CALL MPI_ALLREDUCE(GEO%LocalVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
+!#else
+!MeshVolume=GEO%LocalVolume
+!#endif /*USE_MPI*/
+
+SWRITE(UNIT_StdOut,'(A,E18.8)') ' |              Total MESH Volume |                ', MeshVolume
 
 SWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT GEOMETRY INFORMATION DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')

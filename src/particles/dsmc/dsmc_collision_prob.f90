@@ -40,33 +40,38 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! Routine calculating the collision probability
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting, SpecXSec
-  USE MOD_DSMC_Vars,              ONLY : ConsiderVolumePortions
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, PartState, VarTimeStep
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
-  USE MOD_TimeDisc_Vars,          ONLY : dt
-  USE MOD_DSMC_SpecXSec,          ONLY: InterpolateCrossSection
-  USE MOD_part_tools,             ONLY : GetParticleWeight
+USE MOD_Globals
+USE MOD_DSMC_Vars,              ONLY: SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting, SpecXSec
+USE MOD_DSMC_Vars,              ONLY: ConsiderVolumePortions
+USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PartState, VarTimeStep
+USE MOD_Particle_Mesh_Vars,     ONLY: GEO
+USE MOD_TimeDisc_Vars,          ONLY: dt
+USE MOD_DSMC_SpecXSec,          ONLY: InterpolateCrossSection
+USE MOD_part_tools,             ONLY: GetParticleWeight
 #if (PP_TimeDiscMethod==42)
-  USE MOD_Particle_Vars,          ONLY : nSpecies
+USE MOD_Particle_Vars,          ONLY: nSpecies
 #endif
+#if USE_MPI
+USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)                 :: iElem, iPair
-  REAL(KIND=8), INTENT(IN), OPTIONAL  :: NodeVolume
+INTEGER, INTENT(IN)                 :: iElem, iPair
+REAL(KIND=8), INTENT(IN), OPTIONAL  :: NodeVolume
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                             :: iPType, NbrOfReaction, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2
-  REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume
-  REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum
-  REAL                                :: CollEnergy, CollProb, VeloSquare
+INTEGER                             :: iPType, NbrOfReaction, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2
+REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume
+REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum
+REAL                                :: CollEnergy, CollProb, VeloSquare
 #if (PP_TimeDiscMethod==42)
-  INTEGER                             :: iReac, iSpec
+INTEGER                             :: iReac, iSpec
 #endif
 !===================================================================================================================================
 
@@ -79,9 +84,9 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
     Volume = NodeVolume
   ELSE
     IF (ConsiderVolumePortions) THEN
-      Volume = GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem))
+      Volume = ElemVolume_Shared(iElem)*(1.-GEO%MPVolumePortion(iElem))
     ELSE
-      Volume = GEO%Volume(iElem)
+      Volume = ElemVolume_Shared(iElem)
     END IF
   END IF
 

@@ -53,7 +53,7 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile
 USE MOD_PIC_Vars
 USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,OutputVpiWarnings, Symmetry2DAxisymmetric
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,LocalVolume
 USE MOD_Globals_Vars           ,ONLY: PI, TwoepsMach
 USE MOD_Timedisc_Vars          ,ONLY: dt
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac
@@ -165,7 +165,7 @@ __STAMP__&
         ProcMeshVol=0.
         ProcNbrOfParticle=0
       END IF !InitGroup%MPIroot
-      CALL MPI_GATHER(GEO%LocalVolume,1,MPI_DOUBLE_PRECISION &
+      CALL MPI_GATHER(LocalVolume,1,MPI_DOUBLE_PRECISION &
                      ,ProcMeshVol,1,MPI_DOUBLE_PRECISION,0,PartMPI%InitGroup(InitGroup)%COMM,iError)
       IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
         CALL IntegerDivide(NbrOfParticle,PartMPI%InitGroup(InitGroup)%nProcs,ProcMeshVol,ProcNbrOfParticle)

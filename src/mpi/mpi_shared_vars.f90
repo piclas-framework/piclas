@@ -58,7 +58,7 @@ INTEGER            :: offsetComputeNodeTree           !> tree offset of compute-
 INTEGER, ALLOCATABLE :: CNTotalElem2GlobalElem(:) !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
 INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:) !> Reverse Mapping
 
-
+! Shared arrays containing information for complete mesh
 INTEGER,POINTER :: ElemInfo_Shared(:,:)
 INTEGER         :: ElemInfo_Shared_Win
 
@@ -146,6 +146,20 @@ REAL,POINTER    :: BaseVectors3_Shared(:,:)
 INTEGER         :: BaseVectors3_Shared_Win
 REAL,POINTER    :: BaseVectorsScale_Shared(:)
 INTEGER         :: BaseVectorsScale_Shared_Win
+
+! Shared arrays containing information for mesh on compute node
+REAL,POINTER    :: ElemVolume_Shared(:)
+INTEGER         :: ElemVolume_Shared_Win
+REAL,POINTER    :: ElemMPVolumePortion_Shared(:)
+INTEGER         :: ElemMPVolumePortion_Shared_Win
+REAL,POINTER    :: ElemCharLength_Shared(:)
+INTEGER         :: ElemCharLength_Shared_Win
+REAL,POINTER    :: ElemCharLengthX_Shared(:)
+INTEGER         :: ElemCharLengthX_Shared_Win
+REAL,POINTER    :: ElemCharLengthY_Shared(:)
+INTEGER         :: ElemCharLengthY_Shared_Win
+REAL,POINTER    :: ElemCharLengthZ_Shared(:)
+INTEGER         :: ElemCharLengthZ_Shared_Win
 
 #endif /* USE_MPI */
 END MODULE

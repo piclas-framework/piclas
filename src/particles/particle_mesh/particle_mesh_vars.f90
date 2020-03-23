@@ -26,11 +26,12 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 
-
 LOGICAL             :: ParticleMeshInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Mesh info
 !-----------------------------------------------------------------------------------------------------------------------------------
+REAL                                     :: MeshVolume                        ! Total Volume of mesh
+REAL                                     :: LocalVolume                       ! Volume of proc
 
 ! periodic case
 INTEGER, ALLOCATABLE                     :: casematrix(:,:)   ! matrix to compute periodic cases
@@ -47,7 +48,7 @@ REAL,ALLOCATABLE    :: SidePeriodicDisplacement(:,:)          ! displacement vec
 INTEGER,ALLOCATABLE :: PartElemToSide(:,:,:)                  ! extended list: 1:2,1:6,1:nTotalElems
                                                               ! ElemToSide: my geometry + halo
                                                               ! geometry + halo information
-! -> this information is now in ElemInfo_Shared                                                              
+! -> this information is now in ElemInfo_Shared
 ! ====================================================================
 
 
@@ -55,7 +56,7 @@ INTEGER,ALLOCATABLE :: PartElemToSide(:,:,:)                  ! extended list: 1
 INTEGER,ALLOCATABLE :: PartSideToElem(:,:)                    ! extended list: 1:5,1:6,1:nTotalSides
                                                               ! SideToElem: my geometry + halo
                                                               ! geometry + halo information
-! -> this information is now in SideInfo_Shared                                                              
+! -> this information is now in SideInfo_Shared
 ! ====================================================================
 
 
@@ -222,14 +223,14 @@ TYPE tGeometry
 
   INTEGER,ALLOCATABLE                    :: ElemToFIBGM(:,:)                  ! range of FIGMB cells per element
                                                                               ! 1:6,1:nTotalElems, xmin,max,yminmax,...
-  REAL, ALLOCATABLE                      :: Volume(:)                         ! Volume(nElems) for nearest_blurrycenter
+!  REAL, ALLOCATABLE                      :: Volume(:)                         ! Volume(nElems) for nearest_blurrycenter
   REAL, ALLOCATABLE                      :: MPVolumePortion(:)                ! portion of Volume(nElems) filled by macroPart
-  REAL, ALLOCATABLE                      :: CharLength(:)                     ! Characteristic length for each cell: L=V^(1/3)
+!  REAL, ALLOCATABLE                      :: CharLength(:)                     ! Characteristic length for each cell: L=V^(1/3)
   REAL, ALLOCATABLE                      :: CharLengthX(:)                    ! Characteristic length in X for each cell
   REAL, ALLOCATABLE                      :: CharLengthY(:)                    ! Characteristic length in Y for each cell
   REAL, ALLOCATABLE                      :: CharLengthZ(:)                    ! Characteristic length in Z for each cell
-  REAL                                   :: MeshVolume                        ! Total Volume of mesh
-  REAL                                   :: LocalVolume                       ! Volume of proc
+!  REAL                                   :: MeshVolume                        ! Total Volume of mesh
+!  REAL                                   :: LocalVolume                       ! Volume of proc
   INTEGER, ALLOCATABLE                   :: ElemToRegion(:)                   ! ElemToRegion(1:nElems)
 
   LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?

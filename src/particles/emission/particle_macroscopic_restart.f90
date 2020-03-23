@@ -48,6 +48,11 @@ USE MOD_Particle_Mesh           ,ONLY: PartInElemCheck
 USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, epsOneCell
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+#if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars               ,ONLY: ElemVolume_Shared
+#endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -119,7 +124,7 @@ DO iElem = 1, nElems
           IF(VarTimeStep%UseVariableTimeStep) THEN
             TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem)
           END IF
-          nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * GEO%Volume(iElem) + iRan)
+          nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * ElemVolume_Shared(iElem) + iRan)
           DO iPart = 1, nPart
             InsideFlag=.FALSE.
             DO WHILE (.NOT.InsideFlag)

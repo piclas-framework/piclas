@@ -192,21 +192,30 @@ SUBROUTINE InitParticleAnalyze()
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
+USE MOD_DSMC_Vars             ,ONLY: RadialWeighting, DSMC, Collismode
+USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
+USE MOD_Mesh_Vars             ,ONLY: nElems,offsetElem
 USE MOD_Particle_Analyze_Vars
-USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_Particle_Vars         ,ONLY: Species,nSpecies, VarTimeStep, PDM
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
-USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
-USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_ReadInTools           ,ONLY: PrintOption
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting, DSMC, Collismode
 #if (PP_TimeDiscMethod == 42)
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_Particle_Vars         ,ONLY: ManualTimeStep
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 #endif
+#if USE_MPI
+USE MOD_MPI_Shared            ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars       ,ONLY: nComputeNodeElems,offsetComputeNodeElem,BoundsOfElem_Shared,ElemVolume_Shared
+USE MOD_MPI_Shared_Vars       ,ONLY: ElemCharLengthX_Shared,ElemCharLengthX_Shared_Win
+USE MOD_MPI_Shared_Vars       ,ONLY: ElemCharLengthY_Shared,ElemCharLengthY_Shared_Win
+USE MOD_MPI_Shared_Vars       ,ONLY: ElemCharLengthZ_Shared,ElemCharLengthZ_Shared_Win
+#else
+USE MOD_Mesh_Vars             ,ONLY: BoundsOfElem_Shared
+USE MOD_Mesh_Vars             ,ONLY: ElemVolume_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -218,6 +227,10 @@ REAL          :: DOF,VolumeShapeFunction
 CHARACTER(32) :: hilf
 INTEGER       :: ALLOCSTAT
 INTEGER       :: iSpec
+INTEGER       :: offsetElemCNProc
+#if USE_MPI
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+#endif
 !===================================================================================================================================
 IF (ParticleAnalyzeInitIsDone) THEN
 CALL abort(__STAMP__,&
@@ -244,8 +257,8 @@ IF(CalcPointsPerShapeFunction)THEN
   DOF                 = REAL((PP_N+1)**3)
   CALL PrintOption('Max DOFs in Shape-Function per cell','OUTPUT',RealOpt=DOF)
   DO iElem = 1, nElems
-    PPSCell(iElem)     = MIN(1.,VolumeShapeFunction/GEO%Volume(iElem)) * DOF
-    PPSCellEqui(iElem) =       (VolumeShapeFunction/GEO%Volume(iElem)) * DOF
+    PPSCell(iElem)     = MIN(1.,VolumeShapeFunction/ElemVolume_Shared(iElem)) * DOF
+    PPSCellEqui(iElem) =       (VolumeShapeFunction/ElemVolume_Shared(iElem)) * DOF
   END DO ! iElem = 1, nElems
 END IF
 
@@ -327,22 +340,41 @@ END IF
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
   ! Determine the average distances in x, y and z
   ! Move the determination of these variables as soon as they are required for other functions!
-  SDEALLOCATE(GEO%CharLengthX)
-  SDEALLOCATE(GEO%CharLengthY)
-  SDEALLOCATE(GEO%CharLengthZ)
-  ALLOCATE(GEO%CharLengthX(nElems),GEO%CharLengthY(nElems),GEO%CharLengthZ(nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-        __STAMP__&
-        ,'ERROR in Particle Analyze: Cannot allocate GEO%CharLength in X, Y or Z!')
-  END IF
+  ADEALLOCATE(ElemCharLengthX_Shared)
+  ADEALLOCATE(ElemCharLengthX_Shared)
+  ADEALLOCATE(ElemCharLengthX_Shared)
+#if USE_MPI
+  MPISharedSize = INT(nComputeNodeElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemCharLengthX_Shared_Win,ElemCharLengthX_Shared)
+  CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemCharLengthY_Shared_Win,ElemCharLengthY_Shared)
+  CALL Allocate_Shared(MPISharedSize,(/nComputeNodeElems/),ElemCharLengthZ_Shared_Win,ElemCharLengthZ_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ElemCharLengthX_Shared_Win,IERROR)
+  CALL MPI_WIN_LOCK_ALL(0,ElemCharLengthY_Shared_Win,IERROR)
+  CALL MPI_WIN_LOCK_ALL(0,ElemCharLengthZ_Shared_Win,IERROR)
+  ! CharLength is only build for local DG elements. Therefore, array is only filled for elements on the same compute node
+  offsetElemCNProc = offsetElem - offsetComputeNodeElem
+#else
+  ALLOCATE(ElemCharLengthX_Shared(nElems), &
+           ElemCharLengthY_Shared(nElems), &
+           ElemCharLengthZ_Shared(nElems), &
+           STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) &
+    CALL abort(__STAMP__,'ERROR in Particle Analyze: Cannot allocate ElemCharLength in X, Y or Z!')
+  offsetElemCNProc = 0
+#endif  /*USE_MPI*/
   DO iElem = 1, nElems
-    ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
-      GEO%CharLengthX(iElem) = ABS(Bounds(2,1)-Bounds(1,1)) ! ABS(max - min)
-      GEO%CharLengthY(iElem) = ABS(Bounds(2,2)-Bounds(1,2)) ! ABS(max - min)
-      GEO%CharLengthZ(iElem) = ABS(Bounds(2,3)-Bounds(1,3)) ! ABS(max - min)
+    ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem + offsetElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+      ElemCharLengthX_Shared(iElem + offsetElemCNProc) = ABS(Bounds(2,1)-Bounds(1,1)) ! ABS(max - min)
+      ElemCharLengthX_Shared(iElem + offsetElemCNProc) = ABS(Bounds(2,2)-Bounds(1,2)) ! ABS(max - min)
+      ElemCharLengthX_Shared(iElem + offsetElemCNProc) = ABS(Bounds(2,3)-Bounds(1,3)) ! ABS(max - min)
     END ASSOCIATE
   END DO ! iElem = 1, nElems
+
+#if USE_MPI
+  CALL MPI_WIN_SYNC(ElemCharLengthX_Shared_Win,IERROR)
+  CALL MPI_WIN_SYNC(ElemCharLengthY_Shared_Win,IERROR)
+  CALL MPI_WIN_SYNC(ElemCharLengthZ_Shared_Win,IERROR)
+#endif
 END IF
 
 ! Plasma parameter
@@ -639,28 +671,25 @@ SUBROUTINE AnalyzeParticles(Time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars
-USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, usevMPF
-USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac, RadialWeighting
-USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Analyze_Vars           ,ONLY: CalcEpot,Wel,Wmag,Wphi,Wpsi
+USE MOD_BGK_Vars               ,ONLY: BGK_MaxRelaxFactor,BGK_MaxRotRelaxFactor,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter
+USE MOD_BGK_Vars               ,ONLY: BGKInitDone
+USE MOD_DSMC_Vars              ,ONLY: CollInf,useDSMC,CollisMode,ChemReac,RadialWeighting
 USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_TimeDisc_Vars          ,ONLY: iter, dt, IterDisplayStep
+USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor,FP_MaxRotRelaxFactor,FP_MeanRelaxFactor,FP_MeanRelaxFactorCounter
+USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber,FPInitDone
+USE MOD_Particle_Analyze_Vars
+USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC,PorousBC
+USE MOD_Particle_Mesh_Vars     ,ONLY: MeshVolume
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_Particle_Vars          ,ONLY: Species,nSpecies,usevMPF
+USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
+USE MOD_Restart_Vars           ,ONLY: RestartTime,DoRestart
+USE MOD_TimeDisc_Vars          ,ONLY: iter,dt,IterDisplayStep
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, BGGas
 #endif
-USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-! USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
-USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC, PorousBC
-USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber, FPInitDone
-USE MOD_BGK_Vars               ,ONLY: BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor, BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter
-USE MOD_BGK_Vars               ,ONLY: BGKInitDone
-USE MOD_Restart_Vars           ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1087,7 +1116,7 @@ INTEGER             :: dir
       ! actually inserted at the chosen weighting factor, determined here and used later also for the ReacRates subroutine
       DO iSpec = 1, nSpecies
         IF(BGGas%BackgroundSpecies(iSpec)) THEN
-          NumSpecTmp(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))*GEO%MeshVolume/Species(iSpec)%MacroParticleFactor
+          NumSpecTmp(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))*MeshVolume/Species(iSpec)%MacroParticleFactor
           IF(nSpecAnalyze.GT.1) THEN
             NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze) + NumSpecTmp(iSpec)
           END IF
@@ -1101,7 +1130,7 @@ INTEGER             :: dir
       IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
       IF (PartMPI%MPIRoot) THEN
         IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
-                                                              GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
+                                                              MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
       END IF
     END IF
     IF(CalcRelaxProb) CALL CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
@@ -2025,11 +2054,10 @@ SUBROUTINE CalcNumberDensity(NumSpec,NumDens)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals
-USE MOD_Particle_Vars         ,ONLY: Species,usevMPF
-USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_DSMC_Vars             ,ONLY: BGGas, RadialWeighting
-USE MOD_Particle_Vars         ,ONLY: nSpecies
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
+USE MOD_Particle_Vars         ,ONLY: Species,nSpecies,usevMPF
+USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -2046,9 +2074,9 @@ INTEGER                           :: iSpec
 
 IF (PartMPI%MPIRoot) THEN
   IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    NumDens(1:nSpecies) = NumSpec(1:nSpecies) / GEO%MeshVolume
+    NumDens(1:nSpecies) = NumSpec(1:nSpecies) / MeshVolume
   ELSE
-    NumDens(1:nSpecies) = NumSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / GEO%MeshVolume
+    NumDens(1:nSpecies) = NumSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / MeshVolume
   END IF
 
   IF(BGGas%NumberOfSpecies.GT.0) THEN
@@ -2692,13 +2720,13 @@ IF(PartMPI%MPIRoot)THEN
       CASE('R','r','rQK')
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
-                     * GEO%MeshVolume**2 / (dt &
+                     * MeshVolume**2 / (dt &
                      * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                      * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) &
                      * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor * NumSpec(nSpecies+1))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
-          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) * GEO%MeshVolume**2 &
+          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) * MeshVolume**2 &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor / (dt * ChemReac%ReacCount(iReac)             &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))     &
                * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2))    &
@@ -2707,13 +2735,13 @@ IF(PartMPI%MPIRoot)THEN
       CASE('D','E','i','iQK','x')
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
-                       * GEO%MeshVolume / (dt &
+                       * MeshVolume / (dt &
                        * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                        * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
           RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iReac) &
-               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor* GEO%MeshVolume / (dt * ChemReac%ReacCount(iReac) &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor* MeshVolume / (dt * ChemReac%ReacCount(iReac) &
                * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))         &
                * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
         END IF
@@ -2780,7 +2808,7 @@ IF ( DSMC%ElectronicModel ) THEN
         ! kf = ( d n_of_N^i / d t )  / ( n_of_N^i n_of_M )
             IF ( (NumSpec(iSpec2) .ne. 0) .and. (SpecDSMC(iSpec)%levelcounter(iQua1) .ne. 0 ) ) THEN
               SpecDSMC(iSpec)%ElectronicTransition(iSpec2,iQua1,iQua2) = &
-                                    SpecDSMC(iSpec)%ElectronicTransition(iSpec2,iQua1,iQua2) * GEO%MeshVolume &
+                                    SpecDSMC(iSpec)%ElectronicTransition(iSpec2,iQua1,iQua2) * MeshVolume &
                                   / ( dt * SpecDSMC(iSpec)%levelcounter(iQua1) * NumSpec(iSpec2) *           &
                                       Species(iSpec2)%MacroParticleFactor )
             END IF
@@ -3284,14 +3312,19 @@ SUBROUTINE CalculateElectronIonDensityCell()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY:ElementaryCharge
-USE MOD_Particle_Mesh_Vars     ,ONLY:GEO,NbrOfRegions
-USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
-USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF
-USE MOD_Preproc                ,ONLY:PP_nElems
-USE MOD_PIC_Analyze            ,ONLY:CalculateBRElectronsPerCell
+USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,NbrOfRegions
+USE MOD_Particle_Analyze_Vars  ,ONLY: ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
+USE MOD_Particle_Vars          ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF
+USE MOD_Preproc                ,ONLY: PP_nElems
+USE MOD_PIC_Analyze            ,ONLY: CalculateBRElectronsPerCell
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_part_tools             ,ONLY: GetParticleWeight
+#if USE_MPI
+USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars              ,ONLY: ElemVolume_Shared
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3352,9 +3385,9 @@ END IF
 
 ! loop over all elements and divide by volume
 DO iElem=1,PP_nElems
-  ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/GEO%Volume(iElem)
-       IonDensityCell(iElem)=IonDensityCell(iElem)     /GEO%Volume(iElem)
-   NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /GEO%Volume(iElem)
+  ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/ElemVolume_Shared(iElem)
+       IonDensityCell(iElem)=IonDensityCell(iElem)     /ElemVolume_Shared(iElem)
+   NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /ElemVolume_Shared(iElem)
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculateElectronIonDensityCell
@@ -3572,7 +3605,11 @@ SUBROUTINE CalculatePPDCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
 USE MOD_Particle_Analyze_Vars ,ONLY: DebyeLengthCell,PPDCell,PPDCellX,PPDCellY,PPDCellZ
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+#if USE_MPI
+USE MOD_MPI_Shared_Vars       ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
+#else
+USE MOD_Mesh_Vars             ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3586,10 +3623,10 @@ INTEGER              :: iElem
 ! loop over all elements
 DO iElem=1,PP_nElems
   ASSOCIATE( a => (REAL(PP_N)+1.0)*DebyeLengthCell(iElem) )
-    PPDCell(iElem)  = a/GEO%CharLength(iElem) ! determined with characteristic cell length
-    PPDCellX(iElem) = a/GEO%CharLengthX(iElem) ! determined from average distance in X
-    PPDCellY(iElem) = a/GEO%CharLengthY(iElem) ! determined from average distance in Y
-    PPDCellZ(iElem) = a/GEO%CharLengthZ(iElem) ! determined from average distance in Z
+    PPDCell(iElem)  = a/ElemCharLength_Shared( iElem) ! determined with characteristic cell length
+    PPDCellX(iElem) = a/ElemCharLengthX_Shared(iElem) ! determined from average distance in X
+    PPDCellY(iElem) = a/ElemCharLengthY_Shared(iElem) ! determined from average distance in Y
+    PPDCellZ(iElem) = a/ElemCharLengthZ_Shared(iElem) ! determined from average distance in Z
   END ASSOCIATE
 END DO ! iElem=1,PP_nElems
 
@@ -3607,9 +3644,13 @@ SUBROUTINE CalculatePICCFL()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell,PICCFLCell,PICCFLCellX,PICCFLCellY,PICCFLCellZ
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass
+#if USE_MPI
+USE MOD_MPI_Shared_Vars       ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
+#else
+USE MOD_Mesh_Vars             ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3624,10 +3665,10 @@ INTEGER              :: iElem
 DO iElem=1,PP_nElems
   ! Divide the parameter by 0.4 -> the resulting value must always be below 1.0
   ASSOCIATE( a => (REAL(PP_N)+1.0) * 2.5 * dt * SQRT( BoltzmannConst * ElectronTemperatureCell(iElem) / ElectronMass ) )
-    PICCFLCell(iElem)  = a/GEO%CharLength(iElem) ! determined with characteristic cell length
-    PICCFLCellX(iElem) = a/GEO%CharLengthX(iElem) ! determined from average distance in X
-    PICCFLCellY(iElem) = a/GEO%CharLengthY(iElem) ! determined from average distance in Y
-    PICCFLCellZ(iElem) = a/GEO%CharLengthZ(iElem) ! determined from average distance in Z
+    PICCFLCell(iElem)  = a/ElemCharLength_Shared( iElem) ! determined with characteristic cell length
+    PICCFLCellX(iElem) = a/ElemCharLengthX_Shared(iElem) ! determined from average distance in X
+    PICCFLCellY(iElem) = a/ElemCharLengthY_Shared(iElem) ! determined from average distance in Y
+    PICCFLCellZ(iElem) = a/ElemCharLengthZ_Shared(iElem) ! determined from average distance in Z
   END ASSOCIATE
 END DO ! iElem=1,PP_nElems
 
@@ -3643,14 +3684,18 @@ SUBROUTINE CalculateMaxPartDisplacement()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals               ,ONLY: VECNORM
 USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
+USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCell
 USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCellX,MaxPartDisplacementCellY,MaxPartDisplacementCellZ
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
-USE MOD_TimeDisc_Vars         ,ONLY: dt
-USE MOD_Globals               ,ONLY: VECNORM
-USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Vars         ,ONLY: PDM,PEM,PartState
+USE MOD_TimeDisc_Vars         ,ONLY: dt
+#if USE_MPI
+USE MOD_MPI_Shared_Vars       ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
+#else
+USE MOD_Mesh_Vars             ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3689,10 +3734,10 @@ DO iElem=1,PP_nElems
              vZ   => MaxVelo(iElem,3)               ,&
              a    => dt*(REAL(PP_N)+1.0)             &
              )
-    MaxPartDisplacementCell(iElem)  = a*vAbs/GEO%CharLength(iElem) ! determined with characteristic cell length
-    MaxPartDisplacementCellX(iElem) = a*vX/GEO%CharLengthX(iElem) ! determined from average distance in X
-    MaxPartDisplacementCellY(iElem) = a*vY/GEO%CharLengthY(iElem) ! determined from average distance in Y
-    MaxPartDisplacementCellZ(iElem) = a*vZ/GEO%CharLengthZ(iElem) ! determined from average distance in Z
+    MaxPartDisplacementCell(iElem)  = a*vAbs/ElemCharLength_Shared( iElem)  ! determined with characteristic cell length
+    MaxPartDisplacementCellX(iElem) = a*vX  /ElemCharLengthX_Shared(iElem)  ! determined from average distance in X
+    MaxPartDisplacementCellY(iElem) = a*vY  /ElemCharLengthY_Shared(iElem)  ! determined from average distance in Y
+    MaxPartDisplacementCellZ(iElem) = a*vZ  /ElemCharLengthZ_Shared(iElem)  ! determined from average distance in Z
   END ASSOCIATE
 END DO ! iElem=1,PP_nElems
 
@@ -3707,10 +3752,14 @@ SUBROUTINE CalculateIonizationCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Preproc                ,ONLY:PP_nElems
 USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell,QuasiNeutralityCell,NeutralDensityCell,ElectronDensityCell,IonDensityCell
 USE MOD_Particle_Analyze_Vars  ,ONLY:ChargeNumberCell
-USE MOD_Preproc                ,ONLY:PP_nElems
-USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
+#if USE_MPI
+USE MOD_MPI_Shared_Vars        ,ONLY:ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars              ,ONLY:ElemVolume_Shared
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3744,7 +3793,7 @@ DO iElem=1,PP_nElems
       ! Set quasi neutrality between zero and unity depending on which density is larger
       ! Quasi neutrality holds, when n_e ~ Z_i*n_i (electron density approximately equal to ion density multiplied with charge number)
       ! 1.  Calculate Z_i*n_i (Charge density cell average)
-      Q = ChargeNumberCell(iElem) / GEO%Volume(iElem)
+      Q = ChargeNumberCell(iElem) / ElemVolume_Shared(iElem)
 
       ! 2.  Calculate the quasi neutrality parameter: should be near to 1 for quasi-neutrality
       IF(Q.GT.n_e)THEN
@@ -3896,10 +3945,10 @@ ASSOCIATE( iPart => 1 )
       ASSOCIATE( omega_c => ABS(q)*B_0/m )
         ASSOCIATE( r_c => v_perp/omega_c )
           PartStateAnalytic(1) = COS(omega_c*t + phi)*r_c
-          PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c 
+          PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c
           PartStateAnalytic(3) = 0.
           PartStateAnalytic(4) = -SIN(omega_c*t + phi)*v_perp
-          PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp 
+          PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp
           PartStateAnalytic(6) = 0.
         END ASSOCIATE
       END ASSOCIATE
@@ -4122,9 +4171,13 @@ SUBROUTINE CalcCoupledPowerPart(iPart,mode,EDiff)
 ! MODULES
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PEM
 USE MOD_Particle_Analyze_Vars   ,ONLY: PCoupl, PCouplAverage, PCouplSpec
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Part_Tools              ,ONLY: isChargedParticle
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
+#if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars               ,ONLY: ElemVolume_Shared
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -4152,7 +4205,7 @@ CASE('after')
   PCouplAverage = PCouplAverage + EDiff
   iElem         = PEM%Element(iPart)
   iSpec         = PartSpecies(iPart)
-  PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/GEO%Volume(iElem)
+  PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/ElemVolume_Shared(iElem)
 END SELECT
 
 END SUBROUTINE CalcCoupledPowerPart
@@ -4168,12 +4221,16 @@ USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_Globals               ,ONLY: abort,mpiroot
 USE MOD_Particle_Analyze_Vars ,ONLY: PCouplSpec
 USE MOD_Particle_Vars         ,ONLY: nSpecies,Species
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_Mesh_Vars             ,ONLY: nElems
 #if USE_MPI
 USE MOD_Globals
 #endif /*USE_MPI*/
 USE MOD_Globals               ,ONLY: UNIT_StdOut
+#if USE_MPI
+USE MOD_MPI_Shared_Vars       ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars             ,ONLY: ElemVolume_Shared
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4196,7 +4253,7 @@ PTotal = 0.
 DO iSpec = 1, nSpecies
   IF(ABS(Species(iSpec)%ChargeIC).GT.0.0)THEN
     DO iElem = 1, nElems
-      PTotal(iSpec) = PTotal(iSpec) + PCouplSpec(iSpec)%DensityAvgElem(iElem) * GEO%Volume(iElem)
+      PTotal(iSpec) = PTotal(iSpec) + PCouplSpec(iSpec)%DensityAvgElem(iElem) * ElemVolume_Shared(iElem)
     END DO ! iElem = 1, nElems
   END IF ! ABS(Species(iSpec)%ChargeIC).GT.0.0)
 END DO ! iSpec = 1, nSpecies

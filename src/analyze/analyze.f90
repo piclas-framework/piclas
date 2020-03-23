@@ -115,25 +115,27 @@ SUBROUTINE InitAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone
+USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
 USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed,FieldAnalyzeStep
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
-USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL
-USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
-USE MOD_ReadInTools           ,ONLY: GETLOGICAL
 USE MOD_Analyze_Vars          ,ONLY: doFieldAnalyze,CalcEpot
-USE MOD_LoadBalance_Vars      ,ONLY: nSkipAnalyze
-USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
-USE MOD_TimeAverage           ,ONLY: InitTimeAverage
+USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_LoadBalance_Vars      ,ONLY: nSkipAnalyze
+USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,PrintOption
+USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
+USE MOD_TimeAverage           ,ONLY: InitTimeAverage
+USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 #ifdef maxwell
 USE MOD_Equation_vars         ,ONLY: Wavelength
 #endif /* maxwell */
-USE MOD_TimeDisc_Vars         ,ONLY: TEnd
-USE MOD_ReadInTools           ,ONLY: PrintOption
+#if USE_MPI
+USE MOD_MPI_Shared_Vars       ,ONLY: ElemCharLength_Shared
+#else
+USE MOD_Mesh_Vars             ,ONLY: ElemCharLength_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -201,9 +203,9 @@ IF(CalcPointsPerWavelength)THEN
   PPWCellMax=-HUGE(1.)
   DO iElem = 1, nElems
 #ifdef maxwell
-    PPWCell(iElem)     = (REAL(PP_N)+1.)*Wavelength/GEO%CharLength(iElem)
+    PPWCell(iElem)     = (REAL(PP_N)+1.)*Wavelength/ElemCharLength_Shared(iElem)
 #else
-    PPWCell(iElem)     = (REAL(PP_N)+1.)/GEO%CharLength(iElem)
+    PPWCell(iElem)     = (REAL(PP_N)+1.)/ElemCharLength_Shared(iElem)
 #endif /* maxwell */
     PPWCellMin=MIN(PPWCellMin,PPWCell(iElem))
     PPWCellMax=MAX(PPWCellMax,PPWCell(iElem))
@@ -235,13 +237,13 @@ SUBROUTINE CalcError(time,L_2_Error,L_Inf_Error)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ
-USE MOD_Equation_Vars      ,ONLY: IniExactFunc
-USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_DG_Vars            ,ONLY: U
 USE MOD_Equation           ,ONLY: ExactFunc
-USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Equation_Vars      ,ONLY: IniExactFunc
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ
+USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -302,7 +304,7 @@ END DO ! iElem=1,PP_nElems
 #endif /*USE_MPI*/
 
 ! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
-L_2_Error = SQRT(L_2_Error/GEO%MeshVolume)
+L_2_Error = SQRT(L_2_Error/MeshVolume)
 
 END SUBROUTINE CalcError
 
@@ -316,12 +318,12 @@ SUBROUTINE CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: sJ
-USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
-USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Equation           ,ONLY: ExactFunc
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Mesh_Vars          ,ONLY: sJ
 USE MOD_PICDepo_Vars       ,ONLY: PartSourceOld
+USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -378,7 +380,7 @@ END IF
 #endif /*USE_MPI*/
 
 ! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
-L_2_PartSource = SQRT(L_2_PartSource/GEO%MeshVolume)
+L_2_PartSource = SQRT(L_2_PartSource/MeshVolume)
 
 END SUBROUTINE CalcErrorPartSource
 #endif /*PARTICLES*/

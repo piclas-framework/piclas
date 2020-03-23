@@ -261,7 +261,11 @@ USE MOD_DSMC_Analyze        ,ONLY: CalcGammaVib
 USE MOD_DSMC_Vars           ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
 USE MOD_DSMC_Vars           ,ONLY: VarVibRelaxProb
 USE MOD_Particle_Vars       ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species
-USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
+#if USE_MPI
+USE MOD_MPI_Shared_Vars     ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars           ,ONLY: ElemVolume_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -327,7 +331,7 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
 
   DO iSpec = 1, nSpecies
     IF(BGGas%BackgroundSpecies(iSpec)) THEN
-      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec)) * GEO%Volume(iElem) &
+      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec)) * ElemVolume_Shared(iElem) &
                                         / Species(iSpec)%MacroParticleFactor
     END IF
   END DO
@@ -360,22 +364,26 @@ SUBROUTINE MCC_pairing_bggas(iElem)
 !> 2.) Determining the total number of pairs
 !> 3a.) Creating the background particles as required by the determined numbers of collision pairs
 !> 3b.) Pairing the newly created background particles with the actual simulation particles
-!> 
+!>
 !> 5.) Calculate the square of the relative collision velocity
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles
-USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_part_emission_tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF
-USE MOD_part_pos_and_velo       ,ONLY: SetParticleVelocity
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles
+USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF
+USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticleVelocity
+USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
-USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
+#if USE_MPI
+USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -519,7 +527,7 @@ END DO
 ! 4.) Determine the particle number of the background species and calculate the cell tempreature
 DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
-    CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec)) * GEO%Volume(iElem) &
+    CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec)) * ElemVolume_Shared(iElem) &
                                       / Species(iSpec)%MacroParticleFactor
   END IF
 END DO

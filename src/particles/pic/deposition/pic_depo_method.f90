@@ -371,11 +371,8 @@ SUBROUTINE DepositionMethod_NBC(FirstPart,LastPart,DoInnerParts,doPartInExists,d
 ! MODULES
 USE MOD_PreProc            ,ONLY: PP_nElems
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
-!#if (PP_nVar==8)
 USE MOD_Particle_Vars      ,ONLY: PartState
-!#endif
 USE MOD_PICDepo_Vars       ,ONLY: PartSource
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
@@ -384,6 +381,11 @@ USE MOD_Part_Tools         ,ONLY: isDepositParticle
 #if ((USE_HDG) && (PP_nVar==1))
 USE MOD_TimeDisc_Vars      ,ONLY: dt,tAnalyzeDiff,tEndDiff
 #endif
+#if USE_MPI
+USE MOD_MPI_Shared_Vars    ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars          ,ONLY: ElemVolume_Shared
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -472,7 +474,7 @@ IF(.NOT.DoInnerParts)THEN
   CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
   DO iElem=1,PP_nElems
-    PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / GEO%Volume(iElem)
+    PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / ElemVolume_Shared(iElem)
   END DO ! iElem=1,PP_nElems
 #if USE_LOADBALANCE
   CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
@@ -532,7 +534,7 @@ INTEGER            :: SourceDim
 INTEGER            :: kk, ll, mm
 INTEGER            :: iPart,iElem
 !===================================================================================================================================
-! Return here for 2nd Deposition() call as it is not required for this deposition method, 
+! Return here for 2nd Deposition() call as it is not required for this deposition method,
 ! because the MPI communication is done here directly
 IF(.NOT.DoInnerParts) RETURN
 
@@ -686,7 +688,7 @@ REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
 INTEGER            :: kk, ll, mm, iPart,iElem
 !===================================================================================================================================
-! Return here for 2nd Deposition() call as it is not required for this deposition method, 
+! Return here for 2nd Deposition() call as it is not required for this deposition method,
 ! because the MPI communication is done here directly
 IF(.NOT.DoInnerParts) RETURN
 
@@ -1981,7 +1983,7 @@ SUBROUTINE DepositionMethod_DD(FirstPart,LastPart,DoInnerParts,doPartInExists,do
 ! Delta function kernel: Multiplication with test function and integration over reference space leads to a deposition by directly
 ! evaluating the basis functions (considering the distance between the basis function stencil and the particle's position).
 !
-! Two basis functions are available: 
+! Two basis functions are available:
 !   1. Nodal Lagrange function basis (can cause changes in sign of the charge density)
 !   2. Bernstein polynomial function basis, which does not allow a change in sign of the charge density
 !===================================================================================================================================

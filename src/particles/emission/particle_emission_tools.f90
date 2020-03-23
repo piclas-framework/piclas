@@ -785,23 +785,23 @@ SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
-USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_Particle_Mesh          ,ONLY: PartInElemCheck
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, epsOneCell
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry2D        ,ONLY: CalcRadWeightMPF
-USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
-USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROBODY
-USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_MacroBody_Tools        ,ONLY: INSIDEMACROBODY
+USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
+USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
+USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
+USE MOD_Particle_Mesh          ,ONLY: PartInElemCheck
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, epsOneCell
+USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 #if USE_MPI
-USE MOD_MPI_Shared_Vars              ,ONLY: BoundsOfElem_Shared
+USE MOD_MPI_Shared_Vars        ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared
 #else
-USE MOD_Mesh_Vars              ,ONLY: BoundsOfElem_Shared
+USE MOD_Mesh_Vars              ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -836,14 +836,14 @@ __STAMP__,&
     END IF
     CellChunkSize(:)=0
     IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
-      CALL IntegerDivide(chunkSize,nElems,GEO%Volume(:),CellChunkSize(:))
+      CALL IntegerDivide(chunkSize,nElems,ElemVolume_Shared(:),CellChunkSize(:))
     ELSE
-      CALL IntegerDivide(chunkSize,nElems,Species(iSpec)%Init(iInit)%ElemPartDensity(:)*GEO%Volume(:),CellChunkSize(:))
+      CALL IntegerDivide(chunkSize,nElems,Species(iSpec)%Init(iInit)%ElemPartDensity(:)*ElemVolume_Shared(:),CellChunkSize(:))
     END IF
   ELSE
     PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
     IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
-    chunkSize_tmp = INT(PartDens * GEO%LocalVolume)
+    chunkSize_tmp = INT(PartDens * LocalVolume)
     IF(chunkSize_tmp.GE.PDM%maxParticleNumber) THEN
       CALL abort(&
 __STAMP__,&
@@ -865,9 +865,9 @@ __STAMP__,&
         CALL RANDOM_NUMBER(iRan)
         IF(VarTimeStep%UseVariableTimeStep) THEN
           adaptTimestep = CalcVarTimeStep(GEO%ElemMidPoint(1,iElem), GEO%ElemMidPoint(2,iElem), iElem)
-          nPart = INT(PartDens / adaptTimestep * GEO%Volume(iElem) + iRan)
+          nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(iElem) + iRan)
         ELSE
-          nPart = INT(PartDens * GEO%Volume(iElem) + iRan)
+          nPart = INT(PartDens * ElemVolume_Shared(iElem) + iRan)
         END IF
       END IF
       DO iPart = 1, nPart

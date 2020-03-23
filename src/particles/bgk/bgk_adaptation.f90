@@ -45,20 +45,24 @@ SUBROUTINE BGK_octree_adapt(iElem)
 !> a recursive octree algorithm to subdivide the cell until the limit is reached.
 !===================================================================================================================================
 ! MODULES
-USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
-USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, PartPosRef,Species,WriteMacroVolumeValues, usevMPF
-USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKMovingAverage,ElemNodeAveraging,BGKSplittingDens,BGKMovingAverageLength
-USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
 USE MOD_BGK_Vars                ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor
+USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
 USE MOD_FPFlow_Vars             ,ONLY: FPInitDone, FP_PrandtlNumber, FP_QualityFacSamp
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_Particle_Vars           ,ONLY: PEM, PartState, PartPosRef,Species,WriteMacroVolumeValues, usevMPF
+USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
+USE MOD_Part_tools              ,ONLY: GetParticleWeight
+USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
+#if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars               ,ONLY: ElemVolume_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -107,9 +111,9 @@ vBulk = vBulk / totalWeight
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   ! totalWeight contains the weighted particle number
-  Dens = totalWeight / GEO%Volume(iElem)
+  Dens = totalWeight / ElemVolume_Shared(iElem)
 ELSE
-  Dens = totalWeight * Species(1)%MacroParticleFactor / GEO%Volume(iElem)
+  Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(iElem)
 END IF
 
 ! The octree refinement is performed if either the particle number or number density is above a user-given limit
@@ -137,16 +141,16 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
 ELSE ! No octree refinement: Call of the respective collision operator
 #if (PP_TimeDiscMethod==300)
     CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPart &
-                              , GEO%Volume(iElem), vBulk)
+                              , ElemVolume_Shared(iElem), vBulk)
 #else
   IF (BGKMovingAverage) THEN
     CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, &
-              GEO%Volume(iElem), vBulk, &
+              ElemVolume_Shared(iElem), vBulk, &
              ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
              CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
   ELSE
     CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart &
-                            , GEO%Volume(iElem), vBulk)
+                            , ElemVolume_Shared(iElem), vBulk)
   END IF
 #endif
 END IF ! nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)
@@ -543,19 +547,23 @@ SUBROUTINE BGK_quadtree_adapt(iElem)
 !> a recursive quadtree algorithm to subdivide the cell until the limit is reached.
 !===================================================================================================================================
 ! MODULES
-USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
-USE MOD_DSMC_ParticlePairing    ,ONLY: GeoCoordToMap2D
-USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, Species,WriteMacroVolumeValues, usevMPF
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens!,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength
-USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
 USE MOD_BGK_Vars                ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor
+USE MOD_DSMC_ParticlePairing    ,ONLY: GeoCoordToMap2D
+USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
+USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
 USE MOD_FPFlow_Vars             ,ONLY: FPInitDone, FP_PrandtlNumber, FP_QualityFacSamp
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_Particle_Vars           ,ONLY: PEM, PartState, Species,WriteMacroVolumeValues, usevMPF
+USE MOD_Part_tools              ,ONLY: GetParticleWeight
+USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
+#if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars               ,ONLY: ElemVolume_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -604,9 +612,9 @@ vBulk = vBulk / totalWeight
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   ! totalWeight contains the weighted particle number
-  Dens = totalWeight / GEO%Volume(iElem)
+  Dens = totalWeight / ElemVolume_Shared(iElem)
 ELSE
-  Dens = totalWeight * Species(1)%MacroParticleFactor / GEO%Volume(iElem)
+  Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(iElem)
 END IF
 
 ! The quadtree refinement is performed if either the particle number or number density is above a user-given limit
@@ -630,16 +638,16 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
 ELSE ! No quadtree refinement: Call of the respective collision operator
 #if (PP_TimeDiscMethod==300)
     CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPart &
-                              , GEO%Volume(iElem), vBulk)
+                              , ElemVolume_Shared(iElem), vBulk)
 #else
   ! IF (BGKMovingAverage) THEN
   !   CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, &
-  !             GEO%Volume(iElem), vBulk, &
+  !             ElemVolume_Shared(iElem), vBulk, &
   !            ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
   !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
   ! ELSE
     CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart &
-                            , GEO%Volume(iElem), vBulk)
+                            , ElemVolume_Shared(iElem), vBulk)
   ! END IF
 #endif
 END IF ! nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)

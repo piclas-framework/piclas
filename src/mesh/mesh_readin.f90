@@ -375,8 +375,8 @@ CALL ReadBCs()
 !----------------------------------------------------------------------------------------------------------------------------
 
 !read local ElemInfo from data file
-FirstElemInd=offsetElem+1
-LastElemInd=offsetElem+nElems
+FirstElemInd = offsetElem+1
+LastElemInd  = offsetElem+nElems
 ALLOCATE(Elems(                   FirstElemInd:LastElemInd))
 ALLOCATE(ElemInfo(ELEMINFOSIZE_H5,FirstElemInd:LastElemInd))
 
@@ -404,7 +404,7 @@ MPISharedSize = INT((ELEM_HALOFLAG)*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_K
 CALL Allocate_Shared(MPISharedSize,(/ELEMINFOSIZE,nGlobalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemInfo_Shared_Win,IERROR)
 ElemInfo_Shared(1:ELEMINFOSIZE_H5,offsetElem+1:offsetElem+nElems) = ElemInfo(:,:)
-ElemInfo_Shared(ELEM_RANK,offsetElem+1:offsetElem+nElems) = 0
+ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = 0
 ALLOCATE(ElemInfo_Shared_tmp(offsetElem+1:offsetElem+nElems))
 ElemInfo_Shared_tmp(offsetElem+1:offsetElem+nElems) = myRank
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
@@ -416,8 +416,6 @@ END IF
 ALLOCATE(ElemInfo_Shared(1:ELEMINFOSIZE,1:nElems))
 ElemInfo_Shared(1:ELEMINFOSIZE_H5,1:nElems) = ElemInfo(:,:)
 #endif  /*USE_MPI*/
-
-
 
 ! Create global element index to global processor index mapping
 #if USE_MPI
@@ -442,11 +440,11 @@ CALL MPI_WIN_SYNC(ElemToProcID_Shared_Win,IERROR)
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 #endif /*USE_MPI*/
-offsetSideID=ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
-nSideIDs=ElemInfo(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
+offsetSideID = ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nSideIDs     = ElemInfo(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
 !read local SideInfo from data file
-FirstSideInd=offsetSideID+1
-LastSideInd=offsetSideID+nSideIDs
+FirstSideInd = offsetSideID+1
+LastSideInd  = offsetSideID+nSideIDs
 ALLOCATE(SideInfo(SIDEINFOSIZE,FirstSideInd:LastSideInd))
 
 ! Associate construct for integer KIND=8 possibility
@@ -474,7 +472,7 @@ DO iElem=FirstElemInd,LastElemInd
       DO jLocSide = 1,nlocSidesNb
         NbSideID = ElemInfo(ELEM_FIRSTSIDEIND,NbElemID) + jLocSide
         IF (ABS(SideInfo(SIDE_ID,iSide)).EQ.ABS(SideInfo(SIDE_ID,NbSideID))) THEN
-          SideInfo(SIDE_LOCALID,iSide) = -NbSideID  
+          SideInfo(SIDE_LOCALID,iSide) = -NbSideID
           EXIT
         END IF
       END DO

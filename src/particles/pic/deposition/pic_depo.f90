@@ -46,8 +46,8 @@ USE MOD_PICDepo_Vars
 USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage,beta,DeBoor
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars           ,ONLY: PI
-USE MOD_Mesh_Vars              ,ONLY: nElems, XCL_NGeo,Elem_xGP, sJ,nGlobalElems, nNodes
-USE MOD_Particle_Mesh_Vars     ,ONLY: Geo, FindNeighbourElems
+USE MOD_Mesh_Vars              ,ONLY: nElems,XCL_NGeo,Elem_xGP,sJ,nGlobalElems,nNodes
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,MeshVOlume,FindNeighbourElems
 USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,wGP
 USE MOD_Basis                  ,ONLY: ComputeBernsteinCoeff
 USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
@@ -785,13 +785,13 @@ CASE('shape_function','shape_function_simple')
   VolumeShapeFunction=4./3.*PI*r_sf**3
   nTotalDOF=nGlobalElems*(PP_N+1)**3
   IF(MPIRoot)THEN
-    IF(VolumeShapeFunction.GT.GEO%MeshVolume) &
+    IF(VolumeShapeFunction.GT.MeshVolume) &
       CALL abort(&
       __STAMP__&
       ,'ShapeFunctionVolume > MeshVolume')
   END IF
 
-  CALL PrintOption('Average DOFs in Shape-Function','CALCUL.',RealOpt=REAL(nTotalDOF)*VolumeShapeFunction/GEO%MeshVolume)
+  CALL PrintOption('Average DOFs in Shape-Function','CALCUL.',RealOpt=REAL(nTotalDOF)*VolumeShapeFunction/MeshVolume)
 
   ALLOCATE(ElemDepo_xGP(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
@@ -839,7 +839,7 @@ CASE('shape_function_1d','shape_function_2d')
     ELSE IF (sf1d_dir.EQ.3)THEN ! Shape function deposits charge in z-direction
       dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*(GEO%ymaxglob-GEO%yminglob)
     ELSE
-      w_sf=2*GEO%MeshVolume
+      w_sf=2*MeshVolume
     END IF
     IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
       ! Set prefix factor
@@ -865,7 +865,7 @@ CASE('shape_function_1d','shape_function_2d')
     ELSE IF (sf1d_dir.EQ.3)THEN! Shape function deposits charge in x-y-direction (const. in z)
       dimFactorSF = (GEO%zmaxglob-GEO%zminglob)
     ELSE
-      w_sf=2*GEO%MeshVolume
+      w_sf=2*MeshVolume
     END IF
     IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
       ! Set prefix factor
@@ -897,8 +897,8 @@ CASE('shape_function_1d','shape_function_2d')
     END IF
     !CALL PrintOption('Shape function volume ('//TRIM(hilf)//')'                , 'CALCUL.' , RealOpt=VolumeShapeFunction)
     IF(MPIRoot)THEN
-      IF(VolumeShapeFunction.GT.GEO%MeshVolume)THEN
-        CALL PrintOption('Mesh volume ('//TRIM(hilf)//')'                , 'CALCUL.' , RealOpt=GEO%MeshVolume)
+      IF(VolumeShapeFunction.GT.MeshVolume)THEN
+        CALL PrintOption('Mesh volume ('//TRIM(hilf)//')'                , 'CALCUL.' , RealOpt=MeshVolume)
         WRITE(UNIT_stdOut,'(A)') ' Maybe wrong perpendicular direction (PIC-shapefunction1d-direction)?'
         CALL abort(&
         __STAMP__&
@@ -906,9 +906,9 @@ CASE('shape_function_1d','shape_function_2d')
       END IF
     END IF
     CALL PrintOption('Average DOFs in Shape-Function '//TRIM(hilf2)//' ('//TRIM(hilf)//')'       , 'CALCUL.' , RealOpt=&
-         REAL(nTotalDOF)*VolumeShapeFunction/GEO%MeshVolume)
+         REAL(nTotalDOF)*VolumeShapeFunction/MeshVolume)
     CALL PrintOption('Average DOFs in Shape-Function (corresponding 3D sphere)' , 'CALCUL.' , RealOpt=&
-         REAL(nTotalDOFin3D)*VolumeShapeFunctionSphere/GEO%MeshVolume)
+         REAL(nTotalDOFin3D)*VolumeShapeFunctionSphere/MeshVolume)
   END ASSOCIATE
 
   ALLOCATE(ElemDepo_xGP(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems),STAT=ALLOCSTAT)
@@ -967,13 +967,13 @@ CASE('shape_function_cylindrical','shape_function_spherical')
   VolumeShapeFunction=4./3.*PI*r_sf_average*r_sf_average
   nTotalDOF=nGlobalElems*(PP_N+1)**3
   IF(MPIRoot)THEN
-    IF(VolumeShapeFunction.GT.GEO%MeshVolume) &
+    IF(VolumeShapeFunction.GT.MeshVolume) &
       CALL abort(&
       __STAMP__&
       ,'ShapeFunctionVolume > MeshVolume')
   END IF
 
-  CALL PrintOption('Average DOFs in Shape-Function','CALCUL.',RealOpt=REAL(nTotalDOF)*VolumeShapeFunction/GEO%MeshVolume)
+  CALL PrintOption('Average DOFs in Shape-Function','CALCUL.',RealOpt=REAL(nTotalDOF)*VolumeShapeFunction/MeshVolume)
 
   ALLOCATE(ElemDepo_xGP(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&

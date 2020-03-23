@@ -1071,42 +1071,44 @@ SUBROUTINE InitializeVariables()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
+USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas, RadialWeighting
+USE MOD_MacroBody_Init         ,ONLY: InitMacroBody
+USE MOD_MacroBody_tools        ,ONLY: MarkMacroBodyElems
+USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_ReadInTools
+USE MOD_Part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
+USE MOD_Part_Pressure          ,ONLY: ParticlePressureIni,ParticlePressureCellIni
+USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Vars
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary,PartStateBoundarySpec
-USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO
-USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
-USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, TriaSurfaceFlux
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas, RadialWeighting
-USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
-USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
-USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_Particle_Mesh          ,ONLY: GetMeshMinMax,MapRegionToElem,MarkAuxBCElems !,InitFIBGM
-USE MOD_MacroBody_Init         ,ONLY: InitMacroBody
-USE MOD_MacroBody_tools        ,ONLY: MarkMacroBodyElems
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
+USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
+USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,LocalVolume
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo
-USE MOD_part_pressure          ,ONLY: ParticlePressureIni,ParticlePressureCellIni
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking,DoRefMapping
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, TriaSurfaceFlux
+USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
+USE MOD_Particle_Vars          ,ONLY: VarTimeStep
+USE MOD_Particle_VarTimeStep   ,ONLY: VarTimeStep_CalcElemFacs
+USE MOD_PICInit                ,ONLY: InitPIC
+USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd
 #if defined(ROS) || defined (IMPA)
 USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
 #endif /*ROS*/
 #if USE_MPI
-USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_shared
+USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+#else
+USE MOD_Mesh_Vars              ,ONLY: ElemVolume_shared
 #endif /*USE_MPI*/
-USE MOD_ReadInTools            ,ONLY: PrintOption
-USE MOD_Particle_Vars          ,ONLY: VarTimeStep
-USE MOD_Particle_VarTimeStep   ,ONLY: VarTimeStep_CalcElemFacs
-USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
-USE MOD_part_RHS               ,ONLY: InitPartRHS
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2074,7 +2076,7 @@ __STAMP__&
 __STAMP__&
             ,'Either ParticleEmission or PartDensity can be defined for cell_local emission parameters, not both!')
           END IF
-          IF (GEO%LocalVolume.GT.0.) THEN
+          IF (LocalVolume.GT.0.) THEN
             IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
               IF (Species(iSpec)%Init(iInit)%initialParticleNumber .GT. 0) THEN
                 CALL abort(&
@@ -2082,7 +2084,7 @@ __STAMP__&
                   ,'Either initialParticleNumber or PartDensity can be defined for selected parameters, not both!')
               END IF
               Species(iSpec)%Init(iInit)%initialParticleNumber &
-                  = NINT(Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor * GEO%LocalVolume)
+                  = NINT(Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor * LocalVolume)
             END IF
           ELSE
             CALL abort(&
@@ -2107,12 +2109,12 @@ __STAMP__&
     IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.GT.0) THEN
       IF  ((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
         .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) THEN
-        IF (GEO%LocalVolume.GT.0.) THEN
+        IF (LocalVolume.GT.0.) THEN
           IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
             particlenumber_tmp = 0.
             DO iElem = 1,nElems
               particlenumber_tmp = particlenumber_tmp + Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) &
-                  / Species(iSpec)%MacroParticleFactor * GEO%Volume(iElem)
+                  / Species(iSpec)%MacroParticleFactor * ElemVolume_Shared(iElem)
             END DO
             Species(iSpec)%Init(iInit)%initialParticleNumber = NINT(particlenumber_tmp)
           END IF

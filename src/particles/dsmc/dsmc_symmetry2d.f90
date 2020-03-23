@@ -75,12 +75,15 @@ SUBROUTINE DSMC_2D_InitVolumes()
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
 USE MOD_PreProc                 ,ONLY: PP_N
-USE MOD_Mesh_Vars               ,ONLY: nElems, nBCSides, BC, SideToElem, SurfElem
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,nBCSides,BC,SideToElem,SurfElem
 USE MOD_Interpolation_Vars      ,ONLY: wGP
 USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
+#if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared,ElemVolume_Shared_Win,ElemCharLength_Shared,ElemCharLength_Shared_Win
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -92,7 +95,19 @@ USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 INTEGER                         :: SideID, iLocSide, i, j, ElemID, iNode
 REAL                            :: radius
 LOGICAL                         :: SymmetryBCExists
+INTEGER                         :: firstElem,lastElem
 !===================================================================================================================================
+
+#if USE_MPI
+!firstElem = INT(REAL(myComputeNodeRank*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+!lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+! Jacobians are only available for Elems on local proc
+FirstElem = offsetElem+1
+LastElem  = offsetElem+nElems
+#else
+firstElem = 1
+lastElem  = nElems
+#endif  /*USE_MPI*/
 
 SymmetryBCExists = .FALSE.
 ALLOCATE(SymmetrySide(1:nElems,1:2))                ! 1: GlobalSide, 2: LocalSide
@@ -129,14 +144,14 @@ DO SideID=1,nBCSides
         SymmetrySide(ElemID,2) = iLocSide
         ! The volume calculated at this point (final volume for the 2D case) corresponds to the cell face area (z-dimension=1) in
         ! the xy-plane.
-        GEO%Volume(ElemID) = 0.0
+        ElemVolume_Shared(ElemID) = 0.0
         DO j=0,PP_N; DO i=0,PP_N
-          GEO%Volume(ElemID) = GEO%Volume(ElemID) + wGP(i)*wGP(j)*SurfElem(i,j,SideID)
+          ElemVolume_Shared(ElemID) = ElemVolume_Shared(ElemID) + wGP(i)*wGP(j)*SurfElem(i,j,SideID)
         END DO; END DO
         ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/axisymmetric case
         ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
         ! requirement.
-        GEO%CharLength(ElemID) = SQRT(GEO%Volume(ElemID))
+        ElemCharLength_Shared(ElemID) = SQRT(ElemVolume_Shared(ElemID))
         ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
         ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
         IF (Symmetry2DAxisymmetric) THEN
@@ -145,7 +160,7 @@ DO SideID=1,nBCSides
             radius = radius + GEO%NodeCoords(2,GEO%ElemSideNodeID(iNode,iLocSide,ElemID))
           END DO
           radius = radius / 4.
-          GEO%Volume(ElemID) = GEO%Volume(ElemID) * 2. * Pi * radius
+          ElemVolume_Shared(ElemID) = ElemVolume_Shared(ElemID) * 2. * Pi * radius
         END IF
         SymmetryBCExists = .TRUE.
       END IF    ! y-coord greater 0.0
@@ -159,12 +174,12 @@ IF(.NOT.SymmetryBCExists) THEN
 END IF
 
 ! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
-GEO%LocalVolume = SUM(GEO%Volume)
+LocalVolume = SUM(ElemVolume_Shared(FirstElem:LastElem))
 #if USE_MPI
-CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
-#else
-GEO%MeshVolume=GEO%LocalVolume
+CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
 #endif /*USE_MPI*/
+MeshVolume = SUM(ElemVolume_Shared)
 
 END SUBROUTINE DSMC_2D_InitVolumes
 

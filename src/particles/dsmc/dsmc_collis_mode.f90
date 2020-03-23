@@ -998,22 +998,27 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 ! Decision of reaction type (recombination, exchange, dissociation, CEX/MEX and multiple combinations of those)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,                ONLY : Abort
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst, ElementaryCharge
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep
-  USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
-  USE MOD_DSMC_QK_PROCEDURES,     ONLY : QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization, QK_IonRecombination
+USE MOD_Globals,                ONLY : Abort
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst, ElementaryCharge
+USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, RadialWeighting
+USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep
+USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb
+USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+USE MOD_DSMC_QK_PROCEDURES,     ONLY : QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization, QK_IonRecombination
+#if USE_MPI
+USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPair
-  INTEGER, INTENT(IN)           :: iElem
-  LOGICAL, INTENT(INOUT)        :: RelaxToDo
-  REAL, INTENT(IN), OPTIONAL    :: NodeVolume
-  INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
+INTEGER, INTENT(IN)           :: iPair
+INTEGER, INTENT(IN)           :: iElem
+LOGICAL, INTENT(INOUT)        :: RelaxToDo
+REAL, INTENT(IN), OPTIONAL    :: NodeVolume
+INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1033,7 +1038,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
   IF (PRESENT(NodeVolume)) THEN
     Volume = NodeVolume
   ELSE
-    Volume = GEO%Volume(iElem)
+    Volume = ElemVolume_Shared(iElem)
   END IF
   IF (PRESENT(NodePartNum)) THEN
     nPartNode = NodePartNum

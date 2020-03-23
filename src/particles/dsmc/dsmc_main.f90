@@ -40,18 +40,16 @@ SUBROUTINE DSMC_main(DoElement)
 !> Performs DSMC routines (containing loop over all cells)
 !===================================================================================================================================
 ! MODULES
-USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
 USE MOD_Globals
+USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
+USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib,SamplingRotVibRelaxProb
 USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
-USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, SpecDSMC, VarVibRelaxProb, ConsiderVolumePortions, MCC_TotalPairNum, UseMCC
-USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
+USE MOD_DSMC_Vars             ,ONLY: UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
+USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D, PartSpecies
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
-USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib, &
-                                     SamplingRotVibRelaxProb
 USE MOD_DSMC_Relaxation       ,ONLY: CalcMeanVibQuaDiatomic
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
@@ -59,9 +57,14 @@ USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision, DSMC_calc_var_P_vib
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_Mesh_Vars             ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars         ,ONLY: iter
-USE MOD_DSMC_Vars             ,ONLY: UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Vars,         ONLY: KeepWallParticles
+USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
+#if USE_MPI
+USE MOD_MPI_Shared_Vars       ,ONLY: ElemVolume_Shared,ElemMPVolumePortion_Shared
+#else
+USE MOD_Mesh_Vars             ,ONLY: ElemVolume_Shared,ElemMPVolumePortion_Shared
+#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -183,9 +186,9 @@ DO iElem = 1, nElems ! element/cell main loop
           ! Calculation of the mean free path
           IF (ConsiderVolumePortions) THEN
             DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum)&
-                        ,GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem)),SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+                        ,ElemVolume_Shared(iElem)*(1.-ElemMPVolumePortion_Shared(iElem)),SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
           ELSE
-            DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),GEO%Volume(iElem), &
+            DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),ElemVolume_Shared(iElem), &
                                                   SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
           END IF
           ! Determination of the MCS/MFP for the case without octree

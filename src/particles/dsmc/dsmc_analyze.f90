@@ -1160,18 +1160,23 @@ SUBROUTINE DSMCHO_data_sampling()
 !> Sampling of variables velocity and energy for DSMC
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMCSampVolWe, DSMC, CollisMode, SpecDSMC, HODSMC, DSMC_HOSolution
 USE MOD_DSMC_Vars              ,ONLY: DSMCSampNearInt, DSMCSampCellVolW, useDSMC, DSMC_VolumeSample
-USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM,PartPosRef
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM,PartPosRef
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars              ,ONLY: ElemVolume_Shared
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1413,7 +1418,7 @@ CASE('cell_mean')
     END IF
   END DO
   DO iElem=1,nElems
-    DSMC_VolumeSample(iElem) = DSMC_VolumeSample(iElem) + GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem))
+    DSMC_VolumeSample(iElem) = DSMC_VolumeSample(iElem) + ElemVolume_Shared(iElem)*(1.-GEO%MPVolumePortion(iElem))
   END DO
 CASE('cell_volweight')
   ALLOCATE(BGMSourceCellVol(0:1,0:1,0:1,1:nElems,1:11, 1:nSpecies), &
@@ -1502,7 +1507,7 @@ CASE('cell_volweight')
               BGMSourceCellVol(iLoopx,iLoopy,iLoopz,iElem,8:10,iSpec) = 0.0
             END IF
             BGMSourceCellVol(iLoopx,iLoopy,iLoopz,iElem,7,iSpec) = BGMSourceCellVol(iLoopx,iLoopy,iLoopz,iElem,7,iSpec) &
-                / GEO%Volume(iElem) * Species(iSpec)%MacroParticleFactor
+                / ElemVolume_Shared(iElem) * Species(iSpec)%MacroParticleFactor
           END DO
         END DO
       END DO
@@ -1548,18 +1553,23 @@ SUBROUTINE DSMCHO_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
 !> Subroutine to calculate the solution U for writing into HDF5 format DSMC_output
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars          ,ONLY: HODSMC, DSMC_HOSolution, DSMC_VolumeSample, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
-USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry2D
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
-USE MOD_TimeDisc_Vars         ,ONLY: time,TEnd,iter,dt
-USE MOD_Restart_Vars          ,ONLY: RestartTime
-USE MOD_FPFlow_Vars           ,ONLY: FPInitDone, FP_QualityFacSamp
+USE MOD_PreProc
 USE MOD_BGK_Vars              ,ONLY: BGKInitDone, BGK_QualityFacSamp
+USE MOD_DSMC_Vars             ,ONLY: HODSMC, DSMC_HOSolution, DSMC_VolumeSample, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
+USE MOD_FPFlow_Vars           ,ONLY: FPInitDone, FP_QualityFacSamp
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry2D
 USE MOD_Particle_VarTimeStep  ,ONLY: CalcVarTimeStep
+USE MOD_Restart_Vars          ,ONLY: RestartTime
+USE MOD_TimeDisc_Vars         ,ONLY: time,TEnd,iter,dt
+#if USE_MPI
+USE MOD_MPI_Shared_Vars       ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars             ,ONLY: ElemVolume_Shared
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1836,10 +1846,10 @@ ELSE ! all other sampling types
           DSMC_MacroVal(nVarCount+7,kk,ll,mm, iElem) = DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)
             !       if usevMPF MacroDSMC(iElem,iSpec)%PartNum == real number of particles
           !      IF (usevMPF) THEN
-          !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum / GEO%Volume(iElem)
+          !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum / ElemVolume_Shared(iElem)
           !      ELSE
           !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum * &
-          !         Species(iSpec)%MacroParticleFactor / GEO%Volume(iElem)
+          !         Species(iSpec)%MacroParticleFactor / ElemVolume_Shared(iElem)
           !      END IF
           ! compute internal energies / has to be changed for vfd
           IF(useDSMC)THEN
@@ -1890,10 +1900,10 @@ ELSE ! all other sampling types
               /(HODSMC%DSMC_wGP(kk)*HODSMC%DSMC_wGP(ll)*HODSMC%DSMC_wGP(mm))*Species(iSpec)%MacroParticleFactor
               !       if usevMPF MacroDSMC(iElem,iSpec)%PartNum == real number of particles
             !      IF (usevMPF) THEN
-            !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum / GEO%Volume(iElem)
+            !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum / ElemVolume_Shared(iElem)
             !      ELSE
             !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum * &
-            !         Species(iSpec)%MacroParticleFactor / GEO%Volume(iElem)
+            !         Species(iSpec)%MacroParticleFactor / ElemVolume_Shared(iElem)
             !      END IF
             ! compute internal energies / has to be changed for vfd
             IF(useDSMC)THEN
@@ -2031,7 +2041,7 @@ ELSE ! all other sampling types
       END IF
       ! compute density
       DSMC_MacroVal(nVarCount+7,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) &
-                                                 / GEO%Volume(iElem) * Species(1)%MacroParticleFactor
+                                                 / ElemVolume_Shared(iElem) * Species(1)%MacroParticleFactor
       ! mean flow Temperature
       DSMC_MacroVal(nVarCount+12,kk,ll,mm, iElem) = (DSMC_MacroVal(nVarCount+4,kk,ll,mm, iElem) &
                                                   + DSMC_MacroVal(nVarCount+5,kk,ll,mm, iElem) &

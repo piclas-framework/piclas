@@ -604,26 +604,31 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 ! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
-  USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, VarVibRelaxProb, ConsiderVolumePortions
-  USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies,PartPosRef
-  USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-  USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
-  USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-  USE MOD_part_tools              ,ONLY : GetParticleWeight
+USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
+USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, VarVibRelaxProb, ConsiderVolumePortions
+USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies,PartPosRef
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_part_tools              ,ONLY : GetParticleWeight
+#if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+#else
+USE MOD_Mesh_Vars               ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iElem
+INTEGER, INTENT(IN)           :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iPart, iLoop, nPart, iSpec
-  REAL                          :: SpecPartNum(nSpecies)
-  TYPE(tTreeNode), POINTER      :: TreeNode
-  REAL                          :: elemVolume
+INTEGER                       :: iPart, iLoop, nPart, iSpec
+REAL                          :: SpecPartNum(nSpecies)
+TYPE(tTreeNode), POINTER      :: TreeNode
+REAL                          :: elemVolume
 !===================================================================================================================================
 
 SpecPartNum = 0.
@@ -651,16 +656,16 @@ DO iLoop = 1, nPart
 END DO
 
 IF (ConsiderVolumePortions) THEN
-  elemVolume=GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem))
+  elemVolume=ElemVolume_Shared(iElem)*(1.-GEO%MPVolumePortion(iElem))
 ELSE
-  elemVolume=GEO%Volume(iElem)
+  elemVolume=ElemVolume_Shared(iElem)
 END IF
 DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
 ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
 IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
   ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
   ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-  IF((DSMC%MeanFreePath.LT.(GEO%CharLength(iElem))) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+  IF((DSMC%MeanFreePath.LT.(ElemCharLength_Shared(iElem))) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
     ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
     TreeNode%PNum_Node = nPart
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
@@ -864,11 +869,15 @@ SUBROUTINE DSMC_pairing_quadtree(iElem)
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, VarVibRelaxProb
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_Part_tools              ,ONLY: GetParticleWeight
+#if USE_MPI
+USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared,ElemCharLength_Shared
+#else
+USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared,ElemCharLength_Shared
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
+!-------------------------------------------------------  ----------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -880,7 +889,7 @@ REAL                          :: SpecPartNum(nSpecies), Volume
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
-Volume = GEO%Volume(iElem)
+Volume = ElemVolume_Shared(iElem)
 IF(DSMC%VibRelaxProb.EQ.2.0) THEN ! Set summs for variable vibrational relaxation to zero
   DO iSpec=1,nSpecies
     VarVibRelaxProb%ProbVibAvNew(iSpec) = 0
@@ -911,7 +920,7 @@ DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), Volume)
 IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
   ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
   ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-  IF((DSMC%MeanFreePath.LT.GEO%CharLength(iElem)).OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+  IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(iElem)).OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
     ALLOCATE(TreeNode%MappedPartStates(1:2,1:nPart))
     TreeNode%PNum_Node = nPart
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
@@ -925,16 +934,16 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     DEALLOCATE(TreeNode%MappedPartStates)
   ELSE
     IF(DSMC%UseNearestNeighbour) THEN
-      CALL FindNearestNeigh2D(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem),  (/0.0,0.0,0.0/), 1)
+      CALL FindNearestNeigh2D(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(iElem),  (/0.0,0.0,0.0/), 1)
     ELSE
-      CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem))
+      CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, ElemVolume_Shared(iElem))
     END IF
   END IF
 ELSE
   IF(DSMC%UseNearestNeighbour) THEN
-    CALL FindNearestNeigh2D(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem),  (/0.0,0.0,0.0/), 1)
+    CALL FindNearestNeigh2D(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(iElem),  (/0.0,0.0,0.0/), 1)
   ELSE
-    CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem))
+    CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, ElemVolume_Shared(iElem))
   END IF
 END IF
 

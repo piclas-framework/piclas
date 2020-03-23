@@ -825,7 +825,7 @@ ConcaveElemSide_Shared = .FALSE.
 !  END DO
 !END DO
 DO iElem = firstElem,lastElem
-  nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) 
+  nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)
   DO iLocSide = 1,nlocSides
     ! Get global SideID
     GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) + iLocSide
@@ -847,7 +847,7 @@ END DO
 
 !--- Save whether Side is concave or convex
 DO iElem = firstElem,lastElem
-  nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) 
+  nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)
   DO iLocSide = 1,nlocSides
     !--- Check whether the bilinear side is concave
     !--- Node Number 4 and triangle 1-2-3
@@ -1102,9 +1102,9 @@ SDEALLOCATE(ElemType)
 SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%PeriodicVectorsLength)
 SDEALLOCATE(GEO%FIBGM)
-SDEALLOCATE(GEO%Volume)
-SDEALLOCATE(GEO%MPVolumePortion)
-SDEALLOCATE(GEO%CharLength)
+!SDEALLOCATE(GEO%Volume)
+!SDEALLOCATE(GEO%MPVolumePortion)
+!SDEALLOCATE(GEO%CharLength)
 SDEALLOCATE(GEO%ElemToFIBGM)
 SDEALLOCATE(GEO%TFIBGM)
 

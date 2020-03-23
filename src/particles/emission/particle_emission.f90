@@ -153,16 +153,16 @@ SUBROUTINE InitializeParticleEmission()
 USE MOD_Particle_MPI_Vars   ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Globals
-USE MOD_Restart_Vars        ,ONLY: DoRestart
-USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry2D
-USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
-USE MOD_part_tools          ,ONLY: UpdateNextFreePosition
-USE MOD_ReadInTools
-USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC, RadialWeighting
-USE MOD_part_pressure       ,ONLY: ParticleInsideCheck
 USE MOD_Dielectric_Vars     ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
-USE MOD_part_emission_tools ,ONLY: SetParticleChargeAndMass,SetParticleMPF
-USE MOD_part_pos_and_velo   ,ONLY: SetParticlePosition,SetParticleVelocity
+USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC, RadialWeighting
+USE MOD_Part_Emission_Tools ,ONLY: SetParticleChargeAndMass,SetParticleMPF
+USE MOD_Part_Pos_and_Velo   ,ONLY: SetParticlePosition,SetParticleVelocity
+USE MOD_Part_Pressure       ,ONLY: ParticleInsideCheck
+USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition
+USE MOD_Particle_Mesh_Vars  ,ONLY: LocalVolume
+USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry2D
+USE MOD_ReadInTools
+USE MOD_Restart_Vars        ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -211,7 +211,7 @@ DO i=1,nSpecies
         ! conditions). However, the initialParticleNumber was already determined before the 2D volume calculation was performed.
         ! This can lead to initialParticleNumbers of 0, thus skipping the insertion entirely.
         Species(i)%Init(iInit)%initialParticleNumber &
-                  = NINT(Species(i)%Init(iInit)%PartDensity / Species(i)%MacroParticleFactor * GEO%LocalVolume)
+                  = NINT(Species(i)%Init(iInit)%PartDensity / Species(i)%MacroParticleFactor * LocalVolume)
         ! The radial scaling of the weighting factor has to be considered
         IF(RadialWeighting%DoRadialWeighting) Species(i)%Init(iInit)%initialParticleNumber = &
                                     INT(Species(i)%Init(iInit)%initialParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
@@ -635,12 +635,16 @@ SUBROUTINE ParticleInsertingCellPressure(iSpec,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars
+USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping!,TriaTracking
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
-USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation
+USE MOD_Particle_Vars
+#if USE_MPI
+USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars              ,ONLY: ElemVolume_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -672,7 +676,7 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
     iPart = PEM%pNext(iPart)
   END DO
   ! step 2: determine number of particles to insert (or remove)
-  PartDiff = Species(iSpec)%Init(iInit)%ParticleEmission * GEO%Volume(Elem) - NbrPartsInCell
+  PartDiff = Species(iSpec)%Init(iInit)%ParticleEmission * ElemVolume_Shared(Elem) - NbrPartsInCell
   PartDiffRest = PartDiff - INT(PartDiff)
   ! step 3: if PartDiff positive (and PartPressAddParts=T), add particles
   IF(PartPressAddParts.AND.PartDiff.GT.0) THEN
@@ -863,10 +867,14 @@ SUBROUTINE ParticleInsertingPressureOut_Sampling(iSpec, iInit, iElem, ElemSamp, 
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-USE MOD_Particle_Vars,         ONLY : PartState,usevMPF,Species,PartSpecies,usevMPF,PartMPF,PDM
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC
+USE MOD_Particle_Vars,         ONLY : PartState,usevMPF,Species,PartSpecies,usevMPF,PartMPF,PDM
 USE MOD_TimeDisc_Vars,         ONLY : iter
-USE MOD_Particle_Mesh_Vars,    ONLY : GEO
+#if USE_MPI
+USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars              ,ONLY: ElemVolume_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -924,13 +932,13 @@ __STAMP__&
   ! Calculation of sampling values
   Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,1:3) &
        = Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,1:3) / MPFSum              !vi = vi / MPFsum
-  Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,4)   = MPFSum / GEO%Volume(iElem) !n = N / V
+  Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,4)   = MPFSum / ElemVolume_Shared(iElem) !n = N / V
   Samp_Temp(1:3) &
        = Species(iSpec)%MassIC / BoltzmannConst * (Samp_V2(:) / MPFSum &                             !Ti = mt/k * (<vi**2>-<vi>**2)
        - Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,1:3)**2)
   Samp_Temp(4) = (Samp_Temp(1) + Samp_Temp(2) + Samp_Temp(3)) / 3                                    !T = (Tx + Ty + Tz) / 3
   Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,5) &                              !p = N / V * k * T
-       = MPFSum / GEO%Volume(iElem) * BoltzmannConst * Samp_Temp(4)
+       = MPFSum / ElemVolume_Shared(iElem) * BoltzmannConst * Samp_Temp(4)
   Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,6) &                              !a**2 = kappa * k/mt * T
        = kappa_part * BoltzmannConst/Species(iSpec)%MassIC * Samp_Temp(4)
 
@@ -945,7 +953,7 @@ __STAMP__&
   RealnumberNewParts = (Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,4) & !N=(<n> + (p_o-<p>)/(a**2*mt)) * V/MPF
        + (Species(iSpec)%Init(iInit)%ConstantPressure - Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,5)) &
        / (Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,6) * Species(iSpec)%MassIC)) &
-       * GEO%Volume(iElem) / Species(iSpec)%MacroParticleFactor !!!not sure if MPF treatment is correct!!!
+       * ElemVolume_Shared(iElem) / Species(iSpec)%MacroParticleFactor !!!not sure if MPF treatment is correct!!!
   IF(RealnumberNewParts.GT.0.) THEN
     CALL RANDOM_NUMBER(RandVal)
     NbrPartsInCell = INT(RealnumberNewParts+RandVal)
@@ -969,19 +977,24 @@ SUBROUTINE AdaptiveBCAnalyze(initSampling_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_DSMC_Analyze           ,ONLY: CalcTVib,CalcTVibPoly,CalcTelec
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMC, CollisMode, SpecDSMC, useDSMC, RadialWeighting
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Part_Tools             ,ONLY: GetParticleWeight
+USE MOD_Particle_Boundary_Vars ,ONLY: PorousBCSampIter, PorousBCMacroVal
+USE MOD_Particle_Mesh_Vars     ,ONLY: IsTracingBCElem
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, AdaptiveWeightFac
 USE MOD_Particle_Vars          ,ONLY: usevMPF
-USE MOD_Particle_Boundary_Vars ,ONLY: PorousBCSampIter, PorousBCMacroVal
-USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,IsTracingBCElem
-USE MOD_DSMC_Analyze           ,ONLY: CalcTVib,CalcTVibPoly,CalcTelec
 USE MOD_Timedisc_Vars          ,ONLY: iter
-USE MOD_part_tools             ,ONLY: GetParticleWeight
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 USE MOD_LoadBalance_vars       ,ONLY: nPartsPerBCElem
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars              ,ONLY: ElemVolume_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1092,10 +1105,10 @@ DO iSpec = 1,nSpecies
           ! number density
           IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
             Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/SamplingIteration   &
-                                                      /GEO%Volume(AdaptiveElemID)
+                                                      /ElemVolume_Shared(AdaptiveElemID)
           ELSE
             Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/SamplingIteration   &
-                                                      /GEO%Volume(AdaptiveElemID) * Species(iSpec)%MacroParticleFactor
+                                                      /ElemVolume_Shared(AdaptiveElemID) * Species(iSpec)%MacroParticleFactor
           END IF
           ! instantaneous temperature WITHOUT 1/BoltzmannConst
           PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) = PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) &
@@ -1127,18 +1140,18 @@ DO iSpec = 1,nSpecies
       IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
         ! compute density
         Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-          + RelaxationFactor*Source(11,AdaptiveElemID,iSpec) /GEO%Volume(AdaptiveElemID)
+          + RelaxationFactor*Source(11,AdaptiveElemID,iSpec) /ElemVolume_Shared(AdaptiveElemID)
         ! Pressure with relaxation factor
         Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
-        +RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/GEO%Volume(AdaptiveElemID)*TTrans_TempFac
+        +RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(AdaptiveElemID)*TTrans_TempFac
       ELSE
         ! compute density
         Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-          + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
+          + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
         ! Pressure with relaxation factor
         Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
                                                     + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)  &
-                                                    / GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
+                                                    / ElemVolume_Shared(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
       END IF
     END IF
     ! !==================================================================================================

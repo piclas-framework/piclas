@@ -45,19 +45,23 @@ SUBROUTINE FP_DSMC_main()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
-USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
-USE MOD_Mesh_Vars           ,ONLY: nElems
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues, Symmetry2D, usevMPF
+USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
+USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_FPFlow_Vars         ,ONLY: FPDSMCSwitchDens, FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
-USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
-USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
-USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling
 USE MOD_DSMC                ,ONLY: DSMC_main
-USE MOD_part_tools          ,ONLY: GetParticleWeight
+USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling
+USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
+USE MOD_Mesh_Vars           ,ONLY: nElems
+USE MOD_Part_Tools          ,ONLY: GetParticleWeight
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues, Symmetry2D, usevMPF
+USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
+#if USE_MPI
+USE MOD_MPI_Shared_Vars     ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars           ,ONLY: ElemVolume_Shared
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -85,9 +89,9 @@ DO iElem = 1, nElems
   END DO
 
   IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    dens = totalWeight / GEO%Volume(iElem)
+    dens = totalWeight / ElemVolume_Shared(iElem)
   ELSE
-    dens = totalWeight * Species(1)%MacroParticleFactor / GEO%Volume(iElem)
+    dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(iElem)
   END IF
   IF (dens.LT.FPDSMCSwitchDens) THEN
     DoElement(iElem) = .TRUE.
@@ -119,7 +123,7 @@ DO iElem = 1, nElems
       FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
     END IF
 
-    CALL FP_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
+    CALL FP_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(iElem), vBulk)
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
@@ -147,19 +151,23 @@ SUBROUTINE FPFlow_main()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
-USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile
-USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry2D
-USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
-USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
+USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
 USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling,WriteDSMCHOToHDF5,CalcSurfaceValues
-USE MOD_Restart_Vars        ,ONLY: RestartTime
+USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
+USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_part_tools          ,ONLY: GetParticleWeight
+USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile
+USE MOD_Part_Tools          ,ONLY: GetParticleWeight
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry2D
+USE MOD_Restart_Vars        ,ONLY: RestartTime
+USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
+#if USE_MPI
+USE MOD_MPI_Shared_Vars     ,ONLY: ElemVolume_Shared
+#else
+USE MOD_Mesh_Vars           ,ONLY: ElemVolume_Shared
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -203,7 +211,7 @@ ELSE
       FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
     END IF
 
-    CALL FP_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
+    CALL FP_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(iElem), vBulk)
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
