@@ -456,32 +456,6 @@ ASSOCIATE (&
 END ASSOCIATE
 
 #if USE_MPI
-DO iElem=FirstElemInd,LastElemInd
-  iSide=ElemInfo(ELEM_FIRSTSIDEIND,iElem) !first index -1 in Sideinfo
-  ! if an element has hanging nodes, the big side has negative index (-1,-2 or -3)
-  ! and the next 2 (-2, -3) or 4 (-1) sides are the subsides
-  ! Consequently, a hexahedral element can have more than 6 non-unique sides
-  SideInfo(SIDE_ELEMID,iSide+1:ElemInfo(ELEM_LASTSIDEIND,iElem)) = iElem
-  sideCount = 0
-  nlocSides = ElemInfo(ELEM_LASTSIDEIND,iElem) -  ElemInfo(ELEM_FIRSTSIDEIND,iElem)
-  DO iLocSide = 1,nlocSides
-    iSide = ElemInfo(ELEM_FIRSTSIDEIND,iElem) + iLocSide
-    IF (SideInfo(SIDE_TYPE,iSide).GT.4) THEN
-      NbElemID = SideInfo(SIDE_NBELEMID,iSide)
-      nlocSidesNb = ElemInfo(ELEM_LASTSIDEIND,NbElemID) -  ElemInfo(ELEM_FIRSTSIDEIND,NbElemID)
-      DO jLocSide = 1,nlocSidesNb
-        NbSideID = ElemInfo(ELEM_FIRSTSIDEIND,NbElemID) + jLocSide
-        IF (ABS(SideInfo(SIDE_ID,iSide)).EQ.ABS(SideInfo(SIDE_ID,NbSideID))) THEN
-          SideInfo(SIDE_LOCALID,iSide) = -NbSideID
-          EXIT
-        END IF
-      END DO
-    ELSE
-      sideCount = sideCount + 1
-      SideInfo(SIDE_LOCALID,iSide) = sideCount
-    END IF
-  END DO
-END DO
 ! all procs on my compute-node communicate the number of non-unique sides
 CALL MPI_ALLREDUCE(nSideIDs,nComputeNodeSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
 MPISharedSize = INT((SIDEINFOSIZE+1)*nNonUniqueGlobalSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -490,6 +464,38 @@ CALL MPI_WIN_LOCK_ALL(0,SideInfo_Shared_Win,IERROR)
 SideInfo_Shared(1:SIDEINFOSIZE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo(:,:)
 SideInfo_Shared(SIDEINFOSIZE+1,offsetSideID+1:offsetSideID+nSideIDs) = 0
 CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
+
+DO iElem=FirstElemInd,LastElemInd
+  iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) !first index -1 in Sideinfo
+  ! if an element has hanging nodes, the big side has negative index (-1,-2 or -3)
+  ! and the next 2 (-2, -3) or 4 (-1) sides are the subsides
+  ! Consequently, a hexahedral element can have more than 6 non-unique sides
+  SideInfo_Shared(SIDE_ELEMID,iSide+1:ElemInfo_Shared(ELEM_LASTSIDEIND,iElem)) = iElem
+  sideCount = 0
+  nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)
+  DO iLocSide = 1,nlocSides
+    iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) + iLocSide
+    ! Big mortar side
+    IF (SideInfo_Shared(SIDE_TYPE,iSide).GT.4) THEN
+      ! Check all sides on the small element side to find the small mortar side pointing back
+      NbElemID    = SideInfo_Shared(SIDE_NBELEMID,iSide)
+      nlocSidesNb = ElemInfo_Shared(ELEM_LASTSIDEIND,NbElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,NbElemID)
+      DO jLocSide = 1,nlocSidesNb
+        NbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,NbElemID) + jLocSide
+        IF (ABS(SideInfo_Shared(SIDE_ID,iSide)).EQ.ABS(SideInfo_Shared(SIDE_ID,NbSideID))) THEN
+          SideInfo(SIDE_LOCALID,iSide) = -NbSideID
+          EXIT
+        END IF
+      END DO
+    ! Regular side
+    ELSE
+      sideCount = sideCount + 1
+      SideInfo_Shared(SIDE_LOCALID,iSide) = sideCount
+    END IF
+  END DO
+END DO
+CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
+
 #else
 ALLOCATE(SideInfo_Shared(1:SIDEINFOSIZE,1:nSideIDs))
 SideInfo_Shared(1:SIDEINFOSIZE,1:nSideIDs) = SideInfo(:,:)
