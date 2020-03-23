@@ -85,22 +85,24 @@ def CleanFile(stdfile) :
                                     if x.endswith('.h5'):
                                         MeshFile=x
 
-                print("Lost %s particles" % nLostParts)
+                #print(red("Lost %s particles" % nLostParts))
 
     killList = {}
 
     # Read std.out.lost file with all lost particles and write the data to a .h5 file
     if nLostParts > 0:
+        # 1. Open .h5 file
         f1 = h5py.File(stdfile+"-lost-particles.h5",'w')
 
         data = np.zeros(( nLostParts,12))
 
+        # 2. Read lost particles file
         with open(stdfile+".lost", "r") as f:
             lines = f.readlines()
 
+        # 3. Read lost particles and sort particle data into array
         n=0
         for line in lines:
-
             first = getFirst(line)
 
             if 'Error in Particle TriaTracking! Particle Number' in line.strip("\n"):
@@ -149,21 +151,33 @@ def CleanFile(stdfile) :
 
                     del killList[first]
 
+            elif 'Warning: Particle located inside of face and moves parallel to side. Undefined position.' in line.strip("\n"):
+                print('Warning: Particle located inside of face and moves parallel to side. Undefined position.')
+                print('Found lost particle within tracing method. This has not yet been implemented. Please contact the developer!.')
+                exit(1)
 
+            elif 'Tolerance issue during tracing! Unable to locate particle inside computational domain' in line.strip("\n"):
+                print('Tolerance issue during tracing! Unable to locate particle inside computational domain')
+                print('Found lost particle within tracing method. This has not yet been implemented. Please contact the developer!.')
+                exit(1)
+
+
+        # 4. Write dummy DG_Solution container
         data1 = np.zeros(( 0,0))
         dset1 = f1.create_dataset('DG_Solution', shape=data1.shape, dtype=np.float64)
 
-        # 2. Create new dataset 'dset'
+        # 5. Create new dataset 'dset'
         dset = f1.create_dataset('PartData', shape=data.shape, dtype=np.float64)
         #dset = f1.create_dataset(data, shape=data.shape, dtype=getattr(np, str(dataType)))
 
-        # 3. Write as C-continuous array via np.ascontiguousarray()
+        # 6. Write as C-continuous array via np.ascontiguousarray()
         if not data.any() :
             print(" %s has dimension %s. Skipping" % (data_set,data.shape))
             pass
         else :
             dset.write_direct(np.ascontiguousarray(data))
 
+        # 7. Write attributes
         f1.attrs.modify('File_Version',[1.5])   # these brackets [] are required for ParaView plugin !
         f1.attrs.modify('NodeType',[b'GAUSS'])  # these brackets [] are required for ParaView plugin !
         f1.attrs.modify('File_Type',[b'PartStateBoundary']) # these brackets [] are required for ParaView plugin !
@@ -186,38 +200,11 @@ def CleanFile(stdfile) :
                                               b'LastPos-Y'.ljust(255),  # .ljust(255) is required for ParaView plugin !
                                               b'LastPos-Z'.ljust(255)], None, dtype='<S255')   # .ljust(255) is required for ParaView plugin !
 
-        print(f1.attrs.get('MeshFile'))
-        # 4. Close .h5 data file
+        # 8. Close .h5 data file
         f1.close()
 
 
-        return
-
-        #         f1 = h5py.File('InnerBC_Test_PartStateBoundary_000.00000300000000000_reference.h5','r+')
-        #         #f1 = h5py.File('plasma_wave_restart_State_000.00000030000000000.h5','r+')
-        #         # Usage:
-        #         # -------------------
-        #         # available keys         : print("Keys: %s" % f1.keys())                                # yields, e.g., <KeysViewHDF5 ['DG_Solution', 'PartData']>
-        #         # first key in list      : a_group_key = list(f1.keys())[0]                             # yields 'DG_Solution'
-        #         # available attributes   : print('\n'.join(x for x in f1.attrs))                        # yields 'File_Type\n File_Version\n MeshFile'
-        #         # get specific attribute : file_version  = f1.attrs.get('File_Version', default=-1.)[0] # yields, e.g., 1.5
-        #         # -------------------
-        #         print("Keys: %s" % f1.keys()) 
-        #         print(f1.attrs)
-        #         #print(132*'=')
-        #         #print('\n'.join(x for x in f1.attrs))
-        #         #print(132*'=')
-        #         file_version  = f1.attrs.get('File_Version', default=-1.)[0]
-        #         print(file_version)
-        #         print(f1.attrs.get('N'))
-        #         print(f1.attrs.get('File_Version'))
-        #         print(f1.attrs.get('File_Type'))
-        #         print(f1.attrs.get('MeshFile'))
-        #         print(f1.attrs.get('Project_Name'))
-        #         print(f1.attrs.get('Time'))
-        #         print(f1.attrs.get('NodeType'))
-        #         print(f1.attrs.get('VarNamesParticles'))
-        #         f1.close()
+        return nLostParts
 
 
 class bcolors :
@@ -289,11 +276,14 @@ NbrOfFiles = len(args.files)
 ext = ['.new', '.lost', '.h5']
 for stdfile in args.files :
     if stdfile.endswith(tuple(ext)):
-        print("%s (skipping)" % stdfile)
+        print("%s " % stdfile + yellow("(skipping)"))
         continue
+
+    nLostParts = CleanFile(stdfile)
+
+    if nLostParts > 0:
+        print("%s " % stdfile + red("Lost %s particles" % nLostParts) + " Written particles to %s-lost-particles.h5" % stdfile)
     else:
         print("%s" % stdfile)
-
-    CleanFile(stdfile)
 
 print(132*"-")
