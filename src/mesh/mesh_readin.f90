@@ -428,9 +428,6 @@ IF(myComputeNodeRank.EQ.0)THEN
   END DO ! iProc = 1, nProcessors
 END IF
 CALL MPI_WIN_SYNC(ElemToProcID_Shared_Win,IERROR)
-!#else
-!ALLOCATE(ElemToProcID_Shared(1:MORTARINFOSIZE,1:nSideIDs))
-!MortarInfo_Shared(1:MORTARINFOSIZE,1:nSideIDs) = MortarInfo(:,:)
 #endif  /*USE_MPI*/
 
 !----------------------------------------------------------------------------------------------------------------------------
@@ -646,41 +643,6 @@ END DO !iElem
 CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
 #endif
 
-!----------------------------------------------------------------------------------------------------------------------------
-!                              MORTARS
-!----------------------------------------------------------------------------------------------------------------------------
-ALLOCATE(MortarMapping(FirstSideInd:LastSideInd))
-CALL ReadArray('MortarType',1,(/nSideIDs/),offsetSideID,1,IntegerArray_i4=MortarMapping(:))
-#if USE_MPI
-MPISharedSize = INT(nNonUniqueGlobalSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/nNonUniqueGlobalSides/),MortarMapping_Shared_Win,MortarMapping_Shared)
-CALL MPI_WIN_LOCK_ALL(0,MortarMapping_Shared_Win,IERROR)
-MortarMapping_Shared(offsetSideID+1:offsetSideID+nSideIDs) = MortarMapping(:)
-CALL MPI_WIN_SYNC(MortarMapping_Shared_Win,IERROR)
-#else
-ALLOCATE(MortarMapping_Shared(1:nSideIDs))
-MortarMapping_Shared(1:nSideIDs) = MortarMapping(:)
-#endif  /*USE_MPI*/
-
-CALL GetDataSize(File_ID,'MortarInfo',nDims,HSize)
-CHECKSAFEINT(HSize(2),4)
-nUniqueMasterMortarSides=INT(HSize(2),4)
-DEALLOCATE(HSize)
-
-ALLOCATE(MortarInfo(1:MORTARINFOSIZE,1:nUniqueMasterMortarSides))
-CALL ReadArray('MortarInfo',2,(/MORTARINFOSIZE,nUniqueMasterMortarSides/),0,2,IntegerArray_i4=MortarInfo(:,:))
-#if USE_MPI
-MPISharedSize = INT(MORTARINFOSIZE*nUniqueMasterMortarSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/MORTARINFOSIZE,nUniqueMasterMortarSides/),MortarInfo_Shared_Win,MortarInfo_Shared)
-CALL MPI_WIN_LOCK_ALL(0,MortarInfo_Shared_Win,IERROR)
-IF(myComputeNodeRank.EQ.0)THEN
-  MortarInfo_Shared(:,:) = MortarInfo(:,:)
-END IF
-CALL MPI_WIN_SYNC(MortarInfo_Shared_Win,IERROR)
-#else
-ALLOCATE(MortarInfo_Shared(1:MORTARINFOSIZE,1:nSideIDs))
-MortarInfo_Shared(1:MORTARINFOSIZE,1:nSideIDs) = MortarInfo(:,:)
-#endif  /*USE_MPI*/
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              NODES

@@ -68,11 +68,6 @@ INTEGER         :: ElemToProcID_Shared_Win
 INTEGER,POINTER :: SideInfo_Shared(:,:)
 INTEGER         :: SideInfo_Shared_Win
 
-INTEGER,POINTER :: MortarMapping_Shared(:)
-INTEGER         :: MortarMapping_Shared_Win
-INTEGER,POINTER :: MortarInfo_Shared(:,:)
-INTEGER         :: MortarInfo_Shared_Win
-
 INTEGER,POINTER :: NodeInfo_Shared(:)
 INTEGER         :: NodeInfo_Shared_Win
 REAL,POINTER    :: NodeCoords_Shared(:,:)

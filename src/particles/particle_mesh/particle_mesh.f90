@@ -3298,8 +3298,6 @@ DO iElem=firstElem,lastElem
     Radius = MAX(Radius,VECNORM(xPos))
   END DO
   ElemRadius2NGeo(iElem) = Radius*Radius
-
-  print *,  iElem,MortarMapping_Shared(ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)+1:ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)+6)
 END DO ! iElem
 
 #if USE_MPI
