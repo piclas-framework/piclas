@@ -372,7 +372,7 @@ USE MOD_TImeDisc_Vars           ,ONLY: tend,time
 USE MOD_Equation_Vars           ,ONLY: c2_inv
 #if defined(LSERK)
 USE MOD_Particle_Vars           ,ONLY: Pt_temp,PDM
-#elif (PP_TimeDiscMethod==509)
+#elif (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
 #if defined(IMPA) || defined(ROS)
@@ -554,7 +554,7 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
 PartTrajectory=PartTrajectory/lengthPartTrajectory
 ! #endif
 
-#if defined(LSERK) || (PP_TimeDiscMethod==509)
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
    ! correction for Runge-Kutta (correct position!!)
 !---------- old ----------
@@ -577,7 +577,7 @@ ELSE
   END IF
 #endif  /*LSERK*/
 END IF
-#endif  /*LSERK || (PP_TimeDiscMethod==509)*/
+#endif  /*LSERK || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 
 ! rotation for IMEX and Rosenbrock Method (requires the rotation of the previous rk-stages... simplification of boundary condition)
 ! results in an order reduction
@@ -614,7 +614,7 @@ USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact, GetWallTemperature
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry2D
 USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric, VarTimeStep, usevMPF
-#if defined(LSERK) || (PP_TimeDiscMethod==509)
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
 USE MOD_Mesh_Vars               ,ONLY: BC
@@ -1015,7 +1015,7 @@ ELSE
 END IF
 IF(ABS(lengthPartTrajectory).GT.0.) PartTrajectory=PartTrajectory/lengthPartTrajectory
 
-#if defined(LSERK) || (PP_TimeDiscMethod==509)
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 #endif
 

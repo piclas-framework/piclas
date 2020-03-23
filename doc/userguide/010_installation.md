@@ -5,7 +5,7 @@
 The following chapter describes the installation procedure on a Linux machine requiring root access. This includes the installation of required prerequisites, setting up MPI and HDF5. Please note that high-performance clusters usually have a module environment, where you have to load the appropriate modules instead of compiling them yourself. The module configuration for some of the clusters used by the research group are given in Chapter \ref{chap:cluster_guide}. In that case, you can jump directly to the description of the download und installation procedure of PICLas in Section {sec:download_source}.
 
 ## Prerequisites
-**PICLas** has been tested for various Linux distributions. This includes Ubuntu 14.04 LTS, 16.04 LTS and 18.04 LTS, OpenSUSE 42.1 and CentOS 7. For **tested combinations** of prerequisities (HDF5, OpenMPI, CMake etc.) and known problems that may occur, see Chapter \ref{chap:appendix}.
+**PICLas** has been tested for various Linux distributions. This includes Ubuntu 14.04 LTS, 16.04 LTS and 18.04 LTS, OpenSUSE 42.1 and CentOS 7. For **tested combinations** of prerequisities (HDF5, OpenMPI, CMake etc.) and known problems that may occur, visit Chapter \ref{chap:appendix}.
 
 The suggested packages in this section can be replaced by self compiled versions. The required packages for the Ubuntu Linux distributions are listed in Table \ref{tab:installation_prereqs_ubuntu}. Under Ubuntu, they can be obtained using the apt environment:
 
@@ -112,7 +112,7 @@ Note that cloning **PICLas** from GitHub may not be possible on some machines, a
     ccmake ..
     make
 
-For a list of all compiler options see Section \ref{sec:compileroptions}. Finally, the executables **PICLas** and **h5piclas2vtk** are contained in your **PICLas** directory in `build/bin/`. 
+For a list of all compiler options visit Section \ref{sec:compileroptions}. Finally, the executables **PICLas** and **h5piclas2vtk** are contained in your **PICLas** directory in `build/bin/`. 
 
 ### Directory paths \label{sec:installation_directory}
 

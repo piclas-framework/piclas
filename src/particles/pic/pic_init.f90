@@ -57,6 +57,7 @@ CALL prms%CreateIntOption(    'PIC-AnalyticInterpolation-SubType', "SubType of A
                                                                    "EM field's value for the particle (ifdef CODE_ANALYZE)",'0')
 
 CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationP'       , "parameter 'p' for AnalyticInterpolationType = 1", '1.')
+CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationPhase'   , "Phase shift angle phi that is used for cos(w*t + phi)", '0.')
 #endif /*CODE_ANALYZE*/
 
 CALL prms%CreateLogicalOption(  'PIC-DoInterpolation'         , "TODO-DEFINE-PARAMETER\n"//&
