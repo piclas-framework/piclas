@@ -38,10 +38,6 @@ INTERFACE CalcShapeEfficiencyR
   MODULE PROCEDURE CalcShapeEfficiencyR
 END INTERFACE
 
-INTERFACE RemoveParticle
-  MODULE PROCEDURE RemoveParticle
-END INTERFACE
-
 INTERFACE CalcPowerDensity
   MODULE PROCEDURE CalcPowerDensity
 END INTERFACE
@@ -66,15 +62,18 @@ END INTERFACE
 INTERFACE AnalyticParticleMovement
   MODULE PROCEDURE AnalyticParticleMovement
 END INTERFACE
+INTERFACE CalcAnalyticalParticleState
+  MODULE PROCEDURE CalcAnalyticalParticleState
+END INTERFACE
 #endif /*CODE_ANALYZE*/
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
-PUBLIC:: AnalyzeParticles, PartIsElectron, RemoveParticle
+PUBLIC:: AnalyzeParticles, PartIsElectron
 PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
 #ifdef CODE_ANALYZE
-PUBLIC:: AnalyticParticleMovement
+PUBLIC:: AnalyticParticleMovement,CalcAnalyticalParticleState
 #if (PP_TimeDiscMethod==42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
@@ -153,7 +152,9 @@ CALL prms%CreateRealOption(     'printDiffTime'           , 'TODO-DEFINE-PARAMET
 CALL prms%CreateRealArrayOption('printDiffVec'            , 'TODO-DEFINE-PARAMETER','0. , 0. , 0. , 0. , 0. , 0.')
 CALL prms%CreateLogicalOption(  'CalcNumSpec'             , 'Calculate the number of simulation particles per species for the '//&
                                                             'complete domain','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcNumDens'             , 'Calculate the number density per species for the complete domain' &
+CALL prms%CreateLogicalOption(  'CalcNumDens'             , 'Calculate the number density [1/m3] per species for the complete '//&
+                                                            'domain','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcMassflowRate'        , 'Calculate the massflow rate [kg/s] per species and surface flux' &
                                                           ,'.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCollRates'           , 'TODO-DEFINE-PARAMETER\n'//&
                                                             'Calculate the collision rates per '//&
@@ -179,6 +180,7 @@ CALL prms%CreateLogicalOption(  'CalcPorousBCInfo'         , 'Calculate output o
                                                              'Values are averaged over the whole porous BC.' , '.FALSE.')
 
 CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , ' Calculate output of Power that is coupled into plasma' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'DisplayCoupledPower'      , ' Display coupled power in UNIT_stdOut' , '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleAnalyze
 
@@ -477,12 +479,13 @@ ELSE
   nSpecAnalyze = 1
 END IF
 
-CalcCoupledPower = GETLOGICAL('CalcCoupledPower','.FALSE.')
+CalcCoupledPower = GETLOGICAL('CalcCoupledPower')
 
 IF(CalcCoupledPower) THEN
+  DisplayCoupledPower = GETLOGICAL('DisplayCoupledPower')
   DoPartAnalyze = .TRUE.
   PCouplAverage = 0.0
-#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==509))
+#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
   CALL abort(__STAMP__,&
       'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
 #endif
@@ -510,14 +513,6 @@ IF (CalcPartBalance) THEN
   nPartOut=0
   PartEkinOut=0.
   PartEkinIn=0.
-#if defined(LSERK) || defined(ROS) || defined(IMPA)
-  SDEALLOCATE( nPartInTmp)
-  SDEALLOCATE( PartEkinInTmp)
-  ALLOCATE( nPartInTmp(1:nSpecAnalyze)     &
-          , PartEkinInTmp(1:nSpecAnalyze)  )
-  PartEkinInTmp=0.
-  nPartInTmp=0
-#endif
 END IF
 TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
 IF(TrackParticlePosition)THEN
@@ -540,6 +535,11 @@ IF(TrackParticlePosition)THEN
 END IF
 CalcNumSpec   = GETLOGICAL('CalcNumSpec','.FALSE.')
 CalcNumDens   = GETLOGICAL('CalcNumDens','.FALSE.')
+CalcMassflowRate = GETLOGICAL('CalcMassflowRate')
+IF(CalcMassflowRate) THEN
+  ALLOCATE(MassflowRate(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
+  MassflowRate = 0.
+END IF
 CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
 CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
 CalcRelaxProb = GETLOGICAL('CalcRelaxProb','.FALSE.')
@@ -563,7 +563,7 @@ IF(CalcReacRates) THEN
   END IF
 END IF
 
-IF(CalcNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates) DoPartAnalyze = .TRUE.
+IF(CalcNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcMassflowRate) DoPartAnalyze = .TRUE.
 ! compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
 IF (CalcVelos) THEN
@@ -640,8 +640,8 @@ SUBROUTINE AnalyzeParticles(Time)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars
-USE MOD_PARTICLE_Vars          ,ONLY: nSpecies
-USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
+USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, usevMPF
+USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac, RadialWeighting
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Analyze_Vars           ,ONLY: CalcEpot,Wel,Wmag,Wphi,Wpsi
 USE MOD_DSMC_Vars              ,ONLY: DSMC
@@ -650,12 +650,10 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter, dt, IterDisplayStep
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, BGGas
-USE MOD_Particle_Vars          ,ONLY: Species
 #endif
+USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#if ( PP_TimeDiscMethod ==42)
-#endif
 ! USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC, PorousBC
 USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
@@ -674,13 +672,13 @@ REAL,INTENT(IN)                 :: Time
 ! LOCAL VARIABLES
 LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, iSpec, OutputCounter, iPBC
+INTEGER             :: unit_index, iSpec, OutputCounter, iPBC, iSF, MaxSurfaceFluxBCs
 INTEGER(KIND=8)     :: SimNumSpec(nSpecAnalyze)
 REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: EkinMax(nSpecies)
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
-REAL                :: ETotal!, totalChemEnergySum
+REAL                :: ETotal, MacroParticleFactor
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
@@ -694,12 +692,11 @@ INTEGER             :: RECBIM(nSpecies)
 #endif /*USE_MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
-INTEGER             :: iCase, iTvib,jSpec
+INTEGER             :: iCase,jSpec
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
 INTEGER             :: ii, iunit
 #endif
-CHARACTER(LEN=350)  :: hilf
 #endif
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
@@ -713,6 +710,7 @@ INTEGER             :: dir
     IF (CollisMode.NE.0) THEN
       SDEALLOCATE(CRate)
       ALLOCATE(CRate(CollInf%NumCase + 1))
+      CRate = 0.0
       IF (CollisMode.EQ.3) THEN
         SDEALLOCATE(RRate)
         ALLOCATE(RRate(ChemReac%NumOfReact))
@@ -725,27 +723,7 @@ INTEGER             :: dir
   IF (PartMPI%MPIRoot) THEN
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
-#if (PP_TimeDiscMethod==42)
-    ! if only the reaction rate is desired (resevoir) the initial temperature
-    ! of the second species is added to the filename
-      IF (DSMC%ReservoirSimuRate) THEN
-        IF ( SpecDSMC(1)%InterID .EQ. 2 .OR. SpecDSMC(1)%InterID .EQ. 20 ) THEN
-          iTvib = INT(SpecDSMC(1)%Init(0)%Tvib)
-          WRITE( hilf, '(I5.5)') iTvib
-          outfile = 'Database_Tvib_'//TRIM(hilf)//'.csv'
-        ELSE
-          !iTvib = INT(SpecDSMC(1)%Telec )
-          iTvib = INT(Species(1)%Init(0)%MWTemperatureIC) !wrong name, if MWTemp is defined in %Init!!!
-          WRITE( hilf, '(I5.5)') iTvib
-          outfile = 'Database_Ttrans_'//TRIM(hilf)//'.csv'
-        END IF
-      ELSE
-        outfile = 'PartAnalyze.csv'
-      END IF
-#else
       outfile = 'PartAnalyze.csv'
-#endif
-
       IF (isRestart .and. FILEEXISTS(outfile)) THEN
         OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
         !CALL FLUSH (unit_index)
@@ -764,8 +742,17 @@ INTEGER             :: dir
         IF (CalcNumDens) THEN
           DO iSpec = 1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A12,I3.3,A5)',ADVANCE='NO') OutputCounter,'-NumDens-Spec-', iSpec,' '
+            WRITE(unit_index,'(I3.3,A14,I3.3,A5)',ADVANCE='NO') OutputCounter,'-NumDens-Spec-', iSpec,' '
             OutputCounter = OutputCounter + 1
+          END DO
+        END IF
+        IF(CalcMassflowRate) THEN
+          DO iSpec = 1, nSpecAnalyze
+            DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Massflow-Spec-',iSpec,'-SF-',iSF
+              OutputCounter = OutputCounter + 1
+            END DO
           END DO
         END IF
         IF (CalcCharge) THEN
@@ -1042,6 +1029,23 @@ INTEGER             :: dir
   ! computes the real and simulated number of particles
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec)
   IF(CalcNumDens) CALL CalcNumberDensity(NumSpec,NumDens)
+  ! Determine the mass flux per species and surface flux [kg/s]
+  IF(CalcMassflowRate) THEN
+    ! If usevMPF or DoRadialWeighting then the MacroParticleFactor is already included in the GetParticleWeight
+    IF(iter.GT.0) THEN
+      DO iSpec = 1, nSpecies
+        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+          MacroParticleFactor = 1.
+        ELSE
+          MacroParticleFactor = Species(iSpec)%MacroParticleFactor
+        END IF
+        DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+          ! SampledMassFlow contains the weighted particle number balance (in - out)
+          MassflowRate(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow*Species(iSpec)%MassIC*MacroParticleFactor/dt
+        END DO
+      END DO
+    END IF
+  END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
   IF(CalcEkin.OR.CalcEint)THEN
@@ -1078,13 +1082,17 @@ INTEGER             :: dir
   MeanFreePath = 0.0
   IF(DSMC%CalcQualityFactors.OR.CalcReacRates) THEN
     NumSpecTmp = NumSpec
-    IF(BGGas%BGGasSpecies.NE.0) THEN
+    IF(BGGas%NumberOfSpecies.GT.0) THEN
       ! Calculation of mean free path and reactions rates requires the number of particles the background species would have if
       ! actually inserted at the chosen weighting factor, determined here and used later also for the ReacRates subroutine
-      NumSpecTmp(BGGas%BGGasSpecies) = (BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor)
-      IF(nSpecAnalyze.GT.1)THEN
-        NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze)+NumSpecTmp(BGGas%BGGasSpecies)
-      END IF
+      DO iSpec = 1, nSpecies
+        IF(BGGas%BackgroundSpecies(iSpec)) THEN
+          NumSpecTmp(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))*GEO%MeshVolume/Species(iSpec)%MacroParticleFactor
+          IF(nSpecAnalyze.GT.1) THEN
+            NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze) + NumSpecTmp(iSpec)
+          END IF
+        END IF
+      END DO
     END IF
   END IF
   IF(DSMC%CalcQualityFactors) THEN
@@ -1115,6 +1123,11 @@ INTEGER             :: dir
       CALL MPI_REDUCE(MPI_IN_PLACE,nPartOut(1:nSpecAnalyze)   ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(1:nSpecAnalyze) ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(1:nSpecAnalyze),nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+    END IF
+    IF(CalcMassflowRate) THEN
+      MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
+      CALL MPI_REDUCE(MPI_IN_PLACE,MassflowRate(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
+                      MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
     IF(CalcCoupledPower) THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -1158,6 +1171,10 @@ INTEGER             :: dir
       CALL MPI_REDUCE(nPartOut,RECBIM  ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PartEkinIn,RECBR ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PartEkinOut,RECBR,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+    END IF
+    IF(CalcMassflowRate) THEN
+      MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
+      CALL MPI_REDUCE(MassflowRate,MassflowRate,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
     IF(CalcCoupledPower) THEN
       CALL MPI_REDUCE(PCoupl,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -1237,16 +1254,18 @@ END IF
 
 IF(CalcCoupledPower) THEN
   ! Moving Average of PCoupl for each species
-  IF(MOD(iter,IterDisplayStep).EQ.0) CALL DisplayCoupledPowerPart()
+  IF((DisplayCoupledPower).AND.(MOD(iter,IterDisplayStep).EQ.0)) CALL DisplayCoupledPowerPart()
 END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the collision rates and reaction rate coefficients (Arrhenius-type chemistry)
 #if (PP_TimeDiscMethod==42)
-  IF(CalcCollRates) CALL CollRates(CRate)
-  IF(CalcReacRates) THEN
-    IF ((CollisMode.EQ.3).AND.(iter.GT.0)) THEN
-      CALL ReacRates(RRate, NumSpecTmp, iter)
+  IF(iter.GT.0) THEN
+    IF(CalcCollRates) CALL CollRates(CRate)
+    IF(CalcReacRates) THEN
+      IF (CollisMode.EQ.3) THEN
+        CALL ReacRates(RRate, NumSpecTmp, iter)
+      END IF
     END IF
   END IF
 #endif
@@ -1269,6 +1288,14 @@ IF (PartMPI%MPIROOT) THEN
       DO iSpec=1, nSpecAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(NumDens(iSpec))
+      END DO
+    END IF
+    IF(CalcMassflowRate) THEN
+      DO iSpec = 1, nSpecAnalyze
+        DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') MassflowRate(iSpec,iSF)
+        END DO
       END DO
     END IF
     IF (CalcCharge) THEN
@@ -1470,14 +1497,16 @@ IF (PartMPI%MPIROOT) THEN
 #if USE_MPI
   END IF
 #endif /*USE_MPI*/
-
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! Reset coupled power to particles if output of coupled power is active
 IF (CalcCoupledPower) THEN
   PCouplAverage = PCouplAverage * (Time-RestartTime) ! PCouplAverage is reseted
 END IF
-
 !-----------------------------------------------------------------------------------------------------------------------------------
-IF(CalcPartBalance) CALL CalcParticleBalance()
+! Reset the particle counter
+IF(CalcPartBalance) THEN
+  nPartIn=0; nPartOut=0; PartEkinIn=0.; PartEkinOut=0.
+END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if ( PP_TimeDiscMethod==42 )
 #ifdef CODE_ANALYZE
@@ -1664,46 +1693,6 @@ IF(NbrOfComps.GT.0)THEN
 END IF
 END SELECT
 END SUBROUTINE CalcShapeEfficiencyR
-
-
-SUBROUTINE CalcParticleBalance()
-!===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars,      ONLY : nPartIn,nPartOut,PartEkinIn,PartEkinOut
-#if defined(LSERK) || defined(ROS) || defined(IMPA)
-!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-USE MOD_Particle_Analyze_Vars ,ONLY: nPartInTmp,PartEkinInTmp
-#endif
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-#if defined(LSERK) || defined(ROS) || defined(IMPA)
-!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-nPartIn=nPartInTmp
-nPartOut=0
-PartEkinIn=PartEkinInTmp
-PartEkinOut=0.
-nPartInTmp=0
-PartEkinInTmp=0.
-#else
-nPartIn=0
-nPartOut=0
-PartEkinIn=0.
-PartEkinOut=0.
-#endif
-
-END SUBROUTINE CalcParticleBalance
 
 
 SUBROUTINE CalcKineticEnergy(Ekin)
@@ -1988,7 +1977,7 @@ REAL,INTENT(OUT)                   :: NumSpec(nSpecAnalyze)
 INTEGER(KIND=8),INTENT(OUT)        :: SimNumSpec(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                            :: iPart
+INTEGER                            :: iPart, iSpec
 !===================================================================================================================================
 
 NumSpec    = 0.
@@ -2001,9 +1990,13 @@ DO iPart=1,PDM%ParticleVecLength
     SimNumSpec(PartSpecies(iPart)) = SimNumSpec(PartSpecies(iPart)) + 1
   END IF
 END DO
-IF(BGGas%BGGasSpecies.NE.0) THEN
-  NumSpec(BGGas%BGGasSpecies) = 0.
-  SimNumSpec(BGGas%BGGasSpecies) = 0
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  DO iSpec = 1, nSpecies
+    IF(BGGas%BackgroundSpecies(iSpec)) THEN
+      NumSpec(iSpec) = 0.
+      SimNumSpec(iSpec) = 0
+    END IF
+  END DO
 END IF
 IF(nSpecAnalyze.GT.1)THEN
   NumSpec(nSpecAnalyze)    = SUM(NumSpec(1:nSpecies))
@@ -2048,6 +2041,7 @@ REAL,INTENT(IN)                   :: NumSpec(nSpecAnalyze)
 REAL,INTENT(OUT)                  :: NumDens(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                           :: iSpec
 !===================================================================================================================================
 
 IF (PartMPI%MPIRoot) THEN
@@ -2057,7 +2051,13 @@ IF (PartMPI%MPIRoot) THEN
     NumDens(1:nSpecies) = NumSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / GEO%MeshVolume
   END IF
 
-  IF(BGGas%BGGasSpecies.NE.0) NumDens(BGGas%BGGasSpecies) = BGGas%BGGasDensity
+  IF(BGGas%NumberOfSpecies.GT.0) THEN
+    DO iSpec = 1, nSpecies
+      IF(BGGas%BackgroundSpecies(iSpec)) THEN
+        NumDens(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))
+      END IF
+    END DO
+  END IF
 
   IF(nSpecAnalyze.GT.1) NumDens(nSpecAnalyze) = SUM(NumDens(1:nSpecies))
 END IF
@@ -2597,27 +2597,55 @@ END SUBROUTINE CalcIntTempsAndEn
 #if (PP_TimeDiscMethod==42)
 SUBROUTINE CollRates(CRate)
 !===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
+!> Calculate the collision rate per species pairing by diving the summed up variables by the current timestep
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: CollInf, DSMC
-USE MOD_TimeDisc_Vars ,ONLY: dt
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: CollInf, DSMC
+USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
+USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: CRate(:)
+REAL,INTENT(OUT)              :: CRate(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iCase
+INTEGER                       :: iCase
 !===================================================================================================================================
 
+#if USE_MPI
+IF(PartMPI%MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%NumColl,CollInf%NumCase + 1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+ELSE
+  CALL MPI_REDUCE(DSMC%NumColl,DSMC%NumColl,CollInf%NumCase + 1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+END IF
+#endif /*USE_MPI*/
+
+IF(PartMPI%MPIRoot)THEN
+  DSMC%NumColl(CollInf%NumCase + 1) = SUM(DSMC%NumColl(1:CollInf%NumCase))
   DO iCase=1, CollInf%NumCase + 1
     CRate(iCase) =  DSMC%NumColl(iCase) / dt
   END DO
-  DSMC%NumColl = 0
+  ! Consider Part-AnalyzeStep
+  IF(PartAnalyzeStep.GT.1)THEN
+    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
+      DO iCase=1, CollInf%NumCase + 1
+        CRate(iCase) = CRate(iCase) / iter
+      END DO ! iCase=1, CollInf%NumCase + 1
+    ELSE
+      DO iCase=1, CollInf%NumCase + 1
+        CRate(iCase) = CRate(iCase) / MIN(PartAnalyzeStep,iter)
+      END DO ! iCase=1, CollInf%NumCase + 1
+    END IF
+  END IF
+END IF
+
+DSMC%NumColl = 0.
+
 END SUBROUTINE CollRates
 
 SUBROUTINE ReacRates(RRate, NumSpec,iter)
@@ -3095,56 +3123,6 @@ END SUBROUTINE WriteParticleTrackingDataAnalytic
 #endif /* CODE_ANALYZE */
 
 
-PURE FUNCTION CalcEkinPart(iPart)
-!===================================================================================================================================
-! computes the kinetic energy of one particle
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Equation_Vars ,ONLY: c2, c2_inv
-USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species
-USE MOD_PARTICLE_Vars ,ONLY: usevMPF
-USE MOD_Particle_Vars ,ONLY: PartLorentzType
-USE MOD_DSMC_Vars     ,ONLY: RadialWeighting
-USE MOD_part_tools    ,ONLY: GetParticleWeight
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER,INTENT(IN)                 :: iPart
-REAL                               :: CalcEkinPart
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                               :: partV2, gamma1, WeightingFactor
-!===================================================================================================================================
-
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-  WeightingFactor = GetParticleWeight(iPart)
-ELSE
-  WeightingFactor = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
-END IF
-
-IF (PartLorentzType.EQ.5)THEN
-  ! gamma v is pushed instead of gamma, therefore, only the relativistic kinetic energy is computed
-  ! compute gamma
-  gamma1=SQRT(1.0+DOTPRODUCT(PartState(4:6,iPart))*c2_inv)
-  CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
-ELSE
-  partV2 = DOTPRODUCT(PartState(4:6,iPart))
-  IF (partV2.LT.1E12)THEN
-    CalcEkinPart= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * WeightingFactor
-  ELSE
-    gamma1=partV2*c2_inv
-    gamma1=1.0/SQRT(1.-gamma1)
-    CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
-  END IF ! ipartV2
-END IF
-END FUNCTION CalcEkinPart
-
-
 SUBROUTINE CalcPowerDensity()
 !===================================================================================================================================
 ! Used to average the source terms per species
@@ -3232,8 +3210,8 @@ DO iSpec=1,nSpecies
 
   ! compute source terms
   ! compute particle source terms on field solver of considered species
-  CALL Deposition(doInnerParts=.TRUE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
-  CALL Deposition(doInnerParts=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
+  CALL Deposition(DoInnerParts=.TRUE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
+  CALL Deposition(DoInnerParts=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
   ! map particle from v to gamma v
   CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
 
@@ -3876,13 +3854,15 @@ END SUBROUTINE CalculatePartElemData
 !===================================================================================================================================
 !> Calculate the analytical position and velocity depending on the pre-defined function
 !===================================================================================================================================
-SUBROUTINE CalcAnalyticalParticleState(t,PartStateAnalytic)
+SUBROUTINE CalcAnalyticalParticleState(t,PartStateAnalytic,alpha_out,theta_out)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_PreProc
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpolationSubType,AnalyticInterpolationP
+USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+USE MOD_PARTICLE_Vars         ,ONLY: PartSpecies,Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -3891,6 +3871,8 @@ REAL,INTENT(IN)               :: t                        !< simulation time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)              :: PartStateAnalytic(1:6)   !< analytic position and velocity
+REAL,INTENT(OUT),OPTIONAL     :: alpha_out                    !< dimensionless parameter: alpha_out = q*B_0*l / (m*v_perpendicular)
+REAL,INTENT(OUT),OPTIONAL     :: theta_out                    !< angle
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !REAL    :: p
@@ -3901,75 +3883,125 @@ REAL    :: beta
 !===================================================================================================================================
 PartStateAnalytic=0. ! default
 
-! select the analytical solution
-SELECT CASE(AnalyticInterpolationType)
-CASE(1)
-  SELECT CASE(AnalyticInterpolationSubType)
-  CASE(1,2)
-    ASSOCIATE( p       => AnalyticInterpolationP , &
-               Theta_0 => -PI/2.0                     , &
-               t       => t - TEnd/2. )
-               !t       => t )
-      ! gamma
-      gamma_0 = SQRT(ABS(p*p - 1.))
-
-      ! angle
-      Theta   = -2.*ATAN( SQRT((1.+p)/(1.-p)) * TANH(0.5*gamma_0*t) ) + Theta_0
-
-      ! x-pos
-      PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
-
-      ! y-pos
-      PartStateAnalytic(2) = p*t + Theta - Theta_0
+ASSOCIATE( iPart => 1 )
+  ! Select analytical solution depending on the type of the selected (analytic) interpolation
+  SELECT CASE(AnalyticInterpolationType)
+  ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
+  CASE(0)
+    ASSOCIATE( B_0    => 1.0                                    ,& ! [T] cons. magnetic field
+               v_perp => 1.0                                    ,& ! [m/s] perpendicular velocity (to guiding center)
+               m      => Species(PartSpecies(iPart))%MassIC     ,& ! [kg] particle mass
+               q      => Species(PartSpecies(iPart))%ChargeIC   ,& ! [C] particle charge
+               phi    => AnalyticInterpolationPhase             )  ! [rad] phase shift
+      ASSOCIATE( omega_c => ABS(q)*B_0/m )
+        ASSOCIATE( r_c => v_perp/omega_c )
+          PartStateAnalytic(1) = COS(omega_c*t + phi)*r_c
+          PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c 
+          PartStateAnalytic(3) = 0.
+          PartStateAnalytic(4) = -SIN(omega_c*t + phi)*v_perp
+          PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp 
+          PartStateAnalytic(6) = 0.
+        END ASSOCIATE
+      END ASSOCIATE
     END ASSOCIATE
-  CASE(3)
-    ASSOCIATE( p       => AnalyticInterpolationP , &
-               Theta_0 => -PI/2.0                      &
-                )
-      ! gamma
-      gamma_0 = SQRT(ABS(p*p - 1.))
+  ! 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
+  CASE(1)
+    SELECT CASE(AnalyticInterpolationSubType)
+    CASE(1,2)
+      ASSOCIATE( p       => AnalyticInterpolationP , &
+                 Theta_0 => -PI/2.0                     , &
+                 t       => t - TEnd/2. )
+                 !t       => t )
+        ! gamma
+        gamma_0 = SQRT(ABS(p*p - 1.))
 
-      ! angle
-      Theta   = -2.*ATAN( SQRT((p+1.)/(p-1.)) * TAN(0.5*gamma_0*t) ) -2.*PI*REAL(NINT((gamma_0*t)/(2.*PI))) + Theta_0
+        ! angle
+        Theta   = -2.*ATAN( SQRT((1.+p)/(1.-p)) * TANH(0.5*gamma_0*t) ) + Theta_0
 
-      ! x-pos
-      PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
+        ! x-pos
+        PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
 
-      ! y-pos
-      PartStateAnalytic(2) = p*t + Theta - Theta_0
-    END ASSOCIATE
-  CASE(11,21) ! old CASE(1,2)
-    ASSOCIATE( p       => AnalyticInterpolationP , &
-          Theta_0 => 0.d0 ) !0.785398163397448d0    )
-      beta = ACOS(p)
-      !beta = ASIN(-p)
-      ! phase shift
-      phi_0   = ATANH( (1./TAN(beta/2.)) * TAN(Theta_0/2.) )
-      ! angle
-      Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*t*SIN(beta)-phi_0) )
-      Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*SIN(beta*t)-phi_0) )
-      ! x-pos
-      PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
-      ! y-pos
-      PartStateAnalytic(2) = p*t - (Theta-Theta_0)
-    END ASSOCIATE
-  CASE(31) ! old CASE(3)
-    ASSOCIATE( p       => AnalyticInterpolationP , &
-          Theta_0 => 0.d0                   )
-      gamma_0 = SQRT(p*p-1.)
-      ! phase shift
-      phi_0   = ATAN( (gamma_0/(p-1.)) * TAN(Theta_0/2.) )
-      ! angle
-      Theta   = 2.*ATAN( SQRT((p-1)/(p+1)) * TAN(0.5*gamma_0*t - phi_0) ) + 2*Pi*REAL(NINT((t*gamma_0)/(2*Pi) - phi_0/Pi))
-      ! x-pos
-      PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
-      ! y-pos
-      PartStateAnalytic(2) = p*t - (Theta-Theta_0)
-    END ASSOCIATE
-    !WRITE (*,*) "PartStateAnalytic =", PartStateAnalytic
-    !read*
+        ! y-pos
+        PartStateAnalytic(2) = p*t + Theta - Theta_0
+      END ASSOCIATE
+    CASE(3)
+      ASSOCIATE( p       => AnalyticInterpolationP , &
+                 Theta_0 => -PI/2.0                      &
+                  )
+        ! gamma
+        gamma_0 = SQRT(ABS(p*p - 1.))
+
+        ! angle
+        Theta   = -2.*ATAN( SQRT((p+1.)/(p-1.)) * TAN(0.5*gamma_0*t) ) -2.*PI*REAL(NINT((gamma_0*t)/(2.*PI))) + Theta_0
+
+        ! x-pos
+        PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
+
+        ! y-pos
+        PartStateAnalytic(2) = p*t + Theta - Theta_0
+      END ASSOCIATE
+    CASE(11,21) ! old version of CASE(1,2)
+      ASSOCIATE( p       => AnalyticInterpolationP , &
+            Theta_0 => 0.d0 ) !0.785398163397448d0    )
+        beta = ACOS(p)
+        !beta = ASIN(-p)
+        ! phase shift
+        phi_0   = ATANH( (1./TAN(beta/2.)) * TAN(Theta_0/2.) )
+        ! angle
+        Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*t*SIN(beta)-phi_0) )
+        Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*SIN(beta*t)-phi_0) )
+        ! x-pos
+        PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
+        ! y-pos
+        PartStateAnalytic(2) = p*t - (Theta-Theta_0)
+      END ASSOCIATE
+    CASE(31) ! old version of CASE(3)
+      ASSOCIATE( p       => AnalyticInterpolationP , &
+                 Theta_0 => 0.d0                   )
+        gamma_0 = SQRT(p*p-1.)
+        ! phase shift
+        phi_0   = ATAN( (gamma_0/(p-1.)) * TAN(Theta_0/2.) )
+        ! angle
+        Theta   = 2.*ATAN( SQRT((p-1)/(p+1)) * TAN(0.5*gamma_0*t - phi_0) ) + 2*Pi*REAL(NINT((t*gamma_0)/(2*Pi) - phi_0/Pi))
+        ! x-pos
+        PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
+        ! y-pos
+        PartStateAnalytic(2) = p*t - (Theta-Theta_0)
+      END ASSOCIATE
+    END SELECT
+
+    SELECT CASE(AnalyticInterpolationSubType)
+    CASE(1,2,3)
+      ! Set analytic velocity
+      PartStateAnalytic(4) = COS(Theta)
+      PartStateAnalytic(5) = SIN(Theta)
+      PartStateAnalytic(6) = 0.
+    CASE(11,21,31)
+      ! Set analytic velocity
+      PartStateAnalytic(4) = SIN(Theta)
+      PartStateAnalytic(5) = COS(Theta)
+      PartStateAnalytic(6) = 0.
+    END SELECT
+
+    ! Optional output variables
+    IF(PRESENT(alpha_out))THEN
+      ASSOCIATE( dot_theta => SIN(Theta) - AnalyticInterpolationP )
+        ASSOCIATE( alpha_0 => -dot_theta / EXP(PartStateAnalytic(1)) )
+          alpha_out = alpha_0
+          WRITE (*,*) "alpha_out =", alpha_out
+        END ASSOCIATE
+      END ASSOCIATE
+    END IF
+    IF(PRESENT(theta_out))THEN
+      theta_out = Theta
+      WRITE (*,*) "theta_out =", theta_out
+    END IF
+  ! 2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
+  !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
+  CASE(2)
+    ! missing ...
   END SELECT
-END SELECT
+END ASSOCIATE
 
 END SUBROUTINE CalcAnalyticalParticleState
 
@@ -4082,55 +4114,17 @@ IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartS
 END SUBROUTINE AnalyticParticleMovement
 #endif /*CODE_ANALYZE*/
 
-SUBROUTINE RemoveParticle(PartID,alpha,crossedBC)
-!===================================================================================================================================
-!> removes a single particle "PartID" and analyzes nPartOut
-!>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-USE MOD_Particle_Vars          ,ONLY: PDM, PartSpecies
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
-#if defined(IMPA)
-USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
-USE MOD_Particle_Vars          ,ONLY: DoPartInNewton
-#endif /*IMPA*/
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-INTEGER, INTENT(IN)           :: PartID
-REAL, INTENT(OUT),OPTIONAL    :: alpha                   !< if removed during tracking optional alpha can be set to -1
-LOGICAL, INTENT(OUT),OPTIONAL :: crossedBC               !< optional flag is needed if particle removed on BC interaction
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-PDM%ParticleInside(PartID) = .FALSE.
-
-IF(CalcPartBalance) THEN
-  nPartOut(PartSpecies(PartID))=nPartOut(PartSpecies(PartID)) + 1
-  PartEkinOut(PartSpecies(PartID))=PartEkinOut(PartSpecies(PartID))+CalcEkinPart(PartID)
-END IF ! CalcPartBalance
-#ifdef IMPA
-PartIsImplicit(PartID) = .FALSE.
-DoPartInNewton(PartID) = .FALSE.
-#endif /*IMPA*/
-
-IF (PRESENT(alpha)) alpha=-1.
-IF (PRESENT(crossedBC)) crossedBC=.TRUE.
-
-END SUBROUTINE RemoveParticle
-
 
 !===================================================================================================================================
 !> Determines the kinetic energy of a (charged) particle before and after the push, the difference is stored as the coupled power
 !===================================================================================================================================
 SUBROUTINE CalcCoupledPowerPart(iPart,mode,EDiff)
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, PEM
-USE MOD_Particle_Analyze_Vars ,ONLY: PCoupl, PCouplAverage, PCouplSpec
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
-USE MOD_Part_Tools            ,ONLY: isChargedParticle
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, PEM
+USE MOD_Particle_Analyze_Vars   ,ONLY: PCoupl, PCouplAverage, PCouplSpec
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Part_Tools              ,ONLY: isChargedParticle
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -4276,6 +4270,7 @@ SDEALLOCATE(nPartIn)
 SDEALLOCATE(nPartOut)
 SDEALLOCATE(PartEkinIn)
 SDEALLOCATE(PartEkinOut)
+SDEALLOCATE(MassflowRate)
 END SUBROUTINE FinalizeParticleAnalyze
 #endif /*PARTICLES*/
 

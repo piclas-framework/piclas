@@ -544,13 +544,12 @@ SUBROUTINE BGK_quadtree_adapt(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
+USE MOD_DSMC_ParticlePairing    ,ONLY: GeoCoordToMap2D
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, PartPosRef,Species,WriteMacroVolumeValues, usevMPF
-USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
+USE MOD_Particle_Vars           ,ONLY: PEM, PartState, Species,WriteMacroVolumeValues, usevMPF
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens!,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength
-USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
 USE MOD_BGK_Vars                ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor
@@ -612,17 +611,13 @@ END IF
 
 ! The quadtree refinement is performed if either the particle number or number density is above a user-given limit
 IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
-  ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
+  ALLOCATE(TreeNode%MappedPartStates(1:2,1:nPart))
   TreeNode%PNum_Node = nPart
-  IF (DoRefMapping) THEN
-    DO iLoop = 1, nPart
-      TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,TreeNode%iPartIndx_Node(iLoop))
-    END DO
-  ELSE ! position in reference space [-1,1] has to be computed
-    DO iLoop = 1, nPart
-      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(1:3,iLoop),iElem)
-    END DO
-  END IF ! DoRefMapping
+  iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+  DO iLoop = 1, nPart
+    CALL GeoCoordToMap2D(PartState(1:2,iPart), TreeNode%MappedPartStates(1:2,iLoop), iElem)
+    iPart = PEM%pNext(iPart)
+  END DO
   TreeNode%NodeDepth = 1
   TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
   ! Start of the recursive routine, which will descend further down the quadtree until the aforementioned criteria are fulfilled

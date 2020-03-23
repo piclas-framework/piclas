@@ -32,31 +32,31 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_StringTools
 USE MOD_Commandline_Arguments
-USE MOD_IO_HDF5,             ONLY: InitIO,DefineParametersIO
-USE MOD_MPI,                 ONLY: InitMPI!,DefineParametersMPI
-USE MOD_ReadInTools ,        ONLY: prms,PrintDefaultParameterFile
-USE MOD_ReadInTools,         ONLY: GETINT,GETSTR,GETLOGICAL
-USE MOD_HDF5_Input,          ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID,ReadArray,GetDataSize,DatasetExists
-USE MOD_HDF5_Input,          ONLY: ISVALIDHDF5FILE,ISVALIDMESHFILE
-USE MOD_Mesh_ReadIn,         ONLY: readMesh
-USE MOD_Mesh,                ONLY: FinalizeMesh
+USE MOD_IO_HDF5               ,ONLY: InitIOHDF5,DefineParametersIO
+USE MOD_MPI                   ,ONLY: InitMPI
+USE MOD_ReadInTools           ,ONLY: prms,PrintDefaultParameterFile
+USE MOD_ReadInTools           ,ONLY: GETINT,GETSTR,GETLOGICAL
+USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID,ReadArray,GetDataSize,DatasetExists
+USE MOD_HDF5_Input            ,ONLY: ISVALIDHDF5FILE,ISVALIDMESHFILE
+USE MOD_Mesh_ReadIn           ,ONLY: readMesh
+USE MOD_Mesh                  ,ONLY: FinalizeMesh
 #ifdef PARTICLES
-USE MOD_Particle_Mesh       ,ONLY: FinalizeParticleMesh
+USE MOD_Particle_Mesh         ,ONLY: FinalizeParticleMesh
 #endif
-USE MOD_Mesh_Vars,           ONLY: useCurveds,NGeo,nElems,NodeCoords,offsetElem
-USE MOD_Interpolation_Vars,  ONLY: NodeTypeVisu
-USE MOD_Interpolation,       ONLY: GetVandermonde
-USE MOD_ChangeBasis,         ONLY: ChangeBasis3D
-USE MOD_VTK,                 ONLY: WriteDataToVTK,WriteVTKMultiBlockDataSet
-USE MOD_Prepare_Mesh,        ONLY: fillMeshInfo
+USE MOD_Mesh_Vars             ,ONLY: useCurveds,NGeo,nElems,NodeCoords,offsetElem
+USE MOD_Interpolation_Vars    ,ONLY: NodeTypeVisu
+USE MOD_Interpolation         ,ONLY: GetVandermonde
+USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
+USE MOD_VTK                   ,ONLY: WriteDataToVTK,WriteVTKMultiBlockDataSet
+USE MOD_Prepare_Mesh          ,ONLY: fillMeshInfo
 #if USE_MPI
-USE MOD_MPI_Vars,            ONLY: NbProc,nMPISides_Proc
+USE MOD_MPI_Vars              ,ONLY: NbProc,nMPISides_Proc
 #endif /*USE_MPI*/
-USE MOD_Analyze,             ONLY: CalcErrorStateFiles, CalcErrorStateFileSigma
-USE MOD_Analyze_Vars,        ONLY: NAnalyze
-USE MOD_Mesh_Vars,           ONLY: sJ,NGeoRef
-USE MOD_PreProc,             ONLY: PP_N
-USE MOD_Metrics,             ONLY: CalcMetricsErrorDiff
+USE MOD_Analyze               ,ONLY: CalcErrorStateFiles, CalcErrorStateFileSigma
+USE MOD_Interpolation_Vars    ,ONLY: NAnalyze
+USE MOD_Mesh_Vars             ,ONLY: sJ,NGeoRef
+USE MOD_PreProc               ,ONLY: PP_N
+USE MOD_Metrics               ,ONLY: CalcMetricsErrorDiff
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -67,6 +67,7 @@ INTEGER                        :: iArgs,iElem                       ! Loop count
 INTEGER                        :: iExt                              ! Stores position where the filename extension begins
 CHARACTER(LEN=255)             :: InputStateFile,MeshFile
 INTEGER                        :: nVar_State,N_State,nElems_State   ! Properties read from state file
+INTEGER                        :: nVar_Solution
 CHARACTER(LEN=255)             :: NodeType_State                    !     "
 REAL,ALLOCATABLE               :: U(:,:,:,:,:)                      ! Solution from state file
 REAL,ALLOCATABLE               :: U_first(:,:,:,:,:)                ! Solution from state file
@@ -85,7 +86,8 @@ INTEGER                        :: N_State_first                     ! first stat
 CHARACTER(LEN=255)             :: MeshFile_old                      !     "
 CHARACTER(LEN=255)             :: NodeType_State_old                !     "
 CHARACTER(LEN=255)             :: FileString_DG
-CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:), StrVarNamesTemp2(:)
+CHARACTER(LEN=255)             :: StrVarNamesTemp(4)
 REAL                           :: OutputTime
 INTEGER                        :: iDG
 CHARACTER(LEN=255)             :: FileString_multiblock
@@ -98,14 +100,14 @@ LOGICAL                        :: CalcDiffError                     ! Use first 
 LOGICAL                        :: AllowChangedMesh
 LOGICAL                        :: CalcDiffSigma                     ! Use last state file as state for L2 sigma calculation
 LOGICAL                        :: CalcAverage                       ! Calculate and write arithmetic mean of alle StateFile
-LOGICAL                        :: VisuSource, DGSourceExists, skip, DGSolutionExists, ElemDataExists, SurfaceDataExists
+LOGICAL                        :: DGSourceExists, skip, DGSolutionExists, ElemDataExists, SurfaceDataExists
 CHARACTER(LEN=40)              :: DefStr
 INTEGER                        :: iArgsStart
 LOGICAL                        :: MeshInitFinished, ReadMeshFinished
-! PartData
-LOGICAL                        :: VisuParticles, PartDataExists
+LOGICAL                        :: VisuParticles, PartDataExists, BGFieldExists
 INTEGER                        :: TimeStampLength
 !===================================================================================================================================
+CALL SetStackSizeUnlimited()
 CALL InitMPI()
 CALL ParseCommandlineArguments()
 !CALL DefineParametersMPI()
@@ -242,10 +244,9 @@ ELSE
   AllowChangedMesh = .FALSE. !dummy(?)
   CalcAverage    = GETLOGICAL('CalcAverage','.FALSE.')
 END IF
-VisuSource    = GETLOGICAL('VisuSource','.FALSE.')
 VisuParticles    = GETLOGICAL('VisuParticles','.FALSE.')
 ! Initialization of I/O routines
-CALL InitIO()
+CALL InitIOHDF5()
 ! Get length of the floating number time stamp
 TimeStampLength = GETINT('TimeStampLength')
 IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(&
@@ -281,54 +282,55 @@ MeshInitFinished = .FALSE.
 DO iArgs = iArgsStart,nArgs
   InputStateFile = Args(iArgs)
   ! Check if the argument is a valid .h5 file
-  IF(.NOT.ISVALIDHDF5FILE(InputStateFile)) THEN
-    CALL CollectiveStop(__STAMP__,&
-      'ERROR - Please supply only .h5 files after parameter file.')
-  END IF
+  ! IF(.NOT.ISVALIDHDF5FILE(InputStateFile)) THEN
+  !   CALL CollectiveStop(__STAMP__,&
+  !     'ERROR - Please supply only .h5 files after parameter file.')
+  ! END IF
 
   SWRITE(UNIT_stdOut,'(132("="))')
   SWRITE(UNIT_stdOut,'(A,I3,A,I3,A)') 'Processing state ',iArgs-iArgsStart+1,' of ',nArgs-iArgsStart+1,'...'
 
   ! Open .h5 file
-  DGSolutionExists = .FALSE.; ElemDataExists = .FALSE.; SurfaceDataExists = .FALSE.
+  DGSolutionExists = .FALSE.; ElemDataExists = .FALSE.; SurfaceDataExists = .FALSE.; BGFieldExists = .FALSE.
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL DatasetExists(File_ID,'DG_Solution',DGSolutionExists)
   CALL DatasetExists(File_ID,'ElemData',ElemDataExists)
   CALL DatasetExists(File_ID,'SurfaceData',SurfaceDataExists)
   CALL DatasetExists(File_ID,'PartData',PartDataExists)
+  CALL DatasetExists(File_ID,'BGField',BGFieldExists)
 
   ! === DG_Solution ================================================================================================================
   ! Read in parameters from the State file
   IF(DGSolutionExists) THEN
-    CALL GetDataProps('DG_Solution',nVar_State,N_State,nElems_State,NodeType_State)
+    CALL GetDataProps('DG_Solution',nVar_Solution,N_State,nElems_State,NodeType_State)
     CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
     CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 
-    IF (VisuSource) THEN
-      CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
-    ELSE
-      DGSourceExists=.FALSE.
-    END IF
+    ! Check if the DG_Source container exists, and if it does save the variable names and increase the nVar_State variable
+    CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
     IF (DGSourceExists) THEN
-      nVar_State=4
-      ! Check if we need to reallocate the var names array
-      IF (nVar_State.NE.nVar_State_old) THEN
-        SDEALLOCATE(StrVarNames)
-        ALLOCATE(StrVarNames(nVar_State))
-      END IF
-      CALL ReadAttribute(File_ID,'VarNamesSource',nVar_State,StrArray=StrVarNames)
+      CALL ReadAttribute(File_ID,'VarNamesSource',4,StrArray=StrVarNamesTemp)
+      nVar_State = nVar_Solution + 4
     ELSE
-      VisuSource=.FALSE.
-      ! Check if we need to reallocate the var names array
-      IF (nVar_State.NE.nVar_State_old) THEN
-        SDEALLOCATE(StrVarNames)
-        ALLOCATE(StrVarNames(nVar_State))
-      END IF
-      CALL ReadAttribute(File_ID,'VarNames',nVar_State,StrArray=StrVarNames)
+      nVar_State = nVar_Solution
     END IF
+    ! Save the variable names for the regular DG_Solution in a temporary array
+    SDEALLOCATE(StrVarNamesTemp2)
+    ALLOCATE(StrVarNamesTemp2(nVar_Solution))
+    CALL ReadAttribute(File_ID,'VarNames',nVar_Solution,StrArray=StrVarNamesTemp2)
+
+    ! Allocate the variable names array used for the output and copy the names from the DG_Solution and DG_Source (if it exists)
+    IF (nVar_State.NE.nVar_State_old) THEN
+      SDEALLOCATE(StrVarNames)
+      ALLOCATE(StrVarNames(nVar_State))
+    END IF
+    StrVarNames(1:nVar_Solution) = StrVarNamesTemp2
+    IF (DGSourceExists) THEN
+      StrVarNames(nVar_Solution+1:nVar_State) = StrVarNamesTemp(1:4)
+    END IF
+
     CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
     CALL CloseDataFile()
-
     ! Check if the mesh has changed
     IF(CalcDiffError.AND.(iArgs.GT.2).AND.AllowChangedMesh)THEN
       skip=.TRUE.
@@ -404,13 +406,15 @@ DO iArgs = iArgsStart,nArgs
     ! Associate construct for integer KIND=8 possibility
     ASSOCIATE (&
           nVar_State => INT(nVar_State,IK) ,&
+          nVar_Solution => INT(nVar_Solution,IK) ,&
           offsetElem => INT(offsetElem,IK),&
           N_State    => INT(N_State,IK),&
           nElems     => INT(nElems,IK)    )
-      IF(VisuSource)THEN
-        CALL ReadArray('DG_Source',5,(/nVar_State,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5,RealArray=U)
-      ELSE
-        CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5,RealArray=U)
+      CALL ReadArray('DG_Solution',5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+                      RealArray=U(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems))
+      IF(DGSourceExists) THEN
+        CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+                        RealArray=U(nVar_Solution+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
       END IF
     END ASSOCIATE
 
@@ -419,7 +423,6 @@ DO iArgs = iArgsStart,nArgs
         ! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
         WRITE(DefStr,'(i4)') 2*(N_State+1)
         NAnalyze=GETINT('NAnalyze',DefStr)
-        !CALL InitAnalyzeBasis(N_State,NAnalyze,xGP,wBary)
         ! Copy state to 'first'
         ALLOCATE(U_first(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
         U_first       = U
@@ -516,7 +519,10 @@ DO iArgs = iArgsStart,nArgs
       CALL ConvertPartData(InputStateFile)
     END IF
   END IF
-  CALL CloseDataFile()
+  ! === BField =====================================================================================================================
+  IF(BGFieldExists) THEN
+    CALL ConvertBGField(InputStateFile,ReadMeshFinished,NVisu,NodeTypeVisuOut)
+  END IF
 END DO ! iArgs = 2, nArgs
 
 ! Finalize
@@ -564,7 +570,7 @@ INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nElems)      ! Statevecto
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iVal,iElem,Offset,nBytes,nVTKElems,nVTKCells,ivtk=44,iVar,iNode, int_size, ElemType
+INTEGER                       :: iVal,iElem,Offset,nBytes,nVTKPoints,nVTKCells,ivtk=44,iVar,iNode, int_size, ElemType
 INTEGER                       :: Vertex(data_size,nElems), iLen, str_len
 CHARACTER(LEN=35)             :: StrOffset,TempStr1,TempStr2
 CHARACTER(LEN=200)            :: Buffer, tmp, tmp2, VarNameString
@@ -573,7 +579,7 @@ REAL(KIND=4)                  :: float
 INTEGER,ALLOCATABLE           :: VarNameCombine(:), VarNameCombineLen(:)
 !===================================================================================================================================
 
-nVTKElems=nNodes
+nVTKPoints=nNodes
 nVTKCells=nElems
 
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE 3D DATA TO VTX XML BINARY (VTU) FILE..."
@@ -596,7 +602,7 @@ DO iVar=2,nVar
   IF (TRIM(tmp(:iLen-1)) .EQ. TRIM(tmp2(:iLen-1))) THEN
     ! Although the translational temperature is given in X/Y/Z its not a vector (VisIt/Paraview would produce a magnitude variable)
     IF(INDEX(tmp(:iLen-1),'TempTrans').EQ.0) THEN
-      ! If it is the first occurence, start counting
+      ! If it is the first occurrence, start counting
       IF (VarNameCombine(iVar-1) .EQ. 0) VarNameCombine(iVar-1) = 1
       VarNameCombine(iVar) = VarNameCombine(iVar-1) + 1
     END IF
@@ -620,7 +626,7 @@ Buffer='<?xml version="1.0"?>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">'//lf;WRITE(ivtk) TRIM(Buffer)
 
 Buffer='  <UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
-WRITE(TempStr1,'(I16)')nVTKElems
+WRITE(TempStr1,'(I16)')nVTKPoints
 WRITE(TempStr2,'(I16)')nVTKCells
 Buffer='    <Piece NumberOfPoints="'//TRIM(ADJUSTL(TempStr1))//&
 '" NumberOfCells="'//TRIM(ADJUSTL(TempStr2))//'">'//lf;WRITE(ivtk) TRIM(Buffer)
@@ -654,7 +660,7 @@ Buffer='      </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended"'// &
        ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+INT(SIZEOF(int_size),4)+3*nVTKElems*INT(SIZEOF(float),4)
+Offset=Offset+INT(SIZEOF(int_size),4)+3*nVTKPoints*INT(SIZEOF(float),4)
 WRITE(StrOffset,'(I16)')Offset
 Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)
 ! Specify necessary cell data
@@ -691,9 +697,9 @@ DO iVal=1,nVar
   ENDIF
 END DO
 ! Points
-nBytes = 3*nVTKElems*INT(SIZEOF(FLOAT),4)
+nBytes = 3*nVTKPoints*INT(SIZEOF(FLOAT),4)
 WRITE(ivtk) nBytes
-WRITE(ivtk) REAL(Coords(1:3,1:nVTKElems),4)
+WRITE(ivtk) REAL(Coords(1:3,1:nVTKPoints),4)
 ! Connectivity
 DO iElem=1,nVTKCells
   DO iNode=1,data_size
@@ -820,9 +826,10 @@ SUBROUTINE ConvertPartData(InputStateFile)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY: ProjectName
-USE MOD_IO_HDF5,                ONLY: HSize
-USE MOD_HDF5_Input,             ONLY: OpenDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize
+USE MOD_Globals_Vars ,ONLY: ProjectName
+USE MOD_IO_HDF5      ,ONLY: HSize
+USE MOD_HDF5_Input   ,ONLY: OpenDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize,CloseDataFile
+USE MOD_HDF5_Input   ,ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -836,27 +843,62 @@ INTEGER                         :: nParts, nPartsVar, iPart, nDims
 INTEGER,ALLOCATABLE             :: ConnectInfo(:,:)
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesParticle(:), tmpArray(:)
 CHARACTER(LEN=255)              :: FileString
-REAL, ALLOCATABLE               :: PartData(:,:), tmpPartData(:,:)
-REAL                            :: OutputTime
+REAL, ALLOCATABLE               :: PartData(:,:)
+REAL                            :: OutputTime, FileVersionHDF5
+LOGICAL                         :: FileVersionExists
 !===================================================================================================================================
 
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+
+! check file version
+CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
+IF (FileVersionExists) THEN
+  CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
+ELSE
+  CALL abort(&
+      __STAMP__&
+      ,'Error in InitRestart(): Attribute "File_Version" does not exist!')
+END IF
+IF(FileVersionHDF5.LT.1.5)THEN
+  SWRITE(UNIT_StdOut,'(A)')' '
+  SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
+  SWRITE(UNIT_StdOut,'(A)')' '
+  SWRITE(UNIT_StdOut,'(A)')' Restart file is too old! "File_Version" in restart file < 1.5!'
+  SWRITE(UNIT_StdOut,'(A)')' The format used in the restart file is not compatible with this version of PICLas.'
+  SWRITE(UNIT_StdOut,'(A)')' Among others, the particle format (PartData) has changed.'
+  SWRITE(UNIT_StdOut,'(A)')' Run python script '
+  SWRITE(UNIT_StdOut,'(A)')' '
+  SWRITE(UNIT_StdOut,'(A)')'     python  ./tools/flip_PartState/flip_PartState.py  --help'
+  SWRITE(UNIT_StdOut,'(A)')' '
+  SWRITE(UNIT_StdOut,'(A)')' for info regarding the usage and run the script against the restart file, e.g., '
+  SWRITE(UNIT_StdOut,'(A)')' '
+  SWRITE(UNIT_StdOut,'(A)')'     python  ./tools/flip_PartState/flip_PartState.py  ProjectName_State_000.0000xxxxxx.h5'
+  SWRITE(UNIT_StdOut,'(A)')' '
+  SWRITE(UNIT_StdOut,'(A)')' to update the format and file version number.'
+  SWRITE(UNIT_StdOut,'(A)')' Note that the format can be changed back to the old one by running the script a second time.'
+  SWRITE(UNIT_StdOut,'(A)')' '
+  SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
+  CALL abort(&
+  __STAMP__&
+  ,'Error in InitRestart(): "File_Version" in restart file < 1.5. See error message above to fix. File version in restart file =',&
+  RealInfoOpt=FileVersionHDF5)
+END IF ! FileVersionHDF5.LT.1.5
+
 ! Read-in of dimensions of the particle array (1: Number of particles, 2: Number of variables)
 CALL GetDataSize(File_ID,'PartData',nDims,HSize)
 ! First 3 entries are the particle positions, which are used as the coordinates for the output and not included as a variable
-nPartsVar=INT(HSize(2),4)-3
-nParts=INT(HSize(1),4)
+nPartsVar=INT(HSize(1),4)-3
+nParts=INT(HSize(2),4)
 ! Allocating the array for the variables and a temporary array since ParticlePositionX,Y,Z are included in the read-in
 ALLOCATE(VarNamesParticle(nPartsVar),tmpArray(nPartsVar+3))
 CALL ReadAttribute(File_ID,'VarNamesParticles',nPartsVar+3,StrArray=tmpArray)
 VarNamesParticle(1:nPartsVar)=tmpArray(4:nPartsVar+3)
 
 IF(nParts.GT.0) THEN
-  ALLOCATE(PartData(1:nPartsVar+3,1:nParts),tmpPartData(1:nParts,1:nPartsVar+3))
+  ALLOCATE(PartData(1:nPartsVar+3,1:nParts))
   PartData = 0.
-  tmpPartData = 0.
   SDEALLOCATE(ConnectInfo)
   ALLOCATE(ConnectInfo(1,1:nParts))
   ConnectInfo = 0
@@ -864,11 +906,10 @@ END IF
 
 ASSOCIATE(nParts    => INT(nParts,IK),  &
           nPartsVar => INT(nPartsVar,IK))
-CALL ReadArray('PartData',2,(/nParts, nPartsVar+3_IK/),0_IK,1,RealArray=tmpPartData)
+CALL ReadArray('PartData',2,(/nPartsVar+3_IK,nParts/),0_IK,1,RealArray=PartData)
 END ASSOCIATE
 
 DO iPart=1,nParts
-  PartData(1:nPartsVar+3,iPart) = tmpPartData(iPart,1:nPartsVar+3)
   ConnectInfo(1,iPart)=iPart
 END DO
 
@@ -880,7 +921,8 @@ SDEALLOCATE(VarNamesParticle)
 SDEALLOCATE(tmpArray)
 SDEALLOCATE(PartData)
 SDEALLOCATE(ConnectInfo)
-SDEALLOCATE(tmpPartData)
+
+CALL CloseDataFile()
 
 END SUBROUTINE ConvertPartData
 
@@ -963,6 +1005,8 @@ END IF
 
 SDEALLOCATE(VarNamesAdd)
 SDEALLOCATE(ElemData)
+
+CALL CloseDataFile()
 
 END SUBROUTINE ConvertElemData
 
@@ -1058,6 +1102,8 @@ SDEALLOCATE(VarNamesSurf_HDF5)
 SDEALLOCATE(SurfData)
 SDEALLOCATE(tempSurfData)
 SDEALLOCATE(Coords)
+
+CALL CloseDataFile()
 
 END SUBROUTINE ConvertSurfaceData
 
@@ -1161,3 +1207,118 @@ SDEALLOCATE(SurfBCName_HDF5)
 SDEALLOCATE(SideToSurfSide)
 
 END SUBROUTINE BuildSurfMeshConnectivity
+
+
+SUBROUTINE ConvertBGField(InputStateFile,ReadMeshFinished,NVisu,NodeTypeVisuOut)
+!===================================================================================================================================
+! Subroutine to write 3D point data to VTK format
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: ProjectName
+USE MOD_HDF5_Input              ,ONLY: OpenDataFile,GetDataProps,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize
+USE MOD_Mesh_ReadIn             ,ONLY: readMesh
+USE MOD_Mesh_Vars               ,ONLY: NGeo, nElems, offsetElem, NodeCoords
+USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVisu
+USE MOD_Interpolation           ,ONLY: GetVandermonde
+USE MOD_ChangeBasis             ,ONLY: ChangeBasis3D
+USE MOD_VTK                     ,ONLY: WriteDataToVTK
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)              :: NVisu                             ! Polynomial degree of visualization
+CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile, NodeTypeVisuOut
+LOGICAL,INTENT(INOUT)           :: ReadMeshFinished
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iDG, iElem
+INTEGER                         :: nVar_State,N_State,nElems_State   ! Properties read from state file
+CHARACTER(LEN=255)              :: NodeType_State
+CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
+REAL,ALLOCATABLE                :: U(:,:,:,:,:)                      ! Solution from state file
+REAL,ALLOCATABLE,TARGET         :: U_Visu(:,:,:,:,:)                 ! Solution on visualiation nodes
+REAL,POINTER                    :: U_Visu_p(:,:,:,:,:)               ! Solution on visualiation nodes
+REAL,ALLOCATABLE                :: Coords_NVisu(:,:,:,:,:)           ! Coordinates of visualisation nodes
+REAL,ALLOCATABLE,TARGET         :: Coords_BField(:,:,:,:,:)
+REAL,POINTER                    :: Coords_BField_p(:,:,:,:,:)
+REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             ! Vandermonde from equidistand mesh to visualisation nodes
+REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  ! Vandermonde from state to visualisation nodes
+CHARACTER(LEN=255)              :: FileString_BField, MeshFile
+!===================================================================================================================================
+! 1.) Open given file to get the number of elements, the order and the name of the mesh file
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL GetDataProps('BGField',nVar_State,N_State,nElems_State,NodeType_State)
+CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
+CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
+
+SDEALLOCATE(StrVarNames)
+ALLOCATE(StrVarNames(nVar_State))
+CALL ReadAttribute(File_ID,'VarNames',nVar_State,StrArray=StrVarNames)
+
+CALL CloseDataFile()
+
+IF(.NOT.ReadMeshFinished) THEN
+! Read in parameters from mesh file
+  CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
+  CALL CloseDataFile()
+  CALL readMesh(MeshFile)
+  ReadMeshFinished = .TRUE.
+END IF
+
+SDEALLOCATE(Vdm_EQNgeo_NVisu)
+ALLOCATE(Vdm_EQNgeo_NVisu(0:Ngeo,0:NVisu))
+CALL GetVandermonde(Ngeo,NodeTypeVisu,NVisu,NodeTypeVisuOut,Vdm_EQNgeo_NVisu,modal=.FALSE.)
+
+SDEALLOCATE(Coords_NVisu)
+ALLOCATE(Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,nElems))
+SDEALLOCATE(Coords_BField)
+ALLOCATE(Coords_BField(3,0:NVisu,0:NVisu,0:NVisu,nElems))
+
+! Convert coordinates to visu grid
+DO iElem = 1,nElems
+  CALL ChangeBasis3D(3,NGeo,NVisu,Vdm_EQNgeo_NVisu,NodeCoords(:,:,:,:,iElem),Coords_NVisu(:,:,:,:,iElem))
+END DO
+
+SDEALLOCATE(U)
+ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
+
+! Read in solution
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nVar_State => INT(nVar_State,IK) ,&
+      offsetElem => INT(offsetElem,IK),&
+      N_State    => INT(N_State,IK),&
+      nElems     => INT(nElems,IK)    )
+  CALL ReadArray('BGField',5,(/nVar_State,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5,RealArray=U)
+END ASSOCIATE
+
+CALL CloseDataFile()
+
+SDEALLOCATE(Vdm_N_NVisu)
+ALLOCATE(Vdm_N_NVisu(0:N_State,0:NVisu))
+CALL GetVandermonde(N_State,NodeType_State,NVisu,NodeTypeVisuOut,Vdm_N_NVisu,modal=.FALSE.)
+
+SDEALLOCATE(U_Visu)
+ALLOCATE(U_Visu(nVar_State,0:NVisu,0:NVisu,0:NVisu,nElems))
+
+! Interpolate solution to visu grid
+iDG = 0
+DO iElem = 1,nElems
+  iDG = iDG + 1
+  CALL ChangeBasis3D(nVar_State,N_State,NVisu,Vdm_N_NVisu,U(:,:,:,:,iElem),U_Visu(:,:,:,:,iDG))
+  Coords_BField(:,:,:,:,iDG) = Coords_NVisu(:,:,:,:,iElem)
+END DO
+
+! Write solution to vtk
+FileString_BField=TRIM(ProjectName)//'_BGField.vtu'
+Coords_BField_p => Coords_BField(:,:,:,:,1:iDG)
+U_Visu_p => U_Visu(:,:,:,:,1:iDG)
+CALL WriteDataToVTK(nVar_State,NVisu,iDG,StrVarNames,Coords_BField_p,U_Visu_p,TRIM(FileString_BField),dim=3,DGFV=0)
+
+END SUBROUTINE ConvertBGField

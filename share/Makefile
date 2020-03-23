@@ -2,17 +2,7 @@
 MAINDIR = ../
 include ../Makefile.defs
 
-ifeq ($(EQNSYS),maxwell)
-all: hdf5 recipes  
-else ifeq ($(EQNSYS),electrostatic)
-all: hdf5 recipes  
-else ifeq ($(EQNSYS),electrostatic_pois)
-all: hdf5 recipes  
-else ifeq ($(EQNSYS),maxwell_pois)
-all: hdf5 recipes  
-else
 all: hdf5 recipes
-endif
 
 dir:
 	@# Create the directory for the share programs 

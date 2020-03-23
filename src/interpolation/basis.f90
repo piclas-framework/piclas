@@ -237,7 +237,6 @@ SUBROUTINE ComputeBernSteinCoeff(N_In,NChooseK)
 ! by a BLAS routine for better matrix conditioning
 !===================================================================================================================================
 ! MODULES
-!USE nr,                        ONLY : gaussj
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:abort
 ! IMPLICIT VARIABLE HANDLING
@@ -283,7 +282,6 @@ SUBROUTINE BuildBezierVdm(N_In,xi_In,Vdm_Bezier,sVdm_Bezier)
 ! by a BLAS routine for better matrix conditioning
 !===================================================================================================================================
 ! MODULES
-!USE nr,                        ONLY : gaussj
 USE MOD_Globals,                ONLY: abort
 USE MOD_PreProc
 USE MOD_Particle_Surfaces_Vars, ONLY: arrayNchooseK,FacNchooseK,BezierElevation,ElevationMatrix
@@ -485,7 +483,6 @@ SUBROUTINE DeCasteljauInterpolation(N_In,xi_In,SideID,xPoint)
 ! Computes a point in a Bezier-Surface by using the DeCasteljau alogrithm
 !===================================================================================================================================
 ! MODULES
-!USE nr,                        ONLY : gaussj
 USE MOD_Globals,                ONLY: abort
 USE MOD_PreProc
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D

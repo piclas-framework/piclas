@@ -39,7 +39,8 @@ CONTAINS
 SUBROUTINE DefineParametersPIC()
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools ,ONLY: prms
+USE MOD_ReadInTools    ,ONLY: prms
+USE MOD_PICDepo_Method ,ONLY: DefineParametersDepositionMethod
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("PIC")
@@ -56,8 +57,12 @@ CALL prms%CreateIntOption(    'PIC-AnalyticInterpolation-SubType', "SubType of A
                                                                    "EM field's value for the particle (ifdef CODE_ANALYZE)",'0')
 
 CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationP'       , "parameter 'p' for AnalyticInterpolationType = 1", '1.')
+CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationPhase'   , "Phase shift angle phi that is used for cos(w*t + phi)", '0.')
 #endif /*CODE_ANALYZE*/
 
+CALL prms%CreateLogicalOption(  'PIC-DoInterpolation'         , "TODO-DEFINE-PARAMETER\n"//&
+                                                                "Compute the self field's influence "//&
+                                                                "on the Particle", '.TRUE.')
 CALL prms%CreateStringOption(   'PIC-Interpolation-Type'      , "TODO-DEFINE-PARAMETER\n"//&
                                                                 "Type of Interpolation-Method to calculate"//&
                                                                 " the EM field's value for the particle", 'particle_position')
@@ -68,24 +73,7 @@ CALL prms%CreateRealArrayOption('PIC-externalField'           , 'TODO-DEFINE-PAR
                                                                 'External field is added to the'//&
                                                                 'maxwell-solver-field', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
 CALL prms%CreateRealOption(     'PIC-scaleexternalField'      , 'TODO-DEFINE-PARAMETER', '1.0')
-CALL prms%CreateLogicalOption(  'PIC-DoInterpolation'         , "TODO-DEFINE-PARAMETER\n"//&
-                                                                "Compute the self field's influence "//&
-                                                                "on the Particle", '.TRUE.')
-CALL prms%CreateLogicalOption(  'PIC-BG-Field'                , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'BGField data (1:x,0:NBG,0:NBG,0:NBG,'//&
-                                                                '1:PP_nElems) \n'//&
-                                                                'If PIC-BG-Field=T\n'//&
-                                                                'Define:\n'//&
-                                                                'PIC-BGFilename\n'//&
-                                                                'PIC-BGFieldScaling\n'//&
-                                                                'PIC-NBG', '.TRUE.')
-CALL prms%CreateStringOption(   'PIC-BGFileName'              , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'File name for background field ([character].h5)', 'none')
-CALL prms%CreateIntOption(      'PIC-NBG'                     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Polynomial degree that shall be used '//&
-                                                                'for background field during simulation', '1')
-CALL prms%CreateRealOption(     'PIC-BGFieldScaling'          , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Space scaling of background field', '1.')
+
 CALL prms%CreateStringOption(   'PIC-curvedexternalField'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'File to curved external field data.','none')
 CALL prms%CreateStringOption(   'PIC-variableexternalField'   , 'TODO-DEFINE-PARAMETER\n'//&
@@ -112,34 +100,7 @@ CALL prms%CreateLogicalOption(  'PIC-OutputSource'   , 'TODO-DEFINE-PARAMETER\n'
                                                        'Writes the source to hdf5', '.FALSE.')
 
 CALL prms%SetSection("PIC Deposition")
-CALL prms%CreateLogicalOption(  'PIC-DoDeposition'         , 'Switch deposition of charge (and current density) on/off', '.TRUE.')
-CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , '1.1)  shape_function\n'                   //&
-                                                             '1.2)  shape_function_1d\n'                //&
-                                                             '1.3)  shape_function_2d\n'                //&
-                                                             '1.4)  shape_function_cylindrical\n'       //&
-                                                             '1.5)  shape_function_spherical\n'         //&
-                                                             '1.6)  shape_function_simple\n'            //&
-                                                             '      1.1) to 1.6) require\n'            //&
-                                                             '        PIC-shapefunction-radius\n'//&
-                                                             '        PIC-shapefunction-alpha\n' //&
-                                                             '      1.2) and 1.3) require\n'            //&
-                                                             '        PIC-shapefunction1d-direction\n'  //&
-                                                             '      1.4) and 1.5) require\n'            //&
-                                                             '        PIC-shapefunction-radius0\n'      //&
-                                                             '        PIC-shapefunction-scale\n'        //&
-                                                             '2.)   cell_volweight\n'                   //&
-                                                             '3.)   epanechnikov\n'                     //&
-                                                             '4.)   nearest_gausspoint\n'               //&
-                                                             '5.)   delta_distri\n'                     //&
-                                                             '      requires PIC-DeltaType\n'           //&
-                                                             '               PIC-DeltaType-N\n'         //&
-                                                             '6.1)  cartmesh_volumeweighting\n'         //&
-                                                             '6.2)  cartmesh_splines\n'                 //&
-                                                             '      requires PIC-BGMdeltas\n'           //&
-                                                             '               PIC-FactorBGM\n'           //&
-                                                             '7.)   nearest-blurrycenter\n'             //&
-                                                             '8.)   cell_volweight_mean'                &
-                                                           , 'nearest-blurrycenter') ! Default
+CALL DefineParametersDepositionMethod() ! Get PIC-DoDeposition and PIC-Deposition-Type
 CALL prms%CreateStringOption(   'PIC-TimeAverageFile'      , 'TODO-DEFINE-PARAMETER', 'none')
 CALL prms%CreateLogicalOption(  'PIC-RelaxDeposition'      , 'Relaxation of current PartSource with RelaxFac\n'//&
                                                              'into PartSourceOld', '.FALSE.')

@@ -59,8 +59,8 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, nPart, iPair)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iPart1, iPart2, iLoop
-  REAL                          :: Dist1, Dist2, iRan
+INTEGER                       :: iPart1, iPart2, iLoop
+REAL                          :: Dist1, Dist2, iRan
 !===================================================================================================================================
 
 CALL RANDOM_NUMBER(iRan)
@@ -224,7 +224,6 @@ SUBROUTINE PerformPairingAndCollision(iPartIndx_Node, PartNum, iElem, NodeVolume
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision, SumVibRelaxProb
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
@@ -233,7 +232,7 @@ USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacr
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcEkin
+USE MOD_DSMC_Relaxation       ,ONLY: CalcMeanVibQuaDiatomic
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -335,7 +334,7 @@ END IF
 IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
 
 IF (CollisMode.EQ.3) THEN
-  CALL SetMeanVibQua()
+  CALL CalcMeanVibQuaDiatomic()
 END IF
 
 IF(RadialWeighting%DoRadialWeighting) THEN
@@ -348,14 +347,6 @@ DO iPair = 1, nPair
     CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
     CALL RANDOM_NUMBER(iRan)
     IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
-#if (PP_TimeDiscMethod==42)
-      IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN
-#else
-      IF(CalcEkin) THEN
-#endif
-        DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
-        DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
-      END IF
       CALL DSMC_perform_collision(iPair,iElem, NodeVolume, PartNum)
       IF (CollInf%ProhibitDoubleColl) THEN
         CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1) = Coll_pData(iPair)%iPart_p2
@@ -1657,9 +1648,9 @@ USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(INOUT)                  :: nPart
-INTEGER, INTENT(IN)                     :: iPair, nPair
-INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
+INTEGER, INTENT(INOUT)        :: nPart
+INTEGER, INTENT(IN)           :: iPair, nPair
+INTEGER, INTENT(INOUT)        :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

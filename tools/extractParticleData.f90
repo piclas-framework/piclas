@@ -39,6 +39,7 @@ INTEGER :: error                                     ! Error flags
 
 CHARACTER                   :: tmp                   ! For reading command-line-argument
 INTEGER                     :: iFileFormat=1         ! 1: Tecplot 2: VTK
+INTEGER                     :: nParts, PartDataSize  ! number of particles and number of properties of each particle
 
 
 CALL GETARG(1,filename)
@@ -68,12 +69,14 @@ CALL H5DGET_SPACE_F(dset_id, FileSpace, error)
 
 ! get size
 CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, count, SizeMax, error)
+nParts       = count(2)
+PartDataSize = count(1)
 
 !
 ! Read data from hyperslab in the file into the hyperslab in
 ! memory and display.
 !
-ALLOCATE(PartData(count(1),count(2)))
+ALLOCATE(PartData(PartDataSize,nParts))
 CALL H5dread_f(dset_id, H5T_NATIVE_DOUBLE, PartData, count, error)
 !
 ! Close the dataset.
@@ -100,9 +103,9 @@ IF (iFileFormat.EQ.1) THEN
   !WRITE(101,'(A)')'VARIABLES = "x[m]" ,"y[m]" ,"z[m]" ,"v_x[m/s]" ,"v_y[m/s]" ,"v_z[m/s]" ,"Q[As]" ,"m[kg]" ,"Species"'
   WRITE(101,'(A)')'VARIABLES = "x[m]" ,"y[m]" ,"z[m]" ,"v_x[m/s]" ,"v_y[m/s]" ,"v_z[m/s]" ,"Species"'
   WRITE(101,'(3(A))')'ZONE T= "',TRIM(dsetname),'"'
-  WRITE(101,'(A,I0,A)')'I=',count(1),', J=1, K=1, F=POINT'
-  DO iPart=1,count(1)
-    WRITE(101,'(6(E12.5,X),I0)') PartData(iPart,1:6),INT(PartData(iPart,7))
+  WRITE(101,'(A,I0,A)')'I=',nParts,', J=1, K=1, F=POINT'
+  DO iPart=1,nParts
+    WRITE(101,'(6(E12.5,X),I0)') PartData(1:6,iPart),INT(PartData(7,iPart))
   END DO
   CLOSE(101)
 
@@ -118,59 +121,59 @@ ELSE IF (iFileFormat.EQ.2) THEN
   WRITE(101,'(A)')'DATASET UNSTRUCTURED_GRID'
   
   WRITE(101,'(A)')''
-  WRITE(101,'(A,X,I0,X,A)')'POINTS',count(1),'FLOAT'
-  DO iPart=1,count(1)
-    WRITE(101,'(3(E12.5,X))') PartData(iPart,1:3)
+  WRITE(101,'(A,X,I0,X,A)')'POINTS',nParts,'FLOAT'
+  DO iPart=1,nParts
+    WRITE(101,'(3(E12.5,X))') PartData(1:3,iPart)
   END DO
   
   WRITE(101,'(A)')''
-  WRITE(101,'(A,X,I0,X,I0)')'CELLS',count(1),2*count(1)
-  DO iPart=1,count(1)
+  WRITE(101,'(A,X,I0,X,I0)')'CELLS',nParts,2*nParts
+  DO iPart=1,nParts
     WRITE(101,'(2(I0,X))') 1,iPart-1
   END DO
   
   WRITE(101,'(A)')''
-  WRITE(101,'(A,X,I0)')'CELL_TYPES',count(1)
-  DO iPart=1,count(1)
+  WRITE(101,'(A,X,I0)')'CELL_TYPES',nParts
+  DO iPart=1,nParts
     WRITE(101,'(I1,X)',ADVANCE="NO") 1
   END DO
   WRITE(101,*)''
   
   WRITE(101,*)''
-  WRITE(101,'(A,X,I0)')'POINT_DATA',count(1)
+  WRITE(101,'(A,X,I0)')'POINT_DATA',nParts
   WRITE(101,'(A)')'SCALARS species FLOAT'
   WRITE(101,'(A)')'LOOKUP_TABLE default'
-  DO iPart=1,count(1)
-    !WRITE(101,'(1(E12.5,X))') PartData(iPart,9)
-    WRITE(101,'(1(E12.5,X))') PartData(iPart,7)
+  DO iPart=1,nParts
+    !WRITE(101,'(1(E12.5,X))') PartData(9,iPart)
+    WRITE(101,'(1(E12.5,X))') PartData(7,iPart)
   END DO
   
   WRITE(101,*)''
   WRITE(101,'(A)')'SCALARS velocity_x FLOAT'
   WRITE(101,'(A)')'LOOKUP_TABLE default'
-  DO iPart=1,count(1)
-    WRITE(101,'(3(E12.5,X))') PartData(iPart,4)
+  DO iPart=1,nParts
+    WRITE(101,'(3(E12.5,X))') PartData(4,iPart)
   END DO
 
   WRITE(101,*)''
   WRITE(101,'(A)')'SCALARS velocity_y FLOAT'
   WRITE(101,'(A)')'LOOKUP_TABLE default'
-  DO iPart=1,count(1)
-    WRITE(101,'(3(E12.5,X))') PartData(iPart,5)
+  DO iPart=1,nParts
+    WRITE(101,'(3(E12.5,X))') PartData(5,iPart)
   END DO
 
   WRITE(101,*)''
   WRITE(101,'(A)')'SCALARS velocity_z FLOAT'
   WRITE(101,'(A)')'LOOKUP_TABLE default'
-  DO iPart=1,count(1)
-    WRITE(101,'(3(E12.5,X))') PartData(iPart,6)
+  DO iPart=1,nParts
+    WRITE(101,'(3(E12.5,X))') PartData(6,iPart)
   END DO
 
 !   WRITE(101,*)''
 !   WRITE(101,'(A)')'VECTORS velocity FLOAT'
 !   WRITE(101,'(A)')'LOOKUP_TABLE default'
-!   DO iPart=1,count(1)
-!     WRITE(101,'(3(E12.5,X))') PartData(iPart,4:6)
+!   DO iPart=1,nParts
+!     WRITE(101,'(3(E12.5,X))') PartData(4:6,iPart)
 !   END DO
 
   CLOSE(101)
@@ -179,15 +182,15 @@ END IF
 END PROGRAM ExtractParticleData
 !  WRITE(101,'(A)')'SCALARS charge FLOAT'
 !  WRITE(101,'(A)')'LOOKUP_TABLE default'
-!  DO iPart=1,count(1)
-!    WRITE(101,'(1(E12.5,X))') PartData(iPart,7)
+!  DO iPart=1,nParts
+!    WRITE(101,'(1(E12.5,X))') PartData(7,iPart)
 !  END DO
   
 !  WRITE(101,*)''
 !  WRITE(101,'(A)')'SCALARS mass FLOAT'
 !  WRITE(101,'(A)')'LOOKUP_TABLE default'
-!  DO iPart=1,count(1)
-!    WRITE(101,'(1(E12.5,X))') PartData(iPart,8)
+!  DO iPart=1,nParts
+!    WRITE(101,'(1(E12.5,X))') PartData(8,iPart)
 !  END DO
 !  
 !  WRITE(101,*)''
