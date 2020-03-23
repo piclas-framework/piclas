@@ -124,8 +124,6 @@ INTEGER,INTENT(OUT)           :: mySumOfMatchedParticles
 ! LOCAL VARIABLES
 ! Counters
 INTEGER                       :: i,iPos,iProc,iDir,ElemID,ProcID
-!INTEGER                       :: mySumOfMatchedParticles,sumOfMatchedParticles
-INTEGER                       :: mySumOfLostParticles,sumOfLostParticles
 ! BGM
 INTEGER                       :: ijkBGM(3,chunkSize)
 INTEGER                       :: iBGMElem,nBGMElems,TotalNbrOfRecvParts
@@ -326,10 +324,6 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 END DO
 
 mySumOfMatchedParticles = 0
-!sumOfMatchedParticles   = 0
-mySumOfLostParticles    = 0
-sumOfLostParticles      = 0
-
 ParticleIndexNbr        = 1
 
 !--- Locate local (node or halo of node) particles
@@ -339,52 +333,49 @@ DO i = 1, chunkSize
     ! manually if we got a hit
     ElemID = SinglePointToElement(particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+3),doHALO=.TRUE.)
     ! Checked every possible cell and didn't find it. Apparently, we emitted the particle outside the domain
-    IF(ElemID.EQ.-1)THEN
-      mySumOfLostParticles = mySumOfLostParticles + 1
-    ELSE
-      ! Only keep the particle if it belongs on the current proc. Otherwise prepare to send it to the correct proc
-      ! TODO: Implement U_Shared, so we can finish emission on this proc and send the fully initialized particle (i.e. including
-      ! velocity)
-      ProcID = ElemToProcID_Shared(ElemID)
-      IF (ProcID.NE.myRank) THEN
-        ! ProcID on emission communicator
-        tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
-        ! Processor is not on emission communicator
-        IF(tProc.EQ.-1) THEN
-          mySumOfLostParticles =  mySumOfLostParticles + 1
-        ELSE
-          PartMPILocate%nPartsSend(1,tProc)= PartMPILocate%nPartsSend(1,tProc)+1
+    IF(ElemID.EQ.-1) CYCLE
 
-          ! Assemble temporary PartState to send the final particle position
-          chunkState(1:3,i) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+3)
-          IF(DoRefMapping)THEN
-            CALL GetPositionInRefElem(chunkState(1:3,i),chunkState(4:6,i),ElemID)
-!            chunkState(7,i) = Species(FractNbr)
-            chunkState(7,i) = REAL(ElemID,KIND=8)
-          ELSE
-!            chunkState(4,i) = Species(FractNbr)
-            chunkState(4,i) = REAL(ElemID,KIND=8)
-          END IF ! DoRefMapping
-        END IF ! tProc.EQ.-1
-      ! Located particle on local proc.
+    ! Only keep the particle if it belongs on the current proc. Otherwise prepare to send it to the correct proc
+    ! TODO: Implement U_Shared, so we can finish emission on this proc and send the fully initialized particle (i.e. including
+    ! velocity)
+    ProcID = ElemToProcID_Shared(ElemID)
+    IF (ProcID.NE.myRank) THEN
+      ! ProcID on emission communicator
+      tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
+      ! Processor is not on emission communicator
+      IF(tProc.EQ.-1) &
+        CALL ABORT(__STAMP__,'Error in particle_mpi_emission: proc not on emission communicator')
+
+      PartMPILocate%nPartsSend(1,tProc)= PartMPILocate%nPartsSend(1,tProc)+1
+
+      ! Assemble temporary PartState to send the final particle position
+      chunkState(1:3,i) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+3)
+      IF(DoRefMapping)THEN
+        CALL GetPositionInRefElem(chunkState(1:3,i),chunkState(4:6,i),ElemID)
+!        chunkState(7,i) = Species(FractNbr)
+        chunkState(7,i) = REAL(ElemID,KIND=8)
       ELSE
-        ! Find a free position in the PDM array
-        IF ((i.EQ.1).OR.PDM%ParticleInside(ParticleIndexNbr)) THEN
-          ParticleIndexNbr = PDM%nextFreePosition(mySumOfMatchedParticles + 1 + PDM%CurrentNextFreePosition)
-        END IF
-        IF (ParticleIndexNbr.NE.0) THEN
-          ! Fill the PartState manually to avoid a second localization
-          PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
-          PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
-          IF(DoRefMapping)THEN
-            CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
-          END IF ! DoRefMapping
-          PEM%Element(ParticleIndexNbr)         = ElemID
-        ELSE
-          CALL ABORT(__STAMP__,'ERROR in ParticleMPIEmission:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
-        END IF
-        mySumOfMatchedParticles = mySumOfMatchedParticles + 1
-      END IF ! ProcID.NE.myRank
+!        chunkState(4,i) = Species(FractNbr)
+        chunkState(4,i) = REAL(ElemID,KIND=8)
+      END IF ! DoRefMapping
+    ! Located particle on local proc.
+    ELSE
+      ! Find a free position in the PDM array
+      IF ((i.EQ.1).OR.PDM%ParticleInside(ParticleIndexNbr)) THEN
+        ParticleIndexNbr = PDM%nextFreePosition(mySumOfMatchedParticles + 1 + PDM%CurrentNextFreePosition)
+      END IF
+      IF (ParticleIndexNbr.NE.0) THEN
+        ! Fill the PartState manually to avoid a second localization
+        PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
+        PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
+        IF(DoRefMapping)THEN
+          CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
+        END IF ! DoRefMapping
+        PEM%Element(ParticleIndexNbr)         = ElemID
+      ELSE
+        CALL ABORT(__STAMP__,'ERROR in ParticleMPIEmission:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+      END IF
+      mySumOfMatchedParticles = mySumOfMatchedParticles + 1
     END IF ! ElemID.EQ.-1
   END IF ! InsideMyBGM(i)
 END DO ! i = 1, chunkSize
