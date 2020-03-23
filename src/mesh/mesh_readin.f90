@@ -483,7 +483,7 @@ DO iElem=FirstElemInd,LastElemInd
       DO jLocSide = 1,nlocSidesNb
         NbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,NbElemID) + jLocSide
         IF (ABS(SideInfo_Shared(SIDE_ID,iSide)).EQ.ABS(SideInfo_Shared(SIDE_ID,NbSideID))) THEN
-          SideInfo(SIDE_LOCALID,iSide) = -NbSideID
+          SideInfo_Shared(SIDE_LOCALID,iSide) = -NbSideID
           EXIT
         END IF
       END DO
