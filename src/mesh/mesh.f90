@@ -857,10 +857,10 @@ DO iElem = 1,nElems
   !--- Calculate and save volume of element iElem
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    ElemVolume_Shared(iElem-offsetElemCNProc) = ElemVolume_Shared(iElem-offsetElemCNProc) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
+    ElemVolume_Shared(iElem+offsetElemCNProc) = ElemVolume_Shared(iElem+offsetElemCNProc) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
   END DO; END DO; END DO
   !---- Calculate characteristic cell length: V^(1/3)
-  ElemCharLength_Shared(iElem-offsetElemCNProc) = ElemVolume_Shared(iElem-offsetElemCNProc)**(1./3.)
+  ElemCharLength_Shared(iElem+offsetElemCNProc) = ElemVolume_Shared(iElem+offsetElemCNProc)**(1./3.)
 END DO
 
 #if USE_MPI
