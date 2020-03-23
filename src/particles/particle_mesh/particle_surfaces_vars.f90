@@ -25,7 +25,7 @@ SAVE
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCPOINT,DIMENSION(:,:,:,:)     :: BezierControlPoints3D         ! Bezier basis control points of degree equal to NGeo
-REAL,ALLOCPOINT,DIMENSION(:,:,:,:)     :: BezierControlPoints3DElevated ! Bezier basis control points of degree equal to NGeo
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:)     :: BezierControlPoints3DElevated ! Bezier basis control points of degree equal to NGeoElevated
 
 REAL,ALLOCATABLE,DIMENSION(:,:,:)      :: BiLinearCoeff                ! contains the bi-linear coefficients for each side
 REAL,ALLOCPOINT,DIMENSION(:,:)         :: BaseVectors0                 ! vectors for building intersectionsurfaces for particle

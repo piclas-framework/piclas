@@ -114,6 +114,8 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:)       :: XiEtaZetaBasis     ! element local bas
 REAL,ALLOCPOINT,DIMENSION(:,:)         :: slenXiEtaZetaBasis ! inverse of length of basis vector
 REAL,ALLOCPOINT,DIMENSION(:)           :: ElemRadiusNGeo     ! radius of element
 REAL,ALLOCPOINT,DIMENSION(:)           :: ElemRadius2NGeo    ! radius of element + 2% tolerance
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:)   :: XCL_NGeo_Shared
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:,:) :: dXCL_NGeo_Shared   ! Jacobi matrix of the mapping P\in NGeo
 
 INTEGER                                 :: RefMappingGuess    ! select guess for mapping into reference
                                                               ! element

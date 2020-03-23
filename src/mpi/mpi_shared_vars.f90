@@ -92,9 +92,9 @@ INTEGER         :: ElemToBGM_Shared_Win
 INTEGER,POINTER :: FIBGM_offsetElem_Shared(:,:,:)
 INTEGER         :: FIBGM_offsetElem_Shared_Win
 
-REAL,POINTER    :: XCL_NGeo_Shared(:,:,:,:,:)
+REAL,POINTER    :: XCL_NGeo_Array(:)                          !> 1D array. Pointer changes to proper array bounds
 INTEGER         :: XCL_NGeo_Shared_Win
-REAL,POINTER    :: dXCL_NGeo_Shared(:,:,:,:,:,:)
+REAL,POINTER    :: dXCL_NGeo_Array(:)                         !> 1D array. Pointer changes to proper array bounds
 INTEGER         :: dXCL_NGeo_Shared_Win
 REAL,POINTER    :: BezierControlPoints3D_Shared(:)            !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
 INTEGER         :: BezierControlPoints3D_Shared_Win
