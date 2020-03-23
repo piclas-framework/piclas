@@ -24,9 +24,10 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL,ALLOCPOINT,DIMENSION(:,:,:,:)     :: BezierControlPoints3D        ! Bezier basis control points of degree equal to NGeo
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:)     :: BezierControlPoints3D         ! Bezier basis control points of degree equal to NGeo
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:)     :: BezierControlPoints3DElevated ! Bezier basis control points of degree equal to NGeo
 
-REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: BiLinearCoeff                ! contains the bi-linear coefficients for each side
+REAL,ALLOCATABLE,DIMENSION(:,:,:)      :: BiLinearCoeff                ! contains the bi-linear coefficients for each side
 REAL,ALLOCPOINT,DIMENSION(:,:)         :: BaseVectors0                 ! vectors for building intersectionsurfaces for particle
                                                                         ! from Bezierpoints (1:3,1:nBCSurfaces)
 REAL,ALLOCPOINT,DIMENSION(:,:)         :: BaseVectors1                 ! vectors for building intersectionsurfaces for particle
@@ -38,7 +39,6 @@ REAL,ALLOCPOINT,DIMENSION(:,:)         :: BaseVectors3                 ! additio
 REAL,ALLOCPOINT,DIMENSION(:)           :: BaseVectorsScale             ! approx. size of face for bilinear intersection
                                                                         ! from Bezierpoints (1:nBCSurfaces)
 
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: BezierControlPoints3DElevated! Bezier basis control points of degree equal to NGeo
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElevationMatrix              ! array for binomial coefficients used for Bezier Elevation
 
 REAL,ALLOCPOINT,DIMENSION(:,:,:)       :: SideSlabNormals              ! normal vectors of bounding slab box (Sides)

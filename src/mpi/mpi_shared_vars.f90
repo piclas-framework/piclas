@@ -96,8 +96,10 @@ REAL,POINTER    :: XCL_NGeo_Shared(:,:,:,:,:)
 INTEGER         :: XCL_NGeo_Shared_Win
 REAL,POINTER    :: dXCL_NGeo_Shared(:,:,:,:,:,:)
 INTEGER         :: dXCL_NGeo_Shared_Win
-REAL,POINTER    :: BezierControlPoints3D_Shared(:,:,:,:)
+REAL,POINTER    :: BezierControlPoints3D_Shared(:)            !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
 INTEGER         :: BezierControlPoints3D_Shared_Win
+REAL,POINTER    :: BezierControlPoints3DElevated_Shared(:)    !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
+INTEGER         :: BezierControlPoints3DElevated_Shared_Win
 
 REAL,POINTER    :: ElemBaryNGeo_Shared(:,:)
 INTEGER         :: ElemBaryNGeo_Shared_Win
