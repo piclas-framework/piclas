@@ -25,8 +25,8 @@ INTERFACE DSMC_pairing_octree
   MODULE PROCEDURE DSMC_pairing_octree
 END INTERFACE
 
-INTERFACE DSMC_pairing_statistical
-  MODULE PROCEDURE DSMC_pairing_statistical
+INTERFACE DSMC_pairing_standard
+  MODULE PROCEDURE DSMC_pairing_standard
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -34,7 +34,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_pairing_statistical, DSMC_pairing_octree, DSMC_init_octree, DSMC_pairing_quadtree, DSMC_CalcSubNodeVolumes
+PUBLIC :: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_init_octree, DSMC_pairing_quadtree, DSMC_CalcSubNodeVolumes
 PUBLIC :: DSMC_CalcSubNodeVolumes2D, GeoCoordToMap2D
 !===================================================================================================================================
 
@@ -94,65 +94,65 @@ nPart = nPart - 1
 END SUBROUTINE FindNearestNeigh
 
 
-SUBROUTINE DSMC_pairing_statistical(iElem)
+SUBROUTINE DSMC_pairing_standard(iElem)
 !===================================================================================================================================
-! Classic statistical pairing method
+!> Standard pairing of particles within a cell
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars              ,ONLY: CollisMode, ChemReac, PartStateIntEn, CollInf
-  USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcInstantTransTemp
-  USE MOD_Particle_Vars          ,ONLY: PEM, nSpecies, PartSpecies
-  USE MOD_Particle_Vars          ,ONLY: KeepWallParticles, PDM
-  USE MOD_part_tools             ,ONLY: GetParticleWeight
-  USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_DSMC_Vars             ,ONLY: CollisMode, ChemReac, PartStateIntEn, CollInf
+USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp
+USE MOD_Particle_Vars         ,ONLY: PEM, nSpecies, PartSpecies
+USE MOD_Particle_Vars         ,ONLY: KeepWallParticles, PDM
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iElem
+INTEGER, INTENT(IN)           :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: nPair, iPart, iLoop, nPart
-  INTEGER, ALLOCATABLE          :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
+INTEGER                       :: nPair, iPart, iLoop, nPart
+INTEGER, ALLOCATABLE          :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
 !===================================================================================================================================
   
+IF (KeepWallParticles) THEN
+  nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
+ELSE
+  nPart = PEM%pNumber(iElem)
+END IF
+nPair = INT(nPart/2)
+IF (CollisMode.EQ.3) THEN
+  ChemReac%RecombParticle = 0
+END IF
+
+ALLOCATE(iPartIndx(nPart))
+iPartIndx = 0
+IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
+
+iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+DO iLoop = 1, nPart
+  ! check if particle is on wall and chose next particle until particle is not at wall
   IF (KeepWallParticles) THEN
-    nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
-  ELSE
-    nPart = PEM%pNumber(iElem)
+    DO WHILE (PDM%ParticleAtWall(iPart))
+      iPart = PEM%pNext(iPart)
+    END DO
   END IF
-  nPair = INT(nPart/2)
-  IF (CollisMode.EQ.3) THEN
-    ChemReac%RecombParticle = 0
-  END IF
+  iPartIndx(iLoop) = iPart
+  ! Counter for part num of spec per cell
+  CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
+  ! Calculation of mean evib per cell and iter, necessary for disso prob
+  IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
+                                                                + PartStateIntEn(1,iPart) * GetParticleWeight(iPart)
+  ! Choose next particle in Element
+  iPart = PEM%pNext(iPart)
+END DO
+CALL PerformPairingAndCollision(iPartIndx, nPart, iElem , GEO%Volume(iElem))
+DEALLOCATE(iPartIndx)
 
-  ALLOCATE(iPartIndx(nPart))
-  iPartIndx = 0
-  IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
-
-  iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-  DO iLoop = 1, nPart
-    ! check if particle is on wall and chose next particle until particle is not at wall
-    IF (KeepWallParticles) THEN
-      DO WHILE (PDM%ParticleAtWall(iPart))
-        iPart = PEM%pNext(iPart)
-      END DO
-    END IF
-    iPartIndx(iLoop) = iPart
-    ! Counter for part num of spec per cell
-    CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
-    ! Calculation of mean evib per cell and iter, necessary for disso prob
-    IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
-                                                                  + PartStateIntEn(1,iPart) * GetParticleWeight(iPart)
-    ! Choose next particle in Element
-    iPart = PEM%pNext(iPart)
-  END DO
-  CALL PerformPairingAndCollision(iPartIndx, nPart, iElem , GEO%Volume(iElem))
-  DEALLOCATE(iPartIndx)
-
-END SUBROUTINE DSMC_pairing_statistical
+END SUBROUTINE DSMC_pairing_standard
 
 
 SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, nPart, iPair)

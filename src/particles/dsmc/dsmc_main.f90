@@ -49,7 +49,7 @@ USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, 
 USE MOD_DSMC_Collis           ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry2D
 USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
-USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
+USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
@@ -71,14 +71,17 @@ REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
+! Reset the right-hand side (DoElement: coupled BGK/FP-DSMC simulations, which might utilize the RHS)
 IF(.NOT.PRESENT(DoElement)) THEN
   DSMC_RHS(1,1:PDM%ParticleVecLength) = 0
   DSMC_RHS(2,1:PDM%ParticleVecLength) = 0
   DSMC_RHS(3,1:PDM%ParticleVecLength) = 0
 END IF
+! Reset the number of particles created during the DSMC loop
 DSMCSumOfFormedParticles = 0
-
+! Insert background gas particles for every simulation particle
 IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_InsertParticles
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -91,12 +94,8 @@ DO iElem = 1, nElems ! element/cell main loop
   IF(DSMC%CalcQualityFactors) THEN
     DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
     DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
-    IF(DSMC%RotRelaxProb.GT.2) THEN
-      DSMC%CalcRotProb = 0.
-    END IF
-    IF(DSMC%VibRelaxProb.EQ.2) THEN
-      DSMC%CalcVibProb = 0.
-    END IF
+    IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
+    IF(DSMC%VibRelaxProb.EQ.2) DSMC%CalcVibProb = 0.
   END IF
   IF (CollisMode.NE.0) THEN
     ChemReac%nPairForRec = 0
@@ -107,13 +106,15 @@ DO iElem = 1, nElems ! element/cell main loop
       CALL DSMC_pairing_bggas(iElem)
     ELSE IF (nPart.GT.1) THEN
       IF (DSMC%UseOctree) THEN
+        ! On-the-fly cell refinement and pairing within subcells
         IF(Symmetry2D) THEN
           CALL DSMC_pairing_quadtree(iElem)
         ELSE
           CALL DSMC_pairing_octree(iElem)
         END IF
       ELSE
-        CALL DSMC_pairing_statistical(iElem)  ! pairing of particles per cell
+        ! Standard pairing of particles within a cell
+        CALL DSMC_pairing_standard(iElem)
       END IF
     ELSE ! less than 2 particles
       IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(PEM%pStart(iElem)) = 0
@@ -126,17 +127,20 @@ DO iElem = 1, nElems ! element/cell main loop
   CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
 END DO ! iElem Loop
-! Output!
+
+! Advance particle vector length and the current next free position with newly created particles
 PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
+
+! Delete background gas particles
 IF(BGGas%NumberOfSpecies.GT.0) CALL BGGas_DeleteParticles
-#if (PP_TimeDiscMethod==42)
-IF ((.NOT.DSMC%ReservoirSimu).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
-#else
+
+! Sampling of macroscopic values
+! (here for a continuous average; average over N iterations is performed in src/analyze/analyze.f90)
 IF (.NOT.WriteMacroVolumeValues .AND. .NOT.WriteMacroSurfaceValues) THEN
-#endif
   CALL DSMCMacroSampling()
 END IF
+
 END SUBROUTINE DSMC_main
 
 END MODULE MOD_DSMC

@@ -3601,6 +3601,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER           :: nOutput
 !-----------------------------------------------------------------------------------------------------------------------------------
+
+#if (PP_TimeDiscMethod==42)
+! Do not perform sampling in the case of a reservoir simulation
+IF (DSMC%ReservoirSimu) RETURN
+#endif
+
 IF(UseQCrit) THEN
   ! Use QCriterion (Burt,Boyd) for steady - state detection
   IF((.NOT.SamplingActive).AND.(iter-QCritLastTest.EQ.QCritTestStep)) THEN

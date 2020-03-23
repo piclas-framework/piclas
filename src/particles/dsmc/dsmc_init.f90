@@ -156,8 +156,7 @@ CALL prms%CreateIntOption(      'Particles-OctreePartNumNodeMin'&
                                          ,'Allow grid division until the minimum number of particles in a subcell is above '//&
                                           'OctreePartNumNodeMin')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseNearestNeighbour'&
-                                         ,'Allows to enable/disable the nearest neighbour search algorithm within the ocrtree '//&
-                                          'cell refinement','.TRUE.')
+                                         ,'Enable/disable the nearest neighbour search algorithm','.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-ProhibitDoubleCollisions'&
                                          ,'2D/Axisymmetric only: Prohibit the occurrence of repeated collisions between the '//&
                                           'same particle pairs in order to reduce the statistical dependence')
