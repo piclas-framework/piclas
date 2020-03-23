@@ -151,6 +151,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   END DO
   CALL PerformPairingAndCollision(iPartIndx, nPart, iElem , GEO%Volume(iElem))
   DEALLOCATE(iPartIndx)
+
 END SUBROUTINE DSMC_pairing_statistical
 
 
@@ -298,7 +299,7 @@ DO iPair = 1, nPair
       CALL FindNearestNeigh(iPartIndx_Node, nPart, iPair)
     END IF
   ELSE
-    CALL FindStatisticalNeigh(iPartIndx_Node, nPart, iPair, nPair)
+    CALL FindRandomPartner(iPartIndx_Node, nPart, iPair, nPair)
   END IF
 
   cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
@@ -311,11 +312,6 @@ DO iPair = 1, nPair
                                                         + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
   END IF
 
-  IF(VarTimeStep%UseVariableTimeStep) THEN
-    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
-                                                         + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
-  END IF
-
   CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
   Coll_pData(iPair)%CRela2 =  (PartState(4,Coll_pData(iPair)%iPart_p1) &
                             -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
@@ -326,20 +322,18 @@ DO iPair = 1, nPair
   Coll_pData(iPair)%PairType = iCase
   Coll_pData(iPair)%NeedForRec = .FALSE.
 END DO
-IF ((nPair.NE.0).AND.(CollisMode.EQ.3).AND.(MOD(nPart, nPair).NE.0)) THEN
-  ChemReac%RecombParticle = iPartIndx_Node(1)
+
+IF(CollisMode.EQ.3) THEN
+  CALL CalcMeanVibQuaDiatomic()
+  ! If a third particle is required of a recombination, the last particle due to uneven nPart is used
+  IF(nPart.EQ.1) ChemReac%RecombParticle = iPartIndx_Node(1)
 END IF
 
-! Resetting the previous collision partner of the remaining particle due to uneven PartNum
+! Resetting the previous collision partner of the remaining particle due to uneven nPart
 IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
 
-IF (CollisMode.EQ.3) THEN
-  CALL CalcMeanVibQuaDiatomic()
-END IF
-
-IF(RadialWeighting%DoRadialWeighting) THEN
-  CALL TreatIdenticalParticles(nPair, nPart, iElem, iPartIndx_Node)
-END IF
+! 2D axisymmetric with radial weighting: split up pairs of identical particles
+IF(RadialWeighting%DoRadialWeighting) CALL TreatIdenticalParticles(nPair, nPart, iElem, iPartIndx_Node)
 
 DO iPair = 1, nPair
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
@@ -1638,7 +1632,7 @@ END IF
 END SUBROUTINE AddNodeVolumes2D
 
 
-SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, nPart, iPair, nPair)
+SUBROUTINE FindRandomPartner(iPartIndx_Node, nPart, iPair, nPair)
 !===================================================================================================================================
 ! Classic statistical pairing method for the use in the octree routines
 !===================================================================================================================================
@@ -1683,7 +1677,7 @@ Coll_pData(iPair)%iPart_p2 = iPartIndx_Node(cPart2)
 iPartIndx_Node(cPart2) = iPartIndx_Node(nPart)
 nPart = nPart - 1
 
-END SUBROUTINE FindStatisticalNeigh
+END SUBROUTINE FindRandomPartner
 
 
 INTEGER FUNCTION OCTANTCUBEID(centerPoint,coord)
