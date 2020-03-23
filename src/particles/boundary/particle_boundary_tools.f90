@@ -443,6 +443,7 @@ END IF
 dims = SHAPE(PartStateBoundary)
 
 ASSOCIATE( iMax => PartStateBoundaryVecLength )
+  ! Increase maximum number of boundary-impact particles
   iMax = iMax + 1
 
   ! Check if array maximum is reached. 
@@ -451,44 +452,36 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
 
     ! --- 1/2 PartStateBoundary ---
     ALLOCATE(PartStateBoundary_tmp(1:9,1:dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) THEN
-      CALL abort(&
+    IF (ALLOCSTAT.NE.0) CALL abort(&
           __STAMP__&
           ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary_tmp temporary array!')
-    END IF
     ! Save old data
     PartStateBoundary_tmp(1:9,1:dims(2)) = PartStateBoundary(1:9,1:dims(2))
 
     ! Re-allocate PartStateBoundary to twice the size
     DEALLOCATE(PartStateBoundary)
     ALLOCATE(PartStateBoundary(1:9,1:2*dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) THEN
-      CALL abort(&
+    IF (ALLOCSTAT.NE.0) CALL abort(&
           __STAMP__&
-          ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
-    END IF
+          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary array!')
     PartStateBoundary(1:9,        1:  dims(2)) = PartStateBoundary_tmp(1:9,1:dims(2))
     PartStateBoundary(1:9,dims(2)+1:2*dims(2)) = 0.
 
 
     ! --- 2/2 PartStateBoundarySpec ---
     ALLOCATE(PartStateBoundarySpec_tmp(1:dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) THEN
-      CALL abort(&
+    IF (ALLOCSTAT.NE.0) CALL abort(&
           __STAMP__&
           ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundarySpec_tmp temporary array!')
-    END IF
     ! Save old data
     PartStateBoundarySpec_tmp(1:dims(2)) = PartStateBoundarySpec(1:dims(2))
 
     ! Re-allocate PartStateBoundarySpec to twice the size 
     DEALLOCATE(PartStateBoundarySpec)
     ALLOCATE(PartStateBoundarySpec(1:2*dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) THEN
-      CALL abort(&
+    IF (ALLOCSTAT.NE.0) CALL abort(&
           __STAMP__&
-          ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundarySpec array!')
-    END IF
+          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundarySpec array!')
     PartStateBoundarySpec(        1:  dims(2)) = PartStateBoundarySpec_tmp(1:dims(2))
     PartStateBoundarySpec(dims(2)+1:2*dims(2)) = 0.
 

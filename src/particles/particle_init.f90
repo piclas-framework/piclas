@@ -2402,20 +2402,16 @@ END IF
 IF(DoBoundaryParticleOutput)THEN
   ! Allocate PartStateBoundary for a small number of particles and double the array size each time the maximum is reached
   ALLOCATE(PartStateBoundary(1:9,1:10), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
         __STAMP__&
         ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
-  END IF
   PartStateBoundary=0.
 
   ! Allocate PartStateBoundarySpec for a small number of particles and double the array size each time the maximum is reached
   ALLOCATE(PartStateBoundarySpec(1:10), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
         __STAMP__&
         ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundarySpec array!')
-  END IF
   PartStateBoundarySpec=0
 END IF
 
