@@ -252,11 +252,6 @@ CALL prms%CreateRealArrayOption('DSMCSampVolWe-BGMdeltas'  , 'TODO-DEFINE-PARAME
 CALL prms%CreateRealArrayOption('DSMCSampVolWe-FactorBGM'  , 'TODO-DEFINE-PARAMETER', '1. , 1. , 1.')
 CALL prms%CreateIntOption(      'DSMCSampVolWe-VolIntOrd'  , 'TODO-DEFINE-PARAMETER', '50')
 
-CALL prms%CreateLogicalOption(  'Part-WriteFieldsToVTK',  'DEPRECATED: Not in Code anymore, but read-in has to be deleted'//&
-                                                          ' in particle_init.f90', '.FALSE.')
-CALL prms%CreateLogicalOption(  'Part-ConstPressAddParts',                  'TODO-DEFINE-PARAMETER', '.TRUE.')
-CALL prms%CreateLogicalOption(  'Part-ConstPressRemParts',                        'TODO-DEFINE-PARAMETER', '.FALSE.')
-
 CALL prms%SetSection("Particle Species")
 ! species inits
 CALL prms%CreateIntOption(      'Part-Species[$]-nInits'  &
@@ -379,13 +374,6 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Alpha' &
 CALL prms%CreateRealOption(     'Part-Species[$]-MWTemperatureIC' &
                                 , 'Initial translational temperature for Maxwell distribution initialization.', '0.'&
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-ConstantPressure' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Pressure for an area with constant pressure', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-ConstPressureRelaxFac' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Relaxation Factor for constant pressure sampling.', '1.'&
-                                , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartDensity' &
                                 , 'Define particle density for species [$]. PartDensity (real particles per m^3).\n'//&
                                   'Used for DSMC with (vpi_)cuboid/cylinder and cell_local initial inserting.', '0.'&
@@ -400,10 +388,6 @@ CALL prms%CreateIntOption(      'Part-Species[$]-ParticleEmissionType'  &
                                   '6 = outflow BC (characteristics method)', '2', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-ParticleEmission' &
                                 , 'Emission rate in part/s or part/iteration.', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-NSigma' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Sigma multiple of maxwell for virtual insert length.', '10.'&
-                                , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-NumberOfExcludeRegions'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Number of different regions to be excluded', '0', numberedmulti=.TRUE.)
@@ -586,14 +570,6 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-Alpha' &
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-MWTemperatureIC' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Temperature for Maxwell Distribution', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ConstantPressure' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Pressure for an Area with a Constant Pressure', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ConstPressureRelaxFac' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Relaxation Factor for constant pressure sampling.', '1.'&
-                                , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-PartDensity' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'PartDensity (real particles per m^3) or (vpi_)cub./cyl. '//&
@@ -610,10 +586,6 @@ CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-ParticleEmissionType'  
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ParticleEmission' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Emission in [1/s] or [1/Iteration]', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-NSigma' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Sigma multiple of maxwell for virtual insert length', '10.'&
-                                , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-NumberOfExcludeRegions'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Number of different regions to be excluded', '0', numberedmulti=.TRUE.)
@@ -1080,7 +1052,6 @@ USE MOD_MacroBody_tools        ,ONLY: MarkMacroBodyElems
 USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_ReadInTools
 USE MOD_Part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
-USE MOD_Part_Pressure          ,ONLY: ParticlePressureIni,ParticlePressureCellIni
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Vars
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
@@ -1454,18 +1425,6 @@ IF (DSMC%NumOutput.NE.0) THEN
   END IF
 END IF
 
-!ParticlePushMethod = TRIM(GETSTR('Part-ParticlePushMethod','boris_leap_frog_scheme')
-WriteFieldsToVTK = GETLOGICAL('Part-WriteFieldsToVTK','.FALSE.')
-
-!!!! Logicals for Constant Pressure in Cells
-! are particles to be ADDED to cells in order to reach constant pressure? Default YES
-PartPressAddParts = GETLOGICAL('Part-ConstPressAddParts','.TRUE.')
-! are particles to be REMOVED from cells in order to reach constant pressure? Default NO
-PartPressRemParts = GETLOGICAL('Part-ConstPressRemParts','.FALSE.')
-
-! Read particle species data
-!nSpecies = CountOption('Part-Species-SpaceIC')
-
 IF (nSpecies.LE.0) THEN
   CALL abort(&
 __STAMP__&
@@ -1488,7 +1447,6 @@ IF (nMacroRestartFiles.GT.0) THEN
   CALL ReadMacroRestartFiles(MacroRestartData_tmp)
 END IF ! nMacroRestartFiles.GT.0
 
-PartPressureCell = .FALSE.
 ALLOCATE(Species(1:nSpecies))
 
 DoFieldIonization = GETLOGICAL('Part-DoFieldIonization')
@@ -1698,8 +1656,6 @@ __STAMP__&
     Species(iSpec)%Init(iInit)%Alpha                 = GETREAL('Part-Species'//TRIM(hilf2)//'-Alpha','0.')
     IF (Species(iSpec)%Init(iInit)%ElemTemperatureFileID.EQ.0) &
       Species(iSpec)%Init(iInit)%MWTemperatureIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-MWTemperatureIC','0.')
-    Species(iSpec)%Init(iInit)%ConstantPressure      = GETREAL('Part-Species'//TRIM(hilf2)//'-ConstantPressure','0.')
-    Species(iSpec)%Init(iInit)%ConstPressureRelaxFac = GETREAL('Part-Species'//TRIM(hilf2)//'-ConstPressureRelaxFac','1.')
     IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
       Species(iSpec)%Init(iInit)%PartDensity           = GETREAL('Part-Species'//TRIM(hilf2)//'-PartDensity','0.')
     ELSE
@@ -1723,7 +1679,6 @@ __STAMP__&
       Species(iSpec)%Init(iInit)%ParticleEmissionType  = 0 !dummy
       Species(iSpec)%Init(iInit)%ParticleEmission      = 0. !dummy
     END IF
-    Species(iSpec)%Init(iInit)%NSigma                = GETREAL('Part-Species'//TRIM(hilf2)//'-NSigma','10.')
     Species(iSpec)%Init(iInit)%NumberOfExcludeRegions= GETINT('Part-Species'//TRIM(hilf2)//'-NumberOfExcludeRegions','0')
     Species(iSpec)%Init(iInit)%InsertedParticle      = 0
     Species(iSpec)%Init(iInit)%InsertedParticleSurplus = 0
@@ -1783,59 +1738,7 @@ __STAMP__&
 __STAMP__&
           ,' Calculating height from v and dt is not supported for initial ParticleInserting!')
     END IF
-    !--- virtual pre-insertion (vpi) checks and calculations
-    IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_vpi') &
-      .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_vpi')) THEN
-      IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.1) .AND. (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.2) ) &
-        CALL abort(&
-__STAMP__&
-        ,' Wrong emission-type for virtual Pre-Inserting region!')
-      IF (TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).NE.'maxwell_lpn') &
-        CALL abort(&
-__STAMP__&
-        ,' Only maxwell_lpn is implemened as velocity-distribution for virtual Pre-Inserting region!')
-      IF (Species(iSpec)%Init(iInit)%UseForInit) &
-        CALL abort(&
-__STAMP__&
-          ,' virtual Pre-Inserting is not supported for initial ParticleInserting. Use additional Init!')
-      !-- Virtual Pre-Inserting is used correctly !
-      Species(iSpec)%Init(iInit)%VirtPreInsert = .TRUE.
-      SWRITE(*,*) "Virtual Pre-Inserting is used for Species, Init ", iSpec, iInit
-      IF (Species(iSpec)%Init(iInit)%PartDensity .EQ. 0.) THEN
-        SWRITE(*,*) "WARNING: If VPI-BC is open, a backflow might not be compensated"
-        SWRITE(*,*) "         (use PartDensity instead of ParticleEmission)!"
-      END IF
-      Species(iSpec)%Init(iInit)%vpiDomainType = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-vpiDomainType','perpendicular_extrusion'))
-      SELECT CASE ( TRIM(Species(iSpec)%Init(iInit)%vpiDomainType) )
-      CASE ( 'freestream' )
-        IF ( TRIM(Species(iSpec)%Init(iInit)%SpaceIC) .NE. 'cuboid_vpi' ) THEN
-          CALL abort(&
-__STAMP__&
-            ,' Only cuboid_vpi is supported for a freestream vpiDomainType! (Use default vpiDomainType for cylinder.)')
-        ELSE
-          Species(iSpec)%Init(iInit)%vpiBVBuffer(1) = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-vpiBV1BufferNeg','.TRUE.')
-          Species(iSpec)%Init(iInit)%vpiBVBuffer(2) = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-vpiBV1BufferPos','.TRUE.')
-          Species(iSpec)%Init(iInit)%vpiBVBuffer(3) = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-vpiBV2BufferNeg','.TRUE.')
-          Species(iSpec)%Init(iInit)%vpiBVBuffer(4) = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-vpiBV2BufferPos','.TRUE.')
-        END IF
-      CASE ( 'orifice' )
-        Species(iSpec)%Init(iInit)%vpiBVBuffer = .TRUE.
-        IF ( ABS(Species(iSpec)%Init(iInit)%Radius2IC) .GT. 0. ) THEN
-          CALL abort(&
-__STAMP__&
-            ,' Annular orifice is not implemented yet!')
-        END IF
-      CASE ( 'perpendicular_extrusion' )
-        Species(iSpec)%Init(iInit)%vpiBVBuffer = .TRUE. !dummy
-      CASE DEFAULT
-        CALL abort(&
-__STAMP__&
-,'vpiDomainType is not implemented!')
-      END SELECT
-      !--
-    ELSE
-      Species(iSpec)%Init(iInit)%VirtPreInsert = .FALSE.
-    END IF
+    
     !--- integer check for ParticleEmissionType 2
     IF((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &
          ((Species(iSpec)%Init(iInit)%ParticleEmission-INT(Species(iSpec)%Init(iInit)%ParticleEmission)).NE.0)) THEN
@@ -1843,9 +1746,6 @@ __STAMP__&
 __STAMP__&
        ,' If ParticleEmissionType = 2 (parts per iteration), ParticleEmission has to be an integer number')
     END IF
-    !--- flag for cell-based constant-pressure-EmiTypes
-    IF ((Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 4).OR. &
-        (Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 6)) PartPressureCell = .TRUE.
     IF (Species(iSpec)%Init(iInit)%ElemVelocityICFileID.EQ.0) THEN
       !--- normalize VeloVecIC and NormalIC (and BaseVector 1 & 2 IC for cylinder) for Inits
       IF (.NOT. ALL(Species(iSpec)%Init(iInit)%VeloVecIC(:).eq.0.)) THEN
@@ -2059,14 +1959,6 @@ __STAMP__&
 __STAMP__&
           ,'Only const. or maxwell(_lpn) is supported as velocityDistr. for PartDensity!')
         END IF
-      ELSE IF (Species(iSpec)%Init(iInit)%VirtPreInsert) THEN
-        IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
-               CALL abort(&
-__STAMP__&
-          ,'Either ParticleEmission or PartDensity can be defined for selected emission parameters, not both!')
-        ELSE
-          SWRITE(*,*) "PartDensity is used for VPI of Species, Init ", iSpec, iInit !Value is calculated inside SetParticlePostion!
-        END IF
       ELSE IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cell_local')) THEN
            IF( (TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
            .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') &
@@ -2136,7 +2028,6 @@ __STAMP__&
       IF((( (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0)&
         .AND.(Species(iSpec)%Init(iInit)%ParticleEmission.EQ.0.) )  &
         .AND.(Species(iSpec)%Init(iInit)%PartDensity.EQ.0.) )       &
-        .AND.(Species(iSpec)%Init(iInit)%ConstantPressure.EQ.0.)    &
         .AND.(Species(iSpec)%NumberOfInits.GT.0))       THEN
         Species(iSpec)%StartnumberOfInits = 1 ! only new style paramaters defined (Part-Species(i)-Init(iInit)-***)
       ELSE
@@ -2464,7 +2355,7 @@ IF (ALLOCSTAT.NE.0) THEN
 __STAMP__&
   ,' Cannot allocate PEM arrays!')
 END IF
-IF (useDSMC.OR.PartPressureCell) THEN
+IF (useDSMC) THEN
   ALLOCATE(PEM%pStart(1:nElems)                         , &
            PEM%pNumber(1:nElems)                        , &
            PEM%pEnd(1:nElems)                           , &
@@ -2554,9 +2445,6 @@ END DO ! iSpec = 1, nSpecies
 
 
 DelayTime = GETREAL('Part-DelayTime','0.')
-
-!-- Read Flag if warnings to be displayed for rejected velocities when virtual Pre-Inserting region (vpi) is used with PartDensity
-OutputVpiWarnings = GETLOGICAL('Particles-OutputVpiWarnings','.FALSE.')
 
 !-- AuxBCs
 nAuxBCs=GETINT('Part-nAuxBCs','0')
@@ -2861,30 +2749,6 @@ IF (NbrOfRegions .GT. 0) THEN
     END IF
   END DO
 END IF
-
-exitTrue=.false.
-DO iSpec = 1,nSpecies
-  DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
-    IF((Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 3).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 5)) THEN
-      CALL ParticlePressureIni()
-      exitTrue=.true.
-      EXIT
-    END IF
-  END DO
-  IF (exitTrue) EXIT
-END DO
-
-exitTrue=.false.
-DO iSpec = 1,nSpecies
-  DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
-    IF ((Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 4).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 6)) THEN
-      CALL ParticlePressureCellIni()
-      exitTrue=.true.
-      EXIT
-    END IF
-  END DO
-  IF (exitTrue) EXIT
-END DO
 
 IF(enableParticleMerge) THEN
  CALL DefinePolyVec(vMPFMergePolyOrder)

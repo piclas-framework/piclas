@@ -72,7 +72,7 @@ ELSE IF (NormalVector(3).NE.0) THEN
   Vector1(3) = (0 - NormalVector(1) - NormalVector(2)) / NormalVector(3)
 ELSE
   CALL abort(__STAMP__&
-      ,'The coil direction vector can not be (0,0,)')
+      ,'The normal direction vector can not be (0,0,0)')
 END IF
 
 ! Find the third vecord vector with the cross product

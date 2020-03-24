@@ -106,30 +106,6 @@ CHARACTER(LEN=256)    :: ParticlePushMethod                                  ! T
 INTEGER               :: nrSeeds                                             ! Number of Seeds for Random Number Generator
 INTEGER , ALLOCATABLE :: seeds(:)                        !        =>NULL()   ! Seeds for Random Number Generator
 
-TYPE tConstPressure
-  INTEGER                                :: nElemTotalInside                  ! Number of elements totally in Emission Particle
-  INTEGER                                :: nElemPartlyInside                 ! Number of elements partly in Emission Particle
-  INTEGER, ALLOCATABLE                   :: ElemTotalInside(:)                ! List of elements totally in Emission Particle
-                                                                              ! ElemTotalInside(1:nElemTotalInside)
-  INTEGER, ALLOCATABLE                   :: ElemPartlyInside(:)               ! List of elements partly in Emission Particle
-                                                                              ! ElemTotalInside(1:nElemPartlyInside)
-  INTEGER(2), ALLOCATABLE                :: ElemStat(:)                       ! Status of Element to Emission Particle Space
-                                                                              ! ElemStat(nElem) = 1  -->  Element is totally insid
-                                                                              !                 = 2  -->  Element is partly  insid
-                                                                              !                 = 3  -->  Element is totally outsi
-  REAL                                   :: OrthoVector(3)                    ! Vector othogonal on BaseVector1IC and BaseVector2
-  REAL                                   :: Determinant                       ! Determinant for solving a 3x3 system of equations
-                                                                              ! to see whether a point is inside a cuboid
-  REAL                                   :: EkinInside                        ! Kinetic Energy in Emission-Area
-  REAL                                   :: InitialTemp                       ! Initial MWTemerature
-  REAL, ALLOCATABLE                      :: ConstPressureSamp(:,:)            ! ElemTotalInside(1:nElemTotalInside,1 = v_x
-                                                                              !                                    2 = v_y
-                                                                              !                                    3 = v_z
-                                                                              !                                    4 = dens. [1/m3]
-                                                                              !                                    5 = pressure
-                                                                              !                                    6 = v of sound**2
-END TYPE
-
 TYPE tExcludeRegion
   CHARACTER(40)                          :: SpaceIC                          ! specifying Keyword for Particle Space condition
   REAL                                   :: RadiusIC                         ! Radius for IC circle
@@ -189,10 +165,7 @@ TYPE tInit                                                                   ! P
   REAL                                   :: OneDTwoStreamTransRatio          ! Ratio between perpendicular and parallel velocity
   REAL                                   :: Alpha                            ! WaveNumber for sin-deviation initiation.
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
-  REAL                                   :: ConstantPressure                 ! Pressure for an Area with a Constant Pressure
-  REAL                                   :: ConstPressureRelaxFac            ! RelaxFac. for ConstPressureSamp
-  REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) or
-                                                                             ! (vpi_)cub./cyl. as alternative to Part.Emis. in Type1
+  REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) 
   INTEGER                                :: ElemTemperatureFileID
   REAL , ALLOCATABLE                     :: ElemTemperatureIC(:,:)           ! Temperature from macrorestart [1:3,1:nElems)
   INTEGER                                :: ElemPartDensityFileID
@@ -207,23 +180,10 @@ TYPE tInit                                                                   ! P
   REAL , ALLOCATABLE                     :: ElemTelec(:)                     ! electronic temperature [nElems]
   INTEGER                                :: ParticleEmissionType             ! Emission Type 1 = emission rate in 1/s,
                                                                              !               2 = emission rate 1/iteration
-                                                                             !               3 = user def. emission rate
-                                                                             !               4 = const. cell pressure
-                                                                             !               5 = cell pres. w. complete part removal
-                                                                             !               6 = outflow BC (characteristics method)
   REAL                                   :: ParticleEmission                 ! Emission in [1/s] or [1/Iteration]
   INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                        :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
   INTEGER(KIND=4)                        :: InsertedParticleMisMatch=0       ! error in number of inserted particles of last step
-  REAL                                   :: Nsigma                           ! sigma multiple of maxwell for virtual insert length
-  LOGICAL                                :: VirtPreInsert                    ! virtual Pre-Inserting region (adapted SetPos/Velo)?
-  CHARACTER(40)                          :: vpiDomainType                    ! specifying Keyword for virtual Pre-Inserting region
-                                                                             ! implemented: - perpendicular_extrusion (default)
-                                                                             !              - freestream
-                                                                             !              - orifice
-                                                                             !              - ...more following...
-  LOGICAL                                :: vpiBVBuffer(4)                   ! incl. buffer region in -BV1/+BV1/-BV2/+BV2 direction?
-  TYPE(tConstPressure)                   :: ConstPress!(:)           =>NULL() !
   INTEGER                                :: NumberOfExcludeRegions           ! Number of different regions to be excluded
   TYPE(tExcludeRegion), ALLOCATABLE      :: ExcludeRegion(:)
 #if USE_MPI
@@ -433,11 +393,7 @@ INTEGER, ALLOCATABLE                     :: vMPF_SpecNumElem(:,:)             ! 
 CHARACTER(30)                            :: vMPF_velocityDistribution         ! specifying keyword for velocity distribution
 REAL, ALLOCATABLE                        :: vMPF_NewPosRefElem(:,:)          ! new positions in ref elem
 LOGICAL                                  :: vMPF_relativistic
-LOGICAL                                  :: PartPressureCell                  ! Flag: constant pressure in cells emission (type4)
-LOGICAL                                  :: PartPressAddParts                 ! Should Parts be added to reach wanted pressure?
-LOGICAL                                  :: PartPressRemParts                 ! Should Parts be removed to reach wanted pressure?
-REAL, ALLOCATABLE                        :: RegionElectronRef(:,:)          ! RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
-LOGICAL                                  :: OutputVpiWarnings                 ! Flag for warnings for rejected v if VPI+PartDensity
+REAL, ALLOCATABLE                        :: RegionElectronRef(:,:)            ! RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding

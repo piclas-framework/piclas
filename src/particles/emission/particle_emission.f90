@@ -157,7 +157,6 @@ USE MOD_Dielectric_Vars     ,ONLY: DoDielectric,isDielectricElem,DielectricNoPar
 USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC, RadialWeighting
 USE MOD_Part_Emission_Tools ,ONLY: SetParticleChargeAndMass,SetParticleMPF
 USE MOD_Part_Pos_and_Velo   ,ONLY: SetParticlePosition,SetParticleVelocity
-USE MOD_Part_Pressure       ,ONLY: ParticleInsideCheck
 USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Mesh_Vars  ,ONLY: LocalVolume
 USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry2D
@@ -181,17 +180,6 @@ LOGICAL               :: EmType6
 SWRITE(UNIT_stdOut,'(A)') ' Initial particle inserting... '
 
 CALL UpdateNextFreePosition()
-EmType6=.false.
-DO i=1, nSpecies
-  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
-    IF ((Species(i)%Init(iInit)%ParticleEmissionType.EQ.6)) THEN
-      EmType6=.true.
-      EXIT
-    END IF
-  END DO
-  IF (EmType6) EXIT
-END DO
-IF (.NOT.EmType6) DSMC%OutputMeshSamp=.false.
 
 ! Do sanity check of max. particle number compared to the number that is to be inserted for certain insertion types
 insertParticles = 0
@@ -209,19 +197,15 @@ DO i=1,nSpecies
         IF(RadialWeighting%DoRadialWeighting) Species(i)%Init(iInit)%initialParticleNumber = &
                                     INT(Species(i)%Init(iInit)%initialParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
       END IF
-      IF (Species(i)%Init(iInit)%PartDensity.EQ.0) THEN
 #if USE_MPI
-        insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs,8)
+      insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs,8)
 #else
-        insertParticles = insertParticles + INT(Species(i)%Init(iInit)%initialParticleNumber,8)
+      insertParticles = insertParticles + INT(Species(i)%Init(iInit)%initialParticleNumber,8)
 #endif
-      ELSE
-        insertParticles = insertParticles + INT(Species(i)%Init(iInit)%initialParticleNumber,8)
-      END IF
     ELSE IF ((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cuboid') &
          .OR.(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
 #if USE_MPI
-      insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs)
+      insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs,8)
 #else
       insertParticles = insertParticles + INT(Species(i)%Init(iInit)%initialParticleNumber,8)
 #endif
@@ -238,36 +222,7 @@ END IF
 DO i = 1,nSpecies
   IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
   DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
-    IF (((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 6)) .AND. &
-         (Species(i)%Init(iInit)%UseForInit)) THEN ! Special emission type: constant density in cell, + to be used for init
-      CALL abort(&
-__STAMP__&
-,' particle pressure not moved to picasso!')
-      IF (Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4) THEN
-        CALL ParticleInsertingCellPressure(i,iInit,NbrofParticle)
-        CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
-      ELSE !emission type 6 (constant pressure outflow)
-        CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
-      END IF
-      CALL SetParticleChargeAndMass(i,NbrOfParticle)
-        IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(i,NbrOfParticle)
-      IF (useDSMC) THEN
-        IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
-          NbrOfParticle = PDM%maxParticleNumber
-        END IF
-        iPart = 1
-        DO WHILE (iPart .le. NbrOfParticle)
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .ne. 0) THEN
-            PDM%PartInit(PositionNbr) = iInit
-          END IF
-          iPart = iPart + 1
-        END DO
-      END IF
-      !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
-      PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-      CALL UpdateNextFreePosition()
-    ELSE IF (Species(i)%Init(iInit)%UseForInit) THEN ! no special emissiontype to be used
+    IF (Species(i)%Init(iInit)%UseForInit) THEN ! no special emissiontype to be used
       IF(Species(i)%Init(iInit)%initialParticleNumber.GT.HUGE(1)) CALL abort(&
 __STAMP__&
 ,' Integer of initial particle number larger than max integer size: ',HUGE(1))
@@ -295,24 +250,6 @@ __STAMP__&
       !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
       PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
       CALL UpdateNextFreePosition()
-      ! constant pressure condition
-      IF ((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 3).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 5)) THEN
-        CALL abort(&
-__STAMP__&
-,' particle pressure not moved in picasso!')
-        CALL ParticleInsideCheck(i, iInit, nPartInside, TempInside, EInside)
-        IF (Species(i)%Init(iInit)%ParticleEmission .GT. nPartInside) THEN
-          NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission) - nPartInside
-          IPWRITE(UNIT_stdOut,*) 'Emission PartNum (Spec ',i,')', NbrOfParticle
-          CALL SetParticlePosition(i,iInit,NbrOfParticle)
-          CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
-          CALL SetParticleChargeAndMass(i,NbrOfParticle)
-            IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(i,NbrOfParticle)
-          !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
-          PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-          CALL UpdateNextFreePosition()
-        END IF
-      END IF
     END IF ! not Emissiontype 4
   END DO !inits
 END DO ! species
@@ -357,7 +294,6 @@ USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
-USE MOD_part_pressure          ,ONLY: ParticlePressure, ParticlePressureRem
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
 ! IMPLICIT VARIABLE HANDLING
@@ -385,10 +321,7 @@ DO i=1,nSpecies
          (Species(i)%Init(iInit)%UseForEmission)) THEN ! no constant density in cell type, + to be used for init
         SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
         CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
-          IF (Species(i)%Init(iInit)%VirtPreInsert .AND. Species(i)%Init(iInit)%PartDensity.GT.0.) THEN
-            PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac  ! emitted particles during time-slab
-            NbrOfParticle = 0 ! calculated within SetParticlePosition itself!
-          ELSE IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
+          IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
             PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac  ! emitted particles during time-slab
             inserted_Particle_iter = INT(PartIns,8)                                     ! number of particles to be inserted
             PartIns=Species(i)%Init(iInit)%ParticleEmission * (Time + dt*RKdtFracTotal) ! total number of emitted particle over
@@ -478,20 +411,6 @@ DO i=1,nSpecies
           ELSE
             NbrOfParticle = 0
           END IF
-        CASE(3)
-          CALL abort(&
-__STAMP__&
-,' particle pressure not moved in picasso!')
-          CALL ParticlePressure (i, iInit, NbrOfParticle)
-          ! if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
-          IF (TRIM(Species(i)%Init(iInit)%velocityDistribution).EQ.'maxwell') THEN
-            IF (NbrOfParticle.LT.5) NbrOfParticle=0
-          END IF
-        CASE(5) ! removal of all parts in pressure area and re-insertion
-          CALL abort(&
-__STAMP__&
-,' particle pressure not moved in picasso!')
-          CALL ParticlePressureRem (i, iInit, NbrOfParticle)
         CASE DEFAULT
           NbrOfParticle = 0
         END SELECT
@@ -522,39 +441,7 @@ __STAMP__&
        PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
        !CALL UpdateNextFreePosition()
 
-    ELSE IF (Species(i)%Init(iInit)%UseForEmission) THEN ! Constant Pressure in Cell Emission (type 4 or 6)
-      IF (Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4) THEN
-        CALL ParticleInsertingCellPressure(i,iInit,NbrofParticle)
-        CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
-      ELSE !emission type 6 (constant pressure outflow)
-        CALL abort(&
-__STAMP__&
-,' particle pressure not moved in picasso!')
-        CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
-      END IF
-      CALL SetParticleChargeAndMass(i,NbrOfParticle)
-      IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(i,NbrOfParticle)
-      ! define molecule stuff
-      IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-        iPart = 1
-        DO WHILE (iPart .le. NbrOfParticle)
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .ne. 0) THEN
-            IF (SpecDSMC(i)%PolyatomicMol) THEN
-              CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
-            ELSE
-              CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
-            END IF
-        END IF
-          iPart = iPart + 1
-        END DO
-      END IF
-      ! instead of UpdateNextfreePosition we update the
-      ! particleVecLength only.
-      ! and doing it after calcpartbalance
-      PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-      PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-      !CALL UpdateNextFreePosition()
+
     END IF
     ! compute number of input particles and energy
     IF(CalcPartBalance) THEN
@@ -576,348 +463,7 @@ END DO  ! i=1,nSpecies
 
 END SUBROUTINE ParticleInserting
 
-
-SUBROUTINE ParticleInsertingCellPressure(iSpec,iInit,NbrOfParticle)
-!===================================================================================================================================
-! Insert constant cell pressure particles (and remove additionals)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation
-USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping!,TriaTracking
-USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
-USE MOD_Particle_Vars
-#if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars              ,ONLY: ElemVolume_Shared
-#endif
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)    :: iSpec, iInit
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER,INTENT(OUT)   :: NbrOfParticle
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER               :: iElem, Elem, iPart, i, NbrPartsInCell, NbrNewParts
-INTEGER               :: ParticleIndexNbr
-REAL                  :: PartDiff, PartDiffRest, RandVal, RandVal3(1:3)
-INTEGER, ALLOCATABLE  :: PartsInCell(:)
-!===================================================================================================================================
-
-NbrOfParticle = 0
-DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
-  Elem = Species(iSpec)%Init(iInit)%ConstPress%ElemTotalInside(iElem)
-  ! step 1: count and build array of particles in cell (of current species only)
-  ALLOCATE(PartsInCell(1:PEM%pNumber(Elem)))
-  NbrPartsInCell = 0
-  iPart = PEM%pStart(Elem)
-  DO i = 1, PEM%pNumber(Elem)
-    IF (PartSpecies(iPart).EQ.iSpec) THEN
-      NbrPartsInCell = NbrPartsInCell + 1
-      PartsInCell(NbrPartsInCell) = iPart
-    END IF
-    iPart = PEM%pNext(iPart)
-  END DO
-  ! step 2: determine number of particles to insert (or remove)
-  PartDiff = Species(iSpec)%Init(iInit)%ParticleEmission * ElemVolume_Shared(Elem) - NbrPartsInCell
-  PartDiffRest = PartDiff - INT(PartDiff)
-  ! step 3: if PartDiff positive (and PartPressAddParts=T), add particles
-  IF(PartPressAddParts.AND.PartDiff.GT.0) THEN
-    CALL RANDOM_NUMBER(RandVal)
-    IF(PartDiffRest.GT.RandVal) PartDiff = PartDiff + 1.0
-    NbrNewParts = INT(PartDiff)
-    ! insert particles (positions)
-    DO i = 1, NbrNewParts
-      ! set random position in -1,1 space
-      CALL RANDOM_NUMBER(RandVal3)
-      RandVal3 = RandVal3 * 2.0 - 1.0
-      ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
-      IF (ParticleIndexNbr.NE.0) THEN
-        CALL TensorProductInterpolation(RandVal3,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
-                           XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(1:3,ParticleIndexNbr))
-        !PartState(1:3,ParticleIndexNbr) = MapToGeo(RandVal3,P)
-        PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-        IF(.NOT.DoRefMapping)THEN
-          CALL LocateParticleInElement(ParticleIndexNbr,doHALO=.FALSE.)
-        ELSE
-          PartPosRef(1:3,ParticleIndexNbr)=RandVal3
-        END IF
-        IF(.NOT.PDM%ParticleInside(ParticleIndexNbr))THEN
-          CALL abort(&
-__STAMP__&
-,' Particle lost in own MPI region. Need to communicate!')
-        END IF
-        IF (PDM%ParticleInside(ParticleIndexNbr)) PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
-      ELSE
-        CALL abort(&
-__STAMP__&
-,'ERROR in ParticleInsertingCellPressure: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
-      END IF
-    END DO
-    NbrOfParticle = NbrOfParticle + NbrNewParts
-  END IF
-  ! step 4: if PartDiff negative (and PartPressRemParts=T), remove particles
-  IF(PartPressRemParts.AND.PartDiff.LT.0) THEN
-    PartDiff = -PartDiff
-    CALL RANDOM_NUMBER(RandVal)
-    IF(ABS(PartDiffRest).GT.RandVal) PartDiff = PartDiff + 1.0
-    NbrNewParts = INT(PartDiff)
-    ! remove random part
-    DO i = 1, NbrNewParts
-      CALL RANDOM_NUMBER(RandVal)
-      RandVal = RandVal * REAL(NbrPartsInCell)
-      PDM%ParticleInside(PartsInCell(INT(RandVal)+1)) = .FALSE.
-    END DO
-  END IF
-  DEALLOCATE(PartsInCell)
-END DO
-END SUBROUTINE ParticleInsertingCellPressure
-
-SUBROUTINE ParticleInsertingPressureOut(iSpec,iInit,NbrOfParticle)
-!===================================================================================================================================
-! Insert constant outflow pressure particles (copied mostly from 'ParticleInsertingCellPressure')
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Vars
-USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping!,TriaTracking
-USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation
-USE MOD_DSMC_Vars              ,ONLY: CollisMode
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)            :: iSpec, iInit
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER,INTENT(OUT)           :: NbrOfParticle
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: iElem, Elem, iPart, i, NbrPartsInCell,  distnum
-INTEGER                       :: ParticleIndexNbr
-REAL                          :: RandVal3(1:3)
-INTEGER, ALLOCATABLE          :: PartsInCell(:)
-REAL                          :: Velo1, Velo2, Velosq, v_sum(3), v2_sum, maxwellfac
-REAL                          :: Vec3D(3), RandVal3D(3)
-!===================================================================================================================================
-
-NbrOfParticle = 0
-IF (CollisMode.EQ.0) THEN
-  CALL Abort(&
-__STAMP__&
-,"Free Molecular Flow (CollisMode=0) is not supported for const pressure outflow BC!")
-END IF
-IF (TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).NE.'maxwell') THEN
-  CALL abort(&
-__STAMP__&
-,'Only maxwell implemented yet for const pressure outflow BC!')
-END IF
-DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
-  Elem = Species(iSpec)%Init(iInit)%ConstPress%ElemTotalInside(iElem)
-  ! step 1: count and build array of particles in cell (of current species only)
-  ALLOCATE(PartsInCell(1:PEM%pNumber(Elem)))
-  NbrPartsInCell = 0
-  iPart = PEM%pStart(Elem)
-  DO i = 1, PEM%pNumber(Elem)
-    IF (PartSpecies(iPart).EQ.iSpec) THEN
-      NbrPartsInCell = NbrPartsInCell + 1
-      PartsInCell(NbrPartsInCell) = iPart
-    END IF
-    iPart = PEM%pNext(iPart)
-  END DO
-  ! step 2: sample cell values, remove particles, calculate new NbrPartsInCell
-  CALL ParticleInsertingPressureOut_Sampling(iSpec,iInit,Elem,iElem,NbrPartsInCell,PartsInCell)
-  DEALLOCATE(PartsInCell)
-  ! step 3: add new particles
-  IF(NbrPartsInCell.GT.0) THEN
-    ! insert particles (positions and velocities)
-    v_sum(1:3) = 0.0
-    v2_sum = 0.0
-    DO i = 1, NbrPartsInCell
-      ! set random position in -1,1 space
-      CALL RANDOM_NUMBER(RandVal3)
-      RandVal3 = RandVal3 * 2.0 - 1.0
-      ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
-      IF (ParticleIndexNbr.NE.0) THEN
-        CALL TensorProductInterpolation(RandVal3,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
-                           XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(1:3,ParticleIndexNbr))
-        PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-        IF (.NOT. DoRefMapping) THEN
-          CALL LocateParticleInElement(ParticleIndexNbr,doHALO=.FALSE.)
-        ELSE
-          PartPosRef(1:3,ParticleIndexNbr)=RandVal3
-        END IF
-        IF(.NOT.PDM%ParticleInside(ParticleIndexNbr))THEN
-          CALL abort(&
-__STAMP__&
-,' Particle lost in own MPI region. Need to communicate!')
-        END IF
-        IF (PDM%ParticleInside(ParticleIndexNbr)) PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
-        ! Determine the particle velocity (maxwell, part 1)
-        DO distnum = 1, 3
-          CALL RANDOM_NUMBER(RandVal3D)
-          Velo1 = 2.0*RandVal3D(1)-1.0
-          Velo2 = 2.0*RandVal3D(2)-1.0
-          Velosq= Velo1**2+Velo2**2
-          DO WHILE ((Velosq.LE.0).OR.(Velosq.GE.1))
-            CALL RANDOM_NUMBER(RandVal3D)
-            Velo1 = 2.0*RandVal3D(1)-1.0
-            Velo2 = 2.0*RandVal3D(2)-1.0
-            Velosq= Velo1**2+Velo2**2
-          END DO
-          Vec3D(distnum) = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
-        END DO
-        PartState(4:6,ParticleIndexNbr) = Vec3D(1:3)
-        v_sum(1:3) = v_sum(1:3) + Vec3D(1:3)
-        v2_sum = v2_sum + Vec3D(1)**2+Vec3D(2)**2+Vec3D(3)**2
-      ELSE
-        CALL abort(&
-__STAMP__&
-,'ERROR in ParticleInsertingCellPressureOut: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
-      END IF
-    END DO
-    v_sum(1:3) = v_sum(1:3) / (NbrPartsInCell+1) !+1 correct?
-    v2_sum = v2_sum / (NbrPartsInCell+1)         !+1 correct?
-    !maxwellfactor from new calculated values (no vibrational DOF implemented, equilibirium assumed)
-    !Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(iElem,:)
-    maxwellfac = SQRT(3. * Species(iSpec)%Init(iInit)%ConstantPressure &
-                 / (Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(iElem,4)) / & ! velocity of maximum
-                 (Species(iSpec)%MassIC*v2_sum))                                                           ! T = p_o / (<n>*k)
-    ! particel velocity (maxwell, part 2)
-    DO i = 1, NbrPartsInCell
-      ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
-      IF (ParticleIndexNbr .ne. 0) THEN
-        PartState(4:6,ParticleIndexNbr) = (PartState(4:6,ParticleIndexNbr) - v_sum(1:3)) * maxwellfac &  !macro velocity:
-                                                                                      !=vi + VeloVecIC*(<p>-p_o)/(SQRT(a**2)*<n>*mt)
-             + Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(iElem,1:3) + Species(iSpec)%Init(iInit)%VeloVecIC(1:3) &
-             * (Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(iElem,5) - Species(iSpec)%Init(iInit)%ConstantPressure) &
-             / (SQRT(Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(iElem,6)) &
-                * Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(iElem,4) * Species(iSpec)%MassIC)
-      END IF
-    END DO
-
-    NbrOfParticle = NbrOfParticle + NbrPartsInCell
-  END IF
-END DO
-END SUBROUTINE ParticleInsertingPressureOut
-
-SUBROUTINE ParticleInsertingPressureOut_Sampling(iSpec, iInit, iElem, ElemSamp, NbrPartsInCell, PartsInCell)
-!===================================================================================================================================
-! Subroutine to sample current cell values (partly copied from 'LD_DSMC_Mean_Bufferzone_A_Val' and 'dsmc_analyze')
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-USE MOD_DSMC_Vars,             ONLY : SpecDSMC
-USE MOD_Particle_Vars,         ONLY : PartState,usevMPF,Species,PartSpecies,usevMPF,PartMPF,PDM
-USE MOD_TimeDisc_Vars,         ONLY : iter
-#if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars              ,ONLY: ElemVolume_Shared
-#endif
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)    :: iSpec, iInit, iElem, ElemSamp
-INTEGER,INTENT(IN)    :: PartsInCell(:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER,INTENT(INOUT) :: NbrPartsInCell
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER               :: iPart, iPartIndx
-REAL                  :: MPFSum, WeightFak, kappa_part, AvogadroConst, RandVal, RealnumberNewParts
-REAL                  :: Samp_V2(3), Samp_Temp(4), OldConstPressureSamp(6)
-!===================================================================================================================================
-
-IF (NbrPartsInCell .GT. 1) THEN ! Are there more than one particle
-  IF(iter.EQ.0) THEN
-    OldConstPressureSamp(:) = 0.0
-  ELSE
-    OldConstPressureSamp(:) = Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,:)
-  END IF
-  Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,:)        = 0.0
-  MPFSum                            = 0.0
-  Samp_V2(:)                        = 0.0
-  Samp_Temp(:)                      = 0.0
-  kappa_part                        = 0.0
-  AvogadroConst                     = 6.02214129e23 ![1/mol]
-  ! Loop over all particles of current species in cell
-  DO iPart = 1, NbrPartsInCell
-    iPartIndx = PartsInCell(iPart)
-    IF (usevMPF) THEN
-       WeightFak = PartMPF(iPartIndx)
-    ELSE
-       WeightFak = Species(iSpec)%MacroParticleFactor
-    END IF
-    Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,1:3) &                !vi = vi + vi*w
-         = Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,1:3) &
-         + PartState(4:6,iPartIndx) * WeightFak
-    Samp_V2(:)                      = Samp_V2(:) + PartState(4:6,iPartIndx)**2 * WeightFak !vi**2 =vi**2 + vi**2*W
-    MPFSum                          = MPFSum + WeightFak                                   !MPFsum = MPFsum + W
-    PDM%ParticleInside(iPartIndx)=.false. !remove particle
-  END DO
-
-  !Calculation of specific heat ratio (no vibrational DOF -> only at low temperatures !!!)
-  IF((SpecDSMC(PartSpecies(iPartIndx))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPartIndx))%InterID.EQ.20)) THEN
-    kappa_part=1.4
-  ELSE IF(SpecDSMC(PartSpecies(iPartIndx))%InterID.EQ.1) THEN
-    kappa_part=5.0/3.0
-  ELSE
-    CALL abort(&
-__STAMP__&
-,'Wrong PartSpecies for outflow BC!')
-  END IF
-  ! Calculation of sampling values
-  Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,1:3) &
-       = Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,1:3) / MPFSum              !vi = vi / MPFsum
-  Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,4)   = MPFSum / ElemVolume_Shared(iElem) !n = N / V
-  Samp_Temp(1:3) &
-       = Species(iSpec)%MassIC / BoltzmannConst * (Samp_V2(:) / MPFSum &                             !Ti = mt/k * (<vi**2>-<vi>**2)
-       - Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,1:3)**2)
-  Samp_Temp(4) = (Samp_Temp(1) + Samp_Temp(2) + Samp_Temp(3)) / 3                                    !T = (Tx + Ty + Tz) / 3
-  Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,5) &                              !p = N / V * k * T
-       = MPFSum / ElemVolume_Shared(iElem) * BoltzmannConst * Samp_Temp(4)
-  Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,6) &                              !a**2 = kappa * k/mt * T
-       = kappa_part * BoltzmannConst/Species(iSpec)%MassIC * Samp_Temp(4)
-
-
-!----Ralaxationfaktor due to statistical noise in DSMC Results
-  IF(iter.NE.0) THEN
-    Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,:) = (1.0 - Species(iSpec)%Init(iInit)%ConstPressureRelaxFac) &
-                               * OldConstPressureSamp(:) + Species(iSpec)%Init(iInit)%ConstPressureRelaxFac &
-                               * Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,:)
-  END IF
-! Calculation of new density and resulting number in cell
-  RealnumberNewParts = (Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,4) & !N=(<n> + (p_o-<p>)/(a**2*mt)) * V/MPF
-       + (Species(iSpec)%Init(iInit)%ConstantPressure - Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,5)) &
-       / (Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,6) * Species(iSpec)%MassIC)) &
-       * ElemVolume_Shared(iElem) / Species(iSpec)%MacroParticleFactor !!!not sure if MPF treatment is correct!!!
-  IF(RealnumberNewParts.GT.0.) THEN
-    CALL RANDOM_NUMBER(RandVal)
-    NbrPartsInCell = INT(RealnumberNewParts+RandVal)
-  ELSE
-    NbrPartsInCell = 0
-  END IF
-
-ELSE ! no particles in cell!
-  CALL abort(&
-__STAMP__&
-,'YOU NEED MORE PARTICLES INSIDE THE OUTFLOW REGION!!!')
-END IF
-
-END SUBROUTINE ParticleInsertingPressureOut_Sampling
-
-
+  
 SUBROUTINE AdaptiveBCAnalyze(initSampling_opt)
 !===================================================================================================================================
 ! Sampling of variables (part-density, velocity and energy) for Adaptive BC elements
