@@ -134,18 +134,18 @@ def CleanFile(stdfile) :
                 killList[first] += 1
                 if killList[first] == 5:
                     #print(n,x,y,z,vx,vy,vz,Element,SpecID,PartID,xLastPos,yLastPos,zLastPos)
-                    data[n,0] = x
-                    data[n,1] = y
-                    data[n,2] = z
+                    data[n,0] = xLastPos #x -> store LastPartPos instead of PartPos (the position that was still within the domain)
+                    data[n,1] = yLastPos #y -> store LastPartPos instead of PartPos (the position that was still within the domain)
+                    data[n,2] = zLastPos #z -> store LastPartPos instead of PartPos (the position that was still within the domain)
                     data[n,3] = vx
                     data[n,4] = vy
                     data[n,5] = vz
                     data[n,6] = SpecID
                     data[n,7] = Element
                     data[n,8] = PartID 
-                    data[n,9] = xLastPos
-                    data[n,10] = yLastPos
-                    data[n,11] = zLastPos
+                    data[n,9] = x #LastPos -> store new position (outside of the domain)
+                    data[n,10] = y #LastPos -> store new position (outside of the domain)
+                    data[n,11] = z #LastPos -> store new position (outside of the domain)
 
                     n+=1
 
