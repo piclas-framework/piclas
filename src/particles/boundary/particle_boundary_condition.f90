@@ -14,8 +14,8 @@
 
 MODULE MOD_Particle_Boundary_Condition
 !===================================================================================================================================
-! Determines how particles interact with a given boundary condition. This routine is used by MOD_Part_Tools, hence, it cannot be 
-! used here due to circular definitions! 
+! Determines how particles interact with a given boundary condition. This routine is used by MOD_Part_Tools, hence, it cannot be
+! used here due to circular definitions!
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -75,7 +75,9 @@ USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_Particle_Boundary_Tools  ,ONLY: BoundaryParticleOutput,DielectricSurfaceCharge
 #if USE_MPI
-USE MOD_MPI_Shared_Vars          !,ONLY: SideInfo_Shared,NodeCoords_Shared
+USE MOD_MPI_Shared_Vars
+#else
+USE MOD_Mesh_Vars
 #endif /* USE_MPI */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -609,31 +611,33 @@ SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals                 ,ONLY: abort, OrthoNormVec,VECNORM
-USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
-USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
-USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample,CalcSurfaceImpact
-USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact, GetWallTemperature
-USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry2D
-USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric, VarTimeStep, usevMPF
-#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
-USE MOD_Particle_Vars           ,ONLY: PDM
-#endif
+USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec,VECNORM
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC,CollisMode
 USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn,DSMC, useDSMC, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar
-USE MOD_TimeDisc_Vars           ,ONLY: dt,tend,time,RKdtFrac
+USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
+USE MOD_Part_Tools              ,ONLY: GetParticleWeight
+USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact, GetWallTemperature
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, PartSideToElem
+USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry2D
+USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric, VarTimeStep, usevMPF
+USE MOD_TimeDisc_Vars           ,ONLY: dt,tend,time,RKdtFrac
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+USE MOD_Particle_Vars           ,ONLY: PDM
+#endif
 #if (PP_TimeDiscMethod==400)
 USE MOD_BGK_Vars                ,ONLY: BGKDoVibRelaxation
 #elif (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Vars             ,ONLY: FPDoVibRelaxation
 #endif
-USE MOD_part_tools              ,ONLY: GetParticleWeight
 #if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: SideInfo_Shared
+USE MOD_MPI_Shared_Vars
+#else
+USE MOD_Mesh_Vars
 #endif /* USE_MPI */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -718,8 +722,8 @@ IF(Symmetry2DAxisymmetric) THEN
   END IF
 
   ! Getting the vectors, which span the cell (1-2 and 1-4)
-  Vector1(1:3)=GEO%NodeCoords(1:3,GEO%ElemSideNodeID(2,LocSideID,ElemID))-GEO%NodeCoords(1:3,GEO%ElemSideNodeID(1,LocSideID,ElemID))
-  Vector2(1:3)=GEO%NodeCoords(1:3,GEO%ElemSideNodeID(4,LocSideID,ElemID))-GEO%NodeCoords(1:3,GEO%ElemSideNodeID(1,LocSideID,ElemID))
+  Vector1(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(2,LocSideID,ElemID))-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,ElemID))
+  Vector2(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(4,LocSideID,ElemID))-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,ElemID))
 
   ! Get the vector, which does NOT have the z-component
   IF (ABS(Vector1(3)).GT.ABS(Vector2(3))) THEN

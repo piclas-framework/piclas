@@ -99,29 +99,31 @@ SUBROUTINE InitParticleBoundarySampling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
+USE MOD_DSMC_Symmetry2D         ,ONLY:DSMC_2D_CalcSymmetryArea
+USE MOD_Mesh_Vars               ,ONLY:MortarType
 USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides,nBCs,BoundaryName,GlobalUniqueSideID
 USE MOD_ReadInTools             ,ONLY:GETINT,GETLOGICAL,GETINTARRAY
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis,nPorousBC,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Tools ,ONLY:SortArray
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides,PartSideToElem,GEO
-USE MOD_Particle_Vars           ,ONLY:nSpecies, VarTimeStep, Symmetry2D
-USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
+USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList
 USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
-USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList
 USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping,TriaTracking
-USE MOD_DSMC_Symmetry2D         ,ONLY:DSMC_2D_CalcSymmetryArea
-USE MOD_Mesh_Vars               ,ONLY:MortarType
+USE MOD_Particle_Vars           ,ONLY:nSpecies, VarTimeStep, Symmetry2D
+USE MOD_PICDepo_Vars            ,ONLY:SFResampleAnalyzeSurfCollis
+USE MOD_PICDepo_Vars            ,ONLY:LastAnalyzeSurfCollis
 #if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: ElemSideNodeID_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY:PartElemToElemAndSide
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartHaloElemToProc
 #else
+USE MOD_Mesh_Vars               ,ONLY: ElemSideNodeID_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY:offSetSurfSide
 #endif /*USE_MPI*/
-USE MOD_PICDepo_Vars            ,ONLY:SFResampleAnalyzeSurfCollis
-USE MOD_PICDepo_Vars            ,ONLY:LastAnalyzeSurfCollis
-USE MOD_Particle_Boundary_Tools ,ONLY:SortArray
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -497,9 +499,9 @@ DO iSide=1,nTotalSides
       LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,iSide)
     END IF
     SurfaceVal = 0.
-    xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,LocSideID,ElemID))
-    yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,LocSideID,ElemID))
-    zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,LocSideID,ElemID))
+    xNod = GEO%NodeCoords(1,ElemSideNodeID_Shared(1,LocSideID,ElemID))
+    yNod = GEO%NodeCoords(2,ElemSideNodeID_Shared(1,LocSideID,ElemID))
+    zNod = GEO%NodeCoords(3,ElemSideNodeID_Shared(1,LocSideID,ElemID))
 
     IF(Symmetry2D) THEN
       SurfMesh%SurfaceArea(1,1,SurfSideID) = DSMC_2D_CalcSymmetryArea(LocSideID, ElemID)
@@ -507,12 +509,12 @@ DO iSide=1,nTotalSides
       DO TriNum = 1,2
         Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
         Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-        Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - xNod
-        Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - yNod
-        Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - zNod
-        Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - xNod
-        Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - yNod
-        Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - zNod
+        Vector1(1) = GEO%NodeCoords(1,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)) - xNod
+        Vector1(2) = GEO%NodeCoords(2,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)) - yNod
+        Vector1(3) = GEO%NodeCoords(3,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)) - zNod
+        Vector2(1) = GEO%NodeCoords(1,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)) - xNod
+        Vector2(2) = GEO%NodeCoords(2,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)) - yNod
+        Vector2(3) = GEO%NodeCoords(3,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)) - zNod
         nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
         ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
         nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)

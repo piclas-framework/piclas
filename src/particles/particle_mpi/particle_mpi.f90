@@ -1227,7 +1227,7 @@ USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_RadialWeighting
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D_MortarMPI
+!USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D_MortarMPI
 USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1535,16 +1535,17 @@ IF(RadialWeighting%PerformCloning) THEN
 END IF
 
 ! With new HALO region, this is deprecated?
-IF(TriaTracking) THEN
-  IF(nGlobalMortarSides.GT.0) THEN
-    DO iPart = 1,nrecv
-      PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
-      IF(PartElemIsMortar(PEM%Element(PartID))) THEN
-        CALL ParticleInsideQuad3D_MortarMPI(PartState(1:3,PartID),PEM%Element(PartID),PDM%ParticleInside(PartID))
-      END IF
-    END DO
-  END IF
-END IF
+! TODO This has to go
+!IF(TriaTracking) THEN
+!  IF(nGlobalMortarSides.GT.0) THEN
+!    DO iPart = 1,nrecv
+!      PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
+!      IF(PartElemIsMortar(PEM%Element(PartID))) THEN
+!        CALL ParticleInsideQuad3D_MortarMPI(PartState(1:3,PartID),PEM%Element(PartID),PDM%ParticleInside(PartID))
+!      END IF
+!    END DO
+!  END IF
+!END IF
 
 ! validate solution and check
 ! debug
