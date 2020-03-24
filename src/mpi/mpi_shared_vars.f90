@@ -112,6 +112,8 @@ INTEGER         :: XiEtaZetaBasis_Shared_Win
 REAL,POINTER    :: slenXiEtaZetaBasis_Shared(:,:)
 INTEGER         :: slenXiEtaZetaBasis_Shared_Win
 
+LOGICAL,POINTER :: CurvedElem_Shared(:)                 !> Flag if an element is curved
+INTEGER         :: CurvedElem_Shared_Win
 LOGICAL,POINTER :: ConcaveElemSide_Shared(:,:)
 INTEGER         :: ConcaveElemSide_Shared_Win
 INTEGER,POINTER :: ElemSideNodeID_Shared(:,:,:)

@@ -116,6 +116,7 @@ REAL,ALLOCPOINT,DIMENSION(:)           :: ElemRadiusNGeo     ! radius of element
 REAL,ALLOCPOINT,DIMENSION(:)           :: ElemRadius2NGeo    ! radius of element + 2% tolerance
 REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:)   :: XCL_NGeo_Shared
 REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:,:) :: dXCL_NGeo_Shared   ! Jacobi matrix of the mapping P\in NGeo
+LOGICAL,ALLOCPOINT,DIMENSION(:)        :: CurvedElem         ! flag if an element is curved
 
 INTEGER                                 :: RefMappingGuess    ! select guess for mapping into reference
                                                               ! element
@@ -237,7 +238,7 @@ TYPE tGeometry
 
   LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?
   INTEGER, ALLOCATABLE                   :: ElemToNodeID(:,:)                 ! ElemToNodeID(1:nElemNodes,1:nElems)
-  !INTEGER, ALLOCATABLE                   :: ElemToNodeIDGlobal(:,:)           ! ElemToNodeID(1:nElemNodes,1:nElems)
+!  INTEGER, ALLOCATABLE                   :: ElemToNodeIDGlobal(:,:)           ! ElemToNodeID(1:nElemNodes,1:nElems)
   INTEGER, ALLOCATABLE                   :: ElemSideNodeID(:,:,:)             ! ElemSideNodeID(1:nSideNodes,1:nLocSides,1:nElems)
                                                                               ! From element sides to node IDs
   INTEGER, ALLOCATABLE                   :: ElemsOnNode(:)                    ! number of elements on proc global node

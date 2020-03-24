@@ -543,7 +543,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 
       PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
       IF(DoRefMapping)THEN
-        CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
+        CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),PEM%Element(ParticleIndexNbr))
       END IF ! DoRefMapping
     ELSE
       CALL ABORT(__STAMP__,'ERROR in ParticleMPIEmission:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')

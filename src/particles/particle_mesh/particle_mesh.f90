@@ -471,7 +471,7 @@ REAL                           :: NodeCoordstmp(1:3,0:NGeo,0:NGeo,0:NGeo)
 !===================================================================================================================================
 ! small wBaryCL_NGEO
 ALLOCATE(wBaryCL_NGeo1(0:1),&
-         XiCL_NGeo1(0:1))
+         XiCL_NGeo1   (0:1))
 CALL ChebyGaussLobNodesAndWeights(1,XiCL_NGeo1)
 CALL BarycentricWeights(1,XiCL_NGeo1,wBaryCL_NGeo1)
 ALLOCATE(Vdm_CLNGeo1_CLNGeo(0:NGeo,0:1) )
@@ -498,12 +498,12 @@ dXCL_NGeo_Shared(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nComputeNodeElems) => dXCL_NGeo_
 ! Copy local XCL and dXCL into shared
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
   DO iElem = 1, nElems
-    XCL_NGeo_Shared(:,:,:,:,offsetElem+iElem) = XCL_NGeo(:,:,:,:,iElem)
+    XCL_NGeo_Shared (:  ,:,:,:,offsetElem+iElem) = XCL_NGeo (:  ,:,:,:,iElem)
     dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) = dXCL_NGeo(:,:,:,:,:,iElem)
   END DO ! iElem = 1, nElems
 ELSE
   DO iElem = 1, nElems
-    XCL_NGeo_Shared(:,:,:,:,GlobalElem2CNTotalElem(offsetElem+iElem)) = XCL_NGeo(:,:,:,:,iElem)
+    XCL_NGeo_Shared (:,  :,:,:,GlobalElem2CNTotalElem(offsetElem+iElem)) = XCL_NGeo (:,  :,:,:,iElem)
     dXCL_NGeo_Shared(:,:,:,:,:,GlobalElem2CNTotalElem(offsetElem+iElem)) = dXCL_NGeo(:,:,:,:,:,iElem)
   END DO ! iElem = 1, nElems
 END IF
@@ -539,13 +539,14 @@ ELSE
     CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_NGeo_CLNGeo,NodeCoordstmp,XCL_NGeo_Shared(:,:,:,:,nComputeNodeElems+iElem))
   END DO ! iElem = firstHaloElem, lastHaloElem
 END IF
+
 CALL MPI_WIN_SYNC(XCL_NGeo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(dXCL_NGeo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #else
 ALLOCATE(XCL_NGeo_Shared (3,  0:NGeo,0:NGeo,0:NGeo,nElems))
 ALLOCATE(dXCL_NGeo_Shared(3,3,0:NGeo,0:NGeo,0:NGeo,nElems))
-XCL_NGeo_Shared = XCL_NGeo
+XCL_NGeo_Shared  = XCL_NGeo
 dXCL_NGeo_Shared = dXCL_NGeo
 #endif /*USE_MPI*/
 
@@ -1105,8 +1106,8 @@ SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%ElemToFIBGM)
 SDEALLOCATE(GEO%TFIBGM)
 
-SDEALLOCATE(GEO%ElemToNodeID)
-SDEALLOCATE(GEO%ElemSideNodeID)
+!SDEALLOCATE(GEO%ElemToNodeID)
+!SDEALLOCATE(GEO%ElemSideNodeID)
 !SDEALLOCATE(GEO%ElemToNodeIDGlobal)
 SDEALLOCATE(GEO%NodeCoords)
 SDEALLOCATE(GEO%ConcaveElemSide)
@@ -1147,6 +1148,8 @@ SDEALLOCATE(isTracingTrouble)
 SDEALLOCATE(ElemTolerance)
 SDEALLOCATE(ElemToGlobalElemID)
 SDEALLOCATE(ElemHaloInfoProc)
+
+ADEALLOCATE(CurvedElem)
 
 ParticleMeshInitIsDone=.FALSE.
 
@@ -3298,6 +3301,7 @@ END DO ! iElem
 #if USE_MPI
 CALL MPI_WIN_SYNC(ElemRadius2NGeo_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(ElemBaryNGeo_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #endif
 
 END SUBROUTINE BuildElementRadiusTria
@@ -3577,11 +3581,12 @@ SUBROUTINE IdentifyElemAndSideType()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ChangeBasis            ,ONLY: changeBasis3D
-USE MOD_Mesh_Vars              ,ONLY: CurvedElem,XCL_NGeo,Vdm_CLNGeo1_CLNGeo,NGeo,Vdm_CLNGeo1_CLNGeo,ElemBaryNGeo
+USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo,Vdm_CLNGeo1_CLNGeo,NGeo,Vdm_CLNGeo1_CLNGeo,ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,nTotalElems,SidePeriodicType
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemType,nPartSides
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide,PartBCSideList,nTotalBCSides,GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: XCL_NGeo_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: CurvedElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
@@ -3620,11 +3625,14 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
 
 ! elements
-!#if USE_MPI
-!#else
+#if USE_MPI
+MPISharedSize = INT((nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalElems/),CurvedElem_Shared_Win,CurvedElem_Shared)
+CALL MPI_WIN_LOCK_ALL(0,CurvedElem_Shared_Win,IERROR)
+CurvedElem => CurvedElem_Shared
+#else
 ALLOCATE(CurvedElem(1:nComputeNodeTotalElems))
-CurvedElem=.FALSE.
-!#endif
+#endif /*USE_MPI*/
 !IF (.NOT.DoRefMapping) THEN
 !  ALLOCATE(ElemType(1:nTotalElems))
 !  ElemType=-1
@@ -3648,12 +3656,27 @@ ALLOCATE(SideType(      nComputeNodeTotalSides))
 ALLOCATE(SideDistance(  nComputeNodeTotalSides))
 ALLOCATE(SideNormVec(1:3,nComputeNodeTotalSides))
 #endif /*USE_MPI*/
+
+! only CN root nullifies
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /* USE_MPI*/
+  CurvedElem   = .FALSE.
+  SideType     = -1
+  SideDistance = -0.
+  SideNormVec  = 0.
+#if USE_MPI
+END IF
+
+CALL MPI_WIN_SYNC(CurvedElem_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(SideType_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(SideDistance_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(SideNormVec_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /* USE_MPI*/
+
 ALLOCATE(SideIsDone(nComputeNodeTotalSides))
 SideIsDone = .FALSE.
-
-SideType     = -1
-SideDistance = -0.
-SideNormVec  = 0.
 
 NGeo2 = (NGeo+1)*(NGeo+1)
 NGeo3 = NGeo2   *(NGeo+1)
@@ -3905,6 +3928,11 @@ END DO ! iSide=1,nPartSides
 !    END DO ! ilocSide=1,6
 !  END DO ! iElem=1,nTotalElems
 !END IF
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(CurvedElem_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /* USE_MPI*/
 
 END SUBROUTINE IdentifyElemAndSideType
 
@@ -4708,8 +4736,9 @@ SUBROUTINE CalcElemAndSideNum()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
-USE MOD_Mesh_Vars              ,ONLY: CurvedElem,nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideType
+USE MOD_Particle_Mesh_Vars     ,ONLY: CurvedElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,IsTracingBCElem,nTotalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: nPartSides
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalBCSides
