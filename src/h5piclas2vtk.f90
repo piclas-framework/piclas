@@ -1119,6 +1119,11 @@ USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,G
 USE MOD_Mesh_ReadIn,            ONLY: readMesh
 USE MOD_Mesh_Vars,              ONLY: SurfConnect, nSides, SideToElem, BC, BoundaryName
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
+#if USE_MPI
+USE MOD_MPI_Shared_Vars,        ONLY: ElemSideNodeID_Shared
+#else
+USE MOD_Mesh_Vars,              ONLY: ElemSideNodeID_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1180,7 +1185,7 @@ DO iSide=1, nSides
     DO iNode2 = 1, 4
       IsSortedSurfNode = .FALSE.
       DO iNode = 1, SurfConnect%nSurfaceNode
-        IF (GEO%ElemSideNodeID(iNode2, iLocSide, iElem).EQ.TempBCSurfNodes(iNode)) THEN
+        IF (ElemSideNodeID_Shared(iNode2, iLocSide, iElem).EQ.TempBCSurfNodes(iNode)) THEN
           TempSideSurfNodeMap(iNode2,SurfConnect%nSurfaceBCSides) = iNode
           IsSortedSurfNode = .TRUE.
           EXIT
@@ -1188,7 +1193,7 @@ DO iSide=1, nSides
       END DO
       IF(.NOT.IsSortedSurfNode) THEN
         SurfConnect%nSurfaceNode = SurfConnect%nSurfaceNode + 1
-        TempBCSurfNodes(SurfConnect%nSurfaceNode) = GEO%ElemSideNodeID(iNode2, iLocSide, iElem)
+        TempBCSurfNodes(SurfConnect%nSurfaceNode) = ElemSideNodeID_Shared(iNode2, iLocSide, iElem)
         TempSideSurfNodeMap(iNode2,SurfConnect%nSurfaceBCSides) = SurfConnect%nSurfaceNode
       END IF
     END DO
