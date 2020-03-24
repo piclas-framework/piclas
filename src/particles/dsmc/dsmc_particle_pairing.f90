@@ -96,7 +96,7 @@ END SUBROUTINE FindNearestNeigh
 
 SUBROUTINE DSMC_pairing_standard(iElem)
 !===================================================================================================================================
-!> Standard pairing of particles within a cell
+!> Collisions within a single cell
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, ChemReac, PartStateIntEn, CollInf
@@ -114,7 +114,7 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: nPair, iPart, iLoop, nPart
+INTEGER                       :: iPart, iLoop, nPart
 INTEGER, ALLOCATABLE          :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
 !===================================================================================================================================
   
@@ -123,14 +123,9 @@ IF (KeepWallParticles) THEN
 ELSE
   nPart = PEM%pNumber(iElem)
 END IF
-nPair = INT(nPart/2)
-IF (CollisMode.EQ.3) THEN
-  ChemReac%RecombParticle = 0
-END IF
 
 ALLOCATE(iPartIndx(nPart))
 iPartIndx = 0
-IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
 
 iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
 DO iLoop = 1, nPart
@@ -141,11 +136,6 @@ DO iLoop = 1, nPart
     END DO
   END IF
   iPartIndx(iLoop) = iPart
-  ! Counter for part num of spec per cell
-  CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
-  ! Calculation of mean evib per cell and iter, necessary for disso prob
-  IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
-                                                                + PartStateIntEn(1,iPart) * GetParticleWeight(iPart)
   ! Choose next particle in Element
   iPart = PEM%pNext(iPart)
 END DO
@@ -221,7 +211,14 @@ END SUBROUTINE FindNearestNeigh2D
 
 SUBROUTINE PerformPairingAndCollision(iPartIndx_Node, PartNum, iElem, NodeVolume)
 !===================================================================================================================================
-! Classic statistical pairing method for the use in the octree routines
+!> Main pairing and collision routine performed in a cell/subcell: calls the statistical and nearest neighbour pairing routines
+!> as well as the collision probability calculation and actual collision execution
+!> 1). Reset collision and pair specific variables
+!> 2.) Calculate cell/subcell local variables and count the number of particles per species
+!> 3.) Perform the particle pairing (statistical or nearest neighbour) and determine the relative velocity
+!> 4.) Perform additional operations for radial weighting and chemistry (AFTER pairing)
+!> 5). Calculate the collision probability and perform the collision (if required)
+!> 6.) Calculate the mean free path and the mean collision separation distance within a cell
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -250,6 +247,7 @@ INTEGER                       :: cSpec1, cSpec2, iCase
 REAL                          :: iRan
 !===================================================================================================================================
 
+! 1). Reset collision and pair specific variables
 nPart = PartNum
 nPair = INT(nPart/2)
 CollInf%Coll_SpecPartNum = 0
@@ -259,21 +257,23 @@ Coll_pData%Ec=0
 
 IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
+! 2.) Calculate cell/subcell local variables and count the number of particles per species
+DO iPart = 1, PartNum
+  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) &
+                                                                  + GetParticleWeight(iPartIndx_Node(iPart))
+END DO
+
 IF (CollisMode.EQ.3) THEN
   ChemReac%RecombParticle = 0
   ChemReac%nPairForRec = 0
-! Determination of the mean vibrational energy for the cell, only needed for chemical reactions
+! Determination of the mean vibrational energy for the cell
   ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
   DO iPart = 1, PartNum
     ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart)))=ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) &
       + PartStateIntEn(1,iPartIndx_Node(iPart)) * GetParticleWeight(iPartIndx_Node(iPart))
   END DO
+  CALL CalcMeanVibQuaDiatomic()
 END IF
-
-DO iPart = 1, PartNum
-  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) &
-                                                                  + GetParticleWeight(iPartIndx_Node(iPart))
-END DO
 
 IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors &
 .OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1))) THEN
@@ -281,6 +281,7 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%B
   !           relaxation probability (CalcGammaVib)
   ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
   ! 3. Case: Temperature required for the mean free path with the VHS model
+  ! 4. Case: Needed to calculate the correction factor
   CALL CalcInstantTransTemp(iPartIndx_Node,PartNum)
   IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
 END IF
@@ -291,6 +292,7 @@ IF (CollInf%ProhibitDoubleColl.AND.(nPair.EQ.1)) THEN
   CollInf%OldCollPartner(iPartIndx_Node(2)) = 0
 END IF
 
+! 3.) Perform the particle pairing (statistical or nearest neighbour) and determine the relative velocity
 DO iPair = 1, nPair
   IF(DSMC%UseNearestNeighbour) THEN
     IF(Symmetry2D) THEN
@@ -323,18 +325,19 @@ DO iPair = 1, nPair
   Coll_pData(iPair)%NeedForRec = .FALSE.
 END DO
 
-IF(CollisMode.EQ.3) THEN
-  CALL CalcMeanVibQuaDiatomic()
-  ! If a third particle is required of a recombination, the last particle due to uneven nPart is used
-  IF(nPart.EQ.1) ChemReac%RecombParticle = iPartIndx_Node(1)
-END IF
-
+! 4.) Perform additional operations for radial weighting and chemistry (AFTER pairing)
 ! Resetting the previous collision partner of the remaining particle due to uneven nPart
 IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
 
-! 2D axisymmetric with radial weighting: split up pairs of identical particles
+! 2D axisymmetric with radial weighting: split up pairs of identical particles (TODO: check inside, move to symmetry 2D routine)
 IF(RadialWeighting%DoRadialWeighting) CALL TreatIdenticalParticles(nPair, nPart, iElem, iPartIndx_Node)
 
+! If a third particle is required of a recombination, the last particle due to uneven nPart is used
+IF(CollisMode.EQ.3) THEN
+  IF(nPart.EQ.1) ChemReac%RecombParticle = iPartIndx_Node(1)
+END IF
+
+! 5). Calculate the collision probability and perform the collision (if required)
 DO iPair = 1, nPair
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
     CALL SumVibRelaxProb(iPair)
@@ -355,6 +358,7 @@ DO iPair = 1, nPair
   END IF
 END DO
 
+! 6.) Calculate the mean free path and the mean collision separation distance within a cell
 IF(DSMC%CalcQualityFactors) THEN
   IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
     ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
