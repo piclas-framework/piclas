@@ -2368,6 +2368,11 @@ SUBROUTINE GeoCoordToMap2D(x_in,xi_Out,iElem)
 ! MODULES
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_DSMC_Vars             ,ONLY: SymmetrySide
+#if USE_MPI
+USE MOD_MPI_Shared_Vars       ,ONLY: ElemSideNodeID_Shared
+#else
+USE MOD_Mesh_Vars             ,ONLY: ElemSideNodeID_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2391,7 +2396,7 @@ REAL                          :: T_inv(2,2), DP(2), T(2,2)
 ! 1.1.) initial guess from linear part:
 SideID = SymmetrySide(iElem,2)
 DO iNode = 1,4
-  P(1:2,iNode) = GEO%NodeCoords(1:2,GEO%ElemSideNodeID(iNode,SideID,iElem))
+  P(1:2,iNode) = GEO%NodeCoords(1:2,ElemSideNodeID_Shared(iNode,SideID,iElem))
 END DO
 T(:,1) = 0.5 * (P(:,2)-P(:,1))
 T(:,2) = 0.5 * (P(:,4)-P(:,1))
@@ -2452,6 +2457,11 @@ FUNCTION MapToGeo2D(xi,iElem)
 ! MODULES
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
+#if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: ElemSideNodeID_Shared
+#else
+USE MOD_Mesh_Vars               ,ONLY: ElemSideNodeID_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2467,7 +2477,7 @@ REAL                            :: MapToGeo2D(2),P(2,4)
 !===================================================================================================================================
 SideID = SymmetrySide(iElem,2)
 DO iNode = 1,4
-  P(1:2,iNode) = GEO%NodeCoords(1:2,GEO%ElemSideNodeID(iNode,SideID,iElem))
+  P(1:2,iNode) = GEO%NodeCoords(1:2,ElemSideNodeID_Shared(iNode,SideID,iElem))
 END DO
 
 MapToGeo2D =0.25*(P(:,1)*(1-xi(1)) * (1-xi(2)) &

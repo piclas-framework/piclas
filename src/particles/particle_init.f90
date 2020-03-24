@@ -914,23 +914,24 @@ SUBROUTINE InitParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars                  ,ONLY: nElems
-USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
-USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Particle_Vars              ,ONLY: MacroRestartData_tmp
-USE MOD_part_emission              ,ONLY: InitializeParticleEmission,AdaptiveBCAnalyze
-USE MOD_surface_flux               ,ONLY: InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze               ,ONLY: InitHODSMC
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
-USE MOD_DSMC_Vars                  ,ONLY: useDSMC, DSMC, DSMC_HOSolution, HODSMC, DSMC_VolumeSample
+USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_HOSolution,HODSMC,DSMC_VolumeSample
 USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
-USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
-USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
-USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
-USE MOD_Particle_Boundary_Vars     ,ONLY: nPorousBC, PartBound
+USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
+USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
+USE MOD_Mesh_Vars                  ,ONLY: nElems
+USE MOD_Part_Emission              ,ONLY: InitializeParticleEmission,AdaptiveBCAnalyze
 USE MOD_Particle_Boundary_Porous   ,ONLY: InitPorousBoundaryCondition
+USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
+USE MOD_Particle_Boundary_Vars     ,ONLY: nPorousBC, PartBound
+USE MOD_Particle_Tracking_Vars     ,ONLY: TriaTracking,DoRefMapping,TrackingMethod
+USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
+USE MOD_Particle_Vars              ,ONLY: MacroRestartData_tmp
+USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
 USE MOD_Restart_Vars               ,ONLY: DoRestart
+USE MOD_Surface_Flux               ,ONLY: InitializeParticleSurfaceflux
+USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
 USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
@@ -956,6 +957,20 @@ IF(ParticlesInitIsDone)THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLES ...'
+
+! Find tracking method immediately, a lot of the later variables depend on it
+TrackingMethod = GETINTFROMSTR('TrackingMethod')
+SELECT CASE(TrackingMethod)
+CASE(REFMAPPING)
+  DoRefMapping=.TRUE.
+  TriaTracking=.FALSE.
+CASE(TRACING)
+  DoRefMapping=.FALSE.
+  TriaTracking=.FALSE.
+CASE(TRIATRACKING)
+  DoRefMapping=.FALSE.
+  TriaTracking=.TRUE.
+END SELECT
 
 IF(.NOT.ALLOCATED(nPartsPerElem))THEN
   ALLOCATE(nPartsPerElem(1:nElems))
@@ -1297,6 +1312,7 @@ PEM%PeriodicMoved=.FALSE.
 #endif
 
 IF(DoRefMapping)THEN
+  IPWRITE(*,*) 'Allocating', PDM%MaxParticleNumber
   ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
   __STAMP__&

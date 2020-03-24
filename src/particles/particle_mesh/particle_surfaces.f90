@@ -77,6 +77,10 @@ INTERFACE EvaluateBezierPolynomialAndGradient
   MODULE PROCEDURE EvaluateBezierPolynomialAndGradient
 END INTERFACE
 
+INTERFACE GetBezierControlPoints3DElevated
+  MODULE PROCEDURE GetBezierControlPoints3DElevated
+END INTERFACE
+
 #ifdef CODE_ANALYZE
 INTERFACE OutputBezierControlPoints
   MODULE PROCEDURE OutputBezierControlPoints
@@ -89,6 +93,7 @@ PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, GetBezierControlPoints3D
 PUBLIC::CalcNormAndTangBilinear, CalcNormAndTangBezier, CalcNormAndTangTriangle
 PUBLIC::RotateMasterToSlave
 PUBLIC::ElevateBezierPolynomial
+PUBLIC::GetBezierControlPoints3DElevated
 
 #ifdef CODE_ANALYZE
 PUBLIC::OutputBezierControlPoints
@@ -263,7 +268,6 @@ IMPLICIT NONE
 SDEALLOCATE(SideType_Shared)
 SDEALLOCATE(SideNormVec_Shared)
 SDEALLOCATE(SideDistance_Shared)
-SDEALLOCATE(BezierControlPoints3D)
 SDEALLOCATE(SideSlabNormals)
 SDEALLOCATE(SideSlabIntervals)
 SDEALLOCATE(ElemSlabNormals)
@@ -278,7 +282,8 @@ ADEALLOCATE(BaseVectors2)
 ADEALLOCATE(BaseVectors3)
 ADEALLOCATE(BaseVectorsScale)
 SDEALLOCATE(ElevationMatrix)
-SDEALLOCATE(BezierControlPoints3DElevated)
+ADEALLOCATE(BezierControlPoints3D)
+ADEALLOCATE(BezierControlPoints3DElevated)
 SDEALLOCATE(locAlpha)
 SDEALLOCATE(locXi)
 SDEALLOCATE(locEta)
@@ -288,7 +293,6 @@ SDEALLOCATE(Vdm_Bezier)
 SDEALLOCATE(sVdm_Bezier)
 SDEALLOCATE(D_Bezier)
 SDEALLOCATE(arrayNChooseK)
-SDEALLOCATE(BezierControlPoints3DElevated)
 SDEALLOCATE(FacNchooseK)
 SDEALLOCATE(BezierSampleXi)
 SDEALLOCATE(SurfMeshSubSideData)
@@ -341,7 +345,7 @@ IF (PRESENT(ElemID_opt).AND.PRESENT(LocSideID_opt)) THEN
 ELSE IF (PRESENT(SideID)) THEN
   ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
 !  IF (ElemID .EQ. TrackInfo%CurrElem) THEN
-    LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID) 
+    LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
 !  ELSE
 !    ElemID = PartSideToElem(S2E_NB_ELEM_ID,SideID)
 !    LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
@@ -447,7 +451,7 @@ END IF
 
 Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
 Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-IF (TriaTracking) THEN  
+IF (TriaTracking) THEN
   Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - xNod
   Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - yNod
   Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - zNod
@@ -856,8 +860,6 @@ USE MOD_Globals
 !USE MOD_Globals_Vars,    ONLY:EpsMach
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY: NGeo,NGeoElevated
-!USE MOD_Particle_Surfaces_Vars,   ONLY: SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
-!USE MOD_Particle_Surfaces_Vars,   ONLY: BezierControlPoints3D,BezierControlPoints3DElevated,BezierElevation
 USE MOD_Particle_Surfaces_Vars,   ONLY: BezierElevation
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -877,16 +879,7 @@ INTEGER            :: p,q, i
 !REAL                              :: tmp(3,0:NGeo,0:NGeo)
 REAL               :: skalprod(3),dx,dy,dz,dMax,w,h,l
 LOGICAL            :: SideIsCritical
-REAL    :: BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated)
 !===================================================================================================================================
-
-
-IF(BezierElevation.EQ.0)THEN
-  BezierControlPoints3DElevated=BezierControlPoints3D
-ELSE
-  CALL GetBezierControlPoints3DElevated(NGeo,NGeoElevated,BezierControlPoints3D(1:3,0:NGeo,0:NGeo)     &
-                                            ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated) )
-END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 0.) check if side is planar
@@ -896,16 +889,16 @@ END IF
 ! 1.) slab normal vectors
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! n_1=V_1+V_2 (V: corner vectors in xi-direction)
-SideSlabNormals(:,1)=BezierControlPoints3DElevated(:,NGeoElevated,0)                      &
-                           -BezierControlPoints3DElevated(:,0,0)                                         &
-                           +BezierControlPoints3DElevated(:,NGeoElevated,NGeoElevated)   &
-                           -BezierControlPoints3DElevated(:,0,NGeoElevated)
+SideSlabNormals(:,1)=BezierControlPoints3D(:,NGeoElevated,0)              &
+                    -BezierControlPoints3D(:,0,0)                         &
+                    +BezierControlPoints3D(:,NGeoElevated,NGeoElevated)   &
+                    -BezierControlPoints3D(:,0,NGeoElevated)
 SideSlabNormals(:,1)=SideSlabNormals(:,1)/SQRT(DOT_PRODUCT(SideSlabNormals(:,1),SideSlabNormals(:,1)))
 ! n_2=n_1 x (U_1+U_2) (U: corner vectors in eta-direction)
-SideSlabNormals(:,2)=BezierControlPoints3DElevated(:,0,NGeoElevated)                      &
-                           -BezierControlPoints3DElevated(:,0,0)                                         &
-                           +BezierControlPoints3DElevated(:,NGeoElevated,NGeoElevated)   &
-                           -BezierControlPoints3DElevated(:,NGeoElevated,0)
+SideSlabNormals(:,2)=BezierControlPoints3D(:,0,NGeoElevated)                      &
+                           -BezierControlPoints3D(:,0,0)                                         &
+                           +BezierControlPoints3D(:,NGeoElevated,NGeoElevated)   &
+                           -BezierControlPoints3D(:,NGeoElevated,0)
 
 !fehlt das?
 SideSlabNormals(:,2)=CROSSNORM(SideSlabNormals(:,1),SideSlabNormals(:,2))
@@ -947,12 +940,12 @@ SideSlabIntervals(:)=0.
 DO q=0,NGeoElevated
   DO p=0,NGeoElevated
     IF((p.EQ.0).AND.(q.EQ.0))CYCLE
-    skalprod(1)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q)-&
-                            BezierControlPoints3DElevated(:,0,0),SideSlabNormals(:,1))
-    skalprod(2)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q)-&
-                            BezierControlPoints3DElevated(:,0,0),SideSlabNormals(:,2))
-    skalprod(3)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q)-&
-                            BezierControlPoints3DElevated(:,0,0),SideSlabNormals(:,3))
+    skalprod(1)=DOT_PRODUCT(BezierControlPoints3D(:,p,q)-&
+                            BezierControlPoints3D(:,0,0),SideSlabNormals(:,1))
+    skalprod(2)=DOT_PRODUCT(BezierControlPoints3D(:,p,q)-&
+                            BezierControlPoints3D(:,0,0),SideSlabNormals(:,2))
+    skalprod(3)=DOT_PRODUCT(BezierControlPoints3D(:,p,q)-&
+                            BezierControlPoints3D(:,0,0),SideSlabNormals(:,3))
     IF    (skalprod(1).LT.0.)THEN
       SideSlabIntervals(1)=MIN(SideSlabIntervals(1),skalprod(1))
     ELSEIF(skalprod(1).GT.0.)THEN

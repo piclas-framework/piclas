@@ -61,10 +61,11 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Basis                 ,ONLY: LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary
-USE MOD_Mesh_Vars             ,ONLY: dXCL_NGeo,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
-USE MOD_PICInterpolation_Vars ,ONLY: useBGField
 USE MOD_Interpolation_Vars    ,ONLY: NBG,BGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
-USE MOD_Mesh_Vars             ,ONLY: CurvedElem,wBaryCL_NGeo1,XiCL_NGeo1
+USE MOD_Mesh_Vars             ,ONLY: dXCL_NGeo,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_Mesh_Vars             ,ONLY: wBaryCL_NGeo1,XiCL_NGeo1
+USE MOD_Particle_Mesh_Vars    ,ONLY: CurvedElem
+USE MOD_PICInterpolation_Vars ,ONLY: useBGField
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -175,8 +176,15 @@ SUBROUTINE GetPositionInRefElem(x_in,xi,ElemID,DoReUseMap,ForceMode)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo,NGeo
-USE MOD_Mesh_Vars,               ONLY:CurvedElem,wBaryCL_NGeo1,XiCL_NGeo1
+USE MOD_Mesh_Vars,               ONLY:NGeo,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_Mesh_Vars,               ONLY:wBaryCL_NGeo1,XiCL_NGeo1
+USE MOD_Particle_Mesh_Vars,      ONLY:CurvedElem
+#if USE_MPI
+USE MOD_Particle_Mesh_Vars,      ONLY:XCL_NGeo_Shared,dXCL_NGeo_Shared
+!USE MOD_MPI_Shared_Vars,         ONLY:GlobalElem2CNTotalElem
+#else
+USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,XCL_NGeo
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -194,6 +202,14 @@ INTEGER                    :: iMode
 REAL                       :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                       :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)
 !===================================================================================================================================
+
+#if USE_MPI
+! TODO: This might become required once we reduce the halo region
+!ASSOCIATE(ElemID   => GlobalElem2CNTotalElem(ElemID), &
+!          XCL_NGeo => XCL_NGeo_Shared)
+ASSOCIATE( XCL_NGeo =>  XCL_NGeo_Shared &
+         ,dXCL_NGeo => dXCL_NGeo_Shared)
+#endif
 
 iMode=2
 IF(PRESENT(ForceMode)) iMode=1
@@ -228,6 +244,10 @@ ELSE
     CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=iMode)
   END IF
 END IF
+
+#if USE_MPI
+END ASSOCIATE
+#endif
 
 END SUBROUTINE GetPositionInRefElem
 
@@ -794,12 +814,17 @@ SUBROUTINE GetRefNewtonStartValue(X_in,Xi,ElemID)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc,                 ONLY:PP_N,PP_nElems
+USE MOD_Mesh_Vars,               ONLY:Elem_xGP,XCL_NGeo
+USE MOD_Mesh_Vars,               ONLY:XCL_NGeo,NGeo,XiCL_NGeo
+USE MOD_Interpolation_Vars,      ONLY:xGP
 USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingGuess,RefMappingEps
 USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis
-USE MOD_Mesh_Vars,               ONLY:Elem_xGP,XCL_NGeo
-USE MOD_Interpolation_Vars,      ONLY:xGP
-USE MOD_Mesh_Vars,               ONLY:XCL_NGeo,NGeo,XiCL_NGeo,ElemBaryNGeo
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
+#if USE_MPI
+USE MOD_MPI_Shared_Vars,         ONLY:ElemBaryNGeo_Shared
+#else
+USE MOD_Mesh_Vars,               ONLY:ElemBaryNGeo
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -819,6 +844,9 @@ INTEGER                       :: i,j,k
 REAL                          :: dX,dY,dZ
 INTEGER                       :: RefMappingGuessLoc
 !===================================================================================================================================
+#if USE_MPI
+ASSOCIATE(ElemBaryNGeo => ElemBaryNGeo_Shared)
+#endif
 
 epsOne=1.0+RefMappingEps
 RefMappingGuessLoc=RefMappingGuess
@@ -882,6 +910,10 @@ CASE(4)
   ! trivial guess
   xi=0.
 END SELECT
+
+#if USE_MPI
+END ASSOCIATE
+#endif /*USE_MPI*/
 
 END SUBROUTINE GetRefNewtonStartValue
 

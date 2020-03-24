@@ -1156,58 +1156,58 @@ SUBROUTINE ParticleSurfaceflux()
 ! Particle Inserting via Surface Flux and (if present) adaptiveBC (Surface Flux adapting part density, velocity or temperature)
 !===================================================================================================================================
 ! Modules
-#if USE_MPI
-USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
-#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
-USE MOD_part_tools              ,ONLY: UpdateNextFreePosition,GetParticleWeight
-USE MOD_MacroBody_vars          ,ONLY: UseMacroBody
-USE MOD_MacroBody_tools         ,ONLY: INSIDEMACROBODY
-USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, RadialWeighting
-USE MOD_SurfaceModel_Vars       ,ONLY: SurfModel
-USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
 USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMesh, PartBound, nAdaptiveBC, nSurfSample
-USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, RadialWeighting
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_MacroBody_Tools         ,ONLY: INSIDEMACROBODY
+USE MOD_MacroBody_Vars          ,ONLY: UseMacroBody
+USE MOD_Mesh_Vars               ,ONLY: NGeo
+USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
+USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition,GetParticleWeight
+USE MOD_Part_Emission_Tools     ,ONLY: IntegerDivide,SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri
+USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticleVelocity
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,CalcMassflowRate
 USE MOD_Particle_Analyze_Vars   ,ONLY: nPartIn,PartEkinIn
-USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
-USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem!, ElemBaryNGeo
-USE MOD_Mesh_Vars               ,ONLY: NGeo!,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMesh, PartBound, nAdaptiveBC, nSurfSample
 USE MOD_Particle_Mesh           ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfMeshSubSideData
-USE MOD_Timedisc_Vars           ,ONLY: dt
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_SurfaceModel_Vars       ,ONLY: SurfModel
+USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
+USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac,RKdtFracTotal,Time
+USE MOD_Timedisc_Vars           ,ONLY: dt
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
 #endif /*IMPA*/
-USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
-USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
-USE MOD_Mesh_Vars               ,ONLY: NGeo
-USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-#ifdef CODE_ANALYZE
+#if CODE_ANALYZE
+USE MOD_Part_Emission_Tools     ,ONLY: CalcVectorAdditionCoeffs
 USE MOD_Particle_Tracking_Vars  ,ONLY: PartOut, MPIRankOut
 #if  defined(IMPA) || defined(ROS)
 USE MOD_Timedisc_Vars           ,ONLY: iStage,nRKStages
 #endif
 #endif /*CODE_ANALYZE*/
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
+#else
+USE MOD_Mesh_Vars
+#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_part_emission_tools     ,ONLY: IntegerDivide,SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri
-USE MOD_part_pos_and_velo       ,ONLY: SetParticleVelocity
-#if CODE_ANALYZE
-USE MOD_part_emission_tools     ,ONLY: CalcVectorAdditionCoeffs
-#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1424,12 +1424,12 @@ __STAMP__&
           !-- compute parallelogram of triangle (only simple 2 value adds/subs, other from init)
           Node1 = 2     ! normal = cross product of 1-2 and 1-3 for first triangle
           Node2 = 4     !          and 1-3 and 1-4 for second triangle
-          Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - xNod
-          Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - yNod
-          Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - zNod
-          Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - xNod
-          Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - yNod
-          Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - zNod
+          Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,iLocSide,ElemID)) - xNod
+          Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,iLocSide,ElemID)) - yNod
+          Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,iLocSide,ElemID)) - zNod
+          Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,iLocSide,ElemID)) - xNod
+          Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,iLocSide,ElemID)) - yNod
+          Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,iLocSide,ElemID)) - zNod
           IF (ABS(Vector1(3)).GT.ABS(Vector2(3))) THEN
             Vector2D(1:2) = Vector2(1:2)
           ELSE
@@ -1831,7 +1831,7 @@ __STAMP__&
         END IF
         PartInsSubSide = PartInsSubSide - allowedRejections
         NbrOfParticle = NbrOfParticle - allowedRejections
-        
+
         ParticleIndexNbr = 1
         DO iPart=1,PartInsSubSide
           IF ((iPart.EQ.1).OR.PDM%ParticleInside(ParticleIndexNbr)) THEN
@@ -1989,9 +1989,9 @@ __STAMP__&
               IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PDM%IsNewPart ', PDM%IsNewPart(ParticleIndexNbr)
               IPWRITE(UNIt_stdOut,'(I0,A18,x,A18,x,A18)')                  '    min ', ' value ', ' max '
               IPWRITE(UNIt_stdOut,'(I0,A2,x,ES25.14,x,ES25.14,x,ES25.14)') ' x', GEO%xminglob, LastPartPos(1,ParticleIndexNbr) &
-                                                                            , GEO%xmaxglob                   
+                                                                            , GEO%xmaxglob
               IPWRITE(UNIt_stdOut,'(I0,A2,x,ES25.14,x,ES25.14,x,ES25.14)') ' y', GEO%yminglob, LastPartPos(2,ParticleIndexNbr) &
-                                                                            , GEO%ymaxglob                   
+                                                                            , GEO%ymaxglob
               IPWRITE(UNIt_stdOut,'(I0,A2,x,ES25.14,x,ES25.14,x,ES25.14)') ' z', GEO%zminglob, LastPartPos(3,ParticleIndexNbr) &
                                                                             , GEO%zmaxglob
               CALL abort(&

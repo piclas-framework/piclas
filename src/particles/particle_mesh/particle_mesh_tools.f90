@@ -33,9 +33,9 @@ INTERFACE ParticleInsideQuad3D
   MODULE PROCEDURE ParticleInsideQuad3D
 END INTERFACE
 
-INTERFACE ParticleInsideQuad3D_MortarMPI
-  MODULE PROCEDURE ParticleInsideQuad3D_MortarMPI
-END INTERFACE
+!INTERFACE ParticleInsideQuad3D_MortarMPI
+!  MODULE PROCEDURE ParticleInsideQuad3D_MortarMPI
+!END INTERFACE
 
 INTERFACE GetGlobalElemID
   PROCEDURE GetGlobalElemID
@@ -77,7 +77,7 @@ END INTERFACE
 
 PUBLIC::InitGetGlobalElemID
 PUBLIC::InitGetCNElemID
-PUBLIC::BoundsOfElement, ParticleInsideQuad3D, ParticleInsideQuad3D_MortarMPI
+PUBLIC::BoundsOfElement, ParticleInsideQuad3D!, ParticleInsideQuad3D_MortarMPI
 !===================================================================================================================================
 CONTAINS
 
@@ -477,93 +477,93 @@ END IF
 END FUNCTION CalcDetOfTrias
 
 
-SUBROUTINE ParticleInsideQuad3D_MortarMPI(PartStateLoc,ElemID,PartInside)
-!===================================================================================================================================
-!> Analogous to the original routine, checks particles which were communicated if they are in the correct element.
-!> Checks if particle is inside of a linear element with triangulated faces, compatible with mortars
-!> Regular element: The determinant of a 3x3 matrix, where the three vectors point from the particle to the nodes of a triangle, is
-!>                  is used to determine whether the particle is inside the element. The geometric equivalent is the triple product
-!>                  A*(B x C), spanning a signed volume. If the volume/determinant is positive, then the particle is inside.
-!> Element with neighbouring mortar elements: Additional checks of the smaller sides are required if the particle is in not in the
-!>                                       concave part of the element but in the convex. Analogous procedure using the determinants.
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO,PartElemToSide,PartElemToElemAndSide
-USE MOD_Mesh_Vars             ,ONLY: MortarType
-#if USE_MPI
-USE MOD_MPI_Shared_Vars
-#endif
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-REAL   ,INTENT(IN)            :: PartStateLoc(3)
-INTEGER,INTENT(INOUT)         :: ElemID
-LOGICAL,INTENT(INOUT)         :: PartInside
-!-----------------------------------------------------------------------------------------------------------------------------------
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: ilocSide, NodeNum, SideID, SideIDMortar, ind, NbElemID, nNbMortars
-LOGICAL                       :: PosCheck, NegCheck, InElementCheckMortar, InElementCheckMortarNb
-REAL                          :: A(1:3,1:4), Det(2)
-!===================================================================================================================================
-InElementCheckMortar = .TRUE.
-!--- Loop over the 6 sides of the element
-DO iLocSide = 1,6
-  DO NodeNum = 1,4
-    !--- A = vector from particle to node coords
-    A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,ElemID)) - PartStateLoc(1:3)
-  END DO
-  SideID =PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-  SideIDMortar=MortarType(2,SideID)
-  IF (SideIDMortar.LE.0) CYCLE
-  PosCheck = .FALSE.
-  NegCheck = .FALSE.
-  !--- Checking the concave part of the side
-  IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
-    ! If the element is actually concave, CalcDetOfTrias determines its determinants
-    Det(1:2) = CalcDetOfTrias(A,1)
-    IF (Det(1).GE.0) PosCheck = .TRUE.
-    IF (Det(2).GE.0) PosCheck = .TRUE.
-    !--- final determination whether particle is in element
-    IF (.NOT.PosCheck) InElementCheckMortar = .FALSE.
-  ELSE
-    ! If its a convex element, CalcDetOfTrias determines the concave determinants
-    Det(1:2) = CalcDetOfTrias(A,2)
-    IF (Det(1).GE.0) PosCheck = .TRUE.
-    IF (Det(2).GE.0) PosCheck = .TRUE.
-    !--- final determination whether particle is in element
-    IF (.NOT.PosCheck) InElementCheckMortar= .FALSE.
-  END IF
-  IF (InElementCheckMortar) THEN
-    IF (MortarType(1,SideID).EQ.1) THEN
-      nNbMortars = 4
-    ELSE
-      nNbMortars = 2
-    END IF
-    !--- Loop over the number of neighbouring mortar elements, leave the routine if the particle is found within one of the
-    !    mortar elements
-    DO ind = 1, nNbMortars
-      InElementCheckMortarNb = .TRUE.
-      NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
-      IF (NbElemID.LT.1) THEN
-        IPWRITE(*,*) 'PartState:', PartStateLoc(1:3)
-        IPWRITE(*,*) 'ElemID:', ElemID
-        IPWRITE(*,*) 'WARNING: Particle deleted! Think about increasing the halo region (HaloEpsVelo)!'
-        PartInside = .FALSE.
-      END IF
-      CALL ParticleInsideNbMortar(PartStateLoc,NbElemID,InElementCheckMortarNb)
-      IF (InElementCheckMortarNb) THEN
-        ElemID = NbElemID
-        RETURN
-      END IF
-    END DO
-  END IF
-END DO ! iLocSide = 1,6
-
-END SUBROUTINE ParticleInsideQuad3D_MortarMPI
+!SUBROUTINE ParticleInsideQuad3D_MortarMPI(PartStateLoc,ElemID,PartInside)
+!!===================================================================================================================================
+!!> Analogous to the original routine, checks particles which were communicated if they are in the correct element.
+!!> Checks if particle is inside of a linear element with triangulated faces, compatible with mortars
+!!> Regular element: The determinant of a 3x3 matrix, where the three vectors point from the particle to the nodes of a triangle, is
+!!>                  is used to determine whether the particle is inside the element. The geometric equivalent is the triple product
+!!>                  A*(B x C), spanning a signed volume. If the volume/determinant is positive, then the particle is inside.
+!!> Element with neighbouring mortar elements: Additional checks of the smaller sides are required if the particle is in not in the
+!!>                                       concave part of the element but in the convex. Analogous procedure using the determinants.
+!!===================================================================================================================================
+!! MODULES
+!USE MOD_Globals
+!USE MOD_Particle_Mesh_Vars    ,ONLY: GEO,PartElemToSide,PartElemToElemAndSide
+!USE MOD_Mesh_Vars             ,ONLY: MortarType
+!#if USE_MPI
+!USE MOD_MPI_Shared_Vars
+!#endif
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!! INPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! INPUT/OUTPUT VARIABLES
+!REAL   ,INTENT(IN)            :: PartStateLoc(3)
+!INTEGER,INTENT(INOUT)         :: ElemID
+!LOGICAL,INTENT(INOUT)         :: PartInside
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER                       :: ilocSide, NodeNum, SideID, SideIDMortar, ind, NbElemID, nNbMortars
+!LOGICAL                       :: PosCheck, NegCheck, InElementCheckMortar, InElementCheckMortarNb
+!REAL                          :: A(1:3,1:4), Det(2)
+!!===================================================================================================================================
+!InElementCheckMortar = .TRUE.
+!!--- Loop over the 6 sides of the element
+!DO iLocSide = 1,6
+!  DO NodeNum = 1,4
+!    !--- A = vector from particle to node coords
+!    A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,ElemID)) - PartStateLoc(1:3)
+!  END DO
+!  SideID =PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+!  SideIDMortar=MortarType(2,SideID)
+!  IF (SideIDMortar.LE.0) CYCLE
+!  PosCheck = .FALSE.
+!  NegCheck = .FALSE.
+!  !--- Checking the concave part of the side
+!  IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+!    ! If the element is actually concave, CalcDetOfTrias determines its determinants
+!    Det(1:2) = CalcDetOfTrias(A,1)
+!    IF (Det(1).GE.0) PosCheck = .TRUE.
+!    IF (Det(2).GE.0) PosCheck = .TRUE.
+!    !--- final determination whether particle is in element
+!    IF (.NOT.PosCheck) InElementCheckMortar = .FALSE.
+!  ELSE
+!    ! If its a convex element, CalcDetOfTrias determines the concave determinants
+!    Det(1:2) = CalcDetOfTrias(A,2)
+!    IF (Det(1).GE.0) PosCheck = .TRUE.
+!    IF (Det(2).GE.0) PosCheck = .TRUE.
+!    !--- final determination whether particle is in element
+!    IF (.NOT.PosCheck) InElementCheckMortar= .FALSE.
+!  END IF
+!  IF (InElementCheckMortar) THEN
+!    IF (MortarType(1,SideID).EQ.1) THEN
+!      nNbMortars = 4
+!    ELSE
+!      nNbMortars = 2
+!    END IF
+!    !--- Loop over the number of neighbouring mortar elements, leave the routine if the particle is found within one of the
+!    !    mortar elements
+!    DO ind = 1, nNbMortars
+!      InElementCheckMortarNb = .TRUE.
+!      NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
+!      IF (NbElemID.LT.1) THEN
+!        IPWRITE(*,*) 'PartState:', PartStateLoc(1:3)
+!        IPWRITE(*,*) 'ElemID:', ElemID
+!        IPWRITE(*,*) 'WARNING: Particle deleted! Think about increasing the halo region (HaloEpsVelo)!'
+!        PartInside = .FALSE.
+!      END IF
+!      CALL ParticleInsideNbMortar(PartStateLoc,NbElemID,InElementCheckMortarNb)
+!      IF (InElementCheckMortarNb) THEN
+!        ElemID = NbElemID
+!        RETURN
+!      END IF
+!    END DO
+!  END IF
+!END DO ! iLocSide = 1,6
+!
+!END SUBROUTINE ParticleInsideQuad3D_MortarMPI
 
 
 !==================================================================================================================================!

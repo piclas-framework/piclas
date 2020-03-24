@@ -86,7 +86,6 @@ REAL,ALLOCATABLE    :: wBaryCL_NGeo(:)
 REAL,ALLOCATABLE    :: wBaryCL_NGeo1(:)
 REAL,ALLOCATABLE    :: XiCL_NGeo1(:)
 REAL,ALLOCATABLE    :: Vdm_CLNGeo1_CLNGeo(:,:)
-LOGICAL,ALLOCATABLE :: CurvedElem(:)
 !< #endif /*PARTICLES*/
 REAL,ALLOCATABLE    :: XiCL_NGeo(:)
 REAL,ALLOCATABLE    :: XCL_NGeo(:,:,:,:,:)

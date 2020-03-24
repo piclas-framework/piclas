@@ -83,6 +83,10 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 #if USE_MPI
 USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared,ElemVolume_Shared_Win,ElemCharLength_Shared,ElemCharLength_Shared_Win
+USE MOD_MPI_Shared_Vars         ,ONLY: ElemSideNodeID_Shared
+#else
+USE MOD_Mesh_Vars               ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Mesh_Vars               ,ONLY: ElemSideNodeID_Shared
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -132,9 +136,9 @@ DO SideID=1,nBCSides
       iLocSide = SideToElem(3,SideID)
     END IF
     ! Exclude the symmetry axis (y=0)
-    IF(MAXVAL(GEO%NodeCoords(2,GEO%ElemSideNodeID(:,iLocSide,ElemID))).GT.0.0) THEN
+    IF(MAXVAL(GEO%NodeCoords(2,ElemSideNodeID_Shared(:,iLocSide,ElemID))).GT.0.0) THEN
       ! The z-plane with the positive z component is chosen
-      IF(MINVAL(GEO%NodeCoords(3,GEO%ElemSideNodeID(:,iLocSide,ElemID))).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
+      IF(MINVAL(GEO%NodeCoords(3,ElemSideNodeID_Shared(:,iLocSide,ElemID))).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
         IF(SymmetrySide(ElemID,1).GT.0) THEN
           CALL abort(__STAMP__&
             ,'ERROR: PICLas could not determine a unique symmetry surface for 2D/axisymmetric calculation!'//&
@@ -157,7 +161,7 @@ DO SideID=1,nBCSides
         IF (Symmetry2DAxisymmetric) THEN
           radius = 0.
           DO iNode = 1, 4
-            radius = radius + GEO%NodeCoords(2,GEO%ElemSideNodeID(iNode,iLocSide,ElemID))
+            radius = radius + GEO%NodeCoords(2,ElemSideNodeID_Shared(iNode,iLocSide,ElemID))
           END DO
           radius = radius / 4.
           ElemVolume_Shared(ElemID) = ElemVolume_Shared(ElemID) * 2. * Pi * radius
@@ -481,6 +485,11 @@ USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: Pi
 USE MOD_Particle_Vars         ,ONLY: Symmetry2DAxisymmetric
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+#if USE_MPI
+USE MOD_MPI_Shared_Vars       ,ONLY: ElemSideNodeID_Shared
+#else
+USE MOD_Mesh_Vars             ,ONLY: ElemSideNodeID_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -499,7 +508,7 @@ Pmin = HUGE(Pmin)
 Pmax = -HUGE(Pmax)
 
 DO iNode = 1,4
-  P(1:2,iNode) = GEO%NodeCoords(1:2,GEO%ElemSideNodeID(iNode,iLocSide,iElem))
+  P(1:2,iNode) = GEO%NodeCoords(1:2,ElemSideNodeID_Shared(iNode,iLocSide,iElem))
 END DO
 
 Pmax(1) = MAXVAL(P(1,:))
@@ -536,6 +545,11 @@ USE MOD_Globals
 USE MOD_Globals_Vars              ,ONLY: Pi
 USE MOD_Particle_Mesh_Vars        ,ONLY: GEO
 USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting
+#if USE_MPI
+USE MOD_MPI_Shared_Vars           ,ONLY: ElemSideNodeID_Shared
+#else
+USE MOD_Mesh_Vars                 ,ONLY: ElemSideNodeID_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -555,7 +569,7 @@ Pmin = HUGE(Pmin)
 Pmax = -HUGE(Pmax)
 
 DO iNode = 1,4
-  P(1:2,iNode) = GEO%NodeCoords(1:2,GEO%ElemSideNodeID(iNode,iLocSide,iElem))
+  P(1:2,iNode) = GEO%NodeCoords(1:2,ElemSideNodeID_Shared(iNode,iLocSide,iElem))
 END DO
 
 Pmax(1) = MAXVAL(P(1,:))

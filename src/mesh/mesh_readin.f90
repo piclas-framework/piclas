@@ -461,12 +461,14 @@ CALL MPI_WIN_LOCK_ALL(0,SideInfo_Shared_Win,IERROR)
 SideInfo_Shared(1:SIDEINFOSIZE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo(:,:)
 SideInfo_Shared(SIDEINFOSIZE+1,offsetSideID+1:offsetSideID+nSideIDs) = 0
 CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
+! fill the SIDE_LOCALID. Basically, this array contains the 1:6 local sides of an element. ! If an element has hanging nodes (i.e.
+! has a big mortar side), the big side has negative index (-1,-2 or -3) and the next 2 (-2, -3) or 4 (-1) sides are the subsides.
+! Consequently, a hexahedral element can have more than 6 non-unique sides. If we find a small mortar side in the small element,
+! the SIDE_LOCALID points to the global ID of the big mortar side, indicated by negative sign
 DO iElem=FirstElemInd,LastElemInd
-  iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) !first index -1 in Sideinfo
-  ! if an element has hanging nodes, the big side has negative index (-1,-2 or -3)
-  ! and the next 2 (-2, -3) or 4 (-1) sides are the subsides
-  ! Consequently, a hexahedral element can have more than 6 non-unique sides
+  iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)
   SideInfo_Shared(SIDE_ELEMID,iSide+1:ElemInfo_Shared(ELEM_LASTSIDEIND,iElem)) = iElem
   sideCount = 0
   nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)
@@ -492,6 +494,7 @@ DO iElem=FirstElemInd,LastElemInd
   END DO
 END DO
 CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 #else
 ALLOCATE(SideInfo_Shared(1:SIDEINFOSIZE,1:nSideIDs))

@@ -92,12 +92,14 @@ INTEGER         :: ElemToBGM_Shared_Win
 INTEGER,POINTER :: FIBGM_offsetElem_Shared(:,:,:)
 INTEGER         :: FIBGM_offsetElem_Shared_Win
 
-REAL,POINTER    :: XCL_NGeo_Shared(:,:,:,:,:)
+REAL,POINTER    :: XCL_NGeo_Array(:)                          !> 1D array. Pointer changes to proper array bounds
 INTEGER         :: XCL_NGeo_Shared_Win
-REAL,POINTER    :: dXCL_NGeo_Shared(:,:,:,:,:,:)
+REAL,POINTER    :: dXCL_NGeo_Array(:)                         !> 1D array. Pointer changes to proper array bounds
 INTEGER         :: dXCL_NGeo_Shared_Win
-REAL,POINTER    :: BezierControlPoints3D_Shared(:,:,:,:)
+REAL,POINTER    :: BezierControlPoints3D_Shared(:)            !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
 INTEGER         :: BezierControlPoints3D_Shared_Win
+REAL,POINTER    :: BezierControlPoints3DElevated_Shared(:)    !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
+INTEGER         :: BezierControlPoints3DElevated_Shared_Win
 
 REAL,POINTER    :: ElemBaryNGeo_Shared(:,:)
 INTEGER         :: ElemBaryNGeo_Shared_Win
@@ -110,6 +112,8 @@ INTEGER         :: XiEtaZetaBasis_Shared_Win
 REAL,POINTER    :: slenXiEtaZetaBasis_Shared(:,:)
 INTEGER         :: slenXiEtaZetaBasis_Shared_Win
 
+LOGICAL,POINTER :: CurvedElem_Shared(:)                 !> Flag if an element is curved
+INTEGER         :: CurvedElem_Shared_Win
 LOGICAL,POINTER :: ConcaveElemSide_Shared(:,:)
 INTEGER         :: ConcaveElemSide_Shared_Win
 INTEGER,POINTER :: ElemSideNodeID_Shared(:,:,:)
