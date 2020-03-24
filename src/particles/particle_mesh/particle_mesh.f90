@@ -635,6 +635,9 @@ BezierControlPoints3DElevated = 0.
 #endif
 
 #if USE_MPI
+CALL MPI_WIN_SYNC(BezierControlPoints3D_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+
 firstElem = INT(REAL( myComputeNodeRank*   nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 firstSide = INT(REAL (myComputeNodeRank   *nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
@@ -663,11 +666,11 @@ DO iElem = firstElem, lastElem
       tmp=XCL_NGeo_Shared(1:3 , :    , :    , NGeo,iElem )
     END SELECT
     CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,tmp,tmp2)
-    ! turn into right hand system of side
+    ! get global SideID of local side
+    SideID = GetGlobalNonUniqueSideID(GetGlobalElemID(iElem),iLocSide)
     DO q=0,NGeo; DO p=0,NGeo
+      ! turn into right hand system of side
       pq=CGNS_SideToVol2(NGeo,p,q,iLocSide)
-      ! Compute BezierControlPoints3D for sides in MASTER system
-      SideID = GetGlobalNonUniqueSideID(GetGlobalElemID(iElem),iLocSide)
       BezierControlPoints3D(1:3,p,q,SideID)=tmp2(1:3,pq(1),pq(2))
     END DO; END DO ! p,q
   END DO ! ilocSide=1,6
