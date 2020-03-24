@@ -78,11 +78,15 @@ USE MOD_Preproc
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
-USE MOD_Utils                  ,ONLY: InsertionSort
-USE MOD_Particle_Tracking_Vars ,ONLY: Distance, ListDistance, TriaTracking
-USE MOD_Mesh_Vars              ,ONLY: ElemBaryNGeo
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D,GetCNElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems, FIBGM_offsetElem, FIBGM_Element
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D,GetCNElemID
+USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance,TriaTracking
+USE MOD_Utils                  ,ONLY: InsertionSort
+#if USE_MPI
+USE MOD_MPI_Shared_Vars        ,ONLY: ElemBaryNGeo_Shared
+#else
+USE MOD_Mesh_Vars              ,ONLY: ElemBaryNGeo
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -100,11 +104,11 @@ REAL    :: Distance2, RefPos(1:3)
 REAL    :: Det(6,2)
 LOGICAL :: InElementCheck
 !===================================================================================================================================
-SinglePointToElement = -1
+#if USE_MPI
+ASSOCIATE(ElemBaryNGeo => ElemBaryNGeo_Shared)
+#endif
 
-!IF ( (Pos3D(1).LT.GEO%xminglob).OR.(Pos3D(1).GT.GEO%xmaxglob).OR. &
-!     (Pos3D(2).LT.GEO%yminglob).OR.(Pos3D(2).GT.GEO%ymaxglob).OR. &
-!     (Pos3D(3).LT.GEO%zminglob).OR.(Pos3D(3).GT.GEO%zmaxglob)) RETURN
+SinglePointToElement = -1
 
 ! --- get background mesh cell of point
 iBGM = CEILING((Pos3D(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
@@ -162,6 +166,10 @@ DO iBGMElem=1,nBGMElems
     RETURN
   END IF
 END DO ! iBGMElem
+
+#if USE_MPI
+END ASSOCIATE
+#endif /*USE_MPI*/
 
 END FUNCTION SinglePointToElement
 

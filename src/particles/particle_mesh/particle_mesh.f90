@@ -260,19 +260,6 @@ CALL InitGetGlobalElemID()
 ! Initialize mapping function: GetCNElemID()
 CALL InitGetCNElemID()
 
-TrackingMethod = GETINTFROMSTR('TrackingMethod')
-SELECT CASE(TrackingMethod)
-CASE(REFMAPPING)
-  DoRefMapping=.TRUE.
-  TriaTracking=.FALSE.
-CASE(TRACING)
-  DoRefMapping=.FALSE.
-  TriaTracking=.FALSE.
-CASE(TRIATRACKING)
-  DoRefMapping=.FALSE.
-  TriaTracking=.TRUE.
-END SELECT
-
 IF ((DoRefMapping.OR.UseCurveds.OR.(NGeo.GT.1)).AND.(TriaTracking)) THEN
   CALL abort(&
 __STAMP__&
@@ -7096,9 +7083,10 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 MPISharedSize = INT((3*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalElems/),ElemBaryNGeo_Shared_Win,ElemBaryNGeo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemBaryNGeo_Shared_Win,IERROR)
+
 ASSOCIATE(XCL_NGeo => XCL_NGeo_Shared)
 
-! Set Ranges
+! Set ranges
 firstElem = INT(REAL(myComputeNodeRank*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
