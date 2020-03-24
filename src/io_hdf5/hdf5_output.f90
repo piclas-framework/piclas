@@ -1162,7 +1162,8 @@ END SUBROUTINE WriteParticleToHDF5
 
 SUBROUTINE WriteBoundaryParticleToHDF5(MeshFileName,OutputTime,PreviousTime)
 !===================================================================================================================================
-! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
+! Write data of impacting particles on specific boundary conditions of .h5 file (position, velocity, species ID, kinetic energy [eV],
+! macro particle factor, time of impact, impact obliqueness angle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -1268,7 +1269,6 @@ locnPart_max = locnPart
 #endif
 ALLOCATE(PartData(INT(PartDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart))
 
-
 pcount=1
 DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
   ! Position and Velocity
@@ -1294,10 +1294,8 @@ DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
   ! Impact obliqueness angle [degree]
   PartData(11,iPart)=PartStateBoundary(9,pcount)
 
-
   pcount = pcount +1
 END DO ! iPart=offsetnPart+1_IK,offsetnPart+locnPart
-
 
 reSwitch=.FALSE.
 IF(gatheredWrite)THEN
@@ -1309,12 +1307,11 @@ END IF
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-      nGlobalElems    => INT(nGlobalElems,IK)    ,&
-      nVar            => INT(nVar,IK)            ,&
-      PP_nElems       => INT(PP_nElems,IK)       ,&
-      offsetElem      => INT(offsetElem,IK)      ,&
-      !MaxQuantNum     => INT(MaxQuantNum,IK)     ,&
-      PartDataSize    => INT(PartDataSize,IK)    )
+      nGlobalElems => INT(nGlobalElems,IK) ,&
+      nVar         => INT(nVar,IK)         ,&
+      PP_nElems    => INT(PP_nElems,IK)    ,&
+      offsetElem   => INT(offsetElem,IK)   ,&
+      PartDataSize => INT(PartDataSize,IK) )
 
   ALLOCATE(StrVarNames2(PartDataSize))
   StrVarNames2(1)  = 'ParticlePositionX'
@@ -1329,7 +1326,6 @@ ASSOCIATE (&
   StrVarNames2(9)  = 'MacroParticleFactor'
   StrVarNames2(10) = 'Time'
   StrVarNames2(11) = 'ImpactObliquenessAngle'
-
 
   IF(MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
