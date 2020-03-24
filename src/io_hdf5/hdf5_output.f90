@@ -1372,14 +1372,11 @@ DEALLOCATE(PartData)
 ! Nullify and reset boundary parts container after write out
 PartStateBoundaryVecLength = 0
 
-! Re-allocate PartStateBoundary for a small number of particles and double the array size each time the maximum is reached
-DEALLOCATE(PartStateBoundary)
-ALLOCATE(PartStateBoundary(1:9,1:10))
+! Re-allocate PartStateBoundary and PartStateBoundarySpec for a small number of particles and double the array size each time the 
+! maximum is reached
+ALLOCATE(PartStateBoundary(1:9,1:10), STAT=ALLOCSTAT)
+ALLOCATE(PartStateBoundarySpec(1:10), STAT=ALLOCSTAT)
 PartStateBoundary=0.
-
-! Re-allocate PartStateBoundarySpec for a small number of particles and double the array size each time the maximum is reached
-DEALLOCATE(PartStateBoundarySpec)
-ALLOCATE(PartStateBoundarySpec(1:10))
 PartStateBoundarySpec=0
 
 END SUBROUTINE WriteBoundaryParticleToHDF5
