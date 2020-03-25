@@ -197,10 +197,10 @@ DO i = 1,PDM%ParticleVecLength
         nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
         DO iLocSide=1,nlocSides
           TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
-          localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID) 
+          localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
           IF (localSideID.LE.0) CYCLE
           NbElemID = SideInfo_Shared(SIDE_NBELEMID,TempSideID)
-          IF (NbElemID.LT.0) THEN ! Mortar side           
+          IF (NbElemID.LT.0) THEN ! Mortar side
             nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.-1)
             DO ind = 1, nMortarElems
               nbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide + ind
@@ -425,7 +425,7 @@ SUBROUTINE ParticleTracing(doParticle_In)
 SUBROUTINE ParticleTracing()
 #endif /*NOT IMPA*/
 !===================================================================================================================================
-!> Routine for tracking of moving particles using polynomial description of sides. 
+!> Routine for tracking of moving particles using polynomial description of sides.
 !> Routine calculates intersection and boundary interaction for (dorefmapping = false) and (TriaTracking = false)
 !> Time is analyzed for LoadBalancing purposes for each element independently because elements with e.g. surface are more costly
 !> ---------------------------------------------------------------------------------------------------------------------------------
@@ -434,7 +434,7 @@ SUBROUTINE ParticleTracing()
 !> -- 2. Track particle vector up to final particle position
 !> -- 3. special check if some double check has to be performed (only necessary for bilinear sides and macrospheres)
 !> -- 4. Check if particle intersected a side and also which side (also MacroSpheres and AuxBCs)
-!>         For each side only one intersection is chosen, but particle might insersect more than one side. Assign pointer list 
+!>         For each side only one intersection is chosen, but particle might insersect more than one side. Assign pointer list
 !> -- 5. Loop over all intersections in pointer list and check intersection type: inner side, BC, auxBC or MacroSphere
 !>       and calculate interaction
 !> -- 6. Update particle position and decide if double check might be necessary
@@ -443,9 +443,9 @@ SUBROUTINE ParticleTracing()
 !> -- 9. If tolerance was marked, check if particle is inside of proc volume and try to find it in case it was lost
 !> ---------------------------------------------------------------------------------------------------------------------------------
 !> - DoubleCheck:
-!> -- If a tracked particle hits a bilinear side but the PartTrajectory points inside of the element, 
+!> -- If a tracked particle hits a bilinear side but the PartTrajectory points inside of the element,
 !>    then the second alpha for this side might have been the actual intersection, which has been dropped in intersection routine.
-!> -- Consequently, alpha for doublecheck side is saved (moved to the last position in intersectionlist) 
+!> -- Consequently, alpha for doublecheck side is saved (moved to the last position in intersectionlist)
 !>    and neglected during the second check of for the appropriate sideID.
 !> -- This occurs after surfaceflux, reflection, or for periodic particles moving almost in tangential direction to bilinear side.
 !> -- The DoubleCheck replaces the need of tolerances
@@ -656,9 +656,9 @@ DO iPart=1,PDM%ParticleVecLength
     markTol =.FALSE.
 ! -- 2. Track particle vector up to the final particle position
     DO WHILE (.NOT.PartisDone)
-      ! do not reset markTol after first intersection of for doublecheck. 
+      ! do not reset markTol after first intersection of for doublecheck.
       ! This prevents particles to get lost unnoticed in case any intersection has marked tolerance.
-      ! markTol =.FALSE. 
+      ! markTol =.FALSE.
       IF (PartDoubleCheck) THEN
 ! -- 3. special check if some double check has to be performed (only necessary for bilinear sides and macrospheres)
 #ifdef CODE_ANALYZE
@@ -673,7 +673,7 @@ DO iPart=1,PDM%ParticleVecLength
           iLocSide=currentIntersect%Side
           !SideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
           SideID = GetGlobalNonUniqueSideID(GetGlobalElemID(ElemID),iLocSide)
-          ! missing!!! : mapping from GlobalNonUnique to CNtotalsides 
+          ! missing!!! : mapping from GlobalNonUnique to CNtotalsides
           CALL ComputeBiLinearIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID &
               ,alpha2=currentIntersect%alpha)
           currentIntersect%alpha=HUGE(1.)
@@ -722,7 +722,7 @@ DO iPart=1,PDM%ParticleVecLength
 
       ELSE ! NOT PartDoubleCheck
 ! -- 4. Check if particle intersected a side and also which side (also MacroSpheres and AuxBCs)
-!       For each side only one intersection is chosen, but particle might insersect more than one side. Assign pointer list 
+!       For each side only one intersection is chosen, but particle might insersect more than one side. Assign pointer list
 #ifdef CODE_ANALYZE
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN ; IF(iPart.EQ.PARTOUT)THEN
@@ -745,7 +745,7 @@ DO iPart=1,PDM%ParticleVecLength
           ELSE
             flip = MOD(Sideinfo_Shared(SIDE_FLIP,SideID),10)
           END IF
-          ! missing!!! : mapping from GlobalNonUnique to CNtotalsides 
+          ! missing!!! : mapping from GlobalNonUnique to CNtotalsides
           isCriticalParallelInFace=.FALSE.
           SELECT CASE(SideType(SideID))
           CASE(PLANAR_RECT)
@@ -913,7 +913,7 @@ __STAMP__ &
             ELSE
               flip = MOD(Sideinfo_Shared(SIDE_FLIP,SideID),10)
             END IF
-            ! missing!!! : mapping from GlobalNonUnique to CNtotalsides 
+            ! missing!!! : mapping from GlobalNonUnique to CNtotalsides
             CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,currentIntersect%Side,currentIntersect%Side &
                 ,PartTrajectory,lengthPartTrajectory,currentIntersect%xi,currentIntersect%eta,currentIntersect%alpha,iPart &
                 ,SideID,SideType(SideID),ElemID)
@@ -992,7 +992,7 @@ __STAMP__ &
           SELECT CASE (currentIntersect%intersectCase)
           CASE(1)
             SideID = GetGlobalNonUniqueSideID(GetGlobalElemID(OldElemID),currentIntersect%Side)
-            ! missing!!! : mapping from GlobalNonUnique to CNtotalsides 
+            ! missing!!! : mapping from GlobalNonUnique to CNtotalsides
             SELECT CASE(SideType(SideID))
             CASE(BILINEAR,PLANAR_NONRECT)
               moveList=.TRUE.
@@ -1274,16 +1274,17 @@ SUBROUTINE ParticleRefTracking()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,LastPartPos,PartSpecies
-USE MOD_Mesh_Vars              ,ONLY: OffSetElem,useCurveds,NGeo,ElemBaryNGeo
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Tracking_Vars ,ONLY: nTracks,Distance,ListDistance,CartesianPeriodic
-USE MOD_Particle_Mesh_Vars     ,ONLY: Geo,IsTracingBCElem,BCElem,epsOneCell
-USE MOD_Utils                  ,ONLY: BubbleSortID,InsertionSort
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
-USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps2
-USE MOD_Particle_Mesh          ,ONLY: PartInElemCheck
+USE MOD_Mesh_Vars              ,ONLY: OffSetElem,useCurveds,NGeo,ElemBaryNGeo
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
+USE MOD_Particle_Mesh          ,ONLY: PartInElemCheck
+USE MOD_Particle_Mesh_Vars     ,ONLY: Geo,BCElem,epsOneCell
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
+USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNBCElem
+USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps2
+USE MOD_Particle_Tracking_Vars ,ONLY: nTracks,Distance,ListDistance,CartesianPeriodic
+USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,LastPartPos,PartSpecies
+USE MOD_Utils                  ,ONLY: BubbleSortID,InsertionSort
 #if USE_MPI
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
@@ -1348,18 +1349,17 @@ DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
 #endif /*IMPA*/
     LastElemID = PEM%lastElement(iPart)
-    ElemID=LastElemID
+    ElemID     = LastElemID
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
     nTracks=nTracks+1
     ! sanity check
     PartIsDone=.FALSE.
-    IF(IsTracingBCElem(ElemID))THEN
-      lengthPartTrajectory0=0.
-      !IF(GEO%nPeriodicVectors.GT.0.)THEN
-      !  lengthPartTrajectory0=BCELEM(ElemID)%ElemToSideDistance(BCElem(ElemID)%lastSide)
-      !END IF
+
+    ! check if element is a BC element. If yes, handle with Tracing instead of RefMapping
+    IF (GlobalElem2CNBCElem(ElemID).NE.-1) THEN
+      lengthPartTrajectory0 = 0.
       CALL ParticleBCTracking(lengthPartTrajectory0 &
                              ,ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone,PartIsMoved,1)
       IF(PartIsDone) THEN
@@ -1409,7 +1409,7 @@ DO iPart=1,PDM%ParticleVecLength
         ! call here function for mapping of partpos and lastpartpos
         LastPos=PartState(1:3,iPart)
         CALL PeriodicMovement(iPart)
-        IF(.NOT.IsTracingBCElem(ElemID))THEN
+        IF (GlobalElem2CNBCElem(ElemID).EQ.-1) THEN
           DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(1,iPart)) &
               .OR.   .NOT.ALMOSTEQUAL(LastPos(2),PartState(2,iPart)) &
               .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(3,iPart)) )
@@ -1540,7 +1540,7 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsElement) THEN
         PartIsDone=.FALSE.
-        IF(.NOT.IsTracingBCElem(TestElem))THEN
+        IF (GlobalElem2CNBCElem(TestElem).EQ.-1) THEN
           ! ausgabe
           IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with internal element '
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' xi                     ', PartPosRef(1:3,iPart)
@@ -2968,7 +2968,7 @@ IF(.NOT.DoRefMapping)THEN
   ElemID=PEM%Element(PartID)
 #ifdef CODE_ANALYZE
   CALL PartInElemCheck(PartState(1:3,PartID),PartID,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.)
-#else                                      
+#else
   CALL PartInElemCheck(PartState(1:3,PartID),PartID,ElemID,isHit,IntersectionPoint)
 #endif /*CODE_ANALYZE*/
   IF(.NOT.isHit)THEN  ! particle not inside

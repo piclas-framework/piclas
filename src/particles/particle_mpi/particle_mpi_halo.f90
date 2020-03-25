@@ -777,7 +777,7 @@ CONTAINS
 !USE MOD_Globals
 !USE MOD_Preproc
 !USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartHaloElemToProc, PartHaloNodeToProc
-!USE MOD_Mesh_Vars              ,ONLY: nElems, nBCSides, BC,nGeo,ElemBaryNGeo,CurvedElem, nNodes
+!USE MOD_Mesh_Vars              ,ONLY: nElems, nBCSides, BC,nGeo,ElemBaryNGeo,ElemCurved, nNodes
 !USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalNodes,nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nPartSides,ElemHasAuxBCs
 !USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide,PartSideToElem,PartElemToElemGlob,nTotalBCSides,ElemType
 !USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo,dXCL_NGeo,MortarType
@@ -822,7 +822,7 @@ CONTAINS
 !  INTEGER                   :: nNodes                 ! number of nodes to send
 !  INTEGER                   :: nSides                 ! number of sides to send
 !  INTEGER                   :: nElems                 ! number of elems to send
-!  LOGICAL,ALLOCATABLE       :: curvedElem(:)
+!  LOGICAL,ALLOCATABLE       :: ElemCurved(:)
 !  INTEGER,ALLOCATABLE       :: ElemType(:)
 !  INTEGER,ALLOCATABLE       :: SideType(:)
 !  REAL   ,ALLOCATABLE       :: SideDistance(:)
@@ -999,11 +999,11 @@ CONTAINS
 !END IF
 !! Elem types
 !IF (SendMsg%nElems.GT.0) THEN
-!  ALLOCATE(SendMsg%CurvedElem(1:SendMsg%nElems),STAT=ALLOCSTAT)
+!  ALLOCATE(SendMsg%ElemCurved(1:SendMsg%nElems),STAT=ALLOCSTAT)
 !  IF (ALLOCSTAT.NE.0) CALL abort(&
 !    __STAMP__&
-!    ,'Could not allocate SendMsg%CurvedElem',SendMsg%nElems)
-!  SendMsg%CurvedElem=.FALSE.
+!    ,'Could not allocate SendMsg%ElemCurved',SendMsg%nElems)
+!  SendMsg%ElemCurved=.FALSE.
 !  IF (.NOT.DoRefMapping) THEN
 !    ALLOCATE(SendMsg%ElemType(1:SendMsg%nElems),STAT=ALLOCSTAT)
 !    IF (ALLOCSTAT.NE.0) CALL abort(&
@@ -1030,11 +1030,11 @@ CONTAINS
 !  SendMsg%DXCL_NGeo(:,:,:,:,:,:)=0
 !END IF
 !IF (RecvMsg%nElems.GT.0) THEN
-!  ALLOCATE(RecvMsg%CurvedElem(1:RecvMsg%nElems),STAT=ALLOCSTAT)
+!  ALLOCATE(RecvMsg%ElemCurved(1:RecvMsg%nElems),STAT=ALLOCSTAT)
 !  IF (ALLOCSTAT.NE.0) CALL abort(&
 !    __STAMP__&
-!    ,'Could not allocate ResvMsg%CurvedElem',RecvMsg%nElems)
-!  RecvMsg%CurvedElem=.FALSE.
+!    ,'Could not allocate ResvMsg%ElemCurved',RecvMsg%nElems)
+!  RecvMsg%ElemCurved=.FALSE.
 !  IF (.NOT.DoRefMapping) THEN
 !    ALLOCATE(RecvMsg%ElemType(1:RecvMsg%nElems),STAT=ALLOCSTAT)
 !    IF (ALLOCSTAT.NE.0) CALL abort(&
@@ -1323,7 +1323,7 @@ CONTAINS
 !    !  SendMsg%ElemSlabNormals(:,:,ElemIndex(iElem))=ElemSlabNormals(:,:,iElem)
 !    !  SendMsg%ElemSlabIntervals(:,ElemIndex(iElem))=ElemSlabIntervals(:,iElem)
 !    !END IF
-!    SendMsg%CurvedElem(ElemIndex(iElem))=CurvedElem(iElem)
+!    SendMsg%ElemCurved(ElemIndex(iElem))=ElemCurved(iElem)
 !    IF (UseAuxBCs) SendMsg%ElemHasAuxBCs(ElemIndex(iElem),:)=ElemHasAuxBCs(iElem,:)
 !    IF (.NOT.DoRefMapping) THEN
 !      SendMsg%ElemType(ElemIndex(iElem))=ElemType(iElem)
@@ -1477,7 +1477,7 @@ CONTAINS
 !    IF (SendMsg%nSides.GT.0) &
 !        CALL MPI_SEND(SendMsg%MortarType,SendMsg%nSides*2,MPI_INTEGER       ,iProc,1120,PartMPI%COMM,IERROR)
 !  IF (SendMsg%nElems.GT.0) &
-!      CALL MPI_SEND(SendMsg%CurvedElem,SendMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,IERROR)
+!      CALL MPI_SEND(SendMsg%ElemCurved,SendMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,IERROR)
 !  IF (.NOT.DoRefMapping) THEN
 !    IF (SendMsg%nElems.GT.0) &
 !        CALL MPI_SEND(SendMsg%ElemType  ,SendMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,IERROR)
@@ -1543,7 +1543,7 @@ CONTAINS
 !    IF (RecvMsg%nSides.GT.0) &
 !        CALL MPI_RECV(RecvMsg%MortarType,RecvMsg%nSides*2,MPI_INTEGER,iProc,1120,PartMPI%COMM,MPISTATUS,IERROR)
 !  IF (RecvMsg%nElems.GT.0) &
-!      CALL MPI_RECV(RecvMsg%CurvedElem,RecvMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,MPISTATUS,IERROR)
+!      CALL MPI_RECV(RecvMsg%ElemCurved,RecvMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,MPISTATUS,IERROR)
 !  IF (.NOT.DoRefMapping) THEN
 !    IF (RecvMsg%nElems.GT.0) &
 !        CALL MPI_RECV(RecvMsg%ElemType  ,RecvMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,MPISTATUS,IERROR)
@@ -1608,7 +1608,7 @@ CONTAINS
 !    IF (RecvMsg%nSides.GT.0) &
 !        CALL MPI_RECV(RecvMsg%MortarType,RecvMsg%nSides*2,MPI_INTEGER,iProc,1120,PartMPI%COMM,MPISTATUS,IERROR)
 !  IF (RecvMsg%nElems.GT.0) &
-!      CALL MPI_RECV(RecvMsg%CurvedElem,RecvMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,MPISTATUS,IERROR)
+!      CALL MPI_RECV(RecvMsg%ElemCurved,RecvMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,MPISTATUS,IERROR)
 !  IF (.NOT.DoRefMapping) THEN
 !    IF (RecvMsg%nElems.GT.0) &
 !        CALL MPI_RECV(RecvMsg%ElemType  ,RecvMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,MPISTATUS,IERROR)
@@ -1668,7 +1668,7 @@ CONTAINS
 !    IF (SendMsg%nSides.GT.0) &
 !        CALL MPI_SEND(SendMsg%MortarType,SendMsg%nSides*2,MPI_INTEGER       ,iProc,1120,PartMPI%COMM,IERROR)
 !  IF (SendMsg%nElems.GT.0) &
-!      CALL MPI_SEND(SendMsg%CurvedElem,SendMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,IERROR)
+!      CALL MPI_SEND(SendMsg%ElemCurved,SendMsg%nElems,MPI_LOGICAL,iProc,1121,PartMPI%COMM,IERROR)
 !  IF (.NOT.DoRefMapping) THEN
 !    IF (SendMsg%nElems.GT.0) &
 !        CALL MPI_SEND(SendMsg%ElemType  ,SendMsg%nElems,MPI_INTEGER,iProc,1122,PartMPI%COMM,IERROR)
@@ -1744,7 +1744,7 @@ CONTAINS
 !      XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
 !      dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
 !      ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
-!      CurvedElem(newElemID)       = RecvMsg%CurvedElem(iElem)
+!      ElemCurved(newElemID)       = RecvMsg%ElemCurved(iElem)
 !      IF (UseAuxBCs) THEN
 !        ElemHasAuxBCs(newElemID,:)  = RecvMsg%ElemHasAuxBCs(iElem,:)
 !      END IF
@@ -1899,7 +1899,7 @@ CONTAINS
 !      PartHaloElemToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
 !      PartHaloElemToProc(NATIVE_PROC_ID,newElemId)=iProc
 !      ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
-!      CurvedElem(newElemID)       = RecvMsg%CurvedElem(iElem)
+!      ElemCurved(newElemID)       = RecvMsg%ElemCurved(iElem)
 !      ElemType(newElemID)         = RecvMsg%ElemType(iElem)
 !      IF (UseAuxBCs) THEN
 !        ElemHasAuxBCs(newElemID,:)  = RecvMsg%ElemHasAuxBCs(iElem,:)
@@ -1953,7 +1953,7 @@ CONTAINS
 !USE MOD_Globals
 !USE MOD_Preproc
 !USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc, PartHaloNodeToProc
-!USE MOD_Mesh_Vars              ,ONLY: BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType,ElemBaryNGeo,CurvedElem,nNodes
+!USE MOD_Mesh_Vars              ,ONLY: BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType,ElemBaryNGeo,ElemCurved,nNodes
 !USE MOD_Particle_Mesh_Vars     ,ONLY: SidePeriodicType,PartBCSideList,GEO,ElemType,ElemHasAuxBCs
 !USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide,PartSideToElem,PartElemToElemGlob
 !USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideType,SideNormVec,SideDistance
@@ -1979,7 +1979,7 @@ CONTAINS
 !REAL,ALLOCATABLE                   :: DummyXCL_NGEO (:,:,:,:,:)
 !REAL,ALLOCATABLE                   :: DummydXCL_NGEO(:,:,:,:,:,:)
 !REAL,ALLOCATABLE                   :: DummyElemBaryNGeo(:,:)
-!LOGICAL,ALLOCATABLE                :: DummyCurvedElem(:)
+!LOGICAL,ALLOCATABLE                :: DummyElemCurved(:)
 !LOGICAL,ALLOCATABLE                :: DummyElemHasAuxBCs(:,:)
 !INTEGER,ALLOCATABLE                :: DummyElemType(:)
 !INTEGER,ALLOCATABLE                :: DummySideType(:)
@@ -2430,18 +2430,18 @@ CONTAINS
 !ElemBaryNGeo(1:3,1:nOldElems) =DummyElemBaryNGeo(1:3,1:nOldElems)
 
 !! curved elem
-!ALLOCATE(DummyCurvedElem(1:nOldElems))
-!IF (.NOT.ALLOCATED(DummyCurvedElem)) CALL abort(&
+!ALLOCATE(DummyElemCurved(1:nOldElems))
+!IF (.NOT.ALLOCATED(DummyElemCurved)) CALL abort(&
 !    __STAMP__&
-! ,'Could not allocate DummyCurvedElem')
-!DummyCurvedElem=CurvedElem
-!DEALLOCATE(CurvedElem)
-!ALLOCATE(CurvedElem(1:nTotalElems),STAT=ALLOCSTAT)
+! ,'Could not allocate DummyElemCurved')
+!DummyElemCurved=ElemCurved
+!DEALLOCATE(ElemCurved)
+!ALLOCATE(ElemCurved(1:nTotalElems),STAT=ALLOCSTAT)
 !IF (ALLOCSTAT.NE.0) CALL abort(&
 !    __STAMP__&
-! ,'Could not reallocate CurvedElem')
-!CurvedElem=.FALSE.
-!CurvedElem(1:nOldElems) =DummyCurvedElem(1:nOldElems)
+! ,'Could not reallocate ElemCurved')
+!ElemCurved=.FALSE.
+!ElemCurved(1:nOldElems) =DummyElemCurved(1:nOldElems)
 
 !! ElemHasAuxBCs elem
 !IF (UseAuxBCs) THEN

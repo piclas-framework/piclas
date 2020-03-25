@@ -112,6 +112,10 @@
 #define ZETA_MINUS 1
 #define ZETA_PLUS  6
 
+! Entry position in ElemBCSides
+#define ELEM_NBR_BCSIDES   1
+#define ELEM_FIRST_BCSIDE  2
+
 ! Entry position in SideToElem
 #define S2E_ELEM_ID        1
 #define S2E_NB_ELEM_ID     2

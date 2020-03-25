@@ -64,7 +64,7 @@ USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary
 USE MOD_Interpolation_Vars    ,ONLY: NBG,BGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
 USE MOD_Mesh_Vars             ,ONLY: dXCL_NGeo,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Mesh_Vars             ,ONLY: wBaryCL_NGeo1,XiCL_NGeo1
-USE MOD_Particle_Mesh_Vars    ,ONLY: CurvedElem
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCurved
 USE MOD_PICInterpolation_Vars ,ONLY: useBGField
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -92,7 +92,7 @@ REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
 
 CALL GetRefNewtonStartValue(X_in,Xi,ElemID)
 
-IF(CurvedElem(ElemID))THEN
+IF(ElemCurved(ElemID))THEN
   CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID) &
                     ,NGeo,ElemID,Mode=1,PartID=PartID)
 ELSE
@@ -178,7 +178,7 @@ USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Mesh_Vars,               ONLY:NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Mesh_Vars,               ONLY:wBaryCL_NGeo1,XiCL_NGeo1
-USE MOD_Particle_Mesh_Vars,      ONLY:CurvedElem
+USE MOD_Particle_Mesh_Vars,      ONLY:ElemCurved
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars,      ONLY:XCL_NGeo_Shared,dXCL_NGeo_Shared
 !USE MOD_MPI_Shared_Vars,         ONLY:GlobalElem2CNTotalElem
@@ -217,7 +217,7 @@ IF(.NOT.PRESENT(DoReUseMap))THEN
   CALL GetRefNewtonStartValue(X_in,Xi,ElemID)
 END IF
 
-IF(CurvedElem(ElemID))THEN
+IF(ElemCurved(ElemID))THEN
   CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode)
 ELSE
   ! fill dummy XCL_NGeo1

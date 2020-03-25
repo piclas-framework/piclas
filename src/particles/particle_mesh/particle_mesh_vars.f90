@@ -27,11 +27,26 @@ SAVE
 ! GLOBAL VARIABLES
 
 LOGICAL             :: ParticleMeshInitIsDone
-!-----------------------------------------------------------------------------------------------------------------------------------
+! ====================================================================
 ! Mesh info
-!-----------------------------------------------------------------------------------------------------------------------------------
-REAL                                     :: MeshVolume                        ! Total Volume of mesh
-REAL                                     :: LocalVolume                       ! Volume of proc
+REAL                                     :: MeshVolume         ! total Volume of mesh
+REAL                                     :: LocalVolume        ! volume of proc
+! ====================================================================
+! MPI3 shared variables
+REAL,ALLOCPOINT,DIMENSION(:)             :: ElemRadiusNGeo     ! radius of element
+REAL,ALLOCPOINT,DIMENSION(:)             :: ElemRadius2NGeo    ! radius of element + 2% tolerance
+REAL,ALLOCPOINT,DIMENSION(:,:)           :: slenXiEtaZetaBasis ! inverse of length of basis vector
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:)     :: XCL_NGeo_Shared
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:,:)   :: dXCL_NGeo_Shared   ! Jacobi matrix of the mapping P\in NGeo
+REAL,ALLOCPOINT,DIMENSION(:,:,:)         :: XiEtaZetaBasis     ! element local basis vector (linear elem)
+
+LOGICAL,ALLOCPOINT,DIMENSION(:)          :: ElemCurved         ! flag if an element is curved
+
+REAL,ALLOCPOINT,DIMENSION(:,:)           :: ElemBCSideDistance ! distance from BC element center to side
+REAL,ALLOCPOINT,DIMENSION(:,:)           :: ElemBCSideRadius   ! distance from BC element center to side
+REAL,ALLOCPOINT,DIMENSION(:,:,:)         :: ElemBCSideOrigin   ! distance from BC element center to side
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: CNBCElem2GlobalElem !> Compute Nodes mapping 1:nBCElem -> 1:nGlobal
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: GlobalElem2CNBCElem !> Reverse mapping
 
 ! periodic case
 INTEGER, ALLOCATABLE                     :: casematrix(:,:)   ! matrix to compute periodic cases
@@ -89,8 +104,6 @@ INTEGER,ALLOCATABLE :: TracingBCInnerSides(:)                 ! number of local 
 INTEGER,ALLOCATABLE :: TracingBCTotalSides(:)                 ! total number of element boundary faces
                                                               ! used for tracing (loc faces + other
                                                               ! element faces that are possibly reached)
-LOGICAL,ALLOCATABLE :: IsTracingBCElem(:)                     ! is an elem with BC sides for tracing
-                                                              ! or BC in halo-eps distance to BC
 
 LOGICAL,ALLOCATABLE :: IsLocalDepositionBCElem(:)             ! is an element where the deposition of a particle via a shape function
                                                               ! would result in the truncation of the shape function at the boundary.
@@ -110,14 +123,6 @@ INTEGER             :: nTotalBCElems                          ! total number of 
 INTEGER,ALLOCATABLE :: PartBCSideList(:)                      ! mapping from SideID to BCSideID    -> RefMapping
 
 ! ====================================================================
-REAL,ALLOCPOINT,DIMENSION(:,:,:)       :: XiEtaZetaBasis     ! element local basis vector (linear elem)
-REAL,ALLOCPOINT,DIMENSION(:,:)         :: slenXiEtaZetaBasis ! inverse of length of basis vector
-REAL,ALLOCPOINT,DIMENSION(:)           :: ElemRadiusNGeo     ! radius of element
-REAL,ALLOCPOINT,DIMENSION(:)           :: ElemRadius2NGeo    ! radius of element + 2% tolerance
-REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:)   :: XCL_NGeo_Shared
-REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:,:) :: dXCL_NGeo_Shared   ! Jacobi matrix of the mapping P\in NGeo
-LOGICAL,ALLOCPOINT,DIMENSION(:)        :: CurvedElem         ! flag if an element is curved
-
 INTEGER                                 :: RefMappingGuess    ! select guess for mapping into reference
                                                               ! element
                                                               ! 1 - Linear, cubical element
@@ -275,7 +280,6 @@ TYPE (tBCElem),ALLOCATABLE               :: BCElem(:)
 
 INTEGER                                  :: NbrOfRegions      ! Nbr of regions to be mapped to Elems
 REAL, ALLOCATABLE                        :: RegionBounds(:,:) ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
-LOGICAL,ALLOCATABLE                      :: isTracingTrouble(:)
 REAL,ALLOCATABLE                         :: ElemTolerance(:)
 INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id
 !===================================================================================================================================

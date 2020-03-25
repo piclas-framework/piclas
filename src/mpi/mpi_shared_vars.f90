@@ -55,6 +55,8 @@ INTEGER            :: offsetComputeNodeSide           !> side offset of compute-
 INTEGER            :: offsetComputeNodeNode           !> node offset of compute-node root
 INTEGER            :: offsetComputeNodeTree           !> tree offset of compute-node root
 
+INTEGER            :: nComputeNodeBCElems
+
 INTEGER, ALLOCATABLE :: CNTotalElem2GlobalElem(:) !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
 INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:) !> Reverse Mapping
 
@@ -80,14 +82,23 @@ INTEGER         :: TreeCoords_Shared_Win
 INTEGER,POINTER :: ElemToTree_Shared(:)
 INTEGER         :: ElemToTree_Shared_Win
 
+INTEGER,POINTER :: ElemBCSides_Shared                   !> Mapping from elem to BC sides within halo eps
+INTEGER         :: ElemBCSides_Shared_Win
+REAL,POINTER    :: SideBCDistance_Shared(:)             !> Distance from BC side to element origin
+INTEGER         :: SideBCDistance_Shared_Win
+REAL,POINTER    :: SideBCOrigin_Shared(:,:)             !> Origin of BC side
+INTEGER         :: SideBCOrigin_Shared_Win
+REAL,POINTER    :: SideBCRadius_Shared(:)               !> Radius of BC side
+INTEGER         :: SideBCRadius_Shared_Win
+
 INTEGER,POINTER :: FIBGM_nElems_Shared(:,:,:)           !> FastInitBackgroundMesh of compute node
 INTEGER         :: FIBGM_nElems_Shared_Win
-INTEGER,POINTER :: FIBGM_Element_Shared(:)             !> FastInitBackgroundMesh of compute node
+INTEGER,POINTER :: FIBGM_Element_Shared(:)              !> FastInitBackgroundMesh of compute node
 INTEGER         :: FIBGM_Element_Shared_Win
 
-REAL,POINTER    :: BoundsOfElem_Shared(:,:,:)          !> Cartesian bounding box around element
+REAL,POINTER    :: BoundsOfElem_Shared(:,:,:)           !> Cartesian bounding box around element
 INTEGER         :: BoundsOfElem_Shared_Win
-INTEGER,POINTER :: ElemToBGM_Shared(:,:)               !> BGM Bounding box around element (respective BGM indices) of compute node
+INTEGER,POINTER :: ElemToBGM_Shared(:,:)                !> BGM Bounding box around element (respective BGM indices) of compute node
 INTEGER         :: ElemToBGM_Shared_Win
 INTEGER,POINTER :: FIBGM_offsetElem_Shared(:,:,:)
 INTEGER         :: FIBGM_offsetElem_Shared_Win
@@ -112,8 +123,8 @@ INTEGER         :: XiEtaZetaBasis_Shared_Win
 REAL,POINTER    :: slenXiEtaZetaBasis_Shared(:,:)
 INTEGER         :: slenXiEtaZetaBasis_Shared_Win
 
-LOGICAL,POINTER :: CurvedElem_Shared(:)                 !> Flag if an element is curved
-INTEGER         :: CurvedElem_Shared_Win
+LOGICAL,POINTER :: ElemCurved_Shared(:)                 !> Flag if an element is curved
+INTEGER         :: ElemCurved_Shared_Win
 LOGICAL,POINTER :: ConcaveElemSide_Shared(:,:)
 INTEGER         :: ConcaveElemSide_Shared_Win
 INTEGER,POINTER :: ElemSideNodeID_Shared(:,:,:)
