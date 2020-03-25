@@ -5025,7 +5025,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter,dt_Min
 USE MOD_LinearSolver_Vars      ,ONLY: totalIterLinearSolver
 #endif /*IMPA || ROS*/
 #ifdef PARTICLES
-USE MOD_Particle_Tracking_vars ,ONLY: CountNbrOfLostParts,nLostParts
+USE MOD_Particle_Tracking_vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticles,NbrOfLostParticlesTotal
 #ifdef IMPA
 USE MOD_LinearSolver_vars      ,ONLY: nPartNewton
 USE MOD_LinearSolver_Vars      ,ONLY: totalFullNewtonIter
@@ -5041,16 +5041,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                      :: TimeArray(8)              ! Array for system time
-#ifdef PARTICLES
-INTEGER                      :: nLostPartsTot
-#endif /*PARTICLES*/
 !===================================================================================================================================
 #ifdef PARTICLES
 IF(CountNbrOfLostParts)THEN
 #if USE_MPI
-  CALL MPI_REDUCE(nLostParts,nLostPartsTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_ALLREDUCE(NbrOfLostParticles , NbrOfLostParticlesTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
 #else
-  nLostPartsTot=nLostParts
+  NbrOfLostParticlesTotal=NbrOfLostParticles
 #endif /*USE_MPI*/
 END IF
 #endif /*PARICLES*/
@@ -5069,7 +5066,7 @@ IF(MPIroot)THEN
   WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
   WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
 #ifdef PARTICLES
-  IF(CountNbrOfLostParts) WRITE(UNIT_stdOut,'(A,I22)')' NbOfLostParticle : ',nLostPartsTot
+  IF(CountNbrOfLostParts.AND.(NbrOfLostParticlesTotal.GT.0)) WRITE(UNIT_stdOut,'(A,I22)')' Nuber of lost particles :',NbrOfLostParticlesTotal
 #endif /*PARICLES*/
 END IF !MPIroot
 #if defined(IMPA) || defined(ROS)

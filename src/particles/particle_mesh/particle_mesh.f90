@@ -231,7 +231,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation,BezierControlPoints3DElevated
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbrOfLostParts,nLostParts,CartesianPeriodic
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbrOfLostParts
+USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal
+USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost,CartesianPeriodic
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, WriteTriaDebugMesh, TrackingMethod,DisplayLostParticles
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -299,8 +301,18 @@ ELSE
   WriteTriaDebugMesh = .FALSE.
 END IF
 CountNbrOfLostParts  = GETLOGICAL('CountNbrOfLostParts')
-nLostParts           = 0
-DisplayLostParticles = GETLOGICAL('DisplayLostParticles')
+IF(CountNbrOfLostParts)THEN
+  ! Nullify and reset lost parts container after write out
+  PartStateLostVecLength = 0
+
+  ! Allocate PartStateLost for a small number of particles and double the array size each time the 
+  ! maximum is reached
+  ALLOCATE(PartStateLost(1:14,1:10))
+  PartStateLost=0.
+END IF ! CountNbrOfLostParts
+NbrOfLostParticles      = 0
+NbrOfLostParticlesTotal = 0
+DisplayLostParticles    = GETLOGICAL('DisplayLostParticles')
 
 #ifdef CODE_ANALYZE
 PARTOUT            = GETINT('PartOut')
@@ -707,7 +719,7 @@ SUBROUTINE FinalizeParticleMesh()
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nElems, nNodes
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance
+USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance,PartStateLost
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -780,6 +792,7 @@ SDEALLOCATE(ElemRadius2NGeo)
 SDEALLOCATE(EpsOneCell)
 SDEALLOCATE(Distance)
 SDEALLOCATE(ListDistance)
+SDEALLOCATE(PartStateLost)
 SDEALLOCATE(isTracingTrouble)
 SDEALLOCATE(ElemTolerance)
 SDEALLOCATE(ElemToGlobalElemID)

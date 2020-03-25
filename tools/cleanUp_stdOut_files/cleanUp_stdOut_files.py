@@ -187,18 +187,34 @@ def CleanFile(stdfile) :
         f1.attrs.create('MeshFile', [MeshFile], None, dtype='<S255')
         f1.attrs.create('N', [1], None, dtype='i4')
         f1.attrs.create('Project_Name',[b'Lost-particles'], None, dtype='<S255')  # these brackets [] are required for ParaView plugin ! 
-        f1.attrs.create('VarNamesParticles', [b'ParticlePositionX'.ljust(255),  # .ljust(255) is required for ParaView plugin !
-                                              b'ParticlePositionY'.ljust(255),  # .ljust(255) is required for ParaView plugin !
-                                              b'ParticlePositionZ'.ljust(255),  # .ljust(255) is required for ParaView plugin !
+
+        # old: PartPos as x,y, z for particles
+        # f1.attrs.create('VarNamesParticles', [b'ParticlePositionX'.ljust(255),  # .ljust(255) is required for ParaView plugin !
+        #                                       b'ParticlePositionY'.ljust(255),  # .ljust(255) is required for ParaView plugin !
+        #                                       b'ParticlePositionZ'.ljust(255),  # .ljust(255) is required for ParaView plugin !
+        #                                       b'VelocityX'.ljust(255),  # .ljust(255) is required for ParaView plugin !
+        #                                       b'VelocityY'.ljust(255),  # .ljust(255) is required for ParaView plugin !
+        #                                       b'VelocityZ'.ljust(255),  # .ljust(255) is required for ParaView plugin !
+        #                                       b'Species'.ljust(255),    # .ljust(255) is required for ParaView plugin !
+        #                                       b'ElementID'.ljust(255),  # .ljust(255) is required for ParaView plugin !
+        #                                       b'PartID'.ljust(255),     # .ljust(255) is required for ParaView plugin !
+        #                                       b'LastPos-X'.ljust(255),  # .ljust(255) is required for ParaView plugin !
+        #                                       b'LastPos-Y'.ljust(255),  # .ljust(255) is required for ParaView plugin !
+        #                                       b'LastPos-Z'.ljust(255)], None, dtype='<S255')   # .ljust(255) is required for ParaView plugin !
+
+        # new: LastPartPos as x,y, z for particles (because this position is still in the simulation domain)
+        f1.attrs.create('VarNamesParticles', [b'LastPartPos-X'.ljust(255),  # .ljust(255) is required for ParaView plugin !
+                                              b'LastPartPos-Y'.ljust(255),  # .ljust(255) is required for ParaView plugin !
+                                              b'LastPartPos-Z'.ljust(255),  # .ljust(255) is required for ParaView plugin !
                                               b'VelocityX'.ljust(255),  # .ljust(255) is required for ParaView plugin !
                                               b'VelocityY'.ljust(255),  # .ljust(255) is required for ParaView plugin !
                                               b'VelocityZ'.ljust(255),  # .ljust(255) is required for ParaView plugin !
                                               b'Species'.ljust(255),    # .ljust(255) is required for ParaView plugin !
                                               b'ElementID'.ljust(255),  # .ljust(255) is required for ParaView plugin !
                                               b'PartID'.ljust(255),     # .ljust(255) is required for ParaView plugin !
-                                              b'LastPos-X'.ljust(255),  # .ljust(255) is required for ParaView plugin !
-                                              b'LastPos-Y'.ljust(255),  # .ljust(255) is required for ParaView plugin !
-                                              b'LastPos-Z'.ljust(255)], None, dtype='<S255')   # .ljust(255) is required for ParaView plugin !
+                                              b'ParticlePositionX'.ljust(255),  # .ljust(255) is required for ParaView plugin !
+                                              b'ParticlePositionY'.ljust(255),  # .ljust(255) is required for ParaView plugin !
+                                              b'ParticlePositionZ'.ljust(255)], None, dtype='<S255')   # .ljust(255) is required for ParaView plugin !
 
         # 8. Close .h5 data file
         f1.close()

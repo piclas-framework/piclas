@@ -45,8 +45,8 @@ INTERFACE CountSurfaceImpact
   MODULE PROCEDURE CountSurfaceImpact
 END INTERFACE
 
-INTERFACE BoundaryParticleOutput
-  MODULE PROCEDURE BoundaryParticleOutput
+INTERFACE StoreBoundaryParticleProperties
+  MODULE PROCEDURE StoreBoundaryParticleProperties
 END INTERFACE
 
 INTERFACE DielectricSurfaceCharge
@@ -58,7 +58,7 @@ PUBLIC :: CalcWallSample
 PUBLIC :: AnalyzeSurfaceCollisions
 PUBLIC :: SurfaceToPartEnergyInternal
 PUBLIC :: CountSurfaceImpact
-PUBLIC :: BoundaryParticleOutput
+PUBLIC :: StoreBoundaryParticleProperties
 PUBLIC :: SortArray
 PUBLIC :: DielectricSurfaceCharge
 PUBLIC :: GetWallTemperature
@@ -406,7 +406,7 @@ SampWall(SurfSideID)%ImpactNumber(SpecID,p,q) = SampWall(SurfSideID)%ImpactNumbe
 END SUBROUTINE CountSurfaceImpact
 
 
-SUBROUTINE BoundaryParticleOutput(iPart,PartPos,PartTrajectory,SurfaceNormal)
+SUBROUTINE StoreBoundaryParticleProperties(iPart,PartPos,PartTrajectory,SurfaceNormal)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Save particle position, velocity and species to PartDataBoundary container for writing to .h5 later
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -414,7 +414,7 @@ SUBROUTINE BoundaryParticleOutput(iPart,PartPos,PartTrajectory,SurfaceNormal)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState,PDM
-USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,PartStateBoundarySpec
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength
 USE MOD_TimeDisc_Vars          ,ONLY: time
 USE MOD_Globals_Vars           ,ONLY: PI
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -429,9 +429,8 @@ INTEGER              :: dims(2)
 ! LOCAL VARIABLES
 REAL                 :: MPF
 ! Temporary arrays
-REAL, ALLOCATABLE    :: PartStateBoundary_tmp(:,:)   ! (1:9,1:NParts) 1st index: x,y,z,vx,vy,vz,MPF,time,impact angle
-!                                                    !                2nd index: 1 to number of boundary-crossed particles
-INTEGER, ALLOCATABLE :: PartStateBoundarySpec_tmp(:) ! Species ID of boundary-crossed particles
+REAL, ALLOCATABLE    :: PartStateBoundary_tmp(:,:) ! (1:10,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle
+!                                                  !                 2nd index: 1 to number of boundary-crossed particles
 INTEGER              :: ALLOCSTAT
 !===================================================================================================================================
 IF (usevMPF) THEN
@@ -450,52 +449,34 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
   ! If this happens, re-allocate the arrays and increase their size (every time this barrier is reached, double the size)
   IF(iMax.GT.dims(2))THEN
 
-    ! --- 1/2 PartStateBoundary ---
-    ALLOCATE(PartStateBoundary_tmp(1:9,1:dims(2)), STAT=ALLOCSTAT)
+    ! --- PartStateBoundary ---
+    ALLOCATE(PartStateBoundary_tmp(1:10,1:dims(2)), STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
           __STAMP__&
           ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary_tmp temporary array!')
     ! Save old data
-    PartStateBoundary_tmp(1:9,1:dims(2)) = PartStateBoundary(1:9,1:dims(2))
+    PartStateBoundary_tmp(1:10,1:dims(2)) = PartStateBoundary(1:10,1:dims(2))
 
     ! Re-allocate PartStateBoundary to twice the size
     DEALLOCATE(PartStateBoundary)
-    ALLOCATE(PartStateBoundary(1:9,1:2*dims(2)), STAT=ALLOCSTAT)
+    ALLOCATE(PartStateBoundary(1:10,1:2*dims(2)), STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
           __STAMP__&
           ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary array!')
-    PartStateBoundary(1:9,        1:  dims(2)) = PartStateBoundary_tmp(1:9,1:dims(2))
-    PartStateBoundary(1:9,dims(2)+1:2*dims(2)) = 0.
-
-
-    ! --- 2/2 PartStateBoundarySpec ---
-    ALLOCATE(PartStateBoundarySpec_tmp(1:dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-          __STAMP__&
-          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundarySpec_tmp temporary array!')
-    ! Save old data
-    PartStateBoundarySpec_tmp(1:dims(2)) = PartStateBoundarySpec(1:dims(2))
-
-    ! Re-allocate PartStateBoundarySpec to twice the size 
-    DEALLOCATE(PartStateBoundarySpec)
-    ALLOCATE(PartStateBoundarySpec(1:2*dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-          __STAMP__&
-          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundarySpec array!')
-    PartStateBoundarySpec(        1:  dims(2)) = PartStateBoundarySpec_tmp(1:dims(2))
-    PartStateBoundarySpec(dims(2)+1:2*dims(2)) = 0.
+    PartStateBoundary(1:10,        1:  dims(2)) = PartStateBoundary_tmp(1:10,1:dims(2))
+    PartStateBoundary(1:10,dims(2)+1:2*dims(2)) = 0.
 
   END IF
 
   PartStateBoundary(1:3,iMax) = PartPos
   PartStateBoundary(4:6,iMax) = PartState(4:6,iPart)
-  PartStateBoundary(7,iMax)   = MPF
-  PartStateBoundary(8,iMax)   = time
-  PartStateBoundary(9,iMax)   = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))))
-  PartStateBoundarySpec(iMax) = PartSpecies(iPart)
+  PartStateBoundary(7  ,iMax) = REAL(PartSpecies(iPart))
+  PartStateBoundary(8  ,iMax) = MPF
+  PartStateBoundary(9  ,iMax) = time
+  PartStateBoundary(10 ,iMax) = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))))
 END ASSOCIATE
 
-END SUBROUTINE BoundaryParticleOutput
+END SUBROUTINE StoreBoundaryParticleProperties
 
 
 SUBROUTINE SortArray(EndID,ArrayA,ArrayB)

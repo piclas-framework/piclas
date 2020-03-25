@@ -1070,7 +1070,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
-USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary,PartStateBoundarySpec
+USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary
 USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO
 USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, TriaSurfaceFlux
@@ -2400,12 +2400,10 @@ END IF
 
 ! Surface particle output to .h5
 IF(DoBoundaryParticleOutput)THEN
-  ! Allocate PartStateBoundary and PartStateBoundarySpec for a small number of particles and double the array size each time the 
+  ! Allocate PartStateBoundary for a small number of particles and double the array size each time the 
   ! maximum is reached
-  ALLOCATE(PartStateBoundary(1:9,1:10), STAT=ALLOCSTAT)
-  ALLOCATE(PartStateBoundarySpec(1:10), STAT=ALLOCSTAT)
+  ALLOCATE(PartStateBoundary(1:10,1:10), STAT=ALLOCSTAT)
   PartStateBoundary=0.
-  PartStateBoundarySpec=0
 END IF
 
 ! Set mapping from field boundary to particle boundary index
@@ -3321,7 +3319,6 @@ SDEALLOCATE(PartBound%SolidCrystalIndx)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutput)
 SDEALLOCATE(PartStateBoundary)
-SDEALLOCATE(PartStateBoundarySpec)
 SDEALLOCATE(PEM%Element)
 SDEALLOCATE(PEM%lastElement)
 SDEALLOCATE(PEM%pStart)

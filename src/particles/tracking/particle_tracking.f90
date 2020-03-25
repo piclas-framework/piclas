@@ -90,7 +90,9 @@ USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Mesh               ,ONLY: SingleParticleToExactElement
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars          ,ONLY: PartElemToSide, PartSideToElem, PartSideToElem, PartElemToElemAndSide
-USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbrOfLostParts, nLostParts, TrackInfo, DisplayLostParticles
+USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbrOfLostParts, NbrOfLostParticles, TrackInfo
+USE MOD_Particle_Tracking_vars      ,ONLY: DisplayLostParticles
+USE MOD_Part_Tools                  ,ONLY: StoreLostParticleProperties
 USE MOD_Mesh_Vars                   ,ONLY: MortarType
 USE MOD_Mesh_Vars                   ,ONLY: BC
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
@@ -258,7 +260,10 @@ DO i = 1,PDM%ParticleVecLength
               IPWRITE(*,*) 'Particle deleted!'
             END IF ! DisplayLostParticles
             PDM%ParticleInside(i) = .FALSE.
-            IF(CountNbrOfLostParts) nLostParts=nLostParts+1
+            IF(CountNbrOfLostParts) THEN
+              CALL StoreLostParticleProperties(i, ElemID)
+              NbrOfLostParticles=NbrOfLostParticles+1
+            END IF
             PartisDone = .TRUE.
             EXIT
           ELSE IF (NrOfThroughSides.GT.1) THEN
@@ -354,7 +359,10 @@ DO i = 1,PDM%ParticleVecLength
                 IPWRITE(*,*) 'Particle deleted!'
               END IF ! DisplayLostParticles
               PDM%ParticleInside(i) = .FALSE.
-              IF(CountNbrOfLostParts) nLostParts=nLostParts+1
+              IF(CountNbrOfLostParts) THEN
+                CALL StoreLostParticleProperties(i, ElemID)
+                NbrOfLostParticles=NbrOfLostParticles+1
+              END IF
               PartisDone = .TRUE.
               EXIT
             END IF
@@ -469,7 +477,8 @@ USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
 USE MOD_Particle_Mesh_Vars          ,ONLY: PartElemToSide,ElemRadiusNGeo,ElemHasAuxBCs,ElemToGlobalElemID!,ElemType
 USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
-USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbrOfLostParts , nLostParts, DisplayLostParticles
+USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbrOfLostParts , NbrOfLostParticles, DisplayLostParticles
+USE MOD_Part_Tools                  ,ONLY: StoreLostParticleProperties
 USE MOD_Particle_Mesh               ,ONLY: SingleParticleToExactElementNoMap,PartInElemCheck
 USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
@@ -782,7 +791,10 @@ __STAMP__ &
 #ifdef IMPA
             DoParticle=.FALSE.
 #endif /*IMPA*/
-            IF(CountNbrOfLostParts) nLostParts=nLostParts+1
+            IF(CountNbrOfLostParts) THEN
+              CALL StoreLostParticleProperties(iPart, ElemID)
+              NbrOfLostParticles=NbrOfLostParticles+1
+            END IF
             EXIT
           END IF
           IF(foundHit) THEN
@@ -829,7 +841,10 @@ __STAMP__ &
 #ifdef IMPA
               DoParticle=.FALSE.
 #endif /*IMPA*/
-              IF(CountNbrOfLostParts) nLostParts=nLostParts+1
+              IF(CountNbrOfLostParts) THEN
+                CALL StoreLostParticleProperties(iPart, ElemID)
+                NbrOfLostParticles=NbrOfLostParticles+1
+              END IF
               EXIT
             END IF
             IF(foundHit) THEN
@@ -1107,7 +1122,10 @@ __STAMP__ &
           !WRITE(UNIT_stdOut,'(20(=))')
           IPWRITE(UNIT_stdOut,'(I0,A)') '     | Particle is removed from computation! '
         END IF ! DisplayLostParticles
-        IF(CountNbrOfLostParts) nLostParts=nLostParts+1
+        IF(CountNbrOfLostParts) THEN
+          CALL StoreLostParticleProperties(iPart, ElemID)
+          NbrOfLostParticles=NbrOfLostParticles+1
+        END IF
       END IF
     END IF ! markTol
 #if USE_LOADBALANCE
