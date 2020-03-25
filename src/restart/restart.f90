@@ -290,7 +290,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_IO_HDF5
 USE MOD_DG_Vars                ,ONLY: U
-USE MOD_Mesh_Vars              ,ONLY: OffsetElem,DoWriteStateToHDF5
+USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 #if USE_HDG
 USE MOD_Mesh_Vars              ,ONLY: offsetSide,nSides,nMPISides_YOUR, offsetSide
 #endif
@@ -1355,7 +1355,7 @@ CALL CloseDataFile()
 
 
   ! Delete all files that will be rewritten
-  IF(DoWriteStateToHDF5) CALL FlushHDF5(RestartTime)
+  CALL FlushHDF5(RestartTime)
 #if USE_MPI
   EndT=MPI_WTIME()
   SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Restart took  [',EndT-StartT,'s] for readin.'
@@ -1369,7 +1369,7 @@ ELSE ! no restart
   CALL ParticleCollectCharges(initialCall_opt=.TRUE.)
 #endif /*PARTICLES*/
   ! Delete all files since we are doing a fresh start
-  IF(DoWriteStateToHDF5) CALL FlushHDF5()
+  CALL FlushHDF5()
 END IF !IF(DoRestart)
 END SUBROUTINE Restart
 

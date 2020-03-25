@@ -273,7 +273,7 @@ USE MOD_Analyze                ,ONLY: PerformAnalyze
 USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze
 USE MOD_Restart_Vars           ,ONLY: RestartTime,RestartWallTime
 USE MOD_HDF5_output            ,ONLY: WriteStateToHDF5
-USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
+USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
 USE MOD_LoadBalance_Vars       ,ONLY: nSkipAnalyze
@@ -439,15 +439,11 @@ CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 #ifdef PARTICLES
 IF(DoImportIMDFile) CALL WriteIMDStateToHDF5() ! write IMD particles to state file (and TTM if it exists)
 #endif /*PARTICLES*/
-IF(DoWriteStateToHDF5)THEN
-!  #ifdef PARTICLES
-!    CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !just for writing actual number into HDF5 (not for loadbalance!)
-!  #endif /*PARTICLES*/
-  CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
+! Write initial state to file
+CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
 #if USE_QDS_DG
-  IF(DoQDS) CALL WriteQDSToHDF5(time,tPreviousAnalyze)
+IF(DoQDS) CALL WriteQDSToHDF5(time,tPreviousAnalyze)
 #endif /*USE_QDS_DG*/
-END IF
 
 ! if measurement of particle tracking time (used for analyze, load balancing uses own time measurement for tracking)
 #ifdef PARTICLES
@@ -642,15 +638,10 @@ DO !iter_t=0,MaxIter
       ! write information out to std-out of console
       CALL WriteInfoStdOut()
       ! Write state to file
-      IF(DoWriteStateToHDF5)THEN
-!  #ifdef PARTICLES
-!          CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !just for writing actual number into HDF5 (not for loadbalance!)
-!  #endif /*PARTICLES*/
-        CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
+      CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
 #if USE_QDS_DG
-        IF(DoQDS) CALL WriteQDSToHDF5(time,tPreviousAnalyze)
+      IF(DoQDS) CALL WriteQDSToHDF5(time,tPreviousAnalyze)
 #endif /*USE_QDS_DG*/
-      END IF
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)

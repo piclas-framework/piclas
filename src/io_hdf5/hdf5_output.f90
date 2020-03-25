@@ -104,6 +104,7 @@ USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
+USE MOD_Mesh_Vars              ,ONLY: DoWriteStateToHDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -142,13 +143,6 @@ REAL                           :: PreviousTime_loc
 INTEGER(KIND=IK)               :: PP_nVarTmp
 LOGICAL                        :: usePreviousTime_loc
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
-#if USE_MPI
-StartT=MPI_WTIME()
-#else
-CALL CPU_TIME(StartT)
-#endif
-
 ! set local variables for output and previous times
 IF(OutputTimeFixed.GE.0.0)THEN
   SWRITE(UNIT_StdOut,'(A,ES25.14E3,A2)',ADVANCE='NO')' (WriteStateToHDF5 for fixed output time :',OutputTimeFixed,') '
@@ -158,6 +152,22 @@ ELSE
   OutputTime_loc   = OutputTime
   IF(PRESENT(PreviousTime))PreviousTime_loc = PreviousTime
 END IF
+
+#ifdef PARTICLES
+! Output lost particles
+IF(CountNbrOfLostParts.AND.(NbrOfLostParticlesTotal.GT.0)) CALL WriteLostParticlesToHDF5(MeshFileName,OutputTime_loc)
+#endif /*PARTICLES*/
+
+! Check if state file creation should be skipped
+IF(.NOT.DoWriteStateToHDF5) RETURN
+
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
+#if USE_MPI
+StartT=MPI_WTIME()
+#else
+CALL CPU_TIME(StartT)
+#endif
+
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'.h5'
@@ -351,7 +361,6 @@ IF(DoBoundaryParticleOutput) THEN
     CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc)
   END IF
 END IF
-IF(CountNbrOfLostParts.AND.(NbrOfLostParticlesTotal.GT.0)) CALL WriteLostParticlesToHDF5(MeshFileName,OutputTime_loc)
 CALL WriteMacroParticleToHDF5(FileName)
 IF(UseAdaptive.OR.(nAdaptiveBC.GT.0).OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
@@ -1397,13 +1406,11 @@ SUBROUTINE WriteLostParticlesToHDF5(MeshFileName,OutputTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartStateLostVecLength,NbrOfLostParticles,NbrOfLostParticlesTotal
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
-USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
@@ -2730,6 +2737,7 @@ USE MOD_Loadbalance_Vars ,ONLY: DoLoadBalance,nLoadBalance
 #if USE_QDS_DG
 USE MOD_QDS_DG_Vars      ,ONLY: DoQDS
 #endif /*USE_QDS_DG*/
+USE MOD_Mesh_Vars        ,ONLY: DoWriteStateToHDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2743,7 +2751,8 @@ INTEGER                  :: stat,ioUnit
 REAL                     :: FlushTime
 CHARACTER(LEN=255)       :: InputFile,NextFile
 !===================================================================================================================================
-IF(.NOT.MPIRoot) RETURN
+! Only MPI root does the flushing and only if DoWriteStateToHDF5 is true
+IF((.NOT.MPIRoot).OR.(.NOT.DoWriteStateToHDF5)) RETURN
 
 #if USE_LOADBALANCE
 IF(DoLoadBalance.AND.nLoadBalance.GT.0) RETURN
