@@ -1955,7 +1955,7 @@ END SUBROUTINE ParticleBCTracking
 
 
 SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
-                                 ,xi,eta,alpha,PartID,SideID,SideType,ElemID)
+                                 ,xi,eta,alpha,PartID,SideID,hitSideType,ElemID)
 !===================================================================================================================================
 !> Use only for TrackingMethod=TRACING
 !> Checks which type of interaction (BC,Periodic,innerSide) has to be applied for the face on the traced particle path
@@ -1968,12 +1968,17 @@ SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Tracking_Vars      ,ONLY: TrackInfo
-USE MOD_Particle_Surfaces_Vars      ,ONLY: SideNormVec
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction!,PARTSWITCHELEMENT
-USE MOD_Particle_Vars               ,ONLY: PDM
-USE MOD_Particle_Surfaces           ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
+USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
+USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
+USE MOD_Particle_Intersection       ,ONLY: ComputeBiLinearIntersection
 USE MOD_Particle_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Particle_Surfaces           ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Surfaces_Vars      ,ONLY: SideNormVec
+USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
+USE MOD_Particle_Tracking_Vars      ,ONLY: TrackInfo
+USE MOD_Particle_Vars               ,ONLY: PDM
 #if USE_MPI
 USE MOD_MPI_Shared_Vars             ,ONLY: SideInfo_Shared,ElemInfo_Shared
 #endif /* USE_MPI */
@@ -1985,7 +1990,7 @@ INTEGER,INTENT(IN)                :: PartID                   !< Index of Consid
 INTEGER,INTENT(IN)                :: SideID                   !< SideID particle intersected with
 INTEGER,INTENT(IN)                :: hitlocSide               !< local side of considered element where intersection occured
 INTEGER,INTENT(IN)                :: ilocSide                 !< local side index for SideID
-INTEGER,INTENT(IN)                :: SideType                 !< type of SideID (planar,bilinear,...)
+INTEGER,INTENT(IN)                :: hitSideType              !< type of SideID (planar,bilinear,...)
 INTEGER,INTENT(IN)                :: flip                     !< flip of SideID
 REAL,INTENT(INOUT)                :: Xi                       !<
 REAL,INTENT(INOUT)                :: Eta                      !<
@@ -2000,18 +2005,22 @@ REAL,INTENT(INOUT),DIMENSION(1:3) :: PartTrajectory           !< normalized part
 REAL,INTENT(INOUT)                :: lengthPartTrajectory     !< length of particle trajectory
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: Moved(2),iLocalSide
+LOGICAL                           :: isHit
+INTEGER                           :: iMortar,nMortarElems
+INTEGER                           :: NbElemID,NbSideID
+INTEGER                           :: iLocalSide
+INTEGER                           :: locFlip
+REAL                              :: locAlpha,locXi,locEta
 REAL                              :: n_loc(3)
 !===================================================================================================================================
-
 IF(SideInfo_Shared(SIDE_BCID,SideID).GT.0)THEN
-  CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,ElemID,crossedBC&
+  CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,ElemID,crossedBC &
                                                                  ,locSideID=hitLocSide)
   TrackInfo%CurrElem=ElemID
   IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
   dolocSide=.TRUE.
 ELSE
-  SELECT CASE(SideType)
+  SELECT CASE(hitSideType)
   CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
     n_loc=SideNormVec(1:3,SideID)
   CASE(BILINEAR)
@@ -2021,29 +2030,66 @@ ELSE
   END SELECT
   IF(flip.NE.0) n_loc=-n_loc
   IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0) RETURN
-  ! update particle element
-  !Moved = PARTSWITCHELEMENT(xi,eta,hitlocSide,SideID,ElemID)
-  !IF (Moved(1).LT.1 .OR. Moved(2).LT.1) CALL abort(&
-  !  __STAMP__ &
-  !  ,'ERROR in SelectInterSectionType. No Neighbour Elem or Neighbour Side found --> increase haloregion')
-  !ElemID=Moved(1)
-  ElemID = GetCNElemID(SideInfo_Shared(SIDE_NBELEMID,SideID))
-  IF (ElemID.LT.1) CALL abort(&
-    __STAMP__ &
-    ,'ERROR in SelectInterSectionType. No Neighbour Elem or Neighbour Side found --> increase haloregion')
-  TrackInfo%CurrElem=ElemID
-  dolocSide=.TRUE.
-  DO iLocalSide = 1, 6
-    IF (ABS(SideInfo_Shared(SIDE_ID,SideID)).EQ. &
-      (ABS(SideInfo_Shared(SIDE_ID,ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+iLocalSide))) ) THEN
-      dolocSide(iLocalSide)=.FALSE.
-      EXIT
-    END IF
-  END DO
-END IF
 
-IF(1.EQ.2)THEN
-  moved(1)=ilocSide
+  ! update particle element
+  ! check if the side is a big mortar side
+
+  NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
+  IF (NbElemID.LT.0) THEN ! Mortar side
+    nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
+
+    DO iMortar = 1,nMortarElems
+      NbSideID = SideID + iMortar
+      NbElemID = SideInfo_Shared(SIDE_NBELEMID,nbSideID)
+      ! If small mortar element not defined, skip it for now, likely not inside the halo region (additional check is
+      ! performed after the MPI communication: ParticleInsideQuad3D_MortarMPI)
+      IF (NbElemID.LT.1) CYCLE
+      NbSideID = ABS(SideInfo_Shared(SIDE_LOCALID,NbSideID))
+!      locFlip  =     SideInfo_Shared(SIDE_FLIP   ,NbSideID)
+      locFlip  = 0
+
+      SELECT CASE(SideType(NbSideID))
+        CASE(PLANAR_RECT)
+          CALL ComputePlanarRectInterSection(  isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
+                                            ,  locXi,locEta,PartID,locFlip,NbSideID)
+        CASE(BILINEAR,PLANAR_NONRECT)
+          CALL ComputeBiLinearIntersection(    isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
+                                          ,    locXi,locEta,PartID,        NbSideID)
+        CASE(PLANAR_CURVED)
+          CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
+                                          ,    locXi,locEta,PartID,locFlip,NbSideID)
+        CASE(CURVED)
+          CALL ComputeCurvedIntersection(      isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
+                                        ,      locXi,locEta,PartID,        NbSideID)
+      END SELECT
+
+      IF (isHit) THEN
+        ElemID = GetCNElemID(SideInfo_Shared(SIDE_NBELEMID,NbSideID))
+      END IF
+    END DO
+
+    ! passed non of the mortar elements. Keep particle inside current element and warn
+    IPWRITE(*,*) 'Boundary issue with inner mortar element', ElemID
+
+  ! regular side
+  ELSE
+    ElemID = GetCNElemID(SideInfo_Shared(SIDE_NBELEMID,SideID))
+    IF (ElemID.LT.1) &
+      CALL abort(__STAMP__,'ERROR in SelectInterSectionType. No Neighbour Elem found!')
+!      CALL abort(__STAMP__,'ERROR in SelectInterSectionType. No Neighbour Elem found --> increase haloregion')
+
+    TrackInfo%CurrElem = ElemID
+
+    dolocSide          = .TRUE.
+    DO iLocalSide = 1, 6
+      IF (ABS(SideInfo_Shared(SIDE_ID,SideID)).EQ. &
+        (ABS(SideInfo_Shared(SIDE_ID,ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+iLocalSide))) ) THEN
+        dolocSide(iLocalSide)=.FALSE.
+        EXIT
+      END IF
+    END DO
+  END IF
+
 END IF
 
 END SUBROUTINE SelectInterSectionType
