@@ -3,6 +3,7 @@ from timeit import default_timer as timer
 import argparse
 import re
 import shutil
+import os
 
 # Bind raw_input to input in Python 2
 try:
@@ -48,16 +49,61 @@ def getPartInfo(line):
     return PartID, Element, SpecID 
 
 
-def CleanFile(stdfile) :
+def CleanDoPrintStatusLine(stdfile):
 
-    killList = {}
+    stdfile_new    = stdfile+".new"
+    stdfile_backup = stdfile+".bak"
+
+    # 1. Search for carriage-return characters
+    
+    changedLines=0
+    with open(stdfile, "r") as input:
+            with open(stdfile_new, "w") as output_new: 
+                for line in input:
+                    # Remove carriage-return
+                    output_new.write(line.rstrip()+"\n")
+
+
+    with open(stdfile_new) as output_new:
+        lines = output_new.readlines()
+
+    #Time = 0.8601E-07    dt = 0.1000E-10   eta =      0:44:32     |=========================================>        | [ 82.51%]
+    arr = ['Time', 'dt', 'eta', '%', '|']
+    n=0
+    with open(stdfile_new, "w") as output_new: 
+        for line in lines:
+            n+=1
+            if all(c in line.strip("\n") for c in arr):
+                changedLines+=1
+            else:
+                output_new.write(line)
+            
+
+    # 3. Rename files
+    if changedLines > 0:
+        os.rename(stdfile, stdfile_backup) # backup original file
+        os.rename(stdfile_new, stdfile)    # replace original file with cleaned file
+    else :
+        os.remove(stdfile_new)         # remove new file (is empty when no particles were lost)
+
+    return changedLines
+
+def CleanLostParticles(stdfile):
+
+    stdfile_lost   = stdfile+".lost"
+    stdfile_new    = stdfile+".new"
+    stdfile_backup = stdfile+".bak"
+    h5_output_lost = stdfile+"-lost-particles.h5"
+
+    # 1. Locate the lines corresponding to lost particles (write them to a different file), print the remaining lines to a "new" file
+    killList = {} # store the myrank for checking blocks that belong together
 
     n=0
     nLostParts=0
     meshFound=False
     with open(stdfile, "r") as input:
-        with open(stdfile+".lost", "w") as output_lost: 
-            with open(stdfile+".new", "w") as output_new: 
+        with open(stdfile_lost, "w") as output_lost: 
+            with open(stdfile_new, "w") as output_new: 
                 for line in input:
                     n+=1
                     first = getFirst(line)
@@ -77,6 +123,7 @@ def CleanFile(stdfile) :
                     else:
                         output_new.write(line)
                         if not meshFound:
+                            # Check for MeshFile, as it is required for the .h5 file that is written when lost particles are found
                             if 'MeshFile' in line.strip("\n"):
                                 meshFound=True
                                 myline=line.replace(" ", "")
@@ -87,20 +134,22 @@ def CleanFile(stdfile) :
 
                 #print(red("Lost %s particles" % nLostParts))
 
-    killList = {}
+    # 2. If lost particles have been found, they now are written to a separate .h5 file (PartData) for access via ParaView or VisIT
+    killList = {} # store the myrank for checking blocks that belong together
 
     # Read std.out.lost file with all lost particles and write the data to a .h5 file
     if nLostParts > 0:
-        # 1. Open .h5 file
-        f1 = h5py.File(stdfile+"-lost-particles.h5",'w')
+
+        # 2.1. Open .h5 file
+        f1 = h5py.File(h5_output_lost,'w')
 
         data = np.zeros(( nLostParts,12))
 
-        # 2. Read lost particles file
-        with open(stdfile+".lost", "r") as f:
+        # 2.2. Read lost particles file
+        with open(stdfile_lost, "r") as f:
             lines = f.readlines()
 
-        # 3. Read lost particles and sort particle data into array
+        # 2.3. Read lost particles and sort particle data into array
         n=0
         for line in lines:
             first = getFirst(line)
@@ -162,22 +211,22 @@ def CleanFile(stdfile) :
                 exit(1)
 
 
-        # 4. Write dummy DG_Solution container
+        # 2.4. Write dummy DG_Solution container
         data1 = np.zeros(( 0,0))
         dset1 = f1.create_dataset('DG_Solution', shape=data1.shape, dtype=np.float64)
 
-        # 5. Create new dataset 'dset'
+        # 2.5. Create new dataset 'dset'
         dset = f1.create_dataset('PartData', shape=data.shape, dtype=np.float64)
         #dset = f1.create_dataset(data, shape=data.shape, dtype=getattr(np, str(dataType)))
 
-        # 6. Write as C-continuous array via np.ascontiguousarray()
+        # 2.6. Write as C-continuous array via np.ascontiguousarray()
         if not data.any() :
             print(" %s has dimension %s. Skipping" % (data_set,data.shape))
             pass
         else :
             dset.write_direct(np.ascontiguousarray(data))
 
-        # 7. Write attributes
+        # 2.7. Write attributes
         f1.attrs.modify('File_Version',[1.5])   # these brackets [] are required for ParaView plugin !
         f1.attrs.modify('NodeType',[b'GAUSS'])  # these brackets [] are required for ParaView plugin !
         f1.attrs.modify('File_Type',[b'PartStateBoundary']) # these brackets [] are required for ParaView plugin !
@@ -216,11 +265,31 @@ def CleanFile(stdfile) :
                                               b'ParticlePositionY'.ljust(255),  # .ljust(255) is required for ParaView plugin !
                                               b'ParticlePositionZ'.ljust(255)], None, dtype='<S255')   # .ljust(255) is required for ParaView plugin !
 
-        # 8. Close .h5 data file
+        # 2.8. Close .h5 data file
         f1.close()
 
 
-        return nLostParts
+
+    # 3. Rename files
+    if nLostParts > 0:
+        os.rename(stdfile, stdfile_backup) # backup original file
+        os.rename(stdfile_new, stdfile)    # replace original file with cleaned file
+    else :
+        os.remove(stdfile_new)         # remove new file (is empty when no particles were lost)
+    os.remove(stdfile_lost)            # remove lost file (is empty when no particles were lost)
+
+    return nLostParts
+
+
+def CleanFile(stdfile) :
+
+    # 1.  Remove lost particles from std.out file and write them to a .h5 file
+    nLostParts = CleanLostParticles(stdfile)
+
+    # 2.  Remove remnants of DoPrintStatusLine=T
+    changedLines = CleanDoPrintStatusLine(stdfile)
+
+    return nLostParts, changedLines
 
 
 class bcolors :
@@ -289,17 +358,28 @@ for stdfile in args.files :
 InitialDataRead = True
 NbrOfFiles = len(args.files)
 
-ext = ['.new', '.lost', '.h5']
+# Ignore:  - cleaned (".new")
+#          - lost particles text files (".lost")
+#          - state files (".h5")
+#          - backup files (".bak")
+ext = ['.new', '.lost', '.h5', '.bak']
+
 for stdfile in args.files :
     if stdfile.endswith(tuple(ext)):
         print("%s " % stdfile + yellow("(skipping)"))
         continue
 
-    nLostParts = CleanFile(stdfile)
+    nLostParts, changedLines = CleanFile(stdfile)
 
     if nLostParts > 0:
-        print("%s " % stdfile + red("Lost %s particles" % nLostParts) + " Written particles to %s-lost-particles.h5" % stdfile)
+        if changedLines > 0:
+            print("%s " % stdfile + red("Lost %s particles" % nLostParts) + " Written particles to %s-lost-particles.h5" % stdfile + red(" and removed %s lines" % changedLines))
+        else:
+            print("%s " % stdfile + red("Lost %s particles" % nLostParts) + " Written particles to %s-lost-particles.h5" % stdfile)
     else:
-        print("%s" % stdfile)
+        if changedLines > 0:
+            print("%s " % stdfile + red("Removed %s lines" % changedLines) )
+        else:
+            print("%s" % stdfile)
 
 print(132*"-")
