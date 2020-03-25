@@ -155,7 +155,10 @@ CALL prms%CreateLogicalOption( 'DisplayLostParticles'&
   , 'Display position, velocity, species and hots element of particles lost during particle tracking (TrackingMethod = '//&
     'triatracking, tracing)','.FALSE.')
 CALL prms%CreateLogicalOption( 'CountNbrOfLostParts'&
-  , 'Count number of lost particles during tracking that can not be found with fallbacks.','.TRUE.')
+    , 'Count the number of lost particles during tracking that cannot be found with fallbacks. Additionally, the lost particle '//&
+    'information is stored in a PartStateLost*.h5 file. When particles are not found during restart in their host cell '//&
+    '(sanity check), they are marked missing and are also written to PartStateLost*.h5 file even if they are re-located '//&
+    'on a different processor.','.TRUE.')
 CALL prms%CreateIntOption(     'PartOut'&
   , 'If compiled with CODE_ANALYZE flag: For This particle number every tracking information is written as STDOUT.','0')
 CALL prms%CreateIntOption(     'MPIRankOut'&
