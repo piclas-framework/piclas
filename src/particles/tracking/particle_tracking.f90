@@ -1280,7 +1280,7 @@ USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Particle_Mesh          ,ONLY: PartInElemCheck
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo,BCElem,epsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
-USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNBCElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps2
 USE MOD_Particle_Tracking_Vars ,ONLY: nTracks,Distance,ListDistance,CartesianPeriodic
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,LastPartPos,PartSpecies
@@ -1358,7 +1358,7 @@ DO iPart=1,PDM%ParticleVecLength
     PartIsDone=.FALSE.
 
     ! check if element is a BC element. If yes, handle with Tracing instead of RefMapping
-    IF (GlobalElem2CNBCElem(ElemID).NE.-1) THEN
+    IF (ElemToBCSides(ELEM_NBR_BCSIDES,ElemID).NE.-1) THEN
       lengthPartTrajectory0 = 0.
       CALL ParticleBCTracking(lengthPartTrajectory0 &
                              ,ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone,PartIsMoved,1)
@@ -1409,7 +1409,7 @@ DO iPart=1,PDM%ParticleVecLength
         ! call here function for mapping of partpos and lastpartpos
         LastPos=PartState(1:3,iPart)
         CALL PeriodicMovement(iPart)
-        IF (GlobalElem2CNBCElem(ElemID).EQ.-1) THEN
+        IF (ElemToBCSides(ELEM_NBR_BCSIDES,ElemID).EQ.-1) THEN
           DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(1,iPart)) &
               .OR.   .NOT.ALMOSTEQUAL(LastPos(2),PartState(2,iPart)) &
               .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(3,iPart)) )
@@ -1540,7 +1540,7 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsElement) THEN
         PartIsDone=.FALSE.
-        IF (GlobalElem2CNBCElem(TestElem).EQ.-1) THEN
+        IF (ElemToBCSides(ELEM_NBR_BCSIDES,TestElem).EQ.-1) THEN
           ! ausgabe
           IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with internal element '
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' xi                     ', PartPosRef(1:3,iPart)

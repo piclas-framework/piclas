@@ -476,7 +476,7 @@ USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMC, CollisMode, SpecDSMC
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars ,ONLY: PorousBCSampIter, PorousBCMacroVal
-USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNBCElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, AdaptiveWeightFac
 USE MOD_Particle_Vars          ,ONLY: usevMPF
 USE MOD_Timedisc_Vars          ,ONLY: iter
@@ -527,7 +527,7 @@ DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
     ElemID = PEM%Element(i)
     ! not a BC element
-    IF (GlobalElem2CNBCElem (ElemID).EQ.-1) CYCLE
+    IF (ElemToBCSides(ELEM_NBR_BCSIDES,ElemID).EQ.-1) CYCLE
 #if USE_LOADBALANCE
     nPartsPerBCElem(ElemID) = nPartsPerBCElem(ElemID) + 1
 #endif /*USE_LOADBALANCE*/
@@ -563,7 +563,7 @@ END IF
 
 DO AdaptiveElemID = 1,nElems
   ! not a BC elment
-  IF (GlobalElem2CNBCElem(AdaptiveElemID).EQ.-1) CYCLE
+  IF (ElemToBCSides(ELEM_NBR_BCSIDES,AdaptiveElemID).EQ.-1) CYCLE
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/

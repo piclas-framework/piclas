@@ -116,6 +116,15 @@
 #define ELEM_NBR_BCSIDES   1
 #define ELEM_FIRST_BCSIDE  2
 
+! Entry position in SideBCMetrics
+#define BCSIDE_SIDEID      1
+#define BCSIDE_ELEMID      2
+#define BCSIDE_DISTANCE    3
+#define BCSIDE_RADIUS      4
+#define BCSIDE_ORIGINX     5
+#define BCSIDE_ORIGINY     6
+#define BCSIDE_ORIGINZ     7
+
 ! Entry position in SideToElem
 #define S2E_ELEM_ID        1
 #define S2E_NB_ELEM_ID     2

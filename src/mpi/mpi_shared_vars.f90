@@ -55,7 +55,7 @@ INTEGER            :: offsetComputeNodeSide           !> side offset of compute-
 INTEGER            :: offsetComputeNodeNode           !> node offset of compute-node root
 INTEGER            :: offsetComputeNodeTree           !> tree offset of compute-node root
 
-INTEGER            :: nComputeNodeBCElems
+INTEGER            :: nComputeNodeBCSides
 
 INTEGER, ALLOCATABLE :: CNTotalElem2GlobalElem(:) !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
 INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:) !> Reverse Mapping
@@ -82,14 +82,16 @@ INTEGER         :: TreeCoords_Shared_Win
 INTEGER,POINTER :: ElemToTree_Shared(:)
 INTEGER         :: ElemToTree_Shared_Win
 
-INTEGER,POINTER :: ElemBCSides_Shared                   !> Mapping from elem to BC sides within halo eps
-INTEGER         :: ElemBCSides_Shared_Win
-REAL,POINTER    :: SideBCDistance_Shared(:)             !> Distance from BC side to element origin
-INTEGER         :: SideBCDistance_Shared_Win
-REAL,POINTER    :: SideBCOrigin_Shared(:,:)             !> Origin of BC side
-INTEGER         :: SideBCOrigin_Shared_Win
-REAL,POINTER    :: SideBCRadius_Shared(:)               !> Radius of BC side
-INTEGER         :: SideBCRadius_Shared_Win
+INTEGER,POINTER :: ElemToBCSides_Shared(:,:)            !> Mapping from elem to BC sides within halo eps
+INTEGER         :: ElemToBCSides_Shared_Win
+REAL,POINTER    :: SideBCMetrics_Shared(:,:)            !> Metrics for BC sides, see piclas.h
+INTEGER         :: SideBCMetrics_Shared_Win             !> 1 - Global SideID
+                                                        !> 2 - ElemID for BC side (non-unique)
+                                                        !> 3 - Distance from BC side to element origin
+                                                        !> 4 - Radius of BC Side
+                                                        !> 5 - Origin of BC Side, x-coordinate
+                                                        !> 6 - Origin of BC Side, y-coordinate
+                                                        !> 7 - Origin of BC Side, z-coordinate
 
 INTEGER,POINTER :: FIBGM_nElems_Shared(:,:,:)           !> FastInitBackgroundMesh of compute node
 INTEGER         :: FIBGM_nElems_Shared_Win

@@ -42,11 +42,8 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:)         :: XiEtaZetaBasis     ! element local b
 
 LOGICAL,ALLOCPOINT,DIMENSION(:)          :: ElemCurved         ! flag if an element is curved
 
-REAL,ALLOCPOINT,DIMENSION(:,:)           :: ElemBCSideDistance ! distance from BC element center to side
-REAL,ALLOCPOINT,DIMENSION(:,:)           :: ElemBCSideRadius   ! distance from BC element center to side
-REAL,ALLOCPOINT,DIMENSION(:,:,:)         :: ElemBCSideOrigin   ! distance from BC element center to side
-INTEGER,ALLOCPOINT,DIMENSION(:)          :: CNBCElem2GlobalElem !> Compute Nodes mapping 1:nBCElem -> 1:nGlobal
-INTEGER,ALLOCPOINT,DIMENSION(:)          :: GlobalElem2CNBCElem !> Reverse mapping
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToBCSides(:,:) ! Mapping from elem to BC sides within halo eps
+REAL,ALLOCPOINT,DIMENSION(:,:)           :: SideBCMetrics(:,:) ! Metrics for BC sides, see piclas.h
 
 ! periodic case
 INTEGER, ALLOCATABLE                     :: casematrix(:,:)   ! matrix to compute periodic cases
