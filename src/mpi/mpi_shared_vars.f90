@@ -105,14 +105,18 @@ INTEGER         :: ElemToBGM_Shared_Win
 INTEGER,POINTER :: FIBGM_offsetElem_Shared(:,:,:)
 INTEGER         :: FIBGM_offsetElem_Shared_Win
 
-REAL,POINTER    :: XCL_NGeo_Array(:)                          !> 1D array. Pointer changes to proper array bounds
+REAL,POINTER    :: XCL_NGeo_Array(:)                          !> 1D array, pointer changes to proper array bounds
 INTEGER         :: XCL_NGeo_Shared_Win
-REAL,POINTER    :: dXCL_NGeo_Array(:)                         !> 1D array. Pointer changes to proper array bounds
+REAL,POINTER    :: dXCL_NGeo_Array(:)                         !> 1D array, pointer changes to proper array bounds
 INTEGER         :: dXCL_NGeo_Shared_Win
 REAL,POINTER    :: BezierControlPoints3D_Shared(:)            !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
 INTEGER         :: BezierControlPoints3D_Shared_Win
 REAL,POINTER    :: BezierControlPoints3DElevated_Shared(:)    !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
 INTEGER         :: BezierControlPoints3DElevated_Shared_Win
+REAL,POINTER    :: ElemsJ_Shared(:)                           !> 1/DetJac for each Gauss Point. 1D array, pointer changes to proper array bounds
+INTEGER         :: ElemsJ_Shared_Win
+REAL,POINTER    :: ElemEpsOneCell_Shared(:)                   !> tolerance for particle in inside ref element 1+epsinCell
+INTEGER         :: ElemEpsOneCell_Shared_Win
 
 REAL,POINTER    :: ElemBaryNGeo_Shared(:,:)
 INTEGER         :: ElemBaryNGeo_Shared_Win

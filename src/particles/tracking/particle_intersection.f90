@@ -25,8 +25,8 @@ INTERFACE ComputePlanarCurvedIntersection
   MODULE PROCEDURE ComputePlanarCurvedIntersection
 END INTERFACE
 
-INTERFACE ComputePlanarRectInterSection
-  MODULE PROCEDURE ComputePlanarRectInterSection
+INTERFACE ComputePlanarRectIntersection
+  MODULE PROCEDURE ComputePlanarRectIntersection
 END INTERFACE
 
 INTERFACE ComputeBilinearIntersection
@@ -46,7 +46,7 @@ INTERFACE OutputTrajectory
   MODULE PROCEDURE OutputTrajectory
 END INTERFACE
 #endif /*CODE_ANALYZE*/
-PUBLIC::ComputePlanarRectInterSection
+PUBLIC::ComputePlanarRectIntersection
 PUBLIC::ComputePlanarCurvedIntersection
 PUBLIC::ComputeBilinearIntersection
 PUBLIC::ComputeCurvedIntersection
@@ -190,7 +190,7 @@ SUBROUTINE ComputePlanarRectIntersection(isHit                       &
                                         ,PartID                       &
                                         ,flip                        &
                                         ,SideID                      &
-                                        ,opt_CriticalParllelInSide   )
+                                        ,opt_CriticalParallelInSide   )
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 ! equation of plane: P1*xi + P2*eta+P0
@@ -222,7 +222,7 @@ INTEGER,INTENT(IN)                :: flip
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                  :: alpha,xi,eta
 LOGICAL,INTENT(OUT)               :: isHit
-LOGICAL,INTENT(OUT),OPTIONAL      :: opt_CriticalParllelInSide
+LOGICAL,INTENT(OUT),OPTIONAL      :: opt_CriticalParallelInSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(1:3)               :: P0,P1,P2
@@ -250,19 +250,20 @@ LOGICAL                           :: CriticalParallelInSide
   END IF
 #endif /*CODE_ANALYZE*/
 ! set alpha to minus 1, asume no intersection
-alpha=-1.0
-xi=-2.
-eta=-2.
-isHit=.FALSE.
+alpha = -1.0
+xi    = -2.
+eta   = -2.
+isHit = .FALSE.
 
 ! new with flip
 IF(flip.EQ.0)THEN
-  NormVec  =SideNormVec(1:3,SideID)
-  locDistance=SideDistance(SideID)
+  NormVec     = SideNormVec(1:3,SideID)
+  locDistance = SideDistance(SideID)
 ELSE
-  NormVec  =-SideNormVec(1:3,SideID)
-  locDistance=-SideDistance(SideID)
+  NormVec     = -SideNormVec(1:3,SideID)
+  locDistance = -SideDistance(SideID)
 END IF
+
 coeffA=DOT_PRODUCT(NormVec,PartTrajectory)
 
 !! corresponding to particle starting in plane
@@ -279,23 +280,23 @@ END IF
 
 IF(CriticalParallelInSide)THEN ! particle parallel to side
   IF(ALMOSTZERO(locSideDistance))THEN ! particle on/in side
-    IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
+    IF(PRESENT(opt_CriticalParallelInSide)) opt_CriticalParallelInSide=.TRUE.
     ! move particle eps into interior
     alpha=-1.
     RETURN
   END IF
-  IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+  IF(PRESENT(opt_CriticalParallelInSide)) opt_CriticalParallelInSide=.FALSE.
   alpha=-1.
   RETURN
 ELSE
-  IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+  IF(PRESENT(opt_CriticalParallelInSide)) opt_CriticalParallelInSide=.FALSE.
   alpha=locSideDistance/coeffA
 END IF
 
 IF(locSideDistance.LT.-100*epsMach)THEN
   ! particle is located outside of element, THEREFORE, an intersection were not detected
-  alpha=-1. ! here, alpha was set to zero? why?
-  isHit=.FALSE.
+  alpha = -1. ! here, alpha was set to zero? why?
+  isHit = .FALSE.
   RETURN
   ! do I have to compute the xi and eta value? first try: do not re-check new element!
 END IF
@@ -304,8 +305,8 @@ alphaNorm=alpha/lengthPartTrajectory
 
 !IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LT.-epsilontol))THEN
 IF((alphaNorm.GT.1.0) .OR.(alphaNorm.LT.-epsilontol))THEN
-  ishit=.FALSE.
-  alpha=-1.0
+  ishit = .FALSE.
+  alpha = -1.0
   RETURN
 END IF
 
@@ -353,6 +354,7 @@ IF(ABS(eta).GT.epsLoc)THEN
   alpha=-1.0
   RETURN
 END IF
+
 isHit=.TRUE.
 
 END SUBROUTINE ComputePlanarRectIntersection
@@ -663,8 +665,7 @@ END SUBROUTINE ComputePlanarNonRectIntersection
 
 
 SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
-                                                   ,PartID,SideID,ElemCheck_Opt,alpha2)
-                                                   ! ,PartID,flip,SideID,ElemCheck_Opt,alpha2)
+                                      ,PartID,SideID,ElemCheck_Opt,alpha2)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 ! robust version
@@ -685,7 +686,7 @@ USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Particle_Surfaces_Vars ,ONLY: epsilontol
 #endif /*CODE_ANALYZE*/
 #if USE_MPI
-USE MOD_Mesh_Vars              ,ONLY: BC
+!USE MOD_Mesh_Vars              ,ONLY: BC
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -722,6 +723,7 @@ BiLinearCoeff(:,1) = 0.25*BaseVectors3(:,SideID)
 BiLinearCoeff(:,2) = 0.25*BaseVectors1(:,SideID)
 BiLinearCoeff(:,3) = 0.25*BaseVectors2(:,SideID)
 BiLinearCoeff(:,4) = 0.25*BaseVectors0(:,SideID)
+!print *, SideID, BaseVectors0(:,SideID)
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
@@ -1080,8 +1082,10 @@ ELSE
     RETURN
   END IF
   ! no refmapping
-  IF(SideID.LE.nSides)THEN
-    IF(SideID.LE.nBCSides)THEN
+
+  ! TODO: this is obsolete with new halo region
+!  IF(SideID.LE.nSides)THEN
+!    IF(SideID.LE.nBCSides)THEN
       ! take closest
       SELECT CASE(InterType)
       CASE(1)
@@ -1113,100 +1117,100 @@ ELSE
           END IF
         END IF
       END SELECT
-    ELSE
-      SELECT CASE(InterType)
-      CASE(1)
-        alpha=t(1)
-        xitild=xi(1)
-        etatild=eta(1)
-      CASE(2)
-        alpha=t(2)
-        xitild=xi(2)
-        etatild=eta(2)
-      CASE(3) ! double intersection leaves and entries element
-!        IF(ABS(t(1)).LT.ABS(t(2)))THEN
-!          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(2),eta=eta(2),SideID=SideID)
-!          IF(flip.NE.0) n_loc=-n_loc
-!          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
-!            alpha=t(2)
-!            xitild=xi(2)
-!            etatild=eta(2)
-!          ELSE
-            alpha=-1.0
-            xitild=0.
-            etatild=0.
-            isHit=.FALSE.
-!          END IF
-!        ELSE
-!          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(1),eta=eta(1),SideID=SideID)
-!          IF(flip.NE.0) n_loc=-n_loc
-!          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
-!            alpha=t(1)
-!            xitild=xi(1)
-!            etatild=eta(1)
-!          ELSE
+!    ELSE
+!      SELECT CASE(InterType)
+!      CASE(1)
+!        alpha=t(1)
+!        xitild=xi(1)
+!        etatild=eta(1)
+!      CASE(2)
+!        alpha=t(2)
+!        xitild=xi(2)
+!        etatild=eta(2)
+!      CASE(3) ! double intersection leaves and entries element
+!!        IF(ABS(t(1)).LT.ABS(t(2)))THEN
+!!          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(2),eta=eta(2),SideID=SideID)
+!!          IF(flip.NE.0) n_loc=-n_loc
+!!          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
+!!            alpha=t(2)
+!!            xitild=xi(2)
+!!            etatild=eta(2)
+!!          ELSE
 !            alpha=-1.0
 !            xitild=0.
 !            etatild=0.
 !            isHit=.FALSE.
+!!          END IF
+!!        ELSE
+!!          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(1),eta=eta(1),SideID=SideID)
+!!          IF(flip.NE.0) n_loc=-n_loc
+!!          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
+!!            alpha=t(1)
+!!            xitild=xi(1)
+!!            etatild=eta(1)
+!!          ELSE
+!!            alpha=-1.0
+!!            xitild=0.
+!!            etatild=0.
+!!            isHit=.FALSE.
+!!          END IF
+!!        END IF
+!      END SELECT
+!    END IF
+!#if USE_MPI
+!  ELSE
+!    ! halo side
+!    IF(BC(SideID).GT.0)THEN ! BC Sides
+!      ! take closest
+!      SELECT CASE(InterType)
+!      CASE(1)
+!        alpha=t(1)
+!        xitild=xi(1)
+!        etatild=eta(1)
+!      CASE(2)
+!        alpha=t(2)
+!        xitild=xi(2)
+!        etatild=eta(2)
+!      CASE(3)
+!        ElemCheck = .FALSE.
+!        IF(PRESENT(ElemCheck_Opt))THEN
+!          ElemCheck = ElemCheck_Opt
+!        END IF
+!        IF(ElemCheck)THEN
+!          alpha = -1
+!          xitild = -2
+!          etatild = -2
+!        ELSE
+!          IF(ABS(t(1)).LT.ABS(t(2)))THEN
+!            alpha=t(1)
+!            xitild=xi(1)
+!            etatild=eta(1)
+!          ELSE
+!            alpha=t(2)
+!            xitild=xi(2)
+!            etatild=eta(2)
 !          END IF
 !        END IF
-      END SELECT
-    END IF
-#if USE_MPI
-  ELSE
-    ! halo side
-    IF(BC(SideID).GT.0)THEN ! BC Sides
-      ! take closest
-      SELECT CASE(InterType)
-      CASE(1)
-        alpha=t(1)
-        xitild=xi(1)
-        etatild=eta(1)
-      CASE(2)
-        alpha=t(2)
-        xitild=xi(2)
-        etatild=eta(2)
-      CASE(3)
-        ElemCheck = .FALSE.
-        IF(PRESENT(ElemCheck_Opt))THEN
-          ElemCheck = ElemCheck_Opt
-        END IF
-        IF(ElemCheck)THEN
-          alpha = -1
-          xitild = -2
-          etatild = -2
-        ELSE
-          IF(ABS(t(1)).LT.ABS(t(2)))THEN
-            alpha=t(1)
-            xitild=xi(1)
-            etatild=eta(1)
-          ELSE
-            alpha=t(2)
-            xitild=xi(2)
-            etatild=eta(2)
-          END IF
-        END IF
-      END SELECT
-    ELSE
-      SELECT CASE(InterType)
-      CASE(1)
-        alpha=t(1)
-        xitild=xi(1)
-        etatild=eta(1)
-      CASE(2)
-        alpha=t(2)
-        xitild=xi(2)
-        etatild=eta(2)
-      CASE(3) ! double intersection leaves and entries element
-        alpha=-1.0
-        xitild=0.
-        etatild=0.
-        isHit=.FALSE.
-      END SELECT
-    END IF
-#endif /*USE_MPI*/
-  END IF
+!      END SELECT
+!    ELSE
+!      SELECT CASE(InterType)
+!      CASE(1)
+!        alpha=t(1)
+!        xitild=xi(1)
+!        etatild=eta(1)
+!      CASE(2)
+!        alpha=t(2)
+!        xitild=xi(2)
+!        etatild=eta(2)
+!      CASE(3) ! double intersection leaves and entries element
+!        alpha=-1.0
+!        xitild=0.
+!        etatild=0.
+!        isHit=.FALSE.
+!      END SELECT
+!    END IF
+!#endif /*USE_MPI*/
+!  END IF
 END IF ! nRoot
 
 END SUBROUTINE ComputeBiLinearIntersection
@@ -1329,7 +1333,7 @@ DO q=0,NGeo
   DO p=0,NGeo
     ! n2 is perpendicular to x-axis => gives distance to new x-axis
     BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(1:3,PartID),n2)
-    ! n1 is perpendicular to y-axis => gives distance to new y-axis                                    
+    ! n1 is perpendicular to y-axis => gives distance to new y-axis
     BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(1:3,PartID),n1)
   END DO
 END DO
@@ -2644,11 +2648,11 @@ END IF
 
 !IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GT.ABS(PartTrajectory(3))))THEN
 !  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -LastPartPos(1,PartID)
-!  t = t/ PartTrajectory(1)!-epsilontol                                                                        
-!ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN                                                 
+!  t = t/ PartTrajectory(1)!-epsilontol
+!ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN
 !  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -LastPartPos(2,PartID)
-!  t = t/ PartTrajectory(2)!-epsilontol                                                                        
-!ELSE                                                                                                          
+!  t = t/ PartTrajectory(2)!-epsilontol
+!ELSE
 !  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -LastPartPos(3,PartID)
 !  t = t/ PartTrajectory(3)!-epsilontol
 !END IF

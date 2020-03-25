@@ -162,7 +162,7 @@ END IF
 IF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle') nChunks=1
 
 chunkSize = INT(nbrOfParticle/nChunks)
-IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN 
+IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
   chunkSize = chunkSize + ( nbrOfParticle - (nChunks*chunkSize) )
 END IF
 

@@ -40,10 +40,26 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:)     :: XCL_NGeo_Shared
 REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:,:)   :: dXCL_NGeo_Shared   ! Jacobi matrix of the mapping P\in NGeo
 REAL,ALLOCPOINT,DIMENSION(:,:,:)         :: XiEtaZetaBasis     ! element local basis vector (linear elem)
 
+! FIBGM
+INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_nElems       !> FastInitBackgroundMesh of compute node
+INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_offsetElem   !> element offsets in 1D FIBGM_Element_Shared array
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: FIBGM_Element      !> element offsets in 1D FIBGM_Element_Shared array
+
+
 LOGICAL,ALLOCPOINT,DIMENSION(:)          :: ElemCurved         ! flag if an element is curved
 
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToBCSides(:,:) ! Mapping from elem to BC sides within halo eps
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: SideBCMetrics(:,:) ! Metrics for BC sides, see piclas.h
+
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:)       :: ElemsJ             !< 1/DetJac for each Gauss Point
+REAL,ALLOCPOINT,DIMENSION(:)             :: ElemEpsOneCell     ! tolerance for particle in inside ref element 1+epsinCell
+
+
+
+
+
+
+
 
 ! periodic case
 INTEGER, ALLOCATABLE                     :: casematrix(:,:)   ! matrix to compute periodic cases
@@ -129,8 +145,6 @@ INTEGER                                 :: RefMappingGuess    ! select guess for
 REAL                                    :: RefMappingEps      ! tolerance for Netwton to get xi from X
 REAL                                    :: epsInCell          ! tolerance for eps for particle
                                                               ! inside of ref element
-REAL,ALLOCATABLE                        :: epsOneCell(:)      ! tolerance for particle in
-                                                              ! inside ref element 1+epsinCell
 
 !LOGICAL                                 :: DoRefMapping      ! tracking by mapping particle into reference element
 ! RefMapping???
@@ -173,11 +187,6 @@ TYPE tNodeToElem
 END TYPE
 ! -> this should be replaced with NodeInfo_Shared
 ! ====================================================================
-INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_nElems             !> FastInitBackgroundMesh of compute node
-
-INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_offsetElem         !> element offsets in 1D FIBGM_Element_Shared array
-INTEGER,ALLOCPOINT,DIMENSION(:)          :: FIBGM_Element            !> element offsets in 1D FIBGM_Element_Shared array
-
 TYPE tGeometry
   REAL                                   :: CNxmin                   ! minimum x coord of all compute-node nodes
   REAL                                   :: CNxmax                   ! minimum y coord of all compute-node nodes

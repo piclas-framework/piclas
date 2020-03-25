@@ -3106,7 +3106,7 @@ SUBROUTINE VolumeBoundBGMCInt(i, j, k, Volume)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO,epsOneCell
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO,ElemEpsOneCell
 USE MOD_DSMC_Vars,              ONLY:DSMCSampVolWe
 USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3151,7 +3151,7 @@ DO stepz=0, DSMCSampVolWe%OrderVolInt
   DO iElem = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
     Element = GEO%FIBGM(CellX,CellY,CellZ)%Element(iElem)
     CALL GetPositionInRefElem(GuessPos,Xi,Element)
-    IF(MAXVAL(ABS(Xi)).GT.epsOneCell(Element))THEN ! particle outside
+    IF(MAXVAL(ABS(Xi)).GT.ElemEpsOneCell(Element))THEN ! particle outside
       alpha1 = (GuessPos(1) / DSMCSampVolWe%BGMdeltas(1)) - i
       alpha2 = (GuessPos(2) / DSMCSampVolWe%BGMdeltas(2)) - j
       alpha3 = (GuessPos(3) / DSMCSampVolWe%BGMdeltas(3)) - k

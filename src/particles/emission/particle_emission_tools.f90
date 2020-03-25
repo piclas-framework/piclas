@@ -796,7 +796,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Particle_Mesh          ,ONLY: PartInElemCheck
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, epsOneCell
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, ElemEpsOneCell
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 #if USE_MPI
 USE MOD_MPI_Shared_Vars        ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared
@@ -886,7 +886,7 @@ __STAMP__,&
             IF(Symmetry2D) RandomPos(3) = 0.
             IF (DoRefMapping) THEN
               CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-              IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+              IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
             ELSE
               IF (TriaTracking) THEN
                 CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)

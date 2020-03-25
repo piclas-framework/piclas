@@ -382,15 +382,15 @@ Pt(3) = E(3)
 
 LorentzFac = 1/sqrt(1.0 - velosq * c2_inv)
 bx = Pt(1) *dt + LorentzFac * PartState(4,PartID)
-snx = sign(1.0,bx)                              
-bx = bx*bx*c2_inv                               
-bx = bx/(1+bx)                                  
-                                                
+snx = sign(1.0,bx)
+bx = bx*bx*c2_inv
+bx = bx/(1+bx)
+
 by = Pt(2) *dt + LorentzFac * PartState(5,PartID)
-sny = sign(1.0,by)                              
-by = by*by*c2_inv                               
-by = by/(1+by)                                  
-                                                
+sny = sign(1.0,by)
+by = by*by*c2_inv
+by = by/(1+by)
+
 bz = Pt(3) *dt + LorentzFac * PartState(6,PartID)
 snz = sign(1.0,bz)
 bz = bz*bz*c2_inv
@@ -639,7 +639,7 @@ SUBROUTINE PartRHS_CEM(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
 !===================================================================================================================================
 ! 'constant-EM'
 !
-! A constant electromagnetic field E = (/Ex, Ey, Ez/) = const. and B = (/Bx, By, Bz/) = const. is used for all charged 
+! A constant electromagnetic field E = (/Ex, Ey, Ez/) = const. and B = (/Bx, By, Bz/) = const. is used for all charged
 ! particles (simply uses the "externalField" variable)
 !===================================================================================================================================
 ! MODULES

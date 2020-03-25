@@ -95,27 +95,26 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
-INTEGER                              :: ReflectionIndex, BCSideID, iNode, iSide
-LOGICAL                              :: isSpeciesSwap, ElasticReflectionAtPorousBC
+INTEGER                              :: ReflectionIndex,iNode,iSide
+LOGICAL                              :: isSpeciesSwap,ElasticReflectionAtPorousBC
 !===================================================================================================================================
 
 IsSpeciesSwap=.FALSE.
 crossedBC    =.FALSE.
 
 ! Calculate normal vector
-BCSideID=SideID
 SELECT CASE(TrackingMethod)
 CASE(REFMAPPING,TRACING)
   ! set BCSideID for normal vector calculation call with (curvi-)linear side description
-  IF (TrackingMethod.EQ.REFMAPPING) BCSideID=PartBCSideList(SideID)
+  ! IF (TrackingMethod.EQ.RefMapping) BCSideID=PartBCSideList(SideID)
 
-  SELECT CASE(SideType(BCSideID))
+  SELECT CASE(SideType(SideID))
   CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-    n_loc=SideNormVec(1:3,BCSideID)
+    n_loc=SideNormVec(1:3,SideID)
   CASE(BILINEAR)
-    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   CASE(CURVED)
-    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   END SELECT
 
   IF(flip.NE.0) n_loc=-n_loc
@@ -126,7 +125,7 @@ CASE(REFMAPPING,TRACING)
   ! Comparing the normal vector with the particle trajectory, if the particle trajectory is pointing inside the domain
   IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
 CASE(TRIATRACKING)
-  CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=BCSideID)
+  CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
 END SELECT
 ! required for refmapping and tracing, optional for triatracking
 crossedBC=.TRUE.

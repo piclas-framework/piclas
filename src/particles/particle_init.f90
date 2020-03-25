@@ -1754,7 +1754,7 @@ __STAMP__&
 __STAMP__&
           ,' Calculating height from v and dt is not supported for initial ParticleInserting!')
     END IF
-    
+
     !--- integer check for ParticleEmissionType 2
     IF((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &
          ((Species(iSpec)%Init(iInit)%ParticleEmission-INT(Species(iSpec)%Init(iInit)%ParticleEmission)).NE.0)) THEN
