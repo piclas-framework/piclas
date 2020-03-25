@@ -57,8 +57,8 @@ INTEGER            :: offsetComputeNodeTree           !> tree offset of compute-
 
 INTEGER            :: nComputeNodeBCSides
 
-INTEGER, ALLOCATABLE :: CNTotalElem2GlobalElem(:) !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
-INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:) !> Reverse Mapping
+INTEGER, ALLOCATABLE :: CNTotalElem2GlobalElem(:)     !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
+INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:)     !> Reverse Mapping
 
 ! Shared arrays containing information for complete mesh
 INTEGER,POINTER :: ElemInfo_Shared(:,:)

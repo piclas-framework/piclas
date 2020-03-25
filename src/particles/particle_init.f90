@@ -1134,213 +1134,93 @@ velocityOutputAtTime = GETLOGICAL('velocityOutputAtTime','.FALSE.')
 #if defined(LSERK)
 !print*, "SFSDRWE#"
 ALLOCATE(Pt_temp(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
-END IF
+IF (ALLOCSTAT.NE.0) &
+  CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 Pt_temp=0.
 #endif
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 IF (velocityOutputAtTime) THEN
   ALLOCATE(velocityAtTime(1:3,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'ERROR in particle_init.f90: Cannot allocate velocityAtTime array!')
-  END IF
+  IF (ALLOCSTAT.NE.0) &
+    CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate velocityAtTime array!')
   velocityAtTime=0.
 END IF
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 
 #ifdef IMPA
-ALLOCATE(PartStage(1:6,1:nRKStages-1,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartStage arrays!')
-END IF
-ALLOCATE(PartStateN(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartStateN arrays!')
-END IF
-ALLOCATE(PartQ(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate PartQ arrays!')
-END IF
-! particle function values at X0
-ALLOCATE(F_PartX0(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate F_PartX0 arrays!')
-END IF
-! particle function values at Xk
-ALLOCATE(F_PartXk(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate F_PartXk arrays!')
-END IF
-! and the required norms
-ALLOCATE(Norm_F_PartX0(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate Norm_F_PartX0 arrays!')
-END IF
-ALLOCATE(Norm_F_PartXk(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate Norm_F_PartXk arrays!')
-END IF
-ALLOCATE(Norm_F_PartXk_old(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate Norm_F_PartXk_old arrays!')
-END IF
-ALLOCATE(PartDeltaX(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate PartDeltaX arrays!')
-END IF
-ALLOCATE(PartLambdaAccept(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate PartLambdaAccept arrays!')
-END IF
-ALLOCATE(DoPartInNewton(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-      ,'Cannot allocate DoPartInNewton arrays!')
-END IF
+ALLOCATE( PartStage( 1:6,1:nRKStages-1,1:PDM%maxParticleNumber)  &
+        , PartStateN(1:6,              1:PDM%maxParticleNumber)  &
+        , PartQ(     1:6,              1:PDM%maxParticleNumber)  &      ! particle function values at X0
+        , F_PartX0(  1:6,              1:PDM%maxParticleNumber)  &      ! particle function values at Xk
+        , F_PartXk(  1:6,              1:PDM%maxParticleNumber)  &      ! and the required norms
+        , Norm_F_PartX0(               1:PDM%maxParticleNumber)  &
+        , Norm_F_PartXk(               1:PDM%maxParticleNumber)  &
+        , Norm_F_PartXk_old(           1:PDM%maxParticleNumber)  &
+        , PartDeltaX(1:6,              1:PDM%maxParticleNumber)  &
+        , PartLambdaAccept(            1:PDM%maxParticleNumber)  &
+        , DoPartInNewton(              1:PDM%maxParticleNumber)  &
+        , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) &
+  CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate IMPA arrays!')
 #endif /* IMPA */
 #ifdef ROS
-ALLOCATE(PartStage(1:6,1:nRKStages-1,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartStage arrays!')
-END IF
-ALLOCATE(PartStateN(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartStateN arrays!')
-END IF
-ALLOCATE(PartQ(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate PartQ arrays!')
-END IF
-ALLOCATE(PartDtFrac(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartDtFrac arrays!')
-END IF
-PartDtFrac=1.
-ALLOCATE(PEM%ElementN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the stage position and element arrays!')
-END IF
-PEM%ElementN=0
-ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the normal vector for reflections!')
-END IF
-PEM%NormVec=0
-ALLOCATE(PEM%PeriodicMoved(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the stage position and element arrays!')
-END IF
+ALLOCATE( PartStage( 1:6,1:nRKStages-1,1:PDM%maxParticleNumber)  &
+        , PartStateN(1:6,              1:PDM%maxParticleNumber)  &
+        , PartQ(     1:6,              1:PDM%maxParticleNumber)  &
+        , PartDtFrac(                  1:PDM%maxParticleNumber)  &
+        , PEM%ElementN(                1:PDM%maxParticleNumber)  &
+        , PEM%NormVec(1:3,             1:PDM%maxParticleNumber)  &
+        , PEM%PeriodicMoved(           1:PDM%maxParticleNumber)  &
+        , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) &
+  CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate ROS arrays!')
+PartDtFrac   = 1.
+PEM%ElementN = 0
+PEM%NormVec  = 0
 PEM%PeriodicMoved=.FALSE.
 #endif /* ROSENBROCK */
 
 #if IMPA
-ALLOCATE(PartIsImplicit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartIsImplicit arrays!')
-END IF
-PartIsImplicit=.FALSE.
-ALLOCATE(PartDtFrac(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartDtFrac arrays!')
-END IF
-PartDtFrac=1.
-ALLOCATE(PEM%ElementN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the stage position and element arrays!')
-END IF
-PEM%ElementN=0
-ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the normal vector for reflections!')
-END IF
-PEM%NormVec=0
-ALLOCATE(PEM%PeriodicMoved(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the stage position and element arrays!')
-END IF
-PEM%PeriodicMoved=.FALSE.
+ALLOCATE( PartIsImplicit(   1:PDM%maxParticleNumber) &
+        , PartDtFrac(       1:PDM%maxParticleNumber) &
+        , PEM%ElementN(     1:PDM%maxParticleNumber) &
+        , PEM%NormVec(1:3,  1:PDM%maxParticleNumber) &
+        , PEM%PeriodicMoved(1:PDM%maxParticleNumber) &
+PartIsImplicit = .FALSE.
+PartDtFrac   = 1.
+PEM%ElementN = 0
+PEM%NormVec  = 0
+PEM%PeriodicMoved = .FALSE.
 #endif
 
 IF(DoRefMapping)THEN
   IPWRITE(*,*) 'Allocating', PDM%MaxParticleNumber
   ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-  __STAMP__&
-  ,' Cannot allocate partposref!')
+  IF (ALLOCSTAT.NE.0) &
+    CALL abort(__STAMP__,' Cannot allocate partposref!')
   PartPosRef=-888.
 END IF
 
-ALLOCATE(PartState(1:6,1:PDM%maxParticleNumber)       , &
-         LastPartPos(1:3,1:PDM%maxParticleNumber)     , &
-         Pt(1:3,1:PDM%maxParticleNumber)              , &
-         PartSpecies(1:PDM%maxParticleNumber)         , &
-         PDM%ParticleInside(1:PDM%maxParticleNumber)  , &
-         PDM%nextFreePosition(1:PDM%maxParticleNumber), &
-         PDM%dtFracPush(1:PDM%maxParticleNumber)      , &
-         PDM%IsNewPart(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
-END IF
+ALLOCATE( PartState(  1:6,     1:PDM%maxParticleNumber) &
+        , LastPartPos(1:3,     1:PDM%maxParticleNumber) &
+        , Pt(         1:3,     1:PDM%maxParticleNumber) &
+        , PartSpecies(         1:PDM%maxParticleNumber) &
+        , PDM%ParticleInside(  1:PDM%maxParticleNumber) &
+        , PDM%nextFreePosition(1:PDM%maxParticleNumber) &
+        , PDM%dtFracPush(      1:PDM%maxParticleNumber) &
+        , PDM%IsNewPart(       1:PDM%maxParticleNumber) &
+        , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) &
+  CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
+
 PDM%ParticleInside(1:PDM%maxParticleNumber) = .FALSE.
-PDM%dtFracPush(1:PDM%maxParticleNumber)     = .FALSE.
-PDM%IsNewPart(1:PDM%maxParticleNumber)      = .FALSE.
-LastPartPos(1:3,1:PDM%maxParticleNumber)    = 0.
-PartState=0.
-Pt=0.
-PartSpecies        = 0
-PDM%nextFreePosition(1:PDM%maxParticleNumber)=0
+PDM%dtFracPush(    1:PDM%maxParticleNumber) = .FALSE.
+PDM%IsNewPart(     1:PDM%maxParticleNumber) = .FALSE.
+LastPartPos(   1:3,1:PDM%maxParticleNumber) = 0.
+PartState   = 0.
+Pt          = 0.
+PartSpecies = 0
+PDM%nextFreePosition(1:PDM%maxParticleNumber) = 0
 
 nSpecies = GETINT('Part-nSpecies','1')
 
@@ -2083,32 +1963,32 @@ IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
 __STAMP__&
   ,'ERROR: nPartBound .LE. 0:', nPartBound)
 END IF
-ALLOCATE(PartBound%SourceBoundName(1:nPartBound))
-ALLOCATE(PartBound%TargetBoundCond(1:nPartBound))
-ALLOCATE(PartBound%MomentumACC(1:nPartBound))
-ALLOCATE(PartBound%WallTemp(1:nPartBound))
-ALLOCATE(PartBound%WallTemp2(1:nPartBound))
-ALLOCATE(PartBound%WallTempDelta(1:nPartBound))
-ALLOCATE(PartBound%TransACC(1:nPartBound))
-ALLOCATE(PartBound%VibACC(1:nPartBound))
-ALLOCATE(PartBound%RotACC(1:nPartBound))
-ALLOCATE(PartBound%ElecACC(1:nPartBound))
-ALLOCATE(PartBound%Resample(1:nPartBound))
-ALLOCATE(PartBound%WallVelo(1:3,1:nPartBound))
+ALLOCATE(PartBound%SourceBoundName(  1:nPartBound))
+ALLOCATE(PartBound%TargetBoundCond(  1:nPartBound))
+ALLOCATE(PartBound%MomentumACC(      1:nPartBound))
+ALLOCATE(PartBound%WallTemp(         1:nPartBound))
+ALLOCATE(PartBound%WallTemp2(        1:nPartBound))
+ALLOCATE(PartBound%WallTempDelta(    1:nPartBound))
+ALLOCATE(PartBound%TransACC(         1:nPartBound))
+ALLOCATE(PartBound%VibACC(           1:nPartBound))
+ALLOCATE(PartBound%RotACC(           1:nPartBound))
+ALLOCATE(PartBound%ElecACC(          1:nPartBound))
+ALLOCATE(PartBound%Resample(         1:nPartBound))
+ALLOCATE(PartBound%WallVelo(     1:3,1:nPartBound))
 ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
-ALLOCATE(PartBound%TempGradEnd(1:3,1:nPartBound))
-ALLOCATE(PartBound%TempGradVec(1:3,1:nPartBound))
-ALLOCATE(PartBound%SurfaceModel(1:nPartBound))
-ALLOCATE(PartBound%Reactive(1:nPartBound))
-ALLOCATE(PartBound%SolidState(1:nPartBound))
-ALLOCATE(PartBound%SolidPartDens(1:nPartBound))
-ALLOCATE(PartBound%SolidMassIC(1:nPartBound))
+ALLOCATE(PartBound%TempGradEnd(  1:3,1:nPartBound))
+ALLOCATE(PartBound%TempGradVec(  1:3,1:nPartBound))
+ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
+ALLOCATE(PartBound%Reactive(         1:nPartBound))
+ALLOCATE(PartBound%SolidState(       1:nPartBound))
+ALLOCATE(PartBound%SolidPartDens(    1:nPartBound))
+ALLOCATE(PartBound%SolidMassIC(      1:nPartBound))
 ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
-ALLOCATE(PartBound%SolidStructure(1:nPartBound))
-ALLOCATE(PartBound%SolidCrystalIndx(1:nPartBound))
-PartBound%SolidState(1:nPartBound)=.FALSE.
-PartBound%Reactive(1:nPartBound)=.FALSE.
-PartBound%SurfaceModel(1:nPartBound)=0
+ALLOCATE(PartBound%SolidStructure(   1:nPartBound))
+ALLOCATE(PartBound%SolidCrystalIndx( 1:nPartBound))
+PartBound%SolidState(  1:nPartBound) = .FALSE.
+PartBound%Reactive(    1:nPartBound) = .FALSE.
+PartBound%SurfaceModel(1:nPartBound) = 0
 
 ALLOCATE(PartBound%Adaptive(1:nPartBound))
 ALLOCATE(PartBound%AdaptiveType(1:nPartBound))
@@ -2365,12 +2245,12 @@ __STAMP__&
   END IF
 END DO
 
-ALLOCATE(PEM%Element(1:PDM%maxParticleNumber), PEM%lastElement(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
- CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PEM arrays!')
-END IF
+ALLOCATE( PEM%Element(    1:PDM%maxParticleNumber) &
+        , PEM%lastElement(1:PDM%maxParticleNumber) &
+        , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) &
+ CALL abort(__STAMP__,' Cannot allocate PEM arrays!')
+
 IF (useDSMC) THEN
   ALLOCATE(PEM%pStart(1:nElems)                         , &
            PEM%pNumber(1:nElems)                        , &

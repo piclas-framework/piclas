@@ -736,7 +736,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,DoRefMapping,Measu
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, PEM, PDM, &
-                                      doParticleMerge,PartPressureCell,DoFieldIonization
+                                      doParticleMerge,DoFieldIonization
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
@@ -1163,7 +1163,7 @@ IF (time.GE.DelayTime) THEN
 END IF
 
 IF (doParticleMerge) THEN
-  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+  IF (.NOT.(useDSMC)) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1181,7 +1181,7 @@ IF ((time.GE.DelayTime).OR.(time.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
   CALL StartParticleMerge()
-  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+  IF (.NOT.(useDSMC)) THEN
     DEALLOCATE(PEM%pStart , &
                PEM%pNumber, &
                PEM%pNext  , &
@@ -1924,7 +1924,7 @@ USE MOD_LinearSolver_Vars      ,ONLY: ExplicitPartSource
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_LinearSolver_Vars      ,ONLY: DoUpdateInStage,PartXk
 USE MOD_Predictor              ,ONLY: PartPredictor,PredictorType
-USE MOD_Particle_Vars          ,ONLY: PartIsImplicit,PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac &
+USE MOD_Particle_Vars          ,ONLY: PartIsImplicit,PartLorentzType,doParticleMerge,PartDtFrac &
                                       ,DoForceFreeSurfaceFlux,PartStateN,PartStage,PartQ,DoSurfaceFlux,PEM,PDM  &
                                       , Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs,PartDeltaX
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
@@ -2769,7 +2769,7 @@ END IF
 ! split and merge
 !----------------------------------------------------------------------------------------------------------------------------------
 IF (doParticleMerge) THEN
-  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+  IF (.NOT.(useDSMC)) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -2787,7 +2787,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
   CALL StartParticleMerge()
-  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+  IF (.NOT.(useDSMC)) THEN
     DEALLOCATE(PEM%pStart , &
                PEM%pNumber, &
                PEM%pNext  , &
@@ -2838,7 +2838,7 @@ USE MOD_LinearOperator         ,ONLY: PartMatrixVector, PartVectorDotProduct
 USE MOD_ParticleSolver         ,ONLY: Particle_GMRES
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK,DoFieldUpdate
 USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
-USE MOD_Particle_Vars          ,ONLY: PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac,PartStateN,PartStage,PartQ &
+USE MOD_Particle_Vars          ,ONLY: PartLorentzType,doParticleMerge,PartDtFrac,PartStateN,PartStage,PartQ &
     ,DoSurfaceFlux,PEM,PDM,Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
@@ -3539,7 +3539,7 @@ END IF
 ! split and merge
 !----------------------------------------------------------------------------------------------------------------------------------
 IF (doParticleMerge) THEN
-  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+  IF (.NOT.(useDSMC)) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -3557,7 +3557,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
   CALL StartParticleMerge()
-  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+  IF (.NOT.(useDSMC)) THEN
     DEALLOCATE(PEM%pStart , &
                PEM%pNumber, &
                PEM%pNext  , &
@@ -3872,7 +3872,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell
+USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
 USE MOD_Particle_Analyze       ,ONLY: CalcCoupledPowerPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
@@ -4110,7 +4110,7 @@ END IF
 PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero for deposition
 #endif
 IF (doParticleMerge) THEN
-  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+  IF (.NOT.useDSMC) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4128,7 +4128,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
   CALL StartParticleMerge()
-  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+  IF (.NOT.useDSMC) THEN
     DEALLOCATE(PEM%pStart , &
                PEM%pNumber, &
                PEM%pNext  , &
@@ -4173,7 +4173,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell
+USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies
 USE MOD_Particle_Analyze       ,ONLY: CalcCoupledPowerPart
@@ -4389,7 +4389,7 @@ END IF
 PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero for deposition
 #endif
 IF (doParticleMerge) THEN
-  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+  IF (.NOT.useDSMC) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4407,7 +4407,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
   CALL StartParticleMerge()
-  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+  IF (.NOT.useDSMC) THEN
     DEALLOCATE(PEM%pStart , &
                PEM%pNumber, &
                PEM%pNext  , &
@@ -4452,7 +4452,7 @@ USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM, &
-                                      doParticleMerge,PartPressureCell,DoSurfaceFlux,DoForceFreeSurfaceFlux,DoFieldIonization
+                                      doParticleMerge,DoSurfaceFlux,DoForceFreeSurfaceFlux,DoFieldIonization
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_part_emission          ,ONLY: ParticleInserting
@@ -4856,7 +4856,7 @@ END DO
 PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero for deposition
 #endif
 IF (doParticleMerge) THEN
-  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+  IF (.NOT.useDSMC) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4874,7 +4874,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
 IF (doParticleMerge) THEN
   CALL StartParticleMerge()
-  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+  IF (.NOT.useDSMC) THEN
     DEALLOCATE(PEM%pStart , &
                PEM%pNumber, &
                PEM%pNext  , &
