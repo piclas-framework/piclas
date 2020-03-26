@@ -4194,7 +4194,7 @@ ALLOCATE(BCSideElem(1:nTotalSides))
 
 ElemToBCSidesProc = -1
 nBCSidesProc      = 0
-offsetBCSides     = 1
+offsetBCSides     = 0
 
 ! sum up all BC sides in range of BC_halo_eps
 DO iElem = firstElem,lastElem
@@ -4269,7 +4269,7 @@ DO iElem = firstElem,lastElem
   ! Write local mapping from Elem to BC sides. The number is already correct, the offset must be corrected later
   IF (nBCSidesElem.GT.0) THEN
     ElemToBCSidesProc(ELEM_NBR_BCSIDES ,iElem) = nBCSidesElem
-    ElemToBCSidesProc(ELEM_FIRST_BCSIDE,iElem) = offsetBCSides
+    ElemToBCSidesProc(ELEM_FIRST_BCSIDE,iElem) = offsetBCSides + 1
   END IF
 
   offsetBCSides = nBCSidesProc

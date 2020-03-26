@@ -1366,14 +1366,14 @@ DO iPart=1,PDM%ParticleVecLength
     ! check if element is a BC element. If yes, handle with Tracing instead of RefMapping
     IF (ElemToBCSides(ELEM_NBR_BCSIDES,ElemID).GT.0) THEN
       lengthPartTrajectory0 = 0.
-      CALL ParticleBCTracking(lengthPartTrajectory0                                                            &
-                             ,ElemID                                                                           &
-                             ,ElemToBCSides(ELEM_FIRST_BCSIDE,ElemID)                                          &
-                             ,ElemToBCSides(ELEM_FIRST_BCSIDE,ElemID) + ElemToBCSides(ELEM_NBR_BCSIDES,ElemID) &
-                             ,ElemToBCSides(ELEM_NBR_BCSIDES,ElemID)                                           &
-                             ,iPart                                                                            &
-                             ,PartIsDone                                                                       &
-                             ,PartIsMoved                                                                      &
+      CALL ParticleBCTracking(lengthPartTrajectory0                                                               &
+                             ,ElemID                                                                              &
+                             ,ElemToBCSides(ELEM_FIRST_BCSIDE,ElemID)                                             &
+                             ,ElemToBCSides(ELEM_FIRST_BCSIDE,ElemID) + ElemToBCSides(ELEM_NBR_BCSIDES,ElemID) -1 &
+                             ,ElemToBCSides(ELEM_NBR_BCSIDES,ElemID)                                              &
+                             ,iPart                                                                               &
+                             ,PartIsDone                                                                          &
+                             ,PartIsMoved                                                                         &
                              ,1)
       IF(PartIsDone) THEN
 #ifdef IMPA
@@ -1637,14 +1637,14 @@ DO iPart=1,PDM%ParticleVecLength
           !LastPos=PartState(1:3,iPart)
           lengthPartTrajectory0=0.
 
-          CALL ParticleBCTracking(lengthPartTrajectory0                                                                &
-                                 ,TestElem                                                                             &
-                                 ,ElemToBCSides(ELEM_FIRST_BCSIDE,TestElem)                                            &
-                                 ,ElemToBCSides(ELEM_FIRST_BCSIDE,TestElem) + ElemToBCSides(ELEM_NBR_BCSIDES,TestElem) &
-                                 ,ElemToBCSides(ELEM_NBR_BCSIDES,TestElem)                                             &
-                                 ,iPart                                                                                &
-                                 ,PartIsDone                                                                           &
-                                 ,PartIsMoved                                                                          &
+          CALL ParticleBCTracking(lengthPartTrajectory0                                                                   &
+                                 ,TestElem                                                                                &
+                                 ,ElemToBCSides(ELEM_FIRST_BCSIDE,TestElem)                                               &
+                                 ,ElemToBCSides(ELEM_FIRST_BCSIDE,TestElem) + ElemToBCSides(ELEM_NBR_BCSIDES,TestElem) -1 &
+                                 ,ElemToBCSides(ELEM_NBR_BCSIDES,TestElem)                                                &
+                                 ,iPart                                                                                   &
+                                 ,PartIsDone                                                                              &
+                                 ,PartIsMoved                                                                             &
                                  ,1)
           IF(PartIsDone)THEN
 #ifdef IMPA
@@ -1973,14 +1973,14 @@ DO WHILE(DoTracing)
                                            ElemToBCSides(ELEM_FIRST_BCSIDE,OldElemID)+ElemToBCSides(ELEM_NBR_BCSIDES,OldElemID)))
           END IF
 
-          CALL ParticleBCTracking(lengthPartTrajectory0                                                            &
-                                 ,ElemID                                                                           &
-                                 ,ElemToBCSides(ELEM_FIRST_BCSIDE,ElemID)                                          &
-                                 ,ElemToBCSides(ELEM_FIRST_BCSIDE,ElemID) + ElemToBCSides(ELEM_NBR_BCSIDES,ElemID) &
-                                 ,ElemToBCSides(ELEM_NBR_BCSIDES,ElemID)                                           &
-                                 ,PartID                                                                           &
-                                 ,PartIsDone                                                                       &
-                                 ,PartIsMoved                                                                      &
+          CALL ParticleBCTracking(lengthPartTrajectory0                                                               &
+                                 ,ElemID                                                                              &
+                                 ,ElemToBCSides(ELEM_FIRST_BCSIDE,ElemID)                                             &
+                                 ,ElemToBCSides(ELEM_FIRST_BCSIDE,ElemID) + ElemToBCSides(ELEM_NBR_BCSIDES,ElemID) -1 &
+                                 ,ElemToBCSides(ELEM_NBR_BCSIDES,ElemID)                                              &
+                                 ,PartID                                                                              &
+                                 ,PartIsDone                                                                          &
+                                 ,PartIsMoved                                                                         &
                                  ,iCount+1)
           PartisMoved = .TRUE.
           RETURN
