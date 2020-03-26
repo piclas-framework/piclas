@@ -64,6 +64,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,FIBGM_nElems,FIBGM_Element,FIBGM_offse
 USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance
 USE MOD_Equation_Vars          ,ONLY: c
 USE MOD_ReadInTools            ,ONLY: GETREAL, GetRealArray, PrintOption
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
+#endif
 #if ! (USE_HDG)
 USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
 USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep

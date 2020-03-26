@@ -4139,10 +4139,13 @@ IF (halo_eps.EQ.0) THEN
   END IF
 
   ! reconstruct deltaT
-  IF (ManualTimeStep.GT.0.0) THEN
+  deltaT = 0.
+  IF (ManualTimeStep.GT.0.) THEN
     deltaT    = ManualTimeStep
+#if ! (USE_HDG)
   ELSE
-    deltaT      = CalcTimeStep()
+    deltaT    = CalcTimeStep()
+#endif
   END IF
 
   ! calculate halo_eps

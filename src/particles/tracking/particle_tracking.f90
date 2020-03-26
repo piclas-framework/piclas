@@ -1424,7 +1424,6 @@ DO iPart=1,PDM%ParticleVecLength
       CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)
 #else
       CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),ElemID)
-      IPWRITE(*,*) PartState(1:3,iPart),PartPosRef(1:3,iPart),ELemID
 #endif
 
       ! particle inside
