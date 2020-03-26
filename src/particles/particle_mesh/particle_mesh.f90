@@ -4061,6 +4061,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides,SideBCMetrics
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Vars          ,ONLY: ManualTimeStep
+USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars
@@ -4096,6 +4097,9 @@ REAL                           :: dX,dY,dZ
 REAL                           :: origin(1:3),xi(1:2),radius,radiusMax,vec(1:3)
 REAL                           :: NodesLocSide(1:3,0:NGeo,0:NGeo),NodeBCSide(1:3)
 REAL                           :: BC_halo_eps,BC_halo_eps_velo,deltaT
+REAL,ALLOCATABLE               :: tmpSideBCMetrics(:,:)
+REAL,ALLOCATABLE               :: tmpSideBCDistance(:)
+INTEGER,ALLOCATABLE            :: intSideBCMetrics(:)
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 INTEGER                        :: sendbuf,recvbuf
@@ -4430,6 +4434,44 @@ DO iSide = firstSide,lastSide
   vec(1:3)    = origin(1:3) - SideBCMetrics(5:7,iSide)
   SideBCMetrics(BCSIDE_DISTANCE,iSide) = SQRT(DOT_PRODUCT(vec,vec))-ElemRadiusNGeo_Shared(ElemID)-SideBCMetrics(BCSIDE_RADIUS,iSide)
 END DO ! iSide
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(SideBCMetrics_Shared_Win,iError)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif
+
+! finally, sort distance to help speed up BC tracking
+!> allocate dummy array to hold variables
+ALLOCATE(tmpSideBCMetrics(1:7,1:MAXVAL(ElemToBCSides(ELEM_NBR_BCSIDES,:))))
+ALLOCATE(tmpSideBCDistance(   1:MAXVAL(ElemToBCSides(ELEM_NBR_BCSIDES,:))))
+ALLOCATE(intSideBCMetrics(    1:MAXVAL(ElemToBCSides(ELEM_NBR_BCSIDES,:))))
+
+DO iElem = firstElem,lastElem
+  ! skip elements with no BC sides
+  IF (ElemToBCSides(ELEM_NBR_BCSIDES,iElem).LE.0) CYCLE
+
+  ! save values in temporary array
+  firstSide    = ElemToBCSides(ELEM_FIRST_BCSIDE,iElem)
+  lastSide     = ElemToBCSides(ELEM_FIRST_BCSIDE,iElem)+ElemToBCSides(ELEM_NBR_BCSIDES,iElem)-1
+  nBCSidesElem = ElemToBCSides(ELEM_NBR_BCSIDES,iElem)
+
+  tmpSideBCMetrics(:,1:nBCSidesElem) = SideBCMetrics(:,firstSide:lastSide)
+  tmpSideBCDistance( 1:nBCSidesElem) = SideBCMetrics(BCSIDE_DISTANCE,firstSide:lastSide)
+  intSideBCMetrics(  1:nBCSidesElem) = (/((p),p=1,nBCSidesElem)/)
+
+  ! sort SideID according to distance
+  CALL InsertionSort(tmpSideBCDistance(1:nBCSidesElem),intSideBCMetrics(1:nBCSidesElem),nBCSidesElem)
+
+  ! write back dummy array with variables
+  DO iSide = 1,nBCSidesElem
+    SideID = intSideBCMetrics(iSide)
+    SideBCMetrics(:,firstSide+iSide-1) = tmpSideBCMetrics(:,SideID)
+  END DO
+END DO
+
+DEALLOCATE(tmpSideBCMetrics)
+DEALLOCATE(tmpSideBCDistance)
+DEALLOCATE(intSideBCMetrics)
 
 #if USE_MPI
 CALL MPI_WIN_SYNC(SideBCMetrics_Shared_Win,iError)

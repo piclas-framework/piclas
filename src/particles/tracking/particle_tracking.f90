@@ -1844,8 +1844,8 @@ DO WHILE(DoTracing)
   ! check if particle can intersect with current side
   DO iLocSide=firstSide,LastSide
 
-    ! TODO Side no longer sorted in SideBCMetrics
-    IF (SideBCMetrics(BCSIDE_DISTANCE,ilocSide).GT.lengthPartTrajectory0) CYCLE
+    ! SideBCMetrics is sorted by distance. stop if the first side is out of range
+    IF (SideBCMetrics(BCSIDE_DISTANCE,ilocSide).GT.lengthPartTrajectory0) EXIT
 
     ! side potentially in range (halo_eps)
     SideID   = INT(SideBCMetrics(BCSIDE_SIDEID,ilocSide))
