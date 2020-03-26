@@ -521,9 +521,6 @@ LOGICAL                       :: moveList, PartDoubleCheck
 #ifdef CODE_ANALYZE
 INTEGER                       :: nIntersections
 #endif /*CODE_ANALYZE*/
-!#ifdef CODE_ANALYZE
-!REAL                          :: IntersectionPoint(1:3)
-!#endif /*CODE_ANALYZE*/
 ! intersection info list
 TYPE(tIntersectLink),POINTER    :: firstIntersect => NULL()
 TYPE(tIntersectLink),POINTER    :: lastIntersect => NULL()
@@ -695,16 +692,16 @@ DO iPart=1,PDM%ParticleVecLength
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN ; IF(iPart.EQ.PARTOUT)THEN
           WRITE(UNIT_stdout,'(30("-"))')
-          WRITE(UNIT_stdout,'(A)') '     | Output after compute intersection (tracing double check): '
+          WRITE(UNIT_stdout,'(A)')             '     | Output after compute intersection (tracing double check): '
           IF (currentIntersect%IntersectCase.EQ.1) THEN
             WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(SideID),' | SideID: ',SideID,' | Hit: ',foundHit
-            WRITE(UNIT_stdout,'(A,2(X,G0))') '     | Intersection xi/eta: ',xi,eta
-            WRITE(UNIT_stdout,'((A,G0))') '     | RelAlpha: ',locAlpha/lengthpartTrajectory
+            WRITE(UNIT_stdout,'(A,2(X,G0))')   '     | Intersection xi/eta: ',xi,eta
+            WRITE(UNIT_stdout,'((A,G0))')      '     | RelAlpha: ',locAlpha/lengthpartTrajectory
           ELSE IF (currentIntersect%IntersectCase.EQ.3) THEN
-            WRITE(UNIT_stdout,'(A,I0,A,L)') '     | MaroPartID: ',iMB,' | Hit: ',foundHit
-            WRITE(UNIT_stdout,'(A,G0)') '     | AlphaSphere: ',locAlphaSphere
+            WRITE(UNIT_stdout,'(A,I0,A,L)')    '     | MaroPartID: ',iMB,' | Hit: ',foundHit
+            WRITE(UNIT_stdout,'(A,G0)')        '     | AlphaSphere: ',locAlphaSphere
           END IF
-          WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ', lengthPartTrajectory
+          WRITE(UNIT_stdout,'(2(A,G0))')       '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ', lengthPartTrajectory
         END IF ; END IF
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
@@ -739,41 +736,43 @@ DO iPart=1,PDM%ParticleVecLength
           SideID = GetGlobalNonUniqueSideID(GetGlobalElemID(ElemID),iLocSide)
           ! If the side is positive, then the element has the actual side
           ! and neighbour element has the negative one which has to be flipped
-          IF (SideInfo_Shared(SIDE_ID,SideID).GT.0) THEN
-            flip=0
-          ELSE
-            flip = MOD(Sideinfo_Shared(SIDE_FLIP,SideID),10)
-          END IF
+!          IF (SideInfo_Shared(SIDE_ID,SideID).GT.0) THEN
+!            flip=0
+!          ELSE
+!            flip = MOD(Sideinfo_Shared(SIDE_FLIP,SideID),10)
+!          END IF
+
+          ! BezierControlPoints are now built in cell local system. Hence, sides have always the flip from the shared SideInfo
+          flip = Sideinfo_Shared(SIDE_FLIP,SideID)
+
           ! missing!!! : mapping from GlobalNonUnique to CNtotalsides
           isCriticalParallelInFace=.FALSE.
 
           SELECT CASE(SideType(SideID))
-          CASE(PLANAR_RECT)
-            CALL ComputePlanarRectInterSection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,flip,SideID  &
-                                                                                          ,isCriticalParallelInFace)
-          CASE(BILINEAR,PLANAR_NONRECT)
-            CALL ComputeBiLinearIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID)
-          CASE(PLANAR_CURVED)
-            CALL ComputePlanarCurvedIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,flip,SideID &
-                                                                                          ,isCriticalParallelInFace)
-          CASE(CURVED)
-            CALL ComputeCurvedIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID &
-                                                                                    ,isCriticalParallelInFace)
-          CASE DEFAULT
-            CALL abort(&
-__STAMP__ &
-,' Missing required side-data. Please increase halo region. ',SideID)
+            CASE(PLANAR_RECT)
+              CALL ComputePlanarRectInterSection(   foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,flip,SideID  &
+                                                ,   isCriticalParallelInFace)
+            CASE(BILINEAR,PLANAR_NONRECT)
+              CALL ComputeBiLinearIntersection(     foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,     SideID)
+            CASE(PLANAR_CURVED)
+              CALL ComputePlanarCurvedIntersection( foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,flip,SideID  &
+                                                  , isCriticalParallelInFace)
+            CASE(CURVED)
+              CALL ComputeCurvedIntersection(       foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,     SideID &
+                                            ,       isCriticalParallelInFace)
+            CASE DEFAULT
+              CALL abort(__STAMP__,' Missing   required side-data. Please increase halo region. ',SideID)
           END SELECT
 
 #ifdef CODE_ANALYZE
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
           IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN ; IF(iPart.EQ.PARTOUT)THEN
             WRITE(UNIT_stdout,'(30("-"))')
-            WRITE(UNIT_stdout,'(A)') '     | Output after compute intersection (particle tracing): '
+            WRITE(UNIT_stdout,'(A)')           '     | Output after compute intersection (particle tracing): '
             WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(SideID),' | SideID: ',SideID,' | Hit: ',foundHit
-            WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ', lengthPartTrajectory
-            WRITE(UNIT_stdout,'((A,G0))') '     | RelAlpha: ',locAlpha/lengthpartTrajectory
-            WRITE(UNIT_stdout,'(A,2(X,G0))') '     | Intersection xi/eta: ',xi,eta
+            WRITE(UNIT_stdout,'(2(A,G0))')     '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ', lengthPartTrajectory
+            WRITE(UNIT_stdout,'((A,G0))')      '     | RelAlpha: ',locAlpha/lengthpartTrajectory
+            WRITE(UNIT_stdout,'(A,2(X,G0))')   '     | Intersection xi/eta: ',xi,eta
           END IF ; END IF
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
@@ -816,9 +815,9 @@ __STAMP__ &
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
             IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN ; IF(iPart.EQ.PARTOUT)THEN
               WRITE(UNIT_stdout,'(30("-"))')
-              WRITE(UNIT_stdout,'(A)') '     | Output after compute AuxBC intersection (particle tracing): '
+              WRITE(UNIT_stdout,'(A)')        '     | Output after compute AuxBC intersection (particle tracing): '
               WRITE(UNIT_stdout,'(A,I0,A,L)') '     | AuxBC: ',iAuxBC,' | Hit: ',foundHit
-              WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ',lengthPartTrajectory
+              WRITE(UNIT_stdout,'(2(A,G0))')  '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ',lengthPartTrajectory
             END IF ; END IF
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
@@ -856,10 +855,10 @@ __STAMP__ &
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
             IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN ; IF(iPart.EQ.PARTOUT)THEN
               WRITE(UNIT_stdout,'(30("-"))')
-              WRITE(UNIT_stdout,'(A)') '     | Output after compute MacroPart intersection (Particle tracing): '
+              WRITE(UNIT_stdout,'(A)')        '     | Output after compute MacroPart intersection (Particle tracing): '
               WRITE(UNIT_stdout,'(A,I0,A,L)') '     | MaroPartID: ',iMB,' | Hit: ',foundHit
-              WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ',lengthPartTrajectory
-              WRITE(UNIT_stdout,'(A,G0)') '     | AlphaSphere: ',locAlphaSphere
+              WRITE(UNIT_stdout,'(2(A,G0))')  '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ',lengthPartTrajectory
+              WRITE(UNIT_stdout,'(A,G0)')     '     | AlphaSphere: ',locAlphaSphere
             END IF ;END IF
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
@@ -888,10 +887,10 @@ __STAMP__ &
         nIntersections=nIntersections+1
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN ; IF(iPart.EQ.PARTOUT)THEN
           WRITE(UNIT_stdout,'(45(":"))')
-          WRITE(UNIT_stdout,'(A,I0)') '     -> Check intersection: ', nIntersections
-          WRITE(UNIT_stdout,'(A,I0)') '     -> Case: ',currentIntersect%IntersectCase
-          WRITE(UNIT_stdout,'(A,G0)') '     -> alpha: ',currentIntersect%alpha
-          WRITE(UNIT_stdout,'(A,I0)') '     -> locSide: ',currentIntersect%Side
+          WRITE(UNIT_stdout,'(A,I0)')  '     -> Check intersection: ', nIntersections
+          WRITE(UNIT_stdout,'(A,I0)')  '     -> Case: '   ,currentIntersect%IntersectCase
+          WRITE(UNIT_stdout,'(A,G0)')  '     -> alpha: '  ,currentIntersect%alpha
+          WRITE(UNIT_stdout,'(A,I0)')  '     -> locSide: ',currentIntersect%Side
           IF (currentIntersect%IntersectCase.EQ.1) THEN
             WRITE(UNIT_stdout,'(A,I0)') '     -> SideID: ',PartElemToSide(E2S_SIDE_ID,currentIntersect%Side,ElemID)
           END IF
@@ -918,24 +917,47 @@ __STAMP__ &
             flip = Sideinfo_Shared(SIDE_FLIP,SideID)
 
             ! missing!!! : mapping from GlobalNonUnique to CNtotalsides
-            CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,currentIntersect%Side,currentIntersect%Side &
-                ,PartTrajectory,lengthPartTrajectory,currentIntersect%xi,currentIntersect%eta,currentIntersect%alpha,iPart &
-                ,SideID,SideType(SideID),ElemID)
+            CALL SelectInterSectionType( PartIsDone                   &
+                                       , crossedBC                    &
+                                       , doLocSide                    &
+                                       , flip                         &
+                                       , currentIntersect%Side        &
+                                       , currentIntersect%Side        &
+                                       , PartTrajectory               &
+                                       , lengthPartTrajectory         &
+                                       , currentIntersect%xi          &
+                                       , currentIntersect%eta         &
+                                       , currentIntersect%alpha       &
+                                       , iPart                        &
+                                       , SideID                       &
+                                       , SideType(SideID)             &
+                                       , ElemID)
+
             IF (ElemID.NE.OldElemID) THEN
               IF (.NOT.crossedBC) SwitchedElement=.TRUE.
             END IF
           !------------------------------------
           CASE(2) ! AuxBC intersection
           !------------------------------------
-            CALL GetBoundaryInteractionAuxBC(PartTrajectory,lengthPartTrajectory &
-                                            ,currentIntersect%alpha,iPart,currentIntersect%Side,crossedBC)
-            IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
+            CALL GetBoundaryInteractionAuxBC( PartTrajectory          &
+                                            , lengthPartTrajectory    &
+                                            , currentIntersect%alpha  &
+                                            , iPart                   &
+                                            , currentIntersect%Side   &
+                                            , crossedBC)
+            IF (.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
             dolocSide=.TRUE. !important when in previously traced portion an elemchange occured, check all sides again!
           !------------------------------------
           CASE(3) ! MacroPart intersection
           !------------------------------------
-            CALL GetInteractionWithMacroBody(PartTrajectory,lengthPartTrajectory,currentIntersect%alpha&
-                                            ,currentIntersect%alpha2,alphaDoneRel,currentIntersect%Side,iPart,crossedBC)
+            CALL GetInteractionWithMacroBody( PartTrajectory           &
+                                            , lengthPartTrajectory     &
+                                            , currentIntersect%alpha   &
+                                            , currentIntersect%alpha2  &
+                                            , alphaDoneRel             &
+                                            , currentIntersect%Side    &
+                                            , iPart                    &
+                                            , crossedBC)
             IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
             dolocSide=.TRUE. !important when in previously traced portion an elemchange occured, check all sides again!
             OnlyMacroPart=.FALSE. !important, since microscopic particle starts to move after collision !
@@ -1005,19 +1027,19 @@ __STAMP__ &
             moveList=.TRUE.
           END SELECT
           IF (moveList) THEN
-            lastIntersect%alpha = currentIntersect%alpha
+            lastIntersect%alpha  = currentIntersect%alpha
             lastIntersect%alpha2 = currentIntersect%alpha2
-            lastIntersect%xi = currentIntersect%xi
-            lastIntersect%eta = currentIntersect%eta
-            lastIntersect%Side = currentIntersect%Side
+            lastIntersect%xi     = currentIntersect%xi
+            lastIntersect%eta    = currentIntersect%eta
+            lastIntersect%Side   = currentIntersect%Side
             lastIntersect%intersectCase = currentIntersect%intersectCase
             tmp=>firstIntersect
             DO WHILE (.NOT.ASSOCIATED(tmp,lastIntersect))
-              tmp%alpha = tmp%next%alpha
+              tmp%alpha  = tmp%next%alpha
               tmp%alpha2 = tmp%next%alpha2
-              tmp%xi = tmp%next%xi
-              tmp%eta = tmp%next%eta
-              tmp%Side = tmp%next%Side
+              tmp%xi     = tmp%next%xi
+              tmp%eta    = tmp%next%eta
+              tmp%Side   = tmp%next%Side
               tmp%intersectCase = tmp%next%intersectCase
               tmp=>tmp%next
             END DO
@@ -1037,13 +1059,13 @@ __STAMP__ &
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN ; IF(iPart.EQ.PARTOUT)THEN
         WRITE(UNIT_stdout,'(128("="))')
-        WRITE(UNIT_stdout,'(A)') '     | Output of tracking information after the check of number of intersections: '
-        WRITE(UNIT_stdout,'(4(A,L))') '     | crossed Side: ',crossedBC,' switched Element: ',SwitchedElement,&
+        WRITE(UNIT_stdout,'(A)')           '     | Output of tracking information after the check of number of intersections: '
+        WRITE(UNIT_stdout,'(4(A,L))')      '     | crossed Side: ',crossedBC,' switched Element: ',SwitchedElement,&
           ' Particle tracking done: ',PartisDone,' Particle is double checked: ',PartDoubleCheck
         IF(SwitchedElement) THEN
           WRITE(UNIT_stdout,'(A,I0,A,I0)') '     | First_ElemID: ',PEM%LastElement(iPart),' | new Element: ',ElemID
-          WRITE(UNIT_stdOut,'(A,I0)') '     | first global ElemID       ', GetGlobalElemID(PEM%LastElement(iPart))
-          WRITE(UNIT_stdOut,'(A,I0)') '     | new global ElemID       ', GetGlobalElemID(ElemID)
+          WRITE(UNIT_stdOut,'(A,I0)')      '     | first global ElemID       ', GetGlobalElemID(PEM%LastElement(iPart))
+          WRITE(UNIT_stdOut,'(A,I0)')      '     | new global ElemID       ', GetGlobalElemID(ElemID)
         END IF
         IF( crossedBC) THEN
           WRITE(UNIT_stdout,'(A,3(X,G0))') '     | Last    PartPos:       ',lastPartPos(1:3,iPart)
@@ -1072,63 +1094,10 @@ __STAMP__ &
       END IF
     END DO ! PartisDone=.FALSE.
 
-!! -- 9. If tolerance was marked, check if particle is inside of proc volume and try to find it in case it was lost
-!    IF(markTol)THEN
-!      IF(.NOT.PDM%ParticleInside(iPart))THEN
-!#ifdef IMPA
-!        DoParticle=.FALSE.
-!#endif /*IMPA*/
-!        CYCLE !particle is outside cell
-!      END IF
-!      CALL GetPositionInRefElem(PartState(1:3,iPart),RefPos,ElemID)
-!      IF (MAXVAL(ABS(RefPos)).LE.1.0) foundHit=.TRUE.
-!      PEM%Element(iPart)=ElemID
-!      IF(.NOT.foundHit) THEN
-!        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Relocating particle ...'
-!        CALL LocateParticleInElement(iPart,doHALO=.TRUE.)
-!        IF(PDM%ParticleInside(iPart))THEN
-!          IPWRITE(UNIT_stdOut,'(I0,A)') '     | Particle found again:'
-!          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartPos: ',LastPartPos(1:3,ipart)
-!          IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartPos: ',PartState(1:3,ipart)
-!          IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | found in global element       ', GetGlobalElemID(PEM%Element(iPart))
-!        END IF
-!      END IF
-!      PartIsDone=.TRUE.
-!      IF(.NOT.PDM%ParticleInside(iPart))THEN
-!        !WRITE(UNIT_stdOut,'(20(=))')
-!        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Tolerance issue during tracing! Unable to locate particle inside computational domain'
-!        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Maybe particle intersected two or three sides exactly at connection (corner, edge)'
-!        IPWRITE(UNIT_stdOut,'(I0,A)') '     | of which at least one was a boundary.'
-!        IPWRITE(UNIT_stdOut,'(I0,2(A,I0))') '     | Proc: ',MyRank,' lost particle with ID: ', iPart
-!        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartPos: ',LastPartPos(1:3,ipart)
-!        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartPos: ',PartState(1:3,ipart)
-!        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in latest Element ... '
-!        IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | ElemID       ', GetGlobalElemID(PEM%Element(iPart))
-!        CALL GetPositionInRefElem(LastPartPos(1:3,iPart),refpos(1:3),PEM%Element(ipart))
-!        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartRefPos: ',refpos
-!        CALL GetPositionInRefElem(PartState(1:3,iPart),refpos(1:3),PEM%Element(ipart))
-!        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartRefPos: ',refpos
-!        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing reference positions of particle path in last Element ... '
-!        IPWRITE(UNIT_stdOut,'(I0,A,I0)') '     | Last-ElemID  ', GetGlobalElemID(PEM%LastElement(iPart))
-!        CALL GetPositionInRefElem(LastPartPos(1:3,iPart),refpos(1:3),PEM%lastElement(ipart))
-!        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     | LastPartRefPos: ',refpos
-!        CALL GetPositionInRefElem(PartState(1:3,iPart),refpos(1:3),PEM%lastElement(ipart))
-!        IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') '     |     PartRefPos: ',refpos
-!        WRITE(UNIT_stdOut,'(20(=))')
-!        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Particle is removed from computation! '
-!        IF(CountNbOfLostParts) nLostParts=nLostParts+1
-!      END IF
-!    END IF ! markTol
 #if USE_LOADBALANCE
     IF (PEM%Element(iPart).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(iPart),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF ! Part inside
-  ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
-  ! IF(RadialWeighting%PerformCloning) THEN
-  !   IF(PDM%ParticleInside(iPart)) THEN
-  !     CALL DSMC_2D_RadialWeighting(iPart,PEM%Element(iPart))
-  !   END IF
-  ! END IF
 END DO ! iPart
 
 
@@ -2009,7 +1978,7 @@ END SUBROUTINE ParticleBCTracking
 
 
 SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
-                                 ,xi,eta,alpha,PartID,SideID,hitSideType,ElemID)
+                               ,xi,eta,alpha,PartID,SideID,hitSideType,ElemID)
 !===================================================================================================================================
 !> Use only for TrackingMethod=TRACING
 !> Checks which type of interaction (BC,Periodic,innerSide) has to be applied for the face on the traced particle path
@@ -2066,34 +2035,48 @@ INTEGER                           :: iLocalSide
 INTEGER                           :: locFlip
 REAL                              :: locAlpha,locXi,locEta
 REAL                              :: n_loc(3)
+#if CODE_ANALYZE
+REAL                              :: v1(3),v2(3)
+#endif /* CODE_ANALYZE */
 !===================================================================================================================================
 IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
   CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,ElemID,crossedBC &
                                                                  ,locSideID=hitLocSide)
-  TrackInfo%CurrElem=ElemID
-  IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
-  dolocSide=.TRUE.
+  TrackInfo%CurrElem = ElemID
+  IF (.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
+  dolocSide = .TRUE.
 ELSE
+  ! get side normal vector. Must be calculated with current point if the side is bilinear or curved
   SELECT CASE(hitSideType)
-  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-    n_loc = SideNormVec(1:3,SideID)
-  CASE(BILINEAR)
-    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-  CASE(CURVED)
-    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      n_loc = SideNormVec(1:3,SideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(  nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   END SELECT
 
-  ! BezierControlPoints are now built in cell local system. Hence, side always have flip=0 for intersection.
-  IF(flip.NE.0) n_loc = -n_loc
-  n_loc = -n_loc
-  IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0) RETURN
+  ! BezierControlPoints are now built in cell local system. Hence, side always have the flip from the shared SideInfo
+  IF (flip.NE.0) n_loc = -n_loc
+
+#if CODE_ANALYZE
+  ! check if normal vector points outwards
+  v1 = 0.25*(BezierControlPoints3D(:,0   ,0   ,ElemID)  &
+           + BezierControlPoints3D(:,NGeo,0   ,ElemID)  &
+           + BezierControlPoints3D(:,0   ,NGeo,ElemID)  &
+           + BezierControlPoints3D(:,NGeo,NGeo,ElemID))
+  v2 = v1  - ElemBaryNGeo_Shared(:,ElemID)
+  IF (flip.EQ.0) THEN
+    IF (DOT_PRODUCT(v2,n_loc).LT.0) CALL ABORT(__STAMP__,'Obtained wrong side orientation from side flip')
+  END IF
+#endif /* CODE_ANALYZE */
+  IF (DOT_PRODUCT(n_loc,PartTrajectory).LE.0) RETURN
 
   ! update particle element
   ! check if the side is a big mortar side
-
   NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
   IF (NbElemID.LT.0) THEN ! Mortar side
-    nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
+  nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
 
     DO iMortar = 1,nMortarElems
       NbSideID = -SideInfo_Shared(SIDE_LOCALID,SideID + iMortar)
@@ -2134,7 +2117,7 @@ ELSE
       END IF
     END DO
 
-    ! passed non of the mortar elements. Keep particle inside current element and warn
+    ! passed none of the mortar elements. Keep particle inside current element and warn
     IPWRITE(*,*) 'Boundary issue with inner mortar element', ElemID
 
   ! regular side
