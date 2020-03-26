@@ -562,7 +562,6 @@ DO iPart=1,PDM%ParticleVecLength
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-
 #ifdef CODE_ANALYZE
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
     ! check if particle is inside domain bounding box
@@ -747,6 +746,7 @@ DO iPart=1,PDM%ParticleVecLength
           END IF
           ! missing!!! : mapping from GlobalNonUnique to CNtotalsides
           isCriticalParallelInFace=.FALSE.
+
           SELECT CASE(SideType(SideID))
           CASE(PLANAR_RECT)
             CALL ComputePlanarRectInterSection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,flip,SideID  &
@@ -764,6 +764,7 @@ DO iPart=1,PDM%ParticleVecLength
 __STAMP__ &
 ,' Missing required side-data. Please increase halo region. ',SideID)
           END SELECT
+
 #ifdef CODE_ANALYZE
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
           IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN ; IF(iPart.EQ.PARTOUT)THEN
@@ -791,7 +792,7 @@ __STAMP__ &
             currentIntersect => lastIntersect
             CALL AssignListPosition(currentIntersect,locAlpha,iLocSide,1,xi_IN=xi,eta_IN=eta)
             currentIntersect => lastIntersect
-            lastIntersect => currentIntersect%next
+            lastIntersect    => currentIntersect%next
             lastIntersect%prev => currentIntersect
             IF((ABS(xi).GE.0.99).OR.(ABS(eta).GE.0.99)) markTol=.TRUE.
             !IF(ALMOSTZERO(locAlpha)) markTol=.TRUE.
@@ -908,11 +909,14 @@ __STAMP__ &
           CASE(1) ! intersection with cell side
           !------------------------------------
             SideID = GetGlobalNonUniqueSideID(GetGlobalElemID(ElemID),currentIntersect%Side)
-            IF (Sideinfo_Shared(SIDE_ID,SideID).GT.0) THEN
-              flip=0
-            ELSE
-              flip = MOD(Sideinfo_Shared(SIDE_FLIP,SideID),10)
-            END IF
+            ! BezierControlPoints are now built in cell local system. Hence, sides have always the flip from the shared SideInfo
+!            IF (Sideinfo_Shared(SIDE_ID,SideID).GT.0) THEN
+!              flip = 0
+!            ELSE
+!              flip = MOD(Sideinfo_Shared(SIDE_FLIP,SideID),10)
+!            END IF
+            flip = Sideinfo_Shared(SIDE_FLIP,SideID)
+
             ! missing!!! : mapping from GlobalNonUnique to CNtotalsides
             CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,currentIntersect%Side,currentIntersect%Side &
                 ,PartTrajectory,lengthPartTrajectory,currentIntersect%xi,currentIntersect%eta,currentIntersect%alpha,iPart &
@@ -1185,6 +1189,7 @@ DO iPart=1,PDM%ParticleVecLength
        __STAMP__ &
        ,'iPart=. ',iPart)
     END IF
+
   END IF ! Part inside
 END  DO ! iPart=1,PDM%ParticleVecLength
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
@@ -1451,13 +1456,12 @@ DO iPart=1,PDM%ParticleVecLength
 
     ! relocate particle
     oldElemID = PEM%lastElement(iPart) ! this is not!  a possible elem
+
     ! get background mesh cell of particle
-    CellX = CEILING((PartState(1,iPart)-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    CellX = MAX(MIN(GEO%TFIBGMimax,CellX),GEO%TFIBGMimin) + 1
-    CellY = CEILING((PartState(2,iPart)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin) + 1
-    CellZ = CEILING((PartState(3,iPart)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin) + 1
+    ! FLOOR might give the wrong element if we are right on the edge
+    CellX = MAX(FLOOR((PartState(1,iPart)-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + 1
+    CellY = MAX(FLOOR((PartState(2,iPart)-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + 1
+    CellZ = MAX(FLOOR((PartState(3,iPart)-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + 1
 
     ! check all cells associated with this background mesh cell
     nBGMElems = FIBGM_nElems(CellX,CellY,CellZ)
@@ -1474,6 +1478,7 @@ DO iPart=1,PDM%ParticleVecLength
         IF (ElemID.EQ.-1) &
           CALL ABORT(__STAMP__,'Error during RefMapping: unable to find element associated with BGM element!')
 
+        ! oldElemID was previously checked and particle not found inside
         IF (ElemID.EQ.OldElemID) THEN
           Distance(iBGMElem) = -1.0
         ELSE
@@ -1541,8 +1546,6 @@ DO iPart=1,PDM%ParticleVecLength
         epsElement = MAXVAL(ElemEpsOneCell)
 #if defined(ROS) || defined(IMPA)
         TestElem = PEM%ElementN(iPart)
-#else
-        TestElem = PEM%Element(iPart)
 #endif
       ELSE
         epsElement = ElemEpsOneCell(TestElem)
@@ -1619,8 +1622,8 @@ DO iPart=1,PDM%ParticleVecLength
               __STAMP__ &
               ,'Particle not inside of Element, ipart',iPart)
         ELSE ! BCElem
-          IPWRITE(UNIT_stdOut,'(I0,A,X,I0)') ' fallback for particle', iPart
-          IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' particlepos            ', partstate(1:3,ipart)
+          IPWRITE(UNIT_stdOut,'(I0,A,X,I0,A,X,I0)')' Fallback for Particle ', iPart, ' in Element', TestElem
+          IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' ParticlePos          ' , partstate(1:3,iPart)
           Vec=PartState(1:3,iPart)-LastPartPos(1:3,iPart)
 !          IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' displacement /halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
           !CALL RefTrackFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart)
@@ -1840,15 +1843,20 @@ DO WHILE(DoTracing)
   ! track particle vector until the final particle position is achieved
   ! check if particle can intersect with current side
   DO iLocSide=firstSide,LastSide
-    IF (SideBCMetrics(BCSIDE_DISTANCE,ilocSide).GT.lengthPartTrajectory0) EXIT
+
+    ! TODO Side no longer sorted in SideBCMetrics
+    IF (SideBCMetrics(BCSIDE_DISTANCE,ilocSide).GT.lengthPartTrajectory0) CYCLE
 
     ! side potentially in range (halo_eps)
     SideID   = INT(SideBCMetrics(BCSIDE_SIDEID,ilocSide))
     locSideList(ilocSide) = ilocSide
 
-    ! TODO: is this still valid?
-    ! get correct flip, wrong for inner sides!!!
-!    flip  = 0
+    ! BezierControlPoints are now built in cell local system. Hence, sides have always the flip from the shared SideInfo
+!    IF (SideInfo_Shared(SIDE_ID,SideID).GT.0) THEN
+!      flip=0
+!    ELSE
+!      flip = MOD(Sideinfo_Shared(SIDE_FLIP,SideID),10)
+!    END IF
     flip  = SideInfo_Shared(SIDE_FLIP,SideID)
 
     ! double check
@@ -1905,8 +1913,7 @@ DO WHILE(DoTracing)
           CALL ComputeCurvedIntersection(      isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                         ,      xi(ilocSide),eta(ilocSide),PartID,     SideID)
       END SELECT
-!    IPWRITE(*,*) SideType(SideID),isHit,PartState(1:3,PartID),lastPartPos(1:3,PartID)
-!    IPWRITE(*,*) SideID,SideBCMetrics(5:7,SideID)
+
 #ifdef CODE_ANALYZE
       IF (PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank) THEN
         IF (PartID.EQ.PARTOUT) THEN
@@ -1946,6 +1953,7 @@ DO WHILE(DoTracing)
         ! get correct flip, wrong for inner sides!!!
 !        flip      = 0
         flip  = SideInfo_Shared(SIDE_FLIP,SideID)
+
         OldElemID = ElemID
         CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                    ,xi(hitlocSide),eta(hitlocSide),PartId,SideID,flip      &
@@ -2053,13 +2061,13 @@ REAL,INTENT(INOUT)                :: lengthPartTrajectory     !< length of parti
 ! LOCAL VARIABLES
 LOGICAL                           :: isHit
 INTEGER                           :: iMortar,nMortarElems
-INTEGER                           :: NbElemID,NbSideID
+INTEGER                           :: NbElemID,NbSideID,NbMortarID
 INTEGER                           :: iLocalSide
 INTEGER                           :: locFlip
 REAL                              :: locAlpha,locXi,locEta
 REAL                              :: n_loc(3)
 !===================================================================================================================================
-IF(SideInfo_Shared(SIDE_BCID,SideID).GT.0)THEN
+IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
   CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,ElemID,crossedBC &
                                                                  ,locSideID=hitLocSide)
   TrackInfo%CurrElem=ElemID
@@ -2068,13 +2076,16 @@ IF(SideInfo_Shared(SIDE_BCID,SideID).GT.0)THEN
 ELSE
   SELECT CASE(hitSideType)
   CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-    n_loc=SideNormVec(1:3,SideID)
+    n_loc = SideNormVec(1:3,SideID)
   CASE(BILINEAR)
     CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   CASE(CURVED)
     CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   END SELECT
-  IF(flip.NE.0) n_loc=-n_loc
+
+  ! BezierControlPoints are now built in cell local system. Hence, side always have flip=0 for intersection.
+  IF(flip.NE.0) n_loc = -n_loc
+  n_loc = -n_loc
   IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0) RETURN
 
   ! update particle element
@@ -2085,18 +2096,25 @@ ELSE
     nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
 
     DO iMortar = 1,nMortarElems
-      NbSideID = SideID + iMortar
-      NbElemID = SideInfo_Shared(SIDE_NBELEMID,nbSideID)
+      NbSideID = -SideInfo_Shared(SIDE_LOCALID,SideID + iMortar)
+      ! If small mortar side not defined, skip it for now, likely not inside the halo region (additional check is
+      ! performed after the MPI communication: ParticleInsideQuad3D_MortarMPI)
+      IF (NbSideID.LT.1) CYCLE
+
+      NbElemID = SideInfo_Shared(SIDE_ELEMID,nbSideID)
       ! If small mortar element not defined, skip it for now, likely not inside the halo region (additional check is
       ! performed after the MPI communication: ParticleInsideQuad3D_MortarMPI)
       IF (NbElemID.LT.1) CYCLE
-      NbSideID = ABS(SideInfo_Shared(SIDE_LOCALID,NbSideID))
-!      locFlip  =     SideInfo_Shared(SIDE_FLIP   ,NbSideID)
-      locFlip  = 0
+      ! BezierControlPoints are now built in cell local system. We are checking mortar sides, so everything is reversed
+      IF (SideInfo_Shared(SIDE_FLIP,NbSideID).EQ.0) THEN
+        locFlip = 1
+      ELSE
+        locFlip = 0
+      END IF
 
       SELECT CASE(SideType(NbSideID))
         CASE(PLANAR_RECT)
-          CALL ComputePlanarRectInterSection(  isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
+          CALL ComputePlanarRectIntersection(  isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
                                             ,  locXi,locEta,PartID,locFlip,NbSideID)
         CASE(BILINEAR,PLANAR_NONRECT)
           CALL ComputeBiLinearIntersection(    isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
@@ -2110,7 +2128,9 @@ ELSE
       END SELECT
 
       IF (isHit) THEN
-        ElemID = GetCNElemID(SideInfo_Shared(SIDE_NBELEMID,NbSideID))
+        ElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,NbSideID))
+        TrackInfo%CurrElem = ElemID
+        RETURN
       END IF
     END DO
 

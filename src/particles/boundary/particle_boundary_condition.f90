@@ -124,6 +124,7 @@ CASE(REFMAPPING,TRACING)
   ! it was inserted during surface flux and this routine shall not performed.
   ! Comparing the normal vector with the particle trajectory, if the particle trajectory is pointing inside the domain
   IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
+
 CASE(TRIATRACKING)
   CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
 END SELECT
@@ -423,10 +424,10 @@ ELSE
   IsAuxBC=.FALSE.
 END IF
 IF (IsAuxBC) THEN
-  WallVelo=PartAuxBC%WallVelo(1:3,AuxBCIdx)
+  WallVelo = PartAuxBC%WallVelo(1:3,AuxBCIdx)
 ELSE
-  WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-  locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+  WallVelo = PartBound%WallVelo(1:3,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+  locBCID  = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 
   IF(PRESENT(opt_Symmetry)) THEN
     Symmetry = opt_Symmetry
@@ -547,7 +548,7 @@ END IF !.NOT.IsAuxBC
 ! set particle position on face
 LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
 
-PartTrajectory(1:3)=PartTrajectory(1:3)-2.*DOT_PRODUCT(PartTrajectory(1:3),n_loc)*n_loc
+PartTrajectory(1:3)     = PartTrajectory(1:3)-2.*DOT_PRODUCT(PartTrajectory(1:3),n_loc)*n_loc
 PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*(lengthPartTrajectory - alpha)
 
 ! #if !defined(IMPA) &&  !defined(ROS)

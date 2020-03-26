@@ -33,9 +33,9 @@ INTERFACE FinalizeParticleSurfaces
   MODULE PROCEDURE FinalizeParticleSurfaces
 END INTERFACE
 
-INTERFACE GetBezierControlPoints3D
-  MODULE PROCEDURE GetBezierControlPoints3D
-END INTERFACE
+!INTERFACE GetBezierControlPoints3D
+!  MODULE PROCEDURE GetBezierControlPoints3D
+!END INTERFACE
 
 INTERFACE CalcNormAndTangTriangle
   MODULE PROCEDURE CalcNormAndTangTriangle
@@ -87,7 +87,9 @@ INTERFACE OutputBezierControlPoints
 END INTERFACE
 #endif /*CODE_ANALYZE*/
 
-PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, GetBezierControlPoints3D, GetSideSlabNormalsAndIntervals, &
+!PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, GetBezierControlPoints3D, GetSideSlabNormalsAndIntervals, &
+!        GetSideBoundingBox,GetElemSlabNormalsAndIntervals,GetBezierSampledAreas,EvaluateBezierPolynomialAndGradient
+PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, GetSideSlabNormalsAndIntervals, &
         GetSideBoundingBox,GetElemSlabNormalsAndIntervals,GetBezierSampledAreas,EvaluateBezierPolynomialAndGradient
 
 PUBLIC::CalcNormAndTangBilinear, CalcNormAndTangBezier, CalcNormAndTangTriangle
@@ -767,79 +769,79 @@ END IF
 END SUBROUTINE EvaluateBezierPolynomialAndGradient
 
 
-SUBROUTINE GetBezierControlPoints3D(XCL_NGeo,ElemID,ilocSide_In,SideID_In)
-!===================================================================================================================================
-! computes the nodes for Bezier Control Points for [P][I][C] [A]daptive [S]uper [S]ampled Surfaces [O]perations
-! the control points (coeffs for Bezier basis) are calculated using the change basis subroutine that interpolates the points
-! from the curved Lagrange basis geometry (pre-computed inverse of Vandermonde is required)
-! This version uses mapping, hence simplified to one loop
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Mesh_Vars,                ONLY:ElemToSide,NGeo,MortarSlave2MasterInfo,MortarType
-USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,sVdm_Bezier
-USE MOD_ChangeBasis,              ONLY:ChangeBasis2D
-USE MOD_Mappings,                 ONLY:CGNS_SideToVol2
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)          :: ElemID
-REAL,INTENT(IN)             :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo)
-INTEGER,INTENT(IN),OPTIONAL :: ilocSide_In
-INTEGER,INTENT(IN),OPTIONAL :: SideID_In
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                           :: SideID,ilocSide,flip
-INTEGER                           :: p,q,pq(2)
-REAL                              :: tmp(3,0:NGeo,0:NGeo)
-REAL                              :: tmp2(3,0:NGeo,0:NGeo)
-LOGICAL                           :: DoSide
-!===================================================================================================================================
-
-DO ilocSide=1,6
-  DoSide=.FALSE.
-  SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-  flip=ElemToSide(E2S_FLIP,ilocSide,ElemID)
-  IF(PRESENT(ilocSide_In))THEN
-    DoSide=.TRUE.
-    IF(ilocSide_In.NE.ilocSide) CYCLE
-    IF(.NOT.PRESENT(SideID_In)) CALL abort(&
-__STAMP__&
-,' Error in Input! SideID_In required! ')
-  END IF
-  !if flip=0, master side or Mortar side
-  IF(flip.EQ.0.OR.MortarType(1,SideID).GE.0.OR.MortarSlave2MasterInfo(SideID).NE.-1.OR.DoSide)THEN
-    IF(PRESENT(SideID_In)) SideID=SideID_In
-    SELECT CASE(iLocSide)
-    CASE(XI_MINUS)
-      tmp=XCL_NGeo(1:3 , 0    , :    , :   )
-    CASE(XI_PLUS)
-      tmp=XCL_NGeo(1:3 , NGeo , :    , :   )
-    CASE(ETA_MINUS)
-      tmp=XCL_NGeo(1:3 , :    , 0    , :   )
-    CASE(ETA_PLUS)
-      tmp=XCL_NGeo(1:3 , :    , NGeo , :   )
-    CASE(ZETA_MINUS)
-      tmp=XCL_NGeo(1:3 , :    , :    , 0   )
-    CASE(ZETA_PLUS)
-      tmp=XCL_NGeo(1:3 , :    , :    , NGeo)
-    END SELECT
-    CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,tmp,tmp2)
-    ! turn into right hand system of side
-    DO q=0,NGeo; DO p=0,NGeo
-      pq=CGNS_SideToVol2(NGeo,p,q,iLocSide)
-      ! Compute BezierControlPoints3D for sides in MASTER system
-      BezierControlPoints3D(1:3,p,q,SideID)=tmp2(1:3,pq(1),pq(2))
-    END DO; END DO ! p,q
-  END IF
-END DO ! ilocSide=1,6
-
-END SUBROUTINE GetBezierControlPoints3D
+!SUBROUTINE GetBezierControlPoints3D(XCL_NGeo,ElemID,ilocSide_In,SideID_In)
+!!===================================================================================================================================
+!! computes the nodes for Bezier Control Points for [P][I][C] [A]daptive [S]uper [S]ampled Surfaces [O]perations
+!! the control points (coeffs for Bezier basis) are calculated using the change basis subroutine that interpolates the points
+!! from the curved Lagrange basis geometry (pre-computed inverse of Vandermonde is required)
+!! This version uses mapping, hence simplified to one loop
+!!===================================================================================================================================
+!! MODULES
+!USE MOD_Globals
+!USE MOD_Preproc
+!USE MOD_Mesh_Vars,                ONLY:ElemToSide,NGeo,MortarSlave2MasterInfo,MortarType
+!USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,sVdm_Bezier
+!USE MOD_ChangeBasis,              ONLY:ChangeBasis2D
+!USE MOD_Mappings,                 ONLY:CGNS_SideToVol2
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!! INPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! INPUT VARIABLES
+!INTEGER,INTENT(IN)          :: ElemID
+!REAL,INTENT(IN)             :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo)
+!INTEGER,INTENT(IN),OPTIONAL :: ilocSide_In
+!INTEGER,INTENT(IN),OPTIONAL :: SideID_In
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER                           :: SideID,ilocSide,flip
+!INTEGER                           :: p,q,pq(2)
+!REAL                              :: tmp(3,0:NGeo,0:NGeo)
+!REAL                              :: tmp2(3,0:NGeo,0:NGeo)
+!LOGICAL                           :: DoSide
+!!===================================================================================================================================
+!
+!DO ilocSide=1,6
+!  DoSide=.FALSE.
+!  SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+!  flip=ElemToSide(E2S_FLIP,ilocSide,ElemID)
+!  IF(PRESENT(ilocSide_In))THEN
+!    DoSide=.TRUE.
+!    IF(ilocSide_In.NE.ilocSide) CYCLE
+!    IF(.NOT.PRESENT(SideID_In)) CALL abort(&
+!__STAMP__&
+!,' Error in Input! SideID_In required! ')
+!  END IF
+!  !if flip=0, master side or Mortar side
+!  IF(flip.EQ.0.OR.MortarType(1,SideID).GE.0.OR.MortarSlave2MasterInfo(SideID).NE.-1.OR.DoSide)THEN
+!    IF(PRESENT(SideID_In)) SideID=SideID_In
+!    SELECT CASE(iLocSide)
+!    CASE(XI_MINUS)
+!      tmp=XCL_NGeo(1:3 , 0    , :    , :   )
+!    CASE(XI_PLUS)
+!      tmp=XCL_NGeo(1:3 , NGeo , :    , :   )
+!    CASE(ETA_MINUS)
+!      tmp=XCL_NGeo(1:3 , :    , 0    , :   )
+!    CASE(ETA_PLUS)
+!      tmp=XCL_NGeo(1:3 , :    , NGeo , :   )
+!    CASE(ZETA_MINUS)
+!      tmp=XCL_NGeo(1:3 , :    , :    , 0   )
+!    CASE(ZETA_PLUS)
+!      tmp=XCL_NGeo(1:3 , :    , :    , NGeo)
+!    END SELECT
+!    CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,tmp,tmp2)
+!    ! turn into right hand system of side
+!    DO q=0,NGeo; DO p=0,NGeo
+!      pq=CGNS_SideToVol2(NGeo,p,q,iLocSide)
+!      ! Compute BezierControlPoints3D for sides in MASTER system
+!      BezierControlPoints3D(1:3,p,q,SideID)=tmp2(1:3,pq(1),pq(2))
+!    END DO; END DO ! p,q
+!  END IF
+!END DO ! ilocSide=1,6
+!
+!END SUBROUTINE GetBezierControlPoints3D
 
 
 
@@ -1033,7 +1035,7 @@ __STAMP__&
 ,'A bounding box (for sides) is negative!?. length*width*height.LT.0 ->',0,(l*w*h))
 END IF
 
-IF(ALMOSTZERO(h/SQRT(l*l+w*w+h*h)))THEN ! bounding box volume is approx zeros
+IF (ALMOSTZERO(h/SQRT(l*l+w*w+h*h))) THEN ! bounding box volume is approx zeros
   BoundingBoxIsEmpty=.TRUE.
 ELSE
   BoundingBoxIsEmpty=.FALSE.

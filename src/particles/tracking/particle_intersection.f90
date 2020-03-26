@@ -723,7 +723,7 @@ BiLinearCoeff(:,1) = 0.25*BaseVectors3(:,SideID)
 BiLinearCoeff(:,2) = 0.25*BaseVectors1(:,SideID)
 BiLinearCoeff(:,3) = 0.25*BaseVectors2(:,SideID)
 BiLinearCoeff(:,4) = 0.25*BaseVectors0(:,SideID)
-!print *, SideID, BaseVectors0(:,SideID)
+
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
     IF(PartID.EQ.PARTOUT)THEN
