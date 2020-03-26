@@ -3747,7 +3747,7 @@ DO iElem=firstElem,lastElem
     SideID = GetGlobalNonUniqueSideID(GetGlobalElemID(iElem),iLocSide)
     TrueSideID=SideID
     IF (SideInfo_Shared(SIDE_ID,SideID).GT.0) THEN
-      flip=0
+      flip = 0
     ELSE
       flip = MOD(Sideinfo_Shared(SIDE_FLIP,SideID),10)
     END IF
@@ -3852,7 +3852,7 @@ DO iElem=firstElem,lastElem
           SideType(TrueSideID)=CURVED
         END IF
       ELSE
-        IF(BoundingBoxIsEmpty_Shared(SideID))THEN
+        IF (BoundingBoxIsEmpty_Shared(SideID)) THEN
           v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
               -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
 
@@ -3879,12 +3879,16 @@ DO iElem=firstElem,lastElem
           v1=UNITVECTOR(BezierControlPoints_loc(:,0   ,NGeo)-BezierControlPoints_loc(:,0   ,0   ))
           v2=UNITVECTOR(BezierControlPoints_loc(:,NGeo,0   )-BezierControlPoints_loc(:,0   ,0   ))
           v3=UNITVECTOR(BezierControlPoints_loc(:,NGeo,NGeo)-BezierControlPoints_loc(:,0   ,NGeo))
-          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
-          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+!          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+!          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+          IF(DOT_PRODUCT(v1,v2).GT.1E-14) isRectangular=.FALSE.
+          IF(DOT_PRODUCT(v1,v3).GT.1E-14) isRectangular=.FALSE.
           IF(isRectangular)THEN
             v1=UNITVECTOR(BezierControlPoints_loc(:,NGeo,NGeo)-BezierControlPoints_loc(:,NGeo,0))
-            IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
-            IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+!            IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+!            IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+            IF(DOT_PRODUCT(v1,v2).GT.1E-14) isRectangular=.FALSE.
+            IF(DOT_PRODUCT(v1,v3).GT.1E-14) isRectangular=.FALSE.
           END IF
           IF(isRectangular)THEN
             SideType(TrueSideID)=PLANAR_RECT
@@ -4408,7 +4412,7 @@ DO iSide = firstSide,lastSide
   xi     = 0.
   ! TODO: BezierControlPoints are alloced with global side ID, so this SHOULD work. Breaks if we reduce the halo region
   CALL DeCasteljauInterpolation(NGeo,xi,SideID,origin)
-  SideBCMetrics(5:7,iSide) = origin(1)
+  SideBCMetrics(5:7,iSide) = origin(1:3)
 
   !> build side radius
   radiusMax = 0.
@@ -4424,7 +4428,7 @@ DO iSide = firstSide,lastSide
   !> build side distance
   origin(1:3) = ElemBaryNGeo_Shared(1:3,ElemID)
   vec(1:3)    = origin(1:3) - SideBCMetrics(5:7,iSide)
-  SideBCMetrics(iLocSide,iElem) = SQRT(DOT_PRODUCT(vec,vec))-ElemRadiusNGeo_Shared(ElemID)-SideBCMetrics(BCSIDE_RADIUS,iSide)
+  SideBCMetrics(BCSIDE_DISTANCE,iSide) = SQRT(DOT_PRODUCT(vec,vec))-ElemRadiusNGeo_Shared(ElemID)-SideBCMetrics(BCSIDE_RADIUS,iSide)
 END DO ! iSide
 
 #if USE_MPI
