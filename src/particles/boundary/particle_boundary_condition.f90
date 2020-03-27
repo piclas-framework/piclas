@@ -79,6 +79,12 @@ USE MOD_MPI_Shared_Vars
 #else
 USE MOD_Mesh_Vars
 #endif /* USE_MPI */
+#if CODE_ANALYZE
+USE MOD_Globals                     ,ONLY: myRank
+USE MOD_Mesh_Vars                   ,ONLY: NGeo
+USE MOD_Particle_Surfaces_Vars      ,ONLY: BezierControlPoints3D
+USE MOD_MPI_Shared_Vars             ,ONLY: ElemBaryNGeo_Shared
+#endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -97,6 +103,9 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 REAL                                 :: n_loc(1:3),RanNum
 INTEGER                              :: ReflectionIndex,iNode,iSide
 LOGICAL                              :: isSpeciesSwap,ElasticReflectionAtPorousBC
+#if CODE_ANALYZE
+REAL                                 :: v1(3),v2(3)
+#endif /* CODE_ANALYZE */
 !===================================================================================================================================
 
 IsSpeciesSwap=.FALSE.
@@ -118,6 +127,21 @@ CASE(REFMAPPING,TRACING)
   END SELECT
 
   IF(flip.NE.0) n_loc=-n_loc
+
+#if CODE_ANALYZE
+  ! check if normal vector points outwards
+  v1 = 0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)  &
+           + BezierControlPoints3D(:,NGeo,0   ,SideID)  &
+           + BezierControlPoints3D(:,0   ,NGeo,SideID)  &
+           + BezierControlPoints3D(:,NGeo,NGeo,SideID))
+  v2 = v1  - ElemBaryNGeo_Shared(:,ElemID)
+
+  IF (DOT_PRODUCT(v2,n_loc).LT.0) THEN
+    IPWRITE(UNIT_stdout,*) 'Obtained wrong side orientation from flip. flip:',flip,'PartID:',iPart
+    IPWRITE(UNIT_stdout,*) 'n_loc (flip)', n_loc,'n_loc (estimated):',v2
+    CALL ABORT(__STAMP__,'SideID',SideID)
+  END IF
+#endif /* CODE_ANALYZE */
 
   ! Inserted particles are "pushed" inside the domain and registered as passing through the BC side. If they are very close to the
   ! boundary (first if) than the normal vector is compared with the trajectory. If the particle is entering the domain from outside

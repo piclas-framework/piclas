@@ -272,28 +272,24 @@ CriticalParallelInSide=.FALSE.
 IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
 
 ! extension for periodic sides
-IF(.NOT.DoRefMapping)THEN
-  locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(1:3,PartID),NormVec)
-ELSE
-  locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(1:3,PartID),NormVec)
-END IF
+locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(1:3,PartID),NormVec)
 
-IF(CriticalParallelInSide)THEN ! particle parallel to side
-  IF(ALMOSTZERO(locSideDistance))THEN ! particle on/in side
-    IF(PRESENT(opt_CriticalParallelInSide)) opt_CriticalParallelInSide=.TRUE.
+IF (CriticalParallelInSide) THEN ! particle parallel to side
+  IF (ALMOSTZERO(locSideDistance)) THEN ! particle on/in side
+    IF (PRESENT(opt_CriticalParallelInSide)) opt_CriticalParallelInSide=.TRUE.
     ! move particle eps into interior
     alpha=-1.
     RETURN
   END IF
-  IF(PRESENT(opt_CriticalParallelInSide)) opt_CriticalParallelInSide=.FALSE.
+  IF (PRESENT(opt_CriticalParallelInSide)) opt_CriticalParallelInSide=.FALSE.
   alpha=-1.
   RETURN
 ELSE
-  IF(PRESENT(opt_CriticalParallelInSide)) opt_CriticalParallelInSide=.FALSE.
+  IF (PRESENT(opt_CriticalParallelInSide)) opt_CriticalParallelInSide=.FALSE.
   alpha=locSideDistance/coeffA
 END IF
 
-IF(locSideDistance.LT.-100*epsMach)THEN
+IF (locSideDistance.LT.-100*epsMach) THEN
   ! particle is located outside of element, THEREFORE, an intersection were not detected
   alpha = -1. ! here, alpha was set to zero? why?
   isHit = .FALSE.
@@ -310,19 +306,10 @@ IF((alphaNorm.GT.1.0) .OR.(alphaNorm.LT.-epsilontol))THEN
   RETURN
 END IF
 
-IF(.NOT.DoRefMapping)THEN
-  ! iSide_temp = SideID2PlanarSideID(SideID)
-  Inter1=LastPartPos(1:3,PartID)+alpha*PartTrajectory
-  P0 =-0.25*BaseVectors0(:,SideID)+Inter1
-  P1 = 0.25*BaseVectors1(:,SideID)
-  P2 = 0.25*BaseVectors2(:,SideID)
-ELSE
-  ! iSide_temp = SideID2PlanarSideID(SideID)
-  Inter1=LastPartPos(1:3,PartID)+alpha*PartTrajectory
-  P0 =-0.25*BaseVectors0(:,SideID)+Inter1
-  P1 = 0.25*BaseVectors1(:,SideID)
-  P2 = 0.25*BaseVectors2(:,SideID)
-END IF
+Inter1=LastPartPos(1:3,PartID)+alpha*PartTrajectory
+P0 =-0.25*BaseVectors0(:,SideID)+Inter1
+P1 = 0.25*BaseVectors1(:,SideID)
+P2 = 0.25*BaseVectors2(:,SideID)
 
 A1=P1(1)*P1(1)+P1(2)*P1(2)+P1(3)*P1(3)
 B1=P2(1)*P1(1)+P2(2)*P1(2)+P2(3)*P1(3)

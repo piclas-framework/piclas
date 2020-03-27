@@ -2061,13 +2061,16 @@ ELSE
 
 #if CODE_ANALYZE
   ! check if normal vector points outwards
-  v1 = 0.25*(BezierControlPoints3D(:,0   ,0   ,ElemID)  &
-           + BezierControlPoints3D(:,NGeo,0   ,ElemID)  &
-           + BezierControlPoints3D(:,0   ,NGeo,ElemID)  &
-           + BezierControlPoints3D(:,NGeo,NGeo,ElemID))
+  v1 = 0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)  &
+           + BezierControlPoints3D(:,NGeo,0   ,SideID)  &
+           + BezierControlPoints3D(:,0   ,NGeo,SideID)  &
+           + BezierControlPoints3D(:,NGeo,NGeo,SideID))
   v2 = v1  - ElemBaryNGeo_Shared(:,ElemID)
-  IF (flip.EQ.0) THEN
-    IF (DOT_PRODUCT(v2,n_loc).LT.0) CALL ABORT(__STAMP__,'Obtained wrong side orientation from side flip')
+
+  IF (DOT_PRODUCT(v2,n_loc).LT.0) THEN
+    IPWRITE(UNIT_stdout,*) 'Obtained wrong side orientation from flip. flip:',flip,'PartID:',PartID
+    IPWRITE(UNIT_stdout,*) 'n_loc (flip)', n_loc,'n_loc (estimated):',v2
+    CALL ABORT(__STAMP__,'SideID',SideID)
   END IF
 #endif /* CODE_ANALYZE */
   IF (DOT_PRODUCT(n_loc,PartTrajectory).LE.0) RETURN
@@ -2075,6 +2078,13 @@ ELSE
   ! update particle element
   ! check if the side is a big mortar side
   NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
+
+#if CODE_ANALYZE
+  WRITE(UNIT_stdout,'(30("-"))')
+  WRITE(UNIT_stdout,*) 'ElemID:',ElemID,'PartID',PartID,'SideID:',SideID,'Move rel. to Side:',DOT_PRODUCT(n_loc,PartTrajectory),'NbElemID:',NbElemID, 'PartElem (w/o refl.)', SinglePointToElement(PartState(1:3,PartID),doHalo=.TRUE.)
+  WRITE(UNIT_stdout,*) 'PartPos',PartState(1:3,PartID), 'PartVel:',PartState(4:6,PartID)
+#endif /* CODE_ANALYZE */
+
   IF (NbElemID.LT.0) THEN ! Mortar side
   nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
 
