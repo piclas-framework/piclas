@@ -2038,8 +2038,14 @@ nCurvedElemsTot          = nCurvedElems
 #endif /* USE_MPI */
 
 ! sanity check
-IF ((nComputeNodeTotalElems-nCurvedElemsTot).NE.nLinearElemsTot) &
-  CALL ABORT(__STAMP__, 'Error in particle mesh: lost elements while trying to dermine if elements are curved')
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /* USE_MPI */
+  IF ((nComputeNodeTotalElems-nCurvedElemsTot).NE.nLinearElemsTot) &
+    CALL ABORT(__STAMP__, 'Error in particle mesh: lost elements while trying to dermine if elements are curved')
+#if USE_MPI
+END IF
+#endif /* USE_MPI */
 
 
 SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-rectangular     faces: ', nPlanarRectangulartot

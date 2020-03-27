@@ -480,7 +480,7 @@ USE MOD_Particle_Intersection       ,ONLY: OutputTrajectory
 USE MOD_Particle_Tracking_Vars      ,ONLY: PartOut,MPIRankOut
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
 USE MOD_TimeDisc_Vars               ,ONLY: iStage
-USE MOD_Mesh_Vars                   ,ONLY: ElemBaryNGeo
+!USE MOD_Mesh_Vars                   ,ONLY: ElemBaryNGeo
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBElemPauseTime,LBElemSplitTime
@@ -592,7 +592,7 @@ DO iPart=1,PDM%ParticleVecLength
      IPWRITE(UNIT_stdOut,'(I0,A)') ' PartPos not inside of element! '
      IPWRITE(UNIT_stdOut,'(I0,A,I0)')  ' PartID         ', iPart
      IPWRITE(UNIT_stdOut,'(I0,A,I0)')  ' global ElemID  ', GetGlobalElemID(ElemID)
-     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' ElemBaryNGeo:      ', ElemBaryNGeo(1:3,ElemID)
+     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' ElemBaryNGeo:      ', ElemBaryNGeo_Shared(1:3,ElemID)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' LastPartPos:       ', LastPartPos(1:3,iPart)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartPos:           ', PartState(1:3,iPart)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartRefPos:        ', RefPos(1:3)
@@ -1147,7 +1147,7 @@ DO iPart=1,PDM%ParticleVecLength
      IPWRITE(UNIT_stdOut,'(I0,A)') ' PartPos not inside of element! '
      IPWRITE(UNIT_stdOut,'(I0,A,I0)')  ' PartID         ', iPart
      IPWRITE(UNIT_stdOut,'(I0,A,I0)')  ' gloabal ElemID ', GetGlobalElemID(ElemID)
-     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' ElemBaryNGeo:      ', ElemBaryNGeo(1:3,ElemID)
+     IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' ElemBaryNGeo:      ', ElemBaryNGeo_Shared(1:3,ElemID)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' LastPartPos:       ', LastPartPos(1:3,iPart)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartPos:           ', PartState(1:3,iPart)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,ES25.14E3))') ' PartRefPos:        ', RefPos(1:3)
@@ -1248,7 +1248,7 @@ SUBROUTINE ParticleRefTracking()
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars              ,ONLY: OffSetElem,useCurveds,NGeo,ElemBaryNGeo
+USE MOD_Mesh_Vars              ,ONLY: OffSetElem,useCurveds,NGeo
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,BCElem,ElemEpsOneCell
@@ -1261,6 +1261,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: nTracks,Distance,ListDistance,CartesianPer
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,LastPartPos,PartSpecies
 USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
+USE MOD_MPI_Shared_Vars        ,ONLY: ElemBaryNGeo_Shared
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
 #endif /*USE_MPI*/
@@ -1451,9 +1452,9 @@ DO iPart=1,PDM%ParticleVecLength
         IF (ElemID.EQ.OldElemID) THEN
           Distance(iBGMElem) = -1.0
         ELSE
-          Distance(iBGMElem) = ( (PartState(1,iPart)-ElemBaryNGeo(1,ElemID))*(PartState(1,iPart)-ElemBaryNGeo(1,ElemID)) &
-                               + (PartState(2,iPart)-ElemBaryNGeo(2,ElemID))*(PartState(2,iPart)-ElemBaryNGeo(2,ElemID)) &
-                               + (PartState(3,iPart)-ElemBaryNGeo(3,ElemID))*(PartState(3,iPart)-ElemBaryNGeo(3,ElemID)))
+          Distance(iBGMElem) = ( (PartState(1,iPart)-ElemBaryNGeo_Shared(1,ElemID))*(PartState(1,iPart)-ElemBaryNGeo_Shared(1,ElemID)) &
+                               + (PartState(2,iPart)-ElemBaryNGeo_Shared(2,ElemID))*(PartState(2,iPart)-ElemBaryNGeo_Shared(2,ElemID)) &
+                               + (PartState(3,iPart)-ElemBaryNGeo_Shared(3,ElemID))*(PartState(3,iPart)-ElemBaryNGeo_Shared(3,ElemID)))
 
           IF(Distance(iBGMElem).GT.ElemRadius2NGeo(ElemID))THEN
             Distance(iBGMElem) = -1.0
@@ -2479,7 +2480,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
-USE MOD_Mesh_Vars,                   ONLY:ElemBaryNGeo
+!USE MOD_Mesh_Vars,                   ONLY:ElemBaryNGeo
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
 USE MOD_Utils,                       ONLY:InsertionSort
@@ -2490,6 +2491,9 @@ USE MOD_Particle_INtersection,       ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Vars,               ONLY:PartPosRef
 USE MOD_Eval_xyz,                    ONLY:TensorProductInterpolation
 USE MOD_Mesh_Vars,                   ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2517,7 +2521,7 @@ tmpVec=PartTrajectory
 
 LastPartPos(1:3,PartID)=PartState(1:3,PartID)
 !PartState(1:3,PartID)=ElemBaryNGeo(:,ElemID)
-LastPartPos(1:3,PartID)=ElemBaryNGeo(:,ElemID)
+LastPartPos(1:3,PartID)=ElemBaryNGeo_Shared(:,ElemID)
 
 PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
@@ -3017,7 +3021,7 @@ SUBROUTINE ParticleSanityCheck(PartID)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Mesh_Vars,              ONLY:offsetelem,ElemBaryNGeo
+USE MOD_Mesh_Vars,              ONLY:offsetelem
 USE MOD_Particle_Localization,  ONLY:PartInElemCheck
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
@@ -3028,6 +3032,7 @@ USE MOD_Particle_Vars,          ONLY:PartIsImplicit,PartDtFrac
 #endif /*IMPA*/
 #if USE_MPI
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
+USE MOD_MPI_Shared_Vars,        ONLY:ElemBaryNGeo_Shared
 USE MOD_MPI_Vars,               ONLY:offsetElemMPI
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -3103,7 +3108,7 @@ IF(.NOT.DoRefMapping)THEN
                                                     + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
 #endif /*USE_MPI*/
     END IF
-    IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' ElemBaryNGeo:      ', ElemBaryNGeo(1:3,ElemID)
+    IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' ElemBaryNGeo:      ', ElemBaryNGeo_Shared(1:3,ElemID)
     IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' IntersectionPoint: ', IntersectionPoint
     IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' LastPartPos:       ', LastPartPos(1:3,PartID)
     IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartPos:           ', PartState(1:3,PartID)
