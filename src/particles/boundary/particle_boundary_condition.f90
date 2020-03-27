@@ -61,7 +61,7 @@ USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars            ,ONLY: PDM, UseCircularInflow
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
-USE MOD_Particle_Mesh_Vars       ,ONLY: PartBCSideList
+!USE MOD_Particle_Mesh_Vars       ,ONLY: PartBCSideList
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC,DoBoundaryParticleOutput
 USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
@@ -101,7 +101,8 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
-INTEGER                              :: ReflectionIndex,iNode,iSide
+INTEGER                              :: ReflectionIndex
+!INTEGER                              :: iNode,iSide
 LOGICAL                              :: isSpeciesSwap,ElasticReflectionAtPorousBC
 #if CODE_ANALYZE
 REAL                                 :: v1(3),v2(3)
@@ -644,7 +645,7 @@ USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact, GetWallTemperature
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, PartSideToElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: PartSideToElem
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry2D

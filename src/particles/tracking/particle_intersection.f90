@@ -67,7 +67,7 @@ SUBROUTINE IntersectionWithWall(PartTrajectory,alpha,iPart,iLocSide,Element,TriN
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars,          ONLY : lastPartPos,PartState
-USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+!USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
 #endif
@@ -203,7 +203,6 @@ USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,epsilontol,SideDistance
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2
-USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
@@ -661,7 +660,7 @@ SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory
 USE MOD_Globals
 USE MOD_Utils                  ,ONLY: QuadraticSolver
 USE MOD_Particle_Vars          ,ONLY: LastPartPos
-USE MOD_Mesh_Vars              ,ONLY: nBCSides,nSides
+!USE MOD_Mesh_Vars              ,ONLY: nBCSides,nSides
 !USE MOD_Particle_Surfaces_Vars  ,ONLY: Beziercliphit
 USE MOD_Particle_Surfaces_Vars ,ONLY: BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear

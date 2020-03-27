@@ -88,10 +88,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
-USE MOD_Particle_Mesh_Vars          ,ONLY: PartElemToSide, PartSideToElem, PartSideToElem, PartElemToElemAndSide
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts, TrackInfo
-USE MOD_Mesh_Vars                   ,ONLY: MortarType
-USE MOD_Mesh_Vars                   ,ONLY: BC
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
 USE MOD_Particle_Intersection       ,ONLY: IntersectionWithWall
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
@@ -118,7 +115,7 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                          :: doParticle
 LOGICAL                          :: doPartInExists
 #endif
-INTEGER                          :: i, NblocSideID, NbElemID, ind, nbSideID, nMortarElems, SideIDMortar, BCType
+INTEGER                          :: i, NblocSideID, NbElemID, ind, nbSideID, nMortarElems,BCType
 INTEGER                          :: ElemID,flip,OldElemID,nlocSides
 INTEGER                          :: LocalSide
 INTEGER                          :: NrOfThroughSides, ind2
@@ -460,9 +457,10 @@ USE MOD_Particle_Mesh_Vars          ,ONLY: ElemRadiusNGeo,ElemHasAuxBCs!,PartEle
 USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
-USE MOD_Particle_Mesh               ,ONLY: PartInElemCheck, GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh               ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_tools         ,ONLY: GetGlobalElemID
 USE MOD_Particle_Localization       ,ONLY: LocateParticleInElement
+USE MOD_Particle_Localization       ,ONLY: PartInElemCheck
 USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
@@ -509,7 +507,7 @@ INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem,iAuxBC
 INTEGER                       :: ilocSide,SideID
 LOGICAL                       :: dolocSide(1:6)
 LOGICAL                       :: PartisDone,foundHit,markTol,crossedBC,SwitchedElement,isCriticalParallelInFace
-REAL                          :: localpha,xi,eta,refpos(1:3)
+REAL                          :: localpha,xi,eta
 REAL                          :: locAlphaSphere
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL                       :: onlyMacroPart
@@ -520,6 +518,7 @@ REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 LOGICAL                       :: moveList, PartDoubleCheck
 #ifdef CODE_ANALYZE
+REAL                          :: refpos(1:3)
 INTEGER                       :: nIntersections
 #endif /*CODE_ANALYZE*/
 ! intersection info list
@@ -923,7 +922,6 @@ DO iPart=1,PDM%ParticleVecLength
                                        , doLocSide                    &
                                        , flip                         &
                                        , currentIntersect%Side        &
-                                       , currentIntersect%Side        &
                                        , PartTrajectory               &
                                        , lengthPartTrajectory         &
                                        , currentIntersect%xi          &
@@ -1252,15 +1250,16 @@ USE MOD_Globals
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars              ,ONLY: OffSetElem,useCurveds,NGeo,ElemBaryNGeo
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
-USE MOD_Particle_Mesh          ,ONLY: PartInElemCheck
-USE MOD_Particle_Mesh_Vars     ,ONLY: Geo,BCElem,ElemEpsOneCell
+USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,BCElem,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides,FIBGM_nElems,FIBGM_Element,FIBGM_offsetElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems,FIBGM_Element,FIBGM_offsetElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps2
 USE MOD_Particle_Tracking_Vars ,ONLY: nTracks,Distance,ListDistance,CartesianPeriodic
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,LastPartPos,PartSpecies
-USE MOD_Utils                  ,ONLY: BubbleSortID,InsertionSort
+USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
@@ -1727,11 +1726,10 @@ USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
-USE MOD_Particle_Mesh_Vars          ,ONLY: PartBCSideList
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideBCMetrics,ElemToBCSides
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
-USE MOD_Particle_Mesh_Vars          ,ONLY: BCElem,GEO,ElemRadiusNGeo
-USE MOD_Utils                       ,ONLY: BubbleSortID,InsertionSort
+USE MOD_Particle_Mesh_Vars          ,ONLY: GEO,ElemRadiusNGeo
+USE MOD_Utils                       ,ONLY: InsertionSort
 USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
@@ -1761,7 +1759,7 @@ REAL,INTENT(INOUT)            :: lengthPartTrajectory0
 INTEGER                       :: ilocSide,SideID, locSideList(firstSide:lastSide), hitlocSide
 LOGICAL                       :: ishit
 REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
-INTEGER                       :: nInter,flip,BCSideID,OldElemID
+INTEGER                       :: nInter,flip,OldElemID
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL                       :: DoTracing,PeriMoved,Reflected
 REAL                          :: alphaOld
@@ -1978,7 +1976,7 @@ END DO
 END SUBROUTINE ParticleBCTracking
 
 
-SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
+SUBROUTINE SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,PartTrajectory,lengthPartTrajectory &
                                ,xi,eta,alpha,PartID,SideID,hitSideType,ElemID)
 !===================================================================================================================================
 !> Use only for TrackingMethod=TRACING
@@ -2005,7 +2003,7 @@ USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
 USE MOD_Particle_Tracking_Vars      ,ONLY: TrackInfo
 USE MOD_Particle_Vars               ,ONLY: PDM
 #if USE_MPI
-USE MOD_MPI_Shared_Vars             ,ONLY: SideInfo_Shared,ElemInfo_Shared
+USE MOD_MPI_Shared_Vars             ,ONLY: SideInfo_Shared
 #endif /* USE_MPI */
 #if CODE_ANALYZE
 USE MOD_Mesh_Vars                   ,ONLY: NGeo
@@ -2021,7 +2019,6 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)                :: PartID                   !< Index of Considered Particle
 INTEGER,INTENT(IN)                :: SideID                   !< SideID particle intersected with
 INTEGER,INTENT(IN)                :: hitlocSide               !< local side of considered element where intersection occured
-INTEGER,INTENT(IN)                :: ilocSide                 !< local side index for SideID
 INTEGER,INTENT(IN)                :: hitSideType              !< type of SideID (planar,bilinear,...)
 INTEGER,INTENT(IN)                :: flip                     !< flip of SideID
 REAL,INTENT(INOUT)                :: Xi                       !<
@@ -2039,7 +2036,7 @@ REAL,INTENT(INOUT)                :: lengthPartTrajectory     !< length of parti
 ! LOCAL VARIABLES
 LOGICAL                           :: isHit
 INTEGER                           :: iMortar,nMortarElems
-INTEGER                           :: NbElemID,NbSideID,NbMortarID
+INTEGER                           :: NbElemID,NbSideID
 INTEGER                           :: iLocalSide
 INTEGER                           :: locFlip
 REAL                              :: locAlpha,locXi,locEta
@@ -2485,7 +2482,7 @@ USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 USE MOD_Mesh_Vars,                   ONLY:ElemBaryNGeo
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
-USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
+USE MOD_Utils,                       ONLY:InsertionSort
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
@@ -2621,7 +2618,6 @@ SUBROUTINE ParticleThroughSideCheck3DFast(PartID,PartTrajectory,iLocSide,Element
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars
-USE MOD_Particle_Mesh_Vars, ONLY : GEO
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
 #endif
@@ -2728,7 +2724,6 @@ SUBROUTINE ParticleThroughSideLastPosCheck(i,iLocSide,Element,InElementCheck,Tri
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars
-USE MOD_Particle_Mesh_Vars,  ONLY : GEO
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
 #endif
@@ -3022,11 +3017,12 @@ SUBROUTINE ParticleSanityCheck(PartID)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars,          ONLY:PEM,PDM,LastPartPos,PartState
+USE MOD_Mesh_Vars,              ONLY:offsetelem,ElemBaryNGeo
+USE MOD_Particle_Localization,  ONLY:PartInElemCheck
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-USE MOD_TimeDisc_Vars,          ONLY:iStage
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
-USE MOD_Particle_Mesh,          ONLY:PartInElemCheck
+USE MOD_Particle_Vars,          ONLY:PEM,PDM,LastPartPos,PartState
+USE MOD_TimeDisc_Vars,          ONLY:iStage
 #ifdef IMPA
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit,PartDtFrac
 #endif /*IMPA*/
@@ -3034,7 +3030,6 @@ USE MOD_Particle_Vars,          ONLY:PartIsImplicit,PartDtFrac
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
 USE MOD_MPI_Vars,               ONLY:offsetElemMPI
 #endif /*USE_MPI*/
-USE MOD_Mesh_Vars,              ONLY:offsetelem,ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

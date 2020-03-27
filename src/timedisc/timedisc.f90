@@ -302,7 +302,7 @@ USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceV
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 #ifdef PARTICLES
-USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
+USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_HDF5_Output_Tools      ,ONLY: WriteIMDStateToHDF5
 #else
 USE MOD_AnalyzeField           ,ONLY: AnalyzeField
@@ -747,7 +747,7 @@ USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
-USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
+USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
@@ -1918,7 +1918,7 @@ USE MOD_Newton                 ,ONLY: ImplicitNorm,FullNewton
 #ifdef PARTICLES
 USE MOD_TimeDisc_Vars          ,ONLY: RK_fillSF
 USE MOD_Equation_Vars          ,ONLY: c2_inv
-USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
+USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_PICDepo_Vars           ,ONLY: PartSource,DoDeposition
 USE MOD_LinearSolver_Vars      ,ONLY: ExplicitPartSource
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
@@ -2837,7 +2837,7 @@ USE MOD_Equation_Vars          ,ONLY: c2_inv
 USE MOD_LinearOperator         ,ONLY: PartMatrixVector, PartVectorDotProduct
 USE MOD_ParticleSolver         ,ONLY: Particle_GMRES
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK,DoFieldUpdate
-USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
+USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_Particle_Vars          ,ONLY: PartLorentzType,doParticleMerge,PartDtFrac,PartStateN,PartStage,PartQ &
     ,DoSurfaceFlux,PEM,PDM,Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
@@ -4471,7 +4471,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
 USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif
-USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
+USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking

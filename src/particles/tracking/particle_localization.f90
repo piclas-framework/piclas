@@ -32,7 +32,18 @@ INTERFACE LocateParticleInElement
   MODULE PROCEDURE LocateParticleInElement
 END INTERFACE
 
-PUBLIC :: SinglePointToElement,LocateParticleInElement
+INTERFACE PartInElemCheck
+  MODULE PROCEDURE PartInElemCheck
+END INTERFACE
+
+INTERFACE CountPartsPerElem
+  MODULE PROCEDURE CountPartsPerElem
+END INTERFACE
+
+PUBLIC:: SinglePointToElement
+PUBLIC:: LocateParticleInElement
+PUBLIC:: PartInElemCheck
+PUBLIC:: CountPartsPerElem
 
 CONTAINS
 
@@ -173,5 +184,225 @@ END ASSOCIATE
 
 END FUNCTION SinglePointToElement
 
+
+SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_Opt, &
+#ifdef CODE_ANALYZE
+                           Sanity_Opt,Tol_Opt,CodeAnalyze_Opt)
+#else
+                           Tol_Opt)
+#endif /*CODE_ANALYZE*/
+!===================================================================================================================================
+! Checks if particle is in Element
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars              ,ONLY: ElemBaryNGeo
+USE MOD_Particle_Intersection  ,ONLY: ComputePlanarRectIntersection
+USE MOD_Particle_Intersection  ,ONLY: ComputePlanarCurvedIntersection
+USE MOD_Particle_Intersection  ,ONLY: ComputeBiLinearIntersection
+USE MOD_Particle_Intersection  ,ONLY: ComputeCurvedIntersection
+USE MOD_Particle_Mesh          ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Surfaces_Vars ,ONLY: SideType,SideNormVec
+USE MOD_Particle_Vars          ,ONLY: LastPartPos
+#ifdef CODE_ANALYZE
+USE MOD_Globals                ,ONLY: MyRank,UNIT_stdout
+USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
+USE MOD_Particle_Surfaces      ,ONLY: OutputBezierControlPoints
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+USE MOD_Particle_Intersection  ,ONLY: OutputTrajectory
+#endif /*CODE_ANALYZE*/
+#if USE_MPI
+USE MOD_MPI_Shared_Vars        ,ONLY: SideInfo_Shared
+#else
+USE MOD_Mesh_Vars              ,ONLY: SideInfo_Shared
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                       :: ElemID,PartID
+REAL,INTENT(IN)                          :: PartPos_In(1:3)
+#ifdef CODE_ANALYZE
+LOGICAL,INTENT(IN),OPTIONAL              :: CodeAnalyze_Opt
+LOGICAL,INTENT(IN),OPTIONAL              :: Sanity_Opt
+#endif /*CODE_ANALYZE*/
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)                      :: FoundInElem
+REAL,INTENT(OUT),OPTIONAL                :: IntersectPoint_Opt(1:3)
+REAL,INTENT(OUT),OPTIONAL                :: Tol_Opt
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                  :: ilocSide,flip,SideID
+REAL                                     :: PartTrajectory(1:3),NormVec(1:3)
+REAL                                     :: lengthPartTrajectory,PartPos(1:3),LastPosTmp(1:3)
+LOGICAL                                  :: isHit
+REAL                                     :: alpha,eta,xi,IntersectPoint(1:3)
+!===================================================================================================================================
+
+IF(PRESENT(tol_Opt)) tol_Opt=-1.
+! virtual move to element barycenter
+LastPosTmp(1:3) =LastPartPos(1:3,PartID)
+LastPartPos(1:3,PartID) =ElemBaryNGeo(1:3,ElemID)
+PartPos(1:3) =PartPos_In(1:3)
+
+PartTrajectory=PartPos - LastPartPos(1:3,PartID)
+lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                         +PartTrajectory(2)*PartTrajectory(2) &
+                         +PartTrajectory(3)*PartTrajectory(3) )
+
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      IPWRITE(UNIT_stdout,*) ' --------------------------------------------- '
+      IPWRITE(UNIT_stdout,*) ' PartInElemCheck '
+      CALL OutputTrajectory(PartID,PartPos,PartTrajectory,lengthPartTrajectory)
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+
+IF(ALMOSTZERO(lengthPartTrajectory))THEN
+  FoundInElem =.TRUE.
+  LastPartPos(1:3,PartID) = LastPosTmp(1:3)
+  ! bugfix by Tilman
+  RETURN
+END IF
+PartTrajectory=PartTrajectory/lengthPartTrajectory
+isHit=.FALSE.
+alpha=-1.
+DO ilocSide=1,6
+
+  SideID = GetGlobalNonUniqueSideID(ElemID,iLocSide)
+  flip   = SideInfo_Shared(SIDE_FLIP,SideID)
+
+  SELECT CASE(SideType(SideID))
+  CASE(PLANAR_RECT)
+    CALL ComputePlanarRectIntersection(  ishit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,flip,SideID)
+  CASE(PLANAR_CURVED)
+    CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,flip,SideID)
+  CASE(BILINEAR,PLANAR_NONRECT)
+      CALL ComputeBiLinearIntersection(  isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,     SideID,ElemCheck_Opt=.TRUE.)
+  CASE(CURVED)
+    CALL ComputeCurvedIntersection(      isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,     SideID,ElemCheck_Opt=.TRUE.)
+  END SELECT
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(15("="))')
+      WRITE(UNIT_stdout,'(A)') '     | Output after compute intersection (PartInElemCheck): '
+      WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(SideID),' | SideID: ',SideID,'| Hit: ',isHit
+      WRITE(UNIT_stdout,'(2(A,G0))')  '     | LengthPT: ',LengthPartTrajectory,' | Alpha: ',Alpha
+      WRITE(UNIT_stdout,'(A,2(X,G0))') '     | Intersection xi/eta: ',xi,eta
+    END IF
+  END IF
+  IF(PRESENT(Sanity_Opt))THEN
+    IF(Sanity_Opt)THEN
+      IF(alpha.GT.-1)THEN
+        ! alpha is going from barycenter to point
+        ! here, the tolerance for the ratio alpha/LengthPartTrajectory for tracing with element-corners is determined.
+        IF(PRESENT(tol_Opt)) tol_Opt=MAX(ABS(1.-alpha/LengthPartTrajectory),tol_Opt)
+        ! mark element as trouble element if rel. tol from alpha/LengthPartTrajectory to 1 > 1e-4
+        ! tolerance 1e-4 is from ANSA_BOX grid (experimental, arbitrary)
+        IF(ALMOSTEQUALRELATIVE(alpha/LengthPartTrajectory,1.,0.002)) THEN
+          alpha=-1
+        ELSE
+          print*,'alpha',alpha,LengthPartTrajectory,alpha/LengthPartTrajectory,ABS(1.-alpha/LengthPartTrajectory),tol_Opt
+        END IF
+      END IF
+    END IF
+  END IF
+  ! Dirty fix for PartInElemCheck if Lastpartpos is almost on side (tolerance issues)
+  IF(PRESENT(CodeAnalyze_Opt))THEN
+    IF(CodeAnalyze_Opt)THEN
+      IF((alpha)/LengthPartTrajectory.GT.0.9)THEN
+        alpha = -1.0
+      END IF
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+  IF(alpha.GT.-1)THEN
+    SELECT CASE(SideType(SideID))
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+      NormVec=SideNormVec(1:3,SideID)
+    CASE(BILINEAR)
+      CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
+    CASE(CURVED)
+      CALL CalcNormAndTangBezier(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
+    END SELECT
+    IF(flip.NE.0) NormVec=-NormVec
+    IntersectPoint=LastPartPos(1:3,PartID)+alpha*PartTrajectory
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,*) '     | alpha          ',alpha
+      WRITE(UNIT_stdout,*) '     | Normal vector  ',NormVec
+      WRITE(UNIT_stdout,*) '     | PartTrajectory ',PartTrajectory
+      WRITE(UNIT_stdout,*) '     | Dotprod        ',DOT_PRODUCT(NormVec,PartTrajectory)
+      WRITE(UNIT_stdout,*) '     | Point 2        ', LastPartPos(1:3,PartID)+alpha*PartTrajectory+NormVec
+      WRITE(UNIT_stdout,*) '     | Beziercontrolpoints3d-x'
+      CALL OutputBezierControlPoints(BezierControlPoints3D_in=BezierControlPoints3D(1:3,:,:,SideID))
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+
+    IF(DOT_PRODUCT(NormVec,PartTrajectory).LT.0.)THEN
+      alpha=-1.0
+    ELSE
+      EXIT
+    END IF
+  END IF
+END DO ! ilocSide
+
+FoundInElem=.TRUE.
+
+IF(PRESENT(IntersectPoint_Opt)) IntersectPoint_Opt=0.
+IF(alpha.GT.-1) THEN
+  FoundInElem=.FALSE.
+  IF(PRESENT(IntersectPoint_Opt)) IntersectPoint_Opt=IntersectPoint
+END IF
+
+LastPartPos(1:3,PartID) = LastPosTmp(1:3)
+
+END SUBROUTINE PartInElemCheck
+
+
+SUBROUTINE CountPartsPerElem(ResetNumberOfParticles)
+!===================================================================================================================================
+! count number of particles in element
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_LoadBalance_Vars ,ONLY: nPartsPerElem
+USE MOD_Particle_Vars    ,ONLY: PDM,PEM
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN) :: ResetNumberOfParticles
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iPart, ElemID
+!===================================================================================================================================
+! DO NOT NULL this here, if e.g. this routine is called in between RK-stages in which particles are created
+IF(ResetNumberOfParticles)THEN
+  nPartsPerElem=0
+END IF
+! loop over all particles and add them up
+DO iPart=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart))THEN
+    ElemID = PEM%Element(iPart)
+    IF(ElemID.LE.PP_nElems)THEN
+      nPartsPerElem(ElemID)=nPartsPerElem(ElemID)+1
+    END IF
+  END IF
+END DO ! iPart=1,PDM%ParticleVecLength
+
+END SUBROUTINE CountPartsPerElem
 
 END MODULE MOD_Particle_Localization

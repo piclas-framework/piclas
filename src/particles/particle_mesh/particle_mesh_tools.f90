@@ -183,10 +183,12 @@ SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO,PartElemToSide,PartElemToElemAndSide
-USE MOD_Mesh_Vars             ,ONLY: MortarType
 #if USE_MPI
-USE MOD_MPI_Shared_Vars
+USE MOD_MPI_Shared_Vars       ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+USE MOD_MPI_Shared_Vars       ,ONLY :ConcaveElemSide_Shared,ElemSideNodeID_Shared
+#else
+USE MOD_Mesh_Vars             ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+USE MOD_Mesh_Vars             ,ONLY :ConcaveElemSide_Shared,ElemSideNodeID_Shared
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -322,10 +324,12 @@ PURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
 !> after it was determined that the particle is not in the concave part but in the convex part of the element.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO, PartElemToSide
-USE MOD_Mesh_Vars             ,ONLY: MortarType
 #if USE_MPI
-USE MOD_MPI_Shared_Vars
+USE MOD_MPI_Shared_Vars       ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+USE MOD_MPI_Shared_Vars       ,ONLY :ConcaveElemSide_Shared,ElemSideNodeID_Shared
+#else
+USE MOD_Mesh_Vars             ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+USE MOD_Mesh_Vars             ,ONLY :ConcaveElemSide_Shared,ElemSideNodeID_Shared
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
