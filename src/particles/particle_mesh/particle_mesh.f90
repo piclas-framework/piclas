@@ -3608,7 +3608,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: XCL_NGeo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemCurved
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+!USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Vars          ,ONLY: PartMeshHasPeriodicBCs
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
@@ -3622,7 +3622,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: iSide,ilocSide,SideID,TrueSideID,BCSideID,flip
+INTEGER                                  :: iSide,ilocSide,SideID,BCSideID,flip
 INTEGER                                  :: iElem,firstElem,lastElem
 REAL,DIMENSION(1:3)                      :: v1,v2,v3
 LOGICAL,ALLOCATABLE                      :: SideIsDone(:)
@@ -3745,12 +3745,15 @@ DO iElem=firstElem,lastElem
   ! b) use curved information to decide side type
   DO ilocSide=1,6
     SideID = GetGlobalNonUniqueSideID(GetGlobalElemID(iElem),iLocSide)
-    TrueSideID=SideID
-    IF (SideInfo_Shared(SIDE_ID,SideID).GT.0) THEN
-      flip = 0
-    ELSE
-      flip = MOD(Sideinfo_Shared(SIDE_FLIP,SideID),10)
-    END IF
+
+    ! Why were only flips LT. 0 considered? All flips are equal!
+!    IF (SideInfo_Shared(SIDE_ID,SideID).GT.0) THEN
+!      flip = 0
+!    ELSE
+!      flip = MOD(Sideinfo_Shared(SIDE_FLIP,SideID),10)
+!    END IF
+    flip = Sideinfo_Shared(SIDE_FLIP,SideID)
+
     IF(.NOT.ElemCurved(iElem))THEN
       BezierControlPoints_loc(1:3,0:NGeo,0:NGeo) = BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)
       ! linear element
@@ -3760,7 +3763,7 @@ DO iElem=firstElem,lastElem
 
         v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
             +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
-        SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2)
+        SideNormVec(:,SideID) = CROSSNORM(v1,v2)
         v1=0.25*(BezierControlPoints_loc(:,0,0      )     &
                 +BezierControlPoints_loc(:,NGeo,0   )  &
                 +BezierControlPoints_loc(:,0,NGeo   )  &
@@ -3768,14 +3771,11 @@ DO iElem=firstElem,lastElem
         ! check if normal vector points outwards
         v2=v1-ElemBaryNGeo_Shared(:,iElem)
         IF(flip.EQ.0)THEN
-          IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).LT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
-        !ELSE IF(flip.EQ.-1)THEN
-        !  SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
-        !  PartElemToSide(E2S_FLIP,ilocSide,iElem) = 0
+          IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).LT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
         ELSE
-          IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).GT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
+          IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
         END IF
-        SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
+        SideDistance(SideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
         ! check if it is rectangular
         isRectangular=.TRUE.
         v1=UNITVECTOR(BezierControlPoints_loc(:,0   ,NGeo)-BezierControlPoints_loc(:,0   ,0   ))
@@ -3789,17 +3789,17 @@ DO iElem=firstElem,lastElem
           IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
         END IF
         IF(isRectangular)THEN
-          SideType(TrueSideID)=PLANAR_RECT
+          SideType(SideID)=PLANAR_RECT
         ELSE
-          SideType(TrueSideID)=PLANAR_NONRECT
+          SideType(SideID)=PLANAR_NONRECT
         END IF
       ELSE
         v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
             -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
         v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
             +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
-        SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
-        SideType(TrueSideID)=BILINEAR
+        SideNormVec(:,SideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
+        SideType(SideID)=BILINEAR
       END IF
     ELSE
       ! possible curved face
@@ -3826,13 +3826,13 @@ DO iElem=firstElem,lastElem
       CALL PointsEqual(NGeo2,XCL_NGeoSideNew,XCL_NGeoSideOld,isCurvedSide)
       IF(isCurvedSide)THEn
         IF(BoundingBoxIsEmpty_Shared(SideID))THEN
-          SideType(TrueSideID)=PLANAR_CURVED
+          SideType(SideID)=PLANAR_CURVED
           v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
               -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
 
           v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
               +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
-          SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2)
+          SideNormVec(:,SideID) = CROSSNORM(v1,v2)
           v1=0.25*(BezierControlPoints_loc(:,0,0   )  &
                   +BezierControlPoints_loc(:,NGeo,0)  &
                   +BezierControlPoints_loc(:,0,NGeo)  &
@@ -3840,16 +3840,13 @@ DO iElem=firstElem,lastElem
           ! check if normal vector points outwards
           v2=v1-ElemBaryNGeo_Shared(:,iElem)
           IF(flip.EQ.0)THEN
-            IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).LT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
-          !ELSE IF(flip.EQ.-1)THEN
-          !  SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
-          !  PartElemToSide(E2S_FLIP,ilocSide,iElem) = 0
+            IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).LT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
           ELSE
-            IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).GT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
+            IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
           END IF
-          SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
+          SideDistance(SideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
         ELSE
-          SideType(TrueSideID)=CURVED
+          SideType(SideID)=CURVED
         END IF
       ELSE
         IF (BoundingBoxIsEmpty_Shared(SideID)) THEN
@@ -3858,7 +3855,7 @@ DO iElem=firstElem,lastElem
 
           v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
               +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
-          SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2)
+          SideNormVec(:,SideID) = CROSSNORM(v1,v2)
           v1=0.25*(BezierControlPoints_loc(:,0,0)     &
                   +BezierControlPoints_loc(:,NGeo,0)  &
                   +BezierControlPoints_loc(:,0,NGeo)  &
@@ -3866,14 +3863,11 @@ DO iElem=firstElem,lastElem
           ! check if normal vector points outwards
           v2=v1-ElemBaryNGeo_Shared(:,iElem)
           IF(flip.EQ.0)THEN
-            IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).LT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
-          !ELSE IF(flip.EQ.-1)THEN
-          !  SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
-          !  PartElemToSide(E2S_FLIP,ilocSide,iElem) = 0
+            IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).LT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
           ELSE
-            IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).GT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
+            IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
           END IF
-          SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
+          SideDistance(SideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
           ! check if it is rectangular
           isRectangular=.TRUE.
           v1=UNITVECTOR(BezierControlPoints_loc(:,0   ,NGeo)-BezierControlPoints_loc(:,0   ,0   ))
@@ -3891,17 +3885,17 @@ DO iElem=firstElem,lastElem
             IF(DOT_PRODUCT(v1,v3).GT.1E-14) isRectangular=.FALSE.
           END IF
           IF(isRectangular)THEN
-            SideType(TrueSideID)=PLANAR_RECT
+            SideType(SideID)=PLANAR_RECT
           ELSE
-            SideType(TrueSideID)=PLANAR_NONRECT
+            SideType(SideID)=PLANAR_NONRECT
           END IF
         ELSE
           v1=(-BezierControlPoints_loc(:,0,0   )+BezierControlPoints_loc(:,NGeo,0   )   &
-              -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
+              -BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo))
           v2=(-BezierControlPoints_loc(:,0,0   )-BezierControlPoints_loc(:,NGeo,0   )   &
-              +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo) )
-          SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
-          SideType(TrueSideID)=BILINEAR
+              +BezierControlPoints_loc(:,0,NGeo)+BezierControlPoints_loc(:,NGeo,NGeo))
+          SideNormVec(:,SideID) = CROSSNORM(v1,v2) !non-oriented, averaged normal vector based on all four edges
+          SideType(SideID)=BILINEAR
         END IF
       END IF
     END IF
@@ -3909,30 +3903,31 @@ DO iElem=firstElem,lastElem
   END DO ! ilocSide=1,6
 END DO ! iElem=1,nTotalElems
 
+! TODO with PERIODIC SIDES
 ! sanity check for side periodic type
-DO iSide=1,nPartSides
-  IF(DoRefmapping)THEN
-    BCSideID  =PartBCSideList(iSide)
-    IF(BCSideID.LE.0) CYCLE
-  ELSE
-    BCSideID  =iSide
-  END IF
-  PVID=SidePeriodicType(iSide)
-  IF(PVID.EQ.0) CYCLE
-  IF(.NOT.PartMeshHasPeriodicBCs) CYCLE
-  Vec1=SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-  ScalarProduct=DOT_PRODUCT(SideNormVec(1:3,BCSideID),Vec1)
-  IF(ALMOSTEQUAL(ScalarProduct,GEO%PeriodicVectorsLength(ABS(PVID))))THEN
-    SidePeriodicType(iSide)=-SidePeriodicType(iSide)
-  ELSEIF(.NOT.ALMOSTEQUAL(ScalarProduct,-GEO%PeriodicVectorsLength(ABS(PVID))))THEN
-    WRITE (*,*) "BCSideID                  : ", BCSideID
-    WRITE (*,*) "SideNormVec(1:3,BCSideID) : ", SideNormVec(1:3,BCSideID)
-    WRITE (*,*) "Vec1                      : ", Vec1
-    CALL abort(&
-__STAMP__&
-        , ' Missalignment between SideNormVec and PeriodicVector!',ABS(PVID),ScalarProduct)
-  END IF
-END DO ! iSide=1,nPartSides
+!DO iSide=1,nPartSides
+!  IF(DoRefmapping)THEN
+!    BCSideID  =PartBCSideList(iSide)
+!    IF(BCSideID.LE.0) CYCLE
+!  ELSE
+!    BCSideID  =iSide
+!  END IF
+!  PVID=SidePeriodicType(iSide)
+!  IF(PVID.EQ.0) CYCLE
+!  IF(.NOT.PartMeshHasPeriodicBCs) CYCLE
+!  Vec1=SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+!  ScalarProduct=DOT_PRODUCT(SideNormVec(1:3,BCSideID),Vec1)
+!  IF(ALMOSTEQUAL(ScalarProduct,GEO%PeriodicVectorsLength(ABS(PVID))))THEN
+!    SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+!  ELSEIF(.NOT.ALMOSTEQUAL(ScalarProduct,-GEO%PeriodicVectorsLength(ABS(PVID))))THEN
+!    WRITE (*,*) "BCSideID                  : ", BCSideID
+!    WRITE (*,*) "SideNormVec(1:3,BCSideID) : ", SideNormVec(1:3,BCSideID)
+!    WRITE (*,*) "Vec1                      : ", Vec1
+!    CALL abort(&
+!__STAMP__&
+!        , ' Missalignment between SideNormVec and PeriodicVector!',ABS(PVID),ScalarProduct)
+!  END IF
+!END DO ! iSide=1,nPartSides
 
 !! fill Element type checking sides
 !IF (.NOT.DoRefMapping) THEN
