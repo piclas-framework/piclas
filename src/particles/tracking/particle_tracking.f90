@@ -2138,12 +2138,12 @@ ELSE
 
         ! flag the side the particle passed through, so it does not have to be checked in the next tracing step
         dolocSide = .TRUE.
-!        DO iLocalSide = 1,6
-!          IF (NbSideID.EQ.GetGlobalNonUniqueSideID(NbElemID,iLocalSide)) THEN
-!            dolocSide(iLocalSide) = .FALSE.
-!            EXIT
-!          END IF
-!        END DO
+        DO iLocalSide = 1,6
+          IF (NbSideID.EQ.GetGlobalNonUniqueSideID(NbElemID,iLocalSide)) THEN
+            dolocSide(iLocalSide) = .FALSE.
+            EXIT
+          END IF
+        END DO
         RETURN
       END IF
     END DO
@@ -2162,12 +2162,12 @@ ELSE
 
     ! flag the side the particle passed through, so it does not have to be checked in the next tracing step
     dolocSide = .TRUE.
-!    DO iLocalSide = 1,6
-!      IF (ABS(SideInfo_Shared(SIDE_ID,SideID)).EQ.ABS(SideInfo_Shared(SIDE_ID,GetGlobalNonUniqueSideID(ElemID,iLocalSide)))) THEN
-!        dolocSide(iLocalSide) = .FALSE.
-!        EXIT
-!      END IF
-!    END DO
+    DO iLocalSide = 1,6
+      IF (ABS(SideInfo_Shared(SIDE_ID,SideID)).EQ.ABS(SideInfo_Shared(SIDE_ID,GetGlobalNonUniqueSideID(ElemID,iLocalSide)))) THEN
+        dolocSide(iLocalSide) = .FALSE.
+        EXIT
+      END IF
+    END DO
 
   END IF
 END IF
