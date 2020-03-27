@@ -507,7 +507,8 @@ LOGICAL                       :: doPartInExists
 #endif /*IMPA*/
 INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem,iAuxBC
 INTEGER                       :: ilocSide,SideID
-LOGICAL                       :: PartisDone,dolocSide(1:6),foundHit,markTol,crossedBC,SwitchedElement,isCriticalParallelInFace
+LOGICAL                       :: dolocSide(1:6)
+LOGICAL                       :: PartisDone,foundHit,markTol,crossedBC,SwitchedElement,isCriticalParallelInFace
 REAL                          :: localpha,xi,eta,refpos(1:3)
 REAL                          :: locAlphaSphere
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
@@ -522,8 +523,8 @@ LOGICAL                       :: moveList, PartDoubleCheck
 INTEGER                       :: nIntersections
 #endif /*CODE_ANALYZE*/
 ! intersection info list
-TYPE(tIntersectLink),POINTER    :: firstIntersect => NULL()
-TYPE(tIntersectLink),POINTER    :: lastIntersect => NULL()
+TYPE(tIntersectLink),POINTER    :: firstIntersect   => NULL()
+TYPE(tIntersectLink),POINTER    :: lastIntersect    => NULL()
 TYPE(tIntersectLink),POINTER    :: currentIntersect => NULL()
 TYPE(tIntersectLink),POINTER    :: tmp => NULL()
 !===================================================================================================================================
@@ -1996,6 +1997,7 @@ USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputeBiLinearIntersection
+USE MOD_Particle_Mesh               ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Particle_Surfaces           ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Surfaces_Vars      ,ONLY: SideNormVec
@@ -2005,6 +2007,13 @@ USE MOD_Particle_Vars               ,ONLY: PDM
 #if USE_MPI
 USE MOD_MPI_Shared_Vars             ,ONLY: SideInfo_Shared,ElemInfo_Shared
 #endif /* USE_MPI */
+#if CODE_ANALYZE
+USE MOD_Mesh_Vars                   ,ONLY: NGeo
+USE MOD_Particle_Localization       ,ONLY: SinglePointToElement
+USE MOD_Particle_Surfaces_Vars      ,ONLY: BezierControlPoints3D
+USE MOD_MPI_Shared_Vars             ,ONLY: ElemBaryNGeo_Shared
+USE MOD_Particle_Vars               ,ONLY: PartState
+#endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2123,6 +2132,15 @@ ELSE
       IF (isHit) THEN
         ElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,NbSideID))
         TrackInfo%CurrElem = ElemID
+
+        ! flag the side the particle passed through, so it does not have to be checked in the next tracing step
+        dolocSide = .TRUE.
+!        DO iLocalSide = 1,6
+!          IF (NbSideID.EQ.GetGlobalNonUniqueSideID(NbElemID,iLocalSide)) THEN
+!            dolocSide(iLocalSide) = .FALSE.
+!            EXIT
+!          END IF
+!        END DO
         RETURN
       END IF
     END DO
@@ -2139,16 +2157,16 @@ ELSE
 
     TrackInfo%CurrElem = ElemID
 
-    dolocSide          = .TRUE.
-    DO iLocalSide = 1, 6
-      IF (ABS(SideInfo_Shared(SIDE_ID,SideID)).EQ. &
-        (ABS(SideInfo_Shared(SIDE_ID,ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+iLocalSide))) ) THEN
-        dolocSide(iLocalSide)=.FALSE.
-        EXIT
-      END IF
-    END DO
-  END IF
+    ! flag the side the particle passed through, so it does not have to be checked in the next tracing step
+    dolocSide = .TRUE.
+!    DO iLocalSide = 1,6
+!      IF (ABS(SideInfo_Shared(SIDE_ID,SideID)).EQ.ABS(SideInfo_Shared(SIDE_ID,GetGlobalNonUniqueSideID(ElemID,iLocalSide)))) THEN
+!        dolocSide(iLocalSide) = .FALSE.
+!        EXIT
+!      END IF
+!    END DO
 
+  END IF
 END IF
 
 END SUBROUTINE SelectInterSectionType
@@ -2484,6 +2502,7 @@ INTEGER,INTENT(IN)            :: PartID,ElemID,firstSide,LastSide,nlocSides
 ! LOCAL VARIABLES
 INTEGER                       :: ilocSide,SideID, locSideList(firstSide:lastSide), hitlocSide
 LOGICAL                       :: dolocSide(firstSide:lastSide),ishit
+LOGICAL                       :: ishit
 REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
 INTEGER                       :: nInter,flip,BCSideID
 REAL                          :: tmpPos(3), tmpLastPartPos(3),tmpVec(3)
