@@ -762,7 +762,7 @@ DO iPart=1,PDM%ParticleVecLength
               CALL ComputeCurvedIntersection(       foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,     SideID &
                                             ,       isCriticalParallelInFace)
             CASE DEFAULT
-              CALL abort(__STAMP__,' Missing   required side-data. Please increase halo region. ',SideID)
+              CALL abort(__STAMP__,' Missing required side-data. Please increase halo region. ',SideID)
           END SELECT
 
 #ifdef CODE_ANALYZE
@@ -838,7 +838,7 @@ DO iPart=1,PDM%ParticleVecLength
               currentIntersect => lastIntersect
               CALL AssignListPosition(currentIntersect,locAlpha,iAuxBC,2)
               currentIntersect => lastIntersect
-              lastIntersect => currentIntersect%next
+              lastIntersect    => currentIntersect%next
               lastIntersect%prev => currentIntersect
             END IF ! foundHit
           END DO !iAuxBC
@@ -2059,14 +2059,16 @@ ELSE
   SELECT CASE(hitSideType)
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
       n_loc = SideNormVec(1:3,SideID)
+      ! BezierControlPoints are now built in cell local system. Hence, side always have the flip from the shared SideInfo
+      IF (flip.NE.0) n_loc = -n_loc
+
+    ! bilinear sides have no valid side normal vector. Calculate with current intersection point and do not flip
     CASE(BILINEAR)
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+    ! curved sides have no valid side normal vector. Calculate with current intersection point and do not flip
     CASE(CURVED)
       CALL CalcNormAndTangBezier(  nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   END SELECT
-
-  ! BezierControlPoints are now built in cell local system. Hence, side always have the flip from the shared SideInfo
-  IF (flip.NE.0) n_loc = -n_loc
 
 #if CODE_ANALYZE
   ! check if normal vector points outwards
@@ -2077,11 +2079,12 @@ ELSE
   v2 = v1  - ElemBaryNGeo_Shared(:,ElemID)
 
   IF (DOT_PRODUCT(v2,n_loc).LT.0) THEN
-    IPWRITE(UNIT_stdout,*) 'Obtained wrong side orientation from flip. flip:',flip,'PartID:',PartID
+    IPWRITE(UNIT_stdout,*) 'Obtained wrong side orientation from flip. SideID:',SideID,'flip:',flip,'PartID:',PartID
     IPWRITE(UNIT_stdout,*) 'n_loc (flip)', n_loc,'n_loc (estimated):',v2
     CALL ABORT(__STAMP__,'SideID',SideID)
   END IF
 #endif /* CODE_ANALYZE */
+
   IF (DOT_PRODUCT(n_loc,PartTrajectory).LE.0) RETURN
 
   ! update particle element
@@ -2501,7 +2504,7 @@ INTEGER,INTENT(IN)            :: PartID,ElemID,firstSide,LastSide,nlocSides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ilocSide,SideID, locSideList(firstSide:lastSide), hitlocSide
-LOGICAL                       :: dolocSide(firstSide:lastSide),ishit
+LOGICAL                       :: dolocSide(firstSide:lastSide)
 LOGICAL                       :: ishit
 REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
 INTEGER                       :: nInter,flip,BCSideID
