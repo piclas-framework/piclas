@@ -232,11 +232,21 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, Weight1, Weight2, WeightProd, X
           ! The vibrational energy of the dissociating molecule and the char. vib. temps of the product are used to determine a
           ! first guess for the vibrational degree of freedom
           DO iDOF = 1 , PolyatomMolDSMC(iPolyatMole)%VibDOF
+            ! Leave the root-finding algorithm if the exponent is above machine precision
+            IF(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/ MiddleTemp.GT.RANGE(MiddleTemp)) THEN
+              XiVibPart = 0.0
+              RETURN
+            END IF
             XiVibPart(iProd,iDOF) = (2.0*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / MiddleTemp) &
                       / (EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/ MiddleTemp) - 1.0)
             Xi_TotalTemp = Xi_TotalTemp + XiVibPart(iProd,iDOF)
           END DO
         ELSE
+          ! Leave the root-finding algorithm if the exponent is above machine precision
+          IF(SpecDSMC(ProductReac(iProd))%CharaTVib / MiddleTemp.GT.RANGE(MiddleTemp)) THEN
+            XiVibPart = 0.0
+            RETURN
+          END IF
           XiVibPart(iProd,1) = (2.0*SpecDSMC(ProductReac(iProd))%CharaTVib / MiddleTemp) &
                     / (EXP(SpecDSMC(ProductReac(iProd))%CharaTVib / MiddleTemp) - 1.0)
           Xi_TotalTemp = Xi_TotalTemp + XiVibPart(iProd,1)
@@ -249,6 +259,10 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, Weight1, Weight2, WeightProd, X
           SumOne = 0.0
           SumTwo = 0.0
           DO iQua = 0, SpecDSMC(ProductReac(iProd))%MaxElecQuant-1
+            ! Avoid overflows by skipping the respective electronic states in the sum (equivalent to adding a zero)
+            IF(SpecDSMC(ProductReac(iProd))%ElectronicState(2,iQua)/MiddleTemp.GT.RANGE(MiddleTemp)) THEN
+              CYCLE
+            END IF
             SumOne = SumOne + SpecDSMC(ProductReac(iProd))%ElectronicState(1,iQua)*BoltzmannConst &
                             * SpecDSMC(ProductReac(iProd))%ElectronicState(2,iQua)  &
                             * EXP(-SpecDSMC(ProductReac(iProd))%ElectronicState(2,iQua)/MiddleTemp)

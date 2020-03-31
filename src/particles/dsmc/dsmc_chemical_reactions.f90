@@ -626,11 +626,13 @@ END DO
 ! Root-finding algorithm to determine the vibrational and electronic degrees of freedom
 IF((nDOFMAX.GT.0).AND.(DSMC%ElectronicModel)) THEN
   ALLOCATE(XiVibPart(nProd,nDOFMAX))
+  XiVibPart = 0.
   CALL CalcXiTotalEqui(iReac,iPair,Xi_rel,Weight1,Weight2,WeightProd,XiVibPart=XiVibPart,XiElecPart=Xi_elec)
 ELSEIF(DSMC%ElectronicModel) THEN
   CALL CalcXiTotalEqui(iReac,iPair,Xi_rel,Weight1,Weight2,WeightProd,XiElecPart=Xi_elec)
 ELSEIF(nDOFMAX.GT.0) THEN
   ALLOCATE(XiVibPart(nProd,nDOFMAX))
+  XiVibPart = 0.
   CALL CalcXiTotalEqui(iReac,iPair,Xi_rel,Weight1,Weight2,WeightProd,XiVibPart=XiVibPart)
 END IF
 
