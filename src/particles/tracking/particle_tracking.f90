@@ -1263,7 +1263,7 @@ USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
 USE MOD_MPI_Shared_Vars        ,ONLY: ElemBaryNGeo_Shared
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
+!USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
 #endif /*USE_MPI*/
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars          ,ONLY: PartStateN
@@ -1554,8 +1554,8 @@ DO iPart=1,PDM%ParticleVecLength
             IPWRITE(UNIT_stdout,'(I0,A,I0)') ' elemid-N               ', inelem+offsetelem
           ELSE
             IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = T'
-            IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' elemid-N              ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
-                                                             + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
+!            IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' elemid-N              ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
+!                                                             + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
           END IF
 #else
           IPWRITE(UNIt_stdOut,'(I0,A,I0)') ' elemid-N                 ', pem%element(ipart)+offsetelem
@@ -1568,8 +1568,8 @@ DO iPart=1,PDM%ParticleVecLength
             IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID                ', InElem+offSetElem
           ELSE
             IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = T'
-            IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
-                                                   + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+!            IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
+!                                                   + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
           END IF
 #else
           IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID       ', PEM%Element(iPart)+offSetElem
@@ -1581,8 +1581,8 @@ DO iPart=1,PDM%ParticleVecLength
             IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Last-ElemID         ', InElem+offSetElem
           ELSE
             IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = T'
-            IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Last-ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
-                                                   + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+!            IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Last-ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
+!                                                   + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
           END IF
 #else
           IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Last-ElemID  ', PEM%LastElement(iPart)+offSetElem
@@ -1655,15 +1655,15 @@ DO iPart=1,PDM%ParticleVecLength
                 IPWRITE(UNIT_stdout,'(I0,A,I0)') ' elemid-N               ', inelem+offsetelem
               ELSE
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = T'
-                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' elemid-N         ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
-                                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
+!                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' elemid-N         ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
+!                                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
               END IF
               IF(testelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = F'
                 IPWRITE(UNIT_stdout,'(I0,A,I0)') ' testelem-N            ', testelem+offsetelem
               ELSE
-                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = T'
-                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' testelem-N       ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
+!                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = T'
+!                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' testelem-N       ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
                                                                + PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
               END IF
 
@@ -1681,16 +1681,16 @@ DO iPart=1,PDM%ParticleVecLength
                 IPWRITE(UNIT_stdout,'(I0,A,I0)') ' elemid               ', inelem+offsetelem
               ELSE
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = T'
-                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' elemid         ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
-                                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
+!                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' elemid         ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
+!                                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
               END IF
               IF(testelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
                 IPWRITE(UNIT_stdout,'(I0,A,I0)') ' testelem             ', testelem+offsetelem
               ELSE
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = T'
-                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' testelem         ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
-                                                               + PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
+!                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' testelem         ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
+!                                                               + PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
               END IF
 
 #else
@@ -3031,7 +3031,7 @@ USE MOD_TimeDisc_Vars,          ONLY:iStage
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit,PartDtFrac
 #endif /*IMPA*/
 #if USE_MPI
-USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
+!USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
 USE MOD_MPI_Shared_Vars,        ONLY:ElemBaryNGeo_Shared
 USE MOD_MPI_Vars,               ONLY:offsetElemMPI
 #endif /*USE_MPI*/
@@ -3102,11 +3102,11 @@ IF(.NOT.DoRefMapping)THEN
     IPWRITE(UNIT_stdOut,'(I0,A)') ' PartPos not inside of element! '
     IF(ElemID.LE.PP_nElems)THEN
       IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', ElemID+offSetElem
-    ELSE
-#if USE_MPI
-          IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,ElemID)) &
-                                                    + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
-#endif /*USE_MPI*/
+!    ELSE
+!#if USE_MPI
+!          IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID         ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,ElemID)) &
+!                                                    + PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
+!#endif /*USE_MPI*/
     END IF
     IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' ElemBaryNGeo:      ', ElemBaryNGeo_Shared(1:3,ElemID)
     IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' IntersectionPoint: ', IntersectionPoint

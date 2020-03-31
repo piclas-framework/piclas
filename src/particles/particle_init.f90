@@ -1074,6 +1074,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_shared
 USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
+USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #else
 USE MOD_Mesh_Vars              ,ONLY: ElemVolume_shared
@@ -2570,6 +2571,11 @@ CALL InitPIC()
 
 !-- Build BGM and halo region
 CALL InitParticleMesh()
+
+#if USE_MPI
+!-- Build MPI communication
+CALL IdentifyPartExchangeProcs()
+#endif
 
 !CALL InitFIBGM()
 

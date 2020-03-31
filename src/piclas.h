@@ -103,6 +103,7 @@
 #define SIDE_BCID         5
 #define SIDE_ELEMID       6
 #define SIDE_LOCALID      7
+#define SIDE_NBELEMTYPE   8
 
 ! Predefined "PARAMETER-like" variables
 #define XI_MINUS   5
@@ -163,6 +164,11 @@
 #define BILINEAR       2
 #define PLANAR_CURVED  3
 #define CURVED         4
+
+! entries for PartExchange
+#define EXCHANGE_PROC_SIZE 2
+#define EXCHANGE_PROC_TYPE 1
+#define EXCHANGE_PROC_RANK 2
 
 ! entries for PartHaloToProc
 #define NATIVE_ELEM_ID  1

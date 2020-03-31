@@ -939,6 +939,9 @@ USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,F
 USE MOD_Mesh_ReadIn,            ONLY: readMesh
 USE MOD_Mesh_Vars,              ONLY: NGeo, nElems, nNodes, offsetElem
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
+#if USE_MPI
+USE MOD_MPI_Shared_Vars,        ONLY: ElemNodeID_Shared,NodeCoords_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -999,8 +1002,9 @@ IF (nVarAdd.GT.0) THEN
     CASE('DSMCHOState')
       FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuDSMC',OutputTime))//'.vtu'
   END SELECT
-  CALL WriteDataToVTK_PICLas(8,FileString,nVarAdd,VarNamesAdd(1:nVarAdd),nNodes,GEO%NodeCoords(1:3,1:nNodes),nElems,&
-                              ElemData(1:nVarAdd,1:nElems),GEO%ElemToNodeID(1:8,1:nElems))
+  ! TODO: This is probably borked for NGeo>1 because then NodeCoords are not the corner nodes
+  CALL WriteDataToVTK_PICLas(8,FileString,nVarAdd,VarNamesAdd(1:nVarAdd),nNodes,NodeCoords_Shared(1:3,1:nNodes),nElems,&
+                              ElemData(1:nVarAdd,1:nElems),ElemNodeID_Shared(1:8,1:nElems))
 END IF
 
 SDEALLOCATE(VarNamesAdd)
@@ -1023,6 +1027,9 @@ USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,G
 USE MOD_Mesh_ReadIn,            ONLY: readMesh
 USE MOD_Mesh_Vars,              ONLY: NGeo, SurfConnect
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
+#if USE_MPI
+USE MOD_MPI_Shared_Vars,        ONLY: ElemNodeID_Shared,NodeCoords_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1084,7 +1091,8 @@ IF(nSurfSample.EQ.1) THEN
   END IF
 
   DO iNode=1, SurfConnect%nSurfaceNode
-    Coords(1:3,iNode) = GEO%NodeCoords(1:3, SurfConnect%BCSurfNodes(iNode))
+  ! TODO: This is probably borked because the node pointer is not build on the global node IDs
+    Coords(1:3,iNode) = NodeCoords_Shared(1:3, SurfConnect%BCSurfNodes(iNode))
   END DO
 
   FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'

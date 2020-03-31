@@ -117,10 +117,10 @@ USE MOD_Particle_Vars           ,ONLY:nSpecies, VarTimeStep, Symmetry2D
 USE MOD_PICDepo_Vars            ,ONLY:SFResampleAnalyzeSurfCollis
 USE MOD_PICDepo_Vars            ,ONLY:LastAnalyzeSurfCollis
 #if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY:ElemSideNodeID_Shared,NodeCoords_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY:ElemInfo_Shared,ElemSideNodeID_Shared,NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY:PartElemToElemAndSide
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
-USE MOD_Particle_MPI_Vars       ,ONLY:PartHaloElemToProc
+!USE MOD_Particle_MPI_Vars       ,ONLY:PartHaloElemToProc
 #else
 USE MOD_Mesh_Vars               ,ONLY:ElemSideNodeID_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY:offSetSurfSide
@@ -246,6 +246,9 @@ END DO
 !   (1)     SlaveSides that are innerBCsides are tagged by IsSlaveSide(iSide)
 !   (2)     SlaveSides is mapped to corresponding HaloSide
 !           SampWall information of SlaveSides are added to SampWall information of corresponding HaloSide
+
+! TODO: There is no way this works correctly, even nBCSides is wrong
+
 DO iSide=nBCSides+1,nSides
   IF(BC(iSide).EQ.0) CYCLE
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
@@ -261,7 +264,7 @@ __STAMP__&
       iLocSide   = MERGE(S2E_NB_LOC_SIDE_ID,S2E_LOC_SIDE_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
       iElem      = MERGE(S2E_NB_ELEM_ID,S2E_ELEM_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
       HaloElemID = PartElemToElemAndSide(1,PartSideToElem(iLocSide,iSide),PartSideToElem(iElem,iSide))
-      IF(myrank.GT.PartHaloElemToProc(NATIVE_PROC_ID,HaloElemID)) THEN ! innerBCSide is between two procs and NOT on output side
+      IF(myrank.GT.ElemInfo_Shared(ELEM_RANK,HaloElemID)) THEN ! innerBCSide is between two procs and NOT on output side
         IsSlaveSide(iSide) = .TRUE.   !(1)
         SurfMesh%nSides = SurfMesh%nSides + 1
         SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nSides
@@ -754,8 +757,9 @@ SUBROUTINE GetHaloSurfMapping()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nSides,nBCSides
+USE MOD_MPI_Shared_Vars        ,ONLY: ElemInfo_Shared
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh,SurfComm,nSurfSample, nPorousBC, nPorousBCVars,CalcSurfaceImpact
-USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloSideToProc,PartHaloElemToProc,SurfSendBuf,SurfRecvBuf,SurfExchange
+USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloSideToProc,SurfSendBuf,SurfRecvBuf,SurfExchange!,PartHaloElemToProc
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,PartSideToElem,PartElemToSide
 USE MOD_Particle_MPI_Vars      ,ONLY: PorousBCSendBuf,PorousBCRecvBuf
 USE MOD_Particle_Vars          ,ONLY: nSpecies
@@ -805,7 +809,7 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
       IF (ElemID.EQ.-1) THEN
         ElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
       END IF
-      TargetProc=PartHaloElemToProc(NATIVE_PROC_ID,ElemID)
+      TargetProc=ElemInfo_Shared(ELEM_RANK,ElemID)
       IF(ElemID.LE.PP_nElems)THEN
         CALL abort(&
 __STAMP__&
@@ -907,7 +911,7 @@ IF(ANY(IsMPINeighbor))THEN
         IF (ElemID.EQ.-1) THEN
           ElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
         END IF
-        TargetProc=PartHaloElemToProc(NATIVE_PROC_ID,ElemID)
+        TargetProc=ElemInfo_Shared(ELEM_RANK,ElemID)
         IF(ElemID.LE.PP_nElems)THEN
         CALL abort(&
 __STAMP__&
@@ -1051,7 +1055,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         ElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
         LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,iSide)
       END IF
-      TargetElem=PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
+      TargetElem=ElemInfo_Shared(ELEM_RANK,ElemID)
       IF(ElemID.LE.PP_nElems)THEN
        IPWRITE(UNIT_stdOut,*) ' Error in PartSideToElem'
       END IF
@@ -1059,7 +1063,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
        IPWRITE(UNIT_stdOut,*) ' Error in PartSideToElem'
       END IF
       SurfCOMM%MPINeighbor(iProc)%SendList(iSendSide)=iSide
-!       IPWRITE(*,*) 'negative elem id',PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),PartSideToElem(S2E_LOC_SIDE_ID,iSide)
+!       IPWRITE(*,*) 'negative elem id',ElemInfo_Shared(ELEM_RANK,ElemID),PartSideToElem(S2E_LOC_SIDE_ID,iSide)
       SurfSendBuf(iProc)%content(iPos  )= REAL(TargetElem)
       SurfSendBuf(iProc)%content(iPos+1)= REAL(LocSideID)
       iPos=iPos+2
