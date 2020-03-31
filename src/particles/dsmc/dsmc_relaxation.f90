@@ -196,7 +196,7 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, Weight1, Weight2, WeightProd, X
   INTEGER                         :: ProductReac(1:3)
   REAL                            :: ETotal, EZeroPoint, EGuess, Xi_Total, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp
   REAL                            :: SumOne, SumTwo, Weight(1:3)
-  REAL                            :: eps_prec=0.1
+  REAL                            :: eps_prec=1E-3
 !===================================================================================================================================
 
   ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
@@ -221,7 +221,8 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, Weight1, Weight2, WeightProd, X
 
   LowerTemp = 1.0
   UpperTemp = 2.*(ETotal - EZeroPoint) * nProd / SUM(Weight) / (Xi_Total * BoltzmannConst)
-  DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
+  MiddleTemp = LowerTemp
+  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
     MiddleTemp = 0.5*( LowerTemp + UpperTemp)
     Xi_TotalTemp = Xi_Total
     DO iProd = 1, nProd
