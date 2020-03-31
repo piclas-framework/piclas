@@ -789,7 +789,7 @@ CALL MPI_WIN_LOCK_ALL(0,ElemMidPoint_Shared_Win,IERROR)
 #else
 ALLOCATE(ConcaveElemSide_Shared(1:6,1:nElems))
 ALLOCATE(ElemSideNodeID_Shared(1:4,1:6,1:nElems))
-ALLOCATE(ElemMidPoint_Shared(1:4,1:6,1:nElems))
+ALLOCATE(ElemMidPoint_Shared(1:3,1:nElems))
 firstElem = 1
 lastElem  = nElems
 #endif  /*USE_MPI*/

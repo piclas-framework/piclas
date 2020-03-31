@@ -545,88 +545,9 @@ REAL, ALLOCATABLE                 :: MK_Trend(:)    ! Normalized Trend Parameter
                                                                 ! (-1<x<1 = steady state) (number of Elements)
 REAL, ALLOCATABLE                 :: HValue(:)                  ! Entropy Parameter (Boltzmann's H-Theorem) (number of Elements)
 !-----------------------------------------------convergence criteria-------------------------------------------------
-TYPE tSampleCartmesh_VolWe
-  REAL                                  :: BGMdeltas(3)       ! Backgroundmesh size in x,y,z
-  REAL                                  :: FactorBGM(3)       ! Divider for BGM (to allow real numbers)
-  REAL                                  :: BGMVolume          ! Volume of a BGM Cell
-  INTEGER,ALLOCATABLE               :: GaussBGMIndex(:,:,:,:,:) ! Background mesh index of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
-  REAL,ALLOCATABLE                  :: GaussBGMFactor(:,:,:,:,:) ! BGM factor of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
-  INTEGER                               :: BGMminX            ! Local minimum BGM Index in x
-  INTEGER                               :: BGMminY            ! Local minimum BGM Index in y
-  INTEGER                               :: BGMminZ            ! Local minimum BGM Index in z
-  INTEGER                               :: BGMmaxX            ! Local maximum BGM Index in x
-  INTEGER                               :: BGMmaxY            ! Local maximum BGM Index in y
-  INTEGER                               :: BGMmaxZ            ! Local maximum BGM Index in z
-  INTEGER, ALLOCATABLE                  :: PeriodicBGMVectors(:,:)           ! = periodic vectors in backgroundmesh coords
-  LOGICAL                               :: SelfPeriodic
-  REAL, ALLOCATABLE                    :: BGMVolumes(:,:,:)
-  REAL, ALLOCATABLE                    :: BGMVolumes2(:,:,:)
-  LOGICAL, ALLOCATABLE                 :: isBoundBGCell(:,:,:)
-  INTEGER                               :: OrderVolInt
-  REAL, ALLOCATABLE                    :: x_VolInt(:)
-  REAL, ALLOCATABLE                    :: w_VolInt(:)
-#if USE_MPI
-  TYPE(tPartMPIConnect)        , ALLOCATABLE :: MPIConnect(:)             ! MPI connect for each process
-#endif
-END TYPE
-
-TYPE (tSampleCartmesh_VolWe) DSMCSampVolWe
-
-TYPE tDSMCSampNearInt
-  REAL,ALLOCATABLE                      :: GaussBorder(:)     ! 1D coords of gauss points in -1|1 space
-END TYPE
-
-TYPE (tDSMCSampNearInt) DSMCSampNearInt
-
-TYPE tDSMCSampCellVolW
-  REAL,ALLOCATABLE                      :: xGP(:)
-  REAL,ALLOCATABLE                      :: SubVolumes(:,:,:,:)
-END TYPE
-
-TYPE (tDSMCSampCellVolW) DSMCSampCellVolW
-
-TYPE tAdaptedElem
-  REAL                                   :: Volume
-  REAL                                   :: AdaptNodePoints(3,8)
-END TYPE
-
-TYPE tDSMCSampAdaptCellVolW
-  REAL,ALLOCATABLE                       :: xGP(:)
-  LOGICAL, ALLOCATABLE                  :: IsAdaptedElem(:)
-  TYPE(tAdaptedElem), ALLOCATABLE        :: AdaptedElem(:)
-  INTEGER                                 :: AdaptPartNum
-  INTEGER                                 :: AdaptIterNum
-  LOGICAL                                 :: OnlyProcLocal
-END TYPE
-
-TYPE (tDSMCSampAdaptCellVolW) DSMCSampAdaptCellVolW
-
-#if USE_MPI
-TYPE tAdaptCellVolWRecvPart
-  REAL,ALLOCATABLE                      :: PartState(:,:)
-  REAL,ALLOCATABLE                      :: PartStateInt(:,:)
-  INTEGER                                :: PartNum
-  INTEGER,ALLOCATABLE                   :: PartSpec(:)
-END TYPE
-
-TYPE (tAdaptCellVolWRecvPart), ALLOCATABLE :: AdaptCellVolWRecvPart(:)
-#endif
 
 INTEGER, ALLOCATABLE      :: SymmetrySide(:,:)
-
-TYPE tHODSMC
-  LOGICAL                 :: HODSMCOutput         !High Order DSMC Output
-  INTEGER                 :: nOutputDSMC          !HO DSMC output order
-  REAL,ALLOCATABLE        :: DSMC_xGP(:,:,:,:,:)  ! XYZ positions (first index 1:3) of the volume Gauss Point
-  REAL,ALLOCATABLE        :: DSMC_wGP(:)
-  CHARACTER(LEN=256)      :: SampleType
-  CHARACTER(LEN=256)      :: NodeType
-  REAL,ALLOCATABLE        :: sJ(:,:,:,:)
-  LOGICAL                 :: DoAdaptCellWMPI=.false.
-END TYPE tHODSMC
-
-TYPE(tHODSMC)             :: HODSMC
-REAL,ALLOCATABLE          :: DSMC_HOSolution(:,:,:,:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
+REAL,ALLOCATABLE          :: DSMC_Solution(:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
 REAL,ALLOCATABLE          :: DSMC_VolumeSample(:)         !sampnum samples of volume in element
 
 LOGICAL                   :: ConsiderVolumePortions       ! Flag set in case volume portions are required, enables MC volume calc

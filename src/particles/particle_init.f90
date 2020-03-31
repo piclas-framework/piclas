@@ -245,13 +245,6 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
   , 'Set [T] to activate sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
   ' have to be enabled as well.', '.FALSE.')
 
-CALL prms%CreateStringOption(   'DSMC-HOSampling-Type'  , 'TODO-DEFINE-PARAMETER', 'cell_mean')
-CALL prms%CreateIntOption(      'Particles-DSMC-OutputOrder'  , 'TODO-DEFINE-PARAMETER', '1')
-CALL prms%CreateStringOption(   'DSMC-HOSampling-NodeType'  , 'TODO-DEFINE-PARAMETER', 'visu')
-CALL prms%CreateRealArrayOption('DSMCSampVolWe-BGMdeltas'  , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.')
-CALL prms%CreateRealArrayOption('DSMCSampVolWe-FactorBGM'  , 'TODO-DEFINE-PARAMETER', '1. , 1. , 1.')
-CALL prms%CreateIntOption(      'DSMCSampVolWe-VolIntOrd'  , 'TODO-DEFINE-PARAMETER', '50')
-
 CALL prms%SetSection("Particle Species")
 ! species inits
 CALL prms%CreateIntOption(      'Part-Species[$]-nInits'  &
@@ -914,9 +907,8 @@ SUBROUTINE InitParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_DSMC_Analyze               ,ONLY: InitHODSMC
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
-USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_HOSolution,HODSMC,DSMC_VolumeSample
+USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,DSMC_VolumeSample
 USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
@@ -997,19 +989,10 @@ SDEALLOCATE(MacroRestartData_tmp) !might be used for adaptive BC initialization 
 IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 ! definition of DSMC sampling values
   DSMC%SampNum = 0
-  HODSMC%SampleType = TRIM(GETSTR('DSMC-HOSampling-Type','cell_mean'))
-  IF (TRIM(HODSMC%SampleType).EQ.'cell_mean') THEN
-    HODSMC%nOutputDSMC = 1
-    SWRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
-    ALLOCATE(DSMC_HOSolution(1:11,1,1,1,1:nElems,1:nSpecies))
-    ALLOCATE(DSMC_VolumeSample(1:nElems))
-  ELSE
-    HODSMC%nOutputDSMC = GETINT('Particles-DSMC-OutputOrder','1')
-    ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))
-  END IF
-  DSMC_HOSolution = 0.0
+  ALLOCATE(DSMC_Solution(1:11,1:nElems,1:nSpecies))
+  ALLOCATE(DSMC_VolumeSample(1:nElems))
+  DSMC_Solution = 0.0
   DSMC_VolumeSample = 0.0
-  CALL InitHODSMC()
 END IF
 
 ! Initialize surface sampling

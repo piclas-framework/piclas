@@ -117,6 +117,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_DSMC_ChemReact,         ONLY: DSMC_Chemistry
 #if USE_MPI
 USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared
+USE MOD_MPI_Vars              ,ONLY: OffSetElemMPI
 #else
 USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared
 #endif /*USE_MPI*/
@@ -140,12 +141,12 @@ LOGICAL                       :: recomb
 IF (PRESENT(NodeVolume)) THEN
   Volume = NodeVolume
 ELSE
-  Volume = ElemVolume_Shared(PEM%Element(iPart_p3))
+  Volume = ElemVolume_Shared(PEM%Element(iPart_p3) - offsetElemMPI(myRank))
 END IF
 IF (PRESENT(NodePartNum)) THEN
   nPartNode = NodePartNum
 ELSE
-  nPartNode = PEM%pNumber(PEM%Element(iPart_p3))
+  nPartNode = PEM%pNumber(PEM%Element(iPart_p3) - offsetElemMPI(myRank))
 END IF
 ! select Q-K Model // do not use Gallis
 SELECT CASE (ChemReac%QKMethod(iReac))
@@ -535,6 +536,7 @@ USE MOD_Globals_Vars,           ONLY: Pi
 USE MOD_Globals
 #if USE_MPI
 USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared
+USE MOD_MPI_Vars              ,ONLY: OffSetElemMPI
 #else
 USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared
 #endif /*USE_MPI*/
@@ -559,12 +561,12 @@ INTEGER                             :: PartReac1,PartReac2
 IF (PRESENT(NodeVolume)) THEN
   Volume = NodeVolume
 ELSE
-  Volume = ElemVolume_Shared(PEM%Element(iPart_p3))
+  Volume = ElemVolume_Shared(PEM%Element(iPart_p3) - offsetElemMPI(myRank))
 END IF
 IF (PRESENT(NodePartNum)) THEN
   nPartNode = NodePartNum
 ELSE
-  nPartNode = PEM%pNumber(PEM%Element(iPart_p3))
+  nPartNode = PEM%pNumber(PEM%Element(iPart_p3) - offsetElemMPI(myRank))
 END IF
 
 IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN

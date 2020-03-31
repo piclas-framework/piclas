@@ -378,7 +378,6 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal, Symmetry2D, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
-USE MOD_DSMC_Analyze           ,ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState       ,ONLY: DSMC_SteadyStateInit
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
@@ -1479,12 +1478,13 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
 ! Energy distribution according to dissertation of Laux (diatomic)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,               ONLY : abort
+  USE MOD_Globals,               ONLY : abort, myRank
   USE MOD_Globals_Vars,          ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,             ONLY : PartStateIntEn, SpecDSMC, DSMC
   USE MOD_Particle_Vars,         ONLY : Species, PEM, Adaptive_MacroVal
   USE MOD_Particle_Boundary_Vars,ONLY: PartBound
   USE MOD_DSMC_ElectronicModel,  ONLY : InitElectronShell
+USE MOD_MPI_Vars               ,ONLY: OffSetElemMPI
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1504,18 +1504,19 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set internal energies (vibrational and rotational)
 !-----------------------------------------------------------------------------------------------------------------------------------
+ElemID = PEM%Element(iPart) - offsetElemMPI(myRank)
   IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THEN
     SELECT CASE (init_or_sf)
     CASE(1) !iInit
       IF (Species(iSpecies)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
         TVib=SpecDSMC(iSpecies)%Init(iInit)%TVib
       ELSE
-        TVib=Species(iSpecies)%Init(iInit)%ElemTVib(PEM%Element(iPart))
+        TVib=Species(iSpecies)%Init(iInit)%ElemTVib(ElemID)
       END IF
       IF (Species(iSpecies)%Init(iInit)%ElemTRotFileID.EQ.0) THEN
         TRot=SpecDSMC(iSpecies)%Init(iInit)%TRot
       ELSE
-        TRot=Species(iSpecies)%Init(iInit)%ElemTRot(PEM%Element(iPart))
+        TRot=Species(iSpecies)%Init(iInit)%ElemTRot(ElemID)
       END IF
     CASE(2) !SurfaceFlux
       IF(iInit.GT.Species(iSpecies)%nSurfacefluxBCs)THEN
@@ -1525,7 +1526,6 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
           TVib=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TVib
           TRot=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TRot
         CASE(2) ! adaptive Outlet/freestream
-          ElemID = PEM%Element(iPart)
           pressure = PartBound%AdaptivePressure(Species(iSpecies)%Surfaceflux(iInit)%BC)
           TVib = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
           TRot = TVib
@@ -1544,7 +1544,6 @@ __STAMP__&
               TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
               TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
             CASE(2) ! adaptive Outlet/freestream
-              ElemID = PEM%Element(iPart)
               TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
                       / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpecies))
               TRot = TVib
@@ -1844,7 +1843,7 @@ SDEALLOCATE(HValue)
 SDEALLOCATE(MacroSurfaceVal)
 !SDEALLOCATE(VibQuantsPar)
 ! SDEALLOCATE(XiEq_Surf)
-SDEALLOCATE(DSMC_HOSolution)
+SDEALLOCATE(DSMC_Solution)
 SDEALLOCATE(DSMC_Volumesample)
 CALL DeleteElemNodeVol()
 SDEALLOCATE(BGGas%PairingPartner)

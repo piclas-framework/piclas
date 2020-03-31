@@ -50,10 +50,11 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 !===================================================================================================================================
 ! init electronic shell
 !===================================================================================================================================
-  USE MOD_Globals,                ONLY : abort
+  USE MOD_Globals,                ONLY : abort, myRank
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn
   USE MOD_Particle_Vars,          ONLY : Species, PEM
+USE MOD_MPI_Vars                ,ONLY: OffSetElemMPI
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -72,7 +73,7 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
     IF (Species(iSpecies)%Init(iInit)%ElemTElecFileID.EQ.0) THEN
       TElec=SpecDSMC(iSpecies)%Init(iInit)%TElec
     ELSE
-      TElec=Species(iSpecies)%Init(iInit)%ElemTElec(PEM%Element(iPart))
+      TElec=Species(iSpecies)%Init(iInit)%ElemTElec(PEM%Element(iPart) - offsetElemMPI(myRank))
     END IF
   CASE(2) !SurfaceFlux
     Telec=SpecDSMC(iSpecies)%Surfaceflux(iInit)%Telec
