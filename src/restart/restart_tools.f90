@@ -31,29 +31,32 @@ CONTAINS
 
 
 #if PARTICLES
-SUBROUTINE ReadNodeSourceExtFromHDF5() 
+SUBROUTINE ReadNodeSourceExtFromHDF5()
 !----------------------------------------------------------------------------------------------------------------------------------!
-! Read NodeSourceExt from h5 file, which is stored as DG solution type field 'DG_SourceExt'. 
+! Read NodeSourceExt from h5 file, which is stored as DG solution type field 'DG_SourceExt'.
 ! Map this solution to equidistant-node polynomial (NodeTypeVISU with N=1) and then map the solution to the global nodes
 ! 'NodeSourceExt'.
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Restart_Vars           ,ONLY: N_Restart
-USE MOD_Mesh_Vars              ,ONLY: Vdm_N_EQ,OffsetElem
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,CellLocNodes_Volumes
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric
+USE MOD_HDF5_Input             ,ONLY: ReadArray
+USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Interpolation          ,ONLY: GetVandermonde
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectric
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_HDF5_input             ,ONLY: ReadArray
-USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists
+USE MOD_Mesh_Vars              ,ONLY: Vdm_N_EQ,offsetElem
+!USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,CellLocNodes_Volumes
+USE MOD_Restart_Vars           ,ONLY: N_Restart
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 ! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -61,7 +64,7 @@ REAL                               :: U_local(1,0:N_Restart,0:N_Restart,0:N_Rest
 LOGICAL                            :: DG_SourceExtExists
 REAL                               :: NodeSourceExtEqui(1,0:1,0:1,0:1)
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp,N_RestartTmp
-INTEGER                            :: iElem
+INTEGER                            :: iElem,GlobalElemID
 !===================================================================================================================================
 IF(.NOT.DoDielectric) RETURN
 
@@ -87,7 +90,10 @@ IF(DG_SourceExtExists)THEN
     CALL ChangeBasis3D(1, N_Restart, 1, Vdm_N_EQ, U_local(:,:,:,:,iElem),NodeSourceExtEqui(:,:,:,:))
 
     ! Map the solution to the global nodes 'NodeSourceExt' and apply the volumes (charge density -> charge)
-    ASSOCIATE( NodeID => GEO%ElemToNodeID(:,iElem) )
+!    ASSOCIATE( NodeID => GEO%ElemToNodeID(:,iElem) )
+    GlobalElemID = iElem+offsetElem
+    ASSOCIATE(NodeID => ElemNodeID_Shared(:,GlobalElemID))
+
       ! Copy values from equidistant distribution to Nodees
       NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * CellLocNodes_Volumes(NodeID(1))
       NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * CellLocNodes_Volumes(NodeID(2))
@@ -96,7 +102,7 @@ IF(DG_SourceExtExists)THEN
       NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * CellLocNodes_Volumes(NodeID(5))
       NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * CellLocNodes_Volumes(NodeID(6))
       NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * CellLocNodes_Volumes(NodeID(7))
-      NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * CellLocNodes_Volumes(NodeID(8)) 
+      NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * CellLocNodes_Volumes(NodeID(8))
     END ASSOCIATE
   END DO
 END IF ! DG_SourceExtExists

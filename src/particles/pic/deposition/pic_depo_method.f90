@@ -644,16 +644,17 @@ SUBROUTINE DepositionMethod_CVWM(FirstPart,LastPart,DoInnerParts,doPartInExists,
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
+USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
+USE MOD_Mesh_Vars          ,ONLY: nElems, nNodes
 USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExtTmp,NodeSourceExt,CellLocNodes_Volumes,DepositionType
 #if USE_MPI
+USE MOD_MPI_Shared_Vars
 USE MOD_Particle_MPI       ,ONLY: AddHaloNodeData
 #endif  /*USE_MPI*/
-USE MOD_Mesh_Vars          ,ONLY: nElems, nNodes
-USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
@@ -729,7 +730,11 @@ DO iPart=FirstPart,LastPart
     alpha1=0.5*(TempPartPos(1)+1.0)
     alpha2=0.5*(TempPartPos(2)+1.0)
     alpha3=0.5*(TempPartPos(3)+1.0)
-    NodeID=GEO%ElemToNodeID(1:8,iElem)
+
+!    NodeID=GEO%ElemToNodeID(1:8,iElem)
+    ! PEM already contains the global ElemID
+    NodeID = ElemNodeID_Shared(:,iElem)
+
     NodeSource(:,NodeID(1)) = NodeSource(:,NodeID(1))+(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
     NodeSource(:,NodeID(2)) = NodeSource(:,NodeID(2))+(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
     NodeSource(:,NodeID(3)) = NodeSource(:,NodeID(3))+(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))

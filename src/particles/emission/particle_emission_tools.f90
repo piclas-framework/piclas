@@ -799,9 +799,9 @@ USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 #if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared
+USE MOD_MPI_Shared_Vars        ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 #else
-USE MOD_Mesh_Vars              ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared
+USE MOD_Mesh_Vars              ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -860,11 +860,11 @@ __STAMP__,&
         nPart = CellChunkSize(iElem)
       ELSE
         IF(RadialWeighting%DoRadialWeighting) THEN
-          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(GEO%ElemMidPoint(2,iElem), iSpec)
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,iElem+offsetElem), iSpec)
         END IF
         CALL RANDOM_NUMBER(iRan)
         IF(VarTimeStep%UseVariableTimeStep) THEN
-          adaptTimestep = CalcVarTimeStep(GEO%ElemMidPoint(1,iElem), GEO%ElemMidPoint(2,iElem), iElem)
+          adaptTimestep = CalcVarTimeStep(ElemMidPoint_Shared(1,iElem+offsetElem), ElemMidPoint_Shared(2,iElem+offsetElem), iElem)
           nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(iElem) + iRan)
         ELSE
           nPart = INT(PartDens * ElemVolume_Shared(iElem) + iRan)

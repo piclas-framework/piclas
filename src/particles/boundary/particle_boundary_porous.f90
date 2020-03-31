@@ -400,15 +400,17 @@ SUBROUTINE PorousBoundaryRemovalProb_Pressure()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal, usevMPF, VarTimeStep
-USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, nPorousBC, PorousBC, SampWall
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-USE MOD_Mesh_Vars,              ONLY:SideToElem
-USE MOD_Timedisc_Vars,          ONLY:dt
-USE MOD_Particle_Analyze_Vars,  ONLY:CalcPorousBCInfo
 USE MOD_DSMC_Vars,              ONLY:DSMC, RadialWeighting
+USE MOD_Mesh_Vars,              ONLY:SideToElem
+USE MOD_Mesh_Vars,              ONLY:offsetElem
+USE MOD_Particle_Analyze_Vars,  ONLY:CalcPorousBCInfo
+USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, nPorousBC, PorousBC, SampWall
+!USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal, usevMPF, VarTimeStep
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Timedisc_Vars,          ONLY:dt
 #if USE_MPI
+USE MOD_MPI_Shared_Vars
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -419,8 +421,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPBCSideID, iPBC, ElemID, SurfSideID
-REAL                          :: PumpingSpeedTemp, DeltaPressure, partWeight, SumPartPorousBC, dtVar
+INTEGER                       :: ElemID,GlobalElemID
+INTEGER                       :: iPBCSideID,iPBC,SurfSideID
+REAL                          :: PumpingSpeedTemp,DeltaPressure,partWeight,SumPartPorousBC,dtVar
 !===================================================================================================================================
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
@@ -457,7 +460,8 @@ DO iPBC = 1,nPorousBC
     IF(SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,1:nSpecies)).EQ.0.0) CYCLE
     ! Get the correct time step of the cell
     IF(VarTimeStep%UseVariableTimeStep) THEN
-      dtVar = dt * CalcVarTimeStep(GEO%ElemMidPoint(1,ElemID), GEO%ElemMidPoint(2,ElemID), ElemID)
+      GlobalElemID = ElemID + offsetElem
+      dtVar = dt * CalcVarTimeStep(ElemMidPoint_Shared(1,GlobalElemID), ElemMidPoint_Shared(2,ElemID), ElemID)
     ELSE
       dtVar = dt
     END IF

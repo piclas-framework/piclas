@@ -37,21 +37,21 @@ SUBROUTINE MacroRestart_InsertParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
-USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmetry2DAxisymmetric, Symmetry2D, VarTimeStep
-USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
-USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Particle_Localization   ,ONLY: PartInElemCheck
 USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, ElemEpsOneCell
-USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmetry2DAxisymmetric, Symmetry2D, VarTimeStep
+USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 #if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
 #else
-USE MOD_Mesh_Vars               ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars               ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
 #endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -64,7 +64,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                             :: iElem, iSpec, iPart, nPart, locnPart, iHeight, yPartitions
+INTEGER                             :: iElem,iSpec,iPart,nPart,locnPart,iHeight,yPartitions,GlobalElemID
 REAL                                :: iRan, RandomPos(3), PartDens, TempMPF, MaxPosTemp, MinPosTemp
 REAL                                :: TempVol, Volume, Det(6,2), RefPos(1:3)
 LOGICAL                             :: InsideFlag
@@ -75,7 +75,8 @@ SWRITE(UNIT_stdOut,*) 'PERFORMING MACROSCOPIC RESTART...'
 locnPart = 1
 
 DO iElem = 1, nElems
-  ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+  GlobalElemID = iElem + offsetElem
+  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
 ! #################### 2D ##########################################################################################################
     IF (Symmetry2DAxisymmetric) THEN
       IF (RadialWeighting%DoRadialWeighting) THEN

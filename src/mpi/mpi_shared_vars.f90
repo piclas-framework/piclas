@@ -133,7 +133,9 @@ LOGICAL,POINTER :: ElemCurved_Shared(:)                 !> Flag if an element is
 INTEGER         :: ElemCurved_Shared_Win
 LOGICAL,POINTER :: ConcaveElemSide_Shared(:,:)
 INTEGER         :: ConcaveElemSide_Shared_Win
-INTEGER,POINTER :: ElemSideNodeID_Shared(:,:,:)
+INTEGER,POINTER :: ElemNodeID_Shared(:,:)               !> Contains the 8 corner nodes of an element, important for NGeo > 1
+INTEGER         :: ElemNodeID_Shared_Win
+INTEGER,POINTER :: ElemSideNodeID_Shared(:,:,:)         !> Contains the 4 corner nodes of the local sides in an element
 INTEGER         :: ElemSideNodeID_Shared_Win
 REAL,POINTER    :: ElemMidPoint_Shared(:,:)
 INTEGER         :: ElemMidPoint_Shared_Win

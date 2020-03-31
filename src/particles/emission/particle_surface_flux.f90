@@ -36,32 +36,33 @@ SUBROUTINE InitializeParticleSurfaceflux()
 ! Init Particle Inserting via Surface Flux
 !===================================================================================================================================
 ! Modules
-#if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: PI, BoltzmannConst
-USE MOD_ReadInTools
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound, nAdaptiveBC, nPorousBC
-USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges, DoTimeDepInflow, &
-                                     Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac, VarTimeStep
-USE MOD_PARTICLE_Vars          ,ONLY: nMacroRestartFiles, UseAdaptive, UseCircularInflow
-USE MOD_Particle_Vars          ,ONLY: DoForceFreeSurfaceFlux
+USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray,GetDataSize
+USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound, nAdaptiveBC, nPorousBC
+USE MOD_Particle_Mesh          ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
 USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, WriteTriaSurfaceFluxDebugMesh, SideType
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas, GetSideBoundingBox, CalcNormAndTangTriangle
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_Particle_Mesh          ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, DoRefMapping
-USE MOD_IO_HDF5
-USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray,GetDataSize
-USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges, DoTimeDepInflow
+USE MOD_Particle_Vars          ,ONLY: Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac, VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: nMacroRestartFiles, UseAdaptive, UseCircularInflow
+USE MOD_Particle_Vars          ,ONLY: DoForceFreeSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: Symmetry2D, Symmetry2DAxisymmetric
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
+USE MOD_ReadInTools
+USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -607,7 +608,7 @@ DO iBC=1,nDataBC
               ! Surfaces that are NOT parallel to the YZ-plane
               IF(RadialWeighting%CellLocalWeighting) THEN
                 ! Cell local weighting
-                BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = (1. + GEO%ElemMidPoint(2,ElemID)&
+                BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = (1. + ElemMidPoint_Shared(2,ElemID+offsetElem)&
                                                                         / GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))
               ELSE
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1.

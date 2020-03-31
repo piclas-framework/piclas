@@ -760,7 +760,6 @@ ASSOCIATE(CNS => CornerNodeIDswitch )
   NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
   NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
   NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
-END ASSOCIATE
 
 !ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),       &
 !         GEO%ElemSideNodeID(1:4,1:6,1:nElems), &
@@ -779,6 +778,10 @@ CALL MPI_WIN_LOCK_ALL(0,ConcaveElemSide_Shared_Win,IERROR)
 firstElem = INT(REAL(myComputeNodeRank*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 
+MPISharedSize = INT(8*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/8,nComputeNodeTotalElems/),ElemNodeID_Shared_Win,ElemNodeID_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemNodeID_Shared_Win,IERROR)
+
 MPISharedSize = INT(4*6*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/4,6,nComputeNodeTotalElems/),ElemSideNodeID_Shared_Win,ElemSideNodeID_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemSideNodeID_Shared_Win,IERROR)
@@ -787,9 +790,10 @@ MPISharedSize = INT(3*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalElems/),ElemMidPoint_Shared_Win,ElemMidPoint_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemMidPoint_Shared_Win,IERROR)
 #else
-ALLOCATE(ConcaveElemSide_Shared(1:6,1:nElems))
+ALLOCATE(ConcaveElemSide_Shared(   1:6,1:nElems))
+ALLOCATE(ElemNodeID_Shared(        1:8,1:nElems))
 ALLOCATE(ElemSideNodeID_Shared(1:4,1:6,1:nElems))
-ALLOCATE(ElemMidPoint_Shared(1:3,1:nElems))
+ALLOCATE(ElemMidPoint_Shared(      1:3,1:nElems))
 firstElem = 1
 lastElem  = nElems
 #endif  /*USE_MPI*/
@@ -800,8 +804,15 @@ lastElem  = nElems
 !GEO%ElemSideNodeID(:,:,:)=0
 !GEO%NodeCoords(:,:)=0.
 !GEO%ConcaveElemSide(:,:)=.FALSE.
-ElemSideNodeID_Shared = 0
-ConcaveElemSide_Shared = .FALSE.
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif
+  ElemNodeID_Shared      = 0
+  ElemSideNodeID_Shared  = 0
+  ConcaveElemSide_Shared = .FALSE.
+#if USE_MPI
+END IF
+#endif
 
 !iNode=0
 !DO iElem=1,nElems
@@ -832,6 +843,10 @@ ConcaveElemSide_Shared = .FALSE.
 !  END DO
 !END DO
 DO iElem = firstElem,lastElem
+  DO iNode = 1,8
+    ElemNodeID_Shared(iNode,iElem) = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) + CNS(iNode)
+  END DO
+
   nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)
   DO iLocSide = 1,nlocSides
     ! Get global SideID
@@ -846,11 +861,12 @@ DO iElem = firstElem,lastElem
 !    END IF
     ! Shared memory array starts at 1, but NodeID at 0
     ElemSideNodeID_Shared(1:4,localSideID,iElem) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart  ,4)+1,localSideID)-1, &
-                                                  ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+1,4)+1,localSideID)-1, &
-                                                  ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+2,4)+1,localSideID)-1, &
-                                                  ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+3,4)+1,localSideID)-1/)
+                                                     ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+1,4)+1,localSideID)-1, &
+                                                     ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+2,4)+1,localSideID)-1, &
+                                                     ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+3,4)+1,localSideID)-1/)
   END DO
 END DO
+END ASSOCIATE
 
 !--- Save whether Side is concave or convex
 DO iElem = firstElem,lastElem
@@ -1347,7 +1363,7 @@ ElemRadiusNGeo =0.
 ElemRadius2NGeo=0.
 
 #if USE_MPI
-firstElem=INT(REAL(myComputeNodeRank*    nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+firstElem=INT(REAL( myComputeNodeRank*   nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem =INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem=1
@@ -2457,7 +2473,7 @@ CALL MPI_WIN_SYNC(SideBCMetrics_Shared_Win,iError)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #endif
 
-! finally, sort distance to help speed up BC tracking
+! finally, sort by distance to help speed up BC tracking
 !> allocate dummy array to hold variables
 ALLOCATE(tmpSideBCMetrics(1:7,1:MAXVAL(ElemToBCSides(ELEM_NBR_BCSIDES,:))))
 ALLOCATE(tmpSideBCDistance(   1:MAXVAL(ElemToBCSides(ELEM_NBR_BCSIDES,:))))
@@ -2575,7 +2591,7 @@ CALL GetVandermonde(    NgeoRef, NodeType    , PP_N    , NodeType  , Vdm_NGeoRef
 DO iElem = firstElem,lastElem
   ElemLocID = iElem-offsetElemMPI(myRank)
   ! element on local proc, sJ already calculated in metrics.f90
-  IF ((ElemLocID.GT.0) .AND. (ElemLocID.LT.nElems)) THEN
+  IF ((ElemLocID.GT.0) .AND. (ElemLocID.LE.nElems)) THEN
     ElemsJ(:,:,:,iElem) = sJ(:,:,:,ElemLocID)
 
   ! element not on local proc, calculate sJ frm dXCL_NGeo_Shared
@@ -2690,14 +2706,15 @@ CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalSides/),BaseVectors2_Sha
 CALL MPI_WIN_LOCK_ALL(0,BaseVectors2_Shared_Win,IERROR)
 CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalSides/),BaseVectors3_Shared_Win,BaseVectors3_Shared)
 CALL MPI_WIN_LOCK_ALL(0,BaseVectors3_Shared_Win,IERROR)
+MPISharedSize = INT((nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),BaseVectorsScale_Shared_Win,BaseVectorsScale_Shared)
+CALL MPI_WIN_LOCK_ALL(0,BaseVectorsScale_Shared_Win,IERROR)
 BaseVectors0 => BaseVectors0_Shared
 BaseVectors1 => BaseVectors1_Shared
 BaseVectors2 => BaseVectors2_Shared
 BaseVectors3 => BaseVectors3_Shared
-MPISharedSize = INT((nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/nComputeNodeTotalSides/),BaseVectorsScale_Shared_Win,BaseVectorsScale_Shared)
-CALL MPI_WIN_LOCK_ALL(0,BaseVectorsScale_Shared_Win,IERROR)
 BaseVectorsScale => BaseVectorsScale_Shared
+
 firstSide = INT(REAL (myComputeNodeRank   *nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
 lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
 #else
@@ -2706,6 +2723,7 @@ ALLOCATE( BaseVectors0(1:3,1:nNonUniqueGlobalSides),&
           BaseVectors2(1:3,1:nNonUniqueGlobalSides),&
           BaseVectors3(1:3,1:nNonUniqueGlobalSides),&
           BaseVectorsScale(1:nNonUniqueGlobalSides))
+
 firstSide = 1
 lastSide  = nNonUniqueGlobalSides
 #endif /*USE_MPI*/
@@ -2775,39 +2793,39 @@ REAL,POINTER                   :: NodeCoordsPointer(:,:,:,:,:)
 !===================================================================================================================================
 
 NodeCoordsPointer => NodeCoords
-GEO%xmin=MINVAL(NodeCoordsPointer(1,:,:,:,:))
-GEO%xmax=MAXVAL(NodeCoordsPointer(1,:,:,:,:))
-GEO%ymin=MINVAL(NodeCoordsPointer(2,:,:,:,:))
-GEO%ymax=MAXVAL(NodeCoordsPointer(2,:,:,:,:))
-GEO%zmin=MINVAL(NodeCoordsPointer(3,:,:,:,:))
-GEO%zmax=MAXVAL(NodeCoordsPointer(3,:,:,:,:))
+GEO%xmin     = MINVAL(NodeCoordsPointer(1,:,:,:,:))
+GEO%xmax     = MAXVAL(NodeCoordsPointer(1,:,:,:,:))
+GEO%ymin     = MINVAL(NodeCoordsPointer(2,:,:,:,:))
+GEO%ymax     = MAXVAL(NodeCoordsPointer(2,:,:,:,:))
+GEO%zmin     = MINVAL(NodeCoordsPointer(3,:,:,:,:))
+GEO%zmax     = MAXVAL(NodeCoordsPointer(3,:,:,:,:))
 
 #if USE_MPI
-GEO%CNxmin=MINVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-GEO%CNxmax=MAXVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-GEO%CNymin=MINVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-GEO%CNymax=MAXVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-GEO%CNzmin=MINVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-GEO%CNzmax=MAXVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
-GEO%xminglob=MINVAL(NodeCoords_Shared(1,:))
-GEO%xmaxglob=MAXVAL(NodeCoords_Shared(1,:))
-GEO%yminglob=MINVAL(NodeCoords_Shared(2,:))
-GEO%ymaxglob=MAXVAL(NodeCoords_Shared(2,:))
-GEO%zminglob=MINVAL(NodeCoords_Shared(3,:))
-GEO%zmaxglob=MAXVAL(NodeCoords_Shared(3,:))
+GEO%CNxmin   = MINVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+GEO%CNxmax   = MAXVAL(NodeCoords_Shared(1,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+GEO%CNymin   = MINVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+GEO%CNymax   = MAXVAL(NodeCoords_Shared(2,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+GEO%CNzmin   = MINVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+GEO%CNzmax   = MAXVAL(NodeCoords_Shared(3,offsetComputeNodeNode+1:offsetComputeNodeNode+nComputeNodeNodes))
+GEO%xminglob = MINVAL(NodeCoords_Shared(1,:))
+GEO%xmaxglob = MAXVAL(NodeCoords_Shared(1,:))
+GEO%yminglob = MINVAL(NodeCoords_Shared(2,:))
+GEO%ymaxglob = MAXVAL(NodeCoords_Shared(2,:))
+GEO%zminglob = MINVAL(NodeCoords_Shared(3,:))
+GEO%zmaxglob = MAXVAL(NodeCoords_Shared(3,:))
 #else
-GEO%CNxmin=GEO%xmin
-GEO%CNxmax=GEO%xmax
-GEO%CNymin=GEO%ymin
-GEO%CNymax=GEO%ymax
-GEO%CNzmin=GEO%zmin
-GEO%CNzmax=GEO%zmax
-GEO%xminglob=GEO%xmin
-GEO%xmaxglob=GEO%xmax
-GEO%yminglob=GEO%ymin
-GEO%ymaxglob=GEO%ymax
-GEO%zminglob=GEO%zmin
-GEO%zmaxglob=GEO%zmax
+GEO%CNxmin   = GEO%xmin
+GEO%CNxmax   = GEO%xmax
+GEO%CNymin   = GEO%ymin
+GEO%CNymax   = GEO%ymax
+GEO%CNzmin   = GEO%zmin
+GEO%CNzmax   = GEO%zmax
+GEO%xminglob = GEO%xmin
+GEO%xmaxglob = GEO%xmax
+GEO%yminglob = GEO%ymin
+GEO%ymaxglob = GEO%ymax
+GEO%zminglob = GEO%zmin
+GEO%zmaxglob = GEO%zmax
 #endif /*USE_MPI*/
 
 END SUBROUTINE GetMeshMinMax
@@ -2835,17 +2853,17 @@ IMPLICIT NONE
 INTEGER                             :: iELem,iNode
 !===================================================================================================================================
 
-SDEALLOCATE(PartElemToSide)
-SDEALLOCATE(PartSideToElem)
-SDEALLOCATE(PartElemIsMortar)
-SDEALLOCATE(PartElemToElemGlob)
-SDEALLOCATE(PartElemToElemAndSide)
+!SDEALLOCATE(PartElemToSide)
+!SDEALLOCATE(PartSideToElem)
+!SDEALLOCATE(PartElemIsMortar)
+!SDEALLOCATE(PartElemToElemGlob)
+!SDEALLOCATE(PartElemToElemAndSide)
 SDEALLOCATE(PartBCSideList)
 SDEALLOCATE(SidePeriodicType)
 SDEALLOCATE(SidePeriodicDisplacement)
 !SDEALLOCATE(IsTracingBCElem)
-SDEALLOCATE(TracingBCInnerSides)
-SDEALLOCATE(TracingBCTotalSides)
+!SDEALLOCATE(TracingBCInnerSides)
+!SDEALLOCATE(TracingBCTotalSides)
 SDEALLOCATE(ElemType)
 SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%PeriodicVectorsLength)
@@ -2859,8 +2877,7 @@ SDEALLOCATE(GEO%TFIBGM)
 !SDEALLOCATE(GEO%ElemToNodeID)
 !SDEALLOCATE(GEO%ElemSideNodeID)
 !SDEALLOCATE(GEO%ElemToNodeIDGlobal)
-SDEALLOCATE(GEO%NodeCoords)
-SDEALLOCATE(GEO%ConcaveElemSide)
+!SDEALLOCATE(GEO%NodeCoords)
 SDEALLOCATE(GEO%ElemsOnNode)
 SDEALLOCATE(GEO%NeighNodesOnNode)
 SDEALLOCATE(GEO%NumNeighborElems)
@@ -2882,9 +2899,9 @@ IF (ALLOCATED(GEO%NodeToNeighNode)) THEN
   END DO
 END IF
 SDEALLOCATE(GEO%NodeToNeighNode)
-SDEALLOCATE(GEO%ConcaveElemSide)
-SDEALLOCATE(GEO%ElemMidPoint)
-SDEALLOCATE(GEO%BoundsOfElem)
+!SDEALLOCATE(GEO%ConcaveElemSide)
+!SDEALLOCATE(GEO%ElemMidPoint)
+!SDEALLOCATE(GEO%BoundsOfElem)
 
 SDEALLOCATE(BCElem)
 ADEALLOCATE(XiEtaZetaBasis)
@@ -5726,548 +5743,556 @@ END SUBROUTINE FinalizeParticleMesh
 !END SUBROUTINE ElemConnectivity
 
 
-SUBROUTINE NodeNeighbourhood()
-!===================================================================================================================================
-!> Subroutine for initialization of neighbourhood with nodes using GEO container
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals
-USE MOD_Mesh_Vars          ,ONLY: nNodes
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO, PartElemToElemAndSide
-#ifdef CODE_ANALYZE
-#if USE_MPI
-USE MOD_Mesh_Vars          ,ONLY: offsetElem
-USE MOD_Particle_MPI_Vars  ,ONLY: PartHaloElemToProc
-USE MOD_MPI_Vars           ,ONLY: offsetElemMPI
-#endif /*USE_MPI*/
-#endif /*CODE_ANALYZE*/
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-TYPE tNodeToElem
-  INTEGER :: ElemID(50)
-END TYPE
-TYPE(tNodeToElem)      :: TempNodeToElem(1:nNodes)
-INTEGER                :: TempElemsOnNode(1:nNodes)
-INTEGER                :: Element, iLocSide, k, l,iMortar
-LOGICAL                :: ElemExists
-INTEGER                :: iElem, jNode
-INTEGER                :: iNode
-INTEGER                :: TempHaloElems(1:500)
-INTEGER                :: TempHaloNumElems
+!SUBROUTINE NodeNeighbourhood()
+!!===================================================================================================================================
+!!> Subroutine for initialization of neighbourhood with nodes using GEO container
+!!===================================================================================================================================
+!! MODULES
+!USE MOD_PreProc
+!USE MOD_Globals
+!USE MOD_Mesh_Vars          ,ONLY: nNodes
+!USE MOD_Particle_Mesh_Vars ,ONLY: GEO, PartElemToElemAndSide
+!#ifdef CODE_ANALYZE
 !#if USE_MPI
-!LOGICAL                :: HaloNeighNode(1:nNodes)
+!USE MOD_Mesh_Vars          ,ONLY: offsetElem
+!USE MOD_MPI_Vars           ,ONLY: offsetElemMPI
+!USE MOD_MPI_Shared_Vars
+!USE MOD_Particle_MPI_Vars  ,ONLY: PartHaloElemToProc
 !#endif /*USE_MPI*/
-LOGICAL                :: ElemDone
-REAL                   :: MPINodeCoord(3), ElemCoord(3)
-!===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')' BUILD NODE-NEIGHBOURHOOD ... '
-
-!#if USE_MPI
-!! set nodes of sides with halo element connected to it as HaloNeighNodes
-!GEO%HaloNeighNode(:) = .FALSE.
-!DO iElem=1,nElems
-!  DO iLocSide = 1,6
-!    IF (PartElemToElemAndSide(1,iLocSide,iElem).GT.PP_nElems) THEN
-!      DO iNode = 1,4
-!        GEO%HaloNeighNode(GEO%ElemSideNodeID(iNode,iLocSide,iElem)) = .TRUE.
+!#endif /*CODE_ANALYZE*/
+!! IMPLICIT VARIABLE HANDLING
+! IMPLICIT NONE
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! INPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!TYPE tNodeToElem
+!  INTEGER :: ElemID(50)
+!END TYPE
+!TYPE(tNodeToElem)      :: TempNodeToElem(1:nNodes)
+!INTEGER                :: TempElemsOnNode(1:nNodes)
+!INTEGER                :: Element, iLocSide, k, l,iMortar
+!LOGICAL                :: ElemExists
+!INTEGER                :: iElem, jNode
+!INTEGER                :: iNode
+!INTEGER                :: TempHaloElems(1:500)
+!INTEGER                :: TempHaloNumElems
+!!#if USE_MPI
+!!LOGICAL                :: HaloNeighNode(1:nNodes)
+!!#endif /*USE_MPI*/
+!LOGICAL                :: ElemDone
+!REAL                   :: MPINodeCoord(3), ElemCoord(3)
+!!===================================================================================================================================
+!SWRITE(UNIT_StdOut,'(132("-"))')
+!SWRITE(UNIT_stdOut,'(A)')' BUILD NODE-NEIGHBOURHOOD ... '
+!
+!!#if USE_MPI
+!!! set nodes of sides with halo element connected to it as HaloNeighNodes
+!!GEO%HaloNeighNode(:) = .FALSE.
+!!DO iElem=1,nElems
+!!  DO iLocSide = 1,6
+!!    IF (PartElemToElemAndSide(1,iLocSide,iElem).GT.PP_nElems) THEN
+!!      DO iNode = 1,4
+!!        GEO%HaloNeighNode(GEO%ElemSideNodeID(iNode,iLocSide,iElem)) = .TRUE.
+!!      END DO
+!!    END IF
+!!  END DO
+!!END DO
+!!#ifdef CODE_ANALYZE
+!!DO iNode=1,nNodes
+!!  IF (GEO%HaloNeighNode(iNode)) THEN
+!!    print*,'Rank: ',MyRank,'---- local Node: ',iNode,' is halo node'
+!!  END IF
+!!END DO
+!!#endif /*CODE_ANALYZE*/
+!!#endif /*USE_MPI*/
+!
+!ALLOCATE(GEO%NumNeighborElems(1:PP_nElems))
+!ALLOCATE(GEO%ElemToNeighElems(1:PP_nElems))
+!GEO%NumNeighborElems(:)=0
+!TempElemsOnNode(:)=0
+!DO iNode=1,nNodes
+!  TempNodeToElem(iNode)%ElemID=-1
+!END DO
+!
+!! find all real neighbour elements for elements with halo neighbours
+!! recursively checking connected halo area
+!DO iElem =1, PP_nElems
+!  TempHaloElems(1:500) = 0
+!  TempHaloNumElems = 0
+!  ! now check every side for neighbours, add valid neighbour to corresponding array and proceed recursively until neighbourhood
+!  ! is finished
+!  DO iLocSide = 1, 6
+!    DO iMortar=1,4
+!      ElemExists = .FALSE.
+!      Element = PartElemToElemAndSide(iMortar,iLocSide,iElem)
+!      IF (Element.GT.0) THEN !side has neighbour element
+!        DO l=1, TempHaloNumElems
+!          IF(Element.EQ.TempHaloElems(l)) THEN
+!            ElemExists=.TRUE.
+!            EXIT
+!          END IF
+!        END DO
+!        IF (.NOT.ElemExists) THEN
+!         TempHaloNumElems = TempHaloNumElems + 1
+!          TempHaloElems(TempHaloNumElems) = Element
+!        END IF
+!        CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
+!      END IF
+!    END DO
+!  END DO
+!  IF (TempHaloNumElems.LE.0) CALL abort(&
+!__STAMP__&
+!,'ERROR in FindNeighbourElems! no neighbour elements found for Element',iElem)
+!  ! write local variables into global array
+!  GEO%NumNeighborElems(iElem) = TempHaloNumElems
+!  ALLOCATE(GEO%ElemToNeighElems(iElem)%ElemID(1:GEO%NumNeighborElems(iElem)))
+!  GEO%ElemToNeighElems(iElem)%ElemID(1:GEO%NumNeighborElems(iElem)) = TempHaloElems(1:TempHaloNumElems)
+!  ! add neighbour elements to respective nodes of iElem if nodes of neighbour are the same to those of iElem
+!  DO l=1,GEO%NumNeighborElems(iElem)
+!    Element = GEO%ElemToNeighElems(iElem)%ElemID(l)
+!    DO iNode = 1, 8
+!      ElemExists = .FALSE.
+!!      DO k = 1,TempElemsOnNode(ElemNodeID_Shared(iNode,iElem))
+!      DO k = 1,TempElemsOnNode(ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+iNode)
+!        IF (TempNodeToElem(ElemNodeID_Shared(iNode,iElem))%ElemID(k).EQ.Element) THEN
+!          ElemExists = .TRUE.
+!          EXIT
+!        END IF
 !      END DO
+!      IF (ElemExists) CYCLE
+!      ElemCoord(1:3) = NodeCoords_Shared(1:3,ElemNodeID_Shared(iNode,iElem))
+!      DO jNode = 1, 8
+!        ElemDone = .FALSE.
+!        MPINodeCoord(1:3) = NodeCoords_Shared(1:3,ElemNodeID_Shared(jNode,Element))
+!        IF(ALMOSTEQUAL(MPINodeCoord(1),ElemCoord(1)).AND.ALMOSTEQUAL(MPINodeCoord(2),ElemCoord(2)) &
+!            .AND.ALMOSTEQUAL(MPINodeCoord(3),ElemCoord(3))) THEN
+!          TempElemsOnNode(ElemNodeID_Shared(iNode,iElem)) = TempElemsOnNode(ElemNodeID_Shared(iNode,iElem)) + 1
+!          TempNodeToElem(ElemNodeID_Shared(iNode,iElem))%ElemID(TempElemsOnNode(ElemNodeID_Shared(iNode,iElem))) = Element
+!          ElemDone = .TRUE.
+!        END IF
+!        IF (ElemDone) EXIT
+!      END DO ! jNode=1,8
+!      IF (ElemDone) CYCLE
+!    END DO ! iNode=1,8
+!  END DO ! l=1,NumNeihborElems
+!END DO ! iElem=1,PP_nElems
+!
+!! check if current element already added to every node of the element and add to missing (elements for corner nodes not added yet)
+!! this part needs its own loop over all elements
+!DO iElem=1,PP_nElems
+!  DO iNode = 1,8
+!    ElemExists = .FALSE.
+!    DO l = 1,TempElemsOnNode(ElemNodeID_Shared(iNode,iElem))
+!      IF (TempNodeToElem(ElemNodeID_Shared(iNode,iElem))%ElemID(l).EQ.iElem) THEN
+!        ElemExists = .TRUE.
+!        EXIT
+!      END IF
+!    END DO
+!    IF (.NOT.ElemExists) THEN
+!      TempElemsOnNode(ElemNodeID_Shared(iNode,iElem)) = TempElemsOnNode(ElemNodeID_Shared(iNode,iElem)) + 1
+!      TempNodeToElem(ElemNodeID_Shared(iNode,iElem))%ElemID(TempElemsOnNode(ElemNodeID_Shared(iNode,iElem))) = iElem
 !    END IF
 !  END DO
 !END DO
-!#ifdef CODE_ANALYZE
+!
+!! write number of elements for corresponding proc global nodes into GEO structure
+!ALLOCATE(GEO%ElemsOnNode(1:nNodes))
+!ALLOCATE(GEO%NodeToElem(1:nNodes))
 !DO iNode=1,nNodes
-!  IF (GEO%HaloNeighNode(iNode)) THEN
-!    print*,'Rank: ',MyRank,'---- local Node: ',iNode,' is halo node'
-!  END IF
+!  GEO%ElemsOnNode(iNode) = TempElemsOnNode(iNode)
+!  ALLOCATE(GEO%NodeToElem(iNode)%ElemID(1:GEO%ElemsOnNode(iNode)))
+!  GEO%NodeToElem(iNode)%ElemID(1:GEO%ElemsOnNode(iNode)) = TempNodeToElem(iNode)%ElemID(1:TempElemsOnNode(iNode))
+!END DO
+!
+!! fill array of neighbour nodes to proc global nodes
+!ALLOCATE(GEO%NeighNodesOnNode(1:nNodes))
+!ALLOCATE(GEO%NodeToNeighNode(1:nNodes))
+!DO iNode=1,nNodes
+!  TempHaloElems(:) = 0
+!  TempHaloNumElems = 0
+!  DO iElem=1,GEO%ElemsOnNode(iNode)
+!    DO jNode=1,8
+!      IF (ElemNodeID_Shared(jNode,GEO%NodeToElem(iNode)%ElemID(iElem)).EQ.iNode) CYCLE
+!      ElemExists=.false.
+!      DO l=1, TempHaloNumElems
+!        IF(ElemNodeID_Shared(jNode,GEO%NodeToElem(iNode)%ElemID(iElem)).EQ.TempHaloElems(l)) THEN
+!          ElemExists=.true.
+!          CYCLE
+!        END IF
+!      END DO
+!      IF(.NOT.ElemExists) THEN
+!        TempHaloNumElems = TempHaloNumElems + 1
+!        TempHaloElems(TempHaloNumElems) = ElemNodeID_Shared(jNode,GEO%NodeToElem(iNode)%ElemID(iElem))
+!      END IF
+!    END DO
+!  END DO
+!  ! write local variables into global array
+!  ALLOCATE(GEO%NodeToNeighNode(iNode)%ElemID(1:TempHaloNumElems))
+!  GEO%NeighNodesOnNode(iNode)=TempHaloNumElems
+!  GEO%NodeToNeighNode(iNode)%ElemID(1:TempHaloNumElems) = TempHaloElems(1:TempHaloNumElems)
+!END DO
+!
+!#ifdef CODE_ANALYZE
+!! write some code analyze output of connectivity
+!DO iElem=1,PP_nElems
+!#if USE_MPI
+!  IPWRITE(UNIT_StdOut,*) '------ Element: ',iElem+offsetElem,' has ',GEO%NumNeighborElems(iElem),' Neighbours'
+!  IPWRITE(UNIT_StdOut,*) '------ Neighbours are:'
+!  DO l=1,GEO%NumNeighborElems(iElem)
+!    IF (GEO%ElemToNeighElems(iElem)%ElemID(l).GT.PP_nElems) THEN
+!      IPWRITE(UNIT_StdOut,*) offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,GEO%ElemToNeighElems(iElem)%ElemID(l))) &
+!          + PartHaloElemToProc(NATIVE_ELEM_ID,GEO%ElemToNeighElems(iElem)%ElemID(l))
+!    ELSE
+!      IPWRITE(UNIT_StdOut,*) GEO%ElemToNeighElems(iElem)%ElemID(l) + offsetElem
+!    END IF
+!  END DO
+!#else
+!  IPWRITE(UNIT_StdOut,*) '------ Element: ',iElem,' has ',GEO%NumNeighborElems(iElem),' Neighbours'
+!  IPWRITE(UNIT_StdOut,*) '------ Neighbours are:',GEO%ElemToNeighElems(iElem)%ElemID(:)
+!#endif /*USE_MPI*/
+!END DO
+!
+!DO iNode=1,nNodes
+!  IPWRITE(UNIT_StdOut,*) '------ Node: ',iNode,' has: ',GEO%ElemsOnNode(iNode),' Elements'
+!  IPWRITE(UNIT_StdOut,*) '------ Node: ',iNode,' has: ',GEO%ElemsOnNode(iNode),' Elements'
 !END DO
 !#endif /*CODE_ANALYZE*/
+!
+!SWRITE(UNIT_stdOut,'(A)')' BUILD NODE-NEIGHBOURHOOD SUCCESSFUL '
+!SWRITE(UNIT_StdOut,'(132("-"))')
+!END SUBROUTINE NodeNeighbourhood
+!
+!
+!RECURSIVE SUBROUTINE RecurseCheckNeighElems(StartElem,HaloElem,TempHaloNumElems,TempHaloElems)
+!!===================================================================================================================================
+!!> Subroutine for recursively checking halo neighbourhood for connectivity to current elem
+!!===================================================================================================================================
+!! MODULES
+!USE MOD_Globals
+!USE MOD_PreProc
+!USE MOD_Particle_Mesh_Vars ,ONLY: GEO, PartElemToElemAndSide
+!#if USE_MPI
+!USE MOD_MPI_Shared_Vars
+!#endif
+!! IMPLICIT VARIABLE HANDLING
+! IMPLICIT NONE
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! INPUT VARIABLES
+!INTEGER,INTENT(IN)     :: StartElem
+!INTEGER,INTENT(INOUT)  :: HaloElem,TempHaloElems(1:500), TempHaloNumElems
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER                :: iNode, jNode
+!INTEGER                :: iLocSide, l, iMortar
+!INTEGER                :: currentElem
+!LOGICAL                :: ElemExists, ElemDone
+!REAL                   :: MPINodeCoord(3), ElemCoord(3)
+!!===================================================================================================================================
+!DO iLocSide = 1,6
+!  DO iMortar=1,4
+!    ElemExists = .FALSE.
+!    currentElem = PartElemToElemAndSide(iMortar,iLocSide,HaloElem)
+!    IF (currentElem.GT.0 .AND. currentElem.NE.StartElem) THEN
+!    !IF (currentElem.GT.PP_nElems) THEN
+!      DO l=1, TempHaloNumElems
+!        IF(currentElem.EQ.TempHaloElems(l)) THEN
+!          ElemExists=.TRUE.
+!          EXIT
+!        END IF
+!      END DO
+!      IF (.NOT.ElemExists) THEN
+!        ElemDone = .FALSE.
+!        DO iNode = 1, 8
+!          DO jNode = 1, 8
+!            MPINodeCoord(1:3) = NodeCoords_Shared(1:3,ElemNodeID_Shared(jNode,currentElem))
+!            ElemCoord(1:3) = NodeCoords_Shared(1:3,ElemNodeID_Shared(iNode,StartElem))
+!            IF(ALMOSTEQUAL(MPINodeCoord(1),ElemCoord(1)).AND.ALMOSTEQUAL(MPINodeCoord(2),ElemCoord(2)) &
+!                .AND.ALMOSTEQUAL(MPINodeCoord(3),ElemCoord(3))) THEN
+!              TempHaloNumElems = TempHaloNumElems + 1
+!              TempHaloElems(TempHaloNumElems) = currentElem
+!              ElemDone = .TRUE.
+!              CALL RecurseCheckNeighElems(StartElem,currentElem,TempHaloNumElems,TempHaloElems)
+!            END IF
+!            IF (ElemDone) EXIT
+!          END DO
+!          IF (ElemDone) EXIT
+!        END DO
+!      END IF
+!    END IF
+!  END DO
+!END DO
+!
+!END SUBROUTINE RecurseCheckNeighElems
+!
+!#if USE_MPI
+!SUBROUTINE BuildLocNodeToHaloNodeComm()
+!!===================================================================================================================================
+!!> build all missing stuff for node communication, like
+!!> MPI-neighbor list
+!!> PartHaloNodeToProc
+!!> send and recv list mapping
+!!> Only receiving process knows to which local node the information is send
+!!> The sending process does not know the final nodeID
+!!===================================================================================================================================
+!! MODULES
+!USE MOD_Globals
+!USE MOD_Preproc
+!USE MOD_Mesh_Vars          ,ONLY: nNodes
+!USE MOD_Particle_MPI_Vars  ,ONLY: PartMPI
+!USE MOD_Particle_MPI_Vars  ,ONLY: PartHaloNodeToProc
+!USE MOD_Particle_MPI_Vars  ,ONLY: NodeSendBuf, NodeRecvBuf, NodeExchange
+!USE MOD_Particle_Mesh_Vars ,ONLY: nTotalNodes, GEO
+!#if USE_MPI
+!USE MOD_MPI_Shared_Vars
+!#endif
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!! INPUT VARIABLES
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER             :: NodeIndexToSend(1:nNodes,0:PartMPI%nProcs-1)
+!INTEGER             :: nDOF,ALLOCSTAT
+!INTEGER             :: iProc, iNode,NodeID,iElem,iSendNode,iRecvNode,iPos,jNode
+!INTEGER,ALLOCATABLE :: recv_status_list(:,:)
+!INTEGER             :: NativeNodeID, iMPINeighbor
+!REAL                :: MPINodeCoord(3), ElemCoord(3)
+!!===================================================================================================================================
+!
+!! get list of mpi Node neighbors in halo-region (first mappings)
+!  ! caution:
+!  !  mapping1 is only done for halo-nodes with direct connection to local nodes (equal nodes to local)
+!ALLOCATE(PartMPI%IsMPINodeNeighbor(0:PartMPI%nProcs-1))
+!PartMPI%IsMPINodeNeighbor(:) = .FALSE.
+!PartMPI%nMPINodeNeighbors = 0
+!
+!NodeIndexToSend(:,:) = -1
+!IF(nTotalNodes.GT.nNodes)THEN
+!  ! get all MPI-neighbors to communicate with (only direct halo border)
+!  ! list needed because not all halo nodes are considered for first mapping
+!  DO iProc=0,PartMPI%nProcs-1
+!    IF(iProc.EQ.PartMPI%MyRank) CYCLE
+!    DO iNode=1,nNodes
+!      DO iElem=1,GEO%ElemsOnNode(iNode)
+!        IF (GEO%NodeToElem(iNode)%ElemID(iElem).LE.PP_nElems) CYCLE
+!        DO jNode=1,8
+!          IF ( iProc.NE.PartHaloNodeToProc(NATIVE_PROC_ID,ElemNodeID_Shared(jNode,GEO%NodeToElem(iNode)%ElemID(iElem))) ) CYCLE
+!          MPINodeCoord(1:3) = NodeCoords_Shared(1:3,ElemNodeID_Shared(jNode,GEO%NodeToElem(iNode)%ElemID(iElem)))
+!          ElemCoord(1:3) = NodeCoords_Shared(1:3,iNode)
+!          IF(ALMOSTEQUAL(MPINodeCoord(1),ElemCoord(1)).AND.ALMOSTEQUAL(MPINodeCoord(2),ElemCoord(2)) &
+!              .AND.ALMOSTEQUAL(MPINodeCoord(3),ElemCoord(3))) THEN
+!            NodeIndexToSend(iNode,iProc) = ElemNodeID_Shared(jNode,GEO%NodeToElem(iNode)%ElemID(iElem)) ! index of halo node on local proc
+!            IF (.NOT.PartMPI%IsMPINodeNeighbor(iProc)) THEN
+!              PartMPI%IsMPINodeNeighbor(iProc) = .TRUE.
+!              PartMPI%nMPINodeNeighbors = PartMPI%nMPINodeNeighbors + 1
+!            END IF
+!            EXIT
+!          END IF
+!        END DO
+!        IF (NodeIndexToSend(iNode,iProc).GT.0) EXIT
+!      END DO ! iElem=1,GEO%ElemsOnNode(iNode)
+!    END DO ! iNode=1,nNodes
+!  END DO ! iProc = 0, PartMPI%nProcs-1
+!END IF
+!
+!! fill list with neighbor proc id and add local neighbor id to PartHaloNodeToProc
+!ALLOCATE( PartMPI%MPINodeNeighbor(PartMPI%nMPINodeNeighbors))
+!iMPINeighbor=0
+!DO iProc=0,PartMPI%nProcs-1
+!  ! Check if iProc is my node neighbour
+!  IF(PartMPI%IsMPINodeNeighbor(iProc))THEN
+!    iMPINeighbor=iMPINeighbor+1
+!    ! Mapping of node neighbour proc to global proc id (PartMPI%COMM)
+!    PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID=iProc
+!    ! Loop all halo nodes
+!    DO iNode=nNodes+1,nTotalNodes
+!      IF(iProc.EQ.PartHaloNodeToProc(NATIVE_PROC_ID,iNode)) PartHaloNodeToProc(LOCAL_PROC_ID,iNode)=iMPINeighbor
+!    END DO ! iNode
+!  END IF
+!END DO
+!
+!! array how many nodes have to be communicated
+!ALLOCATE(NodeExchange%nNodesSend(1:PartMPI%nMPINodeNeighbors) &
+!        ,NodeExchange%nNodesRecv(1:PartMPI%nMPINodeNeighbors) &
+!        ,NodeExchange%SendRequest(PartMPI%nMPINodeNeighbors)  &
+!        ,NodeExchange%RecvRequest(PartMPI%nMPINodeNeighbors)  )
+!NodeExchange%nNodesSend(:) = 0
+!NodeExchange%nNodesRecv(:) = 0
+!
+!! count number of nodes to send to each proc
+!DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+!  DO iNode=1,nNodes
+!    IF (NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID).GT.nNodes) THEN
+!      NodeExchange%nNodesSend(iMPINeighbor) = NodeExchange%nNodesSend(iMPINeighbor) + 1
+!    END IF
+!  END DO
+!END DO
+!
+!! open envelope receiving number of send nodes
+!ALLOCATE(RECV_STATUS_LIST(1:MPI_STATUS_SIZE,1:PartMPI%nMPINodeNeighbors))
+!DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+!  CALL MPI_IRECV( NodeExchange%nNodesRecv(iMPINeighbor)            &
+!                , 1                                                &
+!                , MPI_INTEGER                                      &
+!                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
+!                , 1313                                             &
+!                , PartMPI%COMM                                     &
+!                , NodeExchange%RecvRequest(iMPINeighbor)           &
+!                , IERROR )
+!END DO ! iMPINeighbor
+!
+!DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+!  CALL MPI_ISEND( NodeExchange%nNodesSend(iMPINeighbor)            &
+!                , 1                                                &
+!                , MPI_INTEGER                                      &
+!                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
+!                , 1313                                             &
+!                , PartMPI%COMM                                     &
+!                , NodeExchange%SendRequest(iMPINeighbor)           &
+!                , IERROR )
+!END DO ! iMPINeighbor
+!
+!
+!! 4) Finish Received number of nodes
+!DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+!  CALL MPI_WAIT(NodeExchange%SendRequest(iMPINeighbor),MPIStatus,IERROR)
+!  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+!__STAMP__&
+!,' MPI Communication error', IERROR)
+!  CALL MPI_WAIT(NodeExchange%RecvRequest(iMPINeighbor),recv_status_list(:,iMPINeighbor),IERROR)
+!  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+!__STAMP__&
+!          ,' MPI Communication error', IERROR)
+!END DO ! iMPINeighbor
+!
+!! allocate send and receive buffer for communicating send node mapping
+!ALLOCATE(NodeSendBuf(PartMPI%nMPINodeNeighbors))
+!ALLOCATE(NodeRecvBuf(PartMPI%nMPINodeNeighbors))
+!DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesSend(iMPINeighbor).GT.0)THEN
+!    ALLOCATE(NodeSendBuf(iMPINeighbor)%content(NodeExchange%nNodesSend(iMPINeighbor)),STAT=ALLOCSTAT)
+!    NodeSendBuf(iMPINeighbor)%content(:)=0.
+!  END IF
+!  IF(NodeExchange%nNodesRecv(iMPINeighbor).GT.0)THEN
+!    ALLOCATE(NodeRecvBuf(iMPINeighbor)%content(NodeExchange%nNodesRecv(iMPINeighbor)),STAT=ALLOCSTAT)
+!    NodeRecvBuf(iMPINeighbor)%content(:)=0.
+!  END IF
+!END DO ! iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+!
+!! open receive buffer
+!DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesRecv(iMPINeighbor).EQ.0) CYCLE
+!  CALL MPI_IRECV( NodeRecvBuf(iMPINeighbor)%content                &
+!                , NodeExchange%nNodesRecv(iMPINeighbor)            &
+!                , MPI_DOUBLE_PRECISION                      &
+!                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
+!                , 1414                                      &
+!                , PartMPI%COMM                              &
+!                , NodeExchange%RecvRequest(iMPINeighbor)           &
+!                , IERROR )
+!END DO ! iMPINeighbor
+!
+!! build message
+!! after this message, the receiving process knows to which of his nodes it receives and the sending process will know which nodes to
+!! send
+!DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesSend(iMPINeighbor).EQ.0) CYCLE
+!  ALLOCATE(PartMPI%MPINodeNeighbor(iMPINeighbor)%SendList(NodeExchange%nNodesSend(iMPINeighbor)))
+!  PartMPI%MPINodeNeighbor(iMPINeighbor)%SendList(:) = 0
+!  iSendNode=0
+!  iPos=1
+!  DO iNode=1,nNodes
+!    IF (NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID).GT.nNodes) THEN
+!      iSendNode=iSendNode+1
+!      PartMPI%MPINodeNeighbor(iMPINeighbor)%SendList(iSendNode)=iNode
+!      NodeID=PartHaloNodeToProc(NATIVE_ELEM_ID,NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID))
+!      NodeSendBuf(iMPINeighbor)%content(iPos)=REAL(NodeID)
+!      iPos=iPos+1
+!    END IF
+!  END DO ! iNode=1,nNodes
+!  IF(iSendNode.NE.NodeExchange%nNodesSend(iMPINeighbor)) CALL abort(&
+!__STAMP__&
+!          ,' Message for node-exchange in init too short!',iMPINeighbor)
+!  IF(ANY(NodeSendBuf(iMPINeighbor)%content.LE.0))THEN
+!    IPWRITE(UNIT_stdOut,*) ' nSendNodes', NodeExchange%nNodesSend(iMPINeighbor), ' to Proc ', iMPINeighbor
+!    CALL abort(&
+!__STAMP__&
+!          ,' Sent Native-NodeID is < zero!')
+!  END IF
+!END DO
+!
+!DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesSend(iMPINeighbor).EQ.0) CYCLE
+!  CALL MPI_ISEND( NodeSendBuf(iMPINeighbor)%content                &
+!                , NodeExchange%nNodesSend(iMPINeighbor)            &
+!                , MPI_DOUBLE_PRECISION                      &
+!                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
+!                , 1414                                      &
+!                , PartMPI%COMM                              &
+!                , NodeExchange%SendRequest(iMPINeighbor)           &
+!                , IERROR )
+!END DO ! iMPINeighbor
+!
+!! 4) Finish Received indexing of received nodes
+!DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesSend(iMPINeighbor).NE.0) THEN
+!    CALL MPI_WAIT(NodeExchange%SendRequest(iMPINeighbor),MPIStatus,IERROR)
+!    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+!__STAMP__&
+!          ,' MPI Communication error', IERROR)
+!  END IF
+!  IF(NodeExchange%nNodesRecv(iMPINeighbor).NE.0) THEN
+!    CALL MPI_WAIT(NodeExchange%RecvRequest(iMPINeighbor),recv_status_list(:,iMPINeighbor),IERROR)
+!    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+!__STAMP__&
+!          ,' MPI Communication error', IERROR)
+!  END IF
+!END DO ! iMPINeighbor
+!
+!! fill list with received Node-IDs
+!DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+!  IF(NodeExchange%nNodesRecv(iMPINeighbor).EQ.0) CYCLE
+!  ALLOCATE(PartMPI%MPINodeNeighbor(iMPINeighbor)%RecvList(NodeExchange%nNodesRecv(iMPINeighbor)))
+!  iPos=1
+!  DO iRecvNode=1,NodeExchange%nNodesRecv(iMPINeighbor)
+!    NativeNodeID   = INT(NodeRecvBuf(iMPINeighbor)%content(iPos))
+!    IF(NativeNodeID.GT.nNodes)THEN
+!     CALL abort(&
+!__STAMP__&
+!          ,' Cannot send halo-data to other procs. big error! ', NativeNodeID, REAL(nNodes))
+!    END IF
+!    PartMPI%MPINodeNeighbor(iMPINeighbor)%RecvList(iRecvNode)=NativeNodeID
+!    iPos=iPos+1
+!  END DO ! RecvNode=1,NodeExchange%nNodesRecv(iMPINeighbor)
+!END DO ! iMPINeighbor
+!
+!nDOF = 1
+!DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+!  SDEALLOCATE(NodeSendBuf(iMPINeighbor)%content)
+!  SDEALLOCATE(NodeRecvBuf(iMPINeighbor)%content)
+!  IF(NodeExchange%nNodesSend(iMPINeighbor).GT.0) THEN
+!    ALLOCATE(NodeSendBuf(iMPINeighbor)%content(nDOF*NodeExchange%nNodesSend(iMPINeighbor)))
+!    NodeSendBuf(iMPINeighbor)%content(:)=0.
+!  END IF
+!  IF(NodeExchange%nNodesRecv(iMPINeighbor).GT.0) THEN
+!    ALLOCATE(NodeRecvBuf(iMPINeighbor)%content(nDOF*NodeExchange%nNodesRecv(iMPINeighbor)) )
+!    NodeRecvBuf(iMPINeighbor)%content(:)=0.
+!  END IF
+!END DO ! iMPINeighbor
+!DEALLOCATE(recv_status_list)
+!
+!CALL MPI_BARRIER(PartMPI%Comm,iError)
+!
+!
+!END SUBROUTINE BuildLocNodeToHaloNodeComm
 !#endif /*USE_MPI*/
-
-ALLOCATE(GEO%NumNeighborElems(1:PP_nElems))
-ALLOCATE(GEO%ElemToNeighElems(1:PP_nElems))
-GEO%NumNeighborElems(:)=0
-TempElemsOnNode(:)=0
-DO iNode=1,nNodes
-  TempNodeToElem(iNode)%ElemID=-1
-END DO
-
-! find all real neighbour elements for elements with halo neighbours
-! recursively checking connected halo area
-DO iElem =1, PP_nElems
-  TempHaloElems(1:500) = 0
-  TempHaloNumElems = 0
-  ! now check every side for neighbours, add valid neighbour to corresponding array and proceed recursively until neighbourhood
-  ! is finished
-  DO iLocSide = 1, 6
-    DO iMortar=1,4
-      ElemExists = .FALSE.
-      Element = PartElemToElemAndSide(iMortar,iLocSide,iElem)
-      IF (Element.GT.0) THEN !side has neighbour element
-        DO l=1, TempHaloNumElems
-          IF(Element.EQ.TempHaloElems(l)) THEN
-            ElemExists=.TRUE.
-            EXIT
-          END IF
-        END DO
-        IF (.NOT.ElemExists) THEN
-         TempHaloNumElems = TempHaloNumElems + 1
-          TempHaloElems(TempHaloNumElems) = Element
-        END IF
-        CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
-      END IF
-    END DO
-  END DO
-  IF (TempHaloNumElems.LE.0) CALL abort(&
-__STAMP__&
-,'ERROR in FindNeighbourElems! no neighbour elements found for Element',iElem)
-  ! write local variables into global array
-  GEO%NumNeighborElems(iElem) = TempHaloNumElems
-  ALLOCATE(GEO%ElemToNeighElems(iElem)%ElemID(1:GEO%NumNeighborElems(iElem)))
-  GEO%ElemToNeighElems(iElem)%ElemID(1:GEO%NumNeighborElems(iElem)) = TempHaloElems(1:TempHaloNumElems)
-  ! add neighbour elements to respective nodes of iElem if nodes of neighbour are the same to those of iElem
-  DO l=1,GEO%NumNeighborElems(iElem)
-    Element = GEO%ElemToNeighElems(iElem)%ElemID(l)
-    DO iNode = 1, 8
-      ElemExists = .FALSE.
-      DO k = 1,TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem))
-        IF (TempNodeToElem(GEO%ElemToNodeID(iNode,iElem))%ElemID(k).EQ.Element) THEN
-          ElemExists = .TRUE.
-          EXIT
-        END IF
-      END DO
-      IF (ElemExists) CYCLE
-      ElemCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
-      DO jNode = 1, 8
-        ElemDone = .FALSE.
-        MPINodeCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(jNode,Element))
-        IF(ALMOSTEQUAL(MPINodeCoord(1),ElemCoord(1)).AND.ALMOSTEQUAL(MPINodeCoord(2),ElemCoord(2)) &
-            .AND.ALMOSTEQUAL(MPINodeCoord(3),ElemCoord(3))) THEN
-          TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem)) = TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem)) + 1
-          TempNodeToElem(GEO%ElemToNodeID(iNode,iElem))%ElemID(TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem))) = Element
-          ElemDone = .TRUE.
-        END IF
-        IF (ElemDone) EXIT
-      END DO ! jNode=1,8
-      IF (ElemDone) CYCLE
-    END DO ! iNode=1,8
-  END DO ! l=1,NumNeihborElems
-END DO ! iElem=1,PP_nElems
-
-! check if current element already added to every node of the element and add to missing (elements for corner nodes not added yet)
-! this part needs its own loop over all elements
-DO iElem=1,PP_nElems
-  DO iNode = 1,8
-    ElemExists = .FALSE.
-    DO l = 1,TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem))
-      IF (TempNodeToElem(GEO%ElemToNodeID(iNode,iElem))%ElemID(l).EQ.iElem) THEN
-        ElemExists = .TRUE.
-        EXIT
-      END IF
-    END DO
-    IF (.NOT.ElemExists) THEN
-      TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem)) = TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem)) + 1
-      TempNodeToElem(GEO%ElemToNodeID(iNode,iElem))%ElemID(TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem))) = iElem
-    END IF
-  END DO
-END DO
-
-! write number of elements for corresponding proc global nodes into GEO structure
-ALLOCATE(GEO%ElemsOnNode(1:nNodes))
-ALLOCATE(GEO%NodeToElem(1:nNodes))
-DO iNode=1,nNodes
-  GEO%ElemsOnNode(iNode) = TempElemsOnNode(iNode)
-  ALLOCATE(GEO%NodeToElem(iNode)%ElemID(1:GEO%ElemsOnNode(iNode)))
-  GEO%NodeToElem(iNode)%ElemID(1:GEO%ElemsOnNode(iNode)) = TempNodeToElem(iNode)%ElemID(1:TempElemsOnNode(iNode))
-END DO
-
-! fill array of neighbour nodes to proc global nodes
-ALLOCATE(GEO%NeighNodesOnNode(1:nNodes))
-ALLOCATE(GEO%NodeToNeighNode(1:nNodes))
-DO iNode=1,nNodes
-  TempHaloElems(:) = 0
-  TempHaloNumElems = 0
-  DO iElem=1,GEO%ElemsOnNode(iNode)
-    DO jNode=1,8
-      IF (GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem)).EQ.iNode) CYCLE
-      ElemExists=.false.
-      DO l=1, TempHaloNumElems
-        IF(GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem)).EQ.TempHaloElems(l)) THEN
-          ElemExists=.true.
-          CYCLE
-        END IF
-      END DO
-      IF(.NOT.ElemExists) THEN
-        TempHaloNumElems = TempHaloNumElems + 1
-        TempHaloElems(TempHaloNumElems) = GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem))
-      END IF
-    END DO
-  END DO
-  ! write local variables into global array
-  ALLOCATE(GEO%NodeToNeighNode(iNode)%ElemID(1:TempHaloNumElems))
-  GEO%NeighNodesOnNode(iNode)=TempHaloNumElems
-  GEO%NodeToNeighNode(iNode)%ElemID(1:TempHaloNumElems) = TempHaloElems(1:TempHaloNumElems)
-END DO
-
-#ifdef CODE_ANALYZE
-! write some code analyze output of connectivity
-DO iElem=1,PP_nElems
-#if USE_MPI
-  IPWRITE(UNIT_StdOut,*) '------ Element: ',iElem+offsetElem,' has ',GEO%NumNeighborElems(iElem),' Neighbours'
-  IPWRITE(UNIT_StdOut,*) '------ Neighbours are:'
-  DO l=1,GEO%NumNeighborElems(iElem)
-    IF (GEO%ElemToNeighElems(iElem)%ElemID(l).GT.PP_nElems) THEN
-      IPWRITE(UNIT_StdOut,*) offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,GEO%ElemToNeighElems(iElem)%ElemID(l))) &
-          + PartHaloElemToProc(NATIVE_ELEM_ID,GEO%ElemToNeighElems(iElem)%ElemID(l))
-    ELSE
-      IPWRITE(UNIT_StdOut,*) GEO%ElemToNeighElems(iElem)%ElemID(l) + offsetElem
-    END IF
-  END DO
-#else
-  IPWRITE(UNIT_StdOut,*) '------ Element: ',iElem,' has ',GEO%NumNeighborElems(iElem),' Neighbours'
-  IPWRITE(UNIT_StdOut,*) '------ Neighbours are:',GEO%ElemToNeighElems(iElem)%ElemID(:)
-#endif /*USE_MPI*/
-END DO
-
-DO iNode=1,nNodes
-  IPWRITE(UNIT_StdOut,*) '------ Node: ',iNode,' has: ',GEO%ElemsOnNode(iNode),' Elements'
-  IPWRITE(UNIT_StdOut,*) '------ Node: ',iNode,' has: ',GEO%ElemsOnNode(iNode),' Elements'
-END DO
-#endif /*CODE_ANALYZE*/
-
-SWRITE(UNIT_stdOut,'(A)')' BUILD NODE-NEIGHBOURHOOD SUCCESSFUL '
-SWRITE(UNIT_StdOut,'(132("-"))')
-END SUBROUTINE NodeNeighbourhood
-
-
-RECURSIVE SUBROUTINE RecurseCheckNeighElems(StartElem,HaloElem,TempHaloNumElems,TempHaloElems)
-!===================================================================================================================================
-!> Subroutine for recursively checking halo neighbourhood for connectivity to current elem
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO, PartElemToElemAndSide
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)     :: StartElem
-INTEGER,INTENT(INOUT)  :: HaloElem,TempHaloElems(1:500), TempHaloNumElems
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                :: iNode, jNode
-INTEGER                :: iLocSide, l, iMortar
-INTEGER                :: currentElem
-LOGICAL                :: ElemExists, ElemDone
-REAL                   :: MPINodeCoord(3), ElemCoord(3)
-!===================================================================================================================================
-DO iLocSide = 1,6
-  DO iMortar=1,4
-    ElemExists = .FALSE.
-    currentElem = PartElemToElemAndSide(iMortar,iLocSide,HaloElem)
-    IF (currentElem.GT.0 .AND. currentElem.NE.StartElem) THEN
-    !IF (currentElem.GT.PP_nElems) THEN
-      DO l=1, TempHaloNumElems
-        IF(currentElem.EQ.TempHaloElems(l)) THEN
-          ElemExists=.TRUE.
-          EXIT
-        END IF
-      END DO
-      IF (.NOT.ElemExists) THEN
-        ElemDone = .FALSE.
-        DO iNode = 1, 8
-          DO jNode = 1, 8
-            MPINodeCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(jNode,currentElem))
-            ElemCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,StartElem))
-            IF(ALMOSTEQUAL(MPINodeCoord(1),ElemCoord(1)).AND.ALMOSTEQUAL(MPINodeCoord(2),ElemCoord(2)) &
-                .AND.ALMOSTEQUAL(MPINodeCoord(3),ElemCoord(3))) THEN
-              TempHaloNumElems = TempHaloNumElems + 1
-              TempHaloElems(TempHaloNumElems) = currentElem
-              ElemDone = .TRUE.
-              CALL RecurseCheckNeighElems(StartElem,currentElem,TempHaloNumElems,TempHaloElems)
-            END IF
-            IF (ElemDone) EXIT
-          END DO
-          IF (ElemDone) EXIT
-        END DO
-      END IF
-    END IF
-  END DO
-END DO
-
-END SUBROUTINE RecurseCheckNeighElems
-
-#if USE_MPI
-SUBROUTINE BuildLocNodeToHaloNodeComm()
-!===================================================================================================================================
-!> build all missing stuff for node communication, like
-!> MPI-neighbor list
-!> PartHaloNodeToProc
-!> send and recv list mapping
-!> Only receiving process knows to which local node the information is send
-!> The sending process does not know the final nodeID
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Mesh_Vars          ,ONLY: nNodes
-USE MOD_Particle_MPI_Vars  ,ONLY: PartMPI
-USE MOD_Particle_MPI_Vars  ,ONLY: PartHaloNodeToProc
-USE MOD_Particle_MPI_Vars  ,ONLY: NodeSendBuf, NodeRecvBuf, NodeExchange
-USE MOD_Particle_Mesh_Vars ,ONLY: nTotalNodes, GEO
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER             :: NodeIndexToSend(1:nNodes,0:PartMPI%nProcs-1)
-INTEGER             :: nDOF,ALLOCSTAT
-INTEGER             :: iProc, iNode,NodeID,iElem,iSendNode,iRecvNode,iPos,jNode
-INTEGER,ALLOCATABLE :: recv_status_list(:,:)
-INTEGER             :: NativeNodeID, iMPINeighbor
-REAL                :: MPINodeCoord(3), ElemCoord(3)
-!===================================================================================================================================
-
-! get list of mpi Node neighbors in halo-region (first mappings)
-  ! caution:
-  !  mapping1 is only done for halo-nodes with direct connection to local nodes (equal nodes to local)
-ALLOCATE(PartMPI%IsMPINodeNeighbor(0:PartMPI%nProcs-1))
-PartMPI%IsMPINodeNeighbor(:) = .FALSE.
-PartMPI%nMPINodeNeighbors = 0
-
-NodeIndexToSend(:,:) = -1
-IF(nTotalNodes.GT.nNodes)THEN
-  ! get all MPI-neighbors to communicate with (only direct halo border)
-  ! list needed because not all halo nodes are considered for first mapping
-  DO iProc=0,PartMPI%nProcs-1
-    IF(iProc.EQ.PartMPI%MyRank) CYCLE
-    DO iNode=1,nNodes
-      DO iElem=1,GEO%ElemsOnNode(iNode)
-        IF (GEO%NodeToElem(iNode)%ElemID(iElem).LE.PP_nElems) CYCLE
-        DO jNode=1,8
-          IF ( iProc.NE.PartHaloNodeToProc(NATIVE_PROC_ID,GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem))) ) CYCLE
-          MPINodeCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem)))
-          ElemCoord(1:3) = GEO%NodeCoords(1:3,iNode)
-          IF(ALMOSTEQUAL(MPINodeCoord(1),ElemCoord(1)).AND.ALMOSTEQUAL(MPINodeCoord(2),ElemCoord(2)) &
-              .AND.ALMOSTEQUAL(MPINodeCoord(3),ElemCoord(3))) THEN
-            NodeIndexToSend(iNode,iProc) = GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem)) ! index of halo node on local proc
-            IF (.NOT.PartMPI%IsMPINodeNeighbor(iProc)) THEN
-              PartMPI%IsMPINodeNeighbor(iProc) = .TRUE.
-              PartMPI%nMPINodeNeighbors = PartMPI%nMPINodeNeighbors + 1
-            END IF
-            EXIT
-          END IF
-        END DO
-        IF (NodeIndexToSend(iNode,iProc).GT.0) EXIT
-      END DO ! iElem=1,GEO%ElemsOnNode(iNode)
-    END DO ! iNode=1,nNodes
-  END DO ! iProc = 0, PartMPI%nProcs-1
-END IF
-
-! fill list with neighbor proc id and add local neighbor id to PartHaloNodeToProc
-ALLOCATE( PartMPI%MPINodeNeighbor(PartMPI%nMPINodeNeighbors))
-iMPINeighbor=0
-DO iProc=0,PartMPI%nProcs-1
-  ! Check if iProc is my node neighbour
-  IF(PartMPI%IsMPINodeNeighbor(iProc))THEN
-    iMPINeighbor=iMPINeighbor+1
-    ! Mapping of node neighbour proc to global proc id (PartMPI%COMM)
-    PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID=iProc
-    ! Loop all halo nodes
-    DO iNode=nNodes+1,nTotalNodes
-      IF(iProc.EQ.PartHaloNodeToProc(NATIVE_PROC_ID,iNode)) PartHaloNodeToProc(LOCAL_PROC_ID,iNode)=iMPINeighbor
-    END DO ! iNode
-  END IF
-END DO
-
-! array how many nodes have to be communicated
-ALLOCATE(NodeExchange%nNodesSend(1:PartMPI%nMPINodeNeighbors) &
-        ,NodeExchange%nNodesRecv(1:PartMPI%nMPINodeNeighbors) &
-        ,NodeExchange%SendRequest(PartMPI%nMPINodeNeighbors)  &
-        ,NodeExchange%RecvRequest(PartMPI%nMPINodeNeighbors)  )
-NodeExchange%nNodesSend(:) = 0
-NodeExchange%nNodesRecv(:) = 0
-
-! count number of nodes to send to each proc
-DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
-  DO iNode=1,nNodes
-    IF (NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID).GT.nNodes) THEN
-      NodeExchange%nNodesSend(iMPINeighbor) = NodeExchange%nNodesSend(iMPINeighbor) + 1
-    END IF
-  END DO
-END DO
-
-! open envelope receiving number of send nodes
-ALLOCATE(RECV_STATUS_LIST(1:MPI_STATUS_SIZE,1:PartMPI%nMPINodeNeighbors))
-DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
-  CALL MPI_IRECV( NodeExchange%nNodesRecv(iMPINeighbor)            &
-                , 1                                                &
-                , MPI_INTEGER                                      &
-                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
-                , 1313                                             &
-                , PartMPI%COMM                                     &
-                , NodeExchange%RecvRequest(iMPINeighbor)           &
-                , IERROR )
-END DO ! iMPINeighbor
-
-DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
-  CALL MPI_ISEND( NodeExchange%nNodesSend(iMPINeighbor)            &
-                , 1                                                &
-                , MPI_INTEGER                                      &
-                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
-                , 1313                                             &
-                , PartMPI%COMM                                     &
-                , NodeExchange%SendRequest(iMPINeighbor)           &
-                , IERROR )
-END DO ! iMPINeighbor
-
-
-! 4) Finish Received number of nodes
-DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
-  CALL MPI_WAIT(NodeExchange%SendRequest(iMPINeighbor),MPIStatus,IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-__STAMP__&
-,' MPI Communication error', IERROR)
-  CALL MPI_WAIT(NodeExchange%RecvRequest(iMPINeighbor),recv_status_list(:,iMPINeighbor),IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-__STAMP__&
-          ,' MPI Communication error', IERROR)
-END DO ! iMPINeighbor
-
-! allocate send and receive buffer for communicating send node mapping
-ALLOCATE(NodeSendBuf(PartMPI%nMPINodeNeighbors))
-ALLOCATE(NodeRecvBuf(PartMPI%nMPINodeNeighbors))
-DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesSend(iMPINeighbor).GT.0)THEN
-    ALLOCATE(NodeSendBuf(iMPINeighbor)%content(NodeExchange%nNodesSend(iMPINeighbor)),STAT=ALLOCSTAT)
-    NodeSendBuf(iMPINeighbor)%content(:)=0.
-  END IF
-  IF(NodeExchange%nNodesRecv(iMPINeighbor).GT.0)THEN
-    ALLOCATE(NodeRecvBuf(iMPINeighbor)%content(NodeExchange%nNodesRecv(iMPINeighbor)),STAT=ALLOCSTAT)
-    NodeRecvBuf(iMPINeighbor)%content(:)=0.
-  END IF
-END DO ! iMPINeighbor=1,PartMPI%nMPINodeNeighbors
-
-! open receive buffer
-DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesRecv(iMPINeighbor).EQ.0) CYCLE
-  CALL MPI_IRECV( NodeRecvBuf(iMPINeighbor)%content                &
-                , NodeExchange%nNodesRecv(iMPINeighbor)            &
-                , MPI_DOUBLE_PRECISION                      &
-                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
-                , 1414                                      &
-                , PartMPI%COMM                              &
-                , NodeExchange%RecvRequest(iMPINeighbor)           &
-                , IERROR )
-END DO ! iMPINeighbor
-
-! build message
-! after this message, the receiving process knows to which of his nodes it receives and the sending process will know which nodes to
-! send
-DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesSend(iMPINeighbor).EQ.0) CYCLE
-  ALLOCATE(PartMPI%MPINodeNeighbor(iMPINeighbor)%SendList(NodeExchange%nNodesSend(iMPINeighbor)))
-  PartMPI%MPINodeNeighbor(iMPINeighbor)%SendList(:) = 0
-  iSendNode=0
-  iPos=1
-  DO iNode=1,nNodes
-    IF (NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID).GT.nNodes) THEN
-      iSendNode=iSendNode+1
-      PartMPI%MPINodeNeighbor(iMPINeighbor)%SendList(iSendNode)=iNode
-      NodeID=PartHaloNodeToProc(NATIVE_ELEM_ID,NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID))
-      NodeSendBuf(iMPINeighbor)%content(iPos)=REAL(NodeID)
-      iPos=iPos+1
-    END IF
-  END DO ! iNode=1,nNodes
-  IF(iSendNode.NE.NodeExchange%nNodesSend(iMPINeighbor)) CALL abort(&
-__STAMP__&
-          ,' Message for node-exchange in init too short!',iMPINeighbor)
-  IF(ANY(NodeSendBuf(iMPINeighbor)%content.LE.0))THEN
-    IPWRITE(UNIT_stdOut,*) ' nSendNodes', NodeExchange%nNodesSend(iMPINeighbor), ' to Proc ', iMPINeighbor
-    CALL abort(&
-__STAMP__&
-          ,' Sent Native-NodeID is < zero!')
-  END IF
-END DO
-
-DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesSend(iMPINeighbor).EQ.0) CYCLE
-  CALL MPI_ISEND( NodeSendBuf(iMPINeighbor)%content                &
-                , NodeExchange%nNodesSend(iMPINeighbor)            &
-                , MPI_DOUBLE_PRECISION                      &
-                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
-                , 1414                                      &
-                , PartMPI%COMM                              &
-                , NodeExchange%SendRequest(iMPINeighbor)           &
-                , IERROR )
-END DO ! iMPINeighbor
-
-! 4) Finish Received indexing of received nodes
-DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesSend(iMPINeighbor).NE.0) THEN
-    CALL MPI_WAIT(NodeExchange%SendRequest(iMPINeighbor),MPIStatus,IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-__STAMP__&
-          ,' MPI Communication error', IERROR)
-  END IF
-  IF(NodeExchange%nNodesRecv(iMPINeighbor).NE.0) THEN
-    CALL MPI_WAIT(NodeExchange%RecvRequest(iMPINeighbor),recv_status_list(:,iMPINeighbor),IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-__STAMP__&
-          ,' MPI Communication error', IERROR)
-  END IF
-END DO ! iMPINeighbor
-
-! fill list with received Node-IDs
-DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesRecv(iMPINeighbor).EQ.0) CYCLE
-  ALLOCATE(PartMPI%MPINodeNeighbor(iMPINeighbor)%RecvList(NodeExchange%nNodesRecv(iMPINeighbor)))
-  iPos=1
-  DO iRecvNode=1,NodeExchange%nNodesRecv(iMPINeighbor)
-    NativeNodeID   = INT(NodeRecvBuf(iMPINeighbor)%content(iPos))
-    IF(NativeNodeID.GT.nNodes)THEN
-     CALL abort(&
-__STAMP__&
-          ,' Cannot send halo-data to other procs. big error! ', NativeNodeID, REAL(nNodes))
-    END IF
-    PartMPI%MPINodeNeighbor(iMPINeighbor)%RecvList(iRecvNode)=NativeNodeID
-    iPos=iPos+1
-  END DO ! RecvNode=1,NodeExchange%nNodesRecv(iMPINeighbor)
-END DO ! iMPINeighbor
-
-nDOF = 1
-DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
-  SDEALLOCATE(NodeSendBuf(iMPINeighbor)%content)
-  SDEALLOCATE(NodeRecvBuf(iMPINeighbor)%content)
-  IF(NodeExchange%nNodesSend(iMPINeighbor).GT.0) THEN
-    ALLOCATE(NodeSendBuf(iMPINeighbor)%content(nDOF*NodeExchange%nNodesSend(iMPINeighbor)))
-    NodeSendBuf(iMPINeighbor)%content(:)=0.
-  END IF
-  IF(NodeExchange%nNodesRecv(iMPINeighbor).GT.0) THEN
-    ALLOCATE(NodeRecvBuf(iMPINeighbor)%content(nDOF*NodeExchange%nNodesRecv(iMPINeighbor)) )
-    NodeRecvBuf(iMPINeighbor)%content(:)=0.
-  END IF
-END DO ! iMPINeighbor
-DEALLOCATE(recv_status_list)
-
-CALL MPI_BARRIER(PartMPI%Comm,iError)
-
-
-END SUBROUTINE BuildLocNodeToHaloNodeComm
-#endif /*USE_MPI*/
 
 
 !SUBROUTINE DuplicateSlavePeriodicSides()
@@ -6895,6 +6920,9 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHasAuxBCs,GEO
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -6920,7 +6948,7 @@ DO iAuxBC=1,nAuxBCs
     radius=AuxBC_plane(AuxBCMap(iAuxBC))%radius
     ! loop over all  elements
     DO iElem=1,PP_nElems
-      ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+      ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
         fmin=-DOT_PRODUCT(r_vec,n_vec)
         fmax=fmin
         DO icoord=1,3
@@ -7003,7 +7031,7 @@ DO iAuxBC=1,nAuxBCs
       origin(2) = r_vec(dir(3))
       ! loop over all  elements
       DO iElem=1,PP_nElems
-        ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+        ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
           ! check for lmin and lmax
           IF ( r_vec(dir(1))+deltamax.LT.Bounds(1,dir(1)) .OR. r_vec(dir(1))+deltamin.GT.Bounds(2,dir(1)) ) THEN
             ElemHasAuxBCs(iElem,iAuxBC)=.FALSE.
