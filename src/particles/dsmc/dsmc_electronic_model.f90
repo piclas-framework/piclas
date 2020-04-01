@@ -487,38 +487,47 @@ REAL FUNCTION DiffElecEnergy(En1, En2)
 END FUNCTION DiffElecEnergy
 
 
-REAL FUNCTION CalcXiElec(Telec, iSpec)
+PURE REAL FUNCTION CalcXiElec(Telec, iSpec)
 !===================================================================================================================================
 ! Calculation of the electronic degree of freedom
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+USE MOD_DSMC_Vars,              ONLY : SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL, INTENT(IN)                :: Telec  !
-  INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
+REAL, INTENT(IN)                :: Telec  !
+INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-  INTEGER                         :: iQua
-  REAL                            :: SumOne, SumTwo
+INTEGER                         :: iQua
+REAL                            :: SumOne, SumTwo, exp_prec
 !===================================================================================================================================
 
-  SumOne = 0.0
-  SumTwo = 0.0
-  DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant-1
+SumOne = 0.0
+SumTwo = 0.0
+exp_prec=RANGE(SumOne)
+
+DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant-1
+  IF(SpecDSMC(iSpec)%ElectronicState(2,iQua)/Telec.LT.exp_prec) THEN
     SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,iQua) * BoltzmannConst* SpecDSMC(iSpec)%ElectronicState(2,iQua) * &
               EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua) / Telec)
     SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua) / Telec)
-  END DO
-  CalcXiElec = 2. * SumOne / (SumTwo * BoltzmannConst * Telec)
+  END IF
+END DO
 
-  RETURN
+IF((SumOne.GT.0.0).AND.(SumTwo*BoltzmannConst.GT.0.0)) THEN
+  CalcXiElec = 2. * SumOne / (SumTwo * BoltzmannConst * Telec)
+ELSE
+  CalcXiElec = 0.0
+END IF
+
+RETURN
 
 END FUNCTION CalcXiElec
 

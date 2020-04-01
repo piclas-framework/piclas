@@ -898,7 +898,10 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                       :: RelaxToDo
-REAL                          :: Distance, MacroParticleFactor, PairWeight
+REAL                          :: Distance
+#if (PP_TimeDiscMethod==42)
+REAL                          :: MacroParticleFactor, PairWeight
+#endif
 !===================================================================================================================================
 
 #if (PP_TimeDiscMethod==42)

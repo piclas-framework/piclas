@@ -567,27 +567,27 @@ USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)                :: MeanEelec  ! Charak TVib, mean vibrational Energy of all molecules
-INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
+REAL, INTENT(IN)      :: MeanEelec  !< Mean electronic energy
+INTEGER, INTENT(IN)   :: iSpec      !< Species index
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                         :: ii
-REAL                    :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
-REAL                    :: eps_prec=5E-3,exp_prec           !< Relative precision of root-finding algorithm, maximal exponent
-REAL                    :: SumOne, SumTwo                   !< Sums of the electronic partition function
+INTEGER               :: ii
+REAL                  :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
+REAL                  :: eps_prec=1E-3,exp_prec           !< Relative precision of root-finding algorithm, maximal exponent
+REAL                  :: SumOne, SumTwo                   !< Sums of the electronic partition function
 !===================================================================================================================================
 
-! lower limit: very small value or lowest temperature if ionized
-! upper limit: highest possible temperature
-IF ( MeanEelec .GT. 0 ) THEN
-  IF ( SpecDSMC(iSpec)%ElectronicState(2,0) .EQ. 0 ) THEN
+IF (MeanEelec.GT.0) THEN
+  ! Lower limit: very small value or lowest temperature if ionized
+  IF (SpecDSMC(iSpec)%ElectronicState(2,0).EQ.0.0) THEN
     LowerTemp = 1.0
   ELSE
     LowerTemp = SpecDSMC(iSpec)%ElectronicState(2,0)
   END IF
+  ! Upper limit: Last excitation level (ionization limit)
   UpperTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant-1)
   MiddleTemp = LowerTemp
   exp_prec = REAL(RANGE(MiddleTemp))
