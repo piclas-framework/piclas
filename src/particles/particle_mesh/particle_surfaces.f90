@@ -1302,7 +1302,7 @@ REAL,DIMENSION(1:BezierSampleN,1:BezierSampleN),INTENT(OUT),OPTIONAL     :: Dmax
 REAL,DIMENSION(1:2,0:NGeo,0:NGeo,1:BezierSampleN,1:BezierSampleN),INTENT(OUT),OPTIONAL       :: BezierControlPoints2D_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                :: p,q,Shift
+INTEGER                                :: p,q
 INTEGER                                :: I,J,iSample,jSample,DmaxSampleN
 REAL                                   :: areaTotal,areaTotalAbs,area,deltaXi,tmp1,E,F,G,D
 REAL                                   :: tmpI2,tmpJ2
@@ -1356,11 +1356,6 @@ SurfMeshSubSideVec_nOut=0.
 SurfMeshSubSideVec_t1=0.
 SurfMeshSubSideVec_t2=0.
 Dmax=1. !dummy
-#if USE_MPI
-  Shift=1
-#else
-  Shift=0
-#endif
 
 ALLOCATE(Xi_NGeo( 0:NGeo)  &
         ,wGP_NGeo(0:NGeo) )
@@ -1397,9 +1392,9 @@ DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN !loop through Sub-Element
     n1=n1/SQRT(DOT_PRODUCT(n1,n1))
     n2(:)=CROSSNORM(ProjectionVector,n1)
     DO q=0,NGeo; DO p=0,NGeo
-      BezierControlPoints2D(1,p,q,iSample,jSample)=DOT_PRODUCT(BezierControlPoints3D(:,p+Shift,q+Shift,SideID),n1)
+      BezierControlPoints2D(1,p,q,iSample,jSample)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID),n1)
       ! origin is (0,0,0)^T
-      BezierControlPoints2D(2,p,q,iSample,jSample)=DOT_PRODUCT(BezierControlPoints3D(:,p+Shift,q+Shift,SideID),n2)
+      BezierControlPoints2D(2,p,q,iSample,jSample)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID),n2)
       ! origin is (0,0,0)^T
     END DO; END DO
   END IF!(BezierSurfFluxProjection)THEN

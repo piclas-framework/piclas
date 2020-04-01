@@ -123,6 +123,7 @@ CALL MPI_COMM_GROUP(MPI_COMM_SHARED,sharedGroup,IERROR)
 CALL MPI_GROUP_TRANSLATE_RANKS(worldGroup,nProcessors,MPIRankGlobal,sharedGroup,MPIRankShared,IERROR)
 
 ! Send rank of compute node root to all procs on shared comm
+IF (myComputeNodeRank.EQ.0) ComputeNodeRootRank = myRank
 CALL MPI_BCAST(ComputeNodeRootRank,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 
 ! now split global communicator into small group leaders and the others

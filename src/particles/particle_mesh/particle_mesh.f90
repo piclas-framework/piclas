@@ -61,6 +61,7 @@ END INTERFACE
 !  MODULE PROCEDURE InitElemBoundingBox
 !END INTERFACE
 
+PUBLIC::DefineParametersParticleMesh
 PUBLIC::InitParticleMesh
 PUBLIC::InitParticleGeometry
 PUBLIC::FinalizeParticleMesh
@@ -70,8 +71,7 @@ PUBLIC::GetMeshMinMax
 PUBLIC::GetGlobalNonUniqueSideID
 !PUBLIC::InitElemBoundingBox
 !===================================================================================================================================
-!
-PUBLIC::DefineParametersParticleMesh
+
 CONTAINS
 
 !==================================================================================================================================

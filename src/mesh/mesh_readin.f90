@@ -405,9 +405,9 @@ CALL Allocate_Shared(MPISharedSize,(/ELEMINFOSIZE,nGlobalElems/),ElemInfo_Shared
 CALL MPI_WIN_LOCK_ALL(0,ElemInfo_Shared_Win,IERROR)
 ElemInfo_Shared(1:ELEMINFOSIZE_H5,offsetElem+1:offsetElem+nElems) = ElemInfo(:,:)
 ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = 0
+CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
 ALLOCATE(ElemInfo_Shared_tmp(offsetElem+1:offsetElem+nElems))
 ElemInfo_Shared_tmp(offsetElem+1:offsetElem+nElems) = myRank
-CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
 offsetComputeNodeElem=offsetElem
 CALL MPI_BCAST(offsetComputeNodeElem,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 #else
