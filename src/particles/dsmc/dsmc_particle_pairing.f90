@@ -220,7 +220,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   USE MOD_DSMC_Vars,              ONLY: DSMC, SelectionProc, RadialWeighting, useRelaxProbCorrFactor, VarVibRelaxProb
   USE MOD_DSMC_Analyze,           ONLY: CalcGammaVib, CalcInstantTransTemp
   USE MOD_Particle_Vars,          ONLY: PEM, PartSpecies, nSpecies, PartState, VarTimeStep
-  USE MOD_Particle_Vars,          ONLY: KeepWallParticles, PDM
+  USE MOD_Particle_Vars,          ONLY: PDM
   USE MOD_part_tools,             ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -236,11 +236,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   INTEGER, ALLOCATABLE          :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
   REAL                          :: iRan
 !===================================================================================================================================
-  IF (KeepWallParticles) THEN
-    nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
-  ELSE
-    nPart = PEM%pNumber(iElem)
-  END IF
+  nPart = PEM%pNumber(iElem)
   nPair = INT(nPart/2)
   IF (CollisMode.EQ.3) THEN
     ChemReac%RecombParticle = 0
@@ -265,11 +261,6 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
   DO iLoop = 1, nPart
     ! check if particle is on wall and chose next particle until particle is not at wall
-    IF (KeepWallParticles) THEN
-      DO WHILE (PDM%ParticleAtWall(iPart))
-        iPart = PEM%pNext(iPart)
-      END DO
-    END IF
     iPartIndx(iLoop) = iPart
     ! Counter for part num of spec per cell
     CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)

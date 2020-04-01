@@ -80,7 +80,7 @@ SUBROUTINE UpdateSurfModelVars()
 !>    and need coverage info for adsorption calculation (mpi routines know which sides to communicate)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles, Species, nSpecies
+USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, Species, nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall, PartBound
 USE MOD_TimeDisc_Vars          ,ONLY: tend,time
@@ -116,126 +116,126 @@ IF (.NOT.ANY(Partbound%Reactive)) RETURN
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-IF (.NOT.KeepWallParticles) THEN
+
 #if USE_MPI
 !----- 1.
-  DO iSpec = 1,nSpecies
-    IF(SurfCOMM%InnerBCs) THEN
-    ! if there are innerBCs with reflective (reactive) surface properties
-    ! additional communcation is needed (see:SUBROUTINE MapInnerSurfData)
-      CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumAdsorbPart(:,:,:,iSpec),AddFlag=.TRUE.)
-      CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumERDesorbed(:,:,:,iSpec),AddFlag=.TRUE.)
-      CALL ExchangeSurfaceHaloToOrigin(RealDataIN=Adsorption%SurfaceNormalVelo(:,:,:,iSpec),AddFlag=.TRUE.)
-      CALL ExchangeSurfaceHaloToOrigin(IntDataIN=Adsorption%CollSpecPartNum(:,:,:,iSpec),AddFlag=.TRUE.)
-      CALL MapHaloInnerToOriginInnerSurf(IntDataIN=SurfModel%SumAdsorbPart(:,:,:,iSpec),AddFlag=.TRUE.)
-      CALL MapHaloInnerToOriginInnerSurf(IntDataIN=SurfModel%SumERDesorbed(:,:,:,iSpec),AddFlag=.TRUE.)
-      CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%SurfaceNormalVelo(:,:,:,iSpec),AddFlag=.TRUE.)
-      CALL MapHaloInnerToOriginInnerSurf(IntDataIN=Adsorption%CollSpecPartNum(:,:,:,iSpec),AddFlag=.TRUE.)
-    END IF
+DO iSpec = 1,nSpecies
+  IF(SurfCOMM%InnerBCs) THEN
+  ! if there are innerBCs with reflective (reactive) surface properties
+  ! additional communcation is needed (see:SUBROUTINE MapInnerSurfData)
     CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumAdsorbPart(:,:,:,iSpec),AddFlag=.TRUE.)
     CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumERDesorbed(:,:,:,iSpec),AddFlag=.TRUE.)
     CALL ExchangeSurfaceHaloToOrigin(RealDataIN=Adsorption%SurfaceNormalVelo(:,:,:,iSpec),AddFlag=.TRUE.)
     CALL ExchangeSurfaceHaloToOrigin(IntDataIN=Adsorption%CollSpecPartNum(:,:,:,iSpec),AddFlag=.TRUE.)
-  END DO
+    CALL MapHaloInnerToOriginInnerSurf(IntDataIN=SurfModel%SumAdsorbPart(:,:,:,iSpec),AddFlag=.TRUE.)
+    CALL MapHaloInnerToOriginInnerSurf(IntDataIN=SurfModel%SumERDesorbed(:,:,:,iSpec),AddFlag=.TRUE.)
+    CALL MapHaloInnerToOriginInnerSurf(RealDataIN=Adsorption%SurfaceNormalVelo(:,:,:,iSpec),AddFlag=.TRUE.)
+    CALL MapHaloInnerToOriginInnerSurf(IntDataIN=Adsorption%CollSpecPartNum(:,:,:,iSpec),AddFlag=.TRUE.)
+  END IF
+  CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumAdsorbPart(:,:,:,iSpec),AddFlag=.TRUE.)
+  CALL ExchangeSurfaceHaloToOrigin(IntDataIN=SurfModel%SumERDesorbed(:,:,:,iSpec),AddFlag=.TRUE.)
+  CALL ExchangeSurfaceHaloToOrigin(RealDataIN=Adsorption%SurfaceNormalVelo(:,:,:,iSpec),AddFlag=.TRUE.)
+  CALL ExchangeSurfaceHaloToOrigin(IntDataIN=Adsorption%CollSpecPartNum(:,:,:,iSpec),AddFlag=.TRUE.)
+END DO
 #if USE_LOADBALANCE
-  CALL LBSplitTime(LB_SURFCOMM,tLBStart)
+CALL LBSplitTime(LB_SURFCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
-  ! adjust coverages of all species on surfaces
-  DO iSpec = 1,nSpecies
+! adjust coverages of all species on surfaces
+DO iSpec = 1,nSpecies
 #if (PP_TimeDiscMethod==42)
-    IF (DSMC%ReservoirRateStatistic) SurfModel%Info(iSpec)%WallSpecNumCount = 0
+  IF (DSMC%ReservoirRateStatistic) SurfModel%Info(iSpec)%WallSpecNumCount = 0
 #endif
 !----- 2.
-    DO iSurfSide = 1,SurfMesh%nOutputSides
-      IF (.NOT.IsReactiveSurface(iSurfSide)) CYCLE
-      DO q = 1,nSurfSample
-        DO p = 1,nSurfSample
+  DO iSurfSide = 1,SurfMesh%nOutputSides
+    IF (.NOT.IsReactiveSurface(iSurfSide)) CYCLE
+    DO q = 1,nSurfSample
+      DO p = 1,nSurfSample
 #if (PP_TimeDiscMethod==42)
-          ! write number of adsorbates into info array
-          IF (DSMC%ReservoirRateStatistic) THEN
-            maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
-            SurfModel%Info(iSpec)%WallSpecNumCount = SurfModel%Info(iSpec)%WallSpecNumCount &
-                                                          + INT( Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                                                          * maxPart/Species(iSpec)%MacroParticleFactor)
-          END IF
+        ! write number of adsorbates into info array
+        IF (DSMC%ReservoirRateStatistic) THEN
+          maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
+          SurfModel%Info(iSpec)%WallSpecNumCount = SurfModel%Info(iSpec)%WallSpecNumCount &
+                                                        + INT( Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+                                                        * maxPart/Species(iSpec)%MacroParticleFactor)
+        END IF
 #endif
-          SELECT CASE (SurfaceHasModelNum(iSurfSide))
-          CASE(1)
-            maxPart = Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)
-            Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                + ( SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec) &
-                - (SurfModel%SumDesorbPart(p,q,iSurfSide,iSpec) - SurfModel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
-                * Species(iSpec)%MacroParticleFactor / maxPart
-          CASE(2)
-            Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                + SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec)
-          CASE(3)
+        SELECT CASE (SurfaceHasModelNum(iSurfSide))
+        CASE(1)
+          maxPart = Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)
+          Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+              + ( SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec) &
+              - (SurfModel%SumDesorbPart(p,q,iSurfSide,iSpec) - SurfModel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
+              * Species(iSpec)%MacroParticleFactor / maxPart
+        CASE(2)
+          Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+              + SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec)
+        CASE(3)
 #if (PP_TimeDiscMethod==42)
-            IF (Adsorption%CoverageReduction) THEN
-              ! calculate number of desorbed particles for each species
-              desorbnum_covreduce = (REAL(Adsorption%CovReductionStep(iSpec))/REAL(SurfDistInfo(p,q,iSurfSide)%nSites(3))) &
-                  * REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) &
-                  * SurfMesh%SurfaceArea(p,q,iSurfSide),8)) / Species(iSpec)%MacroParticleFactor
-              coverage_tmp = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                  - REAL(desorbnum_covreduce) * Species(iSpec)%MacroParticleFactor &
-                  / REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
-              IF(coverage_tmp.GT.0.) THEN
-                Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_tmp
-                new_adsorbates = -1*Adsorption%CovReductionStep(iSpec)
-                CALL SMCR_AdjustMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
-              END IF
-            END IF
-#endif
-            maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
+          IF (Adsorption%CoverageReduction) THEN
+            ! calculate number of desorbed particles for each species
+            desorbnum_covreduce = (REAL(Adsorption%CovReductionStep(iSpec))/REAL(SurfDistInfo(p,q,iSurfSide)%nSites(3))) &
+                * REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) &
+                * SurfMesh%SurfaceArea(p,q,iSurfSide),8)) / Species(iSpec)%MacroParticleFactor
             coverage_tmp = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                + REAL(( SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec) &
-                - (SurfModel%SumDesorbPart(p,q,iSurfSide,iSpec) - SurfModel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
-                * Species(iSpec)%MacroParticleFactor) / maxPart
-            IF (coverage_tmp.LT.0.) THEN ! can only happen for (ER + desorption) or (ER + MPF_surf<MPF_gas) --> SumAdsorbPart<0
-              coverage_corrected = 0. !Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                  !+ REAL(( - (SurfModel%SumDesorbPart(p,q,iSurfSide,iSpec) - SurfModel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
-                  !* Species(iSpec)%MacroParticleFactor) / maxPart
-            ELSE
-              coverage_corrected = coverage_tmp
+                - REAL(desorbnum_covreduce) * Species(iSpec)%MacroParticleFactor &
+                / REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
+            IF(coverage_tmp.GT.0.) THEN
+              Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_tmp
+              new_adsorbates = -1*Adsorption%CovReductionStep(iSpec)
+              CALL SMCR_AdjustMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
             END IF
-!----- 2.1
-            IF (SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec).NE.0) THEN
-              ! calculate number of adsorbed particles on reconstructed surface for each species
-              numSites = SurfDistInfo(p,q,iSurfSide)%nSites(3) !number of simulated surface atoms
-              SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
-                    + (REAL(SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec)) * Species(iSpec)%MacroParticleFactor &
-                    / maxPart) * REAL(numSites)
-            END IF ! SumAdsorbPart!=0
-            ! convert to integer adsorbates
-            new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
-            IF (new_adsorbates.NE.0) THEN
-              ! Adjust tracking of adsorbing background particles
-              CALL SMCR_AdjustMapNum(p,q,iSurfSide,new_adsorbates,iSpec,SampleFlag=.TRUE.)
-              SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
-                                                                - new_adsorbates
-            END IF
-            Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_corrected
-          END SELECT
-!----- 2.2
-          IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
-              .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-            SampWall(iSurfSide)%SurfModelState(5+iSpec,p,q) = SampWall(iSurfSide)%SurfModelState(5+iSpec,p,q) &
-                                                        + Adsorption%Coverage(p,q,iSurfSide,iSpec)
           END IF
-        END DO
+#endif
+          maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
+          coverage_tmp = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+              + REAL(( SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec) &
+              - (SurfModel%SumDesorbPart(p,q,iSurfSide,iSpec) - SurfModel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
+              * Species(iSpec)%MacroParticleFactor) / maxPart
+          IF (coverage_tmp.LT.0.) THEN ! can only happen for (ER + desorption) or (ER + MPF_surf<MPF_gas) --> SumAdsorbPart<0
+            coverage_corrected = 0. !Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+                !+ REAL(( - (SurfModel%SumDesorbPart(p,q,iSurfSide,iSpec) - SurfModel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
+                !* Species(iSpec)%MacroParticleFactor) / maxPart
+          ELSE
+            coverage_corrected = coverage_tmp
+          END IF
+!----- 2.1
+          IF (SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec).NE.0) THEN
+            ! calculate number of adsorbed particles on reconstructed surface for each species
+            numSites = SurfDistInfo(p,q,iSurfSide)%nSites(3) !number of simulated surface atoms
+            SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
+                  + (REAL(SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec)) * Species(iSpec)%MacroParticleFactor &
+                  / maxPart) * REAL(numSites)
+          END IF ! SumAdsorbPart!=0
+          ! convert to integer adsorbates
+          new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
+          IF (new_adsorbates.NE.0) THEN
+            ! Adjust tracking of adsorbing background particles
+            CALL SMCR_AdjustMapNum(p,q,iSurfSide,new_adsorbates,iSpec,SampleFlag=.TRUE.)
+            SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
+                                                              - new_adsorbates
+          END IF
+          Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_corrected
+        END SELECT
+!----- 2.2
+        IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
+            .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+          SampWall(iSurfSide)%SurfModelState(5+iSpec,p,q) = SampWall(iSurfSide)%SurfModelState(5+iSpec,p,q) &
+                                                      + Adsorption%Coverage(p,q,iSurfSide,iSpec)
+        END IF
       END DO
     END DO
   END DO
+END DO
 !----- 3.
-  ! SumEvapPart is nullified in particle emission (surface flux) after inserting particles at corresponding surfaces
-  SurfModel%SumEvapPart(:,:,:,:) = SurfModel%SumEvapPart(:,:,:,:) + SurfModel%SumERDesorbed(:,:,1:SurfMesh%nOutputSides,:)
-  SurfModel%SumERDesorbed(:,:,:,:) = 0
-  SurfModel%SumDesorbPart(:,:,:,:) = 0
-  SurfModel%SumAdsorbPart(:,:,:,:) = 0
-  SurfModel%SumReactPart(:,:,:,:) = 0
-END IF
+! SumEvapPart is nullified in particle emission (surface flux) after inserting particles at corresponding surfaces
+SurfModel%SumEvapPart(:,:,:,:) = SurfModel%SumEvapPart(:,:,:,:) + SurfModel%SumERDesorbed(:,:,1:SurfMesh%nOutputSides,:)
+SurfModel%SumERDesorbed(:,:,:,:) = 0
+SurfModel%SumDesorbPart(:,:,:,:) = 0
+SurfModel%SumAdsorbPart(:,:,:,:) = 0
+SurfModel%SumReactPart(:,:,:,:) = 0
+
 Adsorption%NumCovSamples = Adsorption%NumCovSamples + 1
 !----- 4.
 CALL CalcDesorbProb()

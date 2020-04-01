@@ -84,10 +84,6 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
     END DO
   END DO
 END DO
-! IF (.NOT.KeepWallParticles) THEN
-!   surfsquare = GETINT('Particles-DSMC-AdsorptionSites','10000')
-!   surfsquare = INT(SQRT(REAL(surfsquare))) - 1
-! END IF
 DistNumCase = GETLOGICAL('Particles-Surface-DistNumCase')
 IF (DistNumCase) THEN
   DistSquareNum = GETINT('Particles-Surface-DistSquareNumber')
@@ -111,12 +107,6 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
   DO iSubSurf = 1,nSurfSample
     DO jSubSurf = 1,nSurfSample
       IF (PartBound%SurfaceModel(PartboundID).EQ.3) THEN
-  !     IF (KeepWallParticles) THEN ! does not work with vMPF
-  !       surfsquare = INT(Adsorption%DensSurfAtoms(iSurfSide) &
-  !                     * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurfSide) &
-  !                     / Species(1)%MacroParticleFactor)
-  !       surfsquare = INT(SQRT(REAL(surfsquare))) - 1
-  !     END IF
         IF (DistNumCase) THEN
           surfsquare = DistSquareNum - 1
         ELSE

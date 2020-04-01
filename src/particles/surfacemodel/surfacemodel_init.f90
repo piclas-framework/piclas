@@ -42,8 +42,6 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("SurfaceModel")
 
-!CALL prms%CreateLogicalOption(  'Particles-KeepWallParticles'&
-!  , 'Flag to track adsorbed Particles on surface if they are adsorbed. Currently only [FALSE] implemented','.FALSE.')
 CALL prms%CreateLogicalOption(  'Surface-ModelERSpecular'&
   , 'Flag for specular reflection for ER-reaction particles [FALSE] diffuse reflection','.FALSE.')
 #if (PP_TimeDiscMethod==42)
@@ -229,7 +227,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars                  ,ONLY: nElems, BC
 USE MOD_DSMC_Vars                  ,ONLY: DSMC, CollisMode, SpecDSMC
 USE MOD_Particle_Vars              ,ONLY: nSpecies, PDM, WriteMacroSurfaceValues
-USE MOD_Particle_Vars              ,ONLY: KeepWallParticles, PEM, Species
+USE MOD_Particle_Vars              ,ONLY: PEM, Species
 USE MOD_ReadInTools                ,ONLY: GETINT,GETREAL,GETLOGICAL,GETREALARRAY
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
@@ -259,19 +257,9 @@ __STAMP__&
 ,'Error in InitSurfaceModel - wrong collismode! needs to be >1')
 END IF
 ! initialize variables only for processors that have any surfaces in own domain else they are skipped or not allocated
-!KeepWallParticles = GETLOGICAL('Particles-KeepWallParticles','.FALSE.')
 ModelERSpecular = GETLOGICAL('Surface-ModelERSpecular')
 Adsorption%EnableAdsAttraction = GETLOGICAL('Surface-Adsorption-EnableAttraction')
 Adsorption%NoDiffusion = GETLOGICAL('Surface-Adsorption-NoDiffusion')
-KeepWallParticles = .FALSE.
-IF (KeepWallParticles) THEN
-  IF(SurfMesh%SurfOnProc) THEN
-    ALLOCATE(PDM%ParticleAtWall(1:PDM%maxParticleNumber)  , &
-            PDM%PartAdsorbSideIndx(1:3,1:PDM%maxParticleNumber))
-    PDM%ParticleAtWall(1:PDM%maxParticleNumber) = .FALSE.
-  END IF !SurfMesh%SurfOnProc
-  ALLOCATE(PEM%wNumber(1:nElems))
-END IF
 ! allocate info and constants
 ALLOCATE( SurfModel%Info(1:nSpecies))
 DO iSpec = 1,nSpecies

@@ -58,7 +58,6 @@ USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_Mesh_Vars             ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars         ,ONLY: iter
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
-USE MOD_Particle_Vars,         ONLY: KeepWallParticles
 USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
 #if USE_MPI
 USE MOD_MPI_Shared_Vars       ,ONLY: ElemVolume_Shared,ElemMPVolumePortion_Shared
@@ -139,11 +138,7 @@ DO iElem = 1, nElems ! element/cell main loop
         CALL CalcMeanVibQuaDiatomic()
       END IF
 
-      IF (KeepWallParticles) THEN
-        nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
-      ELSE
-        nPart = PEM%pNumber(iElem)
-      END IF
+      nPart = PEM%pNumber(iElem)
 
       IF(UseMCC) THEN
         nPair = MCC_TotalPairNum

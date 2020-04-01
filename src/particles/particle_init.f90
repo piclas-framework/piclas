@@ -872,7 +872,6 @@ CALL AllocateParticleArrays()
 CALL InitializeVariablesRandomNumbers()
 
 ! initialization of surface model flags
-KeepWallParticles = .FALSE.
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
 DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
 DelayTime = GETREAL('Part-DelayTime','0.')
@@ -910,9 +909,7 @@ CALL InitializeVariablesPartBoundary()
 !-- AuxBCs
 CALL InitializeVariablesAuxBC()
 ! calculate cartesian borders of node local and global mesh
-SWRITE(UNIT_stdOut,'(A)')' Getting Mesh min-max ...'
 CALL GetMeshMinMax()
-SWRITE(UNIT_StdOut,'(132("-"))')
 CALL InitPIC()
 
 !-- Build BGM and halo region
@@ -1328,7 +1325,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL,ALLOCATABLE   :: MacroRestartFileUsed(:)
+!LOGICAL,ALLOCATABLE   :: MacroRestartFileUsed(:)
 !===================================================================================================================================
 ! initialize macroscopic restart
 ALLOCATE(SpecReset(1:nSpecies))
@@ -1340,8 +1337,8 @@ IF (nMacroRestartFiles.GT.0) THEN
         ,'ERROR: Symmetry2D/Variable Time Step: Restart with a given DSMCHOState (Macroscopic restart) only possible with:\n'//&
          ' Particles-MacroscopicRestart = T \n Particles-MacroscopicRestart-Filename = Test_DSMCHOState.h5')
   END IF
-  ALLOCATE(MacroRestartFileUsed(1:nMacroRestartFiles))
-  MacroRestartFileUsed(:)=.FALSE.
+!  ALLOCATE(MacroRestartFileUsed(1:nMacroRestartFiles))
+!  MacroRestartFileUsed(:)=.FALSE.
   ALLOCATE(MacroRestartData_tmp(1:DSMC_NVARS,1:nElems,1:nSpecies,1:nMacroRestartFiles))
   CALL ReadMacroRestartFiles(MacroRestartData_tmp)
 END IF ! nMacroRestartFiles.GT.0
@@ -1798,7 +1795,6 @@ INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, Fi
 INTEGER               :: ALLOCSTAT, dummy_int
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
-LOGICAL,ALLOCATABLE   :: MacroRestartFileUsed(:)
 !===================================================================================================================================
 ! Read in boundary parameters
 dummy_int = CountOption('Part-nBounds')       ! check if Part-nBounds is present in .ini file
@@ -1891,7 +1887,7 @@ DO iPartBound=1,nPartBound
       END IF
       FileID = PartBound%AdaptiveMacroRestartFileID(iPartBound)
       IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
-        MacroRestartFileUsed(FileID) = .TRUE.
+!        MacroRestartFileUsed(FileID) = .TRUE.
         IF (PartBound%AdaptiveType(iPartBound).EQ.1) THEN
           PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
           IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
@@ -2120,7 +2116,6 @@ INTEGER               :: iSpec, iInit, iExclude, MacroRestartFileID, iElem, File
 CHARACTER(32)         :: hilf , hilf2, hilf3
 LOGICAL               :: PartDens_OnlyInit
 REAL                  :: lineVector(3), v_drift_line, A_ins, particlenumber_tmp
-LOGICAL,ALLOCATABLE   :: MacroRestartFileUsed(:)
 !===================================================================================================================================
 BGGas%NumberOfSpecies = 0
 ALLOCATE(BGGas%BackgroundSpecies(nSpecies))
@@ -2197,7 +2192,7 @@ DO iSpec = 1, nSpecies
 #endif /*USE_MPI*/
         FileID = Species(iSpec)%Init(iInit)%ElemTemperatureFileID
         IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
-          MacroRestartFileUsed(FileID) = .TRUE.
+!          MacroRestartFileUsed(FileID) = .TRUE.
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTemperatureIC)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTemperatureIC(1:3,1:nElems))
           ! negative temperature can lead to NAN velocities if in those areas particles are inserted given by either other
@@ -2210,7 +2205,7 @@ DO iSpec = 1, nSpecies
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemPartDensityFileID
         IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
-          MacroRestartFileUsed(FileID) = .TRUE.
+!          MacroRestartFileUsed(FileID) = .TRUE.
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemPartDensity)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemPartDensity(1:nElems))
           DO iElem = 1,nElems
@@ -2219,7 +2214,7 @@ DO iSpec = 1, nSpecies
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemVelocityICFileID
         IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
-          MacroRestartFileUsed(FileID) = .TRUE.
+!          MacroRestartFileUsed(FileID) = .TRUE.
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemVelocityIC)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemVelocityIC(1:3,1:nElems))
           DO iElem = 1,nElems
@@ -2230,7 +2225,7 @@ DO iSpec = 1, nSpecies
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemTVibFileID
         IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
-          MacroRestartFileUsed(FileID) = .TRUE.
+!          MacroRestartFileUsed(FileID) = .TRUE.
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTVib)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTVib(1:nElems))
           DO iElem = 1,nElems
@@ -2239,7 +2234,7 @@ DO iSpec = 1, nSpecies
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemTRotFileID
         IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
-          MacroRestartFileUsed(FileID) = .TRUE.
+!          MacroRestartFileUsed(FileID) = .TRUE.
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTRot)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTRot(1:nElems))
           DO iElem = 1,nElems
@@ -2248,7 +2243,7 @@ DO iSpec = 1, nSpecies
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemTElecFileID
         IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
-          MacroRestartFileUsed(FileID) = .TRUE.
+!          MacroRestartFileUsed(FileID) = .TRUE.
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTElec)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTElec(1:nElems))
           DO iElem = 1,nElems

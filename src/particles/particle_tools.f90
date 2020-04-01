@@ -84,7 +84,7 @@ SUBROUTINE UpdateNextFreePosition()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars        ,ONLY: PDM,PEM, PartSpecies, doParticleMerge, vMPF_SpecNumElem
-USE MOD_Particle_Vars        ,ONLY: KeepWallParticles, PartState, VarTimeStep
+USE MOD_Particle_Vars        ,ONLY: PartState, VarTimeStep
 USE MOD_DSMC_Vars            ,ONLY: useDSMC, CollInf
 USE MOD_Particle_VarTimeStep ,ONLY: CalcVarTimeStep
 #if USE_MPI
@@ -118,7 +118,6 @@ IF(PDM%maxParticleNumber.EQ.0) RETURN
 counter1 = 1
 IF (useDSMC.OR.doParticleMerge) THEN
   PEM%pNumber(:) = 0
-  IF (KeepWallParticles) PEM%wNumber(:) = 0
 END IF
 
 n = PDM%ParticleVecLength !PDM%maxParticleNumber
@@ -144,11 +143,6 @@ IF (useDSMC.OR.doParticleMerge) THEN
           PEM%pNumber(ElemID) + 1
       IF (VarTimeStep%UseVariableTimeStep) THEN
         VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),ElemID)
-      END IF
-      IF (KeepWallParticles) THEN
-        IF (PDM%ParticleAtWall(i)) THEN
-          PEM%wNumber(ElemID) = PEM%wNumber(ElemID) + 1
-        END IF
       END IF
       PDM%ParticleVecLength = i
       IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1

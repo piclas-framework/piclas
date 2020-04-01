@@ -943,7 +943,7 @@ SUBROUTINE GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars                 ,ONLY: BC
-USE MOD_Particle_Vars             ,ONLY: Species, PartSpecies, PDM, nSpecies, KeepWallParticles
+USE MOD_Particle_Vars             ,ONLY: Species, PartSpecies, PDM, nSpecies
 USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfDistInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, SurfMesh, PartBound
@@ -987,7 +987,7 @@ DO iSurfSide=1,SurfMesh%nOutputSides
   DO q = 1,nSurfSample
     DO p = 1,nSurfSample
       Coverage(iSpec) = Coverage(iSpec) + Adsorption%Coverage(p,q,iSurfSide,iSpec)
-      IF ((.NOT.KeepWallParticles) .AND. CalcSurfNumSpec) THEN
+      IF (CalcSurfNumSpec) THEN
         SurfPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
 !          WallNumSpec(iSpec) = WallNumSpec(iSpec) + INT( Adsorption%Coverage(p,q,iSurfSide,iSpec) &
 !              * SurfPart/Species(iSpec)%MacroParticleFactor)
@@ -1042,22 +1042,7 @@ END IF
   END IF
 #endif /*USE_MPI*/
 
-  IF (KeepWallParticles.AND.CalcSurfNumSpec) THEN
-    DO i=1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(i) .AND. PDM%ParticleAtWall(i)) THEN
-        WallNumSpec(PartSpecies(i)) = WallNumSpec(PartSpecies(i)) + 1
-      END IF
-    END DO
-#if USE_MPI
-  IF (SurfCOMM%MPIOutputRoot) THEN
-    IF (CalcSurfNumSpec) CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec,nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
-  ELSE
-    IF (CalcSurfNumSpec) CALL MPI_REDUCE(WallNumSpec ,IDR        ,nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
-  END IF
-#endif /*USE_MPI*/
-  ELSE
-    WallNumSpec = INT(SubWallNumSpec)+INT(WallNumSpec_tmp(1:nSpecies))+INT(WallNumSpec_tmp(nSpecies+1:nSpecies*2))
-  END IF
+  WallNumSpec = INT(SubWallNumSpec)+INT(WallNumSpec_tmp(1:nSpecies))+INT(WallNumSpec_tmp(nSpecies+1:nSpecies*2))
 
 END SUBROUTINE GetWallNumSpec
 
