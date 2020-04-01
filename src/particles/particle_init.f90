@@ -245,13 +245,6 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
   , 'Set [T] to activate sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
   ' have to be enabled as well.', '.FALSE.')
 
-CALL prms%CreateStringOption(   'DSMC-HOSampling-Type'  , 'TODO-DEFINE-PARAMETER', 'cell_mean')
-CALL prms%CreateIntOption(      'Particles-DSMC-OutputOrder'  , 'TODO-DEFINE-PARAMETER', '1')
-CALL prms%CreateStringOption(   'DSMC-HOSampling-NodeType'  , 'TODO-DEFINE-PARAMETER', 'visu')
-CALL prms%CreateRealArrayOption('DSMCSampVolWe-BGMdeltas'  , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.')
-CALL prms%CreateRealArrayOption('DSMCSampVolWe-FactorBGM'  , 'TODO-DEFINE-PARAMETER', '1. , 1. , 1.')
-CALL prms%CreateIntOption(      'DSMCSampVolWe-VolIntOrd'  , 'TODO-DEFINE-PARAMETER', '50')
-
 CALL prms%SetSection("Particle Species")
 ! species inits
 CALL prms%CreateIntOption(      'Part-Species[$]-nInits'  &
@@ -713,9 +706,8 @@ SUBROUTINE InitParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_DSMC_Analyze               ,ONLY: InitHODSMC
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
-USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_HOSolution,HODSMC,DSMC_VolumeSample
+USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,DSMC_VolumeSample
 USE MOD_InitializeBackgroundField  ,ONLY: InitializeBackgroundField
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
@@ -796,19 +788,10 @@ SDEALLOCATE(MacroRestartData_tmp) !might be used for adaptive BC initialization 
 IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 ! definition of DSMC sampling values
   DSMC%SampNum = 0
-  HODSMC%SampleType = TRIM(GETSTR('DSMC-HOSampling-Type','cell_mean'))
-  IF (TRIM(HODSMC%SampleType).EQ.'cell_mean') THEN
-    HODSMC%nOutputDSMC = 1
-    SWRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
-    ALLOCATE(DSMC_HOSolution(1:11,1,1,1,1:nElems,1:nSpecies))
-    ALLOCATE(DSMC_VolumeSample(1:nElems))
-  ELSE
-    HODSMC%nOutputDSMC = GETINT('Particles-DSMC-OutputOrder','1')
-    ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))
-  END IF
-  DSMC_HOSolution = 0.0
+  ALLOCATE(DSMC_Solution(1:11,1:nElems,1:nSpecies))
+  ALLOCATE(DSMC_VolumeSample(1:nElems))
+  DSMC_Solution = 0.0
   DSMC_VolumeSample = 0.0
-  CALL InitHODSMC()
 END IF
 
 ! Initialize surface sampling
@@ -870,6 +853,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 USE MOD_PICInit                ,ONLY: InitPIC
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
+USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -933,7 +917,10 @@ CALL InitPIC()
 
 !-- Build BGM and halo region
 CALL InitParticleMesh()
-
+#if USE_MPI
+!-- Build MPI communication
+CALL IdentifyPartExchangeProcs()
+#endif
 !-- Macroscopic bodies inside domain
 CALL InitMacroBody()
 CALL MarkMacroBodyElems()
@@ -1004,11 +991,8 @@ END IF
 velocityOutputAtTime = GETLOGICAL('velocityOutputAtTime','.FALSE.')
 IF (velocityOutputAtTime) THEN
   ALLOCATE(velocityAtTime(1:3,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'ERROR in particle_init.f90: Cannot allocate velocityAtTime array!')
-  END IF
+  IF (ALLOCSTAT.NE.0) &
+    CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate velocityAtTime array!')
   velocityAtTime=0.
 END IF
 #endif
@@ -1824,32 +1808,32 @@ IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
 __STAMP__&
   ,'ERROR: nPartBound .LE. 0:', nPartBound)
 END IF
-ALLOCATE(PartBound%SourceBoundName(1:nPartBound))
-ALLOCATE(PartBound%TargetBoundCond(1:nPartBound))
-ALLOCATE(PartBound%MomentumACC(1:nPartBound))
-ALLOCATE(PartBound%WallTemp(1:nPartBound))
-ALLOCATE(PartBound%WallTemp2(1:nPartBound))
-ALLOCATE(PartBound%WallTempDelta(1:nPartBound))
-ALLOCATE(PartBound%TransACC(1:nPartBound))
-ALLOCATE(PartBound%VibACC(1:nPartBound))
-ALLOCATE(PartBound%RotACC(1:nPartBound))
-ALLOCATE(PartBound%ElecACC(1:nPartBound))
-ALLOCATE(PartBound%Resample(1:nPartBound))
-ALLOCATE(PartBound%WallVelo(1:3,1:nPartBound))
+ALLOCATE(PartBound%SourceBoundName(  1:nPartBound))
+ALLOCATE(PartBound%TargetBoundCond(  1:nPartBound))
+ALLOCATE(PartBound%MomentumACC(      1:nPartBound))
+ALLOCATE(PartBound%WallTemp(         1:nPartBound))
+ALLOCATE(PartBound%WallTemp2(        1:nPartBound))
+ALLOCATE(PartBound%WallTempDelta(    1:nPartBound))
+ALLOCATE(PartBound%TransACC(         1:nPartBound))
+ALLOCATE(PartBound%VibACC(           1:nPartBound))
+ALLOCATE(PartBound%RotACC(           1:nPartBound))
+ALLOCATE(PartBound%ElecACC(          1:nPartBound))
+ALLOCATE(PartBound%Resample(         1:nPartBound))
+ALLOCATE(PartBound%WallVelo(     1:3,1:nPartBound))
 ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
-ALLOCATE(PartBound%TempGradEnd(1:3,1:nPartBound))
-ALLOCATE(PartBound%TempGradVec(1:3,1:nPartBound))
-ALLOCATE(PartBound%SurfaceModel(1:nPartBound))
-ALLOCATE(PartBound%Reactive(1:nPartBound))
-ALLOCATE(PartBound%SolidState(1:nPartBound))
-ALLOCATE(PartBound%SolidPartDens(1:nPartBound))
-ALLOCATE(PartBound%SolidMassIC(1:nPartBound))
+ALLOCATE(PartBound%TempGradEnd(  1:3,1:nPartBound))
+ALLOCATE(PartBound%TempGradVec(  1:3,1:nPartBound))
+ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
+ALLOCATE(PartBound%Reactive(         1:nPartBound))
+ALLOCATE(PartBound%SolidState(       1:nPartBound))
+ALLOCATE(PartBound%SolidPartDens(    1:nPartBound))
+ALLOCATE(PartBound%SolidMassIC(      1:nPartBound))
 ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
-ALLOCATE(PartBound%SolidStructure(1:nPartBound))
-ALLOCATE(PartBound%SolidCrystalIndx(1:nPartBound))
-PartBound%SolidState(1:nPartBound)=.FALSE.
-PartBound%Reactive(1:nPartBound)=.FALSE.
-PartBound%SurfaceModel(1:nPartBound)=0
+ALLOCATE(PartBound%SolidStructure(   1:nPartBound))
+ALLOCATE(PartBound%SolidCrystalIndx( 1:nPartBound))
+PartBound%SolidState(  1:nPartBound) = .FALSE.
+PartBound%Reactive(    1:nPartBound) = .FALSE.
+PartBound%SurfaceModel(1:nPartBound) = 0
 
 ALLOCATE(PartBound%Adaptive(1:nPartBound))
 ALLOCATE(PartBound%AdaptiveType(1:nPartBound))

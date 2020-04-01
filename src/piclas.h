@@ -103,6 +103,7 @@
 #define SIDE_BCID         5
 #define SIDE_ELEMID       6
 #define SIDE_LOCALID      7
+#define SIDE_NBELEMTYPE   8
 
 ! Predefined "PARAMETER-like" variables
 #define XI_MINUS   5
@@ -111,6 +112,19 @@
 #define ETA_PLUS   4
 #define ZETA_MINUS 1
 #define ZETA_PLUS  6
+
+! Entry position in ElemBCSides
+#define ELEM_NBR_BCSIDES   1
+#define ELEM_FIRST_BCSIDE  2
+
+! Entry position in SideBCMetrics
+#define BCSIDE_SIDEID      1
+#define BCSIDE_ELEMID      2
+#define BCSIDE_DISTANCE    3
+#define BCSIDE_RADIUS      4
+#define BCSIDE_ORIGINX     5
+#define BCSIDE_ORIGINY     6
+#define BCSIDE_ORIGINZ     7
 
 ! Entry position in SideToElem
 #define S2E_ELEM_ID        1
@@ -150,6 +164,11 @@
 #define BILINEAR       2
 #define PLANAR_CURVED  3
 #define CURVED         4
+
+! entries for PartExchange
+#define EXCHANGE_PROC_SIZE 2
+#define EXCHANGE_PROC_TYPE 1
+#define EXCHANGE_PROC_RANK 2
 
 ! entries for PartHaloToProc
 #define NATIVE_ELEM_ID  1

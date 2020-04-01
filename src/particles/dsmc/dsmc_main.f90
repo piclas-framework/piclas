@@ -42,7 +42,7 @@ SUBROUTINE DSMC_main(DoElement)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib,SamplingRotVibRelaxProb
+USE MOD_DSMC_Analyze          ,ONLY: DSMC_data_sampling,CalcSurfaceValues, WriteDSMCToHDF5, CalcGammaVib,SamplingRotVibRelaxProb
 USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
 USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
@@ -273,14 +273,14 @@ IF (.NOT.WriteMacroVolumeValues .AND. .NOT.WriteMacroSurfaceValues) THEN
   !
 
   IF(SamplingActive) THEN
-    CALL DSMCHO_data_sampling()
+    CALL DSMC_data_sampling()
     IF(DSMC%NumOutput.NE.0) THEN
       nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
       IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
         DSMC%NumOutput = DSMC%NumOutput - 1
         ! Skipping outputs immediately after the first few iterations
         IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN
-          CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
+          CALL WriteDSMCToHDF5(TRIM(MeshFile),time)
           IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
         END IF
       END IF

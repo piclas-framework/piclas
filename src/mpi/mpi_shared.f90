@@ -122,15 +122,18 @@ CALL MPI_COMM_GROUP(MPI_COMM_SHARED,sharedGroup,IERROR)
 ! Finally translate global rank to local rank
 CALL MPI_GROUP_TRANSLATE_RANKS(worldGroup,nProcessors,MPIRankGlobal,sharedGroup,MPIRankShared,IERROR)
 
+! Send rank of compute node root to all procs on shared comm
+CALL MPI_BCAST(ComputeNodeRootRank,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
+
 ! now split global communicator into small group leaders and the others
 MPI_COMM_LEADERS_SHARED=MPI_COMM_NULL
 myLeaderGroupRank=-1
 color=MPI_UNDEFINED
 IF(myComputeNodeRank.EQ.0) color=101
-CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,myRank,MPI_COMM_LEADERS_SHARED,iError)
+CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,myRank,MPI_COMM_LEADERS_SHARED,IERROR)
 IF(myComputeNodeRank.EQ.0)THEN
-  CALL MPI_COMM_RANK(MPI_COMM_LEADERS_SHARED,myLeaderGroupRank,iError)
-  CALL MPI_COMM_SIZE(MPI_COMM_LEADERS_SHARED,nLeaderGroupProcs,iError)
+  CALL MPI_COMM_RANK(MPI_COMM_LEADERS_SHARED,myLeaderGroupRank,IERROR)
+  CALL MPI_COMM_SIZE(MPI_COMM_LEADERS_SHARED,nLeaderGroupProcs,IERROR)
 END IF
 
 MPISharedInitIsDone=.TRUE.

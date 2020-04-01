@@ -316,7 +316,7 @@ USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartStateIntEn,DSMC,Vib
 USE MOD_Eval_XYZ               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
-USE MOD_Particle_Mesh_Vars     ,ONLY: epsOneCell
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
@@ -875,7 +875,7 @@ IF(DoRestart)THEN
       IF(DoRefMapping) THEN
         DO i = 1,PDM%ParticleVecLength
           CALL GetPositionInRefElem(PartState(1:3,i),Xi,PEM%Element(i))
-          IF(ALL(ABS(Xi).LE.EpsOneCell(PEM%Element(i)))) THEN ! particle inside
+          IF(ALL(ABS(Xi).LE.ElemEpsOneCell(PEM%Element(i)))) THEN ! particle inside
             InElementCheck=.TRUE.
             PartPosRef(1:3,i)=Xi
           ELSE

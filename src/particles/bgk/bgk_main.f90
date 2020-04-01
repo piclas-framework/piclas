@@ -47,7 +47,7 @@ USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKMovingAverage,ElemNode
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor
 USE MOD_DSMC                ,ONLY: DSMC_main
-USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling
+USE MOD_DSMC_Analyze        ,ONLY: DSMC_data_sampling
 USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
 USE MOD_Mesh_Vars           ,ONLY: nElems
 USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues, Symmetry2D, usevMPF
@@ -158,7 +158,7 @@ USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor
-USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues,WriteDSMCHOToHDF5
+USE MOD_DSMC_Analyze        ,ONLY: DSMC_data_sampling,CalcSurfaceValues,WriteDSMCToHDF5
 USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
 USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile
 USE MOD_Part_Tools          ,ONLY: GetParticleWeight
@@ -241,14 +241,14 @@ IF((.NOT.WriteMacroVolumeValues) .AND. (.NOT.WriteMacroSurfaceValues)) THEN
 END IF
 
 IF(SamplingActive) THEN
-  CALL DSMCHO_data_sampling()
+  CALL DSMC_data_sampling()
   IF(DSMC%NumOutput.NE.0) THEN
     nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
     IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
       DSMC%NumOutput = DSMC%NumOutput - 1
       ! Skipping outputs immediately after the first few iterations
       IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN
-        CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
+        CALL WriteDSMCToHDF5(TRIM(MeshFile),time)
         IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
       END IF
     END IF

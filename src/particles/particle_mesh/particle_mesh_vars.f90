@@ -27,11 +27,39 @@ SAVE
 ! GLOBAL VARIABLES
 
 LOGICAL             :: ParticleMeshInitIsDone
-!-----------------------------------------------------------------------------------------------------------------------------------
+! ====================================================================
 ! Mesh info
-!-----------------------------------------------------------------------------------------------------------------------------------
-REAL                                     :: MeshVolume                        ! Total Volume of mesh
-REAL                                     :: LocalVolume                       ! Volume of proc
+REAL                                     :: MeshVolume         ! total Volume of mesh
+REAL                                     :: LocalVolume        ! volume of proc
+! ====================================================================
+! MPI3 shared variables
+REAL,ALLOCPOINT,DIMENSION(:)             :: ElemRadiusNGeo     ! radius of element
+REAL,ALLOCPOINT,DIMENSION(:)             :: ElemRadius2NGeo    ! radius of element + 2% tolerance
+REAL,ALLOCPOINT,DIMENSION(:,:)           :: slenXiEtaZetaBasis ! inverse of length of basis vector
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:)     :: XCL_NGeo_Shared
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:,:)   :: dXCL_NGeo_Shared   ! Jacobi matrix of the mapping P\in NGeo
+REAL,ALLOCPOINT,DIMENSION(:,:,:)         :: XiEtaZetaBasis     ! element local basis vector (linear elem)
+
+! FIBGM
+INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_nElems       !> FastInitBackgroundMesh of compute node
+INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_offsetElem   !> element offsets in 1D FIBGM_Element_Shared array
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: FIBGM_Element      !> element offsets in 1D FIBGM_Element_Shared array
+
+
+LOGICAL,ALLOCPOINT,DIMENSION(:)          :: ElemCurved         ! flag if an element is curved
+
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToBCSides(:,:) ! Mapping from elem to BC sides within halo eps
+REAL,ALLOCPOINT,DIMENSION(:,:)           :: SideBCMetrics(:,:) ! Metrics for BC sides, see piclas.h
+
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:)       :: ElemsJ             !< 1/DetJac for each Gauss Point
+REAL,ALLOCPOINT,DIMENSION(:)             :: ElemEpsOneCell     ! tolerance for particle in inside ref element 1+epsinCell
+
+
+
+
+
+
+
 
 ! periodic case
 INTEGER, ALLOCATABLE                     :: casematrix(:,:)   ! matrix to compute periodic cases
@@ -89,8 +117,6 @@ INTEGER,ALLOCATABLE :: TracingBCInnerSides(:)                 ! number of local 
 INTEGER,ALLOCATABLE :: TracingBCTotalSides(:)                 ! total number of element boundary faces
                                                               ! used for tracing (loc faces + other
                                                               ! element faces that are possibly reached)
-LOGICAL,ALLOCATABLE :: IsTracingBCElem(:)                     ! is an elem with BC sides for tracing
-                                                              ! or BC in halo-eps distance to BC
 
 LOGICAL,ALLOCATABLE :: IsLocalDepositionBCElem(:)             ! is an element where the deposition of a particle via a shape function
                                                               ! would result in the truncation of the shape function at the boundary.
@@ -110,14 +136,6 @@ INTEGER             :: nTotalBCElems                          ! total number of 
 INTEGER,ALLOCATABLE :: PartBCSideList(:)                      ! mapping from SideID to BCSideID    -> RefMapping
 
 ! ====================================================================
-REAL,ALLOCPOINT,DIMENSION(:,:,:)       :: XiEtaZetaBasis     ! element local basis vector (linear elem)
-REAL,ALLOCPOINT,DIMENSION(:,:)         :: slenXiEtaZetaBasis ! inverse of length of basis vector
-REAL,ALLOCPOINT,DIMENSION(:)           :: ElemRadiusNGeo     ! radius of element
-REAL,ALLOCPOINT,DIMENSION(:)           :: ElemRadius2NGeo    ! radius of element + 2% tolerance
-REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:)   :: XCL_NGeo_Shared
-REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:,:) :: dXCL_NGeo_Shared   ! Jacobi matrix of the mapping P\in NGeo
-LOGICAL,ALLOCPOINT,DIMENSION(:)        :: CurvedElem         ! flag if an element is curved
-
 INTEGER                                 :: RefMappingGuess    ! select guess for mapping into reference
                                                               ! element
                                                               ! 1 - Linear, cubical element
@@ -127,8 +145,6 @@ INTEGER                                 :: RefMappingGuess    ! select guess for
 REAL                                    :: RefMappingEps      ! tolerance for Netwton to get xi from X
 REAL                                    :: epsInCell          ! tolerance for eps for particle
                                                               ! inside of ref element
-REAL,ALLOCATABLE                        :: epsOneCell(:)      ! tolerance for particle in
-                                                              ! inside ref element 1+epsinCell
 
 !LOGICAL                                 :: DoRefMapping      ! tracking by mapping particle into reference element
 ! RefMapping???
@@ -171,11 +187,6 @@ TYPE tNodeToElem
 END TYPE
 ! -> this should be replaced with NodeInfo_Shared
 ! ====================================================================
-INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_nElems             !> FastInitBackgroundMesh of compute node
-
-INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_offsetElem         !> element offsets in 1D FIBGM_Element_Shared array
-INTEGER,ALLOCPOINT,DIMENSION(:)          :: FIBGM_Element            !> element offsets in 1D FIBGM_Element_Shared array
-
 TYPE tGeometry
   REAL                                   :: CNxmin                   ! minimum x coord of all compute-node nodes
   REAL                                   :: CNxmax                   ! minimum y coord of all compute-node nodes
@@ -249,10 +260,10 @@ TYPE tGeometry
   TYPE(tNodeToElem), ALLOCATABLE         :: ElemToNeighElems(:)               ! mapping of neighbour elements per element
                                                                               ! From element sides to node IDs
   INTEGER, ALLOCATABLE                   :: PeriodicElemSide(:,:)             ! 0=not periodic side, others=PeriodicVectorsNum
-  LOGICAL, ALLOCATABLE                   :: ConcaveElemSide(:,:)              ! Whether LocalSide of Element is concave side
-  REAL, ALLOCATABLE                      :: NodeCoords(:,:)                   ! Node Coordinates (1:nDim,1:nNodes)
-  REAL, ALLOCATABLE                      :: ElemMidPoint(:,:)
-  REAL, ALLOCATABLE                      :: BoundsOfElem(:,:,:)               ! Bounding box of each element (computed from Bezier
+!  LOGICAL, ALLOCATABLE                   :: ConcaveElemSide(:,:)              ! Whether LocalSide of Element is concave side
+!  REAL, ALLOCATABLE                      :: NodeCoords(:,:)                   ! Node Coordinates (1:nDim,1:nNodes)
+!  REAL, ALLOCATABLE                      :: ElemMidPoint(:,:)
+!  REAL, ALLOCATABLE                      :: BoundsOfElem(:,:,:)               ! Bounding box of each element (computed from Bezier
                                                                               ! control points
 END TYPE
 
@@ -275,7 +286,6 @@ TYPE (tBCElem),ALLOCATABLE               :: BCElem(:)
 
 INTEGER                                  :: NbrOfRegions      ! Nbr of regions to be mapped to Elems
 REAL, ALLOCATABLE                        :: RegionBounds(:,:) ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
-LOGICAL,ALLOCATABLE                      :: isTracingTrouble(:)
 REAL,ALLOCATABLE                         :: ElemTolerance(:)
 INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id
 !===================================================================================================================================

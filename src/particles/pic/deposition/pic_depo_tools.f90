@@ -49,7 +49,7 @@ PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta,DeBo
 CONTAINS
 
 
-SUBROUTINE DepositParticleOnNodes(iPart,PartPos,ElemID) 
+SUBROUTINE DepositParticleOnNodes(iPart,PartPos,ElemID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Deposit the charge of a single particle on the nodes corresponding to the deposition method 'cell_volweight_mean', where the
 ! charge is stored in NodeSourceExtTmp, which is added to NodeSource in the standard deposition procedure.
@@ -57,20 +57,23 @@ SUBROUTINE DepositParticleOnNodes(iPart,PartPos,ElemID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
+!USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Particle_Vars      ,ONLY: PartSpecies,Species
+USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_Particle_Vars      ,ONLY: PartSpecies,Species
-USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
-INTEGER,INTENT(IN)  :: iPart
-REAL,INTENT(IN)     :: PartPos(1:3)
-INTEGER,INTENT(IN)  :: ElemID
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)               :: iPart
+REAL,INTENT(IN)                  :: PartPos(1:3)
+INTEGER,INTENT(IN)               :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3), Charge
@@ -94,7 +97,9 @@ alpha2=0.5*(TempPartPos(2)+1.0)
 alpha3=0.5*(TempPartPos(3)+1.0)
 
 ! Apply charge to nodes (note that the volumes are not accounted for yet here!)
-ASSOCIATE( NodeID => GEO%ElemToNodeID(:,ElemID) )
+!ASSOCIATE( NodeID => GEO%ElemToNodeID(:,ElemID) )
+ASSOCIATE(NodeID => ElemNodeID_Shared(:,ElemID))
+
   NodeSourceExtTmp(NodeID(1)) = NodeSourceExtTmp(NodeID(1))+(Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
   NodeSourceExtTmp(NodeID(2)) = NodeSourceExtTmp(NodeID(2))+(Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
   NodeSourceExtTmp(NodeID(3)) = NodeSourceExtTmp(NodeID(3))+(Charge*  (alpha1)*  (alpha2)*(1-alpha3))
@@ -117,24 +122,27 @@ SUBROUTINE CalcCellLocNodeVolumes()
 !> Initialize sub-cell volumes around nodes
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars          ,ONLY: sJ, nElems
-USE MOD_Interpolation_Vars ,ONLY: wGP, xGP, wBary
-USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_PreProc            ,ONLY: PP_N
 USE MOD_Basis              ,ONLY: InitializeVandermonde
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Interpolation_Vars ,ONLY: wGP, xGP, wBary
+USE MOD_Mesh_Vars          ,ONLY: sJ, nElems
+!USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_PICDepo_Vars       ,ONLY: CellLocNodes_Volumes
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL    :: Vdm_loc(0:1,0:PP_N), wGP_loc, xGP_loc(0:1), DetJac(1,0:1,0:1,0:1)
-REAL    :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
-INTEGER :: j, k, l, iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL                             :: Vdm_loc(0:1,0:PP_N),wGP_loc,xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
+REAL                             :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
+INTEGER                          :: j,k,l,iElem
 !===================================================================================================================================
 CellLocNodes_Volumes = 0.0
 IF (PP_N.NE.1) THEN
@@ -156,7 +164,8 @@ DO iElem = 1, nElems
     CALL ChangeBasis3D(1,PP_N, 1, Vdm_loc, DetLocal(:,:,:,:),DetJac(:,:,:,:))
   END IF
   ASSOCIATE( NodeVolume => CellLocNodes_Volumes(:),  &
-             NodeID     => GEO%ElemToNodeID(:,iElem) )
+!             NodeID     => GEO%ElemToNodeID(:,iElem) )
+             NodeID     => ElemNodeID_Shared(:,iElem))
     NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + DetJac(1,0,0,0)
     NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + DetJac(1,1,0,0)
     NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + DetJac(1,1,1,0)

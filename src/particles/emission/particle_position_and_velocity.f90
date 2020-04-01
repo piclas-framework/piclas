@@ -191,7 +191,7 @@ ELSE
   nChunks = 1
 END IF
 chunkSize = INT(nbrOfParticle/nChunks)
-IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN 
+IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
   chunkSize = chunkSize + ( nbrOfParticle - (nChunks*chunkSize) )
 END IF
 ! all proc taking part in particle inserting
@@ -229,7 +229,7 @@ ELSE !no mpi root, nchunks=1
 END IF
 ! Need to open MPI communication regardless of the chunk number. Make it only dependent on the number of procs
 IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1) THEN
-  CALL SendEmissionParticlesToProcs(chunkSize,DimSend,particle_positions,FractNbr,iInit,mySumOfMatchedParticles)
+  CALL SendEmissionParticlesToProcs(chunkSize,DimSend,FractNbr,iInit,mySumOfMatchedParticles,particle_positions)
 ! Finish emission on local proc
 ELSE
   mySumOfMatchedParticles = 0
@@ -292,9 +292,10 @@ END IF ! PartMPI%iProc.EQ.0
 ! the values for the local particles
 NbrOfParticle = mySumOfMatchedParticles
 
-DEALLOCATE( particle_positions, STAT=allocStat )
-IF (allocStat .NE. 0) THEN
-  CALL abort(__STAMP__,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
+IF (chunkSize.GT.0) THEN
+  DEALLOCATE(particle_positions, STAT=allocStat)
+  IF (allocStat .NE. 0) &
+    CALL ABORT(__STAMP__,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
 END IF
 
 END SUBROUTINE SetParticlePosition

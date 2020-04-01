@@ -93,7 +93,7 @@ END DO
 END SUBROUTINE InitEmissionParticlesToProcs
 
 
-SUBROUTINE SendEmissionParticlesToProcs(chunkSize,DimSend,particle_positions,FractNbr,iInit,mySumOfMatchedParticles)
+SUBROUTINE SendEmissionParticlesToProcs(chunkSize,DimSend,FractNbr,iInit,mySumOfMatchedParticles,particle_positions)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! A particle's host cell in the FIBGM is found and the corresponding procs are notified.
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -115,9 +115,9 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)            :: chunkSize
 INTEGER,INTENT(IN)            :: DimSend
-REAL,INTENT(IN)               :: particle_positions(1:chunkSize*DimSend)
 INTEGER,INTENT(IN)            :: FractNbr
 INTEGER,INTENT(IN)            :: iInit
+REAL,INTENT(IN),OPTIONAL      :: particle_positions(1:chunkSize*DimSend)
 ! OUTPUT VARIABLES
 INTEGER,INTENT(OUT)           :: mySumOfMatchedParticles
 !-----------------------------------------------------------------------------------------------------------------------------------

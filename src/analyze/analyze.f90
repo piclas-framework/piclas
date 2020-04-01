@@ -761,7 +761,7 @@ USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfaceAnalyzeStep
 USE MOD_SurfaceModel_Analyze      ,ONLY: AnalyzeSurface
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
-USE MOD_DSMC_Vars                 ,ONLY: DSMC_HOSolution, DSMC_VolumeSample
+USE MOD_DSMC_Vars                 ,ONLY: DSMC_Solution, DSMC_VolumeSample
 USE MOD_Particle_Tracking_vars    ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 USE MOD_Particle_Analyze_Vars     ,ONLY: PartAnalyzeStep
 USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
@@ -771,7 +771,7 @@ USE MOD_DSMC_Vars                 ,ONLY: useDSMC
 #endif
 USE MOD_Particle_Boundary_Vars    ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh, SampWall, PartBound, CalcSurfaceImpact
-USE MOD_DSMC_Analyze              ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
+USE MOD_DSMC_Analyze              ,ONLY: DSMC_data_sampling, WriteDSMCToHDF5
 USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 #if (PP_TimeDiscMethod!=42) && !defined(LSERK)
 USE MOD_Particle_Vars             ,ONLY: DelayTime
@@ -1032,13 +1032,13 @@ IF(OutPutHDF5 .OR. FirstOrLastIter) CALL CalculatePartElemData()
 
 ! write volume data for DSMC macroscopic values
 IF ((WriteMacroVolumeValues).AND.(.NOT.OutputHDF5))THEN
-  CALL DSMCHO_data_sampling()
+  CALL DSMC_data_sampling()
   IF (iter.GT.0) iter_macvalout = iter_macvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
-    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),OutputTime)
+    CALL WriteDSMCToHDF5(TRIM(MeshFile),OutputTime)
     iter_macvalout = 0
     DSMC%SampNum = 0
-    DSMC_HOSolution = 0.0
+    DSMC_Solution = 0.0
     DSMC_VolumeSample = 0.0
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%QualityFacSamp(:,:) = 0.
@@ -1087,7 +1087,7 @@ IF(OutPutHDF5)THEN
 #if (PP_TimeDiscMethod==42)
   IF((LastIter).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
     IF (DSMC%NumOutput.GT.0) THEN
-      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),OutputTime)
+      CALL WriteDSMCToHDF5(TRIM(MeshFile),OutputTime)
       IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
     END IF
   END IF
@@ -1098,10 +1098,10 @@ IF(OutPutHDF5)THEN
     IF(WriteMacroVolumeValues)THEN
       iter_macvalout = iter_macvalout + 1
       IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
-        CALL WriteDSMCHOToHDF5(TRIM(MeshFile),OutputTime)
+        CALL WriteDSMCToHDF5(TRIM(MeshFile),OutputTime)
         iter_macvalout = 0
         DSMC%SampNum = 0
-        DSMC_HOSolution = 0.0
+        DSMC_Solution = 0.0
         DSMC_VolumeSample = 0.0
       END IF
     END IF
@@ -1127,7 +1127,7 @@ IF(OutPutHDF5)THEN
 #else
   IF((LastIter).AND.(useDSMC).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
     IF (DSMC%NumOutput.GT.0) THEN
-      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),OutputTime)
+      CALL WriteDSMCToHDF5(TRIM(MeshFile),OutputTime)
     END IF
     IF ((OutputTime.GE.DelayTime).AND.(DSMC%NumOutput.GT.0)) THEN
       IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues

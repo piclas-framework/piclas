@@ -829,17 +829,17 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
 USE MOD_MacroBody_Tools        ,ONLY: INSIDEMACROBODY
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
-USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
+USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
-USE MOD_Particle_Mesh          ,ONLY: PartInElemCheck
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, ElemEpsOneCell
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, epsOneCell
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
+USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 #if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared
+USE MOD_MPI_Shared_Vars        ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 #else
-USE MOD_Mesh_Vars              ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared
+USE MOD_Mesh_Vars              ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -898,11 +898,11 @@ __STAMP__,&
         nPart = CellChunkSize(iElem)
       ELSE
         IF(RadialWeighting%DoRadialWeighting) THEN
-          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(GEO%ElemMidPoint(2,iElem), iSpec)
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,iElem+offsetElem), iSpec)
         END IF
         CALL RANDOM_NUMBER(iRan)
         IF(VarTimeStep%UseVariableTimeStep) THEN
-          adaptTimestep = CalcVarTimeStep(GEO%ElemMidPoint(1,iElem), GEO%ElemMidPoint(2,iElem), iElem)
+          adaptTimestep = CalcVarTimeStep(ElemMidPoint_Shared(1,iElem+offsetElem), ElemMidPoint_Shared(2,iElem+offsetElem), iElem)
           nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(iElem) + iRan)
         ELSE
           nPart = INT(PartDens * ElemVolume_Shared(iElem) + iRan)
@@ -924,7 +924,7 @@ __STAMP__,&
             IF(Symmetry2D) RandomPos(3) = 0.
             IF (DoRefMapping) THEN
               CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-              IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+              IF (MAXVAL(ABS(RefPos)).GT.ElemEpsOneCell(iElem)) InsideFlag=.TRUE.
             ELSE
               IF (TriaTracking) THEN
                 CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)

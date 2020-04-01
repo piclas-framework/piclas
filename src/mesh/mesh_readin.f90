@@ -408,10 +408,8 @@ ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = 0
 ALLOCATE(ElemInfo_Shared_tmp(offsetElem+1:offsetElem+nElems))
 ElemInfo_Shared_tmp(offsetElem+1:offsetElem+nElems) = myRank
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
-IF(myComputeNodeRank.EQ.0) THEN
-  offsetComputeNodeElem=offsetElem
-  CALL MPI_BCAST(offsetComputeNodeElem,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-END IF
+offsetComputeNodeElem=offsetElem
+CALL MPI_BCAST(offsetComputeNodeElem,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 #else
 ALLOCATE(ElemInfo_Shared(1:ELEMINFOSIZE,1:nElems))
 ElemInfo_Shared(1:ELEMINFOSIZE_H5,1:nElems) = ElemInfo(:,:)
@@ -844,10 +842,13 @@ IF(myComputeNodeRank.EQ.0)THEN
     recvcountElem(iProc-1) = displsElem(iProc)-displsElem(iProc-1)
   END DO
   recvcountElem(nLeaderGroupProcs-1) = nGlobalElems - displsElem(nLeaderGroupProcs-1)
+END IF
+  
+! Broadcast compute node side offset on node
+offsetComputeNodeSide=offsetSideID
+CALL MPI_BCAST(offsetComputeNodeSide,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 
-  ! Broadcast compute node side offset on node
-  offsetComputeNodeSide=offsetSideID
-  CALL MPI_BCAST(offsetComputeNodeSide,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+IF(myComputeNodeRank.EQ.0)THEN
   ! Arrays for the compute node to hold the side offsets
   ALLOCATE(displsSide(0:nLeaderGroupProcs-1))
   ALLOCATE(recvcountSide(0:nLeaderGroupProcs-1))
@@ -858,10 +859,13 @@ IF(myComputeNodeRank.EQ.0)THEN
     recvcountSide(iProc-1) = displsSide(iProc)-displsSide(iProc-1)
   END DO
   recvcountSide(nLeaderGroupProcs-1) = nNonUniqueGlobalSides - displsSide(nLeaderGroupProcs-1)
+END IF
 
-  ! Broadcast compute node node offset on node
-  offsetComputeNodeNode=offsetNodeID
-  CALL MPI_BCAST(offsetComputeNodeNode,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+! Broadcast compute node node offset on node
+offsetComputeNodeNode=offsetNodeID
+CALL MPI_BCAST(offsetComputeNodeNode,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+
+IF(myComputeNodeRank.EQ.0)THEN
   ! Arrays for the compute node to hold the node offsets
   ALLOCATE(displsNode(0:nLeaderGroupProcs-1))
   ALLOCATE(recvcountNode(0:nLeaderGroupProcs-1))
@@ -872,10 +876,13 @@ IF(myComputeNodeRank.EQ.0)THEN
     recvcountNode(iProc-1) = displsNode(iProc)-displsNode(iProc-1)
   END DO
   recvcountNode(nLeaderGroupProcs-1) = nNonUniqueGlobalNodes - displsNode(nLeaderGroupProcs-1)
+END IF
 
-  ! Broadcast compute node tree offset on node
-  offsetComputeNodeTree=offsetTree
-  CALL MPI_BCAST(offsetComputeNodeTree,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+! Broadcast compute node tree offset on node
+offsetComputeNodeTree=offsetTree
+CALL MPI_BCAST(offsetComputeNodeTree,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+
+IF(myComputeNodeRank.EQ.0)THEN
   ! Arrays for the compute node to hold the node offsets
   ALLOCATE(displsTree(0:nLeaderGroupProcs-1))
   ALLOCATE(recvcountTree(0:nLeaderGroupProcs-1))

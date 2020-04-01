@@ -61,7 +61,7 @@ USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars            ,ONLY: PDM, UseCircularInflow
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
-USE MOD_Particle_Mesh_Vars       ,ONLY: PartBCSideList
+!USE MOD_Particle_Mesh_Vars       ,ONLY: PartBCSideList
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC,DoBoundaryParticleOutput
 USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
@@ -79,6 +79,12 @@ USE MOD_MPI_Shared_Vars
 #else
 USE MOD_Mesh_Vars
 #endif /* USE_MPI */
+#if CODE_ANALYZE
+USE MOD_Globals                     ,ONLY: myRank
+USE MOD_Mesh_Vars                   ,ONLY: NGeo
+USE MOD_Particle_Surfaces_Vars      ,ONLY: BezierControlPoints3D
+USE MOD_MPI_Shared_Vars             ,ONLY: ElemBaryNGeo_Shared
+#endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -95,38 +101,57 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
-INTEGER                              :: ReflectionIndex, BCSideID, iNode, iSide
-LOGICAL                              :: isSpeciesSwap, ElasticReflectionAtPorousBC
+INTEGER                              :: ReflectionIndex
+!INTEGER                              :: iNode,iSide
+LOGICAL                              :: isSpeciesSwap,ElasticReflectionAtPorousBC
+#if CODE_ANALYZE
+REAL                                 :: v1(3),v2(3)
+#endif /* CODE_ANALYZE */
 !===================================================================================================================================
 
 IsSpeciesSwap=.FALSE.
 crossedBC    =.FALSE.
 
 ! Calculate normal vector
-BCSideID=SideID
 SELECT CASE(TrackingMethod)
 CASE(REFMAPPING,TRACING)
   ! set BCSideID for normal vector calculation call with (curvi-)linear side description
-  IF (TrackingMethod.EQ.REFMAPPING) BCSideID=PartBCSideList(SideID)
+  ! IF (TrackingMethod.EQ.RefMapping) BCSideID=PartBCSideList(SideID)
 
-  SELECT CASE(SideType(BCSideID))
+  SELECT CASE(SideType(SideID))
   CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-    n_loc=SideNormVec(1:3,BCSideID)
+    n_loc=SideNormVec(1:3,SideID)
   CASE(BILINEAR)
-    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   CASE(CURVED)
-    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   END SELECT
 
   IF(flip.NE.0) n_loc=-n_loc
+
+#if CODE_ANALYZE
+  ! check if normal vector points outwards
+  v1 = 0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)  &
+           + BezierControlPoints3D(:,NGeo,0   ,SideID)  &
+           + BezierControlPoints3D(:,0   ,NGeo,SideID)  &
+           + BezierControlPoints3D(:,NGeo,NGeo,SideID))
+  v2 = v1  - ElemBaryNGeo_Shared(:,ElemID)
+
+  IF (DOT_PRODUCT(v2,n_loc).LT.0) THEN
+    IPWRITE(UNIT_stdout,*) 'Obtained wrong side orientation from flip. flip:',flip,'PartID:',iPart
+    IPWRITE(UNIT_stdout,*) 'n_loc (flip)', n_loc,'n_loc (estimated):',v2
+    CALL ABORT(__STAMP__,'SideID',SideID)
+  END IF
+#endif /* CODE_ANALYZE */
 
   ! Inserted particles are "pushed" inside the domain and registered as passing through the BC side. If they are very close to the
   ! boundary (first if) than the normal vector is compared with the trajectory. If the particle is entering the domain from outside
   ! it was inserted during surface flux and this routine shall not performed.
   ! Comparing the normal vector with the particle trajectory, if the particle trajectory is pointing inside the domain
   IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
+
 CASE(TRIATRACKING)
-  CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=BCSideID)
+  CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
 END SELECT
 ! required for refmapping and tracing, optional for triatracking
 crossedBC=.TRUE.
@@ -424,10 +449,10 @@ ELSE
   IsAuxBC=.FALSE.
 END IF
 IF (IsAuxBC) THEN
-  WallVelo=PartAuxBC%WallVelo(1:3,AuxBCIdx)
+  WallVelo = PartAuxBC%WallVelo(1:3,AuxBCIdx)
 ELSE
-  WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-  locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+  WallVelo = PartBound%WallVelo(1:3,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+  locBCID  = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 
   IF(PRESENT(opt_Symmetry)) THEN
     Symmetry = opt_Symmetry
@@ -548,7 +573,7 @@ END IF !.NOT.IsAuxBC
 ! set particle position on face
 LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
 
-PartTrajectory(1:3)=PartTrajectory(1:3)-2.*DOT_PRODUCT(PartTrajectory(1:3),n_loc)*n_loc
+PartTrajectory(1:3)     = PartTrajectory(1:3)-2.*DOT_PRODUCT(PartTrajectory(1:3),n_loc)*n_loc
 PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*(lengthPartTrajectory - alpha)
 
 ! #if !defined(IMPA) &&  !defined(ROS)
@@ -620,7 +645,7 @@ USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact, GetWallTemperature
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, PartSideToElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: PartSideToElem
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry2D

@@ -58,14 +58,19 @@ SUBROUTINE BuildBGMAndIdentifyHaloRegion()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem, nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem,nGlobalElems
 USE MOD_Partilce_Periodic_BC   ,ONLY: InitPeriodicBC
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,FIBGM_nElems,FIBGM_Element,FIBGM_offsetElem
 USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance
 USE MOD_Equation_Vars          ,ONLY: c
 USE MOD_ReadInTools            ,ONLY: GETREAL, GetRealArray, PrintOption
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
+#endif
 #if ! (USE_HDG)
+USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
 USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
+USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_HDG*/
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
@@ -74,8 +79,8 @@ USE MOD_PICDepo_Vars           ,ONLY: DepositionType, r_sf
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 USE MOD_Particle_Vars          ,ONLY: manualtimestep
 #else
-USE MOD_Mesh_Vars              ,ONLY: NodeCoords, ElemToBGM_Shared, BoundsOfElem_Shared, NodeCoords_Shared
-USE MOD_Mesh_Vars              ,ONLY: ElemInfo_Shared, SideInfo_Shared, NodeInfo_Shared
+USE MOD_Mesh_Vars              ,ONLY: NodeCoords, ElemToBGM_Shared,BoundsOfElem_Shared,NodeCoords_Shared
+USE MOD_Mesh_Vars              ,ONLY: ElemInfo_Shared,SideInfo_Shared, NodeInfo_Shared
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -192,12 +197,13 @@ SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
-  halo_eps=0.
-  halo_eps2=0.
+  halo_eps  = 0.
+  halo_eps2 = 0.
 ELSE
   IF (ManualTimeStep.EQ.0.0) THEN
 #if !(USE_HDG)
-    deltaT=CALCTIMESTEP()
+    CALL DGTimeDerivative_weakForm(time,time,0,doSource=.TRUE.)
+    deltaT = CalcTimeStep()
 #else
      CALL abort(&
   __STAMP__&

@@ -448,48 +448,53 @@ SUBROUTINE VarTimeStep_CalcElemFacs()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_Mesh_Vars              ,ONLY: nElems
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER                   :: iElem
+INTEGER                   :: iElem,GlobalElemID
 !===================================================================================================================================
 
 ALLOCATE(VarTimeStep%ElemFac(nElems))
 VarTimeStep%ElemFac = 1.0
 IF (VarTimeStep%Direction(1).GT.0.0) THEN
   DO iElem = 1, nElems
-    IF (GEO%ElemMidPoint(1,iElem).LT.VarTimeStep%StartPoint(1)) THEN
+    GlobalElemID = iElem + offsetElem
+
+    IF (ElemMidPoint_Shared(1,GlobalElemID).LT.VarTimeStep%StartPoint(1)) THEN
       VarTimeStep%ElemFac(iElem)=1.0
     ELSE IF (VarTimeStep%EndPoint(1).EQ.-99999.) THEN
       VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(GEO%xmaxglob-VarTimeStep%StartPoint(1)) &
-          * (GEO%ElemMidPoint(1,iElem)-VarTimeStep%StartPoint(1))
+          * (ElemMidPoint_Shared(1,GlobalElemID)-VarTimeStep%StartPoint(1))
     ELSE
-      IF (GEO%ElemMidPoint(1,iElem).GT.VarTimeStep%EndPoint(1)) THEN
+      IF (ElemMidPoint_Shared(1,GlobalElemID).GT.VarTimeStep%EndPoint(1)) THEN
         VarTimeStep%ElemFac(iElem)=VarTimeStep%ScaleFac
       ELSE
         VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(VarTimeStep%EndPoint(1)-VarTimeStep%StartPoint(1)) &
-            * (GEO%ElemMidPoint(1,iElem)-VarTimeStep%StartPoint(1))
+            * (ElemMidPoint_Shared(1,GlobalElemID)-VarTimeStep%StartPoint(1))
       END IF
     END IF
   END DO
 ELSE
   DO iElem = 1, nElems
-    IF (GEO%ElemMidPoint(1,iElem).GT.VarTimeStep%StartPoint(1)) THEN
+    IF (ElemMidPoint_Shared(1,GlobalElemID).GT.VarTimeStep%StartPoint(1)) THEN
       VarTimeStep%ElemFac(iElem)=1.0
     ELSE IF (VarTimeStep%EndPoint(1).EQ.-99999.) THEN
       VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(VarTimeStep%StartPoint(1)-GEO%xminglob) &
-          * (VarTimeStep%StartPoint(1)-GEO%ElemMidPoint(1,iElem))
+          * (VarTimeStep%StartPoint(1)-ElemMidPoint_Shared(1,GlobalElemID))
     ELSE
-      IF (GEO%ElemMidPoint(1,iElem).LT.VarTimeStep%EndPoint(1)) THEN
+      IF (ElemMidPoint_Shared(1,GlobalElemID).LT.VarTimeStep%EndPoint(1)) THEN
         VarTimeStep%ElemFac(iElem)=VarTimeStep%ScaleFac
       ELSE
         VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(VarTimeStep%StartPoint(1)-VarTimeStep%EndPoint(1)) &
-            * (VarTimeStep%StartPoint(1)-GEO%ElemMidPoint(1,iElem))
+            * (VarTimeStep%StartPoint(1)-ElemMidPoint_Shared(1,GlobalElemID))
       END IF
     END IF
   END DO

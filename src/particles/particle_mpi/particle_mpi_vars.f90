@@ -26,7 +26,13 @@ SAVE
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
-INTEGER,ALLOCATABLE :: PartHaloElemToProc(:,:)                               ! containing native elemid and native proc id
+!TYPE tPartExchange
+  INTEGER                                :: nExchangeProcessors               ! number of MPI processes for particles exchange
+  INTEGER,ALLOCATABLE                    :: ExchangeProcToGlobalProc(:,:)     ! mapping from exchange proc ID to global proc ID
+  INTEGER,ALLOCATABLE                    :: GlobalProcToExchangeProc(:,:)     ! mapping from global proc ID to exchange proc ID
+
+
+!INTEGER,ALLOCATABLE :: PartHaloElemToProc(:,:)                               ! containing native elemid and native proc id
                                                                              ! NATIVE_ELEM_ID=1 - Native_Elem_ID
                                                                              ! NATIVE_PROC_ID=2 - Rank of Proc
                                                                              ! LOCAL_PROC_ID =3 - local neighbor id
@@ -88,13 +94,13 @@ TYPE tPartMPIVAR
   INTEGER                                :: nProcs                           ! number of MPI processes for particles
   INTEGER                                :: MyRank                           ! MyRank of PartMPIVAR%COMM
   LOGICAL                                :: MPIRoot                          ! Root, MPIRank=0
-  INTEGER                                :: nMPINeighbors                    ! number of MPI-Neighbors with HALO
-  LOGICAL,ALLOCATABLE                    :: isMPINeighbor(:)                 ! list of possible neighbors
-  INTEGER,ALLOCATABLE                    :: MPINeighbor(:)                   ! list containing the rank of MPI-neighbors
+!  INTEGER                                :: nMPINeighbors                    ! number of MPI-Neighbors with HALO
+!  LOGICAL,ALLOCATABLE                    :: isMPINeighbor(:)                 ! list of possible neighbors
+!  INTEGER,ALLOCATABLE                    :: MPINeighbor(:)                   ! list containing the rank of MPI-neighbors
   INTEGER                                :: nMPINodeNeighbors                ! number of MPI-Neighbors with HALO
   LOGICAL,ALLOCATABLE                    :: isMPINodeNeighbor(:)             ! list of possible neighbors
   TYPE(tNodeSendList),ALLOCATABLE        :: MPINodeNeighbor(:)               ! list containing rank of MPI-neighbors and mappings
-  INTEGER,ALLOCATABLE                    :: GlobalToLocal(:)                 ! map from global proc id to local
+!  INTEGER,ALLOCATABLE                    :: GlobalToLocal(:)                 ! map from global proc id to local
 END TYPE
 
 TYPE (tPartMPIVAR)                       :: PartMPI

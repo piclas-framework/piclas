@@ -161,13 +161,14 @@ SUBROUTINE BGGas_InsertParticles()
 !> 3. Adjust ParticleVecLength and currentNextFreePosition
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort
+USE MOD_Globals                ,ONLY: Abort, myRank
 USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
+USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -176,7 +177,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iNewPart, iPart, PositionNbr, iSpec
+INTEGER           :: iNewPart, iPart, PositionNbr, iSpec, LocalElemID
 !===================================================================================================================================
 iNewPart=0
 PositionNbr = 0
@@ -203,11 +204,11 @@ __STAMP__&
       CALL DSMC_SetInternalEnr_LauxVFD(iSpec,0,PositionNbr,1)
     END IF
     PEM%Element(PositionNbr) = PEM%Element(iPart)
+    LocalElemID = PEM%Element(PositionNbr) - offsetElemMPI(myRank)
     PDM%ParticleInside(PositionNbr) = .true.
-    PEM%pNext(PEM%pEnd(PEM%Element(PositionNbr))) = PositionNbr     ! Next Particle of same Elem (Linked List)
-    PEM%pEnd(PEM%Element(PositionNbr)) = PositionNbr
-    PEM%pNumber(PEM%Element(PositionNbr)) = &                       ! Number of Particles in Element
-    PEM%pNumber(PEM%Element(PositionNbr)) + 1
+    PEM%pNext(PEM%pEnd(LocalElemID)) = PositionNbr     ! Next Particle of same Elem (Linked List)
+    PEM%pEnd(LocalElemID) = PositionNbr
+    PEM%pNumber(LocalElemID) = PEM%pNumber(LocalElemID) + 1
     BGGas%PairingPartner(iPart) = PositionNbr
     CALL CalcVelocity_maxwell_lpn(FractNbr=iSpec, Vec3D=PartState(4:6,PositionNbr), iInit=0)
   END IF
@@ -347,6 +348,7 @@ USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticleVelocity
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
 #if USE_MPI
+USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared
 #else
 USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared
@@ -476,7 +478,7 @@ DO iSpec = 1,nSpecies                             ! Loop over all non-background
           ELSE
             CALL DSMC_SetInternalEnr_LauxVFD(jSpec,0,bggPartIndex,1)
           END IF
-          PEM%Element(bggPartIndex) = iElem
+          PEM%Element(bggPartIndex) = iElem + offsetElemMPI(myRank)
           PDM%ParticleInside(bggPartIndex) = .TRUE.
           ! Determine the particle velocity
           CALL CalcVelocity_maxwell_lpn(FractNbr=jSpec, Vec3D=PartState(4:6,bggPartIndex), iInit=0)

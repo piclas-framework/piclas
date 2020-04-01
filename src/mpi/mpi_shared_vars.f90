@@ -27,6 +27,7 @@ SAVE
 LOGICAL            :: MPISharedInitIsDone=.FALSE.
 
 ! Communication
+INTEGER            :: ComputeNodeRootRank             !> Rank of compute-node root in global comm
 INTEGER            :: myComputeNodeRank               !> Rank of current proc on current compute-node
 INTEGER            :: myLeaderGroupRank               !> Rank of compute-node root in compute-node-root comm
 INTEGER,ALLOCATABLE:: MPIRankGlobal(:)                !> Array of size nProcessors holding the global rank of each proc
@@ -55,8 +56,10 @@ INTEGER            :: offsetComputeNodeSide           !> side offset of compute-
 INTEGER            :: offsetComputeNodeNode           !> node offset of compute-node root
 INTEGER            :: offsetComputeNodeTree           !> tree offset of compute-node root
 
-INTEGER, ALLOCATABLE :: CNTotalElem2GlobalElem(:) !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
-INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:) !> Reverse Mapping
+INTEGER            :: nComputeNodeBCSides
+
+INTEGER, ALLOCATABLE :: CNTotalElem2GlobalElem(:)     !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
+INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:)     !> Reverse Mapping
 
 ! Shared arrays containing information for complete mesh
 INTEGER,POINTER :: ElemInfo_Shared(:,:)
@@ -80,26 +83,41 @@ INTEGER         :: TreeCoords_Shared_Win
 INTEGER,POINTER :: ElemToTree_Shared(:)
 INTEGER         :: ElemToTree_Shared_Win
 
+INTEGER,POINTER :: ElemToBCSides_Shared(:,:)            !> Mapping from elem to BC sides within halo eps
+INTEGER         :: ElemToBCSides_Shared_Win
+REAL,POINTER    :: SideBCMetrics_Shared(:,:)            !> Metrics for BC sides, see piclas.h
+INTEGER         :: SideBCMetrics_Shared_Win             !> 1 - Global SideID
+                                                        !> 2 - ElemID for BC side (non-unique)
+                                                        !> 3 - Distance from BC side to element origin
+                                                        !> 4 - Radius of BC Side
+                                                        !> 5 - Origin of BC Side, x-coordinate
+                                                        !> 6 - Origin of BC Side, y-coordinate
+                                                        !> 7 - Origin of BC Side, z-coordinate
+
 INTEGER,POINTER :: FIBGM_nElems_Shared(:,:,:)           !> FastInitBackgroundMesh of compute node
 INTEGER         :: FIBGM_nElems_Shared_Win
-INTEGER,POINTER :: FIBGM_Element_Shared(:)             !> FastInitBackgroundMesh of compute node
+INTEGER,POINTER :: FIBGM_Element_Shared(:)              !> FastInitBackgroundMesh of compute node
 INTEGER         :: FIBGM_Element_Shared_Win
 
-REAL,POINTER    :: BoundsOfElem_Shared(:,:,:)          !> Cartesian bounding box around element
+REAL,POINTER    :: BoundsOfElem_Shared(:,:,:)           !> Cartesian bounding box around element
 INTEGER         :: BoundsOfElem_Shared_Win
-INTEGER,POINTER :: ElemToBGM_Shared(:,:)               !> BGM Bounding box around element (respective BGM indices) of compute node
+INTEGER,POINTER :: ElemToBGM_Shared(:,:)                !> BGM Bounding box around element (respective BGM indices) of compute node
 INTEGER         :: ElemToBGM_Shared_Win
 INTEGER,POINTER :: FIBGM_offsetElem_Shared(:,:,:)
 INTEGER         :: FIBGM_offsetElem_Shared_Win
 
-REAL,POINTER    :: XCL_NGeo_Array(:)                          !> 1D array. Pointer changes to proper array bounds
+REAL,POINTER    :: XCL_NGeo_Array(:)                          !> 1D array, pointer changes to proper array bounds
 INTEGER         :: XCL_NGeo_Shared_Win
-REAL,POINTER    :: dXCL_NGeo_Array(:)                         !> 1D array. Pointer changes to proper array bounds
+REAL,POINTER    :: dXCL_NGeo_Array(:)                         !> 1D array, pointer changes to proper array bounds
 INTEGER         :: dXCL_NGeo_Shared_Win
 REAL,POINTER    :: BezierControlPoints3D_Shared(:)            !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
 INTEGER         :: BezierControlPoints3D_Shared_Win
 REAL,POINTER    :: BezierControlPoints3DElevated_Shared(:)    !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
 INTEGER         :: BezierControlPoints3DElevated_Shared_Win
+REAL,POINTER    :: ElemsJ_Shared(:)                           !> 1/DetJac for each Gauss Point. 1D array, pointer changes to proper array bounds
+INTEGER         :: ElemsJ_Shared_Win
+REAL,POINTER    :: ElemEpsOneCell_Shared(:)                   !> tolerance for particle in inside ref element 1+epsinCell
+INTEGER         :: ElemEpsOneCell_Shared_Win
 
 REAL,POINTER    :: ElemBaryNGeo_Shared(:,:)
 INTEGER         :: ElemBaryNGeo_Shared_Win
@@ -112,11 +130,13 @@ INTEGER         :: XiEtaZetaBasis_Shared_Win
 REAL,POINTER    :: slenXiEtaZetaBasis_Shared(:,:)
 INTEGER         :: slenXiEtaZetaBasis_Shared_Win
 
-LOGICAL,POINTER :: CurvedElem_Shared(:)                 !> Flag if an element is curved
-INTEGER         :: CurvedElem_Shared_Win
+LOGICAL,POINTER :: ElemCurved_Shared(:)                 !> Flag if an element is curved
+INTEGER         :: ElemCurved_Shared_Win
 LOGICAL,POINTER :: ConcaveElemSide_Shared(:,:)
 INTEGER         :: ConcaveElemSide_Shared_Win
-INTEGER,POINTER :: ElemSideNodeID_Shared(:,:,:)
+INTEGER,POINTER :: ElemNodeID_Shared(:,:)               !> Contains the 8 corner nodes of an element, important for NGeo > 1
+INTEGER         :: ElemNodeID_Shared_Win
+INTEGER,POINTER :: ElemSideNodeID_Shared(:,:,:)         !> Contains the 4 corner nodes of the local sides in an element
 INTEGER         :: ElemSideNodeID_Shared_Win
 REAL,POINTER    :: ElemMidPoint_Shared(:,:)
 INTEGER         :: ElemMidPoint_Shared_Win

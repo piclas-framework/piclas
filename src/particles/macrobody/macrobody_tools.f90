@@ -50,17 +50,22 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE MarkMacroBodyElems()
 ! MODULES
-USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: epsMach
-USE MOD_Particle_Vars          ,ONLY: ManualTimeStep, nPointsMCVolumeEstimate
+USE MOD_PreProc
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem!,TensorProductInterpolation
 USE MOD_MacroBody_Vars         ,ONLY: ElemHasMacroBody, CalcMPVolumePortion
 USE MOD_MacroBody_Vars         ,ONLY: MacroSphere, nMacroBody, UseMacroBody
-USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems, GEO
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
+!USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems, GEO
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo!, wBaryCL_NGeo, XiCL_NGeo
 USE MOD_Mesh_Vars              ,ONLY: NGeo, nElems
+USE MOD_Particle_Vars          ,ONLY: ManualTimeStep, nPointsMCVolumeEstimate
 USE MOD_TimeDisc_Vars          ,ONLY: dt, RKdtFrac, iter
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem!,TensorProductInterpolation
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -69,7 +74,8 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem!,TensorProductInterpo
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iElem,iMB,ii,jj,kk
+INTEGER :: iElem,GlobalElemID
+INTEGER :: iMB,ii,jj,kk
 INTEGER :: kBGM,jBGM,iBGM
 REAL    :: MPBounds(1:2,1:3)
 INTEGER :: BGMCellXmax,BGMCellXmin
@@ -140,34 +146,35 @@ IF (MAXVAL(ABS(MacroSphere(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroSphere(:)%
       DO jBGM = BGMCellYmin,BGMCellYmax
         DO iBGM = BGMCellXmin,BGMCellXmax
           DO iElem = 1,GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem
-            ElemHasMacroBody(GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(iElem),iMB) = .TRUE.
+            ElemHasMacroBody(GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(iElem)+offsetElem,iMB) = .TRUE.
           END DO
         END DO ! kBGM
       END DO ! jBGM
     END DO ! iBGM
 
     ! loop over all elements that have a MP in BGM and find those which are in a certain safety radius
-    DO iElem=1,nTotalElems
-      IF (ElemHasMacroBody(iElem,iMB)) THEN
+    DO iElem=1,nComputeNodeTotalElems
+      GlobalElemID = CNTotalElem2GlobalElem(iElem)
+      IF (ElemHasMacroBody(GlobalElemID,iMB)) THEN
         ! check with all 3 element diagonals wether macroparticle is smaller than element
-        BoundsDiagonalVec(1:3)=GEO%BoundsOfElem(2,1:3,iElem)-GEO%BoundsOfElem(1,1:3,iElem)
+        BoundsDiagonalVec(1:3)=BoundsOfElem_Shared(2,1:3,GlobalElemID)-BoundsOfElem_Shared(1,1:3,GlobalElemID)
         ! choose the greater length
         BoundsDiagonal=MAX( SQRT(DOT_PRODUCT(BoundsDiagonalVec,BoundsDiagonalVec)) , MacroSphere(iMB)%radius)*safetyFac
-        ElemHasMacroBody(iElem,iMB)=.FALSE.
+        ElemHasMacroBody(GlobalElemID,iMB)=.FALSE.
         nodesInside=0
         ! check distance of each node if it is within the defined distance (Distvec.LE.Boundsdiagonal) of te sphere center
         DO kk = 0,NGeo
-          IF (.NOT.ElemHasMacroBody(iElem,iMB) .OR. CalcMPVolumePortion) THEN
+          IF (.NOT.ElemHasMacroBody(GlobalElemID,iMB) .OR. CalcMPVolumePortion) THEN
             DO ii=0,NGeo
-              IF (.NOT.ElemHasMacroBody(iElem,iMB) .OR. CalcMPVolumePortion) THEN
+              IF (.NOT.ElemHasMacroBody(GlobalElemID,iMB) .OR. CalcMPVolumePortion) THEN
                 DO jj=0,NGeo
-                  IF (.NOT.ElemHasMacroBody(iElem,iMB) .OR. CalcMPVolumePortion) THEN
-                    DistVec(1:3)=XCL_NGeo(1:3,ii,jj,kk,iElem)-MacroSphere(iMB)%center(1:3)
+                  IF (.NOT.ElemHasMacroBody(GlobalElemID,iMB) .OR. CalcMPVolumePortion) THEN
+                    DistVec(1:3)=XCL_NGeo(1:3,ii,jj,kk,GlobalElemID)-MacroSphere(iMB)%center(1:3)
                     DistVecLength=SQRT(DOT_PRODUCT(DistVec,DistVec))
                     IF (DistVecLength.GT.0) DistVec=DistVec/DistVecLength
                     eps = LengthMacroBodyTrajectory*MAX(0.,DOT_PRODUCT(DistVec,MacroBodyTrajectory))+epsMach
                     IF (DistVecLength.LE.BoundsDiagonal+eps) THEN
-                      ElemHasMacroBody(iElem,iMB)=.TRUE.
+                      ElemHasMacroBody(GlobalElemID,iMB)=.TRUE.
                     END IF
                     IF (DistVecLength.LE.MacroSphere(iMB)%radius) THEN
                       nodesInside=nodesInside+1
@@ -178,7 +185,7 @@ IF (MAXVAL(ABS(MacroSphere(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroSphere(:)%
             END DO
           END IF
         END DO
-        IF (CalcMPVolumePortion .AND. nodesInside.EQ.(NGeo+1)**3 .AND. iElem.LE.nElems) GEO%MPVolumePortion(iElem)=1.0
+        IF (CalcMPVolumePortion .AND. nodesInside.EQ.(NGeo+1)**3 .AND. iElem.LE.nElems) GEO%MPVolumePortion(GlobalElemID)=1.0
       END IF
     END DO
   END DO
@@ -189,7 +196,10 @@ IF (MAXVAL(ABS(MacroSphere(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroSphere(:)%
     !nInsertPartsY=nInsertPartsX
     !nInsertPartsZ=nInsertPartsX
     DO iElem=1,nElems
-      IF (ANY(ElemHasMacroBody(iElem,:)) .AND. GEO%MPVolumePortion(iElem).LT.1.0) THEN
+      ! TODO: Why is this only local while the previous loop was global?
+      GlobalElemID = iElem + offsetElem
+
+      IF (ANY(ElemHasMacroBody(GlobalElemID,:)) .AND. GEO%MPVolumePortion(GlobalElemID).LT.1.0) THEN
         matchedParts=0
         !! if element is a cube equidistant inserting in reference space
         !DO xref=1,nInsertPartsX
@@ -209,13 +219,13 @@ IF (MAXVAL(ABS(MacroSphere(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroSphere(:)%
         DO iPart=1,nPointsMCVolumeEstimate
           DO
             CALL RANDOM_NUMBER(physPos)
-            PhysPos = GEO%BoundsOfElem(1,:,iElem) + physPos*(GEO%BoundsOfElem(2,:,iElem)-GEO%BoundsOfElem(1,:,iElem))
-            CALL GetPositionInRefElem(physPos,refPos,iElem)
+            PhysPos = BoundsOfElem_Shared(1,:,GlobalElemID) + physPos*(BoundsOfElem_Shared(2,:,GlobalElemID)-BoundsOfElem_Shared(1,:,GlobalElemID))
+            CALL GetPositionInRefElem(physPos,refPos,GlobalElemID)
             IF(ALL(ABS(refPos).LE.1.0)) EXIT ! particle inside of element
           END DO
           IF (INSIDEMACROBODY(physPos)) matchedParts=matchedParts+1
         END DO
-        GEO%MPVolumePortion(iElem)=REAL(matchedParts)/REAL(nPointsMCVolumeEstimate)
+        GEO%MPVolumePortion(GlobalElemID)=REAL(matchedParts)/REAL(nPointsMCVolumeEstimate)
       END IF
     END DO
   END IF ! CalcMPVolumePortion

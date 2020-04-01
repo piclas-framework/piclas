@@ -88,7 +88,7 @@ USE MOD_Particle_Vars        ,ONLY: KeepWallParticles, PartState, VarTimeStep
 USE MOD_DSMC_Vars            ,ONLY: useDSMC, CollInf
 USE MOD_Particle_VarTimeStep ,ONLY: CalcVarTimeStep
 #if USE_MPI
-USE MOD_MPI_Vars             ,ONLY: OffSetElemMPI
+USE MOD_Mesh_Vars            ,ONLY: offsetElem
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers   ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -133,7 +133,7 @@ IF (useDSMC.OR.doParticleMerge) THEN
       PDM%nextFreePosition(counter1) = i
       counter1 = counter1 + 1
     ELSE
-      ElemID = PEM%Element(i) - OffSetElemMPI(MyRank)
+      ElemID = PEM%Element(i) - offsetElem
       IF (PEM%pNumber(ElemID).EQ.0) THEN
         PEM%pStart(ElemID) = i                     ! Start of Linked List for Particles in Elem
       ELSE

@@ -1457,11 +1457,14 @@ SUBROUTINE CalcSubNodeMPVolumePortions(iElem, NodeDepth, Node)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars          ,ONLY: tNodeVolume, tTreeNode
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-USE MOD_Particle_Vars      ,ONLY: nPointsMCVolumeEstimate
+USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_MacroBody_Vars     ,ONLY: UseMacroBody, MacroSphere
 USE MOD_MacroBody_tools    ,ONLY: INSIDEMACROBODY
-USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Particle_Vars      ,ONLY: nPointsMCVolumeEstimate
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1504,7 +1507,7 @@ IF (UseMacroBody .AND. GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePorti
   DO iPart=1,TreeNode%PNum_Node
     DO
       CALL RANDOM_NUMBER(physPos)
-      physPos = GEO%BoundsOfElem(1,:,iElem) + physPos*(GEO%BoundsOfElem(2,:,iElem)-GEO%BoundsOfElem(1,:,iElem))
+      physPos = BoundsOfElem_Shared(1,:,iElem) + physPos*(BoundsOfElem_Shared(2,:,iElem)-BoundsOfElem_Shared(1,:,iElem))
       CALL GetPositionInRefElem(physPos,refPos,iElem)
       IF (MAXVAL(ABS(refPos)).LE.1.0) EXIT ! particle inside of element
     END DO
@@ -2366,12 +2369,12 @@ SUBROUTINE GeoCoordToMap2D(x_in,xi_Out,iElem)
 !> xi is defined in the 1DrefElem xi=[-1,1]
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+!USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_DSMC_Vars             ,ONLY: SymmetrySide
 #if USE_MPI
-USE MOD_MPI_Shared_Vars       ,ONLY: ElemSideNodeID_Shared
+USE MOD_MPI_Shared_Vars       ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 #else
-USE MOD_Mesh_Vars             ,ONLY: ElemSideNodeID_Shared
+USE MOD_Mesh_Vars             ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2396,7 +2399,7 @@ REAL                          :: T_inv(2,2), DP(2), T(2,2)
 ! 1.1.) initial guess from linear part:
 SideID = SymmetrySide(iElem,2)
 DO iNode = 1,4
-  P(1:2,iNode) = GEO%NodeCoords(1:2,ElemSideNodeID_Shared(iNode,SideID,iElem))
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,iElem)+1)
 END DO
 T(:,1) = 0.5 * (P(:,2)-P(:,1))
 T(:,2) = 0.5 * (P(:,4)-P(:,1))
@@ -2455,12 +2458,12 @@ FUNCTION MapToGeo2D(xi,iElem)
 !>
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+!USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 #if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: ElemSideNodeID_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 #else
-USE MOD_Mesh_Vars               ,ONLY: ElemSideNodeID_Shared
+USE MOD_Mesh_Vars               ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2477,7 +2480,7 @@ REAL                            :: MapToGeo2D(2),P(2,4)
 !===================================================================================================================================
 SideID = SymmetrySide(iElem,2)
 DO iNode = 1,4
-  P(1:2,iNode) = GEO%NodeCoords(1:2,ElemSideNodeID_Shared(iNode,SideID,iElem))
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,iElem)+1)
 END DO
 
 MapToGeo2D =0.25*(P(:,1)*(1-xi(1)) * (1-xi(2)) &
