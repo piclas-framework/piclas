@@ -155,11 +155,11 @@ USE MOD_Particle_MPI_Vars   ,ONLY: PartMPI
 USE MOD_Globals
 USE MOD_Dielectric_Vars     ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
 USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC, RadialWeighting
-USE MOD_Part_Emission_Tools ,ONLY: SetParticleChargeAndMass,SetParticleMPF
+USE MOD_Part_Emission_Tools ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
 USE MOD_Part_Pos_and_Velo   ,ONLY: SetParticlePosition,SetParticleVelocity
 USE MOD_Part_Tools          ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Mesh_Vars  ,ONLY: LocalVolume
-USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry2D
+USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry2D, VarTimeStep
 USE MOD_ReadInTools
 USE MOD_Restart_Vars        ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
@@ -185,7 +185,7 @@ CALL UpdateNextFreePosition()
 insertParticles = 0
 DO i=1,nSpecies
   IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
-  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+  DO iInit = 1, Species(i)%NumberOfInits
     IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
       IF(Symmetry2D) THEN
         ! The correct 2D/axisymmetric LocalVolume could only be calculated after the symmetry axis was defined (through the boundary
@@ -221,7 +221,7 @@ __STAMP__&
 END IF
 DO i = 1,nSpecies
   IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
-  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+  DO iInit = 1, Species(i)%NumberOfInits
     IF (Species(i)%Init(iInit)%UseForInit) THEN ! no special emissiontype to be used
       IF(Species(i)%Init(iInit)%initialParticleNumber.GT.HUGE(1)) CALL abort(&
 __STAMP__&
@@ -233,16 +233,18 @@ __STAMP__&
       CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
       SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',i,' ... '
       CALL SetParticleChargeAndMass(i,NbrOfParticle)
-      IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(i,NbrOfParticle)
+      IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+      IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(i,NbrOfParticle)
       IF (useDSMC) THEN
-        IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
-          NbrOfParticle = PDM%maxParticleNumber
-        END IF
         iPart = 1
         DO WHILE (iPart .le. NbrOfParticle)
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr .ne. 0) THEN
             PDM%PartInit(PositionNbr) = iInit
+          ELSE
+            CALL abort(&
+            __STAMP__&
+            ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')    
           END IF
           iPart = iPart + 1
         END DO
@@ -294,7 +296,7 @@ USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
-USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri
+USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri, SetParticleTimeStep
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -316,9 +318,8 @@ INTEGER                          :: InitGroup
 
 !---  Emission at time step (initial emission see particle_init.f90: InitializeParticleEmission)
 DO i=1,nSpecies
-  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
-    IF (((Species(i)%Init(iInit)%ParticleEmissionType .NE. 4).AND.(Species(i)%Init(iInit)%ParticleEmissionType .NE. 6)) .AND. &
-         (Species(i)%Init(iInit)%UseForEmission)) THEN ! no constant density in cell type, + to be used for init
+  DO iInit = 1, Species(i)%NumberOfInits
+    IF (Species(i)%Init(iInit)%UseForEmission) THEN ! no constant density in cell type, + to be used for init
         SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
         CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
           IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
@@ -326,7 +327,6 @@ DO i=1,nSpecies
             inserted_Particle_iter = INT(PartIns,8)                                     ! number of particles to be inserted
             PartIns=Species(i)%Init(iInit)%ParticleEmission * (Time + dt*RKdtFracTotal) ! total number of emitted particle over
                                                                                         ! simulation
-            CALL RANDOM_NUMBER(RandVal1)
             !-- random-round the inserted_Particle_time for preventing periodicity
             ! PO & SC: why, sometimes we do not want this add, TB is bad!
             IF (inserted_Particle_iter.GE.1) THEN
@@ -418,7 +418,8 @@ DO i=1,nSpecies
        CALL SetParticlePosition(i,iInit,NbrOfParticle)
        CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
        CALL SetParticleChargeAndMass(i,NbrOfParticle)
-       IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(i,NbrOfParticle)
+       IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+       IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(i,NbrOfParticle)
        ! define molecule stuff
        IF (useDSMC.AND.(CollisMode.GT.1)) THEN
          iPart = 1
@@ -458,7 +459,7 @@ DO i=1,nSpecies
       ! alter history, dirty hack for balance calculation
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
     END IF ! CalcPartBalance
-  END DO  ! iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+  END DO  ! iInit 
 END DO  ! i=1,nSpecies
 
 END SUBROUTINE ParticleInserting

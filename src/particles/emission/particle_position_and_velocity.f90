@@ -39,6 +39,87 @@ PUBLIC         :: SetParticleVelocity,SetParticlePosition
 CONTAINS
 
 
+SUBROUTINE SetParticlePositionCellLocal(FractNbr,iInit,NbrOfParticle)
+!===================================================================================================================================
+! Set particle position
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: Species,Symmetry2DAxisymmetric
+USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
+USE MOD_part_emission_tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition
+#if USE_MPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+#endif /*USE_MPI*/
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                       :: FractNbr, iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(INOUT)                    :: NbrOfParticle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                  :: chunkSize
+LOGICAL                                  :: DoExactPartNumInsert
+#if USE_MPI
+INTEGER                                  :: InitGroup
+REAL,ALLOCATABLE                         :: ProcMeshVol(:)
+INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
+#endif
+!===================================================================================================================================/
+
+  DoExactPartNumInsert =  .FALSE.
+  ! check if particle inserting during simulation or initial inserting and also if via partdensity or exact particle number
+  ! nbrOfParticles is set for initial inserting if initialPartNum or partdensity is set in ini
+  ! ParticleEmission and Partdensity not working together
+  IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
+  IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) THEN
+    DoExactPartNumInsert =  .TRUE.
+    IF(Symmetry2DAxisymmetric) CALL abort(&
+__STAMP__&
+,'Axisymmetric: Particle insertion only possible with PartDensity!')
+  END IF
+  chunksize = 0
+#if USE_MPI
+  IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1 .AND. Species(FractNbr)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
+    IF (DoExactPartNumInsert) THEN !###$ ToDo
+      IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
+        ALLOCATE(ProcMeshVol(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
+        ALLOCATE(ProcNbrOfParticle(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
+        ProcMeshVol=0.
+        ProcNbrOfParticle=0
+      ELSE ! to reduce global memory allocation if a lot of procs are used
+        ALLOCATE(ProcMeshVol(1))
+        ALLOCATE(ProcNbrOfParticle(1))
+        ProcMeshVol=0.
+        ProcNbrOfParticle=0
+      END IF !InitGroup%MPIroot
+      CALL MPI_GATHER(LocalVolume,1,MPI_DOUBLE_PRECISION &
+                     ,ProcMeshVol,1,MPI_DOUBLE_PRECISION,0,PartMPI%InitGroup(InitGroup)%COMM,iError)
+      IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
+        CALL IntegerDivide(NbrOfParticle,PartMPI%InitGroup(InitGroup)%nProcs,ProcMeshVol,ProcNbrOfParticle)
+      END IF
+      CALL MPI_SCATTER(ProcNbrOfParticle, 1, MPI_INTEGER, chunksize, 1, MPI_INTEGER, 0, PartMPI%InitGroup(InitGroup)%COMM, IERROR)
+      SDEALLOCATE(ProcMeshVol)
+      SDEALLOCATE(ProcNbrOfParticle)
+    END IF
+  ELSE
+    chunksize = NbrOfParticle
+  END IF
+#else
+  IF (DoExactPartNumInsert) chunksize = NbrOfParticle
+#endif /*USE_MPI*/
+  IF ((chunksize.GT.0).OR.(Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) THEN
+    CALL SetCellLocalParticlePosition(chunkSize,FractNbr,iInit,DoExactPartNumInsert)
+  END IF
+  NbrOfParticle = chunksize
+
+END SUBROUTINE SetParticlePositionCellLocal
+
+
 SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! Set particle position
@@ -48,7 +129,10 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState, Symmetry2DAxisymmetric
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
-USE MOD_part_emission_tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition
+USE MOD_part_emission_tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition,SetParticlePositionPoint
+USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
+USE MOD_part_emission_tools    ,ONLY: SetParticlePositionCuboidCylinder, SetParticlePositionGyrotronCircle,SetParticlePositionCircle
+USE MOD_part_emission_tools    ,ONLY: SetParticlePositionSphere, SetParticlePositionSinDeviation
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: SendEmissionParticlesToProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
@@ -84,88 +168,32 @@ END IF
 #endif /*USE_MPI*/
 
 IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
-  DoExactPartNumInsert =  .FALSE.
-  ! check if particle inserting during simulation or initial inserting and also if via partdensity or exact particle number
-  ! nbrOfParticles is set for initial inserting if initialPartNum or partdensity is set in ini
-  ! ParticleEmission and Partdensity not working together
-  IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
-  IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) THEN
-    IF(Symmetry2DAxisymmetric) CALL abort(&
-__STAMP__&
-,'Axisymmetric: Particle insertion only possible with PartDensity!')
-  END IF
-  !IF ((Species(FractNbr)%Init(iInit)%ParticleEmission.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) CALL abort(&
-!__STAMP__&
-!,'ParticleEmission>0 and PartDensity>0. Can not be set at the same time for cell_local inserting. Set both for species: ',FractNbr)
-  chunksize = 0
-#if USE_MPI
-  IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1 .AND. Species(FractNbr)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
-    IF (DoExactPartNumInsert) THEN
-      IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
-        ALLOCATE(ProcMeshVol(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
-        ALLOCATE(ProcNbrOfParticle(0:PartMPI%InitGroup(InitGroup)%nProcs-1))
-        ProcMeshVol=0.
-        ProcNbrOfParticle=0
-      ELSE ! to reduce global memory allocation if a lot of procs are used
-        ALLOCATE(ProcMeshVol(1))
-        ALLOCATE(ProcNbrOfParticle(1))
-        ProcMeshVol=0.
-        ProcNbrOfParticle=0
-      END IF !InitGroup%MPIroot
-      CALL MPI_GATHER(LocalVolume,1,MPI_DOUBLE_PRECISION &
-                     ,ProcMeshVol,1,MPI_DOUBLE_PRECISION,0,PartMPI%InitGroup(InitGroup)%COMM,iError)
-      IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
-        CALL IntegerDivide(NbrOfParticle,PartMPI%InitGroup(InitGroup)%nProcs,ProcMeshVol,ProcNbrOfParticle)
-      END IF
-      CALL MPI_SCATTER(ProcNbrOfParticle, 1, MPI_INTEGER, chunksize, 1, MPI_INTEGER, 0, PartMPI%InitGroup(InitGroup)%COMM, IERROR)
-      SDEALLOCATE(ProcMeshVol)
-      SDEALLOCATE(ProcNbrOfParticle)
-    END IF
-  ELSE
-    chunksize = NbrOfParticle
-  END IF
-#else
-  IF (DoExactPartNumInsert) chunksize = NbrOfParticle
-#endif /*USE_MPI*/
-  !------------------SpaceIC-case: cell_local-------------------------------------------------------------------------------------
-  IF ((chunksize.GT.0).OR.(Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) THEN
-    CALL SetCellLocalParticlePosition(chunkSize,FractNbr,iInit,DoExactPartNumInsert)
-  END IF
-  NbrOfParticle = chunksize
+  CALL SetParticlePositionCellLocal(FractNbr,iInit,NbrOfParticle)
   RETURN
 END IF
-
+IF ( (NbrOfParticle .LE. 0).AND. (ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.) ) RETURN 
 
 DimSend=3 !save (and send) only positions
-
-IF ( (NbrOfParticle .LE. 0).AND. (ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.) ) &
-  RETURN !0<Partins<1: statistical handling of exact REAL-INT-conv. below!
-
 nChunks = 1                   ! Standard: Nicht-MPI
 sumOfMatchedParticles = 0
 mySumOfMatchedParticles = 0
-
 chunkSize = nbrOfParticle
-
 ! process myRank=0 generates the complete list of random positions for all emitted particles
 #if USE_MPI
-IF(( (nbrOfParticle.GT.PartMPI%InitGroup(InitGroup)%nProcs*10                             ) .AND.  &
-     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'circle_equidistant'                 ) .AND.  &
-     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'sin_deviation'                      ) .AND.  &
-     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'line_with_equidistant_distribution' )))THEN
-   nChunks = PartMPI%InitGroup(InitGroup)%nProcs
+IF ( (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle_equidistant'                 ) .OR.  &
+     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'sin_deviation'                      ) .OR.  &
+     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle'                             ) .OR.  &
+     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'line_with_equidistant_distribution' )) THEN
+  nChunks = 1
+ELSE IF (nbrOfParticle.GT.(PartMPI%InitGroup(InitGroup)%nProcs*10)) THEN
+  nChunks = PartMPI%InitGroup(InitGroup)%nProcs
 ELSE
-   nChunks = 1
+  nChunks = 1
 END IF
-
-! communication
-IF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle') nChunks=1
-
 chunkSize = INT(nbrOfParticle/nChunks)
 IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN 
   chunkSize = chunkSize + ( nbrOfParticle - (nChunks*chunkSize) )
 END IF
-
 ! all proc taking part in particle inserting
 IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
 #endif
@@ -195,16 +223,13 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     CALL SetParticlePositionSinDeviation(FractNbr,iInit,chunkSize,particle_positions)
   END SELECT
   !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
-
 #if USE_MPI
 ELSE !no mpi root, nchunks=1
   chunkSize=0
 END IF
-
 ! Need to open MPI communication regardless of the chunk number. Make it only dependent on the number of procs
 IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1) THEN
   CALL SendEmissionParticlesToProcs(chunkSize,DimSend,particle_positions,FractNbr,iInit,mySumOfMatchedParticles)
-
 ! Finish emission on local proc
 ELSE
   mySumOfMatchedParticles = 0
@@ -220,58 +245,18 @@ ELSE
       CALL LocateParticleInElement(ParticleIndexNbr,doHALO=.FALSE.)
       IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
         mySumOfMatchedParticles = mySumOfMatchedParticles + 1
+        PDM%IsNewPart(ParticleIndexNbr) = .TRUE.
+        PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
       END IF
+    ELSE
+          CALL abort(&
+    __STAMP__&
+    ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
     END IF
   END DO
 END IF
-#endif
-
-!
-!  mySumOfMatchedParticles=0
-!  ParticleIndexNbr = 1
-!  DO i=1,chunkSize*nChunks
-!    IF ((i.EQ.1).OR.PDM%ParticleInside(ParticleIndexNbr)) THEN
-!       ParticleIndexNbr = PDM%nextFreePosition(mySumOfMatchedParticles + 1 &
-!                                             + PDM%CurrentNextFreePosition)
-!    END IF
-!    IF (ParticleIndexNbr .ne. 0) THEN
-!       PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
-!       PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-!       CALL LocateParticleInElement(ParticleIndexNbr,doHALO=.FALSE.)
-!       IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
-!          mySumOfMatchedParticles = mySumOfMatchedParticles + 1
-!          ! IF (VarTimeStep%UseVariableTimeStep) THEN
-!          !   VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &
-!          !     CalcVarTimeStep(PartState(1,ParticleIndexNbr), PartState(2,ParticleIndexNbr),PEM%Element(ParticleIndexNbr))
-!          ! END IF
-!          ! IF(RadialWeighting%DoRadialWeighting) THEN
-!          !    PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),FractNbr,ParticleIndexNbr)
-!          ! END IF
-!#if USE_MPI
-!          IF(nChunksTemp.EQ.1) THEN
-!            ! mark elements with Rank and local found particle index
-!            PartFoundInProc(1,i)=MyRank
-!            PartFoundInProc(2,i)=mySumOfMatchedParticles
-!          END IF ! nChunks.EQ.1
-!#endif /*USE_MPI*/
-!       ELSE
-!          PDM%ParticleInside(ParticleIndexNbr) = .FALSE.
-!       END IF
-!       IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
-!         PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
-!         PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
-!       END IF
-!    ELSE
-!      CALL abort(&
-!__STAMP__&
-!,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
-!    END IF
-!  END DO
-!  IPWRITE(UNIT_StdOut,*) "XXXXXXXXXXXXXXXXXXXXXxx mySumOfMatchedParticles =", mySumOfMatchedParticles
-
 ! we want always warnings to know if the emission has failed. if a timedisc does not require this, this
 ! timedisc has to be handled separately
-#if USE_MPI
 ! check the sum of the matched particles: did each particle find its "home"-CPU?
 CALL MPI_ALLREDUCE( mySumOfMatchedParticles, sumOfMatchedParticles, 1, MPI_INTEGER, MPI_SUM &
                   , PartMPI%InitGroup(InitGroup)%COMM, IERROR)
@@ -303,7 +288,6 @@ IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN
 #if USE_MPI
 END IF ! PartMPI%iProc.EQ.0
 #endif
-
 ! Return the *local* NbrOfParticle so that the following Routines only fill in
 ! the values for the local particles
 NbrOfParticle = mySumOfMatchedParticles
@@ -314,477 +298,6 @@ IF (allocStat .NE. 0) THEN
 END IF
 
 END SUBROUTINE SetParticlePosition
-
-SUBROUTINE SetParticlePositionPoint(FractNbr,iInit,chunkSize,particle_positions)
-!===================================================================================================================================
-! Set particle position
-!===================================================================================================================================
-! modules
-USE MOD_Particle_Vars          ,ONLY: Species
-!----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                    :: Particle_pos(3)
-INTEGER                 :: i
-!===================================================================================================================================
- Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC
- DO i=1,chunkSize
-    particle_positions(i*3-2) = Particle_pos(1)
-    particle_positions(i*3-1) = Particle_pos(2)
-    particle_positions(i*3  ) = Particle_pos(3)
- END DO
-END SUBROUTINE SetParticlePositionPoint
-
-
-SUBROUTINE SetParticlePositionEquidistLine(FractNbr,iInit,chunkSize,particle_positions)
-!===================================================================================================================================
-! Set particle position
-!===================================================================================================================================
-! modules
-USE MOD_Particle_Vars          ,ONLY: Species
-!----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), VectorGap(3)
-INTEGER                 :: i
-!===================================================================================================================================
-  IF(chunkSize.EQ.1)THEN
-     Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + 0.5 * Species(FractNbr)%Init(iInit)%BaseVector1IC
-  ELSE
-    VectorGap = Species(FractNbr)%Init(iInit)%BaseVector1IC/(REAL(chunkSize)-1.)
-    DO i=1,chunkSize
-      Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + (i-1)*VectorGap
-      particle_positions(i*3-2) = Particle_pos(1)
-      particle_positions(i*3-1) = Particle_pos(2)
-      particle_positions(i*3  ) = Particle_pos(3)
-    END DO
-  END IF
-END SUBROUTINE SetParticlePositionEquidistLine
-
-
-SUBROUTINE SetParticlePositionLine(FractNbr,iInit,chunkSize,particle_positions)
-!===================================================================================================================================
-! Set particle position
-!===================================================================================================================================
-! modules
-USE MOD_Particle_Vars          ,ONLY: Species
-!----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), iRan
-INTEGER                 :: i
-!===================================================================================================================================
-  DO i=1,chunkSize
-    CALL RANDOM_NUMBER(iRan)
-    Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%BaseVector1IC*iRan
-    particle_positions(i*3-2) = Particle_pos(1)
-    particle_positions(i*3-1) = Particle_pos(2)
-    particle_positions(i*3  ) = Particle_pos(3)
-  END DO
-END SUBROUTINE SetParticlePositionLine
-
-
-SUBROUTINE SetParticlePositionDisk(FractNbr,iInit,chunkSize,particle_positions)
-!===================================================================================================================================
-! Set particle position
-!===================================================================================================================================
-! modules
-USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_SuperB_Tools           ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
-!----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), RandVec(2), lineVector(3), lineVector2(3), radius
-INTEGER                 :: i
-!===================================================================================================================================
-  CALL FindLinIndependentVectors(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
-  CALL GramSchmidtAlgo(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
-  DO i=1,chunkSize
-   radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1.
-   DO WHILE(radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC)
-      CALL RANDOM_NUMBER(RandVec)
-      RandVec = RandVec * 2. - 1.
-      Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%RadiusIC * &
-               (RandVec(1) * lineVector + RandVec(2) *lineVector2)
-
-      radius = SQRT( (Particle_pos(1)-Species(FractNbr)%Init(iInit)%BasePointIC(1)) * &
-                     (Particle_pos(1)-Species(FractNbr)%Init(iInit)%BasePointIC(1)) + &
-                     (Particle_pos(2)-Species(FractNbr)%Init(iInit)%BasePointIC(2)) * &
-                     (Particle_pos(2)-Species(FractNbr)%Init(iInit)%BasePointIC(2)) + &
-                     (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) * &
-                     (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) )
-   END DO
-   particle_positions(i*3-2) = Particle_pos(1)
-   particle_positions(i*3-1) = Particle_pos(2)
-   particle_positions(i*3  ) = Particle_pos(3)
-  END DO
-END SUBROUTINE SetParticlePositionDisk
-
-
-SUBROUTINE SetParticlePositionCircle(FractNbr,iInit,chunkSize,particle_positions)
-!===================================================================================================================================
-! Set particle position
-!===================================================================================================================================
-! modules
-USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_SuperB_Tools           ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
-USE MOD_Globals_Vars           ,ONLY: Pi
-!----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), iRan, lineVector(3), lineVector2(3), radius, Phi
-INTEGER                 :: i
-!===================================================================================================================================
-  CALL FindLinIndependentVectors(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
-  CALL GramSchmidtAlgo(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
-  radius = Species(FractNbr)%Init(iInit)%RadiusIC
-  DO i=1,chunkSize
-    IF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle') THEN
-      CALL RANDOM_NUMBER(iRan)
-      Phi = 2.*Pi*iRan
-    ELSE
-      Phi = 2.*Pi*REAL(i)/ REAL(chunkSize)
-    END IF
-    Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC +        &
-                  linevector * COS(Phi) * radius +  &
-                  linevector2 * SIN(Phi) * radius
-    particle_positions(i*3-2) = Particle_pos(1)
-    particle_positions(i*3-1) = Particle_pos(2)
-    particle_positions(i*3  ) = Particle_pos(3)
-  END DO
-END SUBROUTINE SetParticlePositionCircle
-
-
-SUBROUTINE SetParticlePositionGyrotronCircle(FractNbr,iInit,chunkSize,particle_positions, NbrOfParticle)
-!===================================================================================================================================
-! Set particle position
-!===================================================================================================================================
-! modules
-USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_SuperB_Tools           ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
-USE MOD_Globals_Vars           ,ONLY: Pi
-USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac, dt
-USE MOD_PICInterpolation_vars  ,ONLY: useVariableExternalField, VariableExternalField
-USE MOD_PICInterpolation       ,ONLY: InterpolateVariableExternalField
-USE MOD_Equation_vars          ,ONLY: c_inv
-!----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize, NbrOfParticle
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), iRan, lineVector(3), lineVector2(3), radius, Phi, n(3), radius_vec(3)
-REAL                    :: JJ(3,3), II(3,3), NN(3,3), rgyrate, Bintpol
-INTEGER                 :: i, j
-!===================================================================================================================================
-  CALL FindLinIndependentVectors(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
-  CALL GramSchmidtAlgo(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
-  radius = Species(FractNbr)%Init(iInit)%RadiusIC
-  DO i=1,chunkSize
-     CALL RANDOM_NUMBER(iRan)
-     Phi = 2.*Pi*iRan
-     Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + (linevector * COS(Phi) + linevector2 * SIN(Phi)) * radius
-     ! Change position of particle on the small gyro circle
-     ! take normal vecotr of the circle
-     n(1:3) = Species(FractNbr)%Init(iInit)%NormalIC(1:3)
-     ! generate radius vector (later it will be multiplied by the length of the
-     ! gyro circles. For now we just need the vector)
-     radius_vec(1) = Particle_pos(1) - Species(FractNbr)%Init(iInit)%BasePointIC(1)
-     radius_vec(2) = Particle_pos(2) - Species(FractNbr)%Init(iInit)%BasePointIC(2)
-     radius_vec(3) = Particle_pos(3) - Species(FractNbr)%Init(iInit)%BasePointIC(3)
-     !rotate radius vector with random angle
-     CALL RANDOM_NUMBER(iRan)
-     Phi=2.*Pi*iRan
-     JJ(1,1:3) = (/   0.,-n(3), n(2)/)
-     JJ(2,1:3) = (/ n(3),   0.,-n(1)/)
-     JJ(3,1:3) = (/-n(2), n(1),   0./)
-     II(1,1:3) = (/1.,0.,0./)
-     II(2,1:3) = (/0.,1.,0./)
-     II(3,1:3) = (/0.,0.,1./)
-     FORALL(j=1:3) NN(:,j) = n(:)*n(j)
-
-     ! 1. determine the z-position in order to get the interpolated curved B-field
-     CALL RANDOM_NUMBER(iRan)
-     IF (NbrOfParticle.EQ.Species(FractNbr)%Init(iInit)%initialParticleNumber) THEN
-       particle_positions(i*3  ) = Species(FractNbr)%Init(iInit)%BasePointIC(3) &
-                                       + iRan * Species(FractNbr)%Init(iInit)%CuboidHeightIC
-     ELSE
-       particle_positions(i*3  ) = Species(FractNbr)%Init(iInit)%BasePointIC(3) &
-                                       + iRan * dt*RKdtFrac &
-                                       * Species(FractNbr)%Init(iInit)%VeloIC/Species(FractNbr)%Init(iInit)%alpha
-     END IF
-
-     ! 2. calculate curved B-field at z-position in order to determine size of gyro radius
-     IF (useVariableExternalField) THEN
-        IF(particle_positions(i*3).LT.VariableExternalField(1,1))THEN ! assume particles travel in positive z-direction
-          CALL abort(__STAMP__,'SetParticlePosition: particle_positions(i*3) cannot be smaller than VariableExternalField(1,1). Fix *.csv data or emission!')
-        END IF
-        Bintpol = InterpolateVariableExternalField(particle_positions(i*3))
-        rgyrate = 1./ SQRT ( 1. - (Species(FractNbr)%Init(iInit)%VeloIC**2 * (1. + 1./Species(FractNbr)%Init(iInit)%alpha**2)) &
-                            * c_inv * c_inv ) * Species(FractNbr)%MassIC * Species(FractNbr)%Init(iInit)%VeloIC / &
-                  ( Bintpol * abs( Species(FractNbr)%ChargeIC) )
-     ELSE
-       rgyrate =  Species(FractNbr)%Init(iInit)%RadiusICGyro
-     END IF
-
-     radius_vec = MATMUL( NN+cos(Phi)*(II-NN)+sin(Phi)*JJ , radius_vec )
-     radius_vec(1:3) = radius_vec(1:3) / SQRT(radius_vec(1)**2+radius_vec(2)**2+radius_vec(3)**2) &
-                   * rgyrate !Species(1)%RadiusICGyro
-     ! Set new particles position:
-     particle_positions(i*3-2) = Particle_pos(1) + radius_vec(1)
-     particle_positions(i*3-1) = Particle_pos(2) + radius_vec(2)
-     !particle_positions(i*3  )=0.
-  END DO
-END SUBROUTINE SetParticlePositionGyrotronCircle
-
-
-SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_positions)
-!===================================================================================================================================
-! Set particle position
-!===================================================================================================================================
-! modules
-USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac, dt
-USE MOD_Globals_Vars           ,ONLY: Pi
-USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
-USE MOD_part_emission_tools    ,ONLY: InsideExcludeRegionCheck
-USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROBODY
-!----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)     :: FractNbr, iInit
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER, INTENT(INOUT)  :: chunkSize
-REAL, INTENT(OUT)       :: particle_positions(:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), RandVal(3), lineVector(3), radius
-INTEGER                 :: i, chunkSize2
-LOGICAL                 :: insideExcludeRegion
-!===================================================================================================================================
-  lineVector(1) = Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3) - &
-    Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2)
-  lineVector(2) = Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1) - &
-    Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3)
-  lineVector(3) = Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2) - &
-    Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1)
-  IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-    CALL abort(__STAMP__,'BaseVectors are parallel!')
-  ELSE
-    lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
-      lineVector(3) * lineVector(3))
-  END IF
-  i=1
-  chunkSize2=0
-  DO WHILE (i .LE. chunkSize)
-    SELECT CASE (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
-    CASE ('cuboid')
-      CALL RANDOM_NUMBER(RandVal)
-      Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%BaseVector1IC * RandVal(1)
-      Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BaseVector2IC * RandVal(2)
-      IF (Species(FractNbr)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
-        Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%VeloIC * dt*RKdtFrac * RandVal(3)
-      ELSE
-        Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3)
-      END IF
-    CASE ('cylinder')
-      radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1.
-      DO WHILE((radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC) .OR.(radius.LT.Species(FractNbr)%Init(iInit)%Radius2IC))
-         CALL RANDOM_NUMBER(RandVal)
-         Particle_pos = Species(FractNbr)%Init(iInit)%BaseVector1IC * (RandVal(1)*2.-1.) &
-                      + Species(FractNbr)%Init(iInit)%BaseVector2IC * (RandVal(2)*2.-1.)
-         radius = SQRT( Particle_pos(1) * Particle_pos(1) + &
-                        Particle_pos(2) * Particle_pos(2) + &
-                        Particle_pos(3) * Particle_pos(3) )
-      END DO
-      Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BasePointIC
-      IF (Species(FractNbr)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
-        Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%VeloIC * dt*RKdtFrac * RandVal(3)
-      ELSE
-        Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal(3)
-      END IF
-    END SELECT
-    IF (UseMacroBody) THEN
-      IF (INSIDEMACROBODY(Particle_pos)) THEN
-        i=i+1
-        CYCLE !particle is inside MacroParticle
-      END IF
-    END IF
-    IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
-      CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
-      IF (insideExcludeRegion) THEN
-        i=i+1
-        CYCLE !particle is in excluded region
-      END IF
-    END IF
-    particle_positions((chunkSize2+1)*3-2) = Particle_pos(1)
-    particle_positions((chunkSize2+1)*3-1) = Particle_pos(2)
-    particle_positions((chunkSize2+1)*3  ) = Particle_pos(3)
-    i=i+1
-    chunkSize2=chunkSize2+1
-  END DO
-  chunkSize = chunkSize2
-END SUBROUTINE SetParticlePositionCuboidCylinder
-
-
-SUBROUTINE SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions)
-!===================================================================================================================================
-! Set particle position
-!===================================================================================================================================
-! modules
-USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_MacroBody_Vars         ,ONLY: UseMacroBody
-USE MOD_MacroBody_tools        ,ONLY: INSIDEMACROBODY
-USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR
-USE MOD_part_emission_tools    ,ONLY: InsideExcludeRegionCheck
-!----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)     :: FractNbr, iInit
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER, INTENT(INOUT)  :: chunkSize
-REAL, INTENT(OUT)       :: particle_positions(:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), iRan, radius
-INTEGER                 :: i, chunkSize2
-LOGICAL                 :: insideExcludeRegion
-!===================================================================================================================================
-  i=1
-  chunkSize2=0
-  DO WHILE (i .LE. chunkSize)
-    CALL RANDOM_NUMBER(iRan)
-    radius = Species(FractNbr)%Init(iInit)%RadiusIC*iRan**(1./3.)
-    Particle_pos = DICEUNITVECTOR()*radius + Species(FractNbr)%Init(iInit)%BasePointIC
-    IF (UseMacroBody) THEN
-      IF (INSIDEMACROBODY(Particle_pos)) THEN
-        i=i+1
-        CYCLE !particle is inside MacroParticle
-      END IF
-    END IF
-    IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
-      CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
-      IF (insideExcludeRegion) THEN
-        i=i+1
-        CYCLE !particle is in excluded region
-      END IF
-    END IF
-    particle_positions((chunkSize2+1)*3-2) = Particle_pos(1)
-    particle_positions((chunkSize2+1)*3-1) = Particle_pos(2)
-    particle_positions((chunkSize2+1)*3  ) = Particle_pos(3)
-    i=i+1
-    chunkSize2=chunkSize2+1
-  END DO
-  chunkSize = chunkSize2
-END SUBROUTINE SetParticlePositionSphere
-
-
-SUBROUTINE SetParticlePositionSinDeviation(FractNbr,iInit,chunkSize,particle_positions)
-!===================================================================================================================================
-! Set particle position
-!===================================================================================================================================
-! modules
-USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_Globals_Vars           ,ONLY: Pi
-!----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), xlen, ylen, zlen, pilen, x_step, y_step, z_step, x_pos, y_pos
-INTEGER                 :: i, iPart, j, k
-!===================================================================================================================================
-  IF(Species(FractNbr)%Init(iInit)%initialParticleNumber.NE. &
-      (Species(FractNbr)%Init(iInit)%maxParticleNumberX * Species(FractNbr)%Init(iInit)%maxParticleNumberY &
-      * Species(FractNbr)%Init(iInit)%maxParticleNumberZ)) THEN
-   SWRITE(*,*) 'for species ',FractNbr,' does not match number of particles in each direction!'
-   CALL abort(__STAMP__,'ERROR: Number of particles in init / emission region',iInit)
-  END IF
-  xlen = ABS(GEO%xmaxglob  - GEO%xminglob)
-  ylen = ABS(GEO%ymaxglob  - GEO%yminglob)
-  zlen = ABS(GEO%zmaxglob  - GEO%zminglob)
-  pilen=2.0*PI/xlen
-  x_step = xlen/Species(FractNbr)%Init(iInit)%maxParticleNumberX
-  y_step = ylen/Species(FractNbr)%Init(iInit)%maxParticleNumberY
-  z_step = zlen/Species(FractNbr)%Init(iInit)%maxParticleNumberZ
-  iPart = 1
-  DO i=1,Species(FractNbr)%Init(iInit)%maxParticleNumberX
-    x_pos = (i * x_step - x_step*0.5)
-    x_pos = GEO%xminglob + x_pos + Species(FractNbr)%Init(iInit)%Amplitude &
-            * SIN(Species(FractNbr)%Init(iInit)%WaveNumber * pilen * x_pos)
-    DO j=1,Species(FractNbr)%Init(iInit)%maxParticleNumberY
-      y_pos =  GEO%yminglob + j * y_step - y_step * 0.5
-      DO k=1,Species(FractNbr)%Init(iInit)%maxParticleNumberZ
-        particle_positions(iPart*3-2) = x_pos
-        particle_positions(iPart*3-1) = y_pos
-        particle_positions(iPart*3  ) = GEO%zminglob &
-                                  + k * z_step - z_step * 0.5
-        iPart = iPart + 1
-      END DO
-    END DO
-  END DO
-END SUBROUTINE SetParticlePositionSinDeviation
 
 SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle,init_or_sf)
 !===================================================================================================================================

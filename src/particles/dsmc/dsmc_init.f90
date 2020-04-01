@@ -761,54 +761,26 @@ ELSE !CollisMode.GT.0
         SpecDSMC(iSpec)%ElecRelaxProb = DSMC%ElecRelaxProb    !or 0.02 | Bird: somewhere in range 0.01 .. 0.02
         ! multi init stuff
         ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
-        DO iInit = 0, Species(iSpec)%NumberOfInits
-          IF (iInit .EQ. 0) THEN !0. entry := old style parameter def. (default values if not def., some values might be needed)
-            hilf2=TRIM(hilf)
-          ELSE ! iInit >0
-            WRITE(UNIT=hilf2,FMT='(I0)') iInit
-            hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
-          END IF ! iInit
+        DO iInit = 1, Species(iSpec)%NumberOfInits
+          WRITE(UNIT=hilf2,FMT='(I0)') iInit
+          hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
           IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
             IF (Species(iSpec)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
               SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib','0.')
-              IF (SpecDSMC(iSpec)%Init(iInit)%TVib.EQ.0.) THEN
-                IF (iInit.EQ.0)THEN
-                  IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
-                    CALL Abort(&
-                        __STAMP__&
-                        ,'Error! TVib needs to be defined in Part-SpeciesXX-TempVib for iSpec',iSpec)
-                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
-                    CALL Abort(&
-                        __STAMP__&
-                        ,'Error! TVib needs to be defined in Part-SpeciesXX-TempVib for BGGas')
-                  END IF
-                ELSE ! iInit >0
-                  CALL Abort(&
-                      __STAMP__&
-                      ,'Error! TVib needs to be defined in Part-SpeciesXX-InitXX-TempVib for iSpec, iInit'&
-                  ,iSpec,REAL(iInit))
-                END IF
+              IF (SpecDSMC(iSpec)%Init(iInit)%TVib.EQ.0.) THEN               
+                CALL Abort(&
+                    __STAMP__&
+                    ,'Error! TVib needs to be defined in Part-SpeciesXX-InitXX-TempVib for iSpec, iInit'&
+                ,iSpec,REAL(iInit))
               END IF
             END IF !ElemMacroRestart TVib
             IF (Species(iSpec)%Init(iInit)%ElemTRotFileID.EQ.0) THEN
               SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','0.')
               IF (SpecDSMC(iSpec)%Init(iInit)%TRot.EQ.0.) THEN
-                IF (iInit.EQ.0)THEN
-                  IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
-                    CALL Abort(&
-                        __STAMP__&
-                        ,'Error! TRot needs to be defined in Part-SpeciesXX-TempRot for iSpec',iSpec)
-                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
-                    CALL Abort(&
-                        __STAMP__&
-                        ,'Error! TRot needs to be defined in Part-SpeciesXX-TempRot for BGGas')
-                  END IF
-                ELSE ! iInit >0
-                  CALL Abort(&
-                      __STAMP__&
-                      ,'Error! TRot needs to be defined in Part-SpeciesXX-InitXX-TempRot for iSpec, iInit'&
-                  ,iSpec,REAL(iInit))
-                END IF
+                CALL Abort(&
+                    __STAMP__&
+                    ,'Error! TRot needs to be defined in Part-SpeciesXX-InitXX-TempRot for iSpec, iInit'&
+                ,iSpec,REAL(iInit))
               END IF
             END IF
           END IF ! ElemMacroRestart TRot
@@ -817,21 +789,9 @@ ELSE !CollisMode.GT.0
             IF (Species(iSpec)%Init(iInit)%ElemTElecFileID.EQ.0) THEN
               SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','0.')
               IF (SpecDSMC(iSpec)%Init(iInit)%Telec.EQ.0.) THEN
-                IF (iInit.EQ.0)THEN
-                  IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
-                    CALL Abort(&
-                        __STAMP__&
-                        ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for Species',iSpec)
-                  ELSE IF (BGGas%BackgroundSpecies(iSpec)) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
-                    CALL Abort(&
-                        __STAMP__&
-                        ,' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for BGGas')
-                  END IF
-                ELSE ! iInit >0
-                  CALL Abort(&
-                      __STAMP__&
-                      ,' Error! Telec needs to defined in Part-SpeciesXX-InitXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
-                END IF
+                CALL Abort(&
+                    __STAMP__&
+                    ,' Error! Telec needs to defined in Part-SpeciesXX-InitXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
               END IF
             END IF !ElemMacroRestart TElec
           END IF ! electronic model
@@ -934,18 +894,6 @@ ELSE !CollisMode.GT.0
       DO iSpec = 1, nSpecies
         IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
           CALL InitPolyAtomicMolecs(iSpec)
-          !          ! Required if the Metropolis-Hastings random-walk is utilized for the initialization of polyatomic molecules (sampling
-          !          ! of all modes at once)
-          !          iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-          !          ALLOCATE( &
-          !              PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(1:PolyatomMolDSMC(iPolyatMole)%VibDOF, &
-          !                                                             0:Species(iSpec)%NumberOfInits+Species(iSpec)%nSurfacefluxBCs))
-          !          DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
-          !            CALL DSMC_FindFirstVibPick(iInit, iSpec, 1)
-          !          END DO
-          !          DO iInit = 1,Species(iSpec)%nSurfacefluxBCs
-          !            CALL DSMC_FindFirstVibPick(iInit, iSpec, 2)
-          !          END DO
         END IF
       END DO
     END IF

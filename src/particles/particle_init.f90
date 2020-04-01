@@ -270,210 +270,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-MacroParticleFactor' &
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Flag if specific particle is implicit', '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForInit'&
-                                , 'Flag to use species[$] for initialization.', '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForEmission'  &
-  , 'Use species[$] for volume emission. (set EmissionType)', '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
-                                , 'Specifying Keyword for particle space condition of species [$] in case of one init.\n'//&
-                                ' - point \n'//&
-                                ' - line_with_equidistant_distribution \n'//&
-                                ' - line \n'//&
-                                ' - disc \n'//&
-                                ' - gyrotron_circle \n'//&
-                                ' - circle_equidistant \n'//&
-                                ' - cuboid \n'//&
-                                ' - sphere \n'//&
-                                ' - cylinder \n'//&
-                                ' - cuboid_vpi \n'//&
-                                ' - cylinder_vpi \n'//&
-                                ' - cell_local \n'//&
-                                ' - cuboid_equal \n'//&
-                                ' - cuboid_with_equidistant_distribution \n'//&
-                                ' - sin_deviation \n'//&
-                                ' - IMD'&
-                              , 'cuboid', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption('Part-Species[$]-velocityDistribution'  &
-                           , 'Used velocity distribution.\n'//&
-                             '   constant: all particles have the same defined velocity.(VeloIC, VeloVec)\n'//&
-                             '   maxwell: sampled from maxwell distribution.(for MWTemperatureIC)\n'//&
-                             '   maxwell_lpn: maxwell with low particle number (better maxwell dist. approx. for lpn)\n'//&
-                             '   taylorgreenvortex: Gallis et al., Molecular-Level Simulations of Turbulence and Its Decay, (2017).'&
-                           , 'constant', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-rotation'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Direction of rotation, similar to TE-mode', '1', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-velocityspread'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Velocity spread in percent', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-velocityspreadmethod'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Method to compute the velocity spread', '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-InflowRiseTime'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Time to ramp the number of inflow particles,linearly from zero to unity'&
-                                , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-initialParticleNumber'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Initial particle number', '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-RadiusIC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Radius for IC circle', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Radius2IC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Radius for IC cylinder (ring)', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-RadiusICGyro'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Gyrotron radius', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-NormalIC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Normal orientation of circle.', '0. , 0. , 1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-BasePointIC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Base point for IC cuboid and IC sphere', '0. , 0. , 0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-BaseVector1IC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'First base vector for IC cuboid', '1. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-BaseVector2IC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Second base vector for IC cuboid', '0. , 1. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-CuboidHeightIC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Height of cuboid if SpaceIC=cuboid', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-CylinderHeightIC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Height of cylinder if SpaceIC=cylinder', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-CalcHeightFromDt'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Calculated cuboid/cylinder height from v and dt?'&
-                                , '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-VeloIC'  &
-                                , 'Absolute value of initial velocity. (ensemble velocity) ', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-VeloVecIC '  &
-                                , 'Normalized velocity vector for given VeloIC', '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Amplitude'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Amplitude for sin-deviation', '0.01', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-WaveNumber'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Wave number for sin-deviation', '2.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-maxParticleNumber-x'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'MaximumNumber of all particles in x-direction', '0', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-maxParticleNumber-y'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'MaximumNumber of all particles in y-direction', '0', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-maxParticleNumber-z'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'MaximumNumber of all particles in z-direction', '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Alpha' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Factor for normal speed in gyrotron simulations.', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-MWTemperatureIC' &
-                                , 'Initial translational temperature for Maxwell distribution initialization.', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-PartDensity' &
-                                , 'Define particle density for species [$]. PartDensity (real particles per m^3).\n'//&
-                                  'Used for DSMC with (vpi_)cuboid/cylinder and cell_local initial inserting.', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-ParticleEmissionType'  &
-                                , 'Define Emission Type for particles (volume emission)\n'//&
-                                  '1 = emission rate in part/s,\n'//&
-                                  '2 = emission rate part/iteration\n'//&
-                                  '3 = user def. emission rate\n'//&
-                                  '4 = const. cell pressure\n'//&
-                                  '5 = cell pres. w. complete part removal\n'//&
-                                  '6 = outflow BC (characteristics method)', '2', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-ParticleEmission' &
-                                , 'Emission rate in part/s or part/iteration.', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-NumberOfExcludeRegions'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Number of different regions to be excluded', '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-MJxRatio' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'x direction portion of velocity for Maxwell-Juettner', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-MJyRatio' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'y direction portion of velocity for Maxwell-Juettner', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-MJzRatio' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'z direction portion of velocity for Maxwell-Juettner', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-WeibelVeloPar' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Parallel velocity component for Weibel', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-WeibelVeloPer' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Perpendicular velocity component for Weibel', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-OneDTwoStreamVelo' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Stream Velocity for the Two Stream Instability', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-OneDTwoStreamTransRatio' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Ratio between perpendicular and parallel velocity', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-Species[$]-vpiDomainType'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Specifying Keyword for virtual Pre-Inserting region\n'//&
-                                  'implemented: - perpendicular_extrusion (default)\n'//&
-                                  ' - freestream\n'//&
-                                  ' - orifice\n'//&
-                                  ' - ...more following...\n'&
-                                  , 'perpendicular_extrusion', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-vpiBV1BufferNeg' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'incl. buffer region in -BV1 direction?', '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-vpiBV1BufferPos' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'incl. buffer region in +BV1 direction?', '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-vpiBV2BufferNeg' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'incl. buffer region in -BV2 direction?', '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-vpiBV2BufferPos' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'incl. buffer region in +BV2 direction?', '.TRUE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsIMDSpecies' &
                                 , 'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-MacroRestartFileID'  &
-                                , 'Define File ID of file used for Elem specific cell_local init of all macroscopic values' &
-                                , '0', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-ElemTemperatureFileID'  &
-                                , 'Define File ID of file used for Elem specific cell_local'// &
-                                  ' init of translational temperature. (x,y,z are used from State)\n'// &
-                                  'DEFAULT: MacroRestartFileID' &
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-ElemPartDensityFileID'  &
-                                , 'Define File ID of file used for Elem specific cell_local'// &
-                                  ' init of number density.\n'// &
-                                  'DEFAULT: MacroRestartFileID' &
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-ElemVelocityICFileID'  &
-                                , 'Define File ID of file used for Elem specific cell_local'// &
-                                  ' init of drift velocity. (x,y,z are used from State)\n'// &
-                                  'DEFAULT: MacroRestartFileID' &
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-ElemTVibFileID'  &
-                                , 'Define File ID of file used for Elem specific cell_local'// &
-                                  ' init of vibrational temperature.\n'// &
-                                  'DEFAULT: MacroRestartFileID\n only used if DSMC + collismode>1' &
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-ElemTRotFileID'  &
-                                , 'Define File ID of file used for Elem specific cell_local'// &
-                                  ' init of rotational temperature.\n'// &
-                                  'DEFAULT: MacroRestartFileID\n only used if DSMC + collismode>1' &
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-ElemTElecFileID'  &
-                                , 'Define File ID of file used for Elem specific cell_local'// &
-                                  ' init of electronic temperature.\n'// &
-                                  'DEFAULT: MacroRestartFileID\n only used if DSMC + collismode>1 + electronicmodel' &
-                                , numberedmulti=.TRUE.)
+
 
 
 CALL prms%SetSection("Particle Species Ninits")
@@ -1130,9 +929,7 @@ PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
 velocityOutputAtTime = GETLOGICAL('velocityOutputAtTime','.FALSE.')
 #endif
 
-!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
-!print*, "SFSDRWE#"
 ALLOCATE(Pt_temp(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
@@ -1153,162 +950,8 @@ IF (velocityOutputAtTime) THEN
 END IF
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 
-#ifdef IMPA
-ALLOCATE(PartStage(1:6,1:nRKStages-1,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartStage arrays!')
-END IF
-ALLOCATE(PartStateN(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartStateN arrays!')
-END IF
-ALLOCATE(PartQ(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate PartQ arrays!')
-END IF
-! particle function values at X0
-ALLOCATE(F_PartX0(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate F_PartX0 arrays!')
-END IF
-! particle function values at Xk
-ALLOCATE(F_PartXk(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate F_PartXk arrays!')
-END IF
-! and the required norms
-ALLOCATE(Norm_F_PartX0(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate Norm_F_PartX0 arrays!')
-END IF
-ALLOCATE(Norm_F_PartXk(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate Norm_F_PartXk arrays!')
-END IF
-ALLOCATE(Norm_F_PartXk_old(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate Norm_F_PartXk_old arrays!')
-END IF
-ALLOCATE(PartDeltaX(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate PartDeltaX arrays!')
-END IF
-ALLOCATE(PartLambdaAccept(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate PartLambdaAccept arrays!')
-END IF
-ALLOCATE(DoPartInNewton(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-      ,'Cannot allocate DoPartInNewton arrays!')
-END IF
-#endif /* IMPA */
-#ifdef ROS
-ALLOCATE(PartStage(1:6,1:nRKStages-1,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartStage arrays!')
-END IF
-ALLOCATE(PartStateN(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartStateN arrays!')
-END IF
-ALLOCATE(PartQ(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'Cannot allocate PartQ arrays!')
-END IF
-ALLOCATE(PartDtFrac(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartDtFrac arrays!')
-END IF
-PartDtFrac=1.
-ALLOCATE(PEM%ElementN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the stage position and element arrays!')
-END IF
-PEM%ElementN=0
-ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the normal vector for reflections!')
-END IF
-PEM%NormVec=0
-ALLOCATE(PEM%PeriodicMoved(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the stage position and element arrays!')
-END IF
-PEM%PeriodicMoved=.FALSE.
-#endif /* ROSENBROCK */
-
-#if IMPA
-ALLOCATE(PartIsImplicit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartIsImplicit arrays!')
-END IF
-PartIsImplicit=.FALSE.
-ALLOCATE(PartDtFrac(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PartDtFrac arrays!')
-END IF
-PartDtFrac=1.
-ALLOCATE(PEM%ElementN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the stage position and element arrays!')
-END IF
-PEM%ElementN=0
-ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the normal vector for reflections!')
-END IF
-PEM%NormVec=0
-ALLOCATE(PEM%PeriodicMoved(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-   CALL abort(&
- __STAMP__&
-   ,' Cannot allocate the stage position and element arrays!')
-END IF
-PEM%PeriodicMoved=.FALSE.
+#if defined(IMPA) || defined(ROS)
+CALL InitializeVariablesImplicit()
 #endif
 
 IF(DoRefMapping)THEN
@@ -1476,6 +1119,870 @@ BGGas%BackgroundSpecies = .FALSE.
 ALLOCATE(BGGas%NumberDensity(nSpecies))
 BGGas%NumberDensity = 0.
 
+CALL InitializeVariablesSpeciesInits()
+
+! get information for IMD atom/ion charge determination and distribution
+IMDnSpecies         = GETINT('IMDnSpecies','1')
+IMDInputFile        = GETSTR('IMDInputFile','no file found')
+ALLOCATE(IMDSpeciesID(IMDnSpecies))
+ALLOCATE(IMDSpeciesCharge(IMDnSpecies))
+iIMDSpec=1
+DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
+  IsIMDSpecies = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsIMDSpecies','.FALSE.')
+  IF(IsIMDSpecies)THEN
+    IMDSpeciesID(iIMDSpec)=iSpec
+    IMDSpeciesCharge(iIMDSpec)=NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
+    iIMDSpec=iIMDSpec+1
+  END IF
+END DO
+
+
+! Which Lorentz boost method should be used?
+CALL InitPartRHS()
+
+! Read in boundary parameters
+dummy_int = CountOption('Part-nBounds')       ! check if Part-nBounds is present in .ini file
+nPartBound = GETINT('Part-nBounds','1.') ! get number of particle boundaries
+IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
+  CALL abort(&
+__STAMP__&
+  ,'ERROR: nPartBound .LE. 0:', nPartBound)
+END IF
+ALLOCATE(PartBound%SourceBoundName(1:nPartBound))
+ALLOCATE(PartBound%TargetBoundCond(1:nPartBound))
+ALLOCATE(PartBound%MomentumACC(1:nPartBound))
+ALLOCATE(PartBound%WallTemp(1:nPartBound))
+ALLOCATE(PartBound%WallTemp2(1:nPartBound))
+ALLOCATE(PartBound%WallTempDelta(1:nPartBound))
+ALLOCATE(PartBound%TransACC(1:nPartBound))
+ALLOCATE(PartBound%VibACC(1:nPartBound))
+ALLOCATE(PartBound%RotACC(1:nPartBound))
+ALLOCATE(PartBound%ElecACC(1:nPartBound))
+ALLOCATE(PartBound%Resample(1:nPartBound))
+ALLOCATE(PartBound%WallVelo(1:3,1:nPartBound))
+ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
+ALLOCATE(PartBound%TempGradEnd(1:3,1:nPartBound))
+ALLOCATE(PartBound%TempGradVec(1:3,1:nPartBound))
+ALLOCATE(PartBound%SurfaceModel(1:nPartBound))
+ALLOCATE(PartBound%Reactive(1:nPartBound))
+ALLOCATE(PartBound%SolidState(1:nPartBound))
+ALLOCATE(PartBound%SolidPartDens(1:nPartBound))
+ALLOCATE(PartBound%SolidMassIC(1:nPartBound))
+ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
+ALLOCATE(PartBound%SolidStructure(1:nPartBound))
+ALLOCATE(PartBound%SolidCrystalIndx(1:nPartBound))
+PartBound%SolidState(1:nPartBound)=.FALSE.
+PartBound%Reactive(1:nPartBound)=.FALSE.
+PartBound%SurfaceModel(1:nPartBound)=0
+
+ALLOCATE(PartBound%Adaptive(1:nPartBound))
+ALLOCATE(PartBound%AdaptiveType(1:nPartBound))
+ALLOCATE(PartBound%AdaptiveMacroRestartFileID(1:nPartBound))
+ALLOCATE(PartBound%AdaptiveTemp(1:nPartBound))
+ALLOCATE(PartBound%AdaptivePressure(1:nPartBound))
+nAdaptiveBC = 0
+PartBound%Adaptive(:) = .FALSE.
+PartBound%AdaptiveType(:) = -1
+PartBound%AdaptiveMacroRestartFileID(:) = 0
+PartBound%AdaptiveTemp(:) = -1.
+PartBound%AdaptivePressure(:) = -1.
+
+ALLOCATE(PartBound%Voltage(1:nPartBound))
+ALLOCATE(PartBound%UseForQCrit(1:nPartBound))
+ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
+PartBound%Voltage_CollectCharges(:)=0.
+ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
+!--determine MaxNbrOfSpeciesSwaps for correct allocation
+MaxNbrOfSpeciesSwaps=0
+DO iPartBound=1,nPartBound
+  WRITE(UNIT=hilf,FMT='(I0)') iPartBound
+  PartBound%NbrOfSpeciesSwaps(iPartBound)= GETINT('Part-Boundary'//TRIM(hilf)//'-NbrOfSpeciesSwaps','0')
+  MaxNbrOfSpeciesSwaps=max(PartBound%NbrOfSpeciesSwaps(iPartBound),MaxNbrOfSpeciesSwaps)
+END DO
+IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
+  ALLOCATE(PartBound%ProbOfSpeciesSwaps(1:nPartBound))
+  ALLOCATE(PartBound%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nPartBound))
+END IF
+! Dielectric Surfaces
+ALLOCATE(PartBound%Dielectric(1:nPartBound))
+PartBound%Dielectric=.FALSE.
+DoDielectricSurfaceCharge=.FALSE.
+! Surface particle output to .h5
+ALLOCATE(PartBound%BoundaryParticleOutput(1:nPartBound))
+PartBound%BoundaryParticleOutput=.FALSE.
+DoBoundaryParticleOutput=.FALSE.
+
+PartMeshHasPeriodicBCs=.FALSE.
+#if defined(IMPA) || defined(ROS)
+PartMeshHasReflectiveBCs=.FALSE.
+#endif
+DO iPartBound=1,nPartBound
+  WRITE(UNIT=hilf,FMT='(I0)') iPartBound
+  tmpString = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-Condition','open'))
+  SELECT CASE (TRIM(tmpString))
+  CASE('open')
+    PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
+    PartBound%Adaptive(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Adaptive','.FALSE.')
+    IF(PartBound%Adaptive(iPartBound)) THEN
+      nAdaptiveBC = nAdaptiveBC + 1
+      PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
+      IF (nMacroRestartFiles.GT.0) THEN
+        PartBound%AdaptiveMacroRestartFileID(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveMacroRestartFileID','0')
+      END IF
+      FileID = PartBound%AdaptiveMacroRestartFileID(iPartBound)
+      IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
+        MacroRestartFileUsed(FileID) = .TRUE.
+        IF (PartBound%AdaptiveType(iPartBound).EQ.1) THEN
+          PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+          IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
+              __STAMP__&
+              ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
+        END IF
+      ELSE
+        PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+        IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
+            __STAMP__&
+            ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
+      END IF
+      PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
+      IF (PartBound%AdaptivePressure(iPartBound).EQ.0.) CALL abort(&
+          __STAMP__&
+          ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptivePressure not defined')
+    END IF
+    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0.')
+  CASE('reflective')
+#if defined(IMPA) || defined(ROS)
+    PartMeshHasReflectiveBCs=.TRUE.
+#endif
+    PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
+    PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC')
+    PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp')
+    PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC')
+    PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC')
+    PartBound%RotACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotACC')
+    PartBound%ElecACC(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-ElecACC')
+    PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
+    PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
+    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
+    PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
+    PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
+    IF(PartBound%WallTemp2(iPartBound).GT.0.) THEN
+      PartBound%TempGradStart(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TemperatureGradientStart',3)
+      PartBound%TempGradEnd(1:3,iPartBound)   = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TemperatureGradientEnd',3)
+      PartBound%WallTempDelta(iPartBound)   = PartBound%WallTemp2(iPartBound) - PartBound%WallTemp(iPartBound)
+      PartBound%TempGradVec(1:3,iPartBound) = PartBound%TempGradEnd(1:3,iPartBound) - PartBound%TempGradStart(1:3,iPartBound)
+    END IF
+    ! check for correct surfacemodel input
+    IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
+      IF (.NOT.useDSMC) CALL abort(&
+          __STAMP__&
+          ,'Cannot use surfacemodel>0 with useDSMC=F for particle boundary: ',iPartBound)
+      SELECT CASE (PartBound%SurfaceModel(iPartBound))
+      CASE (0)
+        PartBound%Reactive(iPartBound)        = .FALSE.
+      CASE (2,3,5,6,7,101,102)
+        PartBound%Reactive(iPartBound)        = .TRUE.
+      CASE DEFAULT
+        CALL abort(&
+            __STAMP__&
+            ,'Error in particle init: only allowed SurfaceModels: 0,2,3,5,6,101,102!')
+      END SELECT
+    END IF
+    PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState')
+    IF(PartBound%SolidState(iPartBound))THEN
+      PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens')
+      PartBound%SolidMassIC(iPartBound)       = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidMassIC')
+      PartBound%SolidAreaIncrease(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidAreaIncrease')
+      PartBound%SolidStructure(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidStructure')
+      IF (PartBound%SolidStructure(iPartBound).EQ.1) THEN
+        hilf2 ='4'
+      ELSE IF (PartBound%SolidStructure(iPartBound).EQ.2) THEN
+        hilf2 ='3'
+      END IF
+      PartBound%SolidCrystalIndx(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidCrystalIndx',hilf2)
+    END IF
+    IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
+      !read Species to be changed at wall (in, out), out=0: delete
+      PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
+      DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)
+        WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
+        PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
+            GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
+      END DO
+    END IF
+    ! Dielectric Surfaces
+    PartBound%Dielectric(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
+    ! Sanity check: PartBound%Dielectric=T requires supplying species swap for every species
+    IF(PartBound%Dielectric(iPartBound))THEN
+      IF(PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies)THEN
+        CALL abort(&
+            __STAMP__&
+            ,'PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies: PartBound%Dielectric=T requires supplying species swap for every species!')
+      ELSE
+        DoDielectricSurfaceCharge=.TRUE.
+      END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies
+    END IF ! PartBound%Dielectric(iPartBound)
+  CASE('periodic')
+    PartBound%TargetBoundCond(iPartBound) = PartBound%PeriodicBC
+    PartMeshHasPeriodicBCs = .TRUE.
+  CASE('simple_anode')
+    PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleAnodeBC
+  CASE('simple_cathode')
+    PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleCathodeBC
+  CASE('symmetric')
+#if defined(IMPA) || defined(ROS)
+    PartMeshHasReflectiveBCs=.TRUE.
+#endif
+    PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
+    PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
+  CASE('symmetric_axis')
+    PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryAxis
+    PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
+  CASE('analyze')
+    PartBound%TargetBoundCond(iPartBound) = PartBound%AnalyzeBC
+    IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
+      !read Species to be changed at wall (in, out), out=0: delete
+      PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
+      DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)
+        WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
+        PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
+            GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
+      END DO
+    END IF
+  CASE DEFAULT
+    SWRITE(*,*) ' Boundary does not exists: ', TRIM(tmpString)
+    CALL abort(&
+        __STAMP__&
+        ,'Particle Boundary Condition does not exist')
+  END SELECT
+  PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
+  PartBound%UseForQCrit(iPartBound)     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseForQCrit','.TRUE.')
+  IF(PartBound%UseForQCrit(iPartBound))THEN
+    SWRITE(*,*)"PartBound",iPartBound,"is used for the Q-Criterion"
+  END IF ! PartBound%UseForQCrit(iPartBound)
+
+  ! Surface particle output to .h5
+  PartBound%BoundaryParticleOutput(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
+  IF(PartBound%BoundaryParticleOutput(iPartBound))THEN
+    DoBoundaryParticleOutput=.TRUE.
+  END IF ! PartBound%BoundaryParticleOutput(iPartBound)
+END DO
+
+IF (nMacroRestartFiles.GT.0) THEN
+  IF (ALL(.NOT.MacroRestartFileUsed(:))) CALL abort(&
+  __STAMP__&
+  ,'None of defined Macro-Restart-Files used for any init!')
+  DO FileID = 1,nMacroRestartFiles
+    IF (.NOT.MacroRestartFileUsed(FileID)) THEN
+      SWRITE(*,*) "WARNING: MacroRestartFile: ",FileID," not used for any Init"
+    END IF
+  END DO
+END IF
+
+! Surface particle output to .h5
+IF(DoBoundaryParticleOutput)THEN
+  ALLOCATE(PartStateBoundary(1:9,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+        __STAMP__&
+        ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
+  END IF
+  PartStateBoundary=0.
+  ALLOCATE(PartStateBoundarySpec(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+        __STAMP__&
+        ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundarySpec array!')
+  END IF
+  PartStateBoundarySpec=0
+END IF
+
+! Set mapping from field boundary to particle boundary index
+ALLOCATE(PartBound%MapToPartBC(1:nBCs))
+PartBound%MapToPartBC(:)=-10
+DO iPBC=1,nPartBound
+  DO iBC = 1, nBCs
+    IF (BoundaryType(iBC,BC_TYPE).EQ.0) THEN
+      PartBound%MapToPartBC(iBC) = -1 !there are no internal BCs in the mesh, they are just in the name list!
+      SWRITE(*,*)"... PartBound",iPBC,"is internal bound, no mapping needed"
+    ELSEIF(BoundaryType(iBC,BC_TYPE).EQ.100)THEN
+      IF(DoRefMapping)THEN
+        SWRITE(UNIT_STDOUT,'(A)') ' Analyze sides are not implemented for DoRefMapping=T, because '//  &
+                                  ' orientation of SideNormVec is unknown.'
+     CALL abort(&
+                __STAMP__&
+                ,' Analyze-BCs cannot be used for internal reflection in general cases! ')
+      END IF
+    END IF
+    IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
+      PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
+      SWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
+    END IF
+  END DO
+END DO
+! Errorhandler for PartBound-Types that could not be mapped to the
+! FieldBound-Types.
+DO iBC = 1,nBCs
+  IF (PartBound%MapToPartBC(iBC).EQ.-10) THEN
+    CALL abort(&
+__STAMP__&
+    ,' PartBound%MapToPartBC for Boundary is not set. iBC: :',iBC)
+  END IF
+END DO
+
+ALLOCATE(PEM%Element(1:PDM%maxParticleNumber), PEM%lastElement(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+ CALL abort(&
+__STAMP__&
+  ,' Cannot allocate PEM arrays!')
+END IF
+IF (useDSMC) THEN
+  ALLOCATE(PEM%pStart(1:nElems)                         , &
+           PEM%pNumber(1:nElems)                        , &
+           PEM%pEnd(1:nElems)                           , &
+           PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT)
+           !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+__STAMP__&
+    , ' Cannot allocate DSMC PEM arrays!')
+  END IF
+END IF
+IF (useDSMC) THEN
+  ALLOCATE(PDM%PartInit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+           !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+__STAMP__&
+    ,' Cannot allocate DSMC PEM arrays!')
+  END IF
+END IF
+
+#if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
+  dt_part_ratio = GETREAL('Particles-dt_part_ratio', '3.8')
+  overrelax_factor = GETREAL('Particles-overrelax_factor', '1.0')
+#if (PP_TimeDiscMethod==200)
+IF ( ALMOSTEQUAL(overrelax_factor,1.0) .AND. .NOT.ALMOSTEQUAL(dt_part_ratio,3.8) ) THEN
+  overrelax_factor = dt_part_ratio !compatibility
+END IF
+#endif
+#endif
+
+! initialization of surface model flags
+KeepWallParticles = .FALSE.
+
+!--- initialize randomization
+nRandomSeeds = GETINT('Part-NumberOfRandomSeeds','0')
+CALL RANDOM_SEED(Size = SeedSize)    ! specifies compiler specific minimum number of seeds
+ALLOCATE(Seeds(SeedSize))
+Seeds(:)=1 ! to ensure a solid run when an unfitting number of seeds is provided in ini
+IF(nRandomSeeds.EQ.-1) THEN
+  ! ensures different random numbers through irreproducable random seeds (via System_clock)
+  CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
+ELSE IF(nRandomSeeds.EQ.0) THEN
+ !   IF (Restart) THEN
+ !   CALL !numbers from state file
+ ! ELSE IF (.NOT.Restart) THEN
+CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
+ELSE IF(nRandomSeeds.GT.0) THEN
+  ! read in numbers from ini
+  IF(nRandomSeeds.GT.SeedSize) THEN
+    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
+  ELSE IF(nRandomSeeds.LT.SeedSize) THEN
+    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
+  END IF
+  DO iSeed=1,MIN(SeedSize,nRandomSeeds)
+    WRITE(UNIT=hilf,FMT='(I0)') iSeed
+    Seeds(iSeed)= GETINT('Particles-RandomSeed'//TRIM(hilf))
+  END DO
+  IF (ALL(Seeds(:).EQ.0)) THEN
+    CALL ABORT(&
+     __STAMP__&
+     ,'Not all seeds can be set to zero ')
+  END IF
+  CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
+ELSE
+  SWRITE (*,*) 'Error: nRandomSeeds not defined.'//&
+  'Choose nRandomSeeds'//&
+  '=-1    pseudo random'//&
+  '= 0    hard-coded deterministic numbers'//&
+  '> 0    numbers from ini. Expected ',SeedSize,'seeds.'
+END IF
+
+
+!DoZigguratSampling = GETLOGICAL('Particles-DoZigguratSampling','.FALSE.')
+DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
+DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
+
+
+
+DO iSpec = 1, nSpecies
+  DO iInit = 1, Species(iSpec)%NumberOfInits
+    IF(Species(iSpec)%Init(iInit)%InflowRiseTime.GT.0.)THEN
+      IF(.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow)  CALL CollectiveStop(&
+__STAMP__, &
+' Linearly ramping of inflow-number-of-particles is only possible with PoissonRounding or DoTimeDepInflow!')
+    END IF
+  END DO ! iInit = 0, Species(iSpec)%NumberOfInits
+END DO ! iSpec = 1, nSpecies
+
+
+DelayTime = GETREAL('Part-DelayTime','0.')
+
+!-- AuxBCs
+nAuxBCs=GETINT('Part-nAuxBCs','0')
+IF (nAuxBCs.GT.0) THEN
+  UseAuxBCs=.TRUE.
+  ALLOCATE (AuxBCType(1:nAuxBCs) &
+            ,AuxBCMap(1:nAuxBCs) )
+  AuxBCMap=0
+  !- Read in BC parameters
+  ALLOCATE(PartAuxBC%TargetBoundCond(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%MomentumACC(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%WallTemp(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%TransACC(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%VibACC(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%RotACC(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%ElecACC(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%Resample(1:nAuxBCs))
+  ALLOCATE(PartAuxBC%WallVelo(1:3,1:nAuxBCs))
+  ALLOCATE(PartAuxBC%NbrOfSpeciesSwaps(1:nAuxBCs))
+  !--determine MaxNbrOfSpeciesSwaps for correct allocation
+  MaxNbrOfSpeciesSwaps=0
+  DO iPartBound=1,nAuxBCs
+    WRITE(UNIT=hilf,FMT='(I0)') iPartBound
+    PartAuxBC%NbrOfSpeciesSwaps(iPartBound)= GETINT('Part-AuxBC'//TRIM(hilf)//'-NbrOfSpeciesSwaps','0')
+    MaxNbrOfSpeciesSwaps=max(PartAuxBC%NbrOfSpeciesSwaps(iPartBound),MaxNbrOfSpeciesSwaps)
+  END DO
+  IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
+    ALLOCATE(PartAuxBC%ProbOfSpeciesSwaps(1:nAuxBCs))
+    ALLOCATE(PartAuxBC%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nAuxBCs))
+  END IF
+  !--
+  DO iPartBound=1,nAuxBCs
+    WRITE(UNIT=hilf,FMT='(I0)') iPartBound
+    tmpString = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Condition','open'))
+    SELECT CASE (TRIM(tmpString))
+    CASE('open')
+      PartAuxBC%TargetBoundCond(iPartBound) = PartAuxBC%OpenBC          ! definitions see typesdef_pic
+    CASE('reflective')
+      PartAuxBC%TargetBoundCond(iPartBound) = PartAuxBC%ReflectiveBC
+      PartAuxBC%MomentumACC(iPartBound)     = GETREAL('Part-AuxBC'//TRIM(hilf)//'-MomentumACC')
+      PartAuxBC%WallTemp(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-WallTemp')
+      PartAuxBC%TransACC(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-TransACC')
+      PartAuxBC%VibACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-VibACC')
+      PartAuxBC%RotACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-RotACC')
+      PartAuxBC%ElecACC(iPartBound)         = GETREAL('Part-AuxBC'//TRIM(hilf)//'-ElecACC')
+      PartAuxBC%Resample(iPartBound)        = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-Resample')
+      PartAuxBC%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-WallVelo',3)
+      IF (PartAuxBC%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
+        !read Species to be changed at wall (in, out), out=0: delete
+        PartAuxBC%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-AuxBC'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
+        DO iSwaps=1,PartAuxBC%NbrOfSpeciesSwaps(iPartBound)
+          WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
+          PartAuxBC%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
+            GETINTARRAY('Part-AuxBC'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
+        END DO
+      END IF
+    CASE DEFAULT
+      SWRITE(*,*) ' AuxBC Condition does not exists: ', TRIM(tmpString)
+      CALL abort(&
+        __STAMP__&
+        ,'AuxBC Condition does not exist')
+    END SELECT
+  END DO
+  !- read and count types
+  nAuxBCplanes = 0
+  nAuxBCcylinders = 0
+  nAuxBCcones = 0
+  nAuxBCparabols = 0
+  DO iAuxBC=1,nAuxBCs
+    WRITE(UNIT=hilf,FMT='(I0)') iAuxBC
+    AuxBCType(iAuxBC) = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Type','plane'))
+    SELECT CASE (TRIM(AuxBCType(iAuxBC)))
+    CASE ('plane')
+      nAuxBCplanes = nAuxBCplanes + 1
+      AuxBCMap(iAuxBC) = nAuxBCplanes
+    CASE ('cylinder')
+      nAuxBCcylinders = nAuxBCcylinders + 1
+      AuxBCMap(iAuxBC) = nAuxBCcylinders
+    CASE ('cone')
+      nAuxBCcones = nAuxBCcones + 1
+      AuxBCMap(iAuxBC) = nAuxBCcones
+    CASE ('parabol')
+      nAuxBCparabols = nAuxBCparabols + 1
+      AuxBCMap(iAuxBC) = nAuxBCparabols
+    CASE DEFAULT
+      SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
+      CALL abort(&
+        __STAMP__&
+        ,'AuxBC does not exist')
+    END SELECT
+  END DO
+  !- allocate type-specifics
+  IF (nAuxBCplanes.GT.0) THEN
+    ALLOCATE (AuxBC_plane(1:nAuxBCplanes))
+  END IF
+  IF (nAuxBCcylinders.GT.0) THEN
+    ALLOCATE (AuxBC_cylinder(1:nAuxBCcylinders))
+  END IF
+  IF (nAuxBCcones.GT.0) THEN
+    ALLOCATE (AuxBC_cone(1:nAuxBCcones))
+  END IF
+  IF (nAuxBCparabols.GT.0) THEN
+    ALLOCATE (AuxBC_parabol(1:nAuxBCparabols))
+  END IF
+  !- read type-specifics
+  DO iAuxBC=1,nAuxBCs
+    WRITE(UNIT=hilf,FMT='(I0)') iAuxBC
+    SELECT CASE (TRIM(AuxBCType(iAuxBC)))
+    CASE ('plane')
+      AuxBC_plane(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
+      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_plane(AuxBCMap(iAuxBC))%radius)
+      AuxBC_plane(AuxBCMap(iAuxBC))%radius= GETREAL('Part-AuxBC'//TRIM(hilf)//'-radius',TRIM(hilf2))
+      n_vec                               = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-n_vec',3,'1. , 0. , 0.')
+      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-n_vec is zero for AuxBC',iAuxBC)
+      ELSE !scale vector
+        AuxBC_plane(AuxBCMap(iAuxBC))%n_vec = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
+      END IF
+    CASE ('cylinder')
+      AuxBC_cylinder(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
+      n_vec                                  = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
+      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
+      ELSE !scale vector
+        AuxBC_cylinder(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
+      END IF
+      AuxBC_cylinder(AuxBCMap(iAuxBC))%radius  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-radius','1.')
+      WRITE(UNIT=hilf2,FMT='(G0)') -HUGE(AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin)
+      AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin',TRIM(hilf2))
+      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin)
+      AuxBC_cylinder(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
+      AuxBC_cylinder(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
+    CASE ('cone')
+      AuxBC_cone(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
+      n_vec                              = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
+      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
+      ELSE !scale vector
+        AuxBC_cone(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
+      END IF
+      AuxBC_cone(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin','0.')
+      IF (AuxBC_cone(AuxBCMap(iAuxBC))%lmin.LT.0.) CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-lminis .lt. zero for AuxBC',iAuxBC)
+      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_cone(AuxBCMap(iAuxBC))%lmin)
+      AuxBC_cone(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
+      rmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-rmax','0.')
+      ! either define rmax at lmax or the halfangle
+      IF (rmax.EQ.0.) THEN
+        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-halfangle','45.')*PI/180.
+      ELSE
+        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = ATAN(rmax/AuxBC_cone(AuxBCMap(iAuxBC))%lmax)
+      END IF
+      IF (AuxBC_cone(AuxBCMap(iAuxBC))%halfangle.LE.0.) CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-halfangle is .le. zero for AuxBC',iAuxBC)
+      AuxBC_cone(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
+      cos2 = COS(AuxBC_cone(AuxBCMap(iAuxBC))%halfangle)**2
+      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,1) &
+        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(1)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/cos2,0.,0./)
+      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,2) &
+        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(2)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,cos2,0./)
+      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,3) &
+        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(3)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,0.,cos2/)
+    CASE ('parabol')
+      AuxBC_parabol(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
+      n_vec                              = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
+      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
+        CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
+      ELSE !scale vector
+        AuxBC_parabol(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
+      END IF
+      AuxBC_parabol(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin','0.')
+      IF (AuxBC_parabol(AuxBCMap(iAuxBC))%lmin.LT.0.) CALL abort(&
+          __STAMP__&
+          ,'Part-AuxBC-lmin is .lt. zero for AuxBC',iAuxBC)
+      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_parabol(AuxBCMap(iAuxBC))%lmin)
+      AuxBC_parabol(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
+      AuxBC_parabol(AuxBCMap(iAuxBC))%zfac  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-zfac','1.')
+      AuxBC_parabol(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
+
+      norm(:,1)=AuxBC_parabol(AuxBCMap(iAuxBC))%axis
+      IF (.NOT.ALMOSTZERO(SQRT(norm(1,1)**2+norm(3,1)**2))) THEN !collinear with y?
+        alpha1=ATAN2(norm(1,1),norm(3,1))
+        CALL roty(rot1,alpha1)
+        norm1=MATMUL(rot1,norm)
+      ELSE
+        alpha1=0.
+        CALL ident(rot1)
+        norm1=norm
+      END IF
+      IF (.NOT.ALMOSTZERO(SQRT(norm1(2,1)**2+norm1(3,1)**2))) THEN !collinear with x?
+        alpha2=-ATAN2(norm1(2,1),norm1(3,1))
+        CALL rotx(rot2,alpha2)
+        norm2=MATMUL(rot2,norm1)
+      ELSE
+        CALL abort(&
+          __STAMP__&
+          ,'vector is collinear with x-axis. this should not be possible... AuxBC:',iAuxBC)
+      END IF
+      AuxBC_parabol(AuxBCMap(iAuxBC))%rotmatrix(:,:)=MATMUL(rot2,rot1)
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(:,:)=0.
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(1,1)=1.
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(2,2)=1.
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(3,3)=0.
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(3,4)=-0.5*AuxBC_parabol(AuxBCMap(iAuxBC))%zfac
+      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(4,3)=-0.5*AuxBC_parabol(AuxBCMap(iAuxBC))%zfac
+    CASE DEFAULT
+      SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
+      CALL abort(&
+        __STAMP__&
+        ,'AuxBC does not exist for AuxBC',iAuxBC)
+    END SELECT
+  END DO
+  CALL MarkAuxBCElems()
+ELSE
+  UseAuxBCs=.FALSE.
+END IF
+
+#if USE_MPI
+CALL MPI_BARRIER(PartMPI%COMM,IERROR)
+#endif /*USE_MPI*/
+
+!--- Read Manual Time Step
+useManualTimeStep = .FALSE.
+ManualTimeStep = GETREAL('Particles-ManualTimeStep', '0.0')
+IF (ManualTimeStep.GT.0.0) THEN
+  useManualTimeStep=.True.
+END IF
+
+! calculate cartesian borders of node local and global mesh
+SWRITE(UNIT_stdOut,'(A)')' Getting Mesh min-max ...'
+CALL GetMeshMinMax()
+
+CALL InitPIC()
+
+!-- Build BGM and halo region
+CALL InitParticleMesh()
+
+!CALL InitFIBGM()
+
+!-- Macroscopic bodies inside domain
+CALL InitMacroBody()
+CALL MarkMacroBodyElems()
+
+! === 2D/Axisymmetric initialization
+! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
+IF(Symmetry2D) CALL DSMC_2D_InitVolumes()
+IF(Symmetry2DAxisymmetric) THEN
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    ! Initialization of RadialWeighting in 2D axisymmetric simulations
+    RadialWeighting%PerformCloning = .TRUE.
+    CALL DSMC_2D_InitRadialWeighting()
+  END IF
+  IF(.NOT.TriaTracking) CALL abort(&
+    __STAMP__&
+    ,'ERROR: Axisymmetric simulation only supported with TriaTracking = T')
+  IF(.NOT.TriaSurfaceFlux) CALL abort(&
+    __STAMP__&
+    ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
+END IF
+
+#if USE_MPI
+CALL InitEmissionComm()
+CALL MPI_BARRIER(PartMPI%COMM,IERROR)
+#endif /*USE_MPI*/
+
+SWRITE(UNIT_StdOut,'(132("-"))')
+
+!-- Read parameters for region mapping
+NbrOfRegions = GETINT('NbrOfRegions','0')
+IF (NbrOfRegions .GT. 0) THEN
+  ALLOCATE(RegionBounds(1:6,1:NbrOfRegions))
+  DO iRegions=1,NbrOfRegions
+    WRITE(UNIT=hilf2,FMT='(I0)') iRegions
+    RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
+  END DO
+END IF
+
+IF (NbrOfRegions .GT. 0) THEN
+  CALL MapRegionToElem()
+  ALLOCATE(RegionElectronRef(1:3,1:NbrOfRegions))
+  DO iRegions=1,NbrOfRegions
+    WRITE(UNIT=hilf2,FMT='(I0)') iRegions
+    ! 1:3 - rho_ref, phi_ref, and Te[eV]
+    RegionElectronRef(1:3,iRegions) = GETREALARRAY('Part-RegionElectronRef'//TRIM(hilf2),3,'0. , 0. , 1.')
+    WRITE(UNIT=hilf,FMT='(G0)') RegionElectronRef(2,iRegions)
+    phimax_tmp = GETREAL('Part-RegionElectronRef'//TRIM(hilf2)//'-PhiMax',TRIM(hilf))
+    IF (phimax_tmp.NE.RegionElectronRef(2,iRegions)) THEN !shift reference point (rho_ref, phi_ref) to phi_max:
+      RegionElectronRef(1,iRegions) = RegionElectronRef(1,iRegions) &
+        * EXP((phimax_tmp-RegionElectronRef(2,iRegions))/RegionElectronRef(3,iRegions))
+      RegionElectronRef(2,iRegions) = phimax_tmp
+      SWRITE(*,*) 'WARNING: BR-reference point is shifted to:', RegionElectronRef(1:2,iRegions)
+    END IF
+  END DO
+END IF
+
+IF(enableParticleMerge) THEN
+ CALL DefinePolyVec(vMPFMergePolyOrder)
+ CALL DefineSplitVec(vMPFMergeCellSplitOrder)
+END IF
+
+!-- Floating Potential
+ALLOCATE(BCdata_auxSF(1:nPartBound))
+DO iPartBound=1,nPartBound
+  BCdata_auxSF(iPartBound)%SideNumber=-1 !init value when not used
+  BCdata_auxSF(iPartBound)%GlobalArea=0.
+  BCdata_auxSF(iPartBound)%LocalArea=0.
+END DO
+nDataBC_CollectCharges=0
+nCollectChargesBCs = GETINT('PIC-nCollectChargesBCs','0')
+IF (nCollectChargesBCs .GT. 0) THEN
+#if !((USE_HDG) && (PP_nVar==1))
+  CALL abort(__STAMP__&
+    , 'CollectCharges only implemented for electrostatic HDG!')
+#endif
+  ALLOCATE(CollectCharges(1:nCollectChargesBCs))
+  DO iCC=1,nCollectChargesBCs
+    WRITE(UNIT=hilf,FMT='(I0)') iCC
+    CollectCharges(iCC)%BC = GETINT('PIC-CollectCharges'//TRIM(hilf)//'-BC','0')
+    IF (CollectCharges(iCC)%BC.LT.1 .OR. CollectCharges(iCC)%BC.GT.nPartBound) THEN
+      CALL abort(__STAMP__&
+      , 'nCollectChargesBCs must be between 1 and nPartBound!')
+    ELSE IF (BCdata_auxSF(CollectCharges(iCC)%BC)%SideNumber.EQ. -1) THEN !not set yet
+      BCdata_auxSF(CollectCharges(iCC)%BC)%SideNumber=0
+      nDataBC_CollectCharges=nDataBC_CollectCharges+1 !side-data will be set in InitializeParticleSurfaceflux!!!
+    END IF
+    CollectCharges(iCC)%NumOfRealCharges = GETREAL('PIC-CollectCharges'//TRIM(hilf)//'-NumOfRealCharges','0.')
+    CollectCharges(iCC)%NumOfNewRealCharges = 0.
+    CollectCharges(iCC)%ChargeDist = GETREAL('PIC-CollectCharges'//TRIM(hilf)//'-ChargeDist','0.')
+  END DO !iCC
+END IF !nCollectChargesBCs .GT. 0
+
+!-- reading BG Gas stuff
+!   (moved here from dsmc_init for switching off the initial emission)
+IF (useDSMC) THEN
+  IF (BGGas%NumberOfSpecies.GT.0) THEN
+    CALL BGGas_Initialize()
+  ELSE
+    DEALLOCATE(BGGas%NumberDensity)
+  END IF ! BGGas%NumberOfSpecies.GT.0
+END IF !useDSMC
+
+! ------- Variable Time Step Initialization (parts requiring completed particle_init and readMesh)
+IF(VarTimeStep%UseVariableTimeStep) THEN
+  ! Initializing the particle time step array used during calculation for the distribution (after maxParticleNumber was read-in)
+  ALLOCATE(VarTimeStep%ParticleTimeStep(1:PDM%maxParticleNumber))
+  VarTimeStep%ParticleTimeStep = 1.
+  IF(.NOT.TriaTracking) THEN
+    CALL abort(&
+      __STAMP__&
+      ,'ERROR: Variable time step is only supported with TriaTracking = T')
+  END IF
+  IF(VarTimeStep%UseLinearScaling) THEN
+    IF(Symmetry2D) THEN
+      ! 2D: particle-wise scaling in the radial direction, ElemFac array only utilized for the output of the time step
+      ALLOCATE(VarTimeStep%ElemFac(nElems))
+      VarTimeStep%ElemFac = 1.0
+    ELSE
+      ! 3D: The time step for each cell is precomputed, ElemFac is allocated in the routine
+      CALL VarTimeStep_CalcElemFacs()
+    END IF
+  END IF
+  IF(VarTimeStep%UseDistribution) THEN
+    ! ! Apply a min-mean filter combo if the distribution was adapted
+    ! ! (is performed here to have the element neighbours already defined)
+    ! IF(VarTimeStep%AdaptDistribution) CALL VarTimeStep_SmoothDistribution()
+    ! Disable AdaptDistribution to avoid adapting during a load balance restart
+    IF(VarTimeStep%AdaptDistribution) VarTimeStep%AdaptDistribution = .FALSE.
+  END IF
+END IF
+
+END SUBROUTINE InitializeVariables
+
+SUBROUTINE InitializeVariablesSpeciesInits()
+!===================================================================================================================================
+! Initialize the variables first
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
+USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas, RadialWeighting
+USE MOD_MacroBody_Init         ,ONLY: InitMacroBody
+USE MOD_MacroBody_tools        ,ONLY: MarkMacroBodyElems
+USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
+USE MOD_ReadInTools
+USE MOD_Part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
+USE MOD_Part_RHS               ,ONLY: InitPartRHS
+USE MOD_Particle_Vars
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
+USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
+USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary,PartStateBoundarySpec
+USE MOD_Particle_Mesh          ,ONLY: GetMeshMinMax,MapRegionToElem,MarkAuxBCElems !,InitFIBGM
+USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
+USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,LocalVolume
+USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking,DoRefMapping
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, TriaSurfaceFlux
+USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
+USE MOD_Particle_Vars          ,ONLY: VarTimeStep
+USE MOD_Particle_VarTimeStep   ,ONLY: VarTimeStep_CalcElemFacs
+USE MOD_PICInit                ,ONLY: InitPIC
+USE MOD_ReadInTools            ,ONLY: PrintOption
+USE MOD_TimeDisc_Vars          ,ONLY: TEnd
+#if defined(ROS) || defined (IMPA)
+USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
+#endif /*ROS*/
+#if USE_MPI
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_shared
+USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+#else
+USE MOD_Mesh_Vars              ,ONLY: ElemVolume_shared
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iSpec, iInit, iPartBound, iSeed, iCC
+INTEGER               :: SeedSize, iPBC, iBC, iSwaps, iRegions, iExclude, nRandomSeeds
+INTEGER               :: iAuxBC, nAuxBCplanes, nAuxBCcylinders, nAuxBCcones, nAuxBCparabols
+INTEGER               :: ALLOCSTAT
+CHARACTER(32)         :: hilf , hilf2, hilf3
+CHARACTER(200)        :: tmpString
+LOGICAL               :: PartDens_OnlyInit
+REAL                  :: lineVector(3), v_drift_line, A_ins, n_vec(3), cos2, rmax
+INTEGER               :: MaxNbrOfSpeciesSwaps,iIMDSpec
+LOGICAL               :: exitTrue,IsIMDSpecies
+REAL, DIMENSION(3,1)  :: norm,norm1,norm2
+REAL, DIMENSION(3,3)  :: rot1, rot2
+REAL                  :: alpha1, alpha2
+INTEGER               :: dummy_int
+INTEGER               :: MacroRestartFileID
+LOGICAL,ALLOCATABLE   :: MacroRestartFileUsed(:)
+INTEGER               :: FileID, iElem
+REAL                  :: particlenumber_tmp, phimax_tmp
+!===================================================================================================================================
+
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits','0')
@@ -1486,25 +1993,16 @@ DO iSpec = 1, nSpecies
 #if USE_MPI
   END IF
 #endif /*USE_MPI*/
-  ALLOCATE(Species(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
-  DO iInit = 0, Species(iSpec)%NumberOfInits
-    ! set help characters
-    IF(iInit.EQ.0)THEN
-      hilf2=TRIM(hilf)
-    ELSE ! iInit >0
-      WRITE(UNIT=hilf2,FMT='(I0)') iInit
-      hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
-    END IF ! iInit
-    ! get species values // only once
-    IF(iInit.EQ.0)THEN
-      !General Species Values
-      Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-ChargeIC','0.')
-      Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-MassIC')
-      Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf2)//'-MacroParticleFactor','1.')
+  Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC','0.')
+  Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
+  Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf)//'-MacroParticleFactor','1.')
 #if defined(IMPA)
-      Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-IsImplicit','.FALSE.')
+  Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsImplicit','.FALSE.')
 #endif
-    END IF ! iInit
+  ALLOCATE(Species(iSpec)%Init(1:Species(iSpec)%NumberOfInits))
+  DO iInit = 1, Species(iSpec)%NumberOfInits
+    WRITE(UNIT=hilf2,FMT='(I0)') iInit
+    hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
     Species(iSpec)%Init(iInit)%SpaceIC               = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-SpaceIC','cell_local'))
     ! initilize macrorestart files and arrays
     !-------------------------------------------------------------------------------------------------------------------------------
@@ -2038,811 +2536,189 @@ __STAMP__&
 ,'Only const. or maxwell_lpn is supported as velocityDistr. using cell_local inserting with Macro-ElemPartDensity Insert!')
       END IF
     END IF
-    !--- determine StartnumberOfInits (start loop index, e.g., for emission loops)
-    IF(iInit.EQ.0)THEN
-      !!!for new case: check if to be included!!!
-      IF((( (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0)&
-        .AND.(Species(iSpec)%Init(iInit)%ParticleEmission.EQ.0.) )  &
-        .AND.(Species(iSpec)%Init(iInit)%PartDensity.EQ.0.) )       &
-        .AND.(Species(iSpec)%NumberOfInits.GT.0))       THEN
-        Species(iSpec)%StartnumberOfInits = 1 ! only new style paramaters defined (Part-Species(i)-Init(iInit)-***)
-      ELSE
-        Species(iSpec)%StartnumberOfInits = 0 ! old style parameters has been defined for inits/emissions (Part-Species(i)-***)
-      END IF
-      SWRITE(*,*) "StartnumberOfInits of Species ", iSpec, " = ", Species(iSpec)%StartnumberOfInits
-    END IF ! iInit .EQ.0
-
   END DO ! iInit
 END DO ! iSpec
 
-! get information for IMD atom/ion charge determination and distribution
-IMDnSpecies         = GETINT('IMDnSpecies','1')
-IMDInputFile        = GETSTR('IMDInputFile','no file found')
-ALLOCATE(IMDSpeciesID(IMDnSpecies))
-ALLOCATE(IMDSpeciesCharge(IMDnSpecies))
-iIMDSpec=1
-DO iSpec = 1, nSpecies
-  WRITE(UNIT=hilf,FMT='(I0)') iSpec
-  IsIMDSpecies = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsIMDSpecies','.FALSE.')
-  IF(IsIMDSpecies)THEN
-    IMDSpeciesID(iIMDSpec)=iSpec
-    IMDSpeciesCharge(iIMDSpec)=NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
-    iIMDSpec=iIMDSpec+1
-  END IF
-END DO
+END SUBROUTINE InitializeVariablesSpeciesInits
 
-
-! Which Lorentz boost method should be used?
-CALL InitPartRHS()
-
-! Read in boundary parameters
-dummy_int = CountOption('Part-nBounds')       ! check if Part-nBounds is present in .ini file
-nPartBound = GETINT('Part-nBounds','1.') ! get number of particle boundaries
-IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
+#if defined(IMPA) || defined(ROS)
+SUBROUTINE InitializeVariablesImplicit()
+!===================================================================================================================================
+! Initialize the variables first
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: ALLOCSTAT
+!===================================================================================================================================
+#ifdef IMPA
+ALLOCATE(PartStage(1:6,1:nRKStages-1,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
-  ,'ERROR: nPartBound .LE. 0:', nPartBound)
+  ,' Cannot allocate PartStage arrays!')
 END IF
-ALLOCATE(PartBound%SourceBoundName(1:nPartBound))
-ALLOCATE(PartBound%TargetBoundCond(1:nPartBound))
-ALLOCATE(PartBound%MomentumACC(1:nPartBound))
-ALLOCATE(PartBound%WallTemp(1:nPartBound))
-ALLOCATE(PartBound%WallTemp2(1:nPartBound))
-ALLOCATE(PartBound%WallTempDelta(1:nPartBound))
-ALLOCATE(PartBound%TransACC(1:nPartBound))
-ALLOCATE(PartBound%VibACC(1:nPartBound))
-ALLOCATE(PartBound%RotACC(1:nPartBound))
-ALLOCATE(PartBound%ElecACC(1:nPartBound))
-ALLOCATE(PartBound%Resample(1:nPartBound))
-ALLOCATE(PartBound%WallVelo(1:3,1:nPartBound))
-ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
-ALLOCATE(PartBound%TempGradEnd(1:3,1:nPartBound))
-ALLOCATE(PartBound%TempGradVec(1:3,1:nPartBound))
-ALLOCATE(PartBound%SurfaceModel(1:nPartBound))
-ALLOCATE(PartBound%Reactive(1:nPartBound))
-ALLOCATE(PartBound%SolidState(1:nPartBound))
-ALLOCATE(PartBound%SolidPartDens(1:nPartBound))
-ALLOCATE(PartBound%SolidMassIC(1:nPartBound))
-ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
-ALLOCATE(PartBound%SolidStructure(1:nPartBound))
-ALLOCATE(PartBound%SolidCrystalIndx(1:nPartBound))
-PartBound%SolidState(1:nPartBound)=.FALSE.
-PartBound%Reactive(1:nPartBound)=.FALSE.
-PartBound%SurfaceModel(1:nPartBound)=0
-
-ALLOCATE(PartBound%Adaptive(1:nPartBound))
-ALLOCATE(PartBound%AdaptiveType(1:nPartBound))
-ALLOCATE(PartBound%AdaptiveMacroRestartFileID(1:nPartBound))
-ALLOCATE(PartBound%AdaptiveTemp(1:nPartBound))
-ALLOCATE(PartBound%AdaptivePressure(1:nPartBound))
-nAdaptiveBC = 0
-PartBound%Adaptive(:) = .FALSE.
-PartBound%AdaptiveType(:) = -1
-PartBound%AdaptiveMacroRestartFileID(:) = 0
-PartBound%AdaptiveTemp(:) = -1.
-PartBound%AdaptivePressure(:) = -1.
-
-ALLOCATE(PartBound%Voltage(1:nPartBound))
-ALLOCATE(PartBound%UseForQCrit(1:nPartBound))
-ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
-PartBound%Voltage_CollectCharges(:)=0.
-ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
-!--determine MaxNbrOfSpeciesSwaps for correct allocation
-MaxNbrOfSpeciesSwaps=0
-DO iPartBound=1,nPartBound
-  WRITE(UNIT=hilf,FMT='(I0)') iPartBound
-  PartBound%NbrOfSpeciesSwaps(iPartBound)= GETINT('Part-Boundary'//TRIM(hilf)//'-NbrOfSpeciesSwaps','0')
-  MaxNbrOfSpeciesSwaps=max(PartBound%NbrOfSpeciesSwaps(iPartBound),MaxNbrOfSpeciesSwaps)
-END DO
-IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
-  ALLOCATE(PartBound%ProbOfSpeciesSwaps(1:nPartBound))
-  ALLOCATE(PartBound%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nPartBound))
-END IF
-! Dielectric Surfaces
-ALLOCATE(PartBound%Dielectric(1:nPartBound))
-PartBound%Dielectric=.FALSE.
-DoDielectricSurfaceCharge=.FALSE.
-! Surface particle output to .h5
-ALLOCATE(PartBound%BoundaryParticleOutput(1:nPartBound))
-PartBound%BoundaryParticleOutput=.FALSE.
-DoBoundaryParticleOutput=.FALSE.
-
-PartMeshHasPeriodicBCs=.FALSE.
-#if defined(IMPA) || defined(ROS)
-PartMeshHasReflectiveBCs=.FALSE.
-#endif
-DO iPartBound=1,nPartBound
-  WRITE(UNIT=hilf,FMT='(I0)') iPartBound
-  tmpString = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-Condition','open'))
-  SELECT CASE (TRIM(tmpString))
-  CASE('open')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
-    PartBound%Adaptive(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Adaptive','.FALSE.')
-    IF(PartBound%Adaptive(iPartBound)) THEN
-      nAdaptiveBC = nAdaptiveBC + 1
-      PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
-      IF (nMacroRestartFiles.GT.0) THEN
-        PartBound%AdaptiveMacroRestartFileID(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveMacroRestartFileID','0')
-      END IF
-      FileID = PartBound%AdaptiveMacroRestartFileID(iPartBound)
-      IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
-        MacroRestartFileUsed(FileID) = .TRUE.
-        IF (PartBound%AdaptiveType(iPartBound).EQ.1) THEN
-          PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
-          IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
-              __STAMP__&
-              ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
-        END IF
-      ELSE
-        PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
-        IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
-            __STAMP__&
-            ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
-      END IF
-      PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
-      IF (PartBound%AdaptivePressure(iPartBound).EQ.0.) CALL abort(&
-          __STAMP__&
-          ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptivePressure not defined')
-    END IF
-    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0.')
-  CASE('reflective')
-#if defined(IMPA) || defined(ROS)
-    PartMeshHasReflectiveBCs=.TRUE.
-#endif
-    PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
-    PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC')
-    PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp')
-    PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC')
-    PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC')
-    PartBound%RotACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotACC')
-    PartBound%ElecACC(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-ElecACC')
-    PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
-    PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
-    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
-    PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
-    PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
-    IF(PartBound%WallTemp2(iPartBound).GT.0.) THEN
-      PartBound%TempGradStart(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TemperatureGradientStart',3)
-      PartBound%TempGradEnd(1:3,iPartBound)   = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-TemperatureGradientEnd',3)
-      PartBound%WallTempDelta(iPartBound)   = PartBound%WallTemp2(iPartBound) - PartBound%WallTemp(iPartBound)
-      PartBound%TempGradVec(1:3,iPartBound) = PartBound%TempGradEnd(1:3,iPartBound) - PartBound%TempGradStart(1:3,iPartBound)
-    END IF
-    ! check for correct surfacemodel input
-    IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
-      IF (.NOT.useDSMC) CALL abort(&
-          __STAMP__&
-          ,'Cannot use surfacemodel>0 with useDSMC=F for particle boundary: ',iPartBound)
-      SELECT CASE (PartBound%SurfaceModel(iPartBound))
-      CASE (0)
-        PartBound%Reactive(iPartBound)        = .FALSE.
-      CASE (2,3,5,6,7,101,102)
-        PartBound%Reactive(iPartBound)        = .TRUE.
-      CASE DEFAULT
-        CALL abort(&
-            __STAMP__&
-            ,'Error in particle init: only allowed SurfaceModels: 0,2,3,5,6,101,102!')
-      END SELECT
-    END IF
-    PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState')
-    IF(PartBound%SolidState(iPartBound))THEN
-      PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens')
-      PartBound%SolidMassIC(iPartBound)       = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidMassIC')
-      PartBound%SolidAreaIncrease(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidAreaIncrease')
-      PartBound%SolidStructure(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidStructure')
-      IF (PartBound%SolidStructure(iPartBound).EQ.1) THEN
-        hilf2 ='4'
-      ELSE IF (PartBound%SolidStructure(iPartBound).EQ.2) THEN
-        hilf2 ='3'
-      END IF
-      PartBound%SolidCrystalIndx(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidCrystalIndx',hilf2)
-    END IF
-    IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
-      !read Species to be changed at wall (in, out), out=0: delete
-      PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
-      DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)
-        WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
-        PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
-            GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
-      END DO
-    END IF
-    ! Dielectric Surfaces
-    PartBound%Dielectric(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
-    ! Sanity check: PartBound%Dielectric=T requires supplying species swap for every species
-    IF(PartBound%Dielectric(iPartBound))THEN
-      IF(PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies)THEN
-        CALL abort(&
-            __STAMP__&
-            ,'PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies: PartBound%Dielectric=T requires supplying species swap for every species!')
-      ELSE
-        DoDielectricSurfaceCharge=.TRUE.
-      END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies
-    END IF ! PartBound%Dielectric(iPartBound)
-  CASE('periodic')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%PeriodicBC
-    PartMeshHasPeriodicBCs = .TRUE.
-  CASE('simple_anode')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleAnodeBC
-  CASE('simple_cathode')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleCathodeBC
-  CASE('symmetric')
-#if defined(IMPA) || defined(ROS)
-    PartMeshHasReflectiveBCs=.TRUE.
-#endif
-    PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
-    PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
-  CASE('symmetric_axis')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryAxis
-    PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
-  CASE('analyze')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%AnalyzeBC
-    IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
-      !read Species to be changed at wall (in, out), out=0: delete
-      PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
-      DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)
-        WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
-        PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
-            GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
-      END DO
-    END IF
-  CASE DEFAULT
-    SWRITE(*,*) ' Boundary does not exists: ', TRIM(tmpString)
-    CALL abort(&
-        __STAMP__&
-        ,'Particle Boundary Condition does not exist')
-  END SELECT
-  PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
-  PartBound%UseForQCrit(iPartBound)     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseForQCrit','.TRUE.')
-  IF(PartBound%UseForQCrit(iPartBound))THEN
-    SWRITE(*,*)"PartBound",iPartBound,"is used for the Q-Criterion"
-  END IF ! PartBound%UseForQCrit(iPartBound)
-
-  ! Surface particle output to .h5
-  PartBound%BoundaryParticleOutput(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
-  IF(PartBound%BoundaryParticleOutput(iPartBound))THEN
-    DoBoundaryParticleOutput=.TRUE.
-  END IF ! PartBound%BoundaryParticleOutput(iPartBound)
-END DO
-
-IF (nMacroRestartFiles.GT.0) THEN
-  IF (ALL(.NOT.MacroRestartFileUsed(:))) CALL abort(&
-  __STAMP__&
-  ,'None of defined Macro-Restart-Files used for any init!')
-  DO FileID = 1,nMacroRestartFiles
-    IF (.NOT.MacroRestartFileUsed(FileID)) THEN
-      SWRITE(*,*) "WARNING: MacroRestartFile: ",FileID," not used for any Init"
-    END IF
-  END DO
-END IF
-
-! Surface particle output to .h5
-IF(DoBoundaryParticleOutput)THEN
-  ALLOCATE(PartStateBoundary(1:9,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-        __STAMP__&
-        ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
-  END IF
-  PartStateBoundary=0.
-  ALLOCATE(PartStateBoundarySpec(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-        __STAMP__&
-        ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundarySpec array!')
-  END IF
-  PartStateBoundarySpec=0
-END IF
-
-! Set mapping from field boundary to particle boundary index
-ALLOCATE(PartBound%MapToPartBC(1:nBCs))
-PartBound%MapToPartBC(:)=-10
-DO iPBC=1,nPartBound
-  DO iBC = 1, nBCs
-    IF (BoundaryType(iBC,BC_TYPE).EQ.0) THEN
-      PartBound%MapToPartBC(iBC) = -1 !there are no internal BCs in the mesh, they are just in the name list!
-      SWRITE(*,*)"... PartBound",iPBC,"is internal bound, no mapping needed"
-    ELSEIF(BoundaryType(iBC,BC_TYPE).EQ.100)THEN
-      IF(DoRefMapping)THEN
-        SWRITE(UNIT_STDOUT,'(A)') ' Analyze sides are not implemented for DoRefMapping=T, because '//  &
-                                  ' orientation of SideNormVec is unknown.'
-     CALL abort(&
-                __STAMP__&
-                ,' Analyze-BCs cannot be used for internal reflection in general cases! ')
-      END IF
-    END IF
-    IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
-      PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
-      SWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
-    END IF
-  END DO
-END DO
-! Errorhandler for PartBound-Types that could not be mapped to the
-! FieldBound-Types.
-DO iBC = 1,nBCs
-  IF (PartBound%MapToPartBC(iBC).EQ.-10) THEN
-    CALL abort(&
-__STAMP__&
-    ,' PartBound%MapToPartBC for Boundary is not set. iBC: :',iBC)
-  END IF
-END DO
-
-ALLOCATE(PEM%Element(1:PDM%maxParticleNumber), PEM%lastElement(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+ALLOCATE(PartStateN(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
- CALL abort(&
+  CALL abort(&
 __STAMP__&
-  ,' Cannot allocate PEM arrays!')
+  ,' Cannot allocate PartStateN arrays!')
 END IF
-IF (useDSMC) THEN
-  ALLOCATE(PEM%pStart(1:nElems)                         , &
-           PEM%pNumber(1:nElems)                        , &
-           PEM%pEnd(1:nElems)                           , &
-           PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT)
-           !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
+ALLOCATE(PartQ(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
 __STAMP__&
-    , ' Cannot allocate DSMC PEM arrays!')
-  END IF
+  ,'Cannot allocate PartQ arrays!')
 END IF
-IF (useDSMC) THEN
-  ALLOCATE(PDM%PartInit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-           !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
+! particle function values at X0
+ALLOCATE(F_PartX0(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
 __STAMP__&
-    ,' Cannot allocate DSMC PEM arrays!')
-  END IF
+  ,'Cannot allocate F_PartX0 arrays!')
 END IF
+! particle function values at Xk
+ALLOCATE(F_PartXk(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,'Cannot allocate F_PartXk arrays!')
+END IF
+! and the required norms
+ALLOCATE(Norm_F_PartX0(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,'Cannot allocate Norm_F_PartX0 arrays!')
+END IF
+ALLOCATE(Norm_F_PartXk(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,'Cannot allocate Norm_F_PartXk arrays!')
+END IF
+ALLOCATE(Norm_F_PartXk_old(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,'Cannot allocate Norm_F_PartXk_old arrays!')
+END IF
+ALLOCATE(PartDeltaX(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,'Cannot allocate PartDeltaX arrays!')
+END IF
+ALLOCATE(PartLambdaAccept(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,'Cannot allocate PartLambdaAccept arrays!')
+END IF
+ALLOCATE(DoPartInNewton(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+      ,'Cannot allocate DoPartInNewton arrays!')
+END IF
+#endif /* IMPA */
+#ifdef ROS
+ALLOCATE(PartStage(1:6,1:nRKStages-1,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,' Cannot allocate PartStage arrays!')
+END IF
+ALLOCATE(PartStateN(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,' Cannot allocate PartStateN arrays!')
+END IF
+ALLOCATE(PartQ(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,'Cannot allocate PartQ arrays!')
+END IF
+ALLOCATE(PartDtFrac(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,' Cannot allocate PartDtFrac arrays!')
+END IF
+PartDtFrac=1.
+ALLOCATE(PEM%ElementN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%ElementN=0
+ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the normal vector for reflections!')
+END IF
+PEM%NormVec=0
+ALLOCATE(PEM%PeriodicMoved(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%PeriodicMoved=.FALSE.
+#endif /* ROSENBROCK */
 
-#if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
-  dt_part_ratio = GETREAL('Particles-dt_part_ratio', '3.8')
-  overrelax_factor = GETREAL('Particles-overrelax_factor', '1.0')
-#if (PP_TimeDiscMethod==200)
-IF ( ALMOSTEQUAL(overrelax_factor,1.0) .AND. .NOT.ALMOSTEQUAL(dt_part_ratio,3.8) ) THEN
-  overrelax_factor = dt_part_ratio !compatibility
+#if IMPA
+ALLOCATE(PartIsImplicit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,' Cannot allocate PartIsImplicit arrays!')
 END IF
+PartIsImplicit=.FALSE.
+ALLOCATE(PartDtFrac(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,' Cannot allocate PartDtFrac arrays!')
+END IF
+PartDtFrac=1.
+ALLOCATE(PEM%ElementN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%ElementN=0
+ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the normal vector for reflections!')
+END IF
+PEM%NormVec=0
+ALLOCATE(PEM%PeriodicMoved(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%PeriodicMoved=.FALSE.
 #endif
+
+END SUBROUTINE InitializeVariablesImplicit
 #endif
-
-! initialization of surface model flags
-KeepWallParticles = .FALSE.
-
-!--- initialize randomization
-nRandomSeeds = GETINT('Part-NumberOfRandomSeeds','0')
-CALL RANDOM_SEED(Size = SeedSize)    ! specifies compiler specific minimum number of seeds
-ALLOCATE(Seeds(SeedSize))
-Seeds(:)=1 ! to ensure a solid run when an unfitting number of seeds is provided in ini
-IF(nRandomSeeds.EQ.-1) THEN
-  ! ensures different random numbers through irreproducable random seeds (via System_clock)
-  CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
-ELSE IF(nRandomSeeds.EQ.0) THEN
- !   IF (Restart) THEN
- !   CALL !numbers from state file
- ! ELSE IF (.NOT.Restart) THEN
-CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
-ELSE IF(nRandomSeeds.GT.0) THEN
-  ! read in numbers from ini
-  IF(nRandomSeeds.GT.SeedSize) THEN
-    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
-  ELSE IF(nRandomSeeds.LT.SeedSize) THEN
-    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
-  END IF
-  DO iSeed=1,MIN(SeedSize,nRandomSeeds)
-    WRITE(UNIT=hilf,FMT='(I0)') iSeed
-    Seeds(iSeed)= GETINT('Particles-RandomSeed'//TRIM(hilf))
-  END DO
-  IF (ALL(Seeds(:).EQ.0)) THEN
-    CALL ABORT(&
-     __STAMP__&
-     ,'Not all seeds can be set to zero ')
-  END IF
-  CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
-ELSE
-  SWRITE (*,*) 'Error: nRandomSeeds not defined.'//&
-  'Choose nRandomSeeds'//&
-  '=-1    pseudo random'//&
-  '= 0    hard-coded deterministic numbers'//&
-  '> 0    numbers from ini. Expected ',SeedSize,'seeds.'
-END IF
-
-
-!DoZigguratSampling = GETLOGICAL('Particles-DoZigguratSampling','.FALSE.')
-DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
-DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
-
-DO iSpec = 1, nSpecies
-  DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
-    IF(Species(iSpec)%Init(iInit)%InflowRiseTime.GT.0.)THEN
-      IF(.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow)  CALL CollectiveStop(&
-__STAMP__, &
-' Linearly ramping of inflow-number-of-particles is only possible with PoissonRounding or DoTimeDepInflow!')
-    END IF
-  END DO ! iInit = 0, Species(iSpec)%NumberOfInits
-END DO ! iSpec = 1, nSpecies
-
-
-DelayTime = GETREAL('Part-DelayTime','0.')
-
-!-- AuxBCs
-nAuxBCs=GETINT('Part-nAuxBCs','0')
-IF (nAuxBCs.GT.0) THEN
-  UseAuxBCs=.TRUE.
-  ALLOCATE (AuxBCType(1:nAuxBCs) &
-            ,AuxBCMap(1:nAuxBCs) )
-  AuxBCMap=0
-  !- Read in BC parameters
-  ALLOCATE(PartAuxBC%TargetBoundCond(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%MomentumACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%WallTemp(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%TransACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%VibACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%RotACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%ElecACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%Resample(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%WallVelo(1:3,1:nAuxBCs))
-  ALLOCATE(PartAuxBC%NbrOfSpeciesSwaps(1:nAuxBCs))
-  !--determine MaxNbrOfSpeciesSwaps for correct allocation
-  MaxNbrOfSpeciesSwaps=0
-  DO iPartBound=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iPartBound
-    PartAuxBC%NbrOfSpeciesSwaps(iPartBound)= GETINT('Part-AuxBC'//TRIM(hilf)//'-NbrOfSpeciesSwaps','0')
-    MaxNbrOfSpeciesSwaps=max(PartAuxBC%NbrOfSpeciesSwaps(iPartBound),MaxNbrOfSpeciesSwaps)
-  END DO
-  IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
-    ALLOCATE(PartAuxBC%ProbOfSpeciesSwaps(1:nAuxBCs))
-    ALLOCATE(PartAuxBC%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nAuxBCs))
-  END IF
-  !--
-  DO iPartBound=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iPartBound
-    tmpString = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Condition','open'))
-    SELECT CASE (TRIM(tmpString))
-    CASE('open')
-      PartAuxBC%TargetBoundCond(iPartBound) = PartAuxBC%OpenBC          ! definitions see typesdef_pic
-    CASE('reflective')
-      PartAuxBC%TargetBoundCond(iPartBound) = PartAuxBC%ReflectiveBC
-      PartAuxBC%MomentumACC(iPartBound)     = GETREAL('Part-AuxBC'//TRIM(hilf)//'-MomentumACC')
-      PartAuxBC%WallTemp(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-WallTemp')
-      PartAuxBC%TransACC(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-TransACC')
-      PartAuxBC%VibACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-VibACC')
-      PartAuxBC%RotACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-RotACC')
-      PartAuxBC%ElecACC(iPartBound)         = GETREAL('Part-AuxBC'//TRIM(hilf)//'-ElecACC')
-      PartAuxBC%Resample(iPartBound)        = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-Resample')
-      PartAuxBC%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-WallVelo',3)
-      IF (PartAuxBC%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
-        !read Species to be changed at wall (in, out), out=0: delete
-        PartAuxBC%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-AuxBC'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
-        DO iSwaps=1,PartAuxBC%NbrOfSpeciesSwaps(iPartBound)
-          WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
-          PartAuxBC%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
-            GETINTARRAY('Part-AuxBC'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
-        END DO
-      END IF
-    CASE DEFAULT
-      SWRITE(*,*) ' AuxBC Condition does not exists: ', TRIM(tmpString)
-      CALL abort(&
-        __STAMP__&
-        ,'AuxBC Condition does not exist')
-    END SELECT
-  END DO
-  !- read and count types
-  nAuxBCplanes = 0
-  nAuxBCcylinders = 0
-  nAuxBCcones = 0
-  nAuxBCparabols = 0
-  DO iAuxBC=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iAuxBC
-    AuxBCType(iAuxBC) = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Type','plane'))
-    SELECT CASE (TRIM(AuxBCType(iAuxBC)))
-    CASE ('plane')
-      nAuxBCplanes = nAuxBCplanes + 1
-      AuxBCMap(iAuxBC) = nAuxBCplanes
-    CASE ('cylinder')
-      nAuxBCcylinders = nAuxBCcylinders + 1
-      AuxBCMap(iAuxBC) = nAuxBCcylinders
-    CASE ('cone')
-      nAuxBCcones = nAuxBCcones + 1
-      AuxBCMap(iAuxBC) = nAuxBCcones
-    CASE ('parabol')
-      nAuxBCparabols = nAuxBCparabols + 1
-      AuxBCMap(iAuxBC) = nAuxBCparabols
-    CASE DEFAULT
-      SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
-      CALL abort(&
-        __STAMP__&
-        ,'AuxBC does not exist')
-    END SELECT
-  END DO
-  !- allocate type-specifics
-  IF (nAuxBCplanes.GT.0) THEN
-    ALLOCATE (AuxBC_plane(1:nAuxBCplanes))
-  END IF
-  IF (nAuxBCcylinders.GT.0) THEN
-    ALLOCATE (AuxBC_cylinder(1:nAuxBCcylinders))
-  END IF
-  IF (nAuxBCcones.GT.0) THEN
-    ALLOCATE (AuxBC_cone(1:nAuxBCcones))
-  END IF
-  IF (nAuxBCparabols.GT.0) THEN
-    ALLOCATE (AuxBC_parabol(1:nAuxBCparabols))
-  END IF
-  !- read type-specifics
-  DO iAuxBC=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iAuxBC
-    SELECT CASE (TRIM(AuxBCType(iAuxBC)))
-    CASE ('plane')
-      AuxBC_plane(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
-      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_plane(AuxBCMap(iAuxBC))%radius)
-      AuxBC_plane(AuxBCMap(iAuxBC))%radius= GETREAL('Part-AuxBC'//TRIM(hilf)//'-radius',TRIM(hilf2))
-      n_vec                               = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-n_vec',3,'1. , 0. , 0.')
-      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-n_vec is zero for AuxBC',iAuxBC)
-      ELSE !scale vector
-        AuxBC_plane(AuxBCMap(iAuxBC))%n_vec = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
-      END IF
-    CASE ('cylinder')
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
-      n_vec                                  = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
-      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
-      ELSE !scale vector
-        AuxBC_cylinder(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
-      END IF
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%radius  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-radius','1.')
-      WRITE(UNIT=hilf2,FMT='(G0)') -HUGE(AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin)
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin',TRIM(hilf2))
-      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin)
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
-    CASE ('cone')
-      AuxBC_cone(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
-      n_vec                              = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
-      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
-      ELSE !scale vector
-        AuxBC_cone(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
-      END IF
-      AuxBC_cone(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin','0.')
-      IF (AuxBC_cone(AuxBCMap(iAuxBC))%lmin.LT.0.) CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-lminis .lt. zero for AuxBC',iAuxBC)
-      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_cone(AuxBCMap(iAuxBC))%lmin)
-      AuxBC_cone(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
-      rmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-rmax','0.')
-      ! either define rmax at lmax or the halfangle
-      IF (rmax.EQ.0.) THEN
-        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-halfangle','45.')*PI/180.
-      ELSE
-        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = ATAN(rmax/AuxBC_cone(AuxBCMap(iAuxBC))%lmax)
-      END IF
-      IF (AuxBC_cone(AuxBCMap(iAuxBC))%halfangle.LE.0.) CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-halfangle is .le. zero for AuxBC',iAuxBC)
-      AuxBC_cone(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
-      cos2 = COS(AuxBC_cone(AuxBCMap(iAuxBC))%halfangle)**2
-      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,1) &
-        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(1)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/cos2,0.,0./)
-      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,2) &
-        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(2)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,cos2,0./)
-      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,3) &
-        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(3)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,0.,cos2/)
-    CASE ('parabol')
-      AuxBC_parabol(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
-      n_vec                              = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
-      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
-      ELSE !scale vector
-        AuxBC_parabol(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
-      END IF
-      AuxBC_parabol(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin','0.')
-      IF (AuxBC_parabol(AuxBCMap(iAuxBC))%lmin.LT.0.) CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-lmin is .lt. zero for AuxBC',iAuxBC)
-      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_parabol(AuxBCMap(iAuxBC))%lmin)
-      AuxBC_parabol(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
-      AuxBC_parabol(AuxBCMap(iAuxBC))%zfac  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-zfac','1.')
-      AuxBC_parabol(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
-
-      norm(:,1)=AuxBC_parabol(AuxBCMap(iAuxBC))%axis
-      IF (.NOT.ALMOSTZERO(SQRT(norm(1,1)**2+norm(3,1)**2))) THEN !collinear with y?
-        alpha1=ATAN2(norm(1,1),norm(3,1))
-        CALL roty(rot1,alpha1)
-        norm1=MATMUL(rot1,norm)
-      ELSE
-        alpha1=0.
-        CALL ident(rot1)
-        norm1=norm
-      END IF
-      IF (.NOT.ALMOSTZERO(SQRT(norm1(2,1)**2+norm1(3,1)**2))) THEN !collinear with x?
-        alpha2=-ATAN2(norm1(2,1),norm1(3,1))
-        CALL rotx(rot2,alpha2)
-        norm2=MATMUL(rot2,norm1)
-      ELSE
-        CALL abort(&
-          __STAMP__&
-          ,'vector is collinear with x-axis. this should not be possible... AuxBC:',iAuxBC)
-      END IF
-      AuxBC_parabol(AuxBCMap(iAuxBC))%rotmatrix(:,:)=MATMUL(rot2,rot1)
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(:,:)=0.
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(1,1)=1.
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(2,2)=1.
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(3,3)=0.
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(3,4)=-0.5*AuxBC_parabol(AuxBCMap(iAuxBC))%zfac
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(4,3)=-0.5*AuxBC_parabol(AuxBCMap(iAuxBC))%zfac
-    CASE DEFAULT
-      SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
-      CALL abort(&
-        __STAMP__&
-        ,'AuxBC does not exist for AuxBC',iAuxBC)
-    END SELECT
-  END DO
-  CALL MarkAuxBCElems()
-ELSE
-  UseAuxBCs=.FALSE.
-END IF
-
-#if USE_MPI
-CALL MPI_BARRIER(PartMPI%COMM,IERROR)
-#endif /*USE_MPI*/
-
-!--- Read Manual Time Step
-useManualTimeStep = .FALSE.
-ManualTimeStep = GETREAL('Particles-ManualTimeStep', '0.0')
-IF (ManualTimeStep.GT.0.0) THEN
-  useManualTimeStep=.True.
-END IF
-
-! calculate cartesian borders of node local and global mesh
-SWRITE(UNIT_stdOut,'(A)')' Getting Mesh min-max ...'
-CALL GetMeshMinMax()
-
-CALL InitPIC()
-
-!-- Build BGM and halo region
-CALL InitParticleMesh()
-
-!CALL InitFIBGM()
-
-!-- Macroscopic bodies inside domain
-CALL InitMacroBody()
-CALL MarkMacroBodyElems()
-
-! === 2D/Axisymmetric initialization
-! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
-IF(Symmetry2D) CALL DSMC_2D_InitVolumes()
-IF(Symmetry2DAxisymmetric) THEN
-  IF(RadialWeighting%DoRadialWeighting) THEN
-    ! Initialization of RadialWeighting in 2D axisymmetric simulations
-    RadialWeighting%PerformCloning = .TRUE.
-    CALL DSMC_2D_InitRadialWeighting()
-  END IF
-  IF(.NOT.TriaTracking) CALL abort(&
-    __STAMP__&
-    ,'ERROR: Axisymmetric simulation only supported with TriaTracking = T')
-  IF(.NOT.TriaSurfaceFlux) CALL abort(&
-    __STAMP__&
-    ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
-END IF
-
-#if USE_MPI
-CALL InitEmissionComm()
-CALL MPI_BARRIER(PartMPI%COMM,IERROR)
-#endif /*USE_MPI*/
-
-SWRITE(UNIT_StdOut,'(132("-"))')
-
-!-- Read parameters for region mapping
-NbrOfRegions = GETINT('NbrOfRegions','0')
-IF (NbrOfRegions .GT. 0) THEN
-  ALLOCATE(RegionBounds(1:6,1:NbrOfRegions))
-  DO iRegions=1,NbrOfRegions
-    WRITE(UNIT=hilf2,FMT='(I0)') iRegions
-    RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
-  END DO
-END IF
-
-IF (NbrOfRegions .GT. 0) THEN
-  CALL MapRegionToElem()
-  ALLOCATE(RegionElectronRef(1:3,1:NbrOfRegions))
-  DO iRegions=1,NbrOfRegions
-    WRITE(UNIT=hilf2,FMT='(I0)') iRegions
-    ! 1:3 - rho_ref, phi_ref, and Te[eV]
-    RegionElectronRef(1:3,iRegions) = GETREALARRAY('Part-RegionElectronRef'//TRIM(hilf2),3,'0. , 0. , 1.')
-    WRITE(UNIT=hilf,FMT='(G0)') RegionElectronRef(2,iRegions)
-    phimax_tmp = GETREAL('Part-RegionElectronRef'//TRIM(hilf2)//'-PhiMax',TRIM(hilf))
-    IF (phimax_tmp.NE.RegionElectronRef(2,iRegions)) THEN !shift reference point (rho_ref, phi_ref) to phi_max:
-      RegionElectronRef(1,iRegions) = RegionElectronRef(1,iRegions) &
-        * EXP((phimax_tmp-RegionElectronRef(2,iRegions))/RegionElectronRef(3,iRegions))
-      RegionElectronRef(2,iRegions) = phimax_tmp
-      SWRITE(*,*) 'WARNING: BR-reference point is shifted to:', RegionElectronRef(1:2,iRegions)
-    END IF
-  END DO
-END IF
-
-IF(enableParticleMerge) THEN
- CALL DefinePolyVec(vMPFMergePolyOrder)
- CALL DefineSplitVec(vMPFMergeCellSplitOrder)
-END IF
-
-!-- Floating Potential
-ALLOCATE(BCdata_auxSF(1:nPartBound))
-DO iPartBound=1,nPartBound
-  BCdata_auxSF(iPartBound)%SideNumber=-1 !init value when not used
-  BCdata_auxSF(iPartBound)%GlobalArea=0.
-  BCdata_auxSF(iPartBound)%LocalArea=0.
-END DO
-nDataBC_CollectCharges=0
-nCollectChargesBCs = GETINT('PIC-nCollectChargesBCs','0')
-IF (nCollectChargesBCs .GT. 0) THEN
-#if !((USE_HDG) && (PP_nVar==1))
-  CALL abort(__STAMP__&
-    , 'CollectCharges only implemented for electrostatic HDG!')
-#endif
-  ALLOCATE(CollectCharges(1:nCollectChargesBCs))
-  DO iCC=1,nCollectChargesBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iCC
-    CollectCharges(iCC)%BC = GETINT('PIC-CollectCharges'//TRIM(hilf)//'-BC','0')
-    IF (CollectCharges(iCC)%BC.LT.1 .OR. CollectCharges(iCC)%BC.GT.nPartBound) THEN
-      CALL abort(__STAMP__&
-      , 'nCollectChargesBCs must be between 1 and nPartBound!')
-    ELSE IF (BCdata_auxSF(CollectCharges(iCC)%BC)%SideNumber.EQ. -1) THEN !not set yet
-      BCdata_auxSF(CollectCharges(iCC)%BC)%SideNumber=0
-      nDataBC_CollectCharges=nDataBC_CollectCharges+1 !side-data will be set in InitializeParticleSurfaceflux!!!
-    END IF
-    CollectCharges(iCC)%NumOfRealCharges = GETREAL('PIC-CollectCharges'//TRIM(hilf)//'-NumOfRealCharges','0.')
-    CollectCharges(iCC)%NumOfNewRealCharges = 0.
-    CollectCharges(iCC)%ChargeDist = GETREAL('PIC-CollectCharges'//TRIM(hilf)//'-ChargeDist','0.')
-  END DO !iCC
-END IF !nCollectChargesBCs .GT. 0
-
-!-- reading BG Gas stuff
-!   (moved here from dsmc_init for switching off the initial emission)
-IF (useDSMC) THEN
-  IF (BGGas%NumberOfSpecies.GT.0) THEN
-    CALL BGGas_Initialize()
-  ELSE
-    DEALLOCATE(BGGas%NumberDensity)
-  END IF ! BGGas%NumberOfSpecies.GT.0
-END IF !useDSMC
-
-! ------- Variable Time Step Initialization (parts requiring completed particle_init and readMesh)
-IF(VarTimeStep%UseVariableTimeStep) THEN
-  ! Initializing the particle time step array used during calculation for the distribution (after maxParticleNumber was read-in)
-  ALLOCATE(VarTimeStep%ParticleTimeStep(1:PDM%maxParticleNumber))
-  VarTimeStep%ParticleTimeStep = 1.
-  IF(.NOT.TriaTracking) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'ERROR: Variable time step is only supported with TriaTracking = T')
-  END IF
-  IF(VarTimeStep%UseLinearScaling) THEN
-    IF(Symmetry2D) THEN
-      ! 2D: particle-wise scaling in the radial direction, ElemFac array only utilized for the output of the time step
-      ALLOCATE(VarTimeStep%ElemFac(nElems))
-      VarTimeStep%ElemFac = 1.0
-    ELSE
-      ! 3D: The time step for each cell is precomputed, ElemFac is allocated in the routine
-      CALL VarTimeStep_CalcElemFacs()
-    END IF
-  END IF
-  IF(VarTimeStep%UseDistribution) THEN
-    ! ! Apply a min-mean filter combo if the distribution was adapted
-    ! ! (is performed here to have the element neighbours already defined)
-    ! IF(VarTimeStep%AdaptDistribution) CALL VarTimeStep_SmoothDistribution()
-    ! Disable AdaptDistribution to avoid adapting during a load balance restart
-    IF(VarTimeStep%AdaptDistribution) VarTimeStep%AdaptDistribution = .FALSE.
-  END IF
-END IF
-
-END SUBROUTINE InitializeVariables
-
 
 SUBROUTINE ReadMacroRestartFiles(MacroRestartData)
 !===================================================================================================================================

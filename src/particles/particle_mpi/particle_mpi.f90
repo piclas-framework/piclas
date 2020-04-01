@@ -1677,7 +1677,7 @@ INTEGER                         :: nInitRegions,iInitRegions,iSpec
 
 nInitRegions=0
 DO iSpec=1,nSpecies
-  nInitRegions=nInitRegions+Species(iSpec)%NumberOfInits+(1-Species(iSpec)%StartnumberOfInits)
+  nInitRegions=nInitRegions+Species(iSpec)%NumberOfInits
 END DO ! iSpec
 IF(nInitRegions.GT.0) THEN
   DO iInitRegions=1,nInitRegions
@@ -1986,7 +1986,7 @@ LOGICAL                         :: hasRegion
 ! get number of total init regions
 nInitRegions=0
 DO iSpec=1,nSpecies
-  nInitRegions=nInitRegions+Species(iSpec)%NumberOfInits+(1-Species(iSpec)%StartnumberOfInits)
+  nInitRegions=nInitRegions+Species(iSpec)%NumberOfInits
 END DO ! iSpec
 IF(nInitRegions.EQ.0) RETURN
 
@@ -2000,7 +2000,7 @@ ALLOCATE( PartMPI%InitGroup(1:nInitRegions))
 nInitRegions=0
 DO iSpec=1,nSpecies
   RegionOnProc=.FALSE.
-  DO iInit=Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
+  DO iInit=1, Species(iSpec)%NumberOfInits
     nInitRegions=nInitRegions+1
     SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
     CASE ('point')

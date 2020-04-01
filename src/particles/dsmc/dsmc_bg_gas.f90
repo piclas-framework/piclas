@@ -76,43 +76,10 @@ DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
     IF (BGGas%NumberDensity(iSpec).EQ.0.) CALL abort(__STAMP__&
                                           ,'ERROR: NumberDensity is zero but must be defined for a background gas!')
-    IF (Species(iSpec)%NumberOfInits.NE.0 .OR. Species(iSpec)%StartnumberOfInits.NE.0) &
+    IF (Species(iSpec)%NumberOfInits.NE.0) &
       CALL abort(&
         __STAMP__&
         ,'ERROR: BGG species can be used ONLY for BGG!')
-    IF (Species(iSpec)%Init(0)%ElemTemperatureFileID.GT.0 .OR. Species(iSpec)%Init(0)%ElemPartDensityFileID.GT.0 &
-        .OR. Species(iSpec)%Init(0)%ElemVelocityICFileID .GT.0 ) THEN! &
-      !-- from MacroRestartFile (inner DOF not yet implemented!):
-      IF(Species(iSpec)%Init(0)%ElemTemperatureFileID.LE.0 .OR. .NOT.ALLOCATED(Species(iSpec)%Init(0)%ElemTemperatureIC)) &
-        CALL abort(&
-          __STAMP__&
-          ,'ERROR: ElemTemperatureIC not defined in Init0 for BGG from MacroRestartFile!')
-      IF(Species(iSpec)%Init(0)%ElemPartDensityFileID.LE.0 .OR. .NOT.ALLOCATED(Species(iSpec)%Init(0)%ElemPartDensity)) &
-        CALL abort(&
-          __STAMP__&
-          ,'ERROR: ElemPartDensity not defined in Init0 for BGG from MacroRestartFile!')
-      IF(Species(iSpec)%Init(0)%ElemVelocityICFileID.LE.0 .OR. .NOT.ALLOCATED(Species(iSpec)%Init(0)%ElemVelocityIC)) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'ERROR: ElemVelocityIC not defined in Init0 for BGG from MacroRestartFile!')
-      ELSE IF (Species(iSpec)%Init(0)%velocityDistribution.NE.'maxwell_lpn') THEN
-        CALL abort(&
-          __STAMP__&
-          ,'ERROR: Only maxwell_lpn is implemened as velocity-distribution for BGG from MacroRestartFile!')
-      END IF
-    ELSE
-      IF (Species(iSpec)%Init(0)%MWTemperatureIC.EQ.0.) CALL abort(&
-          __STAMP__&
-          ,'ERROR: MWTemperatureIC not defined in Init0 for homogeneous BGG!')
-      SELECT CASE(Species(iSpec)%Init(0)%velocityDistribution)
-        CASE('maxwell_lpn')
-          ! Others have to be tested first.
-        CASE DEFAULT
-          CALL abort(&
-            __STAMP__&
-            ,'ERROR: VelocityDistribution not supported/defined in Init0 for homogeneous BGG! Only maxwell_lpn is allowed!')
-      END SELECT
-    END IF
   END IF
 END DO
 

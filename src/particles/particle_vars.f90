@@ -266,7 +266,6 @@ TYPE tSpecies                                                                ! P
   REAL                                   :: MassIC                           ! Particle Mass (without MPF)
   REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
-  INTEGER                                :: StartnumberOfInits               ! 0 if old emit defined (array is copied into 0. entry)
   TYPE(typeSurfaceflux),ALLOCATABLE      :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission
   INTEGER                                :: nSurfacefluxBCs                  ! Number of SF emissions
 #if IMPA

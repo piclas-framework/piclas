@@ -395,6 +395,7 @@ DO i = 1,PDM%ParticleVecLength
             ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
           END IF
         END IF  ! BC(SideID).GT./.LE. 0
+!        IPWRITE(*,*) DoneLastElem(1,1), SideID, LocalSide, ElemID
         IF (ElemID.LT.1) THEN
           IPWRITE(UNIT_stdout,*) 'Particle Velocity: ',SQRT(DOTPRODUCT(PartState(4:6,i)))
           CALL abort(&
@@ -414,6 +415,7 @@ DO i = 1,PDM%ParticleVecLength
       IF (PEM%Element(i).LE.PP_nElems) CALL DSMC_2D_RadialWeighting(i,PEM%Element(i))
     END IF
   END IF
+!  IPWRITE(*,*) i,ElemID
 END DO ! i = 1,PDM%ParticleVecLength
 
 END SUBROUTINE ParticleTriaTracking

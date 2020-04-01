@@ -65,7 +65,7 @@ INTEGER                       :: i,iInit,InitGroup
 INTEGER                       :: ALLOCSTAT
 !===================================================================================================================================
 DO i = 1,nSpecies
-  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+  DO iInit = 1, Species(i)%NumberOfInits
     InitGroup = Species(i)%Init(iInit)%InitCOMM
 
     ! Arrays for communication of particles not located in final element
@@ -581,7 +581,7 @@ IMPLICIT NONE
 INTEGER                       :: i,iInit,InitGroup
 !===================================================================================================================================
 DO i = 1,nSpecies
-  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+  DO iInit = 1, Species(i)%NumberOfInits
     InitGroup = Species(i)%Init(iInit)%InitCOMM
 
     ! Arrays for communication of particles not located in final element
