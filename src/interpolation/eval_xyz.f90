@@ -814,7 +814,7 @@ SUBROUTINE GetRefNewtonStartValue(X_in,Xi,ElemID)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc,                 ONLY:PP_N,PP_nElems
-USE MOD_Mesh_Vars,               ONLY:Elem_xGP,XCL_NGeo
+USE MOD_Mesh_Vars,               ONLY:Elem_xGP,XCL_NGeo,offsetElem
 USE MOD_Mesh_Vars,               ONLY:XCL_NGeo,NGeo,XiCL_NGeo
 USE MOD_Interpolation_Vars,      ONLY:xGP
 USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingGuess,RefMappingEps
@@ -877,11 +877,11 @@ CASE(2)
   Winner_Dist=SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP(:,0,0,0,ElemID)),(x_in(:)-Elem_xGP(:,0,0,0,ElemID))))
   Xi(:)=(/xGP(0),xGP(0),xGP(0)/) ! start value
   DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
-    dX=ABS(X_in(1) - Elem_xGP(1,i,j,k,ElemID))
+    dX=ABS(X_in(1) - Elem_xGP(1,i,j,k,ElemID-offsetElem))
     IF(dX.GT.Winner_Dist) CYCLE
-    dY=ABS(X_in(2) - Elem_xGP(2,i,j,k,ElemID))
+    dY=ABS(X_in(2) - Elem_xGP(2,i,j,k,ElemID-offsetElem))
     IF(dY.GT.Winner_Dist) CYCLE
-    dZ=ABS(X_in(3) - Elem_xGP(3,i,j,k,ElemID))
+    dZ=ABS(X_in(3) - Elem_xGP(3,i,j,k,ElemID-offsetElem))
     IF(dZ.GT.Winner_Dist) CYCLE
     Dist=SQRT(dX*dX+dY*dY+dZ*dZ)
     IF (Dist.LT.Winner_Dist) THEN
@@ -894,11 +894,11 @@ CASE(3)
   Winner_Dist=SQRT(DOT_PRODUCT((x_in(:)-XCL_NGeo(:,0,0,0,ElemID)),(x_in(:)-XCL_NGeo(:,0,0,0,ElemID))))
   Xi(:)=(/XiCL_NGeo(0),XiCL_NGeo(0),XiCL_NGeo(0)/) ! start value
   DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
-    dX=ABS(X_in(1) - XCL_NGeo(1,i,j,k,ElemID))
+    dX=ABS(X_in(1) - XCL_NGeo(1,i,j,k,ElemID-offsetElem))
     IF(dX.GT.Winner_Dist) CYCLE
-    dY=ABS(X_in(2) - XCL_NGeo(2,i,j,k,ElemID))
+    dY=ABS(X_in(2) - XCL_NGeo(2,i,j,k,ElemID-offsetElem))
     IF(dY.GT.Winner_Dist) CYCLE
-    dZ=ABS(X_in(3) - XCL_NGeo(3,i,j,k,ElemID))
+    dZ=ABS(X_in(3) - XCL_NGeo(3,i,j,k,ElemID-offsetElem))
     IF(dZ.GT.Winner_Dist) CYCLE
     Dist=SQRT(dX*dX+dY*dY+dZ*dZ)
     IF (Dist.LT.Winner_Dist) THEN
