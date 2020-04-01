@@ -84,6 +84,12 @@ __STAMP__&
   END IF
   chunksize = 0
 #if USE_MPI
+! emission group communicator
+  InitGroup=Species(FractNbr)%Init(iInit)%InitCOMM
+  IF(PartMPI%InitGroup(InitGroup)%COMM.EQ.MPI_COMM_NULL) THEN
+    NbrofParticle=0
+    RETURN
+  END IF
   IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1 .AND. Species(FractNbr)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
     IF (DoExactPartNumInsert) THEN !###$ ToDo
       IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
@@ -158,6 +164,12 @@ REAL,ALLOCATABLE                         :: ProcMeshVol(:)
 INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
 #endif
 !===================================================================================================================================
+IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
+  CALL SetParticlePositionCellLocal(FractNbr,iInit,NbrOfParticle)
+  RETURN
+END IF
+IF ( (NbrOfParticle .LE. 0).AND. (ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.) ) RETURN 
+
 ! emission group communicator
 #if USE_MPI
 InitGroup=Species(FractNbr)%Init(iInit)%InitCOMM
@@ -166,13 +178,6 @@ IF(PartMPI%InitGroup(InitGroup)%COMM.EQ.MPI_COMM_NULL) THEN
   RETURN
 END IF
 #endif /*USE_MPI*/
-
-IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
-  CALL SetParticlePositionCellLocal(FractNbr,iInit,NbrOfParticle)
-  RETURN
-END IF
-IF ( (NbrOfParticle .LE. 0).AND. (ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.) ) RETURN 
-
 DimSend=3 !save (and send) only positions
 nChunks = 1                   ! Standard: Nicht-MPI
 sumOfMatchedParticles = 0
