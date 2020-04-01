@@ -1101,7 +1101,7 @@ IF(DoRestart)THEN
         SWRITE(UNIT_stdOut,*) NbrOfLostParticlesTotal,'were not found and have been removed.'
         SWRITE(UNIT_stdOut,*)'The lost particles have been written to PartStateLost*.h5.'
         SWRITE(UNIT_stdOut,*)'Note that also missing particles will be written to that file and '//&
-                             'it will therefore contain a mix of missing and list particles.'
+                             'it will therefore contain a mix of missing and lost particles.'
       END IF ! SUM(TotalNbrOfMissingParticles).GT.0
 #else /*not USE_MPI*/
       NbrOfLostParticlesTotal=NbrOfLostParticles
