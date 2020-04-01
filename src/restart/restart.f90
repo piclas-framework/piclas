@@ -381,7 +381,7 @@ INTEGER                            :: MaxQuantNum, iPolyatMole, iSpec, iPart, iV
 LOGICAL                            :: CloneExists
 #if USE_MPI
 REAL, ALLOCATABLE                  :: SendBuff(:), RecBuff(:)
-INTEGER                            :: TotalNbrOfLostParticles(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
+INTEGER                            :: TotalNbrOfMissingParticles(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
 INTEGER                            :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PartMPI%nProcs-1)
 INTEGER, ALLOCATABLE               :: SendBuffPoly(:), RecBuffPoly(:)
 INTEGER                            :: LostPartsPoly(0:PartMPI%nProcs-1), DisplacePoly(0:PartMPI%nProcs-1)
@@ -957,14 +957,15 @@ IF(DoRestart)THEN
         END IF ! TriaTracking
       END IF ! DoRefMapping
 #if USE_MPI
-      ! Step 2: All particles that are not found withing MyProc need to be communicated to the others and located there
+      ! Step 2: All particles that are not found within MyProc need to be communicated to the others and located there
       ! Combine number of lost particles of all processes and allocate variables
-      CALL MPI_ALLGATHER(NbrOfLostParticles, 1, MPI_INTEGER, TotalNbrOfLostParticles, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
+      CALL MPI_ALLGATHER(NbrOfLostParticles, 1, MPI_INTEGER, TotalNbrOfMissingParticles, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
       IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) CALL MPI_ALLGATHER(CounterPoly, 1, MPI_INTEGER, LostPartsPoly, 1, MPI_INTEGER, &
                                                                        PartMPI%COMM, IERROR)
-      IF (SUM(TotalNbrOfLostParticles).GT.0) THEN
+      ! Check total number of missing particles and start re-locating them on other procs
+      IF (SUM(TotalNbrOfMissingParticles).GT.0) THEN
         ALLOCATE(SendBuff(1:NbrOfLostParticles*PartDataSize))
-        ALLOCATE(RecBuff(1:SUM(TotalNbrOfLostParticles)*PartDataSize))
+        ALLOCATE(RecBuff(1:SUM(TotalNbrOfMissingParticles)*PartDataSize))
         IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
           ALLOCATE(SendBuffPoly(1:CounterPoly))
           ALLOCATE(RecBuffPoly(1:SUM(LostPartsPoly)))
@@ -1016,15 +1017,15 @@ IF(DoRestart)THEN
         NbrOfMissingParticles = 0
         CounterPoly = 0
         DO i = 0, PartMPI%nProcs-1
-          RecCount(i) = TotalNbrOfLostParticles(i) * PartDataSize
+          RecCount(i) = TotalNbrOfMissingParticles(i) * PartDataSize
           Displace(i) = NbrOfMissingParticles
-          NbrOfMissingParticles = NbrOfMissingParticles + TotalNbrOfLostParticles(i)*PartDataSize
+          NbrOfMissingParticles = NbrOfMissingParticles + TotalNbrOfMissingParticles(i)*PartDataSize
           IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
             DisplacePoly(i) = CounterPoly
             CounterPoly = CounterPoly + LostPartsPoly(i)
           END IF
         END DO ! i = 0, PartMPI%nProcs-1
-        CALL MPI_ALLGATHERV(SendBuff, PartDataSize*TotalNbrOfLostParticles(PartMPI%MyRank), MPI_DOUBLE_PRECISION, &
+        CALL MPI_ALLGATHERV(SendBuff, PartDataSize*TotalNbrOfMissingParticles(PartMPI%MyRank), MPI_DOUBLE_PRECISION, &
             RecBuff, RecCount, Displace, MPI_DOUBLE_PRECISION, PartMPI%COMM, IERROR)
         IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) CALL MPI_ALLGATHERV(SendBuffPoly, LostPartsPoly(PartMPI%MyRank), MPI_INTEGER, &
             RecBuffPoly, LostPartsPoly, DisplacePoly, MPI_INTEGER, PartMPI%COMM, IERROR)
@@ -1033,7 +1034,7 @@ IF(DoRestart)THEN
         CurrentPartNum = PDM%ParticleVecLength+1
         NbrOfMissingParticles = 0
         CounterPoly = 0
-        DO i = 1, SUM(TotalNbrOfLostParticles)
+        DO i = 1, SUM(TotalNbrOfMissingParticles)
           PartState(1:6,CurrentPartNum) = RecBuff(NbrOfMissingParticles+1:NbrOfMissingParticles+6)
           PDM%ParticleInside(CurrentPartNum) = .true.
 
@@ -1090,28 +1091,26 @@ IF(DoRestart)THEN
             IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(CurrentPartNum, PEM%Element(CurrentPartNum), UsePartState_opt=.TRUE.)
           END IF
           NbrOfMissingParticles = NbrOfMissingParticles + PartDataSize
-        END DO ! i = 1, SUM(TotalNbrOfLostParticles)
+        END DO ! i = 1, SUM(TotalNbrOfMissingParticles)
         PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfFoundParts
         ! Combine number of found particles to make sure none are lost completely
         CALL MPI_ALLREDUCE(NbrOfFoundParts, CompleteNbrOfFound, 1, MPI_INTEGER, MPI_SUM, PartMPI%COMM, IERROR)
-        SWRITE(UNIT_stdOut,*) SUM(TotalNbrOfLostParticles),'were not in the correct proc after restart.'
+        NbrOfLostParticlesTotal = SUM(TotalNbrOfMissingParticles)-CompleteNbrOfFound
+        SWRITE(UNIT_stdOut,*) SUM(TotalNbrOfMissingParticles),'were not in the correct proc after restart.'
         SWRITE(UNIT_stdOut,*) CompleteNbrOfFound,'of these were found in other procs.'
-        SWRITE(UNIT_stdOut,*) SUM(TotalNbrOfLostParticles)-CompleteNbrOfFound,'were not found and have been removed.'
-      END IF ! SUM(TotalNbrOfLostParticles).GT.0
-#else
+        SWRITE(UNIT_stdOut,*) NbrOfLostParticlesTotal,'were not found and have been removed.'
+        SWRITE(UNIT_stdOut,*)'The lost particles have been written to PartStateLost*.h5.'
+        SWRITE(UNIT_stdOut,*)'Note that also missing particles will be written to that file and '//&
+                             'it will therefore contain a mix of missing and list particles.'
+      END IF ! SUM(TotalNbrOfMissingParticles).GT.0
+#else /*not USE_MPI*/
+      NbrOfLostParticlesTotal=NbrOfLostParticles
       IF (NbrOfMissingParticles.NE.0) WRITE(*,*) NbrOfMissingParticles,'Particles are in different element after restart!'
-      IF (NbrOfLostParticles   .NE.0) WRITE(*,*) NbrOfLostParticles,'of which could not be found and are removed!. The lost'//&
-                                                                    ' particles have been written to PartStateLost*.h5'
-#endif
-#ifdef PARTICLES
-      IF(CountNbrOfLostParts)THEN
-#if USE_MPI
-        CALL MPI_ALLREDUCE(NbrOfLostParticles , NbrOfLostParticlesTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
-#else
-        NbrOfLostParticlesTotal=NbrOfLostParticles
+      IF (NbrOfLostParticles   .NE.0) THEN
+        WRITE(UNIT_stdOut,*) NbrOfLostParticlesTotal,' could not be found and have been removed!.'
+        WRITE(UNIT_stdOut,*)'The lost particles have been written to PartStateLost*.h5.'
+      END IF ! NbrOfLostParticles.NE.0
 #endif /*USE_MPI*/
-      END IF
-#endif /*PARICLES*/
 
       CALL UpdateNextFreePosition()
 
