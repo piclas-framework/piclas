@@ -302,8 +302,8 @@ USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchan
 USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
 USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
 USE MOD_part_tools,             ONLY : DiceUnitVector
-USE MOD_part_tools                ,ONLY: GetParticleWeight
-USE MOD_MPI_Vars               ,ONLY: OffSetElemMPI
+USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -338,7 +338,7 @@ USE MOD_MPI_Vars               ,ONLY: OffSetElemMPI
   iPart2 = Coll_pData(iPair)%iPart_p2
   iSpec1 = PartSpecies(iPart1)
   iSpec2 = PartSpecies(iPart2)
-  iElem  = PEM%Element(iPart1) - offsetElemMPI(myRank)
+  iElem  = PEM%Element(iPart1) - offSetElem
 
   IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ReducedMass = (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) * Species(iSpec2)%MassIC*GetParticleWeight(iPart2))  &
@@ -593,7 +593,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly, DSMC_VibRelaxPolySingle
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
   USE MOD_part_tools,             ONLY : DiceUnitVector
-USE MOD_MPI_Vars               ,ONLY: OffSetElemMPI
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -630,7 +630,7 @@ USE MOD_MPI_Vars               ,ONLY: OffSetElemMPI
 
   iSpec = PartSpecies(Coll_pData(iPair)%iPart_p1)
   jSpec = PartSpecies(Coll_pData(iPair)%iPart_p2)
-  iElem  = PEM%Element(Coll_pData(iPair)%iPart_p1) - offsetElemMPI(myRank)
+  iElem  = PEM%Element(Coll_pData(iPair)%iPart_p1) - offSetElem
 
   Xi_rel = 2.*(2. - SpecDSMC(iSpec)%omegaVHS) ! DOF of relative motion in VHS model
   FakXi = 0.5*Xi_rel - 1.

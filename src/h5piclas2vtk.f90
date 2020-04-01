@@ -999,7 +999,7 @@ IF (nVarAdd.GT.0) THEN
   SELECT CASE(TRIM(File_Type))
     CASE('State')
       FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution_ElemData',OutputTime))//'.vtu'
-    CASE('DSMCHOState')
+    CASE('DSMCState')
       FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuDSMC',OutputTime))//'.vtu'
   END SELECT
   ! TODO: This is probably borked for NGeo>1 because then NodeCoords are not the corner nodes

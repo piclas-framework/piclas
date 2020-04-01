@@ -738,10 +738,10 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
 USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_Shared
-USE MOD_MPI_Vars               ,ONLY: OffSetElemMPI
 #else
 USE MOD_Mesh_Vars              ,ONLY: ElemVolume_Shared
 #endif /*USE_MPI*/
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -763,7 +763,7 @@ CALL LBStartTime(tLBStart)
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     iSpec = PartSpecies(iPart)
-    iElem = PEM%Element(iPart) - OffSetElemMPI(MyRank)
+    iElem = PEM%Element(iPart) - offSetElem
     partWeight = GetParticleWeight(iPart)
     DSMC_Solution(1:3,iElem,iSpec) = DSMC_Solution(1:3,iElem,iSpec) + PartState(4:6,iPart)*partWeight
     DSMC_Solution(4:6,iElem,iSpec) = DSMC_Solution(4:6,iElem,iSpec) + PartState(4:6,iPart)**2*partWeight
@@ -787,13 +787,13 @@ DO iPart=1,PDM%ParticleVecLength
 END DO
 IF(ConsiderVolumePortions) THEN
   ! DO iElem=1,nElems
-  !   DSMC_VolumeSample(iElem) = DSMC_VolumeSample(iElem) + ElemVolume_Shared(iElem+OffSetElemMPI(MyRank))*(1.-GEO%MPVolumePortion(iElem))
+  !   DSMC_VolumeSample(iElem) = DSMC_VolumeSample(iElem) + ElemVolume_Shared(iElem+offSetElem)*(1.-GEO%MPVolumePortion(iElem))
   ! END DO
   CALL abort(&
 __STAMP__&
   ,' OUTPUT OF MACROBUDDIES NOT IMPLEMENTED YET!')
 ELSE
-  DSMC_VolumeSample(1:nElems) = ElemVolume_Shared(1+OffSetElemMPI(MyRank):nElems+OffSetElemMPI(MyRank))
+  DSMC_VolumeSample(1:nElems) = ElemVolume_Shared(1+offSetElem:nElems+offSetElem)
 END IF
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DSMC,tLBStart)
@@ -819,8 +819,8 @@ USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars         ,ONLY: time,TEnd,iter,dt
 #if USE_MPI
 USE MOD_MPI_Shared_Vars       ,ONLY: ElemMidPoint_Shared
-USE MOD_MPI_Vars              ,ONLY: OffSetElemMPI
 #endif /*USE_MPI*/
+USE MOD_Mesh_Vars             ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -998,8 +998,8 @@ IF (DSMC%CalcQualityFactors) THEN
       IF(VarTimeStep%UseLinearScaling.AND.Symmetry2D) THEN
         ! 2D/Axisymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
         ! midpoint is used to calculate the time step
-        VarTimeStep%ElemFac(iElem) = CalcVarTimeStep(ElemMidPoint_Shared(1,iElem+offsetElemMPI(myRank)), &
-                                                     ElemMidPoint_Shared(2,iElem+offsetElemMPI(myRank)))
+        VarTimeStep%ElemFac(iElem) = CalcVarTimeStep(ElemMidPoint_Shared(1,iElem+offSetElem), &
+                                                     ElemMidPoint_Shared(2,iElem+offSetElem))
       END IF
       DSMC_MacroVal(nVarCount+1,iElem) = VarTimeStep%ElemFac(iElem)
       nVarCount = nVarCount + 1

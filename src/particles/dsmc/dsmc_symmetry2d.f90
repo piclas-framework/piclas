@@ -385,7 +385,7 @@ USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPar
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
-USE MOD_MPI_Vars                ,ONLY: OffSetElemMPI
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -454,7 +454,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PartSpecies(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Species
   ElemID = ClonedParticles(iPart,DelayCounter)%Element
   ! Set the global element number with the offset
-  PEM%Element(PositionNbr) = ElemID + offsetElemMPI(myRank)
+  PEM%Element(PositionNbr) = ElemID + offSetElem
   PEM%lastElement(PositionNbr) = PEM%Element(PositionNbr)
   LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor

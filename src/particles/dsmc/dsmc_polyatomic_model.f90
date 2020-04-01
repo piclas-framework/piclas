@@ -190,7 +190,7 @@ USE MOD_Globals               ,ONLY: Abort, myRank
   USE MOD_Particle_Vars,        ONLY : Adaptive_MacroVal, PEM, Species
   USE MOD_Particle_Boundary_Vars,ONLY: PartBound
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
-USE MOD_MPI_Vars              ,ONLY: OffSetElemMPI
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -207,7 +207,7 @@ USE MOD_MPI_Vars              ,ONLY: OffSetElemMPI
   INTEGER                       :: ElemID
   REAL                          :: pressure
 !===================================================================================================================================
-ElemID = PEM%Element(iPart) - offsetElemMPI(myRank)
+ElemID = PEM%Element(iPart) - offSetElem
   SELECT CASE (init_or_sf)
     CASE(1) !iInit
       IF (Species(iSpecies)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
@@ -314,7 +314,7 @@ USE MOD_Globals               ,ONLY: Abort, myRank
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
   USE MOD_Particle_Vars,        ONLY : PEM, Species
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
-USE MOD_MPI_Vars              ,ONLY: OffSetElemMPI
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -332,7 +332,7 @@ USE MOD_MPI_Vars              ,ONLY: OffSetElemMPI
   REAL                          :: TRot                       ! rotational temperature
 INTEGER                       :: ElemID
 !===================================================================================================================================
-ElemID = PEM%Element(iPart) - offsetElemMPI(myRank)
+ElemID = PEM%Element(iPart) - offSetElem
   SELECT CASE (init_or_sf)
     CASE(1) !iInit
       IF (Species(iSpec)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
@@ -427,7 +427,7 @@ USE MOD_Globals               ,ONLY: Abort, myRank
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
   USE MOD_Particle_Vars,        ONLY : PEM, Species
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
-USE MOD_MPI_Vars              ,ONLY: OffSetElemMPI
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -445,7 +445,7 @@ USE MOD_MPI_Vars              ,ONLY: OffSetElemMPI
   REAL                          :: TRot                       ! rotational temperature
 INTEGER                       :: ElemID
 !===================================================================================================================================
-ElemID = PEM%Element(iPart) - offsetElemMPI(myRank)
+ElemID = PEM%Element(iPart) - offSetElem
   SELECT CASE (init_or_sf)
     CASE(1) !iInit
       IF (Species(iSpec)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
@@ -540,7 +540,7 @@ USE MOD_Globals               ,ONLY: Abort, myRank
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
   USE MOD_Particle_Vars,        ONLY : Species, PEM
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
-USE MOD_MPI_Vars              ,ONLY: OffSetElemMPI
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -558,7 +558,7 @@ USE MOD_MPI_Vars              ,ONLY: OffSetElemMPI
   REAL                          :: TRot                       ! rotational temperature
 INTEGER                       :: ElemID
 !===================================================================================================================================
-ElemID = PEM%Element(iPart) - offsetElemMPI(myRank)
+ElemID = PEM%Element(iPart) - offSetElem
   SELECT CASE (init_or_sf)
     CASE(1) !iInit
       IF (Species(iSpec)%Init(iInitTmp)%ElemTVibFileID.EQ.0) THEN

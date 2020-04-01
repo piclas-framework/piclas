@@ -1432,7 +1432,7 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
   USE MOD_Particle_Vars,         ONLY : Species, PEM, Adaptive_MacroVal
   USE MOD_Particle_Boundary_Vars,ONLY: PartBound
   USE MOD_DSMC_ElectronicModel,  ONLY : InitElectronShell
-USE MOD_MPI_Vars               ,ONLY: OffSetElemMPI
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1452,7 +1452,7 @@ USE MOD_MPI_Vars               ,ONLY: OffSetElemMPI
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set internal energies (vibrational and rotational)
 !-----------------------------------------------------------------------------------------------------------------------------------
-ElemID = PEM%Element(iPart) - offsetElemMPI(myRank)
+ElemID = PEM%Element(iPart) - offSetElem
   IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THEN
     SELECT CASE (init_or_sf)
     CASE(1) !iInit

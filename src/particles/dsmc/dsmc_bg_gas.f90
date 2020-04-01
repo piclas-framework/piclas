@@ -76,7 +76,7 @@ DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
     IF (BGGas%NumberDensity(iSpec).EQ.0.) CALL abort(__STAMP__&
                                           ,'ERROR: NumberDensity is zero but must be defined for a background gas!')
-    IF (Species(iSpec)%NumberOfInits.NE.0) &
+    IF (Species(iSpec)%NumberOfInits.NE.1) &
       CALL abort(&
         __STAMP__&
         ,'ERROR: BGG species can be used ONLY for BGG!')
@@ -161,14 +161,14 @@ SUBROUTINE BGGas_InsertParticles()
 !> 3. Adjust ParticleVecLength and currentNextFreePosition
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort, myRank
+USE MOD_Globals                ,ONLY: Abort
 USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
-USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -204,7 +204,7 @@ __STAMP__&
       CALL DSMC_SetInternalEnr_LauxVFD(iSpec,0,PositionNbr,1)
     END IF
     PEM%Element(PositionNbr) = PEM%Element(iPart)
-    LocalElemID = PEM%Element(PositionNbr) - offsetElemMPI(myRank)
+    LocalElemID = PEM%Element(PositionNbr) - offSetElem
     PDM%ParticleInside(PositionNbr) = .true.
     PEM%pNext(PEM%pEnd(LocalElemID)) = PositionNbr     ! Next Particle of same Elem (Linked List)
     PEM%pEnd(LocalElemID) = PositionNbr
@@ -347,8 +347,8 @@ USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticleVelocity
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 #if USE_MPI
-USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared
 #else
 USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared
@@ -478,7 +478,7 @@ DO iSpec = 1,nSpecies                             ! Loop over all non-background
           ELSE
             CALL DSMC_SetInternalEnr_LauxVFD(jSpec,0,bggPartIndex,1)
           END IF
-          PEM%Element(bggPartIndex) = iElem + offsetElemMPI(myRank)
+          PEM%Element(bggPartIndex) = iElem + offSetElem
           PDM%ParticleInside(bggPartIndex) = .TRUE.
           ! Determine the particle velocity
           CALL CalcVelocity_maxwell_lpn(FractNbr=jSpec, Vec3D=PartState(4:6,bggPartIndex), iInit=0)
