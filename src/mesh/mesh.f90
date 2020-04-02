@@ -795,14 +795,16 @@ USE MOD_PreProc
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Mesh_Vars          ,ONLY: nElems,nGlobalElems,offsetElem,sJ
 USE MOD_Particle_Mesh_Vars ,ONLY: LocalVolume,MeshVolume
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemMPVolumePortion_Shared
 USE MOD_ReadInTools
 #if USE_MPI
 USE MPI
 USE MOD_Globals            ,ONLY: IERROR,MPIRoot
 USE MOD_MPI_Shared         ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeElems,myComputeNodeRank,offsetComputeNodeElem
-USE MOD_MPI_Shared_Vars    ,ONLY: ElemVolume_Shared,ElemVolume_Shared_Win,ElemCharLength_Shared,ElemCharLength_Shared_Win
-USE MOD_MPI_Shared_Vars    ,ONLY: ElemMPVolumePortion_Shared,ElemMPVolumePortion_Shared_Win
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemMPVolumePortion_Shared_Win
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE

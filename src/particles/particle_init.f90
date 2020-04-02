@@ -725,7 +725,7 @@ USE MOD_Surface_Flux               ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
-USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
+!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
 #endif
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
@@ -775,9 +775,9 @@ IF(useBGField) CALL InitializeBackgroundField()
 ! Read-in number of porous boundaries
 nPorousBC = GETINT('Part-nPorousBC', '0')
 
-#if USE_MPI
-CALL InitEmissionParticlesToProcs()
-#endif
+!#if USE_MPI
+!CALL InitEmissionParticlesToProcs()
+!#endif
 
 CALL InitializeParticleEmission()
 CALL InitializeParticleSurfaceflux()
@@ -1204,8 +1204,8 @@ SUBROUTINE InitializeVariablesVarTimeStep()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_Mesh_Vars               ,ONLY: nElems 
-USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking  
+USE MOD_Mesh_Vars               ,ONLY: nElems
+USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
 USE MOD_Particle_VarTimeStep    ,ONLY: VarTimeStep_CalcElemFacs
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1264,7 +1264,7 @@ USE MOD_Particle_Vars
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSeed, nRandomSeeds, SeedSize
-CHARACTER(32)         :: hilf 
+CHARACTER(32)         :: hilf
 !===================================================================================================================================
 !--- initialize randomization
 ! Read print flags
@@ -1316,7 +1316,7 @@ SUBROUTINE InitializeVariablesMacroscopicRestart()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_Mesh_Vars              ,ONLY: nElems  
+USE MOD_Mesh_Vars              ,ONLY: nElems
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2098,11 +2098,9 @@ USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_shared
 #if USE_MPI
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
-USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_shared
-#else
-USE MOD_Mesh_Vars              ,ONLY: ElemVolume_shared
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -2392,7 +2390,7 @@ __STAMP__&
 __STAMP__&
           ,' Calculating height from v and dt is not supported for initial ParticleInserting!')
     END IF
-    
+
     !--- integer check for ParticleEmissionType 2
     IF((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &
          ((Species(iSpec)%Init(iInit)%ParticleEmission-INT(Species(iSpec)%Init(iInit)%ParticleEmission)).NE.0)) THEN
@@ -3161,9 +3159,9 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars
-#if USE_MPI
-USE MOD_Particle_MPI_Emission      ,ONLY: FinalizeEmissionParticlesToProcs
-#endif
+!#if USE_MPI
+!USE MOD_Particle_MPI_Emission      ,ONLY: FinalizeEmissionParticlesToProcs
+!#endif
 !USE MOD_DSMC_Vars,                  ONLY: SampDSMC
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -3173,9 +3171,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-#if USE_MPI
-CALL FinalizeEmissionParticlesToProcs()
-#endif
+!#if USE_MPI
+!CALL FinalizeEmissionParticlesToProcs()
+!#endif
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 SDEALLOCATE( Pt_temp)

@@ -26,71 +26,71 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-INTERFACE InitEmissionParticlesToProcs
-  MODULE PROCEDURE InitEmissionParticlesToProcs
-END INTERFACE
+!INTERFACE InitEmissionParticlesToProcs
+!  MODULE PROCEDURE InitEmissionParticlesToProcs
+!END INTERFACE
 
 INTERFACE SendEmissionParticlesToProcs
   MODULE PROCEDURE SendEmissionParticlesToProcs
 END INTERFACE
 
-INTERFACE FinalizeEmissionParticlesToProcs
-  MODULE PROCEDURE FinalizeEmissionParticlesToProcs
-END INTERFACE
+!INTERFACE FinalizeEmissionParticlesToProcs
+!  MODULE PROCEDURE FinalizeEmissionParticlesToProcs
+!END INTERFACE
 
 !===================================================================================================================================
-PUBLIC :: InitEmissionParticlesToProcs
+!PUBLIC :: InitEmissionParticlesToProcs
 PUBLIC :: SendEmissionParticlesToProcs
-PUBLIC :: FinalizeEmissionParticlesToProcs
+!PUBLIC :: FinalizeEmissionParticlesToProcs
 !===================================================================================================================================
 CONTAINS
 
 
-SUBROUTINE InitEmissionParticlesToProcs()
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Initializes the MPI communication during particle emission
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIInsert,PartMPILocate
-USE MOD_Particle_MPI_Vars      ,ONLY: EmissionSendBuf,EmissionRecvBuf
-USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: i,iInit,InitGroup
-INTEGER                       :: ALLOCSTAT
-!===================================================================================================================================
-DO i = 1,nSpecies
-  DO iInit = 1, Species(i)%NumberOfInits
-    InitGroup = Species(i)%Init(iInit)%InitCOMM
-
-    ! Arrays for communication of particles not located in final element
-    ALLOCATE( PartMPIInsert%nPartsSend  (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-            , PartMPIInsert%nPartsRecv  (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-            , PartMPIInsert%SendRequest (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-            , PartMPIInsert%RecvRequest (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-            , PartMPIInsert%send_message(  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-            , STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) &
-      CALL ABORT(__STAMP__,' Cannot allocate particle emission MPI arrays! ALLOCSTAT',ALLOCSTAT)
-
-    ALLOCATE( PartMPILocate%nPartsSend (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-            , PartMPILocate%nPartsRecv (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-            , PartMPILocate%SendRequest(2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-            , PartMPILocate%RecvRequest(2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-            , EmissionRecvBuf          (  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-            , EmissionSendBuf          (  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-            , STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) &
-      CALL ABORT(__STAMP__,' Cannot allocate particle emission MPI arrays! ALLOCSTAT',ALLOCSTAT)
-  END DO
-END DO
-
-END SUBROUTINE InitEmissionParticlesToProcs
+!SUBROUTINE InitEmissionParticlesToProcs()
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! Initializes the MPI communication during particle emission
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! MODULES                                                                                                                          !
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!USE MOD_Globals
+!USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIInsert,PartMPILocate
+!USE MOD_Particle_MPI_Vars      ,ONLY: EmissionSendBuf,EmissionRecvBuf
+!USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!IMPLICIT NONE
+!! INPUT / OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER                       :: i,iInit,InitGroup
+!INTEGER                       :: ALLOCSTAT
+!!===================================================================================================================================
+!DO i = 1,nSpecies
+!  DO iInit = 1, Species(i)%NumberOfInits
+!    InitGroup = Species(i)%Init(iInit)%InitCOMM
+!
+!    ! Arrays for communication of particles not located in final element
+!    ALLOCATE( PartMPIInsert%nPartsSend  (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+!            , PartMPIInsert%nPartsRecv  (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+!            , PartMPIInsert%SendRequest (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+!            , PartMPIInsert%RecvRequest (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+!            , PartMPIInsert%send_message(  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+!            , STAT=ALLOCSTAT)
+!    IF (ALLOCSTAT.NE.0) &
+!      CALL ABORT(__STAMP__,' Cannot allocate particle emission MPI arrays! ALLOCSTAT',ALLOCSTAT)
+!
+!    ALLOCATE( PartMPILocate%nPartsSend (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+!            , PartMPILocate%nPartsRecv (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+!            , PartMPILocate%SendRequest(2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+!            , PartMPILocate%RecvRequest(2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+!            , EmissionRecvBuf          (  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+!            , EmissionSendBuf          (  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+!            , STAT=ALLOCSTAT)
+!    IF (ALLOCSTAT.NE.0) &
+!      CALL ABORT(__STAMP__,' Cannot allocate particle emission MPI arrays! ALLOCSTAT',ALLOCSTAT)
+!  END DO
+!END DO
+!
+!END SUBROUTINE InitEmissionParticlesToProcs
 
 
 SUBROUTINE SendEmissionParticlesToProcs(chunkSize,DimSend,FractNbr,iInit,mySumOfMatchedParticles,particle_positions)
@@ -101,9 +101,9 @@ SUBROUTINE SendEmissionParticlesToProcs(chunkSize,DimSend,FractNbr,iInit,mySumOf
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_MPI_Shared_Vars        ,ONLY: ElemInfo_Shared,ElemToProcID_Shared
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement,SinglePointToElement
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,ElemToProcID_Shared
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems, FIBGM_offsetElem, FIBGM_Element
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIInsert,PartMPILocate
@@ -138,6 +138,26 @@ INTEGER                       :: nRecvParticles,nSendParticles
 REAL,ALLOCATABLE              :: recvPartPos(:)
 !===================================================================================================================================
 InitGroup = Species(FractNbr)%Init(iInit)%InitCOMM
+
+! Arrays for communication of particles not located in final element
+ALLOCATE( PartMPIInsert%nPartsSend  (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+        , PartMPIInsert%nPartsRecv  (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+        , PartMPIInsert%SendRequest (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+        , PartMPIInsert%RecvRequest (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+        , PartMPIInsert%send_message(  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+        , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) &
+  CALL ABORT(__STAMP__,' Cannot allocate particle emission MPI arrays! ALLOCSTAT',ALLOCSTAT)
+
+ALLOCATE( PartMPILocate%nPartsSend (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+        , PartMPILocate%nPartsRecv (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+        , PartMPILocate%SendRequest(2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+        , PartMPILocate%RecvRequest(2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+        , EmissionRecvBuf          (  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+        , EmissionSendBuf          (  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+        , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) &
+  CALL ABORT(__STAMP__,' Cannot allocate particle emission MPI arrays! ALLOCSTAT',ALLOCSTAT)
 
 PartMPIInsert%nPartsSend=0
 PartMPIInsert%nPartsRecv=0
@@ -559,47 +579,59 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   SDEALLOCATE(EmissionRecvBuf(iProc)%content)
   SDEALLOCATE(EmissionSendBuf(iProc)%content)
 END DO
+SDEALLOCATE(PartMPIInsert%nPartsSend)
+SDEALLOCATE(PartMPIInsert%nPartsRecv)
+SDEALLOCATE(PartMPIInsert%SendRequest)
+SDEALLOCATE(PartMPIInsert%RecvRequest)
+SDEALLOCATE(PartMPIInsert%send_message)
+
+SDEALLOCATE(PartMPILocate%nPartsSend)
+SDEALLOCATE(PartMPILocate%nPartsRecv)
+SDEALLOCATE(PartMPILocate%SendRequest)
+SDEALLOCATE(PartMPILocate%RecvRequest)
+SDEALLOCATE(EmissionRecvBuf)
+SDEALLOCATE(EmissionSendBuf)
 
 END SUBROUTINE SendEmissionParticlesToProcs
 
 
-SUBROUTINE FinalizeEmissionParticlesToProcs()
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Finalizes the MPI communication during particle emission
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIInsert,PartMPILocate
-USE MOD_Particle_MPI_Vars      ,ONLY: EmissionSendBuf,EmissionRecvBuf
-USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: i,iInit,InitGroup
-!===================================================================================================================================
-DO i = 1,nSpecies
-  DO iInit = 1, Species(i)%NumberOfInits
-    InitGroup = Species(i)%Init(iInit)%InitCOMM
-
-    ! Arrays for communication of particles not located in final element
-    SDEALLOCATE(PartMPIInsert%nPartsSend)
-    SDEALLOCATE(PartMPIInsert%nPartsRecv)
-    SDEALLOCATE(PartMPIInsert%SendRequest)
-    SDEALLOCATE(PartMPIInsert%RecvRequest)
-    SDEALLOCATE(PartMPIInsert%send_message)
-    SDEALLOCATE(PartMPILocate%nPartsSend)
-    SDEALLOCATE(PartMPILocate%nPartsRecv)
-    SDEALLOCATE(PartMPILocate%SendRequest)
-    SDEALLOCATE(PartMPILocate%RecvRequest)
-    SDEALLOCATE(EmissionRecvBuf)
-    SDEALLOCATE(EmissionSendBuf)
-  END DO
-END DO
-
-END SUBROUTINE FinalizeEmissionParticlesToProcs
+!SUBROUTINE FinalizeEmissionParticlesToProcs()
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! Finalizes the MPI communication during particle emission
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! MODULES                                                                                                                          !
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!USE MOD_Globals
+!USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIInsert,PartMPILocate
+!USE MOD_Particle_MPI_Vars      ,ONLY: EmissionSendBuf,EmissionRecvBuf
+!USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!IMPLICIT NONE
+!! INPUT / OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER                       :: i,iInit,InitGroup
+!!===================================================================================================================================
+!DO i = 1,nSpecies
+!  DO iInit = 1, Species(i)%NumberOfInits
+!    InitGroup = Species(i)%Init(iInit)%InitCOMM
+!
+!    ! Arrays for communication of particles not located in final element
+!    SDEALLOCATE(PartMPIInsert%nPartsSend)
+!    SDEALLOCATE(PartMPIInsert%nPartsRecv)
+!    SDEALLOCATE(PartMPIInsert%SendRequest)
+!    SDEALLOCATE(PartMPIInsert%RecvRequest)
+!    SDEALLOCATE(PartMPIInsert%send_message)
+!    SDEALLOCATE(PartMPILocate%nPartsSend)
+!    SDEALLOCATE(PartMPILocate%nPartsRecv)
+!    SDEALLOCATE(PartMPILocate%SendRequest)
+!    SDEALLOCATE(PartMPILocate%RecvRequest)
+!    SDEALLOCATE(EmissionRecvBuf)
+!    SDEALLOCATE(EmissionSendBuf)
+!  END DO
+!END DO
+!
+!END SUBROUTINE FinalizeEmissionParticlesToProcs
 
 #endif /*USE_MPI*/
 

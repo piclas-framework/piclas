@@ -47,7 +47,7 @@ SUBROUTINE SetParticlePositionCellLocal(FractNbr,iInit,NbrOfParticle)
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species,Symmetry2DAxisymmetric
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
-USE MOD_part_emission_tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition
+USE MOD_part_Emission_Tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
@@ -168,7 +168,7 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
   CALL SetParticlePositionCellLocal(FractNbr,iInit,NbrOfParticle)
   RETURN
 END IF
-IF ( (NbrOfParticle .LE. 0).AND. (ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.) ) RETURN 
+IF ( (NbrOfParticle .LE. 0).AND. (ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.) ) RETURN
 
 ! emission group communicator
 #if USE_MPI
@@ -178,7 +178,7 @@ IF(PartMPI%InitGroup(InitGroup)%COMM.EQ.MPI_COMM_NULL) THEN
   RETURN
 END IF
 #endif /*USE_MPI*/
-DimSend=3 !save (and send) only positions
+DimSend = 3 !save (and send) only positions
 nChunks = 1                   ! Standard: Nicht-MPI
 sumOfMatchedParticles = 0
 mySumOfMatchedParticles = 0
