@@ -51,11 +51,7 @@ USE MOD_part_tools,             ONLY: GetParticleWeight
 #if (PP_TimeDiscMethod==42)
 USE MOD_Particle_Vars,          ONLY: nSpecies
 #endif
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared
-#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

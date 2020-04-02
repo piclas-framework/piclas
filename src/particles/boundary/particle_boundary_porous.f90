@@ -409,8 +409,8 @@ USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, nPorousBC, PorousBC, SampWall
 USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal, usevMPF, VarTimeStep
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Timedisc_Vars,          ONLY:dt
+USE MOD_Particle_Mesh_Vars
 #if USE_MPI
-USE MOD_MPI_Shared_Vars
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING

@@ -330,9 +330,9 @@ SUBROUTINE SendNbOfParticles(doParticle_In)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_MPI_Shared_Vars        ,ONLY: ElemInfo_Shared
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIExchange,PartTargetProc!,PartHaloElemToProc
 USE MOD_Particle_MPI_Vars,      ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping

@@ -229,11 +229,7 @@ USE MOD_DSMC_Analyze        ,ONLY: CalcGammaVib
 USE MOD_DSMC_Vars           ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
 USE MOD_DSMC_Vars           ,ONLY: VarVibRelaxProb
 USE MOD_Particle_Vars       ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species
-#if USE_MPI
-USE MOD_MPI_Shared_Vars     ,ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars           ,ONLY: ElemVolume_Shared
-#endif
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -348,11 +344,7 @@ USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticleVelocity
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared
-#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

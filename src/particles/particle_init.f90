@@ -2098,11 +2098,9 @@ USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_shared
 #if USE_MPI
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
-USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_shared
-#else
-USE MOD_Mesh_Vars              ,ONLY: ElemVolume_shared
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE

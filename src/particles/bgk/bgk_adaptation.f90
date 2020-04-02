@@ -58,11 +58,7 @@ USE MOD_Particle_Vars           ,ONLY: PEM, PartState, PartPosRef,Species,WriteM
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping
 USE MOD_Part_tools              ,ONLY: GetParticleWeight
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
-#if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars               ,ONLY: ElemVolume_Shared
-#endif
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -559,11 +555,7 @@ USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, 
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, Species,WriteMacroVolumeValues, usevMPF
 USE MOD_Part_tools              ,ONLY: GetParticleWeight
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
-#if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars               ,ONLY: ElemVolume_Shared
-#endif
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

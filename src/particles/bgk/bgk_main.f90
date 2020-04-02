@@ -53,11 +53,7 @@ USE MOD_Mesh_Vars           ,ONLY: nElems
 USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues, Symmetry2D, usevMPF
 USE MOD_Part_Tools          ,ONLY: GetParticleWeight
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
-#if USE_MPI
-USE MOD_MPI_Shared_Vars     ,ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars           ,ONLY: ElemVolume_Shared
-#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -165,11 +161,7 @@ USE MOD_Part_Tools          ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry2D
 USE MOD_Restart_Vars        ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
-#if USE_MPI
-USE MOD_MPI_Shared_Vars     ,ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars           ,ONLY: ElemVolume_Shared
-#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -57,7 +57,7 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem!,TensorProductInterpo
 USE MOD_MacroBody_Vars         ,ONLY: ElemHasMacroBody, CalcMPVolumePortion
 USE MOD_MacroBody_Vars         ,ONLY: MacroSphere, nMacroBody, UseMacroBody
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
-!USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems, GEO
+USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo!, wBaryCL_NGeo, XiCL_NGeo
 USE MOD_Mesh_Vars              ,ONLY: NGeo, nElems
@@ -153,8 +153,13 @@ IF (MAXVAL(ABS(MacroSphere(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroSphere(:)%
     END DO ! iBGM
 
     ! loop over all elements that have a MP in BGM and find those which are in a certain safety radius
+#if USE_MPI
     DO iElem=1,nComputeNodeTotalElems
       GlobalElemID = CNTotalElem2GlobalElem(iElem)
+#else
+    DO iElem=1,nElems
+      GlobalElemID = iElem
+#endif
       IF (ElemHasMacroBody(GlobalElemID,iMB)) THEN
         ! check with all 3 element diagonals wether macroparticle is smaller than element
         BoundsDiagonalVec(1:3)=BoundsOfElem_Shared(2,1:3,GlobalElemID)-BoundsOfElem_Shared(1,1:3,GlobalElemID)

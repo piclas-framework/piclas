@@ -831,16 +831,12 @@ USE MOD_MacroBody_Tools        ,ONLY: INSIDEMACROBODY
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, ElemEpsOneCell
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemEpsOneCell
+USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
-#if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
-#else
-USE MOD_Mesh_Vars              ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

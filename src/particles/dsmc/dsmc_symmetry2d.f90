@@ -81,12 +81,10 @@ USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 #if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared,ElemVolume_Shared_Win,ElemCharLength_Shared,ElemCharLength_Shared_Win
-USE MOD_MPI_Shared_Vars         ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
-#else
-USE MOD_Mesh_Vars               ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
-USE MOD_Mesh_Vars               ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -486,11 +484,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: Pi
 USE MOD_Particle_Vars         ,ONLY: Symmetry2DAxisymmetric
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
-#if USE_MPI
-USE MOD_MPI_Shared_Vars       ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
-#else
-USE MOD_Mesh_Vars             ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
-#endif
+USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -546,11 +540,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars              ,ONLY: Pi
 USE MOD_Particle_Mesh_Vars        ,ONLY: GEO
 USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting
-#if USE_MPI
-USE MOD_MPI_Shared_Vars           ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
-#else
-USE MOD_Mesh_Vars                 ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
-#endif
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -605,9 +595,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: Species, PEM
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-#if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: ElemMidPoint_Shared
-#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

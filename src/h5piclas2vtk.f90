@@ -940,7 +940,7 @@ USE MOD_Mesh_ReadIn,            ONLY: readMesh
 USE MOD_Mesh_Vars,              ONLY: NGeo, nElems, nNodes, offsetElem
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 #if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY: ElemNodeID_Shared,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars,     ONLY: ElemNodeID_Shared,NodeCoords_Shared
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1028,7 +1028,7 @@ USE MOD_Mesh_ReadIn,            ONLY: readMesh
 USE MOD_Mesh_Vars,              ONLY: NGeo, SurfConnect
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 #if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY: ElemNodeID_Shared,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars,     ONLY: ElemNodeID_Shared,NodeCoords_Shared
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1127,11 +1127,7 @@ USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,G
 USE MOD_Mesh_ReadIn,            ONLY: readMesh
 USE MOD_Mesh_Vars,              ONLY: SurfConnect, nSides, SideToElem, BC, BoundaryName
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY: ElemSideNodeID_Shared
-#else
-USE MOD_Mesh_Vars,              ONLY: ElemSideNodeID_Shared
-#endif
+USE MOD_Particle_Mesh_Vars,     ONLY: ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

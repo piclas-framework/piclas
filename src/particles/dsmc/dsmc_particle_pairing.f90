@@ -602,11 +602,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY : GetParticleWeight
-#if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
-#else
-USE MOD_Mesh_Vars               ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
-#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -861,11 +857,7 @@ USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, VarVibRelaxProb
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies
 USE MOD_Part_tools              ,ONLY: GetParticleWeight
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared,ElemCharLength_Shared
-#else
-USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared,ElemCharLength_Shared
-#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-------------------------------------------------------  ----------------------------------------------------------------------------
@@ -1451,11 +1443,9 @@ USE MOD_DSMC_Vars          ,ONLY: tNodeVolume, tTreeNode
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_MacroBody_Vars     ,ONLY: UseMacroBody, MacroSphere
 USE MOD_MacroBody_tools    ,ONLY: INSIDEMACROBODY
+USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Particle_Vars      ,ONLY: nPointsMCVolumeEstimate
-#if USE_MPI
-USE MOD_MPI_Shared_Vars
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2362,11 +2352,7 @@ SUBROUTINE GeoCoordToMap2D(x_in,xi_Out,iElem)
 ! MODULES
 !USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_DSMC_Vars             ,ONLY: SymmetrySide
-#if USE_MPI
-USE MOD_MPI_Shared_Vars       ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
-#else
-USE MOD_Mesh_Vars             ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
-#endif
+USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2451,11 +2437,7 @@ FUNCTION MapToGeo2D(xi,iElem)
 ! MODULES
 !USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
-#if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
-#else
-USE MOD_Mesh_Vars               ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
-#endif
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

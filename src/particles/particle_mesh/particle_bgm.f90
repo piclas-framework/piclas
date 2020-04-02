@@ -60,6 +60,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem,nGlobalElems
 USE MOD_Partilce_Periodic_BC   ,ONLY: InitPeriodicBC
+USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,FIBGM_nElems,FIBGM_Element,FIBGM_offsetElem
 USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance
 USE MOD_Equation_Vars          ,ONLY: c
@@ -78,9 +79,6 @@ USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType, r_sf
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 USE MOD_Particle_Vars          ,ONLY: manualtimestep
-#else
-USE MOD_Mesh_Vars              ,ONLY: NodeCoords, ElemToBGM_Shared,BoundsOfElem_Shared,NodeCoords_Shared
-USE MOD_Mesh_Vars              ,ONLY: ElemInfo_Shared,SideInfo_Shared, NodeInfo_Shared
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -688,7 +686,7 @@ ELSE
       nComputeNodeTotalElems = nComputeNodeTotalElems + 1
       CNTotalElem2GlobalElem(nComputeNodeTotalElems) = iElem
       GlobalElem2CNTotalElem(iElem) = nComputeNodeTotalElems
-      nComputeNodeTotalSides = nComputeNodeTotalElems &
+      nComputeNodeTotalSides = nComputeNodeTotalSides &
                              + (ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) - ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem))
       nComputeNodeTotalNodes = nComputeNodeTotalNodes &
                              + (ElemInfo_Shared(ELEM_LASTNODEIND,iElem) - ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem))
@@ -699,7 +697,7 @@ ELSE
       nComputeNodeTotalElems = nComputeNodeTotalElems + 1
       CNTotalElem2GlobalElem(nComputeNodeTotalElems) = iElem
       GlobalElem2CNTotalElem(iElem) = nComputeNodeTotalElems
-      nComputeNodeTotalSides = nComputeNodeTotalElems &
+      nComputeNodeTotalSides = nComputeNodeTotalSides &
                              + (ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) - ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem))
       nComputeNodeTotalNodes = nComputeNodeTotalNodes &
                              + (ElemInfo_Shared(ELEM_LASTNODEIND,iElem) - ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem))

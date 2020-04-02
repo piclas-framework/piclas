@@ -67,10 +67,7 @@ SUBROUTINE IntersectionWithWall(PartTrajectory,alpha,iPart,iLocSide,Element,TriN
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars,          ONLY : lastPartPos,PartState
-!USE MOD_Particle_Mesh_Vars,     ONLY : GEO
-#if USE_MPI
-USE MOD_MPI_Shared_Vars
-#endif
+USE MOD_Particle_Mesh_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -736,12 +736,8 @@ USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
-#if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars              ,ONLY: ElemVolume_Shared
-#endif /*USE_MPI*/
-USE MOD_Mesh_Vars               ,ONLY: offSetElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -817,9 +813,7 @@ USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, WriteMacroVolumeValues, 
 USE MOD_Particle_VarTimeStep  ,ONLY: CalcVarTimeStep
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars         ,ONLY: time,TEnd,iter,dt
-#if USE_MPI
-USE MOD_MPI_Shared_Vars       ,ONLY: ElemMidPoint_Shared
-#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemMidPoint_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -370,6 +370,7 @@ SUBROUTINE DepositionMethod_NBC(FirstPart,LastPart,DoInnerParts,doPartInExists,d
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc            ,ONLY: PP_nElems
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_PICDepo_Vars       ,ONLY: PartSource
@@ -381,11 +382,6 @@ USE MOD_Part_Tools         ,ONLY: isDepositParticle
 #if ((USE_HDG) && (PP_nVar==1))
 USE MOD_TimeDisc_Vars      ,ONLY: dt,tAnalyzeDiff,tEndDiff
 #endif
-#if USE_MPI
-USE MOD_MPI_Shared_Vars    ,ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars          ,ONLY: ElemVolume_Shared
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -650,9 +646,9 @@ USE MOD_Mesh_Vars          ,ONLY: nElems, nNodes
 USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExtTmp,NodeSourceExt,CellLocNodes_Volumes,DepositionType
 #if USE_MPI
-USE MOD_MPI_Shared_Vars
 USE MOD_Particle_MPI       ,ONLY: AddHaloNodeData
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE

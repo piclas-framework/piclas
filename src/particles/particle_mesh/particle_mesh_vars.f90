@@ -54,12 +54,139 @@ REAL,ALLOCPOINT,DIMENSION(:,:)           :: SideBCMetrics(:,:) ! Metrics for BC 
 REAL,ALLOCPOINT,DIMENSION(:,:,:,:)       :: ElemsJ             !< 1/DetJac for each Gauss Point
 REAL,ALLOCPOINT,DIMENSION(:)             :: ElemEpsOneCell     ! tolerance for particle in inside ref element 1+epsinCell
 
+! Shared arrays containing information for complete mesh
+INTEGER,ALLOCPOINT :: ElemToProcID_Shared(:)
+INTEGER,ALLOCPOINT :: ElemToTree_Shared(:)
+INTEGER,ALLOCPOINT :: ElemInfo_Shared(:,:)
+INTEGER,ALLOCPOINT :: SideInfo_Shared(:,:)
+INTEGER,ALLOCPOINT :: NodeInfo_Shared(:)
+REAL,ALLOCPOINT    :: NodeCoords_Shared(:,:)
+REAL,ALLOCPOINT    :: TreeCoords_Shared(:,:,:,:,:)
 
+REAL,ALLOCPOINT    :: xiMinMax_Shared(:,:,:)
 
+INTEGER,ALLOCPOINT :: ElemToBCSides_Shared(:,:)            !> Mapping from elem to BC sides within halo eps
+REAL,ALLOCPOINT    :: SideBCMetrics_Shared(:,:)            !> Metrics for BC sides, see piclas.h
+                                                           !> 1 - Global SideID
+                                                           !> 2 - ElemID for BC side (non-unique)
+                                                           !> 3 - Distance from BC side to element origin
+                                                           !> 4 - Radius of BC Side
+                                                        !> 5 - Origin of BC Side, x-coordinate
+                                                        !> 6 - Origin of BC Side, y-coordinate
+                                                        !> 7 - Origin of BC Side, z-coordinate
 
+INTEGER,ALLOCPOINT :: ElemToBGM_Shared(:,:)                !> BGM Bounding box around element (respective BGM indices) of compute node
+INTEGER,ALLOCPOINT :: FIBGM_nElems_Shared(:,:,:)           !> FastInitBackgroundMesh of compute node
+INTEGER,ALLOCPOINT :: FIBGM_Element_Shared(:)              !> FastInitBackgroundMesh of compute node
+INTEGER,ALLOCPOINT :: FIBGM_offsetElem_Shared(:,:,:)
 
+REAL,ALLOCPOINT    :: BoundsOfElem_Shared(:,:,:)           !> Cartesian bounding box around element
 
+REAL,ALLOCPOINT    :: XCL_NGeo_Array(:)                          !> 1D array, pointer changes to proper array bounds
+REAL,ALLOCPOINT    :: dXCL_NGeo_Array(:)                         !> 1D array, pointer changes to proper array bounds
+REAL,ALLOCPOINT    :: BezierControlPoints3D_Shared(:)            !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
+REAL,ALLOCPOINT    :: BezierControlPoints3DElevated_Shared(:)    !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
+REAL,ALLOCPOINT    :: ElemsJ_Shared(:)                           !> 1/DetJac for each Gauss Point. 1D array, pointer changes to proper array bounds
+REAL,ALLOCPOINT    :: ElemEpsOneCell_Shared(:)                   !> tolerance for particle in inside ref element 1+epsinCell
 
+REAL,ALLOCPOINT    :: ElemBaryNGeo_Shared(:,:)
+REAL,ALLOCPOINT    :: ElemRadiusNGeo_Shared(:)
+REAL,ALLOCPOINT    :: ElemRadius2NGeo_Shared(:)
+REAL,ALLOCPOINT    :: XiEtaZetaBasis_Shared(:,:,:)
+REAL,ALLOCPOINT    :: slenXiEtaZetaBasis_Shared(:,:)
+
+LOGICAL,ALLOCPOINT :: ElemCurved_Shared(:)                 !> Flag if an element is curved
+LOGICAL,ALLOCPOINT :: ConcaveElemSide_Shared(:,:)
+INTEGER,ALLOCPOINT :: ElemNodeID_Shared(:,:)               !> Contains the 8 corner nodes of an element, important for NGeo > 1
+INTEGER,ALLOCPOINT :: ElemSideNodeID_Shared(:,:,:)         !> Contains the 4 corner nodes of the local sides in an element
+REAL,ALLOCPOINT    :: ElemMidPoint_Shared(:,:)
+
+REAL,ALLOCPOINT    :: SideSlabNormals_Shared(:,:,:)
+REAL,ALLOCPOINT    :: SideSlabIntervals_Shared(:,:)
+LOGICAL,ALLOCPOINT :: BoundingBoxIsEmpty_Shared(:)
+
+INTEGER,ALLOCPOINT :: SideType_Shared(:)
+REAL,ALLOCPOINT    :: SideDistance_Shared(:)
+REAL,ALLOCPOINT    :: SideNormVec_Shared(:,:)
+
+REAL,ALLOCPOINT    :: BaseVectors0_Shared(:,:)
+REAL,ALLOCPOINT    :: BaseVectors1_Shared(:,:)
+REAL,ALLOCPOINT    :: BaseVectors2_Shared(:,:)
+REAL,ALLOCPOINT    :: BaseVectors3_Shared(:,:)
+REAL,ALLOCPOINT    :: BaseVectorsScale_Shared(:)
+
+! Shared arrays containing information for mesh on compute node
+REAL,ALLOCPOINT    :: ElemVolume_Shared(:)
+REAL,ALLOCPOINT    :: ElemMPVolumePortion_Shared(:)
+REAL,ALLOCPOINT    :: ElemCharLength_Shared(:)
+REAL,ALLOCPOINT    :: ElemCharLengthX_Shared(:)
+REAL,ALLOCPOINT    :: ElemCharLengthY_Shared(:)
+REAL,ALLOCPOINT    :: ElemCharLengthZ_Shared(:)
+
+#if USE_MPI
+! integers to hold shared memory windows
+INTEGER         :: ElemToProcID_Shared_Win
+INTEGER         :: ElemToTree_Shared_Win
+INTEGER         :: ElemInfo_Shared_Win
+INTEGER         :: SideInfo_Shared_Win
+INTEGER         :: NodeInfo_Shared_Win
+INTEGER         :: NodeCoords_Shared_Win
+INTEGER         :: TreeCoords_Shared_Win
+
+INTEGER         :: xiMinMax_Shared_Win
+
+INTEGER         :: ElemToBCSides_Shared_Win
+INTEGER         :: SideBCMetrics_Shared_Win
+
+INTEGER         :: ElemToBGM_Shared_Win
+INTEGER         :: FIBGM_nElems_Shared_Win
+INTEGER         :: FIBGM_Element_Shared_Win
+INTEGER         :: FIBGM_offsetElem_Shared_Win
+
+INTEGER         :: BoundsOfElem_Shared_Win
+
+INTEGER         :: XCL_NGeo_Shared_Win
+INTEGER         :: dXCL_NGeo_Shared_Win
+INTEGER         :: BezierControlPoints3D_Shared_Win
+INTEGER         :: BezierControlPoints3DElevated_Shared_Win
+INTEGER         :: ElemsJ_Shared_Win
+INTEGER         :: ElemEpsOneCell_Shared_Win
+
+INTEGER         :: ElemBaryNGeo_Shared_Win
+INTEGER         :: ElemRadiusNGeo_Shared_Win
+INTEGER         :: ElemRadius2NGeo_Shared_Win
+INTEGER         :: XiEtaZetaBasis_Shared_Win
+INTEGER         :: slenXiEtaZetaBasis_Shared_Win
+
+INTEGER         :: ElemCurved_Shared_Win
+INTEGER         :: ConcaveElemSide_Shared_Win
+INTEGER         :: ElemNodeID_Shared_Win
+INTEGER         :: ElemSideNodeID_Shared_Win
+INTEGER         :: ElemMidPoint_Shared_Win
+
+INTEGER         :: SideSlabNormals_Shared_Win
+INTEGER         :: SideSlabIntervals_Shared_Win
+INTEGER         :: BoundingBoxIsEmpty_Shared_Win
+
+INTEGER         :: SideType_Shared_Win
+INTEGER         :: SideDistance_Shared_Win
+INTEGER         :: SideNormVec_Shared_Win
+
+INTEGER         :: BaseVectors0_Shared_Win
+INTEGER         :: BaseVectors1_Shared_Win
+INTEGER         :: BaseVectors2_Shared_Win
+INTEGER         :: BaseVectors3_Shared_Win
+INTEGER         :: BaseVectorsScale_Shared_Win
+
+! Shared arrays containing information for mesh on compute node
+INTEGER         :: ElemVolume_Shared_Win
+INTEGER         :: ElemMPVolumePortion_Shared_Win
+INTEGER         :: ElemCharLength_Shared_Win
+INTEGER         :: ElemCharLengthX_Shared_Win
+INTEGER         :: ElemCharLengthY_Shared_Win
+INTEGER         :: ElemCharLengthZ_Shared_Win
+#endif
+! ====================================================================
 
 ! periodic case
 INTEGER, ALLOCATABLE                     :: casematrix(:,:)   ! matrix to compute periodic cases

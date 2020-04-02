@@ -116,13 +116,12 @@ USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping,TriaTracking
 USE MOD_Particle_Vars           ,ONLY:nSpecies, VarTimeStep, Symmetry2D
 USE MOD_PICDepo_Vars            ,ONLY:SFResampleAnalyzeSurfCollis
 USE MOD_PICDepo_Vars            ,ONLY:LastAnalyzeSurfCollis
+USE MOD_Particle_Mesh_Vars      ,ONLY:ElemInfo_Shared,ElemSideNodeID_Shared,NodeCoords_Shared
 #if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY:ElemInfo_Shared,ElemSideNodeID_Shared,NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY:PartElemToElemAndSide
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 !USE MOD_Particle_MPI_Vars       ,ONLY:PartHaloElemToProc
 #else
-USE MOD_Mesh_Vars               ,ONLY:ElemSideNodeID_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY:offSetSurfSide
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -757,7 +756,7 @@ SUBROUTINE GetHaloSurfMapping()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nSides,nBCSides
-USE MOD_MPI_Shared_Vars        ,ONLY: ElemInfo_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh,SurfComm,nSurfSample, nPorousBC, nPorousBCVars,CalcSurfaceImpact
 USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloSideToProc,SurfSendBuf,SurfRecvBuf,SurfExchange!,PartHaloElemToProc
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,PartSideToElem,PartElemToSide
