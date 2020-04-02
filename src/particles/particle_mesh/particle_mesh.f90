@@ -702,7 +702,7 @@ SUBROUTINE InitParticleGeometry()
 USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_Globals
-USE MOD_Mesh_Vars              ,ONLY: NGeo, nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
@@ -810,8 +810,11 @@ IF (myComputeNodeRank.EQ.0) THEN
   ConcaveElemSide_Shared = .FALSE.
 #if USE_MPI
 END IF
+CALL MPI_WIN_SYNC(ElemNodeID_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ElemSideNodeID_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ConcaveElemSide_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
-
 !iNode=0
 !DO iElem=1,nElems
 !  DO jNode=1,8
@@ -853,17 +856,7 @@ DO iElem = firstElem,lastElem
     localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
     ! Find start of CGNS mapping from flip
     nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)-1)
-!    IF(iElem.EQ.1) THEN
-!      SWRITE(*,*) GlobalSideID
-!      SWRITE(*,*) MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)
-!    END IF
     ! Shared memory array starts at 1, but NodeID at 0
-!    IF (iELem.EQ.13) print*,'ARRGGGGGGGGGGGGG', iELem, localSideID, nStart, ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem), GlobalSideID
-!    IF (iELem.EQ.14) print*,'ARRGGGGGGGGGGGGG', iELem, localSideID, nStart, ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem), GlobalSideID
-!    IF (iELem.EQ.25) print*,'ARRGGGGGGGGGGGGG', iELem, localSideID, nStart, ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem), GlobalSideID
-!    IF (iELem.EQ.26) print*,'ARRGGGGGGGGGGGGG', iELem, localSideID, nStart, ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem), GlobalSideID
-!    IF (iELem.EQ.27) print*,'ARRGGGGGGGGGGGGG', iELem, localSideID, nStart, ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem), GlobalSideID
-!    print*,'ARRGGGGGGGGGGGGG', iELem, localSideID, nStart, ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem), GlobalSideID
     ElemSideNodeID_Shared(1:4,localSideID,iElem) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart  ,4)+1,localSideID)-1, &
                                                      ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+1,4)+1,localSideID)-1, &
                                                      ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+2,4)+1,localSideID)-1, &
@@ -876,13 +869,6 @@ CALL MPI_WIN_SYNC(ElemNodeID_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(ElemSideNodeID_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
-!IF (MPIROOT) THEN
-!  DO iELem=1, nGlobalElems
-!    DO localSideID = 1, 6
-!      print*, iELem, localSideID, ElemSideNodeID_Shared(1:4,localSideID,iElem)  
-!    END DO  
-!  END DO
-END IF
 !--- Save whether Side is concave or convex
 DO iElem = firstElem,lastElem
   nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)

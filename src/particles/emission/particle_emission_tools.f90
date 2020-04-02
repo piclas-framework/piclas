@@ -858,7 +858,7 @@ REAL                             :: PartDens
 LOGICAL                          :: InsideFlag
 REAL                             :: Det(6,2)
 REAL                             :: RefPos(1:3)
-INTEGER                          :: CellChunkSize(1:nElems)
+INTEGER                          :: CellChunkSize(1+offsetElem:nElems+offsetElem)
 INTEGER                          :: chunkSize_tmp, ParticleIndexNbr
 REAL                             :: adaptTimestep
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -870,7 +870,8 @@ __STAMP__,&
     END IF
     CellChunkSize(:)=0
     IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
-      CALL IntegerDivide(chunkSize,nElems,ElemVolume_Shared(:),CellChunkSize(:))
+      CALL IntegerDivide(chunkSize,nElems,ElemVolume_Shared(1+offsetElem:nElems+offsetElem) &
+          ,CellChunkSize(1+offsetElem:nElems+offsetElem))
     ELSE
       CALL IntegerDivide(chunkSize,nElems,Species(iSpec)%Init(iInit)%ElemPartDensity(:)*ElemVolume_Shared(:),CellChunkSize(:))
     END IF
@@ -887,18 +888,18 @@ __STAMP__,&
 
   ichunkSize = 1
   ParticleIndexNbr = 1
-  DO iElem = 1, nElems
+  DO iElem = 1+offsetElem, nElems+offsetElem
     !ASSOCIATE( Bounds => GEO%BoundsOfElem(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
-    ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,offsetElem+iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+    ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
       IF (UseExactPartNum) THEN
         nPart = CellChunkSize(iElem)
       ELSE
         IF(RadialWeighting%DoRadialWeighting) THEN
-          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,iElem+offsetElem), iSpec)
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,iElem), iSpec)
         END IF
         CALL RANDOM_NUMBER(iRan)
         IF(VarTimeStep%UseVariableTimeStep) THEN
-          adaptTimestep = CalcVarTimeStep(ElemMidPoint_Shared(1,iElem+offsetElem), ElemMidPoint_Shared(2,iElem+offsetElem), iElem)
+          adaptTimestep = CalcVarTimeStep(ElemMidPoint_Shared(1,iElem), ElemMidPoint_Shared(2,iElem), iElem)
           nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(iElem) + iRan)
         ELSE
           nPart = INT(PartDens * ElemVolume_Shared(iElem) + iRan)

@@ -170,6 +170,11 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
 END IF
 IF ( (NbrOfParticle .LE. 0).AND. (ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.) ) RETURN
 
+DimSend=3 !save (and send) only positions
+nChunks = 1                   ! Standard: Nicht-MPI
+sumOfMatchedParticles = 0
+mySumOfMatchedParticles = 0
+chunkSize = nbrOfParticle
 ! emission group communicator
 #if USE_MPI
 InitGroup=Species(FractNbr)%Init(iInit)%InitCOMM
@@ -177,14 +182,6 @@ IF(PartMPI%InitGroup(InitGroup)%COMM.EQ.MPI_COMM_NULL) THEN
   NbrofParticle=0
   RETURN
 END IF
-#endif /*USE_MPI*/
-DimSend = 3 !save (and send) only positions
-nChunks = 1                   ! Standard: Nicht-MPI
-sumOfMatchedParticles = 0
-mySumOfMatchedParticles = 0
-chunkSize = nbrOfParticle
-! process myRank=0 generates the complete list of random positions for all emitted particles
-#if USE_MPI
 IF ( (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle_equidistant'                 ) .OR.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'sin_deviation'                      ) .OR.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle'                             ) .OR.  &

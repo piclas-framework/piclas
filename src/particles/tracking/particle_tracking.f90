@@ -2678,7 +2678,7 @@ ELSE
     xNode(n) = NodeCoords_Shared(1,ElemSideNodeID_Shared(NodeID,iLocSide,Element)+1)
     yNode(n) = NodeCoords_Shared(2,ElemSideNodeID_Shared(NodeID,iLocSide,Element)+1)
     zNode(n) = NodeCoords_Shared(3,ElemSideNodeID_Shared(NodeID,iLocSide,Element)+1)
-
+    
     Ax(n) = xNode(n) - Px
     Ay(n) = yNode(n) - Py
     Az(n) = zNode(n) - Pz
