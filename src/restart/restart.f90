@@ -311,7 +311,7 @@ USE MOD_Equation_Vars          ,ONLY: Phi
 USE MOD_Restart_Tools          ,ONLY: ReadNodeSourceExtFromHDF5
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
 USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset
-USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition,StoreLostParticleProperties
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartStateIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC,RadialWeighting
 USE MOD_Eval_XYZ               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh          ,ONLY: SingleParticleToExactElement,SingleParticleToExactElementNoMap
