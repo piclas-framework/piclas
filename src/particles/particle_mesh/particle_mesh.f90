@@ -152,7 +152,7 @@ CALL prms%CreateLogicalOption( 'Write-TriaSurfaceFlux-DebugMesh'&
   , '.FALSE.')
 
 CALL prms%CreateLogicalOption( 'DisplayLostParticles'&
-  , 'Display position, velocity, species and hots element of particles lost during particle tracking (TrackingMethod = '//&
+  , 'Display position, velocity, species and host element of particles lost during particle tracking (TrackingMethod = '//&
     'triatracking, tracing)','.FALSE.')
 CALL prms%CreateLogicalOption( 'CountNbrOfLostParts'&
     , 'Count the number of lost particles during tracking that cannot be found with fallbacks. Additionally, the lost particle '//&
