@@ -603,6 +603,7 @@ BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nComputeNodeTotalSides) => BezierContr
 IF (myComputeNodeRank.EQ.0) THEN
   BezierControlPoints3D         = 0.
 END IF
+CALL MPI_WIN_SYNC(BezierControlPoints3D_Shared_Win,IERROR)
 IF (BezierElevation.GT.0) THEN
   MPISharedSize = INT((3*(NGeoElevated+1)**2*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
   CALL Allocate_Shared(MPISharedSize,(/3*(NGeoElevated+1)*(NGeoElevated+1)*nComputeNodeTotalSides/), &
@@ -612,7 +613,9 @@ IF (BezierElevation.GT.0) THEN
   IF (myComputeNodeRank.EQ.0) THEN
     BezierControlPoints3DElevated = 0.
   END IF
+  CALL MPI_WIN_SYNC(BezierControlPoints3DElevated_Shared_Win,IERROR)
 END IF
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #else
 ALLOCATE(BezierControlPoints3D(1:3,1:NGeo+1,1:NGeo+1,1:nNonUniqueGlobalSides) &
         ,STAT=ALLOCSTAT)
@@ -773,7 +776,7 @@ ASSOCIATE(CNS => CornerNodeIDswitch )
 MPISharedSize = INT(6*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/6,nComputeNodeTotalElems/),ConcaveElemSide_Shared_Win,ConcaveElemSide_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ConcaveElemSide_Shared_Win,IERROR)
-firstElem = INT(REAL(myComputeNodeRank*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 
 MPISharedSize = INT(8*nComputeNodeTotalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -1359,10 +1362,10 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
   ASSOCIATE(ElemBaryNGeo => ElemBaryNGeo_Shared, &
             XCL_NGeo     => XCL_NGeo_Shared)
 #else
-  ALLOCATE(ElemRadiusNGeo( nElems)
-  ALLOCATE(ElemRadius2NGeo(nElems)
-  ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nElems)
-  ALLOCATE(slenXiEtaZetaBasis(1:6,1:nElems)
+  ALLOCATE(ElemRadiusNGeo(          nElems) &
+          ,ElemRadius2NGeo(         nElems) &
+          ,XiEtaZetaBasis(1:3,1:6,1:nElems) &
+          ,slenXiEtaZetaBasis(1:6,1:nElems))
 #endif
 
 ElemRadiusNGeo =0.
@@ -7205,7 +7208,7 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !   LOGICAL,ALLOCATABLE            :: content_log(:)        ! Message buffer logical for BGM
 !   INTEGER,ALLOCATABLE            :: content_int(:)        ! Message buffer for integer for adsorption
 ! END TYPE
-! 
+!
 ! TYPE tHaloInfoMPIExchange
 !   INTEGER,ALLOCATABLE            :: nHaloElemsSend(:,:)   ! Only MPI neighbors
 !   INTEGER,ALLOCATABLE            :: nHaloElemsRecv(:,:)   ! Only MPI neighbors
@@ -7215,15 +7218,15 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !   TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)       ! Message, required for particle emission
 ! END TYPE
 !  TYPE (tHaloInfoMPIExchange)     :: HaloInfoMPIExchange   ! Exchange of halo element information between ranks for ElemData output
-! 
+!
 ! TYPE(tMPIMessage),ALLOCATABLE    :: HaloInfoRecvBuf(:)    ! HaloInfoRecvBuf with all required types
 ! TYPE(tMPIMessage),ALLOCATABLE    :: HaloInfoSendBuf(:)    ! HaloInfoSendBuf with all required types
-! 
+!
 ! INTEGER,ALLOCATABLE              :: HaloElemTargetProc(:) ! Local rank id for communication
 ! INTEGER                          :: nSendHaloElems        ! Number of halo elements in HaloInfoMPIExchange%nHaloElemsSend(1,iProc)
 ! INTEGER                          :: nRecvHaloElems        ! Number of halo elements in HaloInfoMPIExchange%nHaloElemsRecv(1,iProc)
-! 
-! 
+!
+!
 ! CHARACTER(32)                    :: hilf                  ! Auxiliary variable
 ! INTEGER                          :: yourrank,myelem,iProc,iPos,jPos,messagesize,iElem,ALLOCSTAT,iRank,yourelemid
 ! INTEGER,PARAMETER                :: HaloInfoCommSize=3
@@ -7231,24 +7234,24 @@ END SUBROUTINE CheckBoundsWithCartRadius
 ! !===================================================================================================================================
 ! ! Allocate type array for all ranks
 ! ALLOCATE(ElemHaloInfoProc(0:nProcessors-1))
-! 
+!
 ! ! Allocate for local elements: Container with information of my local elements and your halo elements
 ! DO iRank = 0, nProcessors-1
 !   ALLOCATE(ElemHaloInfoProc(iRank)%ElemHaloInfo(PP_nElems))
 !   ElemHaloInfoProc(iRank)%ElemHaloInfo = 0 ! Elements that do not belong to the processor and are not halo elements are marked "0"
 ! END DO ! iRank = 1, nProcessors
-! 
+!
 ! ! Mark each local element with its ID
 ! DO iElem = 1, PP_nElems
 !   ElemHaloInfoProc(myrank)%ElemHaloInfo(iElem) = iElem
 ! END DO ! iElem = 1, PP_nElems
-! 
+!
 ! ! Add arrays to ElemData
 ! DO iRank = 0, nProcessors-1
 !   WRITE(UNIT=hilf,FMT='(I0)') iRank ! myrank
 !   CALL AddToElemData(ElementOut,'MyRank'//TRIM(hilf)//'_ElemHaloInfo',IntArray=ElemHaloInfoProc(iRank)%ElemHaloInfo)
 ! END DO ! iRank = 1, nProcessors
-! 
+!
 ! ! Allocate halo info arrays
 ! ALLOCATE( HaloInfoMPIExchange%nHaloElemsSend(2,PartMPI%nMPINeighbors)  &
 !         , HaloInfoMPIExchange%nHaloElemsRecv(2,PartMPI%nMPINeighbors)  &
@@ -7258,18 +7261,18 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !         , HaloInfoMPIExchange%RecvRequest(2,PartMPI%nMPINeighbors) &
 !         , HaloElemTargetProc(PP_nElems+1:nTotalElems)              &
 !         , STAT=ALLOCSTAT                                       )
-! 
+!
 ! IF (ALLOCSTAT.NE.0) CALL abort(&
 !     __STAMP__&
 !     ,' Cannot allocate Particle-MPI-Variables! ALLOCSTAT',ALLOCSTAT)
-! 
+!
 ! HaloInfoMPIExchange%nHaloElemsSend=0
 ! HaloInfoMPIExchange%nHaloElemsRecv=0
-! 
-! 
-! 
-! 
-! 
+!
+!
+!
+!
+!
 ! ! Communicate halo elem info
 ! !===================================================================================================================================
 ! ! 1 of 4: SUBROUTINE IRecvNbOfParticles()
@@ -7285,10 +7288,10 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !                 , HaloInfoMPIExchange%RecvRequest(1,iProc)    &
 !                 , IERROR )
 ! END DO ! iProc
-! 
-! 
-! 
-! 
+!
+!
+!
+!
 ! !===================================================================================================================================
 ! ! 2 of 4: SUBROUTINE SendNbOfParticles(doParticle_In)
 ! !===================================================================================================================================
@@ -7302,7 +7305,7 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !   ! Set target iProc of the element for setting the particle message that is sent
 !   HaloElemTargetProc(iElem) = PartHaloElemToProc(LOCAL_PROC_ID,iElem)
 ! END DO ! iElem = PP_nElems+1, nTotalElems
-! 
+!
 ! ! 2) send number of particles
 ! DO iProc=1,PartMPI%nMPINeighbors
 !   CALL MPI_ISEND( HaloInfoMPIExchange%nHaloElemsSend(:,iProc) &
@@ -7317,11 +7320,11 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !     __STAMP__&
 !     ,' MPI Communication error', IERROR)
 ! END DO ! iProc
-! 
-! 
-! 
-! 
-! 
+!
+!
+!
+!
+!
 ! !===================================================================================================================================
 ! ! 3 of 4: SUBROUTINE MPIParticleSend()
 ! !===================================================================================================================================
@@ -7331,12 +7334,12 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !   nSendHaloElems=HaloInfoMPIExchange%nHaloElemsSend(1,iProc)
 !   iPos=0
 !   MessageSize=nSendHaloElems*HaloInfoCommSize
-! 
+!
 !   ALLOCATE(HaloInfoSendBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
 !   IF (ALLOCSTAT.NE.0) CALL abort(&
 !   __STAMP__&
 !   ,'  Cannot allocate HaloInfoSendBuf, local ProcId, ALLOCSTAT',iProc,REAL(ALLOCSTAT))
-! 
+!
 !   ! fill message
 !   DO iElem = PP_nElems+1, nTotalElems
 !     ! Element is element with target proc-id equals local proc id
@@ -7344,15 +7347,15 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !     ! my rank
 !     HaloInfoSendBuf(iProc)%content(1+iPos) = REAL(myrank,KIND=8)
 !     jPos=iPos+1
-! 
+!
 !     ! local element ID of new host proc: PEM%Element(PartID)
 !     HaloInfoSendBuf(iProc)%content(    1+jPos)    = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,iElem),KIND=8)
 !     jPos=jPos+1
-! 
+!
 !     ! local element ID of old proc (halo elem id)
 !     HaloInfoSendBuf(iProc)%content(    1+jPos)    = REAL(iElem,KIND=8)
 !     jPos=jPos+1
-! 
+!
 !     IF(MOD(jPos,HaloInfoCommSize).NE.0) THEN
 !       IPWRITE(UNIT_stdOut,*)  'HaloInfoCommSize',HaloInfoCommSize
 !       IPWRITE(UNIT_stdOut,*)  'jPos',jPos
@@ -7363,9 +7366,9 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !     iPos=iPos+HaloInfoCommSize
 !   END DO  ! iElem = PP_nElems+1, nTotalElems
 ! END DO ! iProc
-! 
-! 
-! 
+!
+!
+!
 ! ! 4) Finish Received number of halo elements
 ! DO iProc=1,PartMPI%nMPINeighbors
 !   CALL MPI_WAIT(HaloInfoMPIExchange%SendRequest(1,iProc),MPIStatus,IERROR)
@@ -7377,12 +7380,12 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !     __STAMP__&
 !     ,' MPI Communication error', IERROR)
 ! END DO ! iProc
-! 
+!
 ! ! total number of received particles: add up number of all received ranks
 ! HaloInfoMPIExchange%nMPIHaloReceivedElems=SUM(HaloInfoMPIExchange%nHaloElemsRecv(1,:))
-! 
-! 
-! 
+!
+!
+!
 ! ! 5) Allocate received buffer and open MPI_IRECV
 ! DO iProc=1,PartMPI%nMPINeighbors
 !   nRecvHaloElems=HaloInfoMPIExchange%nHaloElemsRecv(1,iProc)
@@ -7407,7 +7410,7 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !     __STAMP__&
 !     ,' MPI Communication error', IERROR)
 ! END DO ! iProc
-! 
+!
 ! ! 6) Send halo elements
 ! DO iProc=1,PartMPI%nMPINeighbors
 !   nSendHaloElems = HaloInfoMPIExchange%nHaloElemsSend(1,iProc)
@@ -7424,12 +7427,12 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !     __STAMP__&
 !     ,' MPI Communication error', IERROR)
 ! END DO ! iProc
-! 
-! 
-! 
-! 
-! 
-! 
+!
+!
+!
+!
+!
+!
 ! !===================================================================================================================================
 ! ! 4 of 4: SUBROUTINE MPIParticleRecv()
 ! !===================================================================================================================================
@@ -7439,7 +7442,7 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !     __STAMP__&
 !     ,' MPI Communication error', IERROR)
 ! END DO ! iProc
-! 
+!
 ! DO iProc=1,PartMPI%nMPINeighbors
 !   nRecvHaloElems=HaloInfoMPIExchange%nHaloElemsRecv(1,iProc)
 !   MessageSize=nRecvHaloElems*HaloInfoCommSize
@@ -7450,13 +7453,13 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !     IF(nRecvHaloElems.EQ.0) EXIT
 !     yourrank   = INT(HaloInfoRecvBuf(iProc)%content( 1+iPos),KIND=4)
 !     jPos=iPos+1
-! 
+!
 !     myelem     = INT(HaloInfoRecvBuf(iProc)%content( 1+jPos),KIND=4)
 !     jPos=jPos+1
-! 
+!
 !     yourelemid     = INT(HaloInfoRecvBuf(iProc)%content( 1+jPos),KIND=4)
 !     jPos=jPos+1
-! 
+!
 !     IF(MOD(jPos,HaloInfoCommSize).NE.0)THEN
 !       IPWRITE(UNIT_stdOut,*)  'HaloInfoCommSize',HaloInfoCommSize
 !       IPWRITE(UNIT_stdOut,*)  'jPos',jPos
@@ -7464,20 +7467,20 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !           __STAMP__&
 !           ,' HaloInfoCommSize-wrong receiving message size!')
 !     END IF
-! 
+!
 !     ! Set halo info: halo elements are marked with "-yourelemid" (negative ElemID of the halo region element)
 !     ElemHaloInfoProc(yourrank)%ElemHaloInfo(myelem) = -yourelemid
 !   END DO
 ! END DO ! iProc
-! 
-! 
+!
+!
 ! ! deallocate send,receive buffer
 ! DO iProc=1,PartMPI%nMPINeighbors
 !   SDEALLOCATE(HaloInfoRecvBuf(iProc)%content)
 !   SDEALLOCATE(HaloInfoSendBuf(iProc)%content)
 ! END DO ! iProc
-! 
-! 
+!
+!
 ! ! De-allocate halo info arrays
 ! SDEALLOCATE(HaloInfoMPIExchange%nHaloElemsSend)
 ! SDEALLOCATE(HaloInfoMPIExchange%nHaloElemsRecv)
@@ -7486,7 +7489,7 @@ END SUBROUTINE CheckBoundsWithCartRadius
 ! SDEALLOCATE(HaloInfoMPIExchange%SendRequest)
 ! SDEALLOCATE(HaloInfoMPIExchange%RecvRequest)
 ! SDEALLOCATE(HaloElemTargetProc)
-! 
+!
 ! END SUBROUTINE SetHaloInfo
 !#endif /*USE_MPI*/
 

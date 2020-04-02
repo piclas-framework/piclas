@@ -802,7 +802,7 @@ USE MOD_ReadInTools
 USE MPI
 USE MOD_Globals            ,ONLY: IERROR,MPIRoot
 USE MOD_MPI_Shared         ,ONLY: Allocate_Shared
-USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeElems,myComputeNodeRank,offsetComputeNodeElem
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED,nComputeNodeElems,myComputeNodeRank,offsetComputeNodeElem
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemMPVolumePortion_Shared_Win
 #endif /*USE_MPI*/
@@ -847,6 +847,10 @@ IF (myComputeNodeRank.EQ.0) THEN
   ElemMPVolumePortion_Shared(:) = 0.
   ElemCharLength_Shared(:)      = 0.
 END IF
+CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ElemMPVolumePortion_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #else
 ALLOCATE(ElemVolume_Shared(nElems))
 ALLOCATE(ElemCharLength_Shared(nElems))

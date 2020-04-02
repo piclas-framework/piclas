@@ -340,7 +340,6 @@ USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species,Part
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts,PartMPIDepoSend
 USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector
-USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -352,10 +351,10 @@ LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 ! LOCAL VARIABLES
 LOGICAL                       :: doPartInExists
 INTEGER                       :: iPart,ElemID
-INTEGER                       :: iProc
+INTEGER                       :: iProc,ProcID
 ! shape function
 INTEGER                       :: CellX,CellY,CellZ!, iPartShape
-INTEGER                       :: PartDepoProcs(1:PartMPI%nProcs+1), nDepoProcs, ProcID,LocalProcID
+INTEGER                       :: PartDepoProcs(1:PartMPI%nProcs+1),nDepoProcs,LocalProcID
 INTEGER                       :: nPartShape
 REAL                          :: ShiftedPart(1:3)
 LOGICAL                       :: PartInBGM
@@ -657,7 +656,7 @@ DO iProc=0,nExchangeProcessors-1
   ! allocate SendBuf and prepare to build message
   nSendParticles = PartMPIExchange%nPartsSend(1,iProc)
   iPos           = 0
-  
+
   ! messageSize is increased for external particles
   IF (DoExternalParts) THEN
     nSendExtParticles = PartMPIExchange%nPartsSend(2,iProc)
@@ -668,26 +667,26 @@ DO iProc=0,nExchangeProcessors-1
     IF(nSendParticles.EQ.0) CYCLE
     MessageSize=nSendParticles*PartCommSize
   END IF
-  
+
   ! polyatomic molecules follow behind the previous message
   IF(DSMC%NumPolyatomMolecs.GT.0) THEN
     pos_poly(iProc) = MessageSize
     MessageSize = MessageSize + MsgLengthPoly(iProc)
   END IF
-  
+
   ! Still no message length, proc can be skipped
   IF (MessageSize.EQ.0) CYCLE
 
   ALLOCATE(PartSendBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) &
     CALL ABORT(__STAMP__,'  Cannot allocate PartSendBuf, local ProcId, ALLOCSTAT',iProc,REAL(ALLOCSTAT))
-    
+
   ! build message
   DO iPart=1,PDM%ParticleVecLength
-  
+
     ! TODO: This seems like a valid check to me, why is it commented out?
     !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-    
+
     ! particle belongs on target proc
     IF (PartTargetProc(iPart).EQ.iProc) THEN
       !>> particle position in physical space
@@ -802,7 +801,7 @@ DO iProc=0,nExchangeProcessors-1
       !>> particle element
       PartSendBuf(iProc)%content(    1+jPos) = REAL(PEM%Element(iPart),KIND=8)
       jPos=jPos+1
-      
+
       IF (useDSMC.AND.(CollisMode.GT.1)) THEN
         IF (usevMPF .AND. DSMC%ElectronicModel) THEN
           PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn( 1,iPart)
@@ -831,7 +830,7 @@ DO iProc=0,nExchangeProcessors-1
           jPos=jPos+1
         END IF
       END IF
-      
+
       !--- put the polyatomic vibquants per particle at the end of the message
       IF (DSMC%NumPolyatomMolecs.GT.0) THEN
         IF(SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
@@ -841,7 +840,7 @@ DO iProc=0,nExchangeProcessors-1
           pos_poly(iProc) = pos_poly(iProc) + PolyatomMolDSMC(iPolyatMole)%VibDOF
         END IF
       END IF
-      
+
       ! sanity check the message length
       IF(MOD(jPos,PartCommSize).NE.0) THEN
 #if defined(ROS) || defined(IMPA)
@@ -858,7 +857,7 @@ DO iProc=0,nExchangeProcessors-1
       iPos=iPos+PartCommSize
       ! particle is ready for send, now it can deleted
       PDM%ParticleInside(iPart) = .FALSE.
-      
+
 #ifdef IMPA
       DoPartInNewton(  iPart) = .FALSE.
       PartLambdaAccept(iPart) = .TRUE.
@@ -991,16 +990,16 @@ IF(DoExternalParts) THEN
   ALLOCATE(ExtPartState  (1:6,1:NbrOfExtParticles) &
           ,ExtPartSpecies(    1:NbrOfExtParticles) &
           ,STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) & 
+  IF (ALLOCSTAT.NE.0) &
     CALL ABORT(__STAMP__,'  Cannot allocate ExtPartState on Rank',PartMPI%MyRank,REAL(ALLOCSTAT))
-  
+
   IF (usevMPF) THEN
     ALLOCATE(ExtPartMPF (1:NbrOfExtParticles) &
             ,STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) &
       CALL ABORT(__STAMP__,'  Cannot allocate ExtPartState on Rank',PartMPI%MyRank)
   END IF
-  
+
   ! map alt state to ext
   iExtPart=0
   DO iPart=1,PDM%ParticleVecLength
@@ -1027,29 +1026,29 @@ DO iProc=0,nExchangeProcessors-1
 
   ! skip proc if no particles are to be received
   IF(SUM(PartMPIExchange%nPartsRecv(:,iProc)).EQ.0) CYCLE
-  
+
   nRecvParticles = PartMPIExchange%nPartsRecv(1,iProc)
   MessageSize    = nRecvParticles*PartCommSize
-  
+
   IF(DoExternalParts) THEN
     nRecvExtParticles = PartMPIExchange%nPartsRecv(2,iProc)
     MessageSize       = MessageSize   &
                       + nRecvExtParticles*ExtPartCommSize
   END IF
-  
+
   ! determine the maximal possible polyatomic addition to the regular recv message
   IF (DSMC%NumPolyatomMolecs.GT.0) THEN
     MsgRecvLengthPoly = MAXVAL(PolyatomMolDSMC(:)%VibDOF)*nRecvParticles
     MessageSize       = MessageSize + MsgRecvLengthPoly
   END IF
-  
+
   ALLOCATE(PartRecvBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     IPWRITE(*,*) 'sum of total received particles            ', SUM(PartMPIExchange%nPartsRecv(1,:))
     IPWRITE(*,*) 'sum of total received deposition particles ', SUM(PartMPIExchange%nPartsRecv(2,:))
     CALL ABORT(__STAMP__,'  Cannot allocate PartRecvBuf, local source ProcId, Allocstat',iProc,REAL(ALLOCSTAT))
   END IF
-  
+
   CALL MPI_IRECV( PartRecvBuf(iProc)%content                                 &
                 , MessageSize                                                &
                 , MPI_DOUBLE_PRECISION                                       &
@@ -1066,7 +1065,7 @@ DO iProc=0,nExchangeProcessors-1
 
   ! skip proc if no particles are to be sent
   IF(SUM(PartMPIExchange%nPartsSend(:,iProc)).EQ.0) CYCLE
-  
+
   nSendParticles = PartMPIExchange%nPartsSend(1,iProc)
   MessageSize    = nSendParticles*PartCommSize
   IF(DoExternalParts)THEN
@@ -1077,7 +1076,7 @@ DO iProc=0,nExchangeProcessors-1
   IF(DSMC%NumPolyatomMolecs.GT.0) THEN
     MessageSize = MessageSize + MsgLengthPoly(iProc)
   END IF
-  
+
   CALL MPI_ISEND( PartSendBuf(iProc)%content                                 &
                 , MessageSize                                                &
                 , MPI_DOUBLE_PRECISION                                       &
@@ -1087,7 +1086,7 @@ DO iProc=0,nExchangeProcessors-1
                 , PartMPIExchange%SendRequest(2,iProc)                       &
                 , IERROR )
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-  
+
   ! Deallocate sendBuffer after send was successful, see MPIParticleRecv
 END DO ! iProc
 
@@ -1169,7 +1168,7 @@ PartCommSize=PartCommSize0+iStage*6
 DO iProc=0,nExchangeProcessors-1
   ! skip proc if no particles are to be sent
   IF(SUM(PartMPIExchange%nPartsSend(:,iProc)).EQ.0) CYCLE
-  
+
   CALL MPI_WAIT(PartMPIExchange%SendRequest(2,iProc),MPIStatus,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO ! iProc
@@ -1181,26 +1180,26 @@ nRecv=0
 DO iProc=0,nExchangeProcessors-1
   ! skip proc if no particles are to be received
   IF(SUM(PartMPIExchange%nPartsRecv(:,iProc)).EQ.0) CYCLE
-  
+
   nRecvParticles = PartMPIExchange%nPartsRecv(1,iProc)
   IF(DoExternalParts) THEN
     nRecvExtParticles = PartMPIExchange%nPartsRecv(2,iProc)
   END IF
-  
+
   ! determine the maximal possible polyatomic addition to the regular message
   IF (DSMC%NumPolyatomMolecs.GT.0) THEN
     MsgLengthPoly = MAXVAL(PolyatomMolDSMC(:)%VibDOF)*nRecvParticles
   ELSE
     MsgLengthPoly = 0
   END IF
-  
+
   MessageSize = nRecvParticles*PartCommSize
   pos_poly    = MessageSize
   IF (DSMC%NumPolyatomMolecs.GT.0) MessageSize = MessageSize + MsgLengthPoly
-  
+
   ! finish communication with iproc
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(2,iProc),recv_status_list(:,iProc),IERROR)
-  
+
   ! place particle information in correct arrays
   !>> correct loop shape
   !>> DO iPart=1,nRecvParticles
@@ -1212,7 +1211,7 @@ DO iProc=0,nExchangeProcessors-1
     PartID = PDM%nextFreePosition(nRecv+PDM%CurrentNextFreePosition)
     IF(PartID.EQ.0) &
       CALL ABORT(__STAMP__,' Error in ParticleExchange_parallel. Corrupted list: PIC%nextFreePosition', nRecv)
-      
+
     !>> particle position in physical space
     PartState(1:6,PartID)    = PartRecvBuf(iProc)%content(1+iPos: 6+iPos)
     jPos=iPos+6
@@ -1224,7 +1223,7 @@ DO iProc=0,nExchangeProcessors-1
     !>> particle species
     PartSpecies(PartID)     = INT(PartRecvBuf(iProc)%content(1+jPos),KIND=4)
     jPos=jPos+1
-    
+
 #if defined(LSERK)
     !>> particle acceleration
     Pt_temp(1:6,PartID)     = PartRecvBuf(iProc)%content( 1+jPos:6+jPos)
@@ -1283,7 +1282,7 @@ DO iProc=0,nExchangeProcessors-1
     ELSE
       ! TODO: This is still broken, halo elems are no longer behind nElems
       CALL ABORT(__STAMP__,'External particles not yet supported with new halo region)
-    
+
 !       PEM%ElementN(PartID)=0
 !       DO iElem=PP_nElems+1,nTotalElems
 !         IF(ElemToGlobalElemID(iElem).EQ.LocElemID)THEN
@@ -1346,7 +1345,7 @@ DO iProc=0,nExchangeProcessors-1
 
     !>> particle element
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(1+jPos),KIND=4)
-    
+
     ! Consider special particles that are communicated with negative species ID (ghost partilces that are deposited on surface
     ! with their charge and are then removed)
     IF(PartSpecies(PartID).LT.0)THEN
@@ -1361,7 +1360,7 @@ DO iProc=0,nExchangeProcessors-1
       CYCLE ! Continue the loop with the next particle
     END IF ! PartSpecies(PartID).LT.0
     jPos=jPos+1
-    
+
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN
       IF (usevMPF .AND. DSMC%ElectronicModel) THEN
         PartStateIntEn( 1,PartID) = PartRecvBuf(iProc)%content(1+jPos)
@@ -1399,7 +1398,7 @@ DO iProc=0,nExchangeProcessors-1
 #endif
       CALL ABORT(__STAMP__,' Particle-wrong receiving message size!')
     END IF
-    
+
     !--- put the polyatomic vibquants per particle at the end of the message
     IF (DSMC%NumPolyatomMolecs.GT.0) THEN
       IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
