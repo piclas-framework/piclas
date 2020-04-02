@@ -202,6 +202,8 @@ CALL prms%CreateIntOption(      'Part-vMPFCellSplitOrder'     , 'TODO-DEFINE-PAR
                                                               , '15')
 CALL prms%CreateIntOption(      'Part-vMPFMergeParticleTarget', 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Count of particles wanted after merge.', '0')
+CALL prms%CreateIntOption(      'Part-vMPFNewPartNum'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                                'Count of particles wanted after merge.')
 CALL prms%CreateIntOption(      'Part-vMPFSplitParticleTarget', 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Number of particles wanted after split.','0')
 CALL prms%CreateIntOption(      'Part-vMPFMergeParticleIter'  , 'TODO-DEFINE-PARAMETER\n'//&
@@ -1381,7 +1383,8 @@ END IF
 
 
 ! init varibale MPF per particle
-IF (usevMPF) THEN
+IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+  vMPFNewPartNum = GETINT('Part-vMPFNewPartNum')
   enableParticleMerge = GETLOGICAL('Part-vMPFPartMerge','.FALSE.')
   IF (enableParticleMerge) THEN
     vMPFMergePolyOrder = GETINT('Part-vMPFMergePolOrder','2')
@@ -1400,6 +1403,8 @@ __STAMP__&
     END IF
     ALLOCATE(vMPF_SpecNumElem(1:nElems,1:nSpecies))
   END IF
+END IF
+IF (usevMPF) THEN
   ALLOCATE(PartMPF(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
@@ -1407,7 +1412,6 @@ __STAMP__&
     ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
   END IF
 END IF
-
 ! output of macroscopic values
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
 IF(WriteMacroValues)THEN
@@ -2445,7 +2449,7 @@ IF (ALLOCSTAT.NE.0) THEN
 __STAMP__&
   ,' Cannot allocate PEM arrays!')
 END IF
-IF (useDSMC.OR.PartPressureCell) THEN
+IF (useDSMC.OR.PartPressureCell.OR.usevMPF) THEN
   ALLOCATE(PEM%pStart(1:nElems)                         , &
            PEM%pNumber(1:nElems)                        , &
            PEM%pEnd(1:nElems)                           , &

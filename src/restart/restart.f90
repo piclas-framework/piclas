@@ -339,6 +339,7 @@ USE MOD_QDS_DG_Vars            ,ONLY: DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesM
 #if (USE_QDS_DG) || (PARTICLES) || (USE_HDG)
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists,nDims,HSize
 #endif
+
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -644,12 +645,14 @@ IF(DoRestart)THEN
         StrVarNames( 9)='Rotational'
         StrVarNames(10)='Electronic'
         StrVarNames(11)='MPF'
+        implemented = .TRUE.
       ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
         PartDataSize=10
         ALLOCATE(StrVarNames(PartDataSize))
         StrVarNames( 8)='Vibrational'
         StrVarNames( 9)='Rotational'
         StrVarNames(10)='MPF'
+        implemented = .TRUE.
       ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
         PartDataSize=10
         ALLOCATE(StrVarNames(PartDataSize))
@@ -666,6 +669,7 @@ IF(DoRestart)THEN
         PartDataSize=8 !+ 1 vmpf
         ALLOCATE(StrVarNames(PartDataSize))
         StrVarNames( 8)='MPF'
+        implemented=.TRUE.
       ELSE
         PartDataSize=7 !+ 0
         ALLOCATE(StrVarNames(PartDataSize))
@@ -750,6 +754,8 @@ IF(DoRestart)THEN
             IF (.NOT.readVarFromState(iVar)) THEN
               IF (TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational') THEN
                 SWRITE(*,*) 'WARNING: The following VarNamesParticles will be set to zero: '//TRIM(StrVarNames(iVar))
+              ELSE IF(TRIM(StrVarNames(iVar)).EQ.'MPF') THEN
+                SWRITE(*,*) 'WARNING: The particle weighting factor will be initialized with the given global weighting factor!'
               ELSE
                 CALL Abort(&
                     __STAMP__&
