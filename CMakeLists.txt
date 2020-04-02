@@ -95,24 +95,25 @@ SUBDIRLIST(EQNSYSTEMS ${CMAKE_CURRENT_SOURCE_DIR}/src/equations/)
 OPTION(PICLAS_PARTICLES "Particles" ON)
 SET(PICLAS_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
 SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
-                                                              Leapfrog
-                                                              RK3
-                                                              RK4
-                                                              RK14
-                                                              DSMC
-                                                              RESERVOIR
-                                                              FP-Flow
-                                                              BGK-Flow
-                                                              MACROBODY
-                                                              CN
-                                                              ImplicitO3
-                                                              ImplicitO4
-                                                              Ascher3
-                                                              ROS2
-                                                              ROS3
-                                                              ROS4
-                                                              ROS46
-                                                              ROS6)
+                                                          Leapfrog
+                                                          Boris-Leapfrog
+                                                          RK3
+                                                          RK4
+                                                          RK14
+                                                          DSMC
+                                                          RESERVOIR
+                                                          FP-Flow
+                                                          BGK-Flow
+                                                          MACROBODY
+                                                          CN
+                                                          ImplicitO3
+                                                          ImplicitO4
+                                                          Ascher3
+                                                          ROS2
+                                                          ROS3
+                                                          ROS4
+                                                          ROS46
+                                                          ROS6)
 
 OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
 OPTION(PICLAS_BUILD_POSTI "Build POSTI toolset" ON)
@@ -211,6 +212,12 @@ IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
   ENDIF()
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Boris-Leapfrog")
+  IF(PICLAS_HDG)
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=508)
+  ELSE()
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
+  ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Leapfrog")
   IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=509)
@@ -287,6 +294,8 @@ IF(PICLAS_HDG)
   ADD_DEFINITIONS(-DUSE_HDG=1)
   IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
       MESSAGE(STATUS "use HDG with Euler-Explicit")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Boris-Leapfrog")
+      MESSAGE(STATUS "use HDG with Boris-Leapfrog")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Leapfrog")
       MESSAGE(STATUS "use HDG with Leapfrog")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK3")

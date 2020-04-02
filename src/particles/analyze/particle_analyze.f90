@@ -62,6 +62,9 @@ END INTERFACE
 INTERFACE AnalyticParticleMovement
   MODULE PROCEDURE AnalyticParticleMovement
 END INTERFACE
+INTERFACE CalcAnalyticalParticleState
+  MODULE PROCEDURE CalcAnalyticalParticleState
+END INTERFACE
 #endif /*CODE_ANALYZE*/
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
@@ -70,7 +73,7 @@ PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
 #ifdef CODE_ANALYZE
-PUBLIC:: AnalyticParticleMovement
+PUBLIC:: AnalyticParticleMovement,CalcAnalyticalParticleState
 #if (PP_TimeDiscMethod==42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
@@ -177,6 +180,7 @@ CALL prms%CreateLogicalOption(  'CalcPorousBCInfo'         , 'Calculate output o
                                                              'Values are averaged over the whole porous BC.' , '.FALSE.')
 
 CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , ' Calculate output of Power that is coupled into plasma' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'DisplayCoupledPower'      , ' Display coupled power in UNIT_stdOut' , '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleAnalyze
 
@@ -475,12 +479,13 @@ ELSE
   nSpecAnalyze = 1
 END IF
 
-CalcCoupledPower = GETLOGICAL('CalcCoupledPower','.FALSE.')
+CalcCoupledPower = GETLOGICAL('CalcCoupledPower')
 
 IF(CalcCoupledPower) THEN
+  DisplayCoupledPower = GETLOGICAL('DisplayCoupledPower')
   DoPartAnalyze = .TRUE.
   PCouplAverage = 0.0
-#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==509))
+#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
   CALL abort(__STAMP__,&
       'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
 #endif
@@ -687,12 +692,11 @@ INTEGER             :: RECBIM(nSpecies)
 #endif /*USE_MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
-INTEGER             :: iCase, iTvib,jSpec
+INTEGER             :: iCase,jSpec
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
 INTEGER             :: ii, iunit
 #endif
-CHARACTER(LEN=350)  :: hilf
 #endif
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
@@ -706,6 +710,7 @@ INTEGER             :: dir
     IF (CollisMode.NE.0) THEN
       SDEALLOCATE(CRate)
       ALLOCATE(CRate(CollInf%NumCase + 1))
+      CRate = 0.0
       IF (CollisMode.EQ.3) THEN
         SDEALLOCATE(RRate)
         ALLOCATE(RRate(ChemReac%NumOfReact))
@@ -718,27 +723,7 @@ INTEGER             :: dir
   IF (PartMPI%MPIRoot) THEN
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
-#if (PP_TimeDiscMethod==42)
-    ! if only the reaction rate is desired (resevoir) the initial temperature
-    ! of the second species is added to the filename
-      IF (DSMC%ReservoirSimuRate) THEN
-        IF ( SpecDSMC(1)%InterID .EQ. 2 .OR. SpecDSMC(1)%InterID .EQ. 20 ) THEN
-          iTvib = INT(SpecDSMC(1)%Init(0)%Tvib)
-          WRITE( hilf, '(I5.5)') iTvib
-          outfile = 'Database_Tvib_'//TRIM(hilf)//'.csv'
-        ELSE
-          !iTvib = INT(SpecDSMC(1)%Telec )
-          iTvib = INT(Species(1)%Init(0)%MWTemperatureIC) !wrong name, if MWTemp is defined in %Init!!!
-          WRITE( hilf, '(I5.5)') iTvib
-          outfile = 'Database_Ttrans_'//TRIM(hilf)//'.csv'
-        END IF
-      ELSE
-        outfile = 'PartAnalyze.csv'
-      END IF
-#else
       outfile = 'PartAnalyze.csv'
-#endif
-
       IF (isRestart .and. FILEEXISTS(outfile)) THEN
         OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
         !CALL FLUSH (unit_index)
@@ -1097,13 +1082,17 @@ INTEGER             :: dir
   MeanFreePath = 0.0
   IF(DSMC%CalcQualityFactors.OR.CalcReacRates) THEN
     NumSpecTmp = NumSpec
-    IF(BGGas%BGGasSpecies.NE.0) THEN
+    IF(BGGas%NumberOfSpecies.GT.0) THEN
       ! Calculation of mean free path and reactions rates requires the number of particles the background species would have if
       ! actually inserted at the chosen weighting factor, determined here and used later also for the ReacRates subroutine
-      NumSpecTmp(BGGas%BGGasSpecies) = (BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor)
-      IF(nSpecAnalyze.GT.1)THEN
-        NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze)+NumSpecTmp(BGGas%BGGasSpecies)
-      END IF
+      DO iSpec = 1, nSpecies
+        IF(BGGas%BackgroundSpecies(iSpec)) THEN
+          NumSpecTmp(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))*GEO%MeshVolume/Species(iSpec)%MacroParticleFactor
+          IF(nSpecAnalyze.GT.1) THEN
+            NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze) + NumSpecTmp(iSpec)
+          END IF
+        END IF
+      END DO
     END IF
   END IF
   IF(DSMC%CalcQualityFactors) THEN
@@ -1265,16 +1254,18 @@ END IF
 
 IF(CalcCoupledPower) THEN
   ! Moving Average of PCoupl for each species
-  IF(MOD(iter,IterDisplayStep).EQ.0) CALL DisplayCoupledPowerPart()
+  IF((DisplayCoupledPower).AND.(MOD(iter,IterDisplayStep).EQ.0)) CALL DisplayCoupledPowerPart()
 END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the collision rates and reaction rate coefficients (Arrhenius-type chemistry)
 #if (PP_TimeDiscMethod==42)
-  IF(CalcCollRates) CALL CollRates(CRate)
-  IF(CalcReacRates) THEN
-    IF ((CollisMode.EQ.3).AND.(iter.GT.0)) THEN
-      CALL ReacRates(RRate, NumSpecTmp, iter)
+  IF(iter.GT.0) THEN
+    IF(CalcCollRates) CALL CollRates(CRate)
+    IF(CalcReacRates) THEN
+      IF (CollisMode.EQ.3) THEN
+        CALL ReacRates(RRate, NumSpecTmp, iter)
+      END IF
     END IF
   END IF
 #endif
@@ -1986,7 +1977,7 @@ REAL,INTENT(OUT)                   :: NumSpec(nSpecAnalyze)
 INTEGER(KIND=8),INTENT(OUT)        :: SimNumSpec(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                            :: iPart
+INTEGER                            :: iPart, iSpec
 !===================================================================================================================================
 
 NumSpec    = 0.
@@ -1999,9 +1990,13 @@ DO iPart=1,PDM%ParticleVecLength
     SimNumSpec(PartSpecies(iPart)) = SimNumSpec(PartSpecies(iPart)) + 1
   END IF
 END DO
-IF(BGGas%BGGasSpecies.NE.0) THEN
-  NumSpec(BGGas%BGGasSpecies) = 0.
-  SimNumSpec(BGGas%BGGasSpecies) = 0
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  DO iSpec = 1, nSpecies
+    IF(BGGas%BackgroundSpecies(iSpec)) THEN
+      NumSpec(iSpec) = 0.
+      SimNumSpec(iSpec) = 0
+    END IF
+  END DO
 END IF
 IF(nSpecAnalyze.GT.1)THEN
   NumSpec(nSpecAnalyze)    = SUM(NumSpec(1:nSpecies))
@@ -2046,6 +2041,7 @@ REAL,INTENT(IN)                   :: NumSpec(nSpecAnalyze)
 REAL,INTENT(OUT)                  :: NumDens(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                           :: iSpec
 !===================================================================================================================================
 
 IF (PartMPI%MPIRoot) THEN
@@ -2055,7 +2051,13 @@ IF (PartMPI%MPIRoot) THEN
     NumDens(1:nSpecies) = NumSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / GEO%MeshVolume
   END IF
 
-  IF(BGGas%BGGasSpecies.NE.0) NumDens(BGGas%BGGasSpecies) = BGGas%BGGasDensity
+  IF(BGGas%NumberOfSpecies.GT.0) THEN
+    DO iSpec = 1, nSpecies
+      IF(BGGas%BackgroundSpecies(iSpec)) THEN
+        NumDens(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))
+      END IF
+    END DO
+  END IF
 
   IF(nSpecAnalyze.GT.1) NumDens(nSpecAnalyze) = SUM(NumDens(1:nSpecies))
 END IF
@@ -2595,27 +2597,55 @@ END SUBROUTINE CalcIntTempsAndEn
 #if (PP_TimeDiscMethod==42)
 SUBROUTINE CollRates(CRate)
 !===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
+!> Calculate the collision rate per species pairing by diving the summed up variables by the current timestep
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: CollInf, DSMC
-USE MOD_TimeDisc_Vars ,ONLY: dt
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: CollInf, DSMC
+USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
+USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: CRate(:)
+REAL,INTENT(OUT)              :: CRate(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iCase
+INTEGER                       :: iCase
 !===================================================================================================================================
 
+#if USE_MPI
+IF(PartMPI%MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%NumColl,CollInf%NumCase + 1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+ELSE
+  CALL MPI_REDUCE(DSMC%NumColl,DSMC%NumColl,CollInf%NumCase + 1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+END IF
+#endif /*USE_MPI*/
+
+IF(PartMPI%MPIRoot)THEN
+  DSMC%NumColl(CollInf%NumCase + 1) = SUM(DSMC%NumColl(1:CollInf%NumCase))
   DO iCase=1, CollInf%NumCase + 1
     CRate(iCase) =  DSMC%NumColl(iCase) / dt
   END DO
-  DSMC%NumColl = 0
+  ! Consider Part-AnalyzeStep
+  IF(PartAnalyzeStep.GT.1)THEN
+    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
+      DO iCase=1, CollInf%NumCase + 1
+        CRate(iCase) = CRate(iCase) / iter
+      END DO ! iCase=1, CollInf%NumCase + 1
+    ELSE
+      DO iCase=1, CollInf%NumCase + 1
+        CRate(iCase) = CRate(iCase) / MIN(PartAnalyzeStep,iter)
+      END DO ! iCase=1, CollInf%NumCase + 1
+    END IF
+  END IF
+END IF
+
+DSMC%NumColl = 0.
+
 END SUBROUTINE CollRates
 
 SUBROUTINE ReacRates(RRate, NumSpec,iter)
@@ -3824,13 +3854,15 @@ END SUBROUTINE CalculatePartElemData
 !===================================================================================================================================
 !> Calculate the analytical position and velocity depending on the pre-defined function
 !===================================================================================================================================
-SUBROUTINE CalcAnalyticalParticleState(t,PartStateAnalytic)
+SUBROUTINE CalcAnalyticalParticleState(t,PartStateAnalytic,alpha_out,theta_out)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_PreProc
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpolationSubType,AnalyticInterpolationP
+USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+USE MOD_PARTICLE_Vars         ,ONLY: PartSpecies,Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -3839,6 +3871,8 @@ REAL,INTENT(IN)               :: t                        !< simulation time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)              :: PartStateAnalytic(1:6)   !< analytic position and velocity
+REAL,INTENT(OUT),OPTIONAL     :: alpha_out                    !< dimensionless parameter: alpha_out = q*B_0*l / (m*v_perpendicular)
+REAL,INTENT(OUT),OPTIONAL     :: theta_out                    !< angle
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !REAL    :: p
@@ -3849,75 +3883,125 @@ REAL    :: beta
 !===================================================================================================================================
 PartStateAnalytic=0. ! default
 
-! select the analytical solution
-SELECT CASE(AnalyticInterpolationType)
-CASE(1)
-  SELECT CASE(AnalyticInterpolationSubType)
-  CASE(1,2)
-    ASSOCIATE( p       => AnalyticInterpolationP , &
-               Theta_0 => -PI/2.0                     , &
-               t       => t - TEnd/2. )
-               !t       => t )
-      ! gamma
-      gamma_0 = SQRT(ABS(p*p - 1.))
-
-      ! angle
-      Theta   = -2.*ATAN( SQRT((1.+p)/(1.-p)) * TANH(0.5*gamma_0*t) ) + Theta_0
-
-      ! x-pos
-      PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
-
-      ! y-pos
-      PartStateAnalytic(2) = p*t + Theta - Theta_0
+ASSOCIATE( iPart => 1 )
+  ! Select analytical solution depending on the type of the selected (analytic) interpolation
+  SELECT CASE(AnalyticInterpolationType)
+  ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
+  CASE(0)
+    ASSOCIATE( B_0    => 1.0                                    ,& ! [T] cons. magnetic field
+               v_perp => 1.0                                    ,& ! [m/s] perpendicular velocity (to guiding center)
+               m      => Species(PartSpecies(iPart))%MassIC     ,& ! [kg] particle mass
+               q      => Species(PartSpecies(iPart))%ChargeIC   ,& ! [C] particle charge
+               phi    => AnalyticInterpolationPhase             )  ! [rad] phase shift
+      ASSOCIATE( omega_c => ABS(q)*B_0/m )
+        ASSOCIATE( r_c => v_perp/omega_c )
+          PartStateAnalytic(1) = COS(omega_c*t + phi)*r_c
+          PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c 
+          PartStateAnalytic(3) = 0.
+          PartStateAnalytic(4) = -SIN(omega_c*t + phi)*v_perp
+          PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp 
+          PartStateAnalytic(6) = 0.
+        END ASSOCIATE
+      END ASSOCIATE
     END ASSOCIATE
-  CASE(3)
-    ASSOCIATE( p       => AnalyticInterpolationP , &
-               Theta_0 => -PI/2.0                      &
-                )
-      ! gamma
-      gamma_0 = SQRT(ABS(p*p - 1.))
+  ! 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
+  CASE(1)
+    SELECT CASE(AnalyticInterpolationSubType)
+    CASE(1,2)
+      ASSOCIATE( p       => AnalyticInterpolationP , &
+                 Theta_0 => -PI/2.0                     , &
+                 t       => t - TEnd/2. )
+                 !t       => t )
+        ! gamma
+        gamma_0 = SQRT(ABS(p*p - 1.))
 
-      ! angle
-      Theta   = -2.*ATAN( SQRT((p+1.)/(p-1.)) * TAN(0.5*gamma_0*t) ) -2.*PI*REAL(NINT((gamma_0*t)/(2.*PI))) + Theta_0
+        ! angle
+        Theta   = -2.*ATAN( SQRT((1.+p)/(1.-p)) * TANH(0.5*gamma_0*t) ) + Theta_0
 
-      ! x-pos
-      PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
+        ! x-pos
+        PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
 
-      ! y-pos
-      PartStateAnalytic(2) = p*t + Theta - Theta_0
-    END ASSOCIATE
-  CASE(11,21) ! old CASE(1,2)
-    ASSOCIATE( p       => AnalyticInterpolationP , &
-          Theta_0 => 0.d0 ) !0.785398163397448d0    )
-      beta = ACOS(p)
-      !beta = ASIN(-p)
-      ! phase shift
-      phi_0   = ATANH( (1./TAN(beta/2.)) * TAN(Theta_0/2.) )
-      ! angle
-      Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*t*SIN(beta)-phi_0) )
-      Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*SIN(beta*t)-phi_0) )
-      ! x-pos
-      PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
-      ! y-pos
-      PartStateAnalytic(2) = p*t - (Theta-Theta_0)
-    END ASSOCIATE
-  CASE(31) ! old CASE(3)
-    ASSOCIATE( p       => AnalyticInterpolationP , &
-          Theta_0 => 0.d0                   )
-      gamma_0 = SQRT(p*p-1.)
-      ! phase shift
-      phi_0   = ATAN( (gamma_0/(p-1.)) * TAN(Theta_0/2.) )
-      ! angle
-      Theta   = 2.*ATAN( SQRT((p-1)/(p+1)) * TAN(0.5*gamma_0*t - phi_0) ) + 2*Pi*REAL(NINT((t*gamma_0)/(2*Pi) - phi_0/Pi))
-      ! x-pos
-      PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
-      ! y-pos
-      PartStateAnalytic(2) = p*t - (Theta-Theta_0)
-    END ASSOCIATE
-    !WRITE (*,*) "PartStateAnalytic =", PartStateAnalytic
-    !read*
+        ! y-pos
+        PartStateAnalytic(2) = p*t + Theta - Theta_0
+      END ASSOCIATE
+    CASE(3)
+      ASSOCIATE( p       => AnalyticInterpolationP , &
+                 Theta_0 => -PI/2.0                      &
+                  )
+        ! gamma
+        gamma_0 = SQRT(ABS(p*p - 1.))
+
+        ! angle
+        Theta   = -2.*ATAN( SQRT((p+1.)/(p-1.)) * TAN(0.5*gamma_0*t) ) -2.*PI*REAL(NINT((gamma_0*t)/(2.*PI))) + Theta_0
+
+        ! x-pos
+        PartStateAnalytic(1) = LOG(-SIN(Theta) + p )
+
+        ! y-pos
+        PartStateAnalytic(2) = p*t + Theta - Theta_0
+      END ASSOCIATE
+    CASE(11,21) ! old version of CASE(1,2)
+      ASSOCIATE( p       => AnalyticInterpolationP , &
+            Theta_0 => 0.d0 ) !0.785398163397448d0    )
+        beta = ACOS(p)
+        !beta = ASIN(-p)
+        ! phase shift
+        phi_0   = ATANH( (1./TAN(beta/2.)) * TAN(Theta_0/2.) )
+        ! angle
+        Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*t*SIN(beta)-phi_0) )
+        Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*SIN(beta*t)-phi_0) )
+        ! x-pos
+        PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
+        ! y-pos
+        PartStateAnalytic(2) = p*t - (Theta-Theta_0)
+      END ASSOCIATE
+    CASE(31) ! old version of CASE(3)
+      ASSOCIATE( p       => AnalyticInterpolationP , &
+                 Theta_0 => 0.d0                   )
+        gamma_0 = SQRT(p*p-1.)
+        ! phase shift
+        phi_0   = ATAN( (gamma_0/(p-1.)) * TAN(Theta_0/2.) )
+        ! angle
+        Theta   = 2.*ATAN( SQRT((p-1)/(p+1)) * TAN(0.5*gamma_0*t - phi_0) ) + 2*Pi*REAL(NINT((t*gamma_0)/(2*Pi) - phi_0/Pi))
+        ! x-pos
+        PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
+        ! y-pos
+        PartStateAnalytic(2) = p*t - (Theta-Theta_0)
+      END ASSOCIATE
+    END SELECT
+
+    SELECT CASE(AnalyticInterpolationSubType)
+    CASE(1,2,3)
+      ! Set analytic velocity
+      PartStateAnalytic(4) = COS(Theta)
+      PartStateAnalytic(5) = SIN(Theta)
+      PartStateAnalytic(6) = 0.
+    CASE(11,21,31)
+      ! Set analytic velocity
+      PartStateAnalytic(4) = SIN(Theta)
+      PartStateAnalytic(5) = COS(Theta)
+      PartStateAnalytic(6) = 0.
+    END SELECT
+
+    ! Optional output variables
+    IF(PRESENT(alpha_out))THEN
+      ASSOCIATE( dot_theta => SIN(Theta) - AnalyticInterpolationP )
+        ASSOCIATE( alpha_0 => -dot_theta / EXP(PartStateAnalytic(1)) )
+          alpha_out = alpha_0
+          WRITE (*,*) "alpha_out =", alpha_out
+        END ASSOCIATE
+      END ASSOCIATE
+    END IF
+    IF(PRESENT(theta_out))THEN
+      theta_out = Theta
+      WRITE (*,*) "theta_out =", theta_out
+    END IF
+  ! 2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
+  !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
+  CASE(2)
+    ! missing ...
   END SELECT
-END SELECT
+END ASSOCIATE
 
 END SUBROUTINE CalcAnalyticalParticleState
 

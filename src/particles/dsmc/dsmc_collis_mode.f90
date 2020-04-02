@@ -47,7 +47,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, VarTimeStep, Species, usevMPF
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, VarTimeStep, Species
   USE MOD_part_tools,             ONLY : DiceUnitVector
   USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -71,7 +71,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
   iSpec1 = PartSpecies(iPart1)
   iSpec2 = PartSpecies(iPart2)
 
-  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     FracMassCent1 = Species(iSpec1)%MassIC *GetParticleWeight(iPart1)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
           + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
     FracMassCent2 = Species(iSpec2)%MassIC *GetParticleWeight(iPart2)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
@@ -294,13 +294,14 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC_RHS, DSMC, &
-                                      SpecDSMC, PartStateIntEn, RadialWeighting
-USE MOD_Particle_Vars,          ONLY: PartSpecies, PartState, Species, VarTimeStep, PEM, usevMPF
-USE MOD_DSMC_ElectronicModel,   ONLY: ElectronicEnergyExchange, TVEEnergyExchange
-USE MOD_DSMC_PolyAtomicModel,   ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
-USE MOD_DSMC_Relaxation,        ONLY: DSMC_VibRelaxDiatomic
-USE MOD_part_tools,             ONLY: DiceUnitVector, GetParticleWeight
+USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, &
+                                       SpecDSMC, PartStateIntEn, RadialWeighting
+USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, Species, VarTimeStep, PEM
+USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
+USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
+USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
+USE MOD_part_tools,             ONLY : DiceUnitVector
+USE MOD_part_tools                ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -337,7 +338,7 @@ USE MOD_part_tools,             ONLY: DiceUnitVector, GetParticleWeight
   iSpec2 = PartSpecies(iPart2)
   iElem  = PEM%Element(iPart1)
 
-  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ReducedMass = (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) * Species(iSpec2)%MassIC*GetParticleWeight(iPart2))  &
                 / (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) + Species(iSpec2)%MassIC*GetParticleWeight(iPart2))
   ELSE
@@ -508,7 +509,7 @@ END IF
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,Coll_pData(iPair)%iPart_p1)
       FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
     END IF
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
       PartStateIntEn(2,iPart1) = PartStateIntEn(2,iPart1)/GetParticleWeight(iPart1)
     END IF
   END IF
@@ -524,7 +525,7 @@ END IF
       PartStateIntEn(2,Coll_pData(iPair)%iPart_p2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,Coll_pData(iPair)%iPart_p2)
     END IF
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
       PartStateIntEn(2,iPart2) = PartStateIntEn(2,iPart2)/GetParticleWeight(iPart2)
     END IF
   END IF
@@ -533,7 +534,7 @@ END IF
 ! Calculation of new particle velocities
 !--------------------------------------------------------------------------------------------------!
 
-  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     FracMassCent1 = Species(iSpec1)%MassIC *GetParticleWeight(iPart1)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
           + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
     FracMassCent2 = Species(iSpec2)%MassIC *GetParticleWeight(iPart2)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
@@ -873,41 +874,61 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 ! Collision mode is selected (1: Elastic, 2: Non-elastic, 3: Non-elastic with chemical reactions)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,            ONLY : Abort
-  USE MOD_DSMC_Vars,          ONLY : CollisMode, Coll_pData, SelectionProc, BGGas
-  USE MOD_DSMC_Vars,          ONLY : DSMC
-  USE MOD_Particle_Vars,      ONLY : PartState, WriteMacroVolumeValues, Symmetry2D
-  USE MOD_TimeDisc_Vars,      ONLY : TEnd, Time
+USE MOD_Globals               ,ONLY: Abort
+USE MOD_DSMC_Vars             ,ONLY: CollisMode, Coll_pData, SelectionProc
+USE MOD_DSMC_Vars             ,ONLY: DSMC
+USE MOD_Particle_Vars         ,ONLY: PartState, WriteMacroVolumeValues, Symmetry2D
+USE MOD_TimeDisc_Vars         ,ONLY: TEnd, Time
+#if (PP_TimeDiscMethod==42)
+USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
+USE MOD_Particle_Vars         ,ONLY: usevMPF, Species, PartSpecies
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcCollRates
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+#endif
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPair
-  INTEGER, INTENT(IN)           :: iElem
-  REAL, INTENT(IN), OPTIONAL    :: NodeVolume
-  INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
+INTEGER, INTENT(IN)           :: iPair
+INTEGER, INTENT(IN)           :: iElem
+REAL, INTENT(IN), OPTIONAL    :: NodeVolume
+INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  LOGICAL                       :: RelaxToDo
-  REAL                          :: Distance
+LOGICAL                       :: RelaxToDo
+REAL                          :: Distance, MacroParticleFactor, PairWeight
 !===================================================================================================================================
 
-  IF(DSMC%CalcQualityFactors.AND.(BGGas%BGGasSpecies.EQ.0)) THEN
-    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-      IF(Symmetry2D) THEN
-        Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
-                       +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2)
-      ELSE
-        Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
-                       +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2 &
-                       +(PartState(3,Coll_pData(iPair)%iPart_p1) - PartState(3,Coll_pData(iPair)%iPart_p2))**2)
-      END IF
-      DSMC%CollSepDist = DSMC%CollSepDist + Distance
-      DSMC%CollSepCount = DSMC%CollSepCount + 1
-    END IF
+#if (PP_TimeDiscMethod==42)
+IF(CalcCollRates) THEN
+  PairWeight = (GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))/2.
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    ! Weighting factor already included in the PairWeight
+    MacroParticleFactor = 1.
+  ELSE
+    ! Weighting factor should be the same for all species anyway (BGG: first species is the non-BGG particle species)
+    MacroParticleFactor = Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor
   END IF
+  DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + PairWeight*MacroParticleFactor
+END IF
+#endif
+
+IF(DSMC%CalcQualityFactors) THEN
+  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+    IF(Symmetry2D) THEN
+      Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
+                      +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2)
+    ELSE
+      Distance = SQRT((PartState(1,Coll_pData(iPair)%iPart_p1) - PartState(1,Coll_pData(iPair)%iPart_p2))**2 &
+                      +(PartState(2,Coll_pData(iPair)%iPart_p1) - PartState(2,Coll_pData(iPair)%iPart_p2))**2 &
+                      +(PartState(3,Coll_pData(iPair)%iPart_p1) - PartState(3,Coll_pData(iPair)%iPart_p2))**2)
+    END IF
+    DSMC%CollSepDist = DSMC%CollSepDist + Distance
+    DSMC%CollSepCount = DSMC%CollSepCount + 1
+  END IF
+END IF
 
   SELECT CASE(CollisMode)
     CASE(1) ! elastic collision
@@ -980,7 +1001,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
   USE MOD_Globals,                ONLY : Abort
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst, ElementaryCharge
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep, usevMPF
+  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep
   USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_QK_PROCEDURES,     ONLY : QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization, QK_IonRecombination
@@ -1020,7 +1041,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
     nPartNode = PEM%pNumber(iElem)
   END IF
   nPair = INT(nPartNode/2)
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  IF(RadialWeighting%DoRadialWeighting) THEN
     NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume
   ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
     NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume * Species(1)%MacroParticleFactor
@@ -2589,36 +2610,36 @@ __STAMP__&
 ! ############################################################################################################################### !
       iReac  = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
       iReac2 = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 2)
-      IF (ChemReac%QKProcedure(iReac).AND.ChemReac%QKProcedure(iReac2)) THEN ! both Reaction QK
-        ! first pseudo reaction probability
-        IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
-          PartToExec = Coll_pData(iPair)%iPart_p1
-          PartReac2 = Coll_pData(iPair)%iPart_p2
-        ELSE
-          PartToExec = Coll_pData(iPair)%iPart_p2
-          PartReac2 = Coll_pData(iPair)%iPart_p1
-        END IF
-        ! Determine the collision energy (only relative translational)
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
-        IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,PartToExec)
-        ! ionization level is last known energy level of species
-        iQuaMax=SpecDSMC(PartSpecies(PartToExec))%MaxElecQuant - 1
-        IonizationEnergy=SpecDSMC(PartSpecies(PartToExec))%ElectronicState(2,iQuaMax)*BoltzmannConst
-        ! if you have electronic levels above the ionization limit, such limits should be used instead of
-        ! the pure energy comparison
-        IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy)THEN
-          CALL CalcReactionProb(iPair,iReac,ReactionProb)
-        ELSE
-          ReactionProb = 0.
-        END IF
-        ! second pseudo reaction probability
-        IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
-          PartToExec = Coll_pData(iPair)%iPart_p1
-          PartReac2 = Coll_pData(iPair)%iPart_p2
-        ELSE
-          PartToExec = Coll_pData(iPair)%iPart_p2
-          PartReac2 = Coll_pData(iPair)%iPart_p1
-        END IF
+      ! First pseudo reaction probability (is always ionization, here only with QK)
+      IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
+        PartToExec = Coll_pData(iPair)%iPart_p1
+        PartReac2 = Coll_pData(iPair)%iPart_p2
+      ELSE
+        PartToExec = Coll_pData(iPair)%iPart_p2
+        PartReac2 = Coll_pData(iPair)%iPart_p1
+      END IF
+      ! Determine the collision energy (only relative translational)
+      Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
+      IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,PartToExec)
+      ! ionization level is last known energy level of species
+      iQuaMax=SpecDSMC(PartSpecies(PartToExec))%MaxElecQuant - 1
+      IonizationEnergy=SpecDSMC(PartSpecies(PartToExec))%ElectronicState(2,iQuaMax)*BoltzmannConst
+      ! if you have electronic levels above the ionization limit, such limits should be used instead of
+      ! the pure energy comparison
+      IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy)THEN
+        CALL CalcReactionProb(iPair,iReac,ReactionProb)
+      ELSE
+        ReactionProb = 0.
+      END IF
+      ! second pseudo reaction probability
+      IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
+        PartToExec = Coll_pData(iPair)%iPart_p1
+        PartReac2 = Coll_pData(iPair)%iPart_p2
+      ELSE
+        PartToExec = Coll_pData(iPair)%iPart_p2
+        PartReac2 = Coll_pData(iPair)%iPart_p1
+      END IF
+      IF (ChemReac%QKProcedure(iReac2)) THEN ! both Reaction QK
         ! Determine the collision energy (relative translational + vibrational energy of dissociating molecule)
         Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
                                 + PartStateIntEn(1,PartToExec)
@@ -2634,43 +2655,65 @@ __STAMP__&
         ELSE
           ReactionProb2 = 0.
         END IF
+      ELSE
+        CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
+      END IF
 #if (PP_TimeDiscMethod==42)
-        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-          ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
-          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
-          ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
-          ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
-        END IF
+      IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+        ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
+        ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+        ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
+        ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
+      END IF
 #endif
-        ReacToDo = 0
-        IF(ReactionProb*ReactionProb2.LE.0.0) THEN
-          IF(ReactionProb.GT.0.0) THEN
-            ReacToDo = iReac
-          END IF
-          IF(ReactionProb2.GT.0.0) THEN
+      ReacToDo = 0
+      ! Check whether both reaction probabilities are exactly zero (in case of one of the QK reactions without enough energy)
+      IF(ReactionProb*ReactionProb2.LE.0.0) THEN
+        ! Check if the first reaction probability is above zero, for the QK case this means the reaction will occur
+        IF(ReactionProb.GT.0.0) THEN
+          ReacToDo = iReac
+        END IF
+        ! Check if the second reaction probability is above zero: QK = reaction occurs, TCE = comparison with random number
+        IF(ReactionProb2.GT.0.0) THEN
+          IF(ChemReac%QKProcedure(iReac2)) THEN
             ReacToDo = iReac2
-          ENDIF
-        ELSE
-          CALL RANDOM_NUMBER(iRan)
-          IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
-            ReacToDo = iReac
           ELSE
+            CALL RANDOM_NUMBER(iRan)
+            IF(ReactionProb2.GT.iRan) THEN
+              ReacToDo = iReac2
+            END IF
+          END IF
+        ENDIF
+      ELSE
+        ! If both reaction probabilities are above zero, decide for the reaction channel
+        CALL RANDOM_NUMBER(iRan)
+        IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
+          ! First reaction channel: QK, reaction occurs
+          ReacToDo = iReac
+        ELSE
+          ! Second reaction: QK or TCE (test with random number first)
+          IF(ChemReac%QKProcedure(iReac2)) THEN
             ReacToDo = iReac2
+          ELSE
+            CALL RANDOM_NUMBER(iRan)
+            IF(ReactionProb2.GT.iRan) THEN
+              ReacToDo = iReac2
+            END IF
           END IF
         END IF
-        IF(ReacToDo.NE.0) THEN
+      END IF
+      IF(ReacToDo.NE.0) THEN
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirSimuRate) THEN
+        IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-            CALL DSMC_Chemistry(iPair, ReacToDo)
+          CALL DSMC_Chemistry(iPair, ReacToDo)
 #if (PP_TimeDiscMethod==42)
-          END IF
-          IF (DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(ReacToDo) = ChemReac%NumReac(ReacToDo) + 1  ! for calculation of reaction rate coefficient
-          END IF
-#endif
-          RelaxToDo = .FALSE.
         END IF
+        IF (DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(ReacToDo) = ChemReac%NumReac(ReacToDo) + 1  ! for calculation of reaction rate coefficient
+        END IF
+#endif
+        RelaxToDo = .FALSE.
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE DEFAULT

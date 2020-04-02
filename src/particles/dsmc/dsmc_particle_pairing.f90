@@ -49,9 +49,8 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   USE MOD_DSMC_Vars,              ONLY : CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
   USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, VarVibRelaxProb, useRelaxProbCorrFactor
   USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, WriteMacroVolumeValues, VarTimeStep
-  USE MOD_DSMC_Relaxation,        ONLY : SetMeanVibQua
+  USE MOD_DSMC_Relaxation,        ONLY : CalcMeanVibQuaDiatomic
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
-  USE MOD_Particle_Analyze_Vars,  ONLY : CalcEkin
   USE MOD_DSMC_CollisionProb,     ONLY : DSMC_prob_calc
   USE MOD_DSMC_Collis,            ONLY : DSMC_perform_collision, DSMC_calc_var_P_vib
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
@@ -107,6 +106,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 
   ALLOCATE(Coll_pData(PairNum_Node))
   nPart = PartNum
+
   DO iPair = 1, PairNum_Node
     CALL RANDOM_NUMBER(iRan)
     iPart1 = 1 + INT(nPart * iRan)
@@ -126,7 +126,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
              +(PartState(2,Coll_pData(iPair)%iPart_p1) &
              - PartState(2,iPartIndx_Node(iLoop)))**2 &
              +(PartState(3,Coll_pData(iPair)%iPart_p1) &
-             - PartState(4,iPartIndx_Node(iLoop)))**2
+             - PartState(3,iPartIndx_Node(iLoop)))**2
       IF (Dist2.LT.Dist1) THEN
         iPart2 = iLoop
         Dist1 = Dist2
@@ -138,6 +138,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 
     cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
     cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
+
     iCase = CollInf%Coll_Case(cSpec1, cSpec2)
 
     IF(VarTimeStep%UseVariableTimeStep) THEN
@@ -160,7 +161,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   END IF
 
   IF (CollisMode.EQ.3) THEN
-    CALL SetMeanVibQua()
+    CALL CalcMeanVibQuaDiatomic()
   END IF
 
   DO iPair = 1,  PairNum_Node
@@ -189,14 +190,6 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
       CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
       CALL RANDOM_NUMBER(iRan)
       IF (Coll_pData(iPair)%Prob.GE.iRan) THEN
-#if (PP_TimeDiscMethod==42)
-        IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN
-#else
-        IF(CalcEkin) THEN
-#endif
-          DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
-          DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
-        END IF
         CALL DSMC_perform_collision(iPair, iElem, NodeVolume, PartNum)  ! call collision from octree
       END IF
     END IF
@@ -226,7 +219,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac
   USE MOD_DSMC_Vars,              ONLY: DSMC, SelectionProc, RadialWeighting, useRelaxProbCorrFactor, VarVibRelaxProb
   USE MOD_DSMC_Analyze,           ONLY: CalcGammaVib, CalcInstantTransTemp
-  USE MOD_Particle_Vars,          ONLY: PEM, PartSpecies, nSpecies, PartState, VarTimeStep, usevMPF
+  USE MOD_Particle_Vars,          ONLY: PEM, PartSpecies, nSpecies, PartState, VarTimeStep
   USE MOD_Particle_Vars,          ONLY: KeepWallParticles, PDM
   USE MOD_part_tools,             ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -259,7 +252,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     END DO
   END IF
 
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
   CollInf%Coll_SpecPartNum = 0.
   CollInf%Coll_CaseNum = 0
@@ -312,8 +305,9 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
 
     cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
     cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
+
     iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
       CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
                                                           + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
     END IF
@@ -354,10 +348,9 @@ USE MOD_Globals
 USE MOD_DSMC_Vars,              ONLY: CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
 USE MOD_DSMC_Vars,              ONLY: DSMC, RadialWeighting, SamplingActive, SpecDSMC, VarVibRelaxProb, useRelaxProbCorrFactor
 USE MOD_DSMC_Symmetry2D,        ONLY: CalcRadWeightMPF
-USE MOD_Particle_Vars,          ONLY: PartState, nSpecies, PartSpecies, PartMPF, WriteMacroVolumeValues, VarTimeStep, usevMPF
-USE MOD_DSMC_Relaxation,        ONLY: SetMeanVibQua
+USE MOD_Particle_Vars,          ONLY: PartState, nSpecies, PartSpecies, PartMPF, WriteMacroVolumeValues, VarTimeStep
+USE MOD_DSMC_Relaxation,        ONLY: CalcMeanVibQuaDiatomic
 USE MOD_DSMC_Analyze,           ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
-USE MOD_Particle_Analyze_Vars,  ONLY: CalcEkin
 USE MOD_DSMC_CollisionProb,     ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis,            ONLY: DSMC_perform_collision, DSMC_calc_var_P_vib
 USE MOD_TimeDisc_Vars,          ONLY: TEnd, Time
@@ -383,7 +376,7 @@ REAL                            :: iRanVec(2), NodeLength
 PairNum_Node = INT(PartNum/2)
 CollInf%Coll_SpecPartNum = 0
 CollInf%Coll_CaseNum = 0
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
+IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
 IF (CollisMode.EQ.3) THEN
   ChemReac%RecombParticle = 0
@@ -458,8 +451,9 @@ DO iPair = 1, PairNum_Node
 
   cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
   cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
+
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
                                                         + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
   END IF
@@ -482,7 +476,7 @@ IF ((PairNum_Node.NE.0).AND.(CollisMode.EQ.3).and.(MOD(PartNum, PairNum_Node).NE
 END IF
 
 IF (CollisMode.EQ.3) THEN
-  CALL SetMeanVibQua()
+  CALL CalcMeanVibQuaDiatomic()
 END IF
 DO iPair = 1,  PairNum_Node
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
@@ -572,17 +566,9 @@ DO iPair = 1,  PairNum_Node
         END IF
       END IF
     END IF
-    CALL DSMC_prob_calc(iElem, iPair, NodeVolume)   ! calculation of collision prob
+    CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
     CALL RANDOM_NUMBER(iRan)
     IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
-#if (PP_TimeDiscMethod==42)
-      IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN
-#else
-      IF(CalcEkin) THEN
-#endif
-        DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
-        DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
-      END IF
       IF (CollInf%ProhibitDoubleColl) THEN
         CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1) = Coll_pData(iPair)%iPart_p2
         CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p2) = Coll_pData(iPair)%iPart_p1
@@ -977,7 +963,7 @@ RECURSIVE SUBROUTINE AddQuadTreeNode(TreeNode, iElem, NodeVol)
 USE MOD_Globals
 USE MOD_DSMC_Analyze      ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, RadialWeighting, CollInf
-USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies, VarTimeStep, usevMPF
+USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies, VarTimeStep
 USE MOD_DSMC_Vars         ,ONLY: ElemNodeVol
 USE MOD_part_tools        ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -1099,7 +1085,7 @@ DO iLoop = 1, 4
   IF((PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin).AND.(.NOT.ForceNearestNeigh)) THEN
     ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-    IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
       DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), Volume(iLoop))
     ELSE
       DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), Volume(iLoop))
@@ -1827,12 +1813,12 @@ SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 ! Classic statistical pairing method for the use in the octree routines
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Relaxation       ,ONLY: SetMeanVibQua
+USE MOD_DSMC_Relaxation       ,ONLY: CalcMeanVibQuaDiatomic
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY : DSMC_perform_collision, DSMC_calc_var_P_vib
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
 USE MOD_DSMC_Vars             ,ONLY: SamplingActive, SelectionProc, SpecDSMC, VarVibRelaxProb
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -1855,7 +1841,7 @@ REAL                          :: iRan, VibProb
 
 nPart = PartNum
 nPair = INT(nPart/2)
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
+IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
 IF (CollisMode.EQ.3) THEN
   ChemReac%RecombParticle = 0
@@ -1890,6 +1876,7 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%B
   CALL CalcInstantTransTemp(iPartIndx_Node,PartNum)
   IF(SelectionProc.EQ.2) CALL CalcGammaVib()
 END IF
+
 IF (CollInf%ProhibitDoubleColl.AND.(nPair.EQ.1)) THEN
 ! Do not get stuck in an endless loop if only two particles/one pair are present in the cell
   CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
@@ -1927,7 +1914,7 @@ DO iPair = 1, nPair                               ! statistical pairing
 
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
   ! Summation of the average weighting factor of the collision pairs for each case (AA, AB, BB)
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
                                                         + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
   END IF
@@ -1950,7 +1937,7 @@ END IF
 IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(iPartIndx_Node(1)) = 0
 
 IF (CollisMode.EQ.3) THEN
-  CALL SetMeanVibQua()
+  CALL CalcMeanVibQuaDiatomic()
 END IF
 
 IF(RadialWeighting%DoRadialWeighting) THEN

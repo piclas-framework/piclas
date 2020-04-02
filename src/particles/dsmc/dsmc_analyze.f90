@@ -254,7 +254,7 @@ USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
 #endif
 USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry2D
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
-USE MOD_Mesh_Vars                  ,ONLY: MeshFile, BC, nBCSides
+USE MOD_Mesh_Vars                  ,ONLY: MeshFile, BC
 USE MOD_Restart_Vars               ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -342,7 +342,7 @@ END IF
 OutputCounter = 0
 
 DO iSurfSide=1,SurfMesh%nSides
-  IF(iSurfSide.GT.nBCSides) THEN
+  IF(iSurfSide.GT.SurfMesh%nBCSides) THEN
     IF(SurfMesh%innerBCSideToHaloMap(SurfMesh%SurfIDToSideID(iSurfSide)).NE.-1) CYCLE
   END IF
   OutputCounter = OutputCounter + 1
