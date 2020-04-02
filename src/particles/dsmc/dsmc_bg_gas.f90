@@ -210,7 +210,7 @@ __STAMP__&
     PEM%pEnd(LocalElemID) = PositionNbr
     PEM%pNumber(LocalElemID) = PEM%pNumber(LocalElemID) + 1
     BGGas%PairingPartner(iPart) = PositionNbr
-    CALL CalcVelocity_maxwell_lpn(FractNbr=iSpec, Vec3D=PartState(4:6,PositionNbr), iInit=0)
+    CALL CalcVelocity_maxwell_lpn(FractNbr=iSpec, Vec3D=PartState(4:6,PositionNbr), iInit=1)
   END IF
 END DO
 PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
@@ -229,11 +229,7 @@ USE MOD_DSMC_Analyze        ,ONLY: CalcGammaVib
 USE MOD_DSMC_Vars           ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
 USE MOD_DSMC_Vars           ,ONLY: VarVibRelaxProb
 USE MOD_Particle_Vars       ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species
-#if USE_MPI
-USE MOD_MPI_Shared_Vars     ,ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars           ,ONLY: ElemVolume_Shared
-#endif
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -348,11 +344,7 @@ USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticleVelocity
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared
-#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -481,7 +473,7 @@ DO iSpec = 1,nSpecies                             ! Loop over all non-background
           PEM%Element(bggPartIndex) = iElem + offSetElem
           PDM%ParticleInside(bggPartIndex) = .TRUE.
           ! Determine the particle velocity
-          CALL CalcVelocity_maxwell_lpn(FractNbr=jSpec, Vec3D=PartState(4:6,bggPartIndex), iInit=0)
+          CALL CalcVelocity_maxwell_lpn(FractNbr=jSpec, Vec3D=PartState(4:6,bggPartIndex), iInit=1)
           ! Advance the total count
           PairCount = PairCount + 1
           ! Pairing

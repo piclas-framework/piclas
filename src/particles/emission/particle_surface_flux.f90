@@ -46,6 +46,7 @@ USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound, nAdaptiveBC, nPorousBC
 USE MOD_Particle_Mesh          ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
 USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, WriteTriaSurfaceFluxDebugMesh, SideType
@@ -60,7 +61,6 @@ USE MOD_ReadInTools
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 #if USE_MPI
-USE MOD_MPI_Shared_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -1179,6 +1179,7 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMesh, PartBound, nAdaptiveBC, nSurfSample
 USE MOD_Particle_Mesh           ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
@@ -1200,10 +1201,7 @@ USE MOD_Timedisc_Vars           ,ONLY: iStage,nRKStages
 #endif
 #endif /*CODE_ANALYZE*/
 #if USE_MPI
-USE MOD_MPI_Shared_Vars
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
-#else
-USE MOD_Mesh_Vars
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem

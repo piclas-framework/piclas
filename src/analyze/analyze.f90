@@ -131,11 +131,7 @@ USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 #ifdef maxwell
 USE MOD_Equation_vars         ,ONLY: Wavelength
 #endif /* maxwell */
-#if USE_MPI
-USE MOD_MPI_Shared_Vars       ,ONLY: ElemCharLength_Shared
-#else
-USE MOD_Mesh_Vars             ,ONLY: ElemCharLength_Shared
-#endif
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

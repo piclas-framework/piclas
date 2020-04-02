@@ -88,6 +88,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts, TrackInfo
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
 USE MOD_Particle_Intersection       ,ONLY: IntersectionWithWall
@@ -97,9 +98,6 @@ USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetI
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
-#if USE_MPI
-USE MOD_MPI_Shared_Vars
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -460,7 +458,8 @@ USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
 USE MOD_Particle_Mesh               ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Particle_Mesh_tools         ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Tools         ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
 USE MOD_Particle_Localization       ,ONLY: LocateParticleInElement
 USE MOD_Particle_Localization       ,ONLY: PartInElemCheck
 USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
@@ -487,9 +486,6 @@ USE MOD_TimeDisc_Vars               ,ONLY: iStage
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBElemPauseTime,LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
-#if USE_MPI
-USE MOD_MPI_Shared_Vars             ,ONLY: SideInfo_Shared
-#endif /* USE_MPI */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1253,6 +1249,7 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars              ,ONLY: OffSetElem,useCurveds,NGeo
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Particle_Localization  ,ONLY: PartInElemCheck
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,BCElem,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides
@@ -1262,11 +1259,6 @@ USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps2
 USE MOD_Particle_Tracking_Vars ,ONLY: nTracks,Distance,ListDistance,CartesianPeriodic
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,LastPartPos,PartSpecies
 USE MOD_Utils                  ,ONLY: InsertionSort
-#if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY: ElemBaryNGeo_Shared
-USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
-!USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
-#endif /*USE_MPI*/
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars          ,ONLY: PartStateN
 USE MOD_TimeDisc_Vars          ,ONLY: iStage
@@ -1731,6 +1723,7 @@ USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideBCMetrics,ElemToBCSides
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
+USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO,ElemRadiusNGeo
 USE MOD_Utils                       ,ONLY: InsertionSort
 USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
@@ -1741,9 +1734,6 @@ USE MOD_Particle_Tracking_Vars      ,ONLY: CartesianPeriodic
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars      ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
-#if USE_MPI
-USE MOD_MPI_Shared_Vars
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2006,13 +1996,13 @@ USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
 USE MOD_Particle_Tracking_Vars      ,ONLY: TrackInfo
 USE MOD_Particle_Vars               ,ONLY: PDM
 #if USE_MPI
-USE MOD_MPI_Shared_Vars             ,ONLY: SideInfo_Shared
+USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
 #endif /* USE_MPI */
 #if CODE_ANALYZE
 USE MOD_Mesh_Vars                   ,ONLY: NGeo
 USE MOD_Particle_Localization       ,ONLY: SinglePointToElement
 USE MOD_Particle_Surfaces_Vars      ,ONLY: BezierControlPoints3D
-USE MOD_MPI_Shared_Vars             ,ONLY: ElemBaryNGeo_Shared
+USE MOD_Particle_Mesh_Vars          ,ONLY: ElemBaryNGeo_Shared
 USE MOD_Particle_Vars               ,ONLY: PartState
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
@@ -2484,6 +2474,7 @@ USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 !USE MOD_Mesh_Vars,                   ONLY:ElemBaryNGeo
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
+USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
 USE MOD_Utils,                       ONLY:InsertionSort
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
@@ -2493,9 +2484,6 @@ USE MOD_Particle_INtersection,       ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Vars,               ONLY:PartPosRef
 USE MOD_Eval_xyz,                    ONLY:TensorProductInterpolation
 USE MOD_Mesh_Vars,                   ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-#if USE_MPI
-USE MOD_MPI_Shared_Vars
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2624,9 +2612,7 @@ SUBROUTINE ParticleThroughSideCheck3DFast(PartID,PartTrajectory,iLocSide,Element
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars
-#if USE_MPI
-USE MOD_MPI_Shared_Vars
-#endif
+USE MOD_Particle_Mesh_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2730,9 +2716,7 @@ SUBROUTINE ParticleThroughSideLastPosCheck(i,iLocSide,Element,InElementCheck,Tri
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars
-#if USE_MPI
-USE MOD_MPI_Shared_Vars
-#endif
+USE MOD_Particle_Mesh_Vars
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3026,6 +3010,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars,              ONLY:offsetelem
 USE MOD_Particle_Localization,  ONLY:PartInElemCheck
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
+USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo_Shared
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Vars,          ONLY:PEM,PDM,LastPartPos,PartState
 USE MOD_TimeDisc_Vars,          ONLY:iStage
@@ -3033,8 +3018,6 @@ USE MOD_TimeDisc_Vars,          ONLY:iStage
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit,PartDtFrac
 #endif /*IMPA*/
 #if USE_MPI
-!USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
-USE MOD_MPI_Shared_Vars,        ONLY:ElemBaryNGeo_Shared
 USE MOD_MPI_Vars,               ONLY:offsetElemMPI
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING

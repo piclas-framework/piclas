@@ -1008,11 +1008,7 @@ USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PEM, VarTimeStep
 USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb
 USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 USE MOD_DSMC_QK_PROCEDURES,     ONLY : QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization, QK_IonRecombination
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared
-#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

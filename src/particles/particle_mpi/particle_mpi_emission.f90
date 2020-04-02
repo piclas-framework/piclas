@@ -101,9 +101,9 @@ SUBROUTINE SendEmissionParticlesToProcs(chunkSize,DimSend,FractNbr,iInit,mySumOf
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_MPI_Shared_Vars        ,ONLY: ElemInfo_Shared,ElemToProcID_Shared
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement,SinglePointToElement
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,ElemToProcID_Shared
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems, FIBGM_offsetElem, FIBGM_Element
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIInsert,PartMPILocate

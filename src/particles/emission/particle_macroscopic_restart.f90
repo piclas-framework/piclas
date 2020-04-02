@@ -48,11 +48,7 @@ USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, ElemEpsOneCell
 USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmetry2DAxisymmetric, Symmetry2D, VarTimeStep
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
-#if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
-#else
-USE MOD_Mesh_Vars               ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
-#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -50,7 +50,7 @@ USE MOD_Mesh_Vars              ,ONLY: Vdm_N_EQ,offsetElem
 USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,CellLocNodes_Volumes
 USE MOD_Restart_Vars           ,ONLY: N_Restart
 #if USE_MPI
-USE MOD_MPI_Shared_Vars
+USE MOD_Particle_Mesh_Vars
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here

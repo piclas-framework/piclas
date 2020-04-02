@@ -59,11 +59,7 @@ USE MOD_Mesh_Vars             ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars         ,ONLY: iter
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
-#if USE_MPI
-USE MOD_MPI_Shared_Vars       ,ONLY: ElemVolume_Shared,ElemMPVolumePortion_Shared
-#else
-USE MOD_Mesh_Vars             ,ONLY: ElemVolume_Shared,ElemMPVolumePortion_Shared
-#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared,ElemMPVolumePortion_Shared
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/

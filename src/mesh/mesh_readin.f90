@@ -214,6 +214,7 @@ USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc, offsetElemMP
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared           ,ONLY: Allocate_Shared
 USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
+USE MOD_Particle_Mesh_Vars
 #ifdef PARTICLES
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem

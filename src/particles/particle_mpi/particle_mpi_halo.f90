@@ -67,6 +67,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_MPI_Shared_Vars
 USE MOD_Particle_Mesh          ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -74,10 +75,13 @@ USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors,ExchangeProcToGlobalPr
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: iElem,ElemID,firstElem,lastElem,NbElemID
-INTEGER                        :: iSide,SideID,firstSide,lastSide,iLocSide
+INTEGER                        :: iSide,SideID,iLocSide
+!INTEGER                        :: firstSide,lastSide
 INTEGER                        :: iMortar,nMortarElems,NbSideID
-INTEGER                        :: iProc,GlobalProcID,HaloProc
-INTEGER                        :: nExchangeProcs,nExchangeSides
+INTEGER                        :: iProc,HaloProc
+!INTEGER                        :: GlobalProcID
+INTEGER                        :: nExchangeSides
+!INTEGER                        :: nExchangeProcs
 INTEGER,ALLOCATABLE            :: ExchangeSides(:)
 REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:)
 !=================================================================================================================================

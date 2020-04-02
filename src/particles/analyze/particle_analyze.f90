@@ -196,6 +196,10 @@ USE MOD_DSMC_Vars             ,ONLY: RadialWeighting, DSMC, Collismode
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems,offsetElem
 USE MOD_Particle_Analyze_Vars
+USE MOD_Particle_Mesh_Vars    ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared
 USE MOD_Particle_Vars         ,ONLY: Species,nSpecies, VarTimeStep, PDM
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
@@ -208,13 +212,10 @@ USE MOD_Restart_Vars          ,ONLY: RestartTime
 #endif
 #if USE_MPI
 USE MOD_MPI_Shared            ,ONLY: Allocate_Shared
-USE MOD_MPI_Shared_Vars       ,ONLY: nComputeNodeElems,offsetComputeNodeElem,BoundsOfElem_Shared,ElemVolume_Shared
-USE MOD_MPI_Shared_Vars       ,ONLY: ElemCharLengthX_Shared,ElemCharLengthX_Shared_Win
-USE MOD_MPI_Shared_Vars       ,ONLY: ElemCharLengthY_Shared,ElemCharLengthY_Shared_Win
-USE MOD_MPI_Shared_Vars       ,ONLY: ElemCharLengthZ_Shared,ElemCharLengthZ_Shared_Win
-#else
-USE MOD_Mesh_Vars             ,ONLY: BoundsOfElem_Shared
-USE MOD_Mesh_Vars             ,ONLY: ElemVolume_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
+USE MOD_MPI_Shared_Vars       ,ONLY: nComputeNodeElems,offsetComputeNodeElem
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared_Win
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -225,11 +226,12 @@ IMPLICIT NONE
 INTEGER       :: dir, VeloDirs_hilf(4),iElem
 REAL          :: DOF,VolumeShapeFunction
 CHARACTER(32) :: hilf
-INTEGER       :: ALLOCSTAT
 INTEGER       :: iSpec
 INTEGER       :: offsetElemCNProc
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+#else
+INTEGER       :: ALLOCSTAT
 #endif
 !===================================================================================================================================
 IF (ParticleAnalyzeInitIsDone) THEN
@@ -3319,12 +3321,8 @@ USE MOD_Particle_Vars          ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF
 USE MOD_Preproc                ,ONLY: PP_nElems
 USE MOD_PIC_Analyze            ,ONLY: CalculateBRElectronsPerCell
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_part_tools             ,ONLY: GetParticleWeight
-#if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars              ,ONLY: ElemVolume_Shared
-#endif /*USE_MPI*/
+USE MOD_Part_Tools             ,ONLY: GetParticleWeight
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3605,11 +3603,7 @@ SUBROUTINE CalculatePPDCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
 USE MOD_Particle_Analyze_Vars ,ONLY: DebyeLengthCell,PPDCell,PPDCellX,PPDCellY,PPDCellZ
-#if USE_MPI
-USE MOD_MPI_Shared_Vars       ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
-#else
-USE MOD_Mesh_Vars             ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
-#endif
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3646,11 +3640,7 @@ USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell,PICCFLCell,PICCFLCellX,PICCFLCellY,PICCFLCellZ
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass
-#if USE_MPI
-USE MOD_MPI_Shared_Vars       ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
-#else
-USE MOD_Mesh_Vars             ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
-#endif
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3691,11 +3681,7 @@ USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCell
 USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCellX,MaxPartDisplacementCellY,MaxPartDisplacementCellZ
 USE MOD_Particle_Vars         ,ONLY: PDM,PEM,PartState
 USE MOD_TimeDisc_Vars         ,ONLY: dt
-#if USE_MPI
-USE MOD_MPI_Shared_Vars       ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
-#else
-USE MOD_Mesh_Vars             ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
-#endif
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3755,11 +3741,7 @@ SUBROUTINE CalculateIonizationCell()
 USE MOD_Preproc                ,ONLY:PP_nElems
 USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell,QuasiNeutralityCell,NeutralDensityCell,ElectronDensityCell,IonDensityCell
 USE MOD_Particle_Analyze_Vars  ,ONLY:ChargeNumberCell
-#if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY:ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars              ,ONLY:ElemVolume_Shared
-#endif
+USE MOD_Particle_Mesh_Vars     ,ONLY:ElemVolume_Shared
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -4173,11 +4155,7 @@ USE MOD_Particle_Vars           ,ONLY: PartSpecies, PEM
 USE MOD_Particle_Analyze_Vars   ,ONLY: PCoupl, PCouplAverage, PCouplSpec
 USE MOD_Part_Tools              ,ONLY: isChargedParticle
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
-#if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars               ,ONLY: ElemVolume_Shared
-#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -4226,11 +4204,7 @@ USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Globals
 #endif /*USE_MPI*/
 USE MOD_Globals               ,ONLY: UNIT_StdOut
-#if USE_MPI
-USE MOD_MPI_Shared_Vars       ,ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars             ,ONLY: ElemVolume_Shared
-#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

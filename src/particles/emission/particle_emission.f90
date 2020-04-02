@@ -478,6 +478,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars ,ONLY: PorousBCSampIter, PorousBCMacroVal
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, AdaptiveWeightFac
 USE MOD_Particle_Vars          ,ONLY: usevMPF
 USE MOD_Timedisc_Vars          ,ONLY: iter
@@ -485,11 +486,6 @@ USE MOD_Timedisc_Vars          ,ONLY: iter
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 USE MOD_LoadBalance_vars       ,ONLY: nPartsPerBCElem
 #endif /*USE_LOADBALANCE*/
-#if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars              ,ONLY: ElemVolume_Shared
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -62,9 +62,7 @@ USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Vars      ,ONLY: PartSpecies,Species
 USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
-#if USE_MPI
-USE MOD_MPI_Shared_Vars
-#endif
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -129,9 +127,7 @@ USE MOD_Interpolation_Vars ,ONLY: wGP, xGP, wBary
 USE MOD_Mesh_Vars          ,ONLY: sJ, nElems
 !USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_PICDepo_Vars       ,ONLY: CellLocNodes_Volumes
-#if USE_MPI
-USE MOD_MPI_Shared_Vars
-#endif
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

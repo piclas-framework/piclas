@@ -61,7 +61,7 @@ USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars            ,ONLY: PDM, UseCircularInflow
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod
-!USE MOD_Particle_Mesh_Vars       ,ONLY: PartBCSideList
+USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,nPorousBC,DoBoundaryParticleOutput
 USE MOD_Particle_Boundary_Porous ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
@@ -74,16 +74,11 @@ USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_Particle_Boundary_Tools  ,ONLY: BoundaryParticleOutput,DielectricSurfaceCharge
-#if USE_MPI
-USE MOD_MPI_Shared_Vars
-#else
-USE MOD_Mesh_Vars
-#endif /* USE_MPI */
 #if CODE_ANALYZE
-USE MOD_Globals                     ,ONLY: myRank
-USE MOD_Mesh_Vars                   ,ONLY: NGeo
-USE MOD_Particle_Surfaces_Vars      ,ONLY: BezierControlPoints3D
-USE MOD_MPI_Shared_Vars             ,ONLY: ElemBaryNGeo_Shared
+USE MOD_Globals                  ,ONLY: myRank
+USE MOD_Mesh_Vars                ,ONLY: NGeo
+USE MOD_Particle_Surfaces_Vars   ,ONLY: BezierControlPoints3D
+USE MOD_Particle_Mesh_Vars       ,ONLY: ElemBaryNGeo_Shared
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -409,9 +404,7 @@ USE MOD_Particle_Vars           ,ONLY: PEM
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact
 USE MOD_part_tools              ,ONLY: GetParticleWeight
-#if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: SideInfo_Shared
-#endif /* USE_MPI */
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -645,7 +638,7 @@ USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact, GetWallTemperature
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
-USE MOD_Particle_Mesh_Vars      ,ONLY: PartSideToElem
+USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry2D
@@ -659,11 +652,6 @@ USE MOD_BGK_Vars                ,ONLY: BGKDoVibRelaxation
 #elif (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Vars             ,ONLY: FPDoVibRelaxation
 #endif
-#if USE_MPI
-USE MOD_MPI_Shared_Vars
-#else
-USE MOD_Mesh_Vars
-#endif /* USE_MPI */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -738,12 +726,13 @@ IF(Symmetry2DAxisymmetric) THEN
   VelY = PartState(2,PartID) - LastPartPos(2,PartID)
   VelZ = PartState(3,PartID) - LastPartPos(3,PartID)
 
-  ElemID = PartSideToElem(S2E_ELEM_ID,SideID)
+  ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
   IF (ElemID .EQ. TrackInfo%CurrElem) THEN
-    LocSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
+    LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
   ELSE
-    ElemID = PartSideToElem(S2E_NB_ELEM_ID,SideID)
-    LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+    ! TODO mortars!
+    ElemID    = SideInfo_Shared(SIDE_NBELEMID,SideID)
+    LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
   END IF
 
   ! Getting the vectors, which span the cell (1-2 and 1-4)
@@ -1066,6 +1055,7 @@ SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,n_Loc,PartID,SideID,IsSpecies
 USE MOD_Globals                 ,ONLY: abort,VECNORM
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SampWall,dXiEQ_SurfSample,SurfMesh,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,usevMPF
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
 USE MOD_Mesh_Vars               ,ONLY: BC
@@ -1078,9 +1068,6 @@ USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn
 USE MOD_Particle_Vars           ,ONLY: PartIsImplicit,DoPartInNewton
 #endif /*IMPA*/
 USE MOD_part_tools              ,ONLY: GetParticleWeight
-#if USE_MPI
-USE MOD_MPI_Shared_Vars         ,ONLY: SideInfo_Shared
-#endif /* USE_MPI */
 USE MOD_part_operations         ,ONLY: RemoveParticle
 USE MOD_Mesh_Vars               ,ONLY: BC
 ! IMPLICIT VARIABLE HANDLING
@@ -1343,9 +1330,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,CalcSurfCollis,AnalyzeSurfCollis
 USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,nSpecies,PartSpecies,WriteMacroSurfaceValues
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_TImeDisc_Vars          ,ONLY: tend,time
-#if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY: SideInfo_Shared
-#endif /* USE_MPI */
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1492,9 +1477,7 @@ SUBROUTINE SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species, LastPartPos, PartSpecies
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-#if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY: SideInfo_Shared
-#endif /* USE_MPI */
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_part_operations        ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING

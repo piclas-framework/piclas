@@ -452,7 +452,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 #if USE_MPI
-USE MOD_MPI_Shared_Vars
+USE MOD_Particle_Mesh_Vars
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE

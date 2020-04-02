@@ -115,12 +115,8 @@ USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartS
 USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PEM, PartState
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_DSMC_ChemReact,         ONLY: DSMC_Chemistry
-USE MOD_Mesh_Vars               ,ONLY: offSetElem
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared
-#endif /*USE_MPI*/
+USE MOD_Mesh_Vars,              ONLY: offSetElem
+USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -534,12 +530,8 @@ USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_DSMC_ChemReact,         ONLY: DSMC_Chemistry
 USE MOD_Globals_Vars,           ONLY: Pi
 USE MOD_Globals
-USE MOD_Mesh_Vars               ,ONLY: offSetElem
-#if USE_MPI
-USE MOD_MPI_Shared_Vars,        ONLY: ElemVolume_Shared
-#else
-USE MOD_Mesh_Vars,              ONLY: ElemVolume_Shared
-#endif /*USE_MPI*/
+USE MOD_Mesh_Vars,              ONLY: offSetElem
+USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

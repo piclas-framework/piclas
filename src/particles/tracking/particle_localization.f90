@@ -94,7 +94,7 @@ USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D,GetCNElemID
 USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance,TriaTracking
 USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY: ElemBaryNGeo_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo_Shared
 #else
 USE MOD_Mesh_Vars              ,ONLY: ElemBaryNGeo
 #endif
@@ -201,6 +201,7 @@ USE MOD_Particle_Intersection  ,ONLY: ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection  ,ONLY: ComputeBiLinearIntersection
 USE MOD_Particle_Intersection  ,ONLY: ComputeCurvedIntersection
 USE MOD_Particle_Mesh          ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideType,SideNormVec
 USE MOD_Particle_Vars          ,ONLY: LastPartPos
@@ -211,11 +212,6 @@ USE MOD_Particle_Surfaces      ,ONLY: OutputBezierControlPoints
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Intersection  ,ONLY: OutputTrajectory
 #endif /*CODE_ANALYZE*/
-#if USE_MPI
-USE MOD_MPI_Shared_Vars        ,ONLY: SideInfo_Shared
-#else
-USE MOD_Mesh_Vars              ,ONLY: SideInfo_Shared
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
