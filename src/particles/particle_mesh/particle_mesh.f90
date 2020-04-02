@@ -143,16 +143,22 @@ CALL addStrListEntry('TrackingMethod' , 'default'         , TRIATRACKING)
 
 CALL prms%CreateLogicalOption( 'Write-Tria-DebugMesh'&
   , 'Writes per proc triangulated Surfacemesh used for Triatracking. Requires TriaTracking=T.'&
-  ,'.FALSE.')
+  , '.FALSE.')
 CALL prms%CreateLogicalOption( 'TriaSurfaceFlux'&
   , 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for surfaceflux.'//&
-  ' Default is set to TriaTracking')
+    ' Default is set to TriaTracking')
 CALL prms%CreateLogicalOption( 'Write-TriaSurfaceFlux-DebugMesh'&
   , 'Writes per proc triangulated Surfacemesh used for TriaSurfaceFlux. Requires TriaSurfaceFlux=T.'&
-  ,'.FALSE.')
+  , '.FALSE.')
 
-CALL prms%CreateLogicalOption( 'CountNbOfLostParts'&
-  , 'Count number of lost particles during tracking that can not be found with fallbacks.','.FALSE.')
+CALL prms%CreateLogicalOption( 'DisplayLostParticles'&
+  , 'Display position, velocity, species and host element of particles lost during particle tracking (TrackingMethod = '//&
+    'triatracking, tracing)','.FALSE.')
+CALL prms%CreateLogicalOption( 'CountNbrOfLostParts'&
+    , 'Count the number of lost particles during tracking that cannot be found with fallbacks. Additionally, the lost particle '//&
+    'information is stored in a PartStateLost*.h5 file. When particles are not found during restart in their host cell '//&
+    '(sanity check), they are marked missing and are also written to PartStateLost*.h5 file even if they are re-located '//&
+    'on a different processor.','.TRUE.')
 CALL prms%CreateIntOption(     'PartOut'&
   , 'If compiled with CODE_ANALYZE flag: For This particle number every tracking information is written as STDOUT.','0')
 CALL prms%CreateIntOption(     'MPIRankOut'&
@@ -228,8 +234,10 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation,BezierControlPoints3DElevated
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts,CartesianPeriodic
-USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, WriteTriaDebugMesh, TrackingMethod
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbrOfLostParts
+USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal
+USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost,CartesianPeriodic
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, WriteTriaDebugMesh, TrackingMethod,DisplayLostParticles
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
@@ -291,24 +299,35 @@ IF ((DoRefMapping.OR.UseCurveds.OR.(NGeo.GT.1)).AND.(TriaTracking)) THEN
 __STAMP__&
 ,'DoRefMapping=T .OR. UseCurveds=T .OR. NGEO>1! Not possible with TriaTracking=T at the same time!')
 ELSE IF (TriaTracking) THEN
-  WriteTriaDebugMesh = GETLOGICAL('Write-Tria-DebugMesh','.FALSE.')
+  WriteTriaDebugMesh = GETLOGICAL('Write-Tria-DebugMesh')
 ELSE
   WriteTriaDebugMesh = .FALSE.
 END IF
-CountNbOfLostParts = GETLOGICAL('CountNbOfLostParts',".FALSE.")
-nLostParts         = 0
+CountNbrOfLostParts  = GETLOGICAL('CountNbrOfLostParts')
+IF(CountNbrOfLostParts)THEN
+  ! Nullify and reset lost parts container after write out
+  PartStateLostVecLength = 0
+
+  ! Allocate PartStateLost for a small number of particles and double the array size each time the 
+  ! maximum is reached
+  ALLOCATE(PartStateLost(1:14,1:10))
+  PartStateLost=0.
+END IF ! CountNbrOfLostParts
+NbrOfLostParticles      = 0
+NbrOfLostParticlesTotal = 0
+DisplayLostParticles    = GETLOGICAL('DisplayLostParticles')
 
 #ifdef CODE_ANALYZE
-PARTOUT            = GETINT('PartOut','0')
-MPIRankOut         = GETINT('MPIRankOut','0')
+PARTOUT            = GETINT('PartOut')
+MPIRankOut         = GETINT('MPIRankOut')
 #endif /*CODE_ANALYZE*/
 
 !IF(.NOT.DoRefMapping) THEN
 !  SDEALLOCATE(nTracksPerElem)
 !END IF
-MeasureTrackTime  = GETLOGICAL('MeasureTrackTime','.FALSE.')
-CartesianPeriodic = GETLOGICAL('CartesianPeriodic','.FALSE.')
-IF(CartesianPeriodic) FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
+MeasureTrackTime  = GETLOGICAL('MeasureTrackTime')
+CartesianPeriodic = GETLOGICAL('CartesianPeriodic')
+IF(CartesianPeriodic) FastPeriodic = GETLOGICAL('FastPeriodic')
 
 ! method from xPhysic to parameter space
 
@@ -348,7 +367,7 @@ END IF
 !,' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',RefMappingGuess)
 !END IF
 
-BezierElevation = GETINT('BezierElevation','0')
+BezierElevation = GETINT('BezierElevation')
 NGeoElevated    = NGeo + BezierElevation
 SDEALLOCATE(BezierControlPoints3DElevated)
 ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeo+BezierElevation,0:NGeo+BezierElevation,1:nSides) &
@@ -364,7 +383,7 @@ TriaSurfaceFlux = GETLOGICAL('TriaSurfaceFlux',TRIM(hilf))
 IF (TriaSurfaceFlux) THEN
   BezierSampleN = 1
   SurfFluxSideSize=(/1,2/)
-  WriteTriaSurfaceFluxDebugMesh = GETLOGICAL('Write-TriaSurfaceFlux-DebugMesh','.FALSE.')
+  WriteTriaSurfaceFluxDebugMesh = GETLOGICAL('Write-TriaSurfaceFlux-DebugMesh')
 ELSE
   WRITE(hilf,'(I2.2)') NGeo
   BezierSampleN = GETINT('BezierSampleN',hilf)
@@ -703,7 +722,7 @@ SUBROUTINE FinalizeParticleMesh()
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nElems, nNodes
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance
+USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance,PartStateLost
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -776,6 +795,7 @@ SDEALLOCATE(ElemRadius2NGeo)
 SDEALLOCATE(EpsOneCell)
 SDEALLOCATE(Distance)
 SDEALLOCATE(ListDistance)
+SDEALLOCATE(PartStateLost)
 SDEALLOCATE(isTracingTrouble)
 SDEALLOCATE(ElemTolerance)
 SDEALLOCATE(ElemToGlobalElemID)
@@ -1410,8 +1430,8 @@ SWRITE(UNIT_StdOut,'(66("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...'
 StartT=PICLASTIME()
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
-GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
-GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
+GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3)
+GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3)
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 ! build elem basis before halo region build
@@ -1446,8 +1466,8 @@ StartT=PICLASTIME()
 #if USE_MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...'
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
-printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.FALSE.')
-printBezierControlPointsWarnings = GETLOGICAL('printBezierControlPointsWarnings','.FALSE.')
+printMPINeighborWarnings         = GETLOGICAL('printMPINeighborWarnings')
+printBezierControlPointsWarnings = GETLOGICAL('printBezierControlPointsWarnings')
 CALL InitHaloMesh()
 ! HALO mesh and region build. Unfortunately, the local FIBGM has to be extended to include the HALO elements :(
 ! rebuild is a local operation

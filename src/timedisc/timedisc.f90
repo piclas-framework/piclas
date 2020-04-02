@@ -273,7 +273,7 @@ USE MOD_Analyze                ,ONLY: PerformAnalyze
 USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze
 USE MOD_Restart_Vars           ,ONLY: RestartTime,RestartWallTime
 USE MOD_HDF5_output            ,ONLY: WriteStateToHDF5
-USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
+USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
 USE MOD_LoadBalance_Vars       ,ONLY: nSkipAnalyze
@@ -439,15 +439,11 @@ CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 #ifdef PARTICLES
 IF(DoImportIMDFile) CALL WriteIMDStateToHDF5() ! write IMD particles to state file (and TTM if it exists)
 #endif /*PARTICLES*/
-IF(DoWriteStateToHDF5)THEN
-!  #ifdef PARTICLES
-!    CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !just for writing actual number into HDF5 (not for loadbalance!)
-!  #endif /*PARTICLES*/
-  CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
+! Write initial state to file
+CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
 #if USE_QDS_DG
-  IF(DoQDS) CALL WriteQDSToHDF5(time,tPreviousAnalyze)
+IF(DoQDS) CALL WriteQDSToHDF5(time,tPreviousAnalyze)
 #endif /*USE_QDS_DG*/
-END IF
 
 ! if measurement of particle tracking time (used for analyze, load balancing uses own time measurement for tracking)
 #ifdef PARTICLES
@@ -642,15 +638,10 @@ DO !iter_t=0,MaxIter
       ! write information out to std-out of console
       CALL WriteInfoStdOut()
       ! Write state to file
-      IF(DoWriteStateToHDF5)THEN
-!  #ifdef PARTICLES
-!          CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !just for writing actual number into HDF5 (not for loadbalance!)
-!  #endif /*PARTICLES*/
-        CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
+      CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
 #if USE_QDS_DG
-        IF(DoQDS) CALL WriteQDSToHDF5(time,tPreviousAnalyze)
+      IF(DoQDS) CALL WriteQDSToHDF5(time,tPreviousAnalyze)
 #endif /*USE_QDS_DG*/
-      END IF
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
@@ -5025,7 +5016,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter,dt_Min
 USE MOD_LinearSolver_Vars      ,ONLY: totalIterLinearSolver
 #endif /*IMPA || ROS*/
 #ifdef PARTICLES
-USE MOD_Particle_Tracking_vars ,ONLY: CountNbOfLostParts,nLostParts
+USE MOD_Particle_Tracking_vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticles,NbrOfLostParticlesTotal
 #ifdef IMPA
 USE MOD_LinearSolver_vars      ,ONLY: nPartNewton
 USE MOD_LinearSolver_Vars      ,ONLY: totalFullNewtonIter
@@ -5041,20 +5032,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                      :: TimeArray(8)              ! Array for system time
-#ifdef PARTICLES
-INTEGER                      :: nLostPartsTot
-#endif /*PARTICLES*/
 !===================================================================================================================================
 #ifdef PARTICLES
-IF(CountNbOfLostParts)THEN
+IF(CountNbrOfLostParts)THEN
 #if USE_MPI
-  IF(MPIRoot) THEN
-    CALL MPI_REDUCE(nLostParts,nLostPartsTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  ELSE ! no Root
-    CALL MPI_REDUCE(nLostParts,nLostPartsTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  END IF
+  CALL MPI_ALLREDUCE(NbrOfLostParticles , NbrOfLostParticlesTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
 #else
-  nLostPartsTot=nLostParts
+  NbrOfLostParticlesTotal=NbrOfLostParticles
 #endif /*USE_MPI*/
 END IF
 #endif /*PARICLES*/
@@ -5073,9 +5057,7 @@ IF(MPIroot)THEN
   WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
   WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
 #ifdef PARTICLES
-  IF(CountNbOfLostParts)THEN
-    WRITE(UNIT_stdOut,'(A,I12)')' NbOfLostParticle : ',nLostPartsTot
-  END IF
+  IF(CountNbrOfLostParts.AND.(NbrOfLostParticlesTotal.GT.0)) WRITE(UNIT_stdOut,'(A,I22)')' Nuber of lost particles :',NbrOfLostParticlesTotal
 #endif /*PARICLES*/
 END IF !MPIroot
 #if defined(IMPA) || defined(ROS)
