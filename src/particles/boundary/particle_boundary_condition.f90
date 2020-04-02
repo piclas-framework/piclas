@@ -74,7 +74,7 @@ USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 #endif /*IMPA*/
 USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
-USE MOD_Particle_Boundary_Tools  ,ONLY: BoundaryParticleOutput,DielectricSurfaceCharge
+USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties,DielectricSurfaceCharge
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -136,7 +136,7 @@ END IF
 ASSOCIATE( iBC => PartBound%MapToPartBC(BC(SideID)) )
   ! Surface particle output to .h5
   IF(DoBoundaryParticleOutput.AND.PartBound%BoundaryParticleOutput(iBC))THEN
-    CALL BoundaryParticleOutput(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc)
+    CALL StoreBoundaryParticleProperties(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc)
   END IF
 
   ! Select the corresponding boundary condition and calculate particle treatment

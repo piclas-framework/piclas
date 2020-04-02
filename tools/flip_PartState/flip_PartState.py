@@ -54,7 +54,7 @@ def FlipDataset(statefile,data_set) :
     # available attributes   : print('\n'.join(x for x in f1.attrs))                        # yields 'File_Type\n File_Version\n MeshFile'
     # get specific attribute : file_version  = f1.attrs.get('File_Version', default=-1.)[0] # yields, e.g., 1.5
     # -------------------
-    
+
     # 1.1.1   Read the dataset from the hdf5 file
     try :
         b1 = f1[data_set][:]
