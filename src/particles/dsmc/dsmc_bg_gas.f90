@@ -199,9 +199,9 @@ __STAMP__&
     iSpec = BGGas_GetSpecies()
     PartSpecies(PositionNbr) = iSpec
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-      CALL DSMC_SetInternalEnr_Poly(iSpec,0,PositionNbr,1)
+      CALL DSMC_SetInternalEnr_Poly(iSpec,1,PositionNbr,1)
     ELSE
-      CALL DSMC_SetInternalEnr_LauxVFD(iSpec,0,PositionNbr,1)
+      CALL DSMC_SetInternalEnr_LauxVFD(iSpec,1,PositionNbr,1)
     END IF
     PEM%Element(PositionNbr) = PEM%Element(iPart)
     LocalElemID = PEM%Element(PositionNbr) - offSetElem
@@ -474,9 +474,9 @@ DO iSpec = 1,nSpecies                             ! Loop over all non-background
           ! Set the species of the background gas particle
           PartSpecies(bggPartIndex) = jSpec
           IF(SpecDSMC(jSpec)%PolyatomicMol) THEN
-            CALL DSMC_SetInternalEnr_Poly(jSpec,0,bggPartIndex,1)
+            CALL DSMC_SetInternalEnr_Poly(jSpec,1,bggPartIndex,1)
           ELSE
-            CALL DSMC_SetInternalEnr_LauxVFD(jSpec,0,bggPartIndex,1)
+            CALL DSMC_SetInternalEnr_LauxVFD(jSpec,1,bggPartIndex,1)
           END IF
           PEM%Element(bggPartIndex) = iElem + offSetElem
           PDM%ParticleInside(bggPartIndex) = .TRUE.
