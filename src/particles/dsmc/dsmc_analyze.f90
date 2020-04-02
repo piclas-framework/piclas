@@ -577,7 +577,7 @@ INTEGER, INTENT(IN)   :: iSpec      !< Species index
 INTEGER               :: ii
 REAL                  :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
 REAL                  :: eps_prec=1E-3,exp_prec           !< Relative precision of root-finding algorithm, maximal exponent
-REAL                  :: SumOne, SumTwo                   !< Sums of the electronic partition function
+REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the electronic partition function
 !===================================================================================================================================
 
 IF (MeanEelec.GT.0) THEN
@@ -596,10 +596,10 @@ IF (MeanEelec.GT.0) THEN
     SumOne = 0.0
     SumTwo = 0.0
     DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
-      IF(SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp.LT.exp_prec) THEN
-        SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,ii)/MiddleTemp)
-        SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * &
-                  EXP( - SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp )
+      TempRatio = SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp
+      IF(TempRatio.LT.exp_prec) THEN
+        SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * EXP(-TempRatio)
+        SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * EXP(-TempRatio)
       END IF
     END DO
     IF ( SumTwo / SumOne .GT. MeanEelec / BoltzmannConst ) THEN

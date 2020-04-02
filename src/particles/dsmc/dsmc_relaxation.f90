@@ -157,7 +157,7 @@ REAL                            :: exp_prec, TempRatio
 REAL,ALLOCATABLE                :: XiVibPart(:)
 !===================================================================================================================================
 
-exp_prec = RANGE(TVib)
+exp_prec = REAL(RANGE(TVib))
 
 IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray

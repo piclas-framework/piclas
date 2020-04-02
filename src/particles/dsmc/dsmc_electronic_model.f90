@@ -489,11 +489,10 @@ END FUNCTION DiffElecEnergy
 
 PURE REAL FUNCTION CalcXiElec(Telec, iSpec)
 !===================================================================================================================================
-! Calculation of the electronic degree of freedom
+!> Calculation of the electronic degree of freedom for a given temperature and species
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-USE MOD_DSMC_Vars,              ONLY : SpecDSMC
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -506,23 +505,23 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                         :: iQua
-REAL                            :: SumOne, SumTwo, exp_prec
+REAL                            :: TempRatio, SumOne, SumTwo, exp_prec
 !===================================================================================================================================
 
 SumOne = 0.0
 SumTwo = 0.0
-exp_prec=RANGE(SumOne)
+exp_prec=REAL(RANGE(SumOne))
 
 DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant-1
-  IF(SpecDSMC(iSpec)%ElectronicState(2,iQua)/Telec.LT.exp_prec) THEN
-    SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,iQua) * BoltzmannConst* SpecDSMC(iSpec)%ElectronicState(2,iQua) * &
-              EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua) / Telec)
-    SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua) / Telec)
+  TempRatio = SpecDSMC(iSpec)%ElectronicState(2,iQua)/Telec
+  IF(TempRatio.LT.exp_prec) THEN
+    SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,iQua)*SpecDSMC(iSpec)%ElectronicState(2,iQua)*EXP(-TempRatio)
+    SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,iQua)*EXP(-TempRatio)
   END IF
 END DO
 
-IF((SumOne.GT.0.0).AND.(SumTwo*BoltzmannConst.GT.0.0)) THEN
-  CalcXiElec = 2. * SumOne / (SumTwo * BoltzmannConst * Telec)
+IF((SumOne.GT.0.0).AND.(SumTwo.GT.0.0)) THEN
+  CalcXiElec = 2. * SumOne / (SumTwo * Telec)
 ELSE
   CalcXiElec = 0.0
 END IF
@@ -530,6 +529,5 @@ END IF
 RETURN
 
 END FUNCTION CalcXiElec
-
 
 END MODULE MOD_DSMC_ElectronicModel
