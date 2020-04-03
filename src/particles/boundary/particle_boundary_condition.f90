@@ -74,7 +74,7 @@ USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 #endif /*IMPA*/
 USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
-USE MOD_Particle_Boundary_Tools  ,ONLY: BoundaryParticleOutput,DielectricSurfaceCharge
+USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties,DielectricSurfaceCharge
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -136,7 +136,7 @@ END IF
 ASSOCIATE( iBC => PartBound%MapToPartBC(BC(SideID)) )
   ! Surface particle output to .h5
   IF(DoBoundaryParticleOutput.AND.PartBound%BoundaryParticleOutput(iBC))THEN
-    CALL BoundaryParticleOutput(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc)
+    CALL StoreBoundaryParticleProperties(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc)
   END IF
 
   ! Select the corresponding boundary condition and calculate particle treatment
@@ -364,10 +364,10 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfMesh,SampWall,CalcSurfColli
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues,PartLorentzType
-USE MOD_Particle_Vars           ,ONLY: VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: VarTimeStep, usevMPF
 USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC,RadialWeighting,PartStateIntEn
-USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues, usevMPF
+USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
 USE MOD_TImeDisc_Vars           ,ONLY: tend,time
 USE MOD_Equation_Vars           ,ONLY: c2_inv
 #if defined(LSERK)

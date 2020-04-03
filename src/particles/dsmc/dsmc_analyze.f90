@@ -680,7 +680,7 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: Pi
-USE MOD_Particle_Vars ,ONLY: Species, nSpecies
+USE MOD_Particle_Vars ,ONLY: Species, nSpecies, usevMPF
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, RadialWeighting
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -701,7 +701,7 @@ CalcMeanFreePath = 0.0
 
 IF (nPart.LE.1 .OR. ALL(SpecPartNum.EQ.0.) .OR.Volume.EQ.0) RETURN
 ! Calculation of mixture reference diameter
-IF(RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   MacroParticleFactor = 1.
 ELSE
   MacroParticleFactor = Species(1)%MacroParticleFactor
