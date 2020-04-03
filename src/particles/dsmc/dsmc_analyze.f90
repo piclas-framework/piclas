@@ -576,7 +576,7 @@ INTEGER, INTENT(IN)   :: iSpec      !< Species index
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER               :: ii
 REAL                  :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
-REAL                  :: eps_prec=1E-3,exp_prec           !< Relative precision of root-finding algorithm, maximal exponent
+REAL,PARAMETER        :: eps_prec=1E-3           !< Relative precision of root-finding algorithm
 REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the electronic partition function
 !===================================================================================================================================
 
@@ -590,14 +590,13 @@ IF (MeanEelec.GT.0) THEN
   ! Upper limit: Last excitation level (ionization limit)
   UpperTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant-1)
   MiddleTemp = LowerTemp
-  exp_prec = REAL(RANGE(MiddleTemp))
   DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
     MiddleTemp = 0.5*( LowerTemp + UpperTemp)
     SumOne = 0.0
     SumTwo = 0.0
     DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
       TempRatio = SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp
-      IF(TempRatio.LT.exp_prec) THEN
+      IF(CHECKEXP(TempRatio)) THEN
         SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * EXP(-TempRatio)
         SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * EXP(-TempRatio)
       END IF
@@ -638,8 +637,8 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                 :: iDOF, iPolyatMole
 REAL                    :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
-REAL                    :: eps_prec=5E-3,exp_prec           !< Relative precision of root-finding algorithm, maximal exponent
 REAL                    :: EGuess                           !< Energy value at the current MiddleTemp
+REAL,PARAMETER          :: eps_prec=5E-3                    !< Relative precision of root-finding algorithm
 !===================================================================================================================================
 
 ! lower limit: very small value or lowest temperature if ionized
@@ -649,13 +648,12 @@ IF (MeanEVib.GT.SpecDSMC(iSpec)%EZeroPoint) THEN
   LowerTemp = 1.0
   UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/BoltzmannConst
   MiddleTemp = LowerTemp
-  exp_prec = REAL(RANGE(MiddleTemp))
   DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
     MiddleTemp = 0.5*(LowerTemp + UpperTemp)
     EGuess = SpecDSMC(iSpec)%EZeroPoint
     DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
       ASSOCIATE(CharTVib => PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
-        IF(CharTVib/MiddleTemp.LT.exp_prec) THEN
+        IF(CHECKEXP(CharTVib/MiddleTemp)) THEN
           EGuess = EGuess + BoltzmannConst * CharTVib / (EXP(CharTVib/MiddleTemp) - 1.0)
         END IF
       END ASSOCIATE

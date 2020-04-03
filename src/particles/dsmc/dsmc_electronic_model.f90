@@ -505,16 +505,15 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                         :: iQua
-REAL                            :: TempRatio, SumOne, SumTwo, exp_prec
+REAL                            :: TempRatio, SumOne, SumTwo
 !===================================================================================================================================
 
 SumOne = 0.0
 SumTwo = 0.0
-exp_prec=REAL(RANGE(SumOne))
 
 DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant-1
   TempRatio = SpecDSMC(iSpec)%ElectronicState(2,iQua)/Telec
-  IF(TempRatio.LT.exp_prec) THEN
+  IF(CHECKEXP(TempRatio)) THEN
     SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,iQua)*SpecDSMC(iSpec)%ElectronicState(2,iQua)*EXP(-TempRatio)
     SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,iQua)*EXP(-TempRatio)
   END IF

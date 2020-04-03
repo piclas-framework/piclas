@@ -1,5 +1,5 @@
 !===================================================================================================================================
-! Here, preprocessor variables for different equation systems and abbrevbiations for specific expressions are defined
+! Here, preprocessor variables for different equation systems and abbreviations for specific expressions are defined
 !===================================================================================================================================
 
 ! Abbrevations
@@ -41,6 +41,9 @@
 ! for fixed relative tolerance (for double precision use twice the machine precision 2E-52 ~ 2.22e-16 -> 2*2.22E-16=4.44E-16)
 #define ALMOSTEQUAL(x,y)  (ABS((x)-(y)).LE.MAX(ABS(x),ABS(y))*(4.441E-16))
 #define ALMOSTZERO(x) (ABS(x).LE.(2.22e-16))
+
+! Check if the exponent is within the range of machine precision, RANGE() gives the maximum exponent of the given variable type
+#define CHECKEXP(x) (x.LT.REAL(RANGE(1.)))
 
 #if USE_MPI
 #  define SWRITE IF(MPIRoot) WRITE

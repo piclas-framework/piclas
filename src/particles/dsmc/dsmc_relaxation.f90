@@ -153,11 +153,9 @@ REAL, INTENT(OUT),OPTIONAL      :: XiVibDOF(:), XiVibTotal
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                         :: iDOF, iPolyatMole
-REAL                            :: exp_prec, TempRatio
+REAL                            :: TempRatio
 REAL,ALLOCATABLE                :: XiVibPart(:)
 !===================================================================================================================================
-
-exp_prec = REAL(RANGE(TVib))
 
 IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
@@ -167,7 +165,7 @@ IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
     ! If the temperature is very small compared to the characteristic temperature, set the vibrational degree of freedom to zero
     ! to avoid overflows in the exponential function
     TempRatio = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/ TVib
-    IF(TempRatio.LT.exp_prec) THEN
+    IF(CHECKEXP(TempRatio)) THEN
       XiVibPart(iDOF) = (2.0*TempRatio) / (EXP(TempRatio) - 1.0)
     END IF
   END DO
@@ -175,7 +173,7 @@ ELSE
   ALLOCATE(XiVibPart(1))
   XiVibPart = 0.0
   TempRatio = SpecDSMC(iSpec)%CharaTVib / TVib
-  IF(TempRatio.LT.exp_prec) THEN
+  IF(CHECKEXP(TempRatio)) THEN
     XiVibPart(1) = (2.0*TempRatio) / (EXP(TempRatio) - 1.0)
   END IF
 END IF
@@ -216,7 +214,7 @@ REAL, INTENT(OUT), OPTIONAL     :: XiVibPart(:,:), XiElecPart(1:3)
 INTEGER                         :: nProd, iProd, iSpec, ProductReac(1:3)
 REAL                            :: ETotal, EZeroPoint, EGuess, Xi_Total, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp, XiVibTotal
 REAL                            :: Weight(1:3)
-REAL                            :: eps_prec=1E-3
+REAL,PARAMETER                  :: eps_prec=1E-3
 !===================================================================================================================================
 
 ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)

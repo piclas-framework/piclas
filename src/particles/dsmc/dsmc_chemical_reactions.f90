@@ -1188,58 +1188,68 @@ END SUBROUTINE simpleMEX
 
 SUBROUTINE CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
 !===================================================================================================================================
-! Calculation of the partition function for a species at the given temperature
+!> Calculation of the partition function for a species at the given temperature
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,       ONLY: Pi, PlanckConst, BoltzmannConst
-USE MOD_DSMC_Vars,          ONLY: SpecDSMC, PolyatomMolDSMC
-USE MOD_Particle_Vars,      ONLY: Species
+USE MOD_Globals_Vars        ,ONLY: Pi, PlanckConst, BoltzmannConst
+USE MOD_DSMC_Vars           ,ONLY: SpecDSMC, PolyatomMolDSMC
+USE MOD_Particle_Vars       ,ONLY: Species
 ! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iSpec
-  REAL, INTENT(IN)               :: Temp
+INTEGER, INTENT(IN)         :: iSpec
+REAL, INTENT(IN)            :: Temp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-  REAL, INTENT(OUT)              :: Qtra, Qrot, Qvib, Qelec
+REAL, INTENT(OUT)           :: Qtra, Qrot, Qvib, Qelec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                        :: iPolyatMole, iDOF
+INTEGER                     :: iPolyatMole, iDOF
+REAL                        :: TempRatio
 !===================================================================================================================================
 
-  Qtra = (2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))**(1.5)
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-      IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-        Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
-      ELSE
-        Qrot = SQRT(Pi) / SpecDSMC(iSpec)%SymmetryFactor * SQRT(Temp**3/( PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)    &
-                                                                        * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)    &
-                                                                        * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)))
-      END IF
-      Qvib = 1.
-      DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        Qvib = Qvib / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
-      END DO
+Qtra = (2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))**(1.5)
+IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+    iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+    IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
+      Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
     ELSE
-      Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * SpecDSMC(iSpec)%CharaTRot)
-      Qvib = 1. / (1. - EXP(-SpecDSMC(iSpec)%CharaTVib / Temp))
+      Qrot = SQRT(Pi) / SpecDSMC(iSpec)%SymmetryFactor * SQRT(Temp**3/( PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)    &
+                                                                      * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)    &
+                                                                      * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)))
     END IF
-  ELSE
-    Qrot = 1.
     Qvib = 1.
-  END IF
-  IF((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
-    Qelec = 1.
-  ELSE
-    Qelec = 0.
-    DO iDOF=0, SpecDSMC(iSpec)%MaxElecQuant - 1
-      Qelec = Qelec + SpecDSMC(iSpec)%ElectronicState(1,iDOF) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iDOF) / Temp)
+    DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+      TempRatio = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/Temp
+      IF(CHECKEXP(TempRatio)) THEN
+        Qvib = Qvib / (1. - EXP(-TempRatio))
+      END IF
     END DO
+  ELSE
+    Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * SpecDSMC(iSpec)%CharaTRot)
+    TempRatio = SpecDSMC(iSpec)%CharaTVib/Temp
+    IF(CHECKEXP(TempRatio)) THEN
+      Qvib = 1. / (1. - EXP(-TempRatio))
+    END IF
   END IF
+ELSE
+  Qrot = 1.
+  Qvib = 1.
+END IF
+IF((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
+  Qelec = 1.
+ELSE
+  Qelec = 0.
+  DO iDOF=0, SpecDSMC(iSpec)%MaxElecQuant - 1
+    TempRatio = SpecDSMC(iSpec)%ElectronicState(2,iDOF) / Temp
+    IF(CHECKEXP(TempRatio)) THEN
+      Qelec = Qelec + SpecDSMC(iSpec)%ElectronicState(1,iDOF) * EXP(-TempRatio)
+    END IF
+  END DO
+END IF
 
 END SUBROUTINE CalcPartitionFunction
 
@@ -1413,7 +1423,7 @@ INTEGER                       :: iSpec1, iSpec2, MaxElecQua, iQua
 REAL                          :: z ! contribution of the relevant mode to the electronic or vibrational partition function
 REAL                          :: Q ! incomplete gamma function
 INTEGER                       :: MaxVibQuant ! highest vibrational quantum state
-REAL                          :: Rcoll, TrefVHS
+REAL                          :: Rcoll, TrefVHS, TempRatio
 !===================================================================================================================================
 CalcQKAnalyticRate = 0.0
 z = 0.0
@@ -1431,18 +1441,27 @@ CASE('iQK')
   DO iQua = 0, MaxElecQua
     Q = gammainc([2.-SpecDSMC(iSpec1)%omegaVHS,(SpecDSMC(iSpec1)%ElectronicState(2,MaxElecQua)- &
         SpecDSMC(iSpec1)%ElectronicState(2,iQua))/Temp])
-    CalcQKAnalyticRate= CalcQKAnalyticRate + Q * SpecDSMC(iSpec1)%ElectronicState(1,iQua) &
-        * EXP(-SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp)
-    z = z + SpecDSMC(iSpec1)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp)
+    TempRatio = SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp
+    IF(CHECKEXP(TempRatio)) THEN
+      CalcQKAnalyticRate= CalcQKAnalyticRate + Q * SpecDSMC(iSpec1)%ElectronicState(1,iQua) * EXP(-TempRatio)
+      z = z + SpecDSMC(iSpec1)%ElectronicState(1,iQua) * EXP(-TempRatio)
+    END IF
   END DO
   CalcQKAnalyticRate = CalcQKAnalyticRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*Rcoll/z
 CASE('D')
   MaxVibQuant = SpecDSMC(iSpec1)%DissQuant
+  TempRatio = SpecDSMC(iSpec1)%CharaTVib / Temp
   DO iQua = 0, MaxVibQuant - 1
     Q = gammainc([2.-SpecDSMC(iSpec1)%omegaVHS,((MaxVibQuant-iQua)*SpecDSMC(iSpec1)%CharaTVib)/Temp])
-    CalcQKAnalyticRate= CalcQKAnalyticRate + Q * EXP(- iQua*SpecDSMC(iSpec1)%CharaTVib / Temp)
+    IF(CHECKEXP(iQua*TempRatio)) THEN
+      CalcQKAnalyticRate= CalcQKAnalyticRate + Q * EXP(-iQua*TempRatio)
+    END IF
   END DO
-  z = 1. / (1. - EXP(-SpecDSMC(iSpec1)%CharaTVib / Temp))
+  IF(CHECKEXP(TempRatio)) THEN
+    z = 1. / (1. - EXP(-TempRatio))
+  ELSE
+    z = 1.
+  END IF
   CalcQKAnalyticRate = CalcQKAnalyticRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*Rcoll/z
 END SELECT
 
