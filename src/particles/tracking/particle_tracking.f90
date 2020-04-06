@@ -19,7 +19,8 @@ MODULE MOD_Particle_Tracking
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-PUBLIC
+PRIVATE
+!----------------------------------------------------------------------------------------------------------------------------------
 
 INTERFACE ParticleTriaTracking
   MODULE PROCEDURE ParticleTriaTracking
@@ -1589,17 +1590,19 @@ DO iPart=1,PDM%ParticleVecLength
           IPWRITE(UNIT_stdOut,'(I0,A,X,I0,A,X,I0)')' Fallback for Particle ', iPart, ' in Element', TestElem
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' ParticlePos          ' , partstate(1:3,iPart)
           Vec=PartState(1:3,iPart)-LastPartPos(1:3,iPart)
-!          IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' displacement /halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
-          !CALL RefTrackFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart)
           IF(useCurveds)THEN
             IF(NGeo.GT.1)THEN
-              ! TODO
-              CALL FallBackFaceIntersection(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart)
+              CALL FallBackFaceIntersection(TestElem                                                                                &
+                                           ,ElemToBCSides(ELEM_FIRST_BCSIDE,TestElem)                                               &
+                                           ,ElemToBCSides(ELEM_FIRST_BCSIDE,TestElem) + ElemToBCSides(ELEM_NBR_BCSIDES,TestElem) -1 &
+                                           ,ElemToBCSides(ELEM_NBR_BCSIDES,TestElem)                                                &
+                                           ,iPart)
+
             END IF
           END IF
           ! no fall back algorithm
           !LastPos=PartState(1:3,iPart)
-          lengthPartTrajectory0=0.
+          lengthPartTrajectory0 = 0.
 
           CALL ParticleBCTracking(lengthPartTrajectory0                                                                   &
                                  ,TestElem                                                                                &
@@ -2469,14 +2472,14 @@ SUBROUTINE FallBackFaceIntersection(ElemID,firstSide,LastSide,nlocSides,PartID)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
+USE MOD_Particle_Vars,               ONLY:PDM,PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
-!USE MOD_Mesh_Vars,                   ONLY:ElemBaryNGeo
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
 USE MOD_Utils,                       ONLY:InsertionSort
+USE MOD_Particle_Localization,       ONLY:LocateParticleInElement
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
@@ -2486,115 +2489,87 @@ USE MOD_Eval_xyz,                    ONLY:TensorProductInterpolation
 USE MOD_Mesh_Vars,                   ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)            :: PartID,ElemID,firstSide,LastSide,nlocSides
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ilocSide,SideID, locSideList(firstSide:lastSide), hitlocSide
 LOGICAL                       :: dolocSide(firstSide:lastSide)
 LOGICAL                       :: ishit
 REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
-INTEGER                       :: nInter,flip,BCSideID
+INTEGER                       :: nInter,flip
 REAL                          :: tmpPos(3), tmpLastPartPos(3),tmpVec(3)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 !===================================================================================================================================
 
 !IPWRITE(*,*) ' Performing fallback algorithm. PartID: ', PartID
-tmpPos=PartState(1:3,PartID)
-tmpLastPartPos(1:3)=LastPartPos(1:3,PartID)
-PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-tmpVec=PartTrajectory
+tmpPos              = PartState(1:3,PartID)
+tmpLastPartPos(1:3) = LastPartPos(1:3,PartID)
+tmpVec              = PartTrajectory
+LastPartPos(1:3,PartID) = ElemBaryNGeo_Shared(:,ElemID)
 
-LastPartPos(1:3,PartID)=PartState(1:3,PartID)
-!PartState(1:3,PartID)=ElemBaryNGeo(:,ElemID)
-LastPartPos(1:3,PartID)=ElemBaryNGeo_Shared(:,ElemID)
-
-PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
+PartTrajectory = PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
-PartTrajectory=PartTrajectory/lengthPartTrajectory
+IF (lengthPartTrajectory.GT.0) PartTrajectory = PartTrajectory/lengthPartTrajectory
 
-locAlpha=-1.0
-nInter=0
-dolocSide=.TRUE.
-!nlocSides=lastSide-firstSide+1
+locAlpha  = -1.0
+nInter    = 0
+dolocSide =.TRUE.
 DO iLocSide=firstSide,LastSide
   ! track particle vector until the final particle position is achieved
-  SideID=BCElem(ElemID)%BCSideID(ilocSide)
-  BCSideID=PartBCSideList(SideID)
-  locSideList(ilocSide)=ilocSide
-  ! get correct flip, wrong for inner sides!!!
-  flip  = 0
-  !flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
-  SELECT CASE(SideType(BCSideID))
-  CASE(PLANAR_RECT)
-    CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                  ,xi (ilocSide)            &
-                                                                                  ,eta(ilocSide)   ,PartID,flip,BCSideID)
-  CASE(BILINEAR,PLANAR_NONRECT)
-    CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                      ,xi (ilocSide)      &
-                                                                                      ,eta(ilocSide)      &
-                                                                                      ,PartID,BCSideID)
-  CASE(PLANAR_CURVED)
-    CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                  ,xi (ilocSide)      &
-                                                                                  ,eta(ilocSide)   ,PartID,flip,BCSideID)
-  CASE(CURVED)
-    CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                            ,xi (ilocSide)      &
-                                                                            ,eta(ilocSide)      ,PartID,BCSideID)
+  SideID   = INT(SideBCMetrics(BCSIDE_SIDEID,ilocSide))
+  locSideList(ilocSide) = ilocSide
+  flip     = SideInfo_Shared(SIDE_FLIP,SideID)
+
+  SELECT CASE(SideType(SideID))
+    CASE(PLANAR_RECT)
+      CALL ComputePlanarRectInterSection(  isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                        ,  xi(ilocSide),eta(ilocSide),PartID,flip,SideID)
+    CASE(BILINEAR,PLANAR_NONRECT)
+      CALL ComputeBiLinearIntersection(    isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                      ,    xi (ilocSide),eta(ilocSide),PartID,    SideID)
+    CASE(PLANAR_CURVED)
+      CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                      ,    xi(ilocSide),eta(ilocSide),PartID,flip,SideID)
+    CASE(CURVED)
+      CALL ComputeCurvedIntersection(      isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                    ,      xi(ilocSide),eta(ilocSide),PartID,     SideID)
   END SELECT
-  IF(locAlpha(ilocSide).GT.-1.0)THEN
+  IF (locAlpha(ilocSide).GT.-1.0) THEN
     nInter=nInter+1
   END IF
 END DO ! ilocSide
 
+! no intersection found. Try to locate particle manually
 IF(nInter.EQ.0) THEN
-  !IPWRITE(*,*) 'not found',PartID
-  !IPWRITE(*,*) 'ElemBary',LastPartPos(1:3,PartID)
-  !IPWRITE(*,*) 'Part-Pos',tmpPos
-  !IPWRITE(*,*) 'LastPart-Pos',tmpLastPartPos
-  PartState(1:3,PartID)=tmpPos
-  LastPartPos(1:3,PartID)=tmpLastPartPos(1:3)
+  PartState(1:3,PartID)   = tmpPos
+  LastPartPos(1:3,PartID) = tmpLastPartPos(1:3)
   IF(PartPosRef(1,PartID).GT. 1.) PartPosRef(1,PartID)= 0.99
   IF(PartPosRef(1,PartID).LT.-1.) PartPosRef(1,PartID)=-0.99
   IF(PartPosRef(2,PartID).GT. 1.) PartPosRef(2,PartID)= 0.99
   IF(PartPosRef(2,PartID).LT.-1.) PartPosRef(2,PartID)=-0.99
   IF(PartPosRef(3,PartID).GT. 1.) PartPosRef(3,PartID)= 0.99
   IF(PartPosRef(3,PartID).LT.-1.) PartPosRef(3,PartID)=-0.99
-  CALL TensorProductInterpolation(PartPosRef(:,PartID),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),PartState(1:3,PartID))
-  ! crash
-  RETURN
+  CALL LocateParticleInElement(PartID,doHalo=.FALSE.)
+  
+  ! particle successfully located
+  IF (PDM%ParticleInside(PartID)) THEN
+    RETURN
+  ELSE
+    CALL ABORT(__STAMP__,'FallBackFaceIntersection failed for particle!')
+  END IF
 ELSE
-  ! take first possible intersection
-  !CALL BubbleSortID(locAlpha,locSideList,6)
+  ! take first possible intersection and place particle "just a little" further back
   CALL InsertionSort(locAlpha,locSideList,nlocSides)
   DO ilocSide=firstSide,LastSide
     IF(locAlpha(ilocSide).GT.-1.0)THEN
-      hitlocSide=locSideList(ilocSide)
-      !SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
-      SideID=BCElem(ElemID)%BCSideID(hitlocSide)
-      BCSideID=PartBCSideList(SideID)
-      LastPartPos(1:3,PartID)=LastPartPos(1:3,PartID)+0.97*locAlpha(ilocSide)*PartTrajectory
-      PartState(1:3,PartID)  =LastPartPos(1:3,PartID)!+tmpVec
-      !PartState(1:3,PartID)  =PartState(1:3,PartID)+locAlpha(ilocSide)*PartTrajectory
-      !PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-      !lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-      !                         +PartTrajectory(2)*PartTrajectory(2) &
-      !                         +PartTrajectory(3)*PartTrajectory(3) )
-      !PartTrajectory=PartTrajectory/lengthPartTrajectory
-      !locAlpha(ilocSide)=0.
-      !CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-      !                                                                  ,xi(hitlocSide)     &
-      !                                                                  ,eta(hitlocSide)    &
-      !                                                                  ,PartId,SideID)
-      !IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
+      hitlocSide = locSideList(ilocSide)
+      SideID   = INT(SideBCMetrics(BCSIDE_SIDEID,ilocSide))
+      LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID)+0.97*locAlpha(ilocSide)*PartTrajectory
+      PartState  (1:3,PartID) = LastPartPos(1:3,PartID)
     END IF ! locAlpha>-1.0
   END DO ! ilocSide
 END IF ! nInter>0

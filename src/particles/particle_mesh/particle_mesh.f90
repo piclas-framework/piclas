@@ -429,10 +429,14 @@ SUBROUTINE CalcParticleMeshMetrics()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_PreProc                ,ONLY: N
 USE MOD_Basis                  ,ONLY: BuildBezierVdm,BuildBezierDMat
 USE MOD_Basis                  ,ONLY: BarycentricWeights,ChebyGaussLobNodesAndWeights,InitializeVandermonde
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Interpolation          ,ONLY: GetDerivativeMatrix
+USE MOD_Interpolation          ,ONLY: GetVandermonde
+USE MOD_Interpolation_Vars     ,ONLY: NodeType,NodeTypeCL,NodeTypeVISU
+USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeCL
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo,dXCL_NGeo,InterpolateFromTree,Xi_NGeo
 USE MOD_Mesh_Vars              ,ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1,nElems,offsetElem
@@ -451,6 +455,8 @@ IMPLICIT NONE
 INTEGER                        :: iElem
 !INTEGER                        :: ElemID
 REAL                           :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
+REAL                           :: Vdm_EQNGeo_CLN (0:PP_N ,0:NGeo)
+REAL                           :: Vdm_CLNloc_N   (0:PP_N ,0:PP_N)
 REAL                           :: DCL_NGeo(0:Ngeo,0:Ngeo)
 !INTEGER                        :: firstElem,lastElem
 INTEGER                        :: firstHaloElem,lastHaloElem,nComputeNodeHaloElems
@@ -479,21 +485,27 @@ CALL InitializeVandermonde(NGeo,NGeo,wBaryCL_NGeo,Xi_NGeo,XiCL_NGeo,Vdm_NGeo_CLN
 ! This is a trick. Allocate as 1D array and then set a pointer with the proper array bounds
 MPISharedSize = INT((3*(NGeo+1)**3*nComputeNodeElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/3*  (NGeo+1)*(NGeo+1)*(NGeo+1)*nComputeNodeElems/), XCL_NGeo_Shared_Win,XCL_NGeo_Array)
+MPISharedSize = INT((3*(PP_N+1)**3*nComputeNodeElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3*  (PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeElems/), Elem_xGP_Shared_Win,Elem_xGP_Array)
 MPISharedSize = INT((3*3*(NGeo+1)**3*nComputeNodeElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/3*3*(NGeo+1)*(NGeo+1)*(NGeo+1)*nComputeNodeElems/),dXCL_NGeo_Shared_Win,dXCL_NGeo_Array)
 CALL MPI_WIN_LOCK_ALL(0,XCL_NGeo_Shared_Win,IERROR)
+CALL MPI_WIN_LOCK_ALL(0,Elem_xGP_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,dXCL_NGeo_Shared_Win,IERROR)
 XCL_NGeo_Shared (1:3    ,0:NGeo,0:NGeo,0:NGeo,1:nComputeNodeElems) => XCL_NGeo_Array
+Elem_xGP_Shared (1:3    ,0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeElems) => Elem_xGP_Array
 dXCL_NGeo_Shared(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nComputeNodeElems) => dXCL_NGeo_Array
 ! Copy local XCL and dXCL into shared
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
   DO iElem = 1, nElems
     XCL_NGeo_Shared (:  ,:,:,:,offsetElem+iElem) = XCL_NGeo (:  ,:,:,:,iElem)
+    Elem_xGP_Shared (:  ,:,:,:,offsetElem+iElem) = Elem_xGP (:  ,:,:,:,iElem)
     dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) = dXCL_NGeo(:,:,:,:,:,iElem)
   END DO ! iElem = 1, nElems
 ELSE
   DO iElem = 1, nElems
     XCL_NGeo_Shared (:,  :,:,:,GlobalElem2CNTotalElem(offsetElem+iElem)) = XCL_NGeo (:,  :,:,:,iElem)
+    Elem_xGP_Shared (:,  :,:,:,GlobalElem2CNTotalElem(offsetElem+iElem)) = Elem_xGP (:,  :,:,:,iElem)
     dXCL_NGeo_Shared(:,:,:,:,:,GlobalElem2CNTotalElem(offsetElem+iElem)) = dXCL_NGeo(:,:,:,:,:,iElem)
   END DO ! iElem = 1, nElems
 END IF
@@ -509,6 +521,15 @@ ELSE
     lastHaloElem = 0
   END IF
 END IF
+
+! NOTE: Transform intermediately to CL points, to be consistent with metrics being built with CL
+!       Important for curved meshes if NGeo<N, no effect for N>=NGeo
+CALL GetVandermonde(    NGeo, NodeTypeVISU, PP_N, NodeTypeCL, Vdm_EQNGeo_CLN,  modal=.FALSE.)
+CALL GetVandermonde(    PP_N, NodeTypeCL  , PP_N, NodeType  , Vdm_CLNloc_N,    modal=.FALSE.)
+
+!Transform from EQUI_NGeo to solution points on Nloc
+Vdm_EQNGeo_CLN = MATMUL(Vdm_CLNloc_N,Vdm_EQNGeo_CLN)
+
 ! Build XCL and dXCL for compute node halo region (each proc of compute-node build only its fair share)
 IF(interpolateFromTree) THEN
   CALL abort(&
@@ -529,6 +550,7 @@ ELSE
       END DO
     END DO ! i = 0, NGeo
     CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_NGeo_CLNGeo,NodeCoordstmp,XCL_NGeo_Shared(:,:,:,:,nComputeNodeElems+iElem))
+    CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_EQNGeo_CLN ,NodeCoordstmp,Elem_xGP_Shared(:,:,:,:,nComputeNodeElems+iElem))
 
     DO k=0,NGeo; DO j=0,NGeo; DO i=0,NGeo
       ! Matrix-vector multiplication
@@ -681,7 +703,7 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 IF (BezierElevation.GT.0) THEN
   DO iSide=firstSide,LastSide
     ! Ignore small mortar sides attached to big mortar sides
-    IF (SideInfo_Shared(SIDE_LOCALID,iSide).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,iSide).LT.6) CYCLE
+    IF (SideInfo_Shared(SIDE_LOCALID,iSide).LT.1 .OR. SideInfo_Shared(SIDE_LOCALID,iSide).GT.6) CYCLE
     ! Indices in shared arrays are shifted by 1
     CALL GetBezierControlPoints3DElevated( NGeo,NGeoElevated                                                       &
                                          , BezierControlPoints3D        (1:3,0:NGeo        ,0:NGeo        ,iSide)  &
@@ -1836,6 +1858,7 @@ DO iElem=firstElem,lastElem
         SideType(SideID)=BILINEAR
       END IF
     ELSE
+      BezierControlPoints_loc(1:3,0:NGeo,0:NGeo) = BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)
       ! possible curved face
       SELECT CASE(ilocSide)
       CASE(XI_MINUS)

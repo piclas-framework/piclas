@@ -37,6 +37,7 @@ REAL,ALLOCPOINT,DIMENSION(:)             :: ElemRadiusNGeo     ! radius of eleme
 REAL,ALLOCPOINT,DIMENSION(:)             :: ElemRadius2NGeo    ! radius of element + 2% tolerance
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: slenXiEtaZetaBasis ! inverse of length of basis vector
 REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:)     :: XCL_NGeo_Shared
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:)     :: Elem_xGP_Shared
 REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:,:)   :: dXCL_NGeo_Shared   ! Jacobi matrix of the mapping P\in NGeo
 REAL,ALLOCPOINT,DIMENSION(:,:,:)         :: XiEtaZetaBasis     ! element local basis vector (linear elem)
 
@@ -83,6 +84,7 @@ INTEGER,ALLOCPOINT :: FIBGM_offsetElem_Shared(:,:,:)
 REAL,ALLOCPOINT    :: BoundsOfElem_Shared(:,:,:)           !> Cartesian bounding box around element
 
 REAL,ALLOCPOINT    :: XCL_NGeo_Array(:)                          !> 1D array, pointer changes to proper array bounds
+REAL,ALLOCPOINT    :: Elem_xGP_Array(:)                          !> 1D array, pointer changes to proper array bounds
 REAL,ALLOCPOINT    :: dXCL_NGeo_Array(:)                         !> 1D array, pointer changes to proper array bounds
 REAL,ALLOCPOINT    :: BezierControlPoints3D_Shared(:)            !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
 REAL,ALLOCPOINT    :: BezierControlPoints3DElevated_Shared(:)    !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
@@ -146,6 +148,7 @@ INTEGER         :: FIBGM_offsetElem_Shared_Win
 INTEGER         :: BoundsOfElem_Shared_Win
 
 INTEGER         :: XCL_NGeo_Shared_Win
+INTEGER         :: Elem_xGP_Shared_Win
 INTEGER         :: dXCL_NGeo_Shared_Win
 INTEGER         :: BezierControlPoints3D_Shared_Win
 INTEGER         :: BezierControlPoints3DElevated_Shared_Win

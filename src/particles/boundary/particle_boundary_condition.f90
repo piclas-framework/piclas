@@ -243,7 +243,7 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
     CALL abort(&
       __STAMP__&
       ,' ERROR: PartBound not associated!. (unknown case)')
-END SELECT !PartBound%MapToPartBC(BC(SideID)
+END SELECT !PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
 END ASSOCIATE
 
 END SUBROUTINE GetBoundaryInteraction
@@ -1058,7 +1058,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SampWall,dXiEQ_SurfSample,SurfM
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,usevMPF
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
-USE MOD_Mesh_Vars               ,ONLY: BC
+!USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: DSMC, RadialWeighting
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd,Time
 USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
@@ -1210,7 +1210,7 @@ ELSE
         END IF ! ALLOCATED(PartStateIntEn)
         CALL CountSurfaceImpact(SurfSideID,PartSpecies(PartID),MacroParticleFactor,EtraOld,EvibOld,ErotOld,PartTrajectory,n_loc,p,q)
       END IF ! CalcSurfaceImpact
-      CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(BC(SideID)),alpha=alpha)
+      CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)),alpha=alpha)
     ELSE IF (targetSpecies.gt.0) THEN !swap species
       DO iCC=1,nCollectChargesBCs !-chargeCollect
         IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))) THEN
@@ -1399,6 +1399,7 @@ FUNCTION PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
 ! particle moves through face and switches element
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_Particle_Mesh_Vars ,ONLY: PartElemToElemAndSide
 USE MOD_Mesh_Vars          ,ONLY: MortarType
 ! IMPLICIT VARIABLE HANDLING
@@ -1424,6 +1425,8 @@ INTEGER,DIMENSION(2) :: PARTSWITCHELEMENT
 !   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
 !   | 1 | 2 |            |   1   |           |   |   |
 !   +---+---+            +---+---+           +---+---+
+
+CALL ABORT(__STAMP__,'Not yet implemented for new halo region')
 
 SELECT CASE(MortarType(1,SideID))
 CASE(1)
@@ -1478,7 +1481,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species, LastPartPos, PartSpecies
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
-USE MOD_Mesh_Vars              ,ONLY: BC
+!USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_part_operations        ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1504,7 +1507,7 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       point(2)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(3))-Species(iSpec)%Surfaceflux(iSF)%origin(2)
       radius=SQRT( (point(1))**2+(point(2))**2 )
       IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
-        CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(BC(SideID)),alpha=alpha)
+        CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)),alpha=alpha)
       END IF
     END IF
   END IF

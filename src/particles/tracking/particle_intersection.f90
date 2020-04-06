@@ -19,7 +19,11 @@ MODULE MOD_Particle_InterSection
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-PUBLIC
+PRIVATE
+!----------------------------------------------------------------------------------------------------------------------------------
+INTERFACE IntersectionWithWall
+  MODULE PROCEDURE IntersectionWithWall
+END INTERFACE
 
 INTERFACE ComputePlanarCurvedIntersection
   MODULE PROCEDURE ComputePlanarCurvedIntersection
@@ -46,13 +50,15 @@ INTERFACE OutputTrajectory
   MODULE PROCEDURE OutputTrajectory
 END INTERFACE
 #endif /*CODE_ANALYZE*/
-PUBLIC::ComputePlanarRectIntersection
-PUBLIC::ComputePlanarCurvedIntersection
-PUBLIC::ComputeBilinearIntersection
-PUBLIC::ComputeCurvedIntersection
-PUBLIC::ComputeAuxBCIntersection
+
+PUBLIC :: IntersectionWithWall
+PUBLIC :: ComputePlanarRectIntersection
+PUBLIC :: ComputePlanarCurvedIntersection
+PUBLIC :: ComputeBilinearIntersection
+PUBLIC :: ComputeCurvedIntersection
+PUBLIC :: ComputeAuxBCIntersection
 #ifdef CODE_ANALYZE
-PUBLIC::OutputTrajectory
+PUBLIC :: OutputTrajectory
 #endif /*CODE_ANALYZE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------

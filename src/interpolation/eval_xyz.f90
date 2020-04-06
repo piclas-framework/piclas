@@ -778,7 +778,7 @@ getDet=   ( Mat(1,1) * Mat(2,2) - Mat(1,2) * Mat(2,1) ) * Mat(3,3) &
 END FUNCTION getDet
 
 
-FUNCTION getInv(Mat,sdet)
+PURE FUNCTION getInv(Mat,sdet)
 !=================================================================================================================================
 !> compute inverse of 3x3 matrix, needs sDet=1/det(Mat)
 !=================================================================================================================================
@@ -813,17 +813,13 @@ SUBROUTINE GetRefNewtonStartValue(X_in,Xi,ElemID)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc,                 ONLY:PP_N,PP_nElems
-USE MOD_Mesh_Vars,               ONLY:Elem_xGP,XCL_NGeo,offsetElem
-USE MOD_Mesh_Vars,               ONLY:XCL_NGeo,NGeo,XiCL_NGeo
+!USE MOD_Mesh_Vars,               ONLY:Elem_xGP,XCL_NGeo,offsetElem
+USE MOD_Mesh_Vars,               ONLY:NGeo,XiCL_NGeo
 USE MOD_Interpolation_Vars,      ONLY:xGP
 USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingGuess,RefMappingEps
 USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
-#if USE_MPI
-USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo_Shared
-#else
-USE MOD_Mesh_Vars,               ONLY:ElemBaryNGeo
-#endif
+USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo_Shared,XCL_NGeo_Shared,Elem_xGP_Shared
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -873,14 +869,14 @@ CASE(1)
   IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=MAX(MIN(1.0d0,Xi),-1.0d0)
 CASE(2)
   ! compute distance on Gauss Points
-  Winner_Dist=SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP(:,0,0,0,ElemID)),(x_in(:)-Elem_xGP(:,0,0,0,ElemID))))
+  Winner_Dist=SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP_Shared(:,0,0,0,ElemID)),(x_in(:)-Elem_xGP_Shared(:,0,0,0,ElemID))))
   Xi(:)=(/xGP(0),xGP(0),xGP(0)/) ! start value
   DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
-    dX=ABS(X_in(1) - Elem_xGP(1,i,j,k,ElemID-offsetElem))
+    dX=ABS(X_in(1) - Elem_xGP_Shared(1,i,j,k,ElemID))
     IF(dX.GT.Winner_Dist) CYCLE
-    dY=ABS(X_in(2) - Elem_xGP(2,i,j,k,ElemID-offsetElem))
+    dY=ABS(X_in(2) - Elem_xGP_Shared(2,i,j,k,ElemID))
     IF(dY.GT.Winner_Dist) CYCLE
-    dZ=ABS(X_in(3) - Elem_xGP(3,i,j,k,ElemID-offsetElem))
+    dZ=ABS(X_in(3) - Elem_xGP_Shared(3,i,j,k,ElemID))
     IF(dZ.GT.Winner_Dist) CYCLE
     Dist=SQRT(dX*dX+dY*dY+dZ*dZ)
     IF (Dist.LT.Winner_Dist) THEN
@@ -890,14 +886,14 @@ CASE(2)
   END DO; END DO; END DO
 CASE(3)
   ! compute distance on XCL Points
-  Winner_Dist=SQRT(DOT_PRODUCT((x_in(:)-XCL_NGeo(:,0,0,0,ElemID)),(x_in(:)-XCL_NGeo(:,0,0,0,ElemID))))
+  Winner_Dist=SQRT(DOT_PRODUCT((x_in(:)-XCL_NGeo_Shared(:,0,0,0,ElemID)),(x_in(:)-XCL_NGeo_Shared(:,0,0,0,ElemID))))
   Xi(:)=(/XiCL_NGeo(0),XiCL_NGeo(0),XiCL_NGeo(0)/) ! start value
   DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
-    dX=ABS(X_in(1) - XCL_NGeo(1,i,j,k,ElemID-offsetElem))
+    dX=ABS(X_in(1) - XCL_NGeo_Shared(1,i,j,k,ElemID))
     IF(dX.GT.Winner_Dist) CYCLE
-    dY=ABS(X_in(2) - XCL_NGeo(2,i,j,k,ElemID-offsetElem))
+    dY=ABS(X_in(2) - XCL_NGeo_Shared(2,i,j,k,ElemID))
     IF(dY.GT.Winner_Dist) CYCLE
-    dZ=ABS(X_in(3) - XCL_NGeo(3,i,j,k,ElemID-offsetElem))
+    dZ=ABS(X_in(3) - XCL_NGeo_Shared(3,i,j,k,ElemID))
     IF(dZ.GT.Winner_Dist) CYCLE
     Dist=SQRT(dX*dX+dY*dY+dZ*dZ)
     IF (Dist.LT.Winner_Dist) THEN
