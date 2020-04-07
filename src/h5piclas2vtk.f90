@@ -937,8 +937,9 @@ USE MOD_Globals_Vars,           ONLY: ProjectName
 USE MOD_IO_HDF5,                ONLY: HSize
 USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize
 USE MOD_Mesh_ReadIn,            ONLY: readMesh
-USE MOD_Mesh_Vars,              ONLY: NGeo, nElems, nNodes, offsetElem, nGlobalElems
+USE MOD_Mesh_Vars,              ONLY: NGeo, nElems, offsetElem, nGlobalElems
 USE MOD_MPI_Shared_Vars
+USE MOD_Particle_Mesh_Vars      ,ONLY:ElemNodeID_Shared,ElemSideNodeID_Shared,NodeCoords_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -955,14 +956,12 @@ INTEGER                         :: nDims,nVarAdd
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesAdd(:)
 REAL,ALLOCATABLE                :: ElemData(:,:)
 INTEGER,ALLOCATABLE            :: ElemInfo(:,:),SideInfo(:,:)
-REAL   ,ALLOCATABLE            :: NodeCoords_indx(:,:)
 INTEGER,ALLOCATABLE  :: NodeInfo(:), ElemUniqueNodeID(:,:)
-INTEGER              :: nNodeIDs, nSideIDs,nUniqueNodes
+INTEGER              :: nSideIDs,nUniqueNodes
 REAL   ,ALLOCATABLE            :: NodeCoords_Connect(:,:)
 INTEGER            :: CornerNodeIDswitch(8)
-INTEGER            :: iElem,iNode,jNode
-INTEGER            :: NodeMap(4,6)
-INTEGER            :: FirstElemInd, LastElemInd, GlobalSideID, nlocSides, localSideID
+INTEGER            :: iElem,iNode
+INTEGER            :: FirstElemInd, LastElemInd
 !===================================================================================================================================
 
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
@@ -998,8 +997,8 @@ IF(.NOT.ReadMeshFinished) THEN
 
   ALLOCATE(NodeInfo(1:nNonUniqueGlobalNodes))
   CALL ReadArray('GlobalNodeIDs',1,(/nNonUniqueGlobalNodes/),0,1,IntegerArray_i4=NodeInfo)
-  ALLOCATE(NodeCoords_indx(3,nNonUniqueGlobalNodes))
-  CALL ReadArray('NodeCoords',2,(/3,nNonUniqueGlobalNodes/),0,2,RealArray=NodeCoords_indx)
+  ALLOCATE(NodeCoords_Shared(3,nNonUniqueGlobalNodes))
+  CALL ReadArray('NodeCoords',2,(/3,nNonUniqueGlobalNodes/),0,2,RealArray=NodeCoords_Shared)
 
   CornerNodeIDswitch(1)=1
   CornerNodeIDswitch(2)=(Ngeo+1)
@@ -1010,15 +1009,17 @@ IF(.NOT.ReadMeshFinished) THEN
   CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
   CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
 
+  ALLOCATE(ElemNodeID_Shared(        1:8,1:nElems))
+  ALLOCATE(ElemSideNodeID_Shared(1:4,1:6,1:nElems))
   ALLOCATE(ElemUniqueNodeID(1:8,1:nElems))
   ALLOCATE(NodeCoords_Connect(1:3,1:nUniqueNodes))
 
   ASSOCIATE(CNS => CornerNodeIDswitch)
     DO iElem = FirstElemInd,LastElemInd
-      DO jNode = 1,8
-        iNode = ElemInfo(ELEM_FIRSTNODEIND,iElem) + CNS(jNode)
-        ElemUniqueNodeID(jNode,iElem)=ABS(NodeInfo(iNode))
-        NodeCoords_Connect(1:3,ElemUniqueNodeID(jNode,iElem)) = NodeCoords_indx(1:3,iNode)
+      DO iNode = 1,8
+        ElemNodeID_Shared(iNode,iElem) = ElemInfo(ELEM_FIRSTNODEIND,iElem) + CNS(iNode)
+        ElemUniqueNodeID(iNode,iElem)=ABS(NodeInfo(ElemNodeID_Shared(iNode,iElem)))
+        NodeCoords_Connect(1:3,ElemUniqueNodeID(iNode,iElem)) = NodeCoords_Shared(1:3,ElemNodeID_Shared(iNode,iElem))
       END DO
     END DO
   END ASSOCIATE
@@ -1078,9 +1079,11 @@ USE MOD_Globals_Vars,           ONLY: ProjectName
 USE MOD_IO_HDF5,                ONLY: HSize
 USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray,GetDataSize
 USE MOD_Mesh_ReadIn,            ONLY: readMesh
-USE MOD_Mesh_Vars,              ONLY: NGeo, SurfConnect
+USE MOD_Mesh_Vars,              ONLY: nElems, offsetElem, nGlobalElems
+USE MOD_Mesh_Vars,              ONLY: NGeo, SurfConnect,BoundaryName
+USE MOD_MPI_Shared_Vars
 #if USE_MPI
-USE MOD_Particle_Mesh_Vars,     ONLY: ElemNodeID_Shared,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY:ElemNodeID_Shared,ElemSideNodeID_Shared,NodeCoords_Shared,SideInfo_Shared,NodeInfo_Shared
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1094,9 +1097,18 @@ LOGICAL,INTENT(INOUT)           :: ReadMeshFinished,MeshInitFinished
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)              :: FileString, MeshFile
 REAL                            :: OutputTime
-INTEGER                         :: nDims, nVarSurf, nSurfSample, iNode
+INTEGER                         :: nDims, nVarSurf, nSurfSample
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
 REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:), SurfData(:,:), Coords(:,:)
+INTEGER,ALLOCATABLE            :: ElemInfo(:,:)
+INTEGER,ALLOCATABLE  :: ElemUniqueNodeID(:,:)
+INTEGER              :: nSideIDs,nUniqueNodes
+REAL   ,ALLOCATABLE            :: NodeCoords_Connect(:,:)
+INTEGER            :: CornerNodeIDswitch(8)
+INTEGER            :: iElem,iNode
+INTEGER            :: NodeMap(4,6)
+INTEGER            :: FirstElemInd, LastElemInd, GlobalSideID, nlocSides, localSideID, nStart, iLocSide, sideCount, iSide, NbElemID
+INTEGER            :: nlocSidesNb, NbSideID, jLocSide, nBCs
 !===================================================================================================================================
 
 CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
@@ -1106,17 +1118,118 @@ CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample)
 IF(nSurfSample.EQ.1) THEN
   ! Read-in of mesh information (if not already done for DG solution -> DSMCState case)
   IF(.NOT.ReadMeshFinished) THEN
-    ! Read in parameters from mesh file
+    SWRITE(UNIT_stdOut,'(A)')'READ MESH FROM DATA FILE "'//TRIM(MeshFile)//'" ...'
+    SWRITE(UNIT_StdOut,'(132("-"))')
     CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
     CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
+    CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
+    CALL ReadAttribute(File_ID,'nSides',1,IntegerScalar=nNonUniqueGlobalSides)
+    CALL ReadAttribute(File_ID,'nNodes',1,IntegerScalar=nNonUniqueGlobalNodes)
+    CALL ReadAttribute(File_ID,'nUniqueNodes',1,IntegerScalar=nUniqueNodes)
+    CHECKSAFEINT(HSize(2),4)
+    nGlobalElems=INT(HSize(2),4)
+
+    FirstElemInd = 1
+    LastElemInd = nGlobalElems
+    nElems = nGlobalElems
+
+    ALLOCATE(ElemInfo(ELEMINFOSIZE_H5,FirstElemInd:LastElemInd))
+    CALL ReadArray('ElemInfo',2,(/ELEMINFOSIZE_H5,nElems/),0,2,IntegerArray_i4=ElemInfo(1:ELEMINFOSIZE_H5,:))
+
+    nSideIDs     = ElemInfo(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
+    ALLOCATE(SideInfo_Shared(SIDEINFOSIZE,1:nSideIDs))
+    SideInfo_Shared = 0
+    CALL ReadArray('SideInfo',2,(/SIDEINFOSIZE_H5,nSideIDs/),0,2,IntegerArray_i4=SideInfo_Shared(1:SIDEINFOSIZE_H5,:))
+
+    DO iElem=FirstElemInd,LastElemInd
+      iSide = ElemInfo(ELEM_FIRSTSIDEIND,iElem)
+      SideInfo_Shared(SIDE_ELEMID,iSide+1:ElemInfo(ELEM_LASTSIDEIND,iElem)) = iElem
+      sideCount = 0
+      nlocSides = ElemInfo(ELEM_LASTSIDEIND,iElem) -  ElemInfo(ELEM_FIRSTSIDEIND,iElem)
+      DO iLocSide = 1,nlocSides
+        iSide = ElemInfo(ELEM_FIRSTSIDEIND,iElem) + iLocSide
+        ! Big mortar side
+        IF (SideInfo_Shared(SIDE_TYPE,iSide).GT.4) THEN
+          ! Check all sides on the small element side to find the small mortar side pointing back
+          NbElemID    = SideInfo_Shared(SIDE_NBELEMID,iSide)
+          nlocSidesNb = ElemInfo(ELEM_LASTSIDEIND,NbElemID) -  ElemInfo(ELEM_FIRSTSIDEIND,NbElemID)
+          DO jLocSide = 1,nlocSidesNb
+            NbSideID = ElemInfo(ELEM_FIRSTSIDEIND,NbElemID) + jLocSide
+            IF (ABS(SideInfo_Shared(SIDE_ID,iSide)).EQ.ABS(SideInfo_Shared(SIDE_ID,NbSideID))) THEN
+              SideInfo_Shared(SIDE_LOCALID,iSide) = -NbSideID
+              EXIT
+            END IF
+          END DO
+        ! Regular side
+        ELSE
+          sideCount = sideCount + 1
+          SideInfo_Shared(SIDE_LOCALID,iSide) = sideCount
+        END IF
+      END DO
+    END DO
+
+    ALLOCATE(NodeInfo_Shared(1:nNonUniqueGlobalNodes))
+    CALL ReadArray('GlobalNodeIDs',1,(/nNonUniqueGlobalNodes/),0,1,IntegerArray_i4=NodeInfo_Shared)
+    ALLOCATE(NodeCoords_Shared(3,nNonUniqueGlobalNodes))
+    CALL ReadArray('NodeCoords',2,(/3,nNonUniqueGlobalNodes/),0,2,RealArray=NodeCoords_Shared)
+
+    ! CGNS Mapping
+    CornerNodeIDswitch(1)=1
+    CornerNodeIDswitch(2)=(Ngeo+1)
+    CornerNodeIDswitch(3)=(Ngeo+1)**2
+    CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
+    CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
+    CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
+    CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
+    CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
+
+    ALLOCATE(ElemNodeID_Shared(        1:8,1:nElems))
+    ALLOCATE(ElemSideNodeID_Shared(1:4,1:6,1:nElems))
+    ALLOCATE(ElemUniqueNodeID(1:8,1:nElems))
+    ALLOCATE(NodeCoords_Connect(1:3,1:nUniqueNodes))
+
+    ASSOCIATE(CNS => CornerNodeIDswitch)
+      NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
+      NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
+      NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
+      NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
+      NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
+      NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
+      DO iElem = FirstElemInd,LastElemInd
+        DO iNode = 1,8
+          ElemNodeID_Shared(iNode,iElem) = ElemInfo(ELEM_FIRSTNODEIND,iElem) + CNS(iNode)
+          ElemUniqueNodeID(iNode,iElem)=ABS(NodeInfo_Shared(ElemNodeID_Shared(iNode,iElem)))
+          NodeCoords_Connect(1:3,ElemUniqueNodeID(iNode,iElem)) = NodeCoords_Shared(1:3,ElemNodeID_Shared(iNode,iElem))
+        END DO
+        nlocSides = ElemInfo(ELEM_LASTSIDEIND,iElem) -  ElemInfo(ELEM_FIRSTSIDEIND,iElem)
+        DO iLocSide = 1,nlocSides
+          ! Get global SideID
+          GlobalSideID = ElemInfo(ELEM_FIRSTSIDEIND,iElem) + iLocSide
+          IF (SideInfo_Shared(SIDE_LOCALID,GlobalSideID).LE.0) CYCLE
+          localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+          ! Find start of CGNS mapping from flip
+          nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,GlobalSideID),10)-1)
+          ! Shared memory array starts at 1, but NodeID at 0
+          ElemSideNodeID_Shared(1:4,localSideID,iElem) = (/ElemInfo(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart  ,4)+1,localSideID)-1, &
+                                                          ElemInfo(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+1,4)+1,localSideID)-1, &
+                                                          ElemInfo(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+2,4)+1,localSideID)-1, &
+                                                          ElemInfo(ELEM_FIRSTNODEIND,iElem)+NodeMap(MOD(nStart+3,4)+1,localSideID)-1/)
+        END DO
+      END DO
+    END ASSOCIATE
+
+    ! Read boundary names from data file
+    CALL GetDataSize(File_ID,'BCNames',nDims,HSize)
+    CHECKSAFEINT(HSize(1),4)
+    nBCs=INT(HSize(1),4)
+    ALLOCATE(BoundaryName(nBCs))
+
+    CALL ReadArray('BCNames',1,(/nBCs/),0,1,StrArray=BoundaryName)
+
     CALL CloseDataFile()
-    CALL readMesh(MeshFile)
     ReadMeshFinished = .TRUE.
   END IF
-  IF(.NOT.MeshInitFinished) THEN
-    CALL InitMesh_Connected()
-    MeshInitFinished = .TRUE.
-  END IF
+
   ! Read in solution
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
@@ -1138,17 +1251,10 @@ IF(nSurfSample.EQ.1) THEN
                       0_IK,4,RealArray=tempSurfData(:,:,:,:))
     END ASSOCIATE
     SurfData(1:nVarSurf,1:SurfConnect%nSurfaceBCSides) = tempSurfData(1:nVarSurf,1,1,1:SurfConnect%nSurfaceBCSides)
-    ALLOCATE(Coords(1:3,SurfConnect%nSurfaceNode))
-    Coords = 0.
   END IF
 
-  DO iNode=1, SurfConnect%nSurfaceNode
-  ! TODO: This is probably borked because the node pointer is not build on the global node IDs
-    Coords(1:3,iNode) = NodeCoords_Shared(1:3, SurfConnect%BCSurfNodes(iNode))
-  END DO
-
   FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
-  CALL WriteDataToVTK_PICLas(4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceNode,Coords(1:3,:),&
+  CALL WriteDataToVTK_PICLas(4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceNode,SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode),&
       SurfConnect%nSurfaceBCSides,SurfData,SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides))
 ELSE IF(nSurfSample.GT.1) THEN
   CALL abort(__STAMP__,&
@@ -1177,8 +1283,9 @@ USE MOD_Globals
 USE MOD_IO_HDF5,                ONLY: HSize
 USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray,GetDataSize
 USE MOD_Mesh_ReadIn,            ONLY: readMesh
-USE MOD_Mesh_Vars,              ONLY: SurfConnect, nSides, SideToElem, BC, BoundaryName
-USE MOD_Particle_Mesh_Vars,     ONLY: ElemSideNodeID_Shared
+USE MOD_Mesh_Vars,              ONLY: SurfConnect, BoundaryName
+USE MOD_Particle_Mesh_Vars,     ONLY: ElemSideNodeID_Shared,SideInfo_Shared,NodeCoords_Shared,NodeInfo_Shared
+USE MOD_MPI_Shared_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1187,10 +1294,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: nDims, iNode, nSurfBC_HDF5, iName
+INTEGER                         :: nDims, iNode, nSurfBC_HDF5, iName, nSides
 CHARACTER(LEN=255),ALLOCATABLE  :: SurfBCName_HDF5(:)
 INTEGER                         :: iElem, iLocSide, iSide, iNode2, iBC, nSurfSides
 INTEGER, ALLOCATABLE            :: TempBCSurfNodes(:), TempSideSurfNodeMap(:,:), SideToSurfSide(:)
+REAL, ALLOCATABLE               :: TempNodeCoords(:,:)
 LOGICAL                         :: IsSortedSurfNode
 !===================================================================================================================================
 
@@ -1205,15 +1313,17 @@ DO iName = 1,nSurfBC_HDF5
   SWRITE(UNIT_stdOut,'(A3,A38,I2.1,A5,A3,A33,A13)')' | ','BC',iName,'Name',' | ',TRIM(SurfBCName_HDF5(iName)),' | HDF5    | '
 END DO
 
+nSides = nNonUniqueGlobalSides
+
 ! create sideid to surfaceid map for all surface-sides contained in statefile
 ALLOCATE(SideToSurfSide(1:nSides))
 SideToSurfSide(1:nSides) = -1
 ! if side is surface (BC_reflective defined in State file) then map respective surface side number
 nSurfSides = 0
 DO iSide = 1,nSides
-  IF(BC(iSide).EQ.0) CYCLE
+  IF(SideInfo_Shared(SIDE_BCID,iSide).EQ.0) CYCLE
   DO iBC=1,nSurfBC_HDF5
-    IF((TRIM(BoundaryName(BC(iSide))) .EQ. TRIM(SurfBCName_HDF5(iBC)))) THEN
+    IF((TRIM(BoundaryName(SideInfo_Shared(SIDE_BCID,iSide))) .EQ. TRIM(SurfBCName_HDF5(iBC)))) THEN
       nSurfSides = nSurfSides + 1
       SideToSurfSide(iSide) = nSurfSides
     END IF
@@ -1222,25 +1332,21 @@ END DO
 
 ! Build connectivity for the surface mesh
 ALLOCATE(TempBCSurfNodes(4*nSides))
+ALLOCATE(TempNodeCoords(1:3,4*nSides))
 ALLOCATE(TempSideSurfNodeMap(1:4,1:nSides))
 SurfConnect%nSurfaceNode=0
 SurfConnect%nSurfaceBCSides=0
 
 DO iSide=1, nSides
-  IF(BC(iSide).EQ.0) CYCLE
+  IF(SideInfo_Shared(SIDE_BCID,iSide).EQ.0) CYCLE
   IF (SideToSurfSide(iSide).NE.-1) THEN
     SurfConnect%nSurfaceBCSides = SurfConnect%nSurfaceBCSides + 1
-    iElem = SideToElem(1,iSide)
-    IF (iElem.LT.1) THEN
-      iElem = SideToElem(2,iSide)
-      iLocSide = SideToElem(4,iSide)
-    ELSE
-      iLocSide = SideToElem(3,iSide)
-    END IF
+    iElem = SideInfo_Shared(SIDE_ELEMID,iSide)
+    iLocSide = SideInfo_Shared(SIDE_LOCALID,iSide)
     DO iNode2 = 1, 4
       IsSortedSurfNode = .FALSE.
       DO iNode = 1, SurfConnect%nSurfaceNode
-        IF (ElemSideNodeID_Shared(iNode2, iLocSide, iElem).EQ.TempBCSurfNodes(iNode)) THEN
+        IF (ABS(NodeInfo_Shared(ElemSideNodeID_Shared(iNode2, iLocSide, iElem)+1)).EQ.TempBCSurfNodes(iNode)) THEN
           TempSideSurfNodeMap(iNode2,SurfConnect%nSurfaceBCSides) = iNode
           IsSortedSurfNode = .TRUE.
           EXIT
@@ -1248,8 +1354,9 @@ DO iSide=1, nSides
       END DO
       IF(.NOT.IsSortedSurfNode) THEN
         SurfConnect%nSurfaceNode = SurfConnect%nSurfaceNode + 1
-        TempBCSurfNodes(SurfConnect%nSurfaceNode) = ElemSideNodeID_Shared(iNode2, iLocSide, iElem)
+        TempBCSurfNodes(SurfConnect%nSurfaceNode) = ABS(NodeInfo_Shared(ElemSideNodeID_Shared(iNode2, iLocSide, iElem)+1))
         TempSideSurfNodeMap(iNode2,SurfConnect%nSurfaceBCSides) = SurfConnect%nSurfaceNode
+        TempNodeCoords(1:3,SurfConnect%nSurfaceNode) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode2, iLocSide, iElem)+1)
       END IF
     END DO
   END IF
@@ -1261,8 +1368,11 @@ SurfConnect%BCSurfNodes(1:SurfConnect%nSurfaceNode) = TempBCSurfNodes(1:SurfConn
 SDEALLOCATE(SurfConnect%SideSurfNodeMap)
 ALLOCATE(SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides))
 SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides) = TempSideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides)
+ALLOCATE(SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode))
+SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode) = TempNodeCoords(1:3,1:SurfConnect%nSurfaceNode)
 SDEALLOCATE(TempBCSurfNodes)
 SDEALLOCATE(TempSideSurfNodeMap)
+SDEALLOCATE(TempNodeCoords)
 SDEALLOCATE(SurfBCName_HDF5)
 SDEALLOCATE(SideToSurfSide)
 
