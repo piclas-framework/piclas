@@ -1631,7 +1631,7 @@ END SUBROUTINE WriteAnalyzeSurfCollisToHDF5
 
 SUBROUTINE SamplingRotVibRelaxProb(iElem)
 !===================================================================================================================================
-!> Update sampling arrays for rotational and vibrational relaxation probability for DSMCHO Output
+!> Update sampling arrays for rotational and vibrational relaxation probability for DSMC Output
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars              ,ONLY: DSMC

@@ -937,11 +937,8 @@ USE MOD_Globals_Vars,           ONLY: ProjectName
 USE MOD_IO_HDF5,                ONLY: HSize
 USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize
 USE MOD_Mesh_ReadIn,            ONLY: readMesh
-USE MOD_Mesh_Vars,              ONLY: NGeo, nElems, nNodes, offsetElem
-USE MOD_Particle_Mesh_Vars,     ONLY: GEO
-#if USE_MPI
-USE MOD_Particle_Mesh_Vars,     ONLY: ElemNodeID_Shared,NodeCoords_Shared
-#endif
+USE MOD_Mesh_Vars,              ONLY: NGeo, nElems, nNodes, offsetElem, nGlobalElems
+USE MOD_MPI_Shared_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -957,6 +954,15 @@ REAL                            :: OutputTime
 INTEGER                         :: nDims,nVarAdd
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesAdd(:)
 REAL,ALLOCATABLE                :: ElemData(:,:)
+INTEGER,ALLOCATABLE            :: ElemInfo(:,:),SideInfo(:,:)
+REAL   ,ALLOCATABLE            :: NodeCoords_indx(:,:)
+INTEGER,ALLOCATABLE  :: NodeInfo(:), ElemUniqueNodeID(:,:)
+INTEGER              :: nNodeIDs, nSideIDs,nUniqueNodes
+REAL   ,ALLOCATABLE            :: NodeCoords_Connect(:,:)
+INTEGER            :: CornerNodeIDswitch(8)
+INTEGER            :: iElem,iNode,jNode
+INTEGER            :: NodeMap(4,6)
+INTEGER            :: FirstElemInd, LastElemInd, GlobalSideID, nlocSides, localSideID
 !===================================================================================================================================
 
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
@@ -967,16 +973,63 @@ CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
 
 IF(.NOT.ReadMeshFinished) THEN
+  SWRITE(UNIT_stdOut,'(A)')'READ MESH FROM DATA FILE "'//TRIM(MeshFile)//'" ...'
+  SWRITE(UNIT_StdOut,'(132("-"))')
   CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
+  CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
+  CALL ReadAttribute(File_ID,'nSides',1,IntegerScalar=nNonUniqueGlobalSides)
+  CALL ReadAttribute(File_ID,'nNodes',1,IntegerScalar=nNonUniqueGlobalNodes)
+  CALL ReadAttribute(File_ID,'nUniqueNodes',1,IntegerScalar=nUniqueNodes)
+  CHECKSAFEINT(HSize(2),4)
+  nGlobalElems=INT(HSize(2),4)
+
+  FirstElemInd = 1
+  LastElemInd = nGlobalElems
+  nElems = nGlobalElems
+
+  ALLOCATE(ElemInfo(ELEMINFOSIZE_H5,FirstElemInd:LastElemInd))
+  CALL ReadArray('ElemInfo',2,(/ELEMINFOSIZE_H5,nElems/),0,2,IntegerArray_i4=ElemInfo(1:ELEMINFOSIZE_H5,:))
+
+  nSideIDs     = ElemInfo(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
+  ALLOCATE(SideInfo(SIDEINFOSIZE_H5,1:nSideIDs))
+  CALL ReadArray('SideInfo',2,(/SIDEINFOSIZE_H5,nSideIDs/),0,2,IntegerArray_i4=SideInfo(1:SIDEINFOSIZE_H5,:))
+
+
+  ALLOCATE(NodeInfo(1:nNonUniqueGlobalNodes))
+  CALL ReadArray('GlobalNodeIDs',1,(/nNonUniqueGlobalNodes/),0,1,IntegerArray_i4=NodeInfo)
+  ALLOCATE(NodeCoords_indx(3,nNonUniqueGlobalNodes))
+  CALL ReadArray('NodeCoords',2,(/3,nNonUniqueGlobalNodes/),0,2,RealArray=NodeCoords_indx)
+
+  CornerNodeIDswitch(1)=1
+  CornerNodeIDswitch(2)=(Ngeo+1)
+  CornerNodeIDswitch(3)=(Ngeo+1)**2
+  CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
+  CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
+  CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
+  CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
+  CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
+
+  ALLOCATE(ElemUniqueNodeID(1:8,1:nElems))
+  ALLOCATE(NodeCoords_Connect(1:3,1:nUniqueNodes))
+
+  ASSOCIATE(CNS => CornerNodeIDswitch)
+    DO iElem = FirstElemInd,LastElemInd
+      DO jNode = 1,8
+        iNode = ElemInfo(ELEM_FIRSTNODEIND,iElem) + CNS(jNode)
+        ElemUniqueNodeID(jNode,iElem)=ABS(NodeInfo(iNode))
+        NodeCoords_Connect(1:3,ElemUniqueNodeID(jNode,iElem)) = NodeCoords_indx(1:3,iNode)
+      END DO
+    END DO
+  END ASSOCIATE
   CALL CloseDataFile()
-  CALL readMesh(MeshFile)
   ReadMeshFinished = .TRUE.
 END IF
-IF(.NOT.MeshInitFinished) THEN
-  CALL InitMesh_Connected()
+
+! IF(.NOT.MeshInitFinished) THEN
+!   CALL InitMesh_Connected()
   MeshInitFinished = .TRUE.
-END IF
+! END IF
 
 ! Read in solution
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
@@ -1003,8 +1056,8 @@ IF (nVarAdd.GT.0) THEN
       FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuDSMC',OutputTime))//'.vtu'
   END SELECT
   ! TODO: This is probably borked for NGeo>1 because then NodeCoords are not the corner nodes
-  CALL WriteDataToVTK_PICLas(8,FileString,nVarAdd,VarNamesAdd(1:nVarAdd),nNodes,NodeCoords_Shared(1:3,1:nNodes),nElems,&
-                              ElemData(1:nVarAdd,1:nElems),ElemNodeID_Shared(1:8,1:nElems))
+  CALL WriteDataToVTK_PICLas(8,FileString,nVarAdd,VarNamesAdd(1:nVarAdd),nUniqueNodes,NodeCoords_Connect(1:3,1:nUniqueNodes),nElems,&
+                              ElemData(1:nVarAdd,1:nElems),ElemUniqueNodeID(1:8,1:nElems))
 END IF
 
 SDEALLOCATE(VarNamesAdd)
@@ -1026,7 +1079,6 @@ USE MOD_IO_HDF5,                ONLY: HSize
 USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray,GetDataSize
 USE MOD_Mesh_ReadIn,            ONLY: readMesh
 USE MOD_Mesh_Vars,              ONLY: NGeo, SurfConnect
-USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars,     ONLY: ElemNodeID_Shared,NodeCoords_Shared
 #endif
@@ -1126,7 +1178,6 @@ USE MOD_IO_HDF5,                ONLY: HSize
 USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray,GetDataSize
 USE MOD_Mesh_ReadIn,            ONLY: readMesh
 USE MOD_Mesh_Vars,              ONLY: SurfConnect, nSides, SideToElem, BC, BoundaryName
-USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_Particle_Mesh_Vars,     ONLY: ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
