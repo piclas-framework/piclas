@@ -1553,7 +1553,7 @@ IF (DSMC%ElectronicModel.AND.DSMC%ReservoirSimuRate) THEN
         OPEN(unit=iunit,file=DebugElectronicStateFilename,form='formatted',status='unknown')
         DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant - 1                         !has to be changed when using %Init definitions!!!
           WRITE(iunit,'(I3.1,3x,F12.7)') ii, REAL( SpecDSMC(iSpec)%levelcounter(ii) ) / &
-                                              REAL( Species(iSpec)%Init(0)%initialParticleNumber)
+                                              REAL( Species(iSpec)%Init(1)%initialParticleNumber)
         END DO
         CLOSE(iunit)
       END IF
@@ -2687,7 +2687,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, DSMC
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
 ! IMPLICIT VARIABLE HANDLING
@@ -2782,7 +2782,7 @@ SUBROUTINE ElectronicTransition (  Time, NumSpec )
 USE MOD_DSMC_Vars          ,ONLY: DSMC, SpecDSMC
 USE MOD_TimeDisc_Vars      ,ONLY: dt
 USE MOD_Particle_Vars      ,ONLY: nSpecies, Species
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -968,7 +968,7 @@ __STAMP__&
             ! initialize velocity, trans_temperature and density of macrovalues
             IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
               ! ofc, a file for every macrovalue...dirty fix
-              FileID = Species(iSpec)%Init(0)%ElemPartDensityFileID
+              FileID = Species(iSpec)%Init(1)%ElemPartDensityFileID
             ELSE
               FileID = PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC)
             END IF

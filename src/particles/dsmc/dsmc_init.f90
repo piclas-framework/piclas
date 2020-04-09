@@ -969,7 +969,7 @@ ELSE !CollisMode.GT.0
             open(unit=483,file=DebugElectronicStateFilename,form='formatted',status='unknown')
             DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
               WRITE(483,'(I3.1,3x,F12.7)') ii, REAL( SpecDSMC(iSpec)%levelcounter(ii) ) / &
-                  REAL( Species(iSpec)%Init(0)%initialParticleNumber )
+                  REAL( Species(iSpec)%Init(1)%initialParticleNumber )
             END DO
             close(unit=483)
           END IF
@@ -1648,7 +1648,7 @@ IMPLICIT NONE
           IF(DSMC%InstantTransTemp(nSpecies + 1).NE.0) THEN
             Ti = DSMC%InstantTransTemp(nSpecies + 1)
           ELSE
-            Ti = Species(iSpec)%Init(0)%MWTemperatureIC
+            Ti = Species(iSpec)%Init(1)%MWTemperatureIC
           END IF
         END IF
         n = 1
@@ -1659,7 +1659,7 @@ IMPLICIT NONE
             IF(DSMC%InstantTransTemp(nSpecies + 1).NE.0) THEN
               Tj = DSMC%InstantTransTemp(nSpecies + 1)
             ELSE
-              Tj = Species(jSpec)%Init(0)%MWTemperatureIC
+              Tj = Species(jSpec)%Init(1)%MWTemperatureIC
             END IF
           END IF
           Coll_pData(1)%PairType = CollInf%Coll_Case(iSpec, jSpec)
