@@ -137,6 +137,20 @@ IF(myComputeNodeRank.EQ.0)THEN
   CALL MPI_COMM_SIZE(MPI_COMM_LEADERS_SHARED,nLeaderGroupProcs,IERROR)
 END IF
 
+! leders inform every proc on their node about the leader group rank and group size
+CALL MPI_BCAST(myLeaderGroupRank,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
+CALL MPI_BCAST(nLeaderGroupProcs,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
+
+! communicate ranks for each leader rank
+ALLOCATE(MPIRankLeader(0:nLeaderGroupProcs-1))
+IF(myComputeNodeRank.EQ.0)THEN
+  CALL MPI_ALLGATHER(ComputeNodeRootRank,1,MPI_INTEGER,MPIRankLeader(0:nLeaderGroupProcs-1),1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
+END IF
+CALL MPI_BCAST(MPIRankLeader,nLeaderGroupProcs,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
+
+! synchronize everything or bad things will happen
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+
 MPISharedInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')      ' INIT MPI SHARED COMMUNICATION DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')

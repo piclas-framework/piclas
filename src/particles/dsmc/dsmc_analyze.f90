@@ -82,7 +82,7 @@ USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurf
 USE MOD_Particle_Boundary_Vars     ,ONLY: MapSurfSideToPorousBC
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 #if USE_MPI
-USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData,MapInnerSurfData
+!USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData,MapInnerSurfData
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
 #endif
 USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry2D
@@ -134,15 +134,16 @@ END IF
 
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
-#if USE_MPI
-IF(SurfCOMM%InnerBCs) THEN
-! if there are innerBCs with reflective surface properties
-! additional communication is needed (see:SUBROUTINE MapInnerSurfData)
-  CALL ExchangeSurfData()
-  CALL MapInnerSurfData()
-END IF
-CALL ExchangeSurfData()
-#endif
+! TODO: Needs to be adjusted to new routines with new halo region
+!#if USE_MPI
+!IF(SurfCOMM%InnerBCs) THEN
+!! if there are innerBCs with reflective surface properties
+!! additional communication is needed (see:SUBROUTINE MapInnerSurfData)
+!  CALL ExchangeSurfData()
+!  CALL MapInnerSurfData()
+!END IF
+!CALL ExchangeSurfData()
+!#endif
 
 ! Determine the number of variables
 nVar = 5

@@ -104,6 +104,10 @@
 #define SIDE_ELEMID       6
 #define SIDE_LOCALID      7
 #define SIDE_NBELEMTYPE   8
+! surface sampling entries
+#define SURF_SIDEID       1
+#define SURF_RANK         2
+#define SURF_LEADER       3
 
 ! Predefined "PARAMETER-like" variables
 #define XI_MINUS   5

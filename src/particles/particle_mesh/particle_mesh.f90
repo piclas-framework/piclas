@@ -2350,8 +2350,10 @@ CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
 offsetBCSidesProc   = recvbuf
 ! last proc knows CN total number of BC elems
 sendbuf = offsetBCSidesProc + nBCSidesProc
+IPWRITE(*,*) sendbuf
 CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
 nComputeNodeBCSides = sendbuf
+IPWRITE(*,*) sendbuf
 
 ElemToBCSides(1,firstElem:lastElem) = ElemToBCSidesProc(1,firstElem:lastElem)
 ElemToBCSides(2,firstElem:lastElem) = ElemToBCSidesProc(2,firstElem:lastElem) + offsetBCSidesProc
@@ -2381,6 +2383,7 @@ IF (myComputeNodeRank.EQ.0) THEN
 #if USE_MPI
 END IF
 
+CALL MPI_WIN_SYNC(ElemToBCSides_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(SideBCMetrics_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #endif /* USE_MPI*/
@@ -2393,7 +2396,9 @@ DO iElem = firstElem,lastElem
 
   ! check local side of an element
   DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iElem)
+    ! ignore inner and virtual (mortar) sides
     IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+
     nBCSidesProc = nBCSidesProc + 1
     SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(iSide)
     SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(iElem)

@@ -56,13 +56,13 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:,:)       :: ElemsJ             !< 1/DetJac for e
 REAL,ALLOCPOINT,DIMENSION(:)             :: ElemEpsOneCell     ! tolerance for particle in inside ref element 1+epsinCell
 
 ! Shared arrays containing information for complete mesh
-INTEGER,ALLOCPOINT :: ElemToProcID_Shared(:)
-INTEGER,ALLOCPOINT :: ElemToTree_Shared(:)
-INTEGER,ALLOCPOINT :: ElemInfo_Shared(:,:)
-INTEGER,ALLOCPOINT :: SideInfo_Shared(:,:)
-INTEGER,ALLOCPOINT :: NodeInfo_Shared(:)
-REAL,ALLOCPOINT    :: NodeCoords_Shared(:,:)
-REAL,ALLOCPOINT    :: TreeCoords_Shared(:,:,:,:,:)
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToProcID_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToTree_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: ElemInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: SideInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeInfo_Shared
+REAL,ALLOCPOINT,DIMENSION(:,:)           :: NodeCoords_Shared
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:,:)     :: TreeCoords_Shared
 
 REAL,ALLOCPOINT    :: xiMinMax_Shared(:,:,:)
 

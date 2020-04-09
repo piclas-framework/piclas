@@ -32,6 +32,7 @@ INTEGER            :: myComputeNodeRank               !> Rank of current proc on
 INTEGER            :: myLeaderGroupRank               !> Rank of compute-node root in compute-node-root comm
 INTEGER,ALLOCATABLE:: MPIRankGlobal(:)                !> Array of size nProcessors holding the global rank of each proc
 INTEGER,ALLOCATABLE:: MPIRankShared(:)                !> Array of size nProcessors holding the shared rank of each proc
+INTEGER,ALLOCATABLE:: MPIRankLeader(:)                !> Array of size nLeaderGroupProcs holding the global rank of each proc
 INTEGER            :: nComputeNodeProcessors          !> Number of procs on current compute-node
 INTEGER            :: nLeaderGroupProcs               !> Number of nodes
 INTEGER            :: nProcessors_Global              !> Number of total procs
@@ -55,6 +56,23 @@ INTEGER            :: offsetComputeNodeElem           !> elem offset of compute-
 INTEGER            :: offsetComputeNodeSide           !> side offset of compute-node root
 INTEGER            :: offsetComputeNodeNode           !> node offset of compute-node root
 INTEGER            :: offsetComputeNodeTree           !> tree offset of compute-node root
+
+! Surface sampling
+INTEGER,ALLOCATABLE:: MPIRankSharedLeader(:)          !> Array of size nLeaderGroupProcs holding the leader rank of each proc
+INTEGER,ALLOCATABLE:: MPIRankSurfLeader(:)            !> Array of size nLeaderGroupProcs holding the surf rank of each proc
+INTEGER            :: nComputeNodeSurfSides           !> Number of surface sampling sides on compute node
+INTEGER            :: nComputeNodeSurfTotalSides      !> Number of surface sampling sides on compute node (including halo region)
+INTEGER            :: offsetComputeNodeSurfSide       !> elem offset of compute-node root
+INTEGER            :: MPI_COMM_LEADERS_SURF           !> Communicator compute-node roots on surface communicator (my_rank_shared=0)
+INTEGER            :: mySurfRank                      !> rank on MPI_COMM_LEADERS_SURF
+INTEGER            :: nSurfLeaders                    !> compute-node leaders on MPI_COMM_LEADERS_SURF
+INTEGER            :: nSurfCommProc                   !> compute-nodes which send or receive sides from us
+
+INTEGER,ALLOCATABLE,DIMENSION(:,:):: nSurfSidesLeader !> number of surf sides per leader proc
+                                                      !> 1 - sides from local leader to other leader
+                                                      !> 2 - sides from other leader to local leader
+
+
 
 INTEGER, ALLOCATABLE :: CNTotalElem2GlobalElem(:)     !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
 INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:)     !> Reverse Mapping

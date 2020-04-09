@@ -58,7 +58,7 @@ USE MOD_Piclas_Init                     ,ONLY: DefineParametersPiclas
 #ifdef PARTICLES
 USE MOD_ParticleInit                    ,ONLY: DefineParametersParticles
 USE MOD_MacroBody_Init                  ,ONLY: DefineParametersMacroBody
-USE MOD_Particle_Boundary_Sampling      ,ONLY: DefineParametersParticlesBoundarySampling
+USE MOD_Particle_Boundary_Sampling      ,ONLY: DefineParametersParticleBoundarySampling
 USE MOD_Particle_BGM                    ,ONLY: DefineparametersParticleBGM
 USE MOD_Particle_Mesh                   ,ONLY: DefineparametersParticleMesh
 USE MOD_Particle_Analyze                ,ONLY: DefineParametersParticleAnalyze
@@ -119,7 +119,7 @@ CALL DefineParametersRecordPoints()
 CALL DefineParametersSuperB()
 CALL DefineParametersParticles()
 CALL DefineParametersMacroBody()
-CALL DefineParametersParticlesBoundarySampling()
+CALL DefineParametersParticleBoundarySampling()
 CALL DefineParametersParticleSymmetry()
 CALL DefineParametersVaribleTimeStep()
 CALL DefineParametersPorousBC()

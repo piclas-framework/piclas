@@ -20,11 +20,7 @@ MODULE MOD_Particle_MPI_Emission
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_MPI
-! Private Part ---------------------------------------------------------------------------------------------------------------------
-! Public Part ----------------------------------------------------------------------------------------------------------------------
 
 !INTERFACE InitEmissionParticlesToProcs
 !  MODULE PROCEDURE InitEmissionParticlesToProcs
@@ -309,9 +305,9 @@ END DO ! i = 1, chunkSize
 !--- 4/4 Receive actual non-located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   CALL MPI_WAIT(PartMPIInsert%SendRequest(1,iProc),msg_status(:),IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
+  IF (IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
   CALL MPI_WAIT(PartMPIInsert%RecvRequest(1,iProc),msg_status(:),IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
+  IF (IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
 ! recvPartPos holds particles from ALL procs

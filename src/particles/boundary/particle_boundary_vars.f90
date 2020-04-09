@@ -23,6 +23,47 @@ USE mpi
 IMPLICIT NONE
 PUBLIC
 SAVE
+
+LOGICAL                                 :: SurfOnNode
+! ====================================================================
+! Mesh info
+INTEGER                                 :: nSurfProcSides
+INTEGER                                 :: nSurfTotalSides
+
+! ====================================================================
+! MPI3 shared variables
+INTEGER,ALLOCPOINT,DIMENSION(:,:)       :: GlobalSide2SurfSide           ! Mapping Global Side ID to Surf Side ID
+                                                                         !> 1 - Surf SideID
+                                                                         !> 2 - Surf Side proc global rank
+INTEGER,ALLOCPOINT,DIMENSION(:,:)       :: SurfSide2GlobalSide           ! Inverse mapping
+                                                                         !> 1 - Surf SideID
+                                                                         !> 2 - Surf Side proc global rank
+INTEGER,ALLOCPOINT,DIMENSION(:,:)       :: GlobalSide2SurfSide_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)       :: SurfSide2GlobalSide_Shared
+
+#if USE_MPI
+INTEGER,ALLOCATABLE,DIMENSION(:,:)      :: GlobalSide2SurfHaloSide       ! Mapping Global Side ID to Surf Halo Side ID (exists only on leader procs)
+                                                                         !> 1st dim: leader rank
+                                                                         !> 2nd dim: Surf SideID
+INTEGER,ALLOCATABLE,DIMENSION(:,:)      :: SurfHaloSide2GlobalSide       ! Inverse mapping  (exists only on leader procs)
+                                                                         !> 1st dim: leader rank
+                                                                         !> 2nd dim: Surf SideID
+
+INTEGER                                 :: GlobalSide2SurfSide_Shared_Win
+INTEGER                                 :: SurfSide2GlobalSide_Shared_Win
+
+TYPE tSurfaceMapping
+  INTEGER,ALLOCATABLE                   :: RecvSurfGlobalID(:)
+  INTEGER,ALLOCATABLE                   :: SendSurfGlobalID(:)
+  INTEGER                               :: nSendSurfSides
+  INTEGER                               :: nRecvSurfSides
+END TYPE
+TYPE (tSurfaceMapping),ALLOCATABLE      :: SurfMapping(:)
+
+
+#endif /* USE_MPI */
+
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -82,7 +123,7 @@ TYPE tSurfaceMesh
   INTEGER                               :: nBCSides                      ! Number of OuterSides with Surface (reflective) properties
   INTEGER                               :: nInnerSides                   ! Number of InnerSides with Surface (reflective) properties
   INTEGER                               :: nOutputSides                  ! Number of surfaces that are assigned to an MPI rank for
-                                                                         ! surface sampling (MacroSurfaceVal and MacroSurfaceSpecVal) 
+                                                                         ! surface sampling (MacroSurfaceVal and MacroSurfaceSpecVal)
                                                                          ! and output to .h5 (SurfData) purposes:
                                                                          ! nOutputSides = bcsides + maser_innersides
   INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
@@ -254,11 +295,11 @@ TYPE tPartBoundary
   LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                ! Use Boundary for Q-Criterion ?
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibirum Distribution with reflection
   LOGICAL , ALLOCATABLE                  :: Dielectric(:)                 ! Define if particle boundary [$] is a dielectric
-!                                                                         ! interface, i.e. an interface between a dielectric and 
-!                                                                         ! a non-dielectric or a between to different dielectrics 
+!                                                                         ! interface, i.e. an interface between a dielectric and
+!                                                                         ! a non-dielectric or a between to different dielectrics
 !                                                                         ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
 !                                                                         ! (Default=FALSE.)
-  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutput(:)     ! Save particle position, velocity and species to 
+  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutput(:)     ! Save particle position, velocity and species to
 !                                                                         ! PartDataBoundary container for writing to .h5 later
 END TYPE
 
@@ -332,8 +373,8 @@ END TYPE
 TYPE(tPartAuxBC)        :: PartAuxBC             ! auxBC Data for Particles
 
 ! Boundary particle output
-LOGICAL              :: DoBoundaryParticleOutput   ! Flag set automatically if particles crossing specific 
-!                                                  ! boundaries are to be saved to .h5 (position of intersection, 
+LOGICAL              :: DoBoundaryParticleOutput   ! Flag set automatically if particles crossing specific
+!                                                  ! boundaries are to be saved to .h5 (position of intersection,
 !                                                  ! velocity, species, internal energies)
 REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:9,1:NParts) 1st index: x,y,z,vx,vy,vz,MPF,time,impact angle
 !                                                  !                2nd index: 1 to number of boundary-crossed particles
