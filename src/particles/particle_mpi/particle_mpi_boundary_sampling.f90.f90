@@ -570,6 +570,16 @@ IF (myComputeNodeRank.EQ.0) THEN
 END IF
 
 ! ensure synchronization on compute node
+CALL MPI_WIN_SYNC(SampWallState_Shared_Win       ,IERROR)
+IF(nPorousBC.GT.0) THEN
+  CALL MPI_WIN_SYNC(SampWallPumpCapacity_Shared_Win,IERROR)
+END IF
+IF (CalcSurfaceImpact) THEN
+  CALL MPI_WIN_SYNC(SampWallImpactEnergy_Shared_Win,IERROR)
+  CALL MPI_WIN_SYNC(SampWallImpactVector_Shared_Win,IERROR)
+  CALL MPI_WIN_SYNC(SampWallImpactAngle_Shared_Win ,IERROR)
+  CALL MPI_WIN_SYNC(SampWallImpactNumber_Shared_Win,IERROR)
+END IF
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
 END SUBROUTINE ExchangeSurfData
