@@ -230,6 +230,7 @@ USE MOD_DSMC_Vars           ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemR
 USE MOD_DSMC_Vars           ,ONLY: VarVibRelaxProb
 USE MOD_Particle_Vars       ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars           ,ONLY: offsetElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -295,7 +296,7 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 
   DO iSpec = 1, nSpecies
     IF(BGGas%BackgroundSpecies(iSpec)) THEN
-      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec)) * ElemVolume_Shared(iElem) &
+      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec)) * ElemVolume_Shared(iElem+offSetElem) &
                                         / Species(iSpec)%MacroParticleFactor
     END IF
   END DO
@@ -488,7 +489,7 @@ END DO
 ! 4.) Determine the particle number of the background species and calculate the cell tempreature
 DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
-    CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec)) * ElemVolume_Shared(iElem) &
+    CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec)) * ElemVolume_Shared(iElem+offSetElem) &
                                       / Species(iSpec)%MacroParticleFactor
   END IF
 END DO

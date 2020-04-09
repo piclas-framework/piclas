@@ -52,6 +52,7 @@ USE MOD_part_tools,             ONLY: GetParticleWeight
 USE MOD_Particle_Vars,          ONLY: nSpecies
 #endif
 USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -80,9 +81,9 @@ INTEGER                             :: iReac, iSpec
     Volume = NodeVolume
   ELSE
     IF (ConsiderVolumePortions) THEN
-      Volume = ElemVolume_Shared(iElem)*(1.-GEO%MPVolumePortion(iElem))
+      Volume = ElemVolume_Shared(iElem+offSetElem)*(1.-GEO%MPVolumePortion(iElem))
     ELSE
-      Volume = ElemVolume_Shared(iElem)
+      Volume = ElemVolume_Shared(iElem+offSetElem)
     END IF
   END IF
 

@@ -1009,6 +1009,7 @@ USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, Cal
 USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 USE MOD_DSMC_QK_PROCEDURES,     ONLY : QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization, QK_IonRecombination
 USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars               ,ONLY: offsetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1037,7 +1038,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
   IF (PRESENT(NodeVolume)) THEN
     Volume = NodeVolume
   ELSE
-    Volume = ElemVolume_Shared(iElem)
+    Volume = ElemVolume_Shared(iElem+offSetElem)
   END IF
   IF (PRESENT(NodePartNum)) THEN
     nPartNode = NodePartNum

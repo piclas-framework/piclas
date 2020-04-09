@@ -137,7 +137,7 @@ LOGICAL                       :: recomb
 IF (PRESENT(NodeVolume)) THEN
   Volume = NodeVolume
 ELSE
-  Volume = ElemVolume_Shared(PEM%Element(iPart_p3) - offSetElem)
+  Volume = ElemVolume_Shared(PEM%Element(iPart_p3))
 END IF
 IF (PRESENT(NodePartNum)) THEN
   nPartNode = NodePartNum
@@ -553,7 +553,7 @@ INTEGER                             :: PartReac1,PartReac2
 IF (PRESENT(NodeVolume)) THEN
   Volume = NodeVolume
 ELSE
-  Volume = ElemVolume_Shared(PEM%Element(iPart_p3) - offSetElem)
+  Volume = ElemVolume_Shared(PEM%Element(iPart_p3))
 END IF
 IF (PRESENT(NodePartNum)) THEN
   nPartNode = NodePartNum

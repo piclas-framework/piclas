@@ -603,6 +603,7 @@ USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY : GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Mesh_Vars               ,ONLY: offsetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -643,9 +644,9 @@ DO iLoop = 1, nPart
 END DO
 
 IF (ConsiderVolumePortions) THEN
-  elemVolume=ElemVolume_Shared(iElem)*(1.-GEO%MPVolumePortion(iElem))
+  elemVolume=ElemVolume_Shared(iElem+offSetElem)*(1.-GEO%MPVolumePortion(iElem))
 ELSE
-  elemVolume=ElemVolume_Shared(iElem)
+  elemVolume=ElemVolume_Shared(iElem+offSetElem)
 END IF
 DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
 ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
@@ -858,6 +859,7 @@ USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, VarVibRelax
 USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies
 USE MOD_Part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Mesh_Vars               ,ONLY: offsetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-------------------------------------------------------  ----------------------------------------------------------------------------
@@ -872,7 +874,7 @@ REAL                          :: SpecPartNum(nSpecies), Volume
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
-Volume = ElemVolume_Shared(iElem)
+Volume = ElemVolume_Shared(iElem+offSetElem)
 IF(DSMC%VibRelaxProb.EQ.2.0) THEN ! Set summs for variable vibrational relaxation to zero
   DO iSpec=1,nSpecies
     VarVibRelaxProb%ProbVibAvNew(iSpec) = 0
@@ -917,16 +919,16 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     DEALLOCATE(TreeNode%MappedPartStates)
   ELSE
     IF(DSMC%UseNearestNeighbour) THEN
-      CALL FindNearestNeigh2D(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(iElem),  (/0.0,0.0,0.0/), 1)
+      CALL FindNearestNeigh2D(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(iElem+offSetElem),  (/0.0,0.0,0.0/), 1)
     ELSE
-      CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, ElemVolume_Shared(iElem))
+      CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, ElemVolume_Shared(iElem+offSetElem))
     END IF
   END IF
 ELSE
   IF(DSMC%UseNearestNeighbour) THEN
-    CALL FindNearestNeigh2D(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(iElem),  (/0.0,0.0,0.0/), 1)
+    CALL FindNearestNeigh2D(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(iElem+offSetElem),  (/0.0,0.0,0.0/), 1)
   ELSE
-    CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, ElemVolume_Shared(iElem))
+    CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, ElemVolume_Shared(iElem+offSetElem))
   END IF
 END IF
 
@@ -1151,6 +1153,7 @@ SUBROUTINE DSMC_init_octree()
   USE MOD_DSMC_Vars,              ONLY : ElemNodeVol
   USE MOD_Mesh_Vars,              ONLY : nElems
   USE MOD_Particle_Vars,          ONLY : Symmetry2D
+  USE MOD_MacroBody_Vars     ,ONLY: UseMacroBody
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1172,7 +1175,7 @@ SUBROUTINE DSMC_init_octree()
         !CALL CalcSubNodeMPVolumePortions(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
       ELSE
         CALL DSMC_CalcSubNodeVolumes(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
-        CALL CalcSubNodeMPVolumePortions(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
+        IF(UseMacroBody) CALL CalcSubNodeMPVolumePortions(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
       END IF
     END DO
   END DO

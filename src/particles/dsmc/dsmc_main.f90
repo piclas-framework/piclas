@@ -55,7 +55,7 @@ USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_statistic
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision, DSMC_calc_var_P_vib
 USE MOD_Restart_Vars          ,ONLY: RestartTime
-USE MOD_Mesh_Vars             ,ONLY: MeshFile
+USE MOD_Mesh_Vars             ,ONLY: MeshFile,offsetElem
 USE MOD_TimeDisc_Vars         ,ONLY: iter
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
@@ -177,9 +177,9 @@ DO iElem = 1, nElems ! element/cell main loop
           ! Calculation of the mean free path
           IF (ConsiderVolumePortions) THEN
             DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum)&
-                        ,ElemVolume_Shared(iElem)*(1.-ElemMPVolumePortion_Shared(iElem)),SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+                        ,ElemVolume_Shared(iElem+offSetElem)*(1.-ElemMPVolumePortion_Shared(iElem)),SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
           ELSE
-            DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),ElemVolume_Shared(iElem), &
+            DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),ElemVolume_Shared(iElem+offSetElem), &
                                                   SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
           END IF
           ! Determination of the MCS/MFP for the case without octree
