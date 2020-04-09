@@ -977,7 +977,6 @@ USE MOD_DSMC_Vars               ,ONLY: useDSMC
 INTEGER               :: ALLOCSTAT
 !===================================================================================================================================
 IF(DoRefMapping)THEN
-  IPWRITE(*,*) 'Allocating', PDM%MaxParticleNumber
   ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
   __STAMP__&

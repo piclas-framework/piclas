@@ -25,10 +25,25 @@ PUBLIC
 SAVE
 
 LOGICAL                                 :: SurfOnNode
+INTEGER                                 :: SurfSampSize                  !> Energy + Force + nSpecies
+REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: SurfSideArea                  !> Area of supersampled surface side
 ! ====================================================================
 ! Mesh info
 INTEGER                                 :: nSurfProcSides
 INTEGER                                 :: nSurfTotalSides
+
+INTEGER                                 :: nComputeNodeSurfSides         !> Number of surface sampling sides on compute node
+INTEGER                                 :: nComputeNodeSurfTotalSides    !> Number of surface sampling sides on compute node (including halo region)
+INTEGER                                 :: offsetComputeNodeSurfSide     !> elem offset of compute-node root
+
+! ====================================================================
+! Impact statistics
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SampWallState
+REAL,ALLOCATABLE,DIMENSION(:)           :: SampWallPumpCapacity
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:)   :: SampWallImpactEnergy
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:)   :: SampWallImpactVector
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SampWallImpactAngle
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SampWallImpactNumber
 
 ! ====================================================================
 ! MPI3 shared variables
@@ -42,6 +57,9 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:)       :: GlobalSide2SurfSide_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:,:)       :: SurfSide2GlobalSide_Shared
 
 #if USE_MPI
+REAL,POINTER,DIMENSION(:,:,:)           :: SurfSideArea_Shared           !> Area of supersampled surface side
+INTEGER                                 :: SurfSideArea_Shared_Win
+
 INTEGER,ALLOCATABLE,DIMENSION(:,:)      :: GlobalSide2SurfHaloSide       ! Mapping Global Side ID to Surf Halo Side ID (exists only on leader procs)
                                                                          !> 1st dim: leader rank
                                                                          !> 2nd dim: Surf SideID
@@ -60,7 +78,21 @@ TYPE tSurfaceMapping
 END TYPE
 TYPE (tSurfaceMapping),ALLOCATABLE      :: SurfMapping(:)
 
+! ====================================================================
+! Impact statistics
+REAL,POINTER,DIMENSION(:,:,:,:)         :: SampWallState_Shared
+REAL,POINTER,DIMENSION(:)               :: SampWallPumpCapacity_Shared
+REAL,POINTER,DIMENSION(:,:,:,:,:)       :: SampWallImpactEnergy_Shared
+REAL,POINTER,DIMENSION(:,:,:,:,:)       :: SampWallImpactVector_Shared
+REAL,POINTER,DIMENSION(:,:,:,:)         :: SampWallImpactAngle_Shared
+REAL,POINTER,DIMENSION(:,:,:,:)         :: SampWallImpactNumber_Shared
 
+INTEGER                                 :: SampWallState_Shared_Win
+INTEGER                                 :: SampWallPumpCapacity_Shared_Win
+INTEGER                                 :: SampWallImpactEnergy_Shared_Win
+INTEGER                                 :: SampWallImpactVector_Shared_Win
+INTEGER                                 :: SampWallImpactAngle_Shared_Win
+INTEGER                                 :: SampWallImpactNumber_Shared_Win
 #endif /* USE_MPI */
 
 

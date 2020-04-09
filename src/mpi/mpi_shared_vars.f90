@@ -60,9 +60,6 @@ INTEGER            :: offsetComputeNodeTree           !> tree offset of compute-
 ! Surface sampling
 INTEGER,ALLOCATABLE:: MPIRankSharedLeader(:)          !> Array of size nLeaderGroupProcs holding the leader rank of each proc
 INTEGER,ALLOCATABLE:: MPIRankSurfLeader(:)            !> Array of size nLeaderGroupProcs holding the surf rank of each proc
-INTEGER            :: nComputeNodeSurfSides           !> Number of surface sampling sides on compute node
-INTEGER            :: nComputeNodeSurfTotalSides      !> Number of surface sampling sides on compute node (including halo region)
-INTEGER            :: offsetComputeNodeSurfSide       !> elem offset of compute-node root
 INTEGER            :: MPI_COMM_LEADERS_SURF           !> Communicator compute-node roots on surface communicator (my_rank_shared=0)
 INTEGER            :: mySurfRank                      !> rank on MPI_COMM_LEADERS_SURF
 INTEGER            :: nSurfLeaders                    !> compute-node leaders on MPI_COMM_LEADERS_SURF

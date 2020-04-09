@@ -102,70 +102,76 @@ SUBROUTINE InitParticleBoundarySampling()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Basis                   ,ONLY: LegendreGaussNodesAndWeights
+USE MOD_DSMC_Symmetry2D         ,ONLY:DSMC_2D_CalcSymmetryArea
 USE MOD_Mesh_Vars               ,ONLY: NGeo,nBCs,BoundaryName
-USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
-USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfProcSides,nSurfTotalSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,SideInfo_Shared
-USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierSampleN
+USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfCollis,AnalyzeSurfCollis,nPorousBC,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea,SurfSampSize
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallPumpCapacity
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactEnergy
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactVector
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
+USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D,BezierSampleN
 USE MOD_Particle_Tracking_Vars  ,ONLY: TriaTracking
+USE MOD_Particle_Vars           ,ONLY: nSpecies,VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: Symmetry2D
+USE MOD_PICDepo_Vars            ,ONLY: LastAnalyzeSurfCollis
+USE MOD_PICDepo_Vars            ,ONLY: SFResampleAnalyzeSurfCollis
+USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
 #if USE_MPI
 USE MOD_MPI_Shared              ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPIRankLeader
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeTotalSides,nNonUniqueGlobalSides
-USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides
 USE MOD_MPI_Shared_Vars         ,ONLY: offsetComputeNodeElem,nComputeNodeElems
 USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
-USE MOD_Particle_MPI_Boundary_Sampling,ONLY: InitSurfCommunication
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide_Shared,GlobalSide2SurfSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared,SurfSide2GlobalSide_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea_Shared,SurfSideArea_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState_Shared,SampWallState_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallPumpCapacity_Shared,SampWallPumpCapacity_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactEnergy_Shared,SampWallImpactEnergy_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactVector_Shared,SampWallImpactVector_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle_Shared,SampWallImpactAngle_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber_Shared,SampWallImpactNumber_Shared_Win
+USE MOD_Particle_MPI_Boundary_Sampling,ONLY: InitSurfCommunication
 #else
+!
 #endif /*USE_MPI*/
-
-!USE MOD_DSMC_Symmetry2D         ,ONLY:DSMC_2D_CalcSymmetryArea
-!USE MOD_Mesh_Vars               ,ONLY:MortarType
-!USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides,nBCs,BoundaryName,GlobalUniqueSideID
-!USE MOD_ReadInTools             ,ONLY:GETINT,GETLOGICAL,GETINTARRAY
-!USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
-!USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis,nPorousBC,CalcSurfaceImpact
-!USE MOD_Particle_Boundary_Tools ,ONLY:SortArray
-!USE MOD_Particle_Mesh_Vars      ,ONLY:GEO
-!USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides,PartSideToElem
-!USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList
-!USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
-!USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
-!USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping,TriaTracking
-!USE MOD_Particle_Vars           ,ONLY:nSpecies, VarTimeStep, Symmetry2D
-!USE MOD_PICDepo_Vars            ,ONLY:SFResampleAnalyzeSurfCollis
-!USE MOD_PICDepo_Vars            ,ONLY:LastAnalyzeSurfCollis
-!USE MOD_Particle_Mesh_Vars      ,ONLY:ElemInfo_Shared,ElemSideNodeID_Shared,NodeCoords_Shared
-!#if USE_MPI
-!USE MOD_Particle_Mesh_Vars      ,ONLY:PartElemToElemAndSide
-!USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
-!!USE MOD_Particle_MPI_Vars       ,ONLY:PartHaloElemToProc
-!#else
-!USE MOD_Particle_Boundary_Vars  ,ONLY:offSetSurfSide
-!#endif /*USE_MPI*/
-!----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                :: q
-INTEGER                                :: iBC
+INTEGER                                :: iBC,iSpec
 INTEGER                                :: iSide,firstSide,lastSide
 INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
-REAL                                   :: area
-CHARACTER(20)                          :: hilf
+INTEGER,ALLOCATABLE                    :: CalcSurfCollis_SpeciesRead(:)                       ! help array for reading surface stuff
+CHARACTER(20)                          :: hilf,hilf2
 CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
+! surface area
+INTEGER                                :: SideID,ElemID,LocSideID
+INTEGER                                :: p,q,iSample,jSample
+INTEGER                                :: TriNum, Node1, Node2
+REAL                                   :: area,nVal
+REAL,DIMENSION(2,3)                    :: gradXiEta3D
+REAL,DIMENSION(:),ALLOCATABLE          :: Xi_NGeo,wGP_NGeo
+REAL                                   :: XiOut(1:2),E,F,G,D,tmp1,tmpI2,tmpJ2
+REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz
 #if USE_MPI
 INTEGER                                :: iLeader
 INTEGER                                :: offsetSurfTotalSidesProc
@@ -173,24 +179,8 @@ INTEGER                                :: GlobalElemID,GlobalElemRank
 INTEGER(KIND=MPI_ADDRESS_KIND)         :: MPISharedSize
 INTEGER                                :: sendbuf,recvbuf
 #endif /*USE_MPI*/
-
-!INTEGER                                :: p,q,iSide,SurfSideID,SideID,ElemID,LocSideID
-!INTEGER                                :: iSample,jSample, iBC, iSpec
-!INTEGER                                :: TriNum, Node1, Node2
-!REAL,DIMENSION(2,3)                    :: gradXiEta3D
-!REAL,ALLOCATABLE,DIMENSION(:)          :: Xi_NGeo,wGP_NGeo
-!REAL                                   :: XiOut(1:2),E,F,G,D,tmp1,area,tmpI2,tmpJ2
-!REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz
-!REAL                                   :: nVal, SurfaceVal
-!CHARACTER(20)                          :: hilf, hilf2
-!CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
-!INTEGER,ALLOCATABLE                    :: CalcSurfCollis_SpeciesRead(:) !help array for reading surface stuff
-!INTEGER,ALLOCATABLE                    :: ElemOfInnerBC(:),NBElemOfHalo(:)
-!LOGICAL,ALLOCATABLE                    :: IsSlaveSide(:)
-!#if USE_MPI
-!INTEGER                                :: iElem,HaloElemID,iHaloSide,iLocSide
-!#endif /*USE_MPI*/
 !===================================================================================================================================
+
 ! Get input parameters
 SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
 
@@ -300,6 +290,10 @@ DO iSide = firstSide,lastSide
         (SideInfo_Shared(SIDE_ID,iSide).LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
       nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
     END IF
+
+    ! TODO: Add another check to determine the surface side in halo_eps from current proc. Node-wide halo can become quite large with
+    !       with 128 procs!
+
 #endif /*USE_MPI*/
     ! Write local mapping from Side to Surf side. The rank is already correct, the offset must be corrected by the proc offset later
     GlobalSide2SurfSideProc(SURF_SIDEID,iSide) = nComputeNodeSurfTotalSides
@@ -406,402 +400,273 @@ CALL MPI_BCAST(nSurfTotalSides,1,MPI_INTEGER,0,MPI_COMM_SHARED,iError)
 nSurfTotalSides = nComputeNodeTotalSides
 #endif /* USE_MPI */
 
+!> User sanity check
+SWRITE(UNIT_stdOut,'(A,I8)') ' nGlobalSurfSides ', nSurfTotalSides
 
+!> Energy + Force + nSpecies
+SurfSampSize = 9+3+nSpecies
+IF(VarTimeStep%UseVariableTimeStep) SurfSampSize = SurfSampSize + 1
 
+! Initialize surface collision sampling and analyze
+CalcSurfCollis%OnlySwaps         = GETLOGICAL('Particles-CalcSurfCollis_OnlySwaps' ,'.FALSE.')
+CalcSurfCollis%Only0Swaps        = GETLOGICAL('Particles-CalcSurfCollis_Only0Swaps','.FALSE.')
+CalcSurfCollis%Output            = GETLOGICAL('Particles-CalcSurfCollis_Output'    ,'.FALSE.')
+IF (CalcSurfCollis%Only0Swaps) CalcSurfCollis%OnlySwaps=.TRUE.
+CalcSurfCollis%AnalyzeSurfCollis = GETLOGICAL('Particles-AnalyzeSurfCollis'        ,'.FALSE.')
+AnalyzeSurfCollis%NumberOfBCs = 1 !initialize for ifs (BCs=0 means all)
 
+ALLOCATE(AnalyzeSurfCollis%BCs(1))
+AnalyzeSurfCollis%BCs = 0
+IF (.NOT.CalcSurfCollis%AnalyzeSurfCollis .AND. SFResampleAnalyzeSurfCollis) &
+  CALL abort(__STAMP__,'ERROR: SFResampleAnalyzeSurfCollis was set without CalcSurfCollis%AnalyzeSurfCollis!')
 
+IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
+  AnalyzeSurfCollis%maxPartNumber = GETINT('Particles-DSMC-maxSurfCollisNumber','0')
+  AnalyzeSurfCollis%NumberOfBCs   = GETINT('Particles-DSMC-NumberOfBCs'        ,'1')
+  IF (AnalyzeSurfCollis%NumberOfBCs.EQ.1) THEN !already allocated
+    AnalyzeSurfCollis%BCs    = GETINTARRAY('Particles-DSMC-SurfCollisBC'     ,1,'0') ! 0 means all...
+  ELSE
+    DEALLOCATE(AnalyzeSurfCollis%BCs)
+    ALLOCATE(AnalyzeSurfCollis%BCs(1:AnalyzeSurfCollis%NumberOfBCs)) !dummy
+    hilf2=''
+    ! build default string: 0,0,0,...
+    DO iBC=1,AnalyzeSurfCollis%NumberOfBCs
+      WRITE(UNIT=hilf,FMT='(I0)') 0
+      hilf2=TRIM(hilf2)//TRIM(hilf)
+      IF (iBC.NE.AnalyzeSurfCollis%NumberOfBCs) hilf2=TRIM(hilf2)//','
+    END DO
+    AnalyzeSurfCollis%BCs    = GETINTARRAY('Particles-DSMC-SurfCollisBC',AnalyzeSurfCollis%NumberOfBCs,TRIM(hilf2))
+  END IF
+  ALLOCATE(AnalyzeSurfCollis%Data(1:AnalyzeSurfCollis%maxPartNumber,1:9))
+  ALLOCATE(AnalyzeSurfCollis%Spec(1:AnalyzeSurfCollis%maxPartNumber))
+  ALLOCATE(AnalyzeSurfCollis%BCid(1:AnalyzeSurfCollis%maxPartNumber))
+  ALLOCATE(AnalyzeSurfCollis%Number(1:nSpecies+1))
+  IF (LastAnalyzeSurfCollis%Restart) THEN
+    CALL ReadAnalyzeSurfCollisToHDF5()
+  END IF
+  AnalyzeSurfCollis%Data   = 0.
+  AnalyzeSurfCollis%Spec   = 0
+  AnalyzeSurfCollis%BCid   = 0
+  AnalyzeSurfCollis%Number = 0
+END IF
 
+! Species-dependent calculations
+ALLOCATE(CalcSurfCollis%SpeciesFlags(1:nSpecies))
+CalcSurfCollis%NbrOfSpecies = GETINT('Particles-CalcSurfCollis_NbrOfSpecies','0')
 
+IF ( (CalcSurfCollis%NbrOfSpecies.GT.0) .AND. (CalcSurfCollis%NbrOfSpecies.LE.nSpecies) ) THEN
+  ALLOCATE(CalcSurfCollis_SpeciesRead(1:CalcSurfCollis%NbrOfSpecies))
+  hilf2=''
+  ! build default string: 1 - CSC_NoS
+  DO iSpec=1,CalcSurfCollis%NbrOfSpecies
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    hilf2=TRIM(hilf2)//TRIM(hilf)
+    IF (ispec.NE.CalcSurfCollis%NbrOfSpecies) hilf2=TRIM(hilf2)//','
+  END DO
+  CalcSurfCollis_SpeciesRead  = GETINTARRAY('Particles-CalcSurfCollis_Species',CalcSurfCollis%NbrOfSpecies,TRIM(hilf2))
+  CalcSurfCollis%SpeciesFlags(:) = .FALSE.
+  DO iSpec=1,CalcSurfCollis%NbrOfSpecies
+    CalcSurfCollis%SpeciesFlags(CalcSurfCollis_SpeciesRead(ispec)) = .TRUE.
+  END DO
+  DEALLOCATE(CalcSurfCollis_SpeciesRead)
+ELSE IF (CalcSurfCollis%NbrOfSpecies.EQ.0) THEN !default
+  CalcSurfCollis%SpeciesFlags(:) = .TRUE.
+ELSE
+  CALL ABORT(__STAMP__,'Error in Particles-CalcSurfCollis_NbrOfSpecies!')
+END IF
 
+! surface sampling array do not need to be allocated if there are no sides within halo_eps range
+IF(.NOT.SurfOnNode) RETURN
 
+! allocate everything. Caution: SideID is surfSideID, not global ID
+!> First local arrays for boundary sampling
+!>>> Pointer structure type ruins possibility of ALLREDUCE, need separate arrays for everything
+ALLOCATE(SampWallState(1:SurfSampSize,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+SampWallState = 0.
+!
+IF(nPorousBC.GT.0) THEN
+  ALLOCATE(SampWallPumpCapacity(1:nComputeNodeSurfTotalSides))
+  SampWallPumpCapacity = 0.
+END IF
+! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+IF (CalcSurfaceImpact) THEN
+  ALLOCATE( SampWallImpactEnergy(1:nSpecies,1:3,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides) &
+          , SampWallImpactVector(1:nSpecies,1:3,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides) &
+          , SampWallImpactAngle (1:nSpecies,    1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides) &
+          , SampWallImpactNumber(1:nSpecies,    1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+  SampWallImpactEnergy = 0.
+  SampWallImpactVector = 0.
+  SampWallImpactAngle  = 0.
+  SampWallImpactNumber = 0.
+END IF
 
+#if USE_MPI
+!> Then shared arrays for boundary sampling
+MPISharedSize = INT((SurfSampSize*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/SurfSampSize,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallState_Shared_Win,SampWallState_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SampWallState_Shared_Win,IERROR)
+IF (myComputeNodeRank.EQ.0) THEN
+  SampWallState_Shared = 0.
+END IF
+CALL MPI_WIN_SYNC(SampWallState_Shared_Win,IERROR)
+!
+IF(nPorousBC.GT.0) THEN
+  MPISharedSize = INT((nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/nComputeNodeSurfTotalSides/),SampWallPumpCapacity_Shared_Win,SampWallPumpCapacity_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,SampWallPumpCapacity_Shared_Win,IERROR)
+  IF (myComputeNodeRank.EQ.0) THEN
+    SampWallPumpCapacity_Shared = 0.
+  END IF
+  CALL MPI_WIN_SYNC(SampWallPumpCapacity_Shared_Win,IERROR)
+END IF
+! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
+IF (CalcSurfaceImpact) THEN
+  MPISharedSize = INT((nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/nSpecies,3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactEnergy_Shared_Win &
+                                                                                                      ,SampWallImpactEnergy_Shared)
+  CALL Allocate_Shared(MPISharedSize,(/nSpecies,3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactVector_Shared_Win &
+                                                                                                      ,SampWallImpactVector_Shared)
+  MPISharedSize = INT((nSpecies*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+  CALL Allocate_Shared(MPISharedSize,(/nSpecies,  nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactAngle_Shared_Win  &
+                                                                                                      ,SampWallImpactAngle_Shared)
+  CALL Allocate_Shared(MPISharedSize,(/nSpecies,  nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactNumber_Shared_Win &
+                                                                                                      ,SampWallImpactNumber_Shared)
+  IF (myComputeNodeRank.EQ.0) THEN
+    SampWallImpactEnergy_Shared = 0.
+    SampWallImpactVector_Shared = 0.
+    SampWallImpactAngle_Shared  = 0.
+    SampWallImpactNumber_Shared = 0.
+  END IF
+  CALL MPI_WIN_SYNC(SampWallImpactEnergy_Shared_Win,IERROR)
+  CALL MPI_WIN_SYNC(SampWallImpactVector_Shared_Win,IERROR)
+  CALL MPI_WIN_SYNC(SampWallImpactAngle_Shared_Win ,IERROR)
+  CALL MPI_WIN_SYNC(SampWallImpactNumber_Shared_Win,IERROR)
+END IF
+#endif /*USE_MPI*/
 
+! Surf sides are shared, array calculation can be distributed
+#if USE_MPI
+MPISharedSize = INT((nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SurfSideArea_Shared_Win,SurfSideArea_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SurfSideArea_Shared_Win,IERROR)
+SurfSideArea => SurfSideArea_Shared
 
+firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
+#else
+ALLOCATE(SurfSideArea(1:nSurfSample,1:nSurfSample,1:nSurfTotalSides))
 
+firstSide = 1
+lastSide  = nSurfTotalSides
+#endif /*USE_MPI*/
 
-!nSurfBC = 0
-!ALLOCATE(BCName(1:nBCs))
-!DO iBC=1,nBCs
-!  BCName=''
-!END DO
-!DO iBC=1,nBCs
-!  IF (PartBound%MapToPartBC(iBC).EQ.-1) CYCLE !inner side (can be just in the name list from preproc although already sorted out)
-!  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC) THEN
-!    nSurfBC = nSurfBC + 1
-!    BCName(nSurfBC) = BoundaryName(iBC)
-!  END IF
-!END DO
-!IF (nSurfBC.GE.1) THEN
-!ALLOCATE(SurfBCName(1:nSurfBC))
-!  DO iBC=1,nSurfBC
-!    SurfBCName(iBC) = BCName(iBC)
-!  END DO
-!END IF
-!DEALLOCATE(BCName)
-!! get number of BC-Sides
-!ALLOCATE(SurfMesh%SideIDToSurfID(1:nTotalSides))
-!SurfMesh%SideIDToSurfID(1:nTotalSides)=-1
-!ALLOCATE(ElemOfInnerBC(1:nTotalSides))
-!ElemOfInnerBC(1:nTotalSides)=-1
-!ALLOCATE(NBElemOfHalo(1:nTotalSides))
-!NBElemOfHalo(1:nTotalSides)=-1
-!ALLOCATE(IsSlaveSide(1:nSides))
-!IsSlaveSide(1:nSides)= .FALSE.
-!
-!! --------------------------------------------------
-!! 1. Normal BCs
-!! --------------------------------------------------
-!! own BCsides
-!SurfMesh%nSides=0
-!SurfMesh%nOutputSides=0
-!SurfMesh%nBCSides=0
-!SurfMesh%nInnerSides=0
-!DO iSide=1,nBCSides
-!  IF(BC(iSide).EQ.0) CYCLE
-!  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
-!    SurfMesh%nSides                = SurfMesh%nSides + 1
-!    SurfMesh%nOutputSides          = SurfMesh%nOutputSides + 1
-!    SurfMesh%nBCSides              = SurfMesh%nBCSides + 1
-!    SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
-!  END IF
-!END DO
-!
-!! --------------------------------------------------
-!! 2. Inner BCs
-!! --------------------------------------------------
-!! own inner BCsides (inner sides with refelctive PartBC)
-!! for clear assignment of innerBCSide between two procs Master/Slave definition is used
-!!   (1)     SlaveSides that are innerBCsides are tagged by IsSlaveSide(iSide)
-!!   (2)     SlaveSides is mapped to corresponding HaloSide
-!!           SampWall information of SlaveSides are added to SampWall information of corresponding HaloSide
-!
-!! TODO: There is no way this works correctly, even nBCSides is wrong
-!
-!DO iSide=nBCSides+1,nSides
-!  IF(BC(iSide).EQ.0) CYCLE
-!  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
-!! Mortar and InnerBC can not be used in combination
-!    IF(MortarType(1,iSide).NE.-1) THEN
-!      CALL abort(&
-!__STAMP__&
-!,' Error in assignment of innerBCSide: Mortar and InnerBC can not be used in combination', iSide)
-!    END IF
-!#if USE_MPI
-!    IF((PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1) &
-!   .OR.(PartSideToElem(S2E_NB_ELEM_ID,iSide).EQ.-1)) THEN ! innerBCSide is between two procs
-!      iLocSide   = MERGE(S2E_NB_LOC_SIDE_ID,S2E_LOC_SIDE_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
-!      iElem      = MERGE(S2E_NB_ELEM_ID,S2E_ELEM_ID,PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1)
-!      HaloElemID = PartElemToElemAndSide(1,PartSideToElem(iLocSide,iSide),PartSideToElem(iElem,iSide))
-!      IF(myrank.GT.ElemInfo_Shared(ELEM_RANK,HaloElemID)) THEN ! innerBCSide is between two procs and NOT on output side
-!        IsSlaveSide(iSide) = .TRUE.   !(1)
-!        SurfMesh%nSides = SurfMesh%nSides + 1
-!        SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nSides
-!        ElemOfInnerBC(iSide)= PartSideToElem(iElem,iSide)
-!      ELSE ! innerBCSide is between two procs and on output side
-!        SurfMesh%nSides                = SurfMesh%nSides + 1
-!        SurfMesh%nOutputSides          = SurfMesh%nOutputSides + 1
-!        SurfMesh%nInnerSides           = SurfMesh%nInnerSides + 1  ! increment only for MasterSides
-!        SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
-!      END IF
-!    ELSE ! innerBCSide is NOT between two procs
-!#endif /*USE_MPI*/
-!      SurfMesh%nSides                = SurfMesh%nSides + 1
-!      SurfMesh%nOutputSides          = SurfMesh%nOutputSides + 1
-!      SurfMesh%nInnerSides           = SurfMesh%nInnerSides + 1  ! increment only for MasterSides
-!      SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
-!#if USE_MPI
-!    END IF
-!#endif /*USE_MPI*/
-!  END IF
-!END DO
-!
-!ASSOCIATE( StartID => nBCSides+1            ,&
-!           EndID   => nSides  & !nSides &
-!          )
-!CALL SortArray(EndID-StartID+1,SurfMesh%SideIDToSurfID(StartID:EndID),GlobalUniqueSideID(StartID:EndID))
-!END ASSOCIATE
-!
-!! --------------------------------------------------
-!! 3. HALO BCs
-!! --------------------------------------------------
-!! SlaveSides that are innerBCsides are added to SurfMesh%nSides after all innerBC MasterSides
-!! in in order to get the correct InnerSideOffset for hdf5 output =>
-!! second loop over iSide=nBCSides+1,nSides is needed
-!
-!ALLOCATE(SurfMesh%innerBCSideToHaloMap(1:nTotalSides))
-!SurfMesh%innerBCSideToHaloMap(1:nTotalSides)=-1
-!SurfMesh%nTotalSides=SurfMesh%nSides
-!#if USE_MPI
-!! halo sides and Mapping for SlaveSide
-!DO iHaloSide=nSides+1,nTotalSides
-!  IF(BC(iHaloSide).EQ.0) CYCLE
-!  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iHaloSide))).EQ.PartBound%ReflectiveBC) THEN
-!    SurfMesh%nTotalSides = SurfMesh%nTotalSides + 1
-!    SurfMesh%SideIDToSurfID(iHaloSide)=SurfMesh%nTotalSides
-!    IF (PartSideToElem(S2E_ELEM_ID,iHaloSide).NE.-1) THEN
-!      NBElemOfHalo(iHaloSide)= &
-!      PartElemToElemAndSide(1,PartSideToElem(S2E_LOC_SIDE_ID,iHaloSide),PartSideToElem(S2E_ELEM_ID,iHaloSide))
-!    ELSE
-!      NBElemOfHalo(iHaloSide)= &
-!      PartElemToElemAndSide(1,PartSideToElem(S2E_NB_LOC_SIDE_ID,iHaloSide),PartSideToElem(S2E_NB_ELEM_ID,iHaloSide))
-!    END IF
-!    DO iSide=nBCSides+1,nSides
-!      IF(IsSlaveSide(iSide)) THEN   !(2)
-!        IF (NBElemOfHalo(iHaloSide).EQ.ElemOfInnerBC(iSide)) THEN
-!          SurfMesh%innerBCSideToHaloMap(iSide)=iHaloSide
-!          IsSlaveSide(iSide) = .FALSE.
-!          EXIT
-!        END IF
-!      END IF
-!    END DO
-!  END IF
-!END DO
-!
-!! sanity check
-!DO iSide=nBCSides+1,nSides
-!  IF(IsSlaveSide(iSide)) THEN
-!    CALL abort(&
-!__STAMP__&
-!,' Error in clear assignment of innerBCSide between two procs: No corresponding Halo-Side for innerBC SlaveSide', iSide)
-!  END IF
-!END DO
-!! end sanity check
-!#endif
-!
-!DEALLOCATE(ElemOfInnerBC)
-!DEALLOCATE(NBElemOfHalo)
-!DEALLOCATE(IsSlaveSide)
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
+  SurfSideArea=0.
+#if USE_MPI
+END IF
+CALL MPI_WIN_SYNC(SurfSideArea_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif /*USE_MPI*/
 
-!ALLOCATE(SurfMesh%SurfIDToSideID(1:SurfMesh%nTotalSides))
-!SurfMesh%SurfIDToSideID(:) = -1
-!DO iSide = 1,nTotalSides
-!  IF (SurfMesh%SideIDToSurfID(iSide).LE.0) CYCLE
-!  SurfMesh%SurfIDToSideID(SurfMesh%SideIDToSurfID(iSide)) = iSide
-!END DO
+! get interpolation points and weights
+ALLOCATE( Xi_NGeo( 0:NGeo)  &
+        , wGP_NGeo(0:NGeo) )
+CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
 
-!SurfMesh%SurfOnProc=.FALSE.
-!!IF(SurfMesh%nSides.GT.0)
-!IF(SurfMesh%nTotalSides.GT.0) SurfMesh%SurfOnProc=.TRUE.
+! compute area of sub-faces
+tmp1=dXiEQ_SurfSample/2.0 !(b-a)/2
 
+DO iSide = firstSide,LastSide
+  ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required
+  SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
 
+  IF (TriaTracking) THEN
+    ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
+    LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+    area = 0.
+    xNod = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,LocSideID,ElemID))
+    yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,LocSideID,ElemID))
+    zNod = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,LocSideID,ElemID))
+    IF(Symmetry2D) THEN
+      SurfSideArea(1,1,iSide) = DSMC_2D_CalcSymmetryArea(LocSideID,ElemID)
+    ELSE
+      DO TriNum = 1,2
+        Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
+        Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
+        Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)) - xNod
+        Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)) - yNod
+        Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)) - zNod
+        Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)) - xNod
+        Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)) - yNod
+        Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)) - zNod
+        nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
+        ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
+        nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
+        nVal = SQRT(nx*nx + ny*ny + nz*nz)
+        area = area + nVal/2.
+      END DO
+      SurfSideArea(1,1,iSide) = area
+    END IF
+  ! .NOT. TriaTracking
+  ELSE
+    ! call here stephens algorithm to compute area
+    DO jSample=1,nSurfSample
+      DO iSample=1,nSurfSample
+        area=0.
+        tmpI2=(XiEQ_SurfSample(iSample-1)+XiEQ_SurfSample(iSample))/2. ! (a+b)/2
+        tmpJ2=(XiEQ_SurfSample(jSample-1)+XiEQ_SurfSample(jSample))/2. ! (a+b)/2
+        DO q=0,NGeo
+          DO p=0,NGeo
+            XiOut(1)=tmp1*Xi_NGeo(p)+tmpI2
+            XiOut(2)=tmp1*Xi_NGeo(q)+tmpJ2
+            CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
+                                                    ,Gradient=gradXiEta3D)
+            ! calculate first fundamental form
+            E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
+            F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
+            G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
+            D=SQRT(E*G-F*F)
+            area = area+tmp1*tmp1*D*wGP_NGeo(p)*wGP_NGeo(q)
+          END DO
+        END DO
+        SurfSideArea(iSample,jSample,iSide) = area
+      END DO ! iSample=1,nSurfSample
+    END DO ! jSample=1,nSurfSample
+  END IF
+END DO ! iSide = firstSide,lastSide
 
+#if USE_MPI
+CALL MPI_WIN_SYNC(SurfSideArea_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif /*USE_MPI*/
 
+! get the full area of all surface sides
+area=0.
 
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
+  DO iSide = 1,nComputeNodeSurfTotalSides
+    ! ignore sides in halo region
+    IF (SurfSide2GlobalSide(SURF_LEADER,iSide).NE.myLeaderGroupRank) CYCLE
 
-!#if USE_MPI
-!!CALL MPI_ALLREDUCE(SurfMesh%nSides,SurfMesh%nGlobalSides,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
-!CALL MPI_ALLREDUCE(SurfMesh%nOutputSides,SurfMesh%nGlobalSides,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
-!#else
-!SurfMesh%nGlobalSides=SurfMesh%nOutputSides
-!#endif
-!
-!
-!SWRITE(UNIT_stdOut,'(A,I8)') ' nGlobalSurfSides ', SurfMesh%nGlobalSides
-!
-!SurfMesh%SampSize=9+3+nSpecies ! Energy + Force + nSpecies
-!
-!IF(VarTimeStep%UseVariableTimeStep) SurfMesh%SampSize = SurfMesh%SampSize + 1
-!
-!#if USE_MPI
-!! split communitator
-!CALL InitSurfCommunicator()
-!IF(SurfMesh%SurfOnProc) THEN
-!  CALL GetHaloSurfMapping()
-!END IF
-!#else
-!SurfCOMM%MyRank=0
-!SurfCOMM%MPIRoot=.TRUE.
-!SurfCOMM%nProcs=1
-!SurfCOMM%MyOutputRank=0
-!SurfCOMM%MPIOutputRoot=.TRUE.
-!SurfCOMM%nOutputProcs=1
-!! get correct offsets
-!OffSetSurfSide=0
-!#endif /*USE_MPI*/
-!
-!! Initialize surface collision sampling and analyze
-!CalcSurfCollis%OnlySwaps = GETLOGICAL('Particles-CalcSurfCollis_OnlySwaps','.FALSE.')
-!CalcSurfCollis%Only0Swaps = GETLOGICAL('Particles-CalcSurfCollis_Only0Swaps','.FALSE.')
-!CalcSurfCollis%Output = GETLOGICAL('Particles-CalcSurfCollis_Output','.FALSE.')
-!IF (CalcSurfCollis%Only0Swaps) CalcSurfCollis%OnlySwaps=.TRUE.
-!CalcSurfCollis%AnalyzeSurfCollis = GETLOGICAL('Particles-AnalyzeSurfCollis','.FALSE.')
-!AnalyzeSurfCollis%NumberOfBCs = 1 !initialize for ifs (BCs=0 means all)
-!ALLOCATE(AnalyzeSurfCollis%BCs(1))
-!AnalyzeSurfCollis%BCs = 0
-!IF (.NOT.CalcSurfCollis%AnalyzeSurfCollis .AND. SFResampleAnalyzeSurfCollis) THEN
-!  CALL abort(__STAMP__,&
-!    'ERROR: SFResampleAnalyzeSurfCollis was set without CalcSurfCollis%AnalyzeSurfCollis!')
-!END IF
-!IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
-!  AnalyzeSurfCollis%maxPartNumber = GETINT('Particles-DSMC-maxSurfCollisNumber','0')
-!  AnalyzeSurfCollis%NumberOfBCs = GETINT('Particles-DSMC-NumberOfBCs','1')
-!  IF (AnalyzeSurfCollis%NumberOfBCs.EQ.1) THEN !already allocated
-!    AnalyzeSurfCollis%BCs = GETINTARRAY('Particles-DSMC-SurfCollisBC',1,'0') ! 0 means all...
-!  ELSE
-!    DEALLOCATE(AnalyzeSurfCollis%BCs)
-!    ALLOCATE(AnalyzeSurfCollis%BCs(1:AnalyzeSurfCollis%NumberOfBCs)) !dummy
-!    hilf2=''
-!    DO iBC=1,AnalyzeSurfCollis%NumberOfBCs !build default string: 0,0,0,...
-!      WRITE(UNIT=hilf,FMT='(I0)') 0
-!      hilf2=TRIM(hilf2)//TRIM(hilf)
-!      IF (iBC.NE.AnalyzeSurfCollis%NumberOfBCs) hilf2=TRIM(hilf2)//','
-!    END DO
-!    AnalyzeSurfCollis%BCs = GETINTARRAY('Particles-DSMC-SurfCollisBC',AnalyzeSurfCollis%NumberOfBCs,TRIM(hilf2))
-!  END IF
-!  ALLOCATE(AnalyzeSurfCollis%Data(1:AnalyzeSurfCollis%maxPartNumber,1:9))
-!  ALLOCATE(AnalyzeSurfCollis%Spec(1:AnalyzeSurfCollis%maxPartNumber))
-!  ALLOCATE(AnalyzeSurfCollis%BCid(1:AnalyzeSurfCollis%maxPartNumber))
-!  ALLOCATE(AnalyzeSurfCollis%Number(1:nSpecies+1))
-!  IF (LastAnalyzeSurfCollis%Restart) THEN
-!    CALL ReadAnalyzeSurfCollisToHDF5()
-!  END IF
-!  !ALLOCATE(AnalyzeSurfCollis%Rate(1:nSpecies+1))
-!  AnalyzeSurfCollis%Data=0.
-!  AnalyzeSurfCollis%Spec=0
-!  AnalyzeSurfCollis%BCid=0
-!  AnalyzeSurfCollis%Number=0
-!  !AnalyzeSurfCollis%Rate=0.
-!END IF
-!! Species-dependent calculations
-!ALLOCATE(CalcSurfCollis%SpeciesFlags(1:nSpecies))
-!CalcSurfCollis%NbrOfSpecies = GETINT('Particles-CalcSurfCollis_NbrOfSpecies','0')
-!IF ( (CalcSurfCollis%NbrOfSpecies.GT.0) .AND. (CalcSurfCollis%NbrOfSpecies.LE.nSpecies) ) THEN
-!  ALLOCATE(CalcSurfCollis_SpeciesRead(1:CalcSurfCollis%NbrOfSpecies))
-!  hilf2=''
-!  DO iSpec=1,CalcSurfCollis%NbrOfSpecies !build default string: 1 - CSC_NoS
-!    WRITE(UNIT=hilf,FMT='(I0)') iSpec
-!    hilf2=TRIM(hilf2)//TRIM(hilf)
-!    IF (ispec.NE.CalcSurfCollis%NbrOfSpecies) hilf2=TRIM(hilf2)//','
-!  END DO
-!  CalcSurfCollis_SpeciesRead = GETINTARRAY('Particles-CalcSurfCollis_Species',CalcSurfCollis%NbrOfSpecies,TRIM(hilf2))
-!  CalcSurfCollis%SpeciesFlags(:)=.FALSE.
-!  DO iSpec=1,CalcSurfCollis%NbrOfSpecies
-!    CalcSurfCollis%SpeciesFlags(CalcSurfCollis_SpeciesRead(ispec))=.TRUE.
-!  END DO
-!  DEALLOCATE(CalcSurfCollis_SpeciesRead)
-!ELSE IF (CalcSurfCollis%NbrOfSpecies.EQ.0) THEN !default
-!  CalcSurfCollis%SpeciesFlags(:)=.TRUE.
-!ELSE
-!  CALL abort(&
-!  __STAMP__&
-!  ,'Error in Particles-CalcSurfCollis_NbrOfSpecies!')
-!END IF
-!
-!IF(.NOT.SurfMesh%SurfOnProc) RETURN
-!
-!
-!! allocate everything
-!ALLOCATE(SampWall(1:SurfMesh%nTotalSides))
-!
-!
-!DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
-!  ALLOCATE(SampWall(iSide)%State(1:SurfMesh%SampSize,1:nSurfSample,1:nSurfSample))
-!  SampWall(iSide)%State=0.
-!  IF(nPorousBC.GT.0) SampWall(iSide)%PumpCapacity = 0.
-!
-!  ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
-!  IF(CalcSurfaceImpact)THEN
-!    ALLOCATE(SampWall(iSide)%ImpactEnergy(1:nSpecies,1:3,1:nSurfSample,1:nSurfSample))
-!    SampWall(iSide)%ImpactEnergy=0.
-!    ALLOCATE(SampWall(iSide)%ImpactVector(1:nSpecies,1:3,1:nSurfSample,1:nSurfSample))
-!    SampWall(iSide)%ImpactVector=0.
-!    ALLOCATE(SampWall(iSide)%ImpactAngle(1:nSpecies,1:nSurfSample,1:nSurfSample))
-!    SampWall(iSide)%ImpactAngle=0.
-!    ALLOCATE(SampWall(iSide)%ImpactNumber(1:nSpecies,1:nSurfSample,1:nSurfSample))
-!    SampWall(iSide)%ImpactNumber=0.
-!  END IF ! CalcSurfaceImpact
-!END DO
-!
-!ALLOCATE(SurfMesh%SurfaceArea(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides))
-!SurfMesh%SurfaceArea=0.
-!
-!ALLOCATE(Xi_NGeo( 0:NGeo)  &
-!        ,wGP_NGeo(0:NGeo) )
-!CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
-!! compute area of sub-faces
-!tmp1=dXiEQ_SurfSample/2.0 !(b-a)/2
-!DO iSide=1,nTotalSides
-!  SurfSideID=SurfMesh%SideIDToSurfID(iSide)
-!  IF(SurfSideID.EQ.-1) CYCLE
-!  IF(DoRefMapping)THEN
-!    SideID=PartBCSideList(iSide)
-!  ELSE
-!    SideID=iSide
-!  END IF
-!  IF (TriaTracking) THEN
-!    ElemID = PartSideToElem(S2E_ELEM_ID,iSide)
-!    LocSideID = PartSideToElem(S2E_LOC_SIDE_ID,iSide)
-!    IF (ElemID.EQ.-1) THEN
-!      ElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
-!      LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,iSide)
-!    END IF
-!    SurfaceVal = 0.
-!    xNod = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,LocSideID,ElemID))
-!    yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,LocSideID,ElemID))
-!    zNod = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,LocSideID,ElemID))
-!
-!    IF(Symmetry2D) THEN
-!      SurfMesh%SurfaceArea(1,1,SurfSideID) = DSMC_2D_CalcSymmetryArea(LocSideID, ElemID)
-!    ELSE
-!      DO TriNum = 1,2
-!        Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
-!        Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-!        Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)) - xNod
-!        Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)) - yNod
-!        Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)) - zNod
-!        Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)) - xNod
-!        Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)) - yNod
-!        Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)) - zNod
-!        nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
-!        ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
-!        nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
-!        nVal = SQRT(nx*nx + ny*ny + nz*nz)
-!        SurfaceVal = SurfaceVal + nVal/2.
-!      END DO
-!      SurfMesh%SurfaceArea(1,1,SurfSideID) = SurfaceVal
-!    END IF
-!  ELSE
-!    ! call here stephens algorithm to compute area
-!    DO jSample=1,nSurfSample
-!      DO iSample=1,nSurfSample
-!        area=0.
-!        tmpI2=(XiEQ_SurfSample(iSample-1)+XiEQ_SurfSample(iSample))/2. ! (a+b)/2
-!        tmpJ2=(XiEQ_SurfSample(jSample-1)+XiEQ_SurfSample(jSample))/2. ! (a+b)/2
-!        DO q=0,NGeo
-!          DO p=0,NGeo
-!            XiOut(1)=tmp1*Xi_NGeo(p)+tmpI2
-!            XiOut(2)=tmp1*Xi_NGeo(q)+tmpJ2
-!            CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
-!                                                    ,Gradient=gradXiEta3D)
-!            ! calculate first fundamental form
-!            E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
-!            F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
-!            G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
-!            D=SQRT(E*G-F*F)
-!            area = area+tmp1*tmp1*D*wGP_NGeo(p)*wGP_NGeo(q)
-!          END DO
-!        END DO
-!        SurfMesh%SurfaceArea(iSample,jSample,SurfSideID) = area
-!      END DO ! iSample=1,nSurfSample
-!    END DO ! jSample=1,nSurfSample
-!  END IF
-!END DO ! iSide=1,nTotalSides
-!
-!! get the full area of the BC's of all faces
-!Area=0.
-!DO iSide=1,nSides
-!  SurfSideID=SurfMesh%SideIDToSurfID(iSide)
-!  IF(SurfSideID.EQ.-1) CYCLE
-!  Area = Area + SUM(SurfMesh%SurfaceArea(:,:,SurfSideID))
-!END DO ! iSide=1,nTotalSides
-!
-!#if USE_MPI
-!CALL MPI_ALLREDUCE(MPI_IN_PLACE,Area,1,MPI_DOUBLE_PRECISION,MPI_SUM,SurfCOMM%COMM,iError)
-!#endif /*USE_MPI*/
-!
-!SWRITE(UNIT_stdOut,'(A,ES25.14E3)') ' Surface-Area: ', Area
-!
-!DEALLOCATE(Xi_NGeo,wGP_NGeo)
+    area = area + SUM(SurfSideArea(:,:,iSide))
+  END DO ! iSide = 1,nComputeNodeSurfTotalSides
+#if USE_MPI
+  ! surf leaders communicate total surface area
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,area,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SURF,IERROR)
+END IF
+
+! surf leaders inform the other procs on their node
+CALL MPI_BCAST(area,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
+#endif /*USE_MPI*/
+
+SWRITE(UNIT_stdOut,'(A,ES25.14E3)') ' Surface-Area: ', Area
+
+! de-allocate temporary interpolation points and weights
+DEALLOCATE(Xi_NGeo,wGP_NGeo)
 
 SWRITE(UNIT_stdOut,'(A)') ' ... DONE.'
 

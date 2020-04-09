@@ -72,9 +72,9 @@ REAL,ALLOCPOINT    :: SideBCMetrics_Shared(:,:)            !> Metrics for BC sid
                                                            !> 2 - ElemID for BC side (non-unique)
                                                            !> 3 - Distance from BC side to element origin
                                                            !> 4 - Radius of BC Side
-                                                        !> 5 - Origin of BC Side, x-coordinate
-                                                        !> 6 - Origin of BC Side, y-coordinate
-                                                        !> 7 - Origin of BC Side, z-coordinate
+                                                           !> 5 - Origin of BC Side, x-coordinate
+                                                           !> 6 - Origin of BC Side, y-coordinate
+                                                           !> 7 - Origin of BC Side, z-coordinate
 
 INTEGER,ALLOCPOINT :: ElemToBGM_Shared(:,:)                !> BGM Bounding box around element (respective BGM indices) of compute node
 INTEGER,ALLOCPOINT :: FIBGM_nElems_Shared(:,:,:)           !> FastInitBackgroundMesh of compute node
