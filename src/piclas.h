@@ -43,7 +43,7 @@
 #define ALMOSTZERO(x) (ABS(x).LE.(2.22e-16))
 
 ! Check if the exponent is within the range of machine precision, RANGE() gives the maximum exponent of the given variable type
-#define CHECKEXP(x) (x.LT.REAL(RANGE(1.)))
+#define CHECKEXP(x) (ABS(x).LT.REAL(RANGE(1.)))
 
 #if USE_MPI
 #  define SWRITE IF(MPIRoot) WRITE
