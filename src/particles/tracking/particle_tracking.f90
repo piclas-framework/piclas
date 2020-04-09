@@ -2554,7 +2554,7 @@ IF(nInter.EQ.0) THEN
   IF(PartPosRef(3,PartID).GT. 1.) PartPosRef(3,PartID)= 0.99
   IF(PartPosRef(3,PartID).LT.-1.) PartPosRef(3,PartID)=-0.99
   CALL LocateParticleInElement(PartID,doHalo=.FALSE.)
-  
+
   ! particle successfully located
   IF (PDM%ParticleInside(PartID)) THEN
     RETURN
@@ -2653,7 +2653,7 @@ ELSE
     xNode(n) = NodeCoords_Shared(1,ElemSideNodeID_Shared(NodeID,iLocSide,Element)+1)
     yNode(n) = NodeCoords_Shared(2,ElemSideNodeID_Shared(NodeID,iLocSide,Element)+1)
     zNode(n) = NodeCoords_Shared(3,ElemSideNodeID_Shared(NodeID,iLocSide,Element)+1)
-    
+
     Ax(n) = xNode(n) - Px
     Ay(n) = yNode(n) - Py
     Az(n) = zNode(n) - Pz

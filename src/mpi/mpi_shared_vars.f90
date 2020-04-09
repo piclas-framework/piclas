@@ -63,7 +63,7 @@ INTEGER,ALLOCATABLE:: MPIRankSurfLeader(:)            !> Array of size nLeaderGr
 INTEGER            :: MPI_COMM_LEADERS_SURF           !> Communicator compute-node roots on surface communicator (my_rank_shared=0)
 INTEGER            :: mySurfRank                      !> rank on MPI_COMM_LEADERS_SURF
 INTEGER            :: nSurfLeaders                    !> compute-node leaders on MPI_COMM_LEADERS_SURF
-INTEGER            :: nSurfCommProc                   !> compute-nodes which send or receive sides from us
+!INTEGER            :: nSurfCommProc                   !> compute-nodes which send or receive sides from us
 
 INTEGER,ALLOCATABLE,DIMENSION(:,:):: nSurfSidesLeader !> number of surf sides per leader proc
                                                       !> 1 - sides from local leader to other leader

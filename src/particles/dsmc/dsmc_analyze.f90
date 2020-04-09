@@ -82,8 +82,9 @@ USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurf
 USE MOD_Particle_Boundary_Vars     ,ONLY: MapSurfSideToPorousBC
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 #if USE_MPI
-!USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData,MapInnerSurfData
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOnNode
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
+USE MOD_Particle_MPI_Boundary_Sampling,ONLY: ExchangeSurfData
 #endif
 USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry2D
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
@@ -132,18 +133,11 @@ IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
   CALL WriteAnalyzeSurfCollisToHDF5(ActualTime,TimeSample)
 END IF
 
-IF(.NOT.SurfMesh%SurfOnProc) RETURN
+IF(.NOT.SurfOnNode) RETURN
 
-! TODO: Needs to be adjusted to new routines with new halo region
-!#if USE_MPI
-!IF(SurfCOMM%InnerBCs) THEN
-!! if there are innerBCs with reflective surface properties
-!! additional communication is needed (see:SUBROUTINE MapInnerSurfData)
-!  CALL ExchangeSurfData()
-!  CALL MapInnerSurfData()
-!END IF
-!CALL ExchangeSurfData()
-!#endif
+#if USE_MPI
+CALL ExchangeSurfData()
+#endif
 
 ! Determine the number of variables
 nVar = 5
@@ -305,6 +299,7 @@ END DO ! iSurfSide=1,SurfMesh%nOutputSides
 
 IF (CalcSurfCollis%Output) THEN
 #if USE_MPI
+  ! TODO: this does not work anymore!
   CALL MPI_REDUCE(CounterTotal,SumCounterTotal(1:nSpecies),nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%COMM,iError)
 #else
   SumCounterTotal(1:nSpecies)=CounterTotal
