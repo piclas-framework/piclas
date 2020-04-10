@@ -152,16 +152,17 @@ REAL, INTENT(OUT),OPTIONAL      :: XiVibDOF(:), XiVibTotal
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                         :: iDOF, iPolyatMole
+INTEGER                         :: iDOF, iPolyatMole, VibDOF
 REAL                            :: TempRatio
 REAL,ALLOCATABLE                :: XiVibPart(:)
 !===================================================================================================================================
 
 IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+  VibDOF = PolyatomMolDSMC(iPolyatMole)%VibDOF
   ALLOCATE(XiVibPart(PolyatomMolDSMC(iPolyatMole)%VibDOF))
   XiVibPart = 0.0
-  DO iDOF = 1 , PolyatomMolDSMC(iPolyatMole)%VibDOF
+  DO iDOF = 1 , VibDOF
     ! If the temperature is very small compared to the characteristic temperature, set the vibrational degree of freedom to zero
     ! to avoid overflows in the exponential function
     TempRatio = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/ TVib
@@ -170,7 +171,8 @@ IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
     END IF
   END DO
 ELSE
-  ALLOCATE(XiVibPart(1))
+  VibDOF = 1
+  ALLOCATE(XiVibPart(VibDOF))
   XiVibPart = 0.0
   TempRatio = SpecDSMC(iSpec)%CharaTVib / TVib
   IF(CHECKEXP(TempRatio)) THEN
@@ -179,7 +181,8 @@ ELSE
 END IF
 
 IF(PRESENT(XiVibDOF)) THEN
-  XiVibDOF = XiVibPart
+  XiVibDOF = 0.
+  XiVibDOF(1:VibDOF) = XiVibPart(1:VibDOF)
 END IF
 
 IF(PRESENT(XiVibTotal)) THEN

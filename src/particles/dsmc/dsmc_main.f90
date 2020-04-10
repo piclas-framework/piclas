@@ -228,6 +228,12 @@ END DO ! iElem Loop
 ! Output!
 PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
+IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
+  CALL Abort(&
+    __STAMP__&
+    ,'ERROR in DSMC: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &
+    , IntInfoOpt=PDM%ParticleVecLength)
+END IF
 IF(BGGas%NumberOfSpecies.GT.0) CALL BGGas_DeleteParticles
 #if (PP_TimeDiscMethod==42)
 IF ((.NOT.DSMC%ReservoirSimu).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
