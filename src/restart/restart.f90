@@ -840,8 +840,8 @@ IF(DoRestart)THEN
             DO iLoop = PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1_IK , PartInt(iElem,ELEM_LastPartInd)- offsetnPart
               IF(SpecReset(INT(PartData(7,offsetnPart+iLoop),4))) CYCLE
               iPart = iPart +1
-              PEM%Element(iPart)  = iElem-offsetElem
-              PEM%LastElement(iPart)  = iElem-offsetElem
+              PEM%Element(iPart)  = iElem
+              PEM%LastElement(iPart)  = iElem
             END DO ! iLoop
           END IF ! PartInt(iElem,ELEM_LastPartInd).GT.PartInt(iElem,ELEM_FirstPartInd)
         END DO ! iElem=FirstElemInd,LastElemInd
