@@ -591,10 +591,6 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
     BGMCellYmax = ElemToBGM_Shared(4,ElemID)
     BGMCellZmin = ElemToBGM_Shared(5,ElemID)
     BGMCellZmax = ElemToBGM_Shared(6,ElemID)
-    print *,'halo ',GEO%FIBGMimin,GEO%FIBGMimax,GEO%FIBGMjmin,GEO%FIBGMjmax,GEO%FIBGMkmin,GEO%FIBGMkmax
-    print *,'shape', SHAPE(GEO%FIBGM),'rank',myRank
-!    print *,BGMCellXmin,BGMCellXmax,BGMCellYmin,BGMCellYmax,BGMCellZmin,BGMCellZmax
-    print *,ElemInfo_Shared(ELEM_HALOFLAG,ElemID)
     ! add current Element to BGM-Elem
     DO kBGM = BGMCellZmin,BGMCellZmax
       DO jBGM = BGMCellYmin,BGMCellYmax

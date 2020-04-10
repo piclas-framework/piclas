@@ -31,7 +31,6 @@ INTEGER                                 :: SurfSampSizeReactive          !> addi
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: SurfSideArea                  !> Area of supersampled surface side
 ! ====================================================================
 ! Mesh info
-INTEGER                                 :: nSurfProcSides
 INTEGER                                 :: nSurfTotalSides
 
 INTEGER                                 :: nComputeNodeSurfSides         !> Number of surface sampling sides on compute node
