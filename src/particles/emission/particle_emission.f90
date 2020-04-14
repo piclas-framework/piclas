@@ -474,10 +474,10 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Analyze           ,ONLY: CalcTVib,CalcTVibPoly,CalcTelec
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMC, CollisMode, SpecDSMC, useDSMC, RadialWeighting
-USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Mesh_Vars              ,ONLY: nElems, offsetElem
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars ,ONLY: PorousBCSampIter, PorousBCMacroVal
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared, SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, AdaptiveWeightFac
 USE MOD_Particle_Vars          ,ONLY: usevMPF
@@ -498,10 +498,11 @@ LOGICAL, INTENT(IN), OPTIONAL   :: initSampling_opt
 INTEGER                         :: ElemID, AdaptiveElemID, i, iSpec, SamplingIteration
 REAL                            :: TVib_TempFac, TTrans_TempFac, RelaxationFactor
 REAL, ALLOCATABLE               :: Source(:,:,:)
-LOGICAL                         :: initSampling
+LOGICAL                         :: initSampling, isBCElem
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
+INTEGER                         :: nlocSides, GlobalSideID, GlobalElemID, iLocSide
 !===================================================================================================================================
 ALLOCATE(Source(1:11,1:nElems,1:nSpecies))
 Source=0.0
@@ -522,13 +523,23 @@ CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
-    ElemID = PEM%Element(i)
+    GlobalElemID = PEM%Element(i)
+    ElemID = GlobalElemID - offsetElem
     ! not a BC element
-    IF (ElemToBCSides(ELEM_NBR_BCSIDES,ElemID).EQ.-1) CYCLE
+    ! IF (ElemToBCSides(ELEM_NBR_BCSIDES,ElemID).EQ.-1) CYCLE
+    ! ======================================
+    ! ElemToBCSides is only built for RefMapping, eigenes Array beschreiben statt untere schleife jedes mal abzulaufen
+    isBCElem = .FALSE.
+    nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
+    DO iLocSide = 1,nlocSides
+      GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
+      IF (SideInfo_Shared(SIDE_BCID,GlobalSideID).GT.0) isBCElem = .TRUE.
+    END DO
+    IF(.NOT.isBCElem) CYCLE
+    ! ======================================
 #if USE_LOADBALANCE
     nPartsPerBCElem(ElemID) = nPartsPerBCElem(ElemID) + 1
 #endif /*USE_LOADBALANCE*/
-    !ElemID = BC2AdaptiveElemMap(ElemID)
     iSpec = PartSpecies(i)
     Source(1:3,ElemID, iSpec) = Source(1:3,ElemID,iSpec) + PartState(4:6,i) * GetParticleWeight(i)
     Source(4:6,ElemID, iSpec) = Source(4:6,ElemID,iSpec) + PartState(4:6,i)**2 * GetParticleWeight(i)
@@ -559,8 +570,19 @@ ELSE
 END IF
 
 DO AdaptiveElemID = 1,nElems
-  ! not a BC elment
-  IF (ElemToBCSides(ELEM_NBR_BCSIDES,AdaptiveElemID).EQ.-1) CYCLE
+  GlobalElemID = AdaptiveElemID + offsetElem
+  ! not a BC element
+  ! IF (ElemToBCSides(ELEM_NBR_BCSIDES,AdaptiveElemID).EQ.-1) CYCLE
+  ! ======================================
+  ! ElemToBCSides is only built for RefMapping, eigenes Array beschreiben statt untere schleife jedes mal abzulaufen?
+  isBCElem = .FALSE.
+  nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
+  DO iLocSide = 1,nlocSides
+    GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
+    IF (SideInfo_Shared(SIDE_BCID,GlobalSideID).GT.0) isBCElem = .TRUE.
+  END DO
+  IF(.NOT.isBCElem) CYCLE
+  ! ======================================
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/

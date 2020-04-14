@@ -69,7 +69,6 @@ PUBLIC::MapRegionToElem
 PUBLIC::MarkAuxBCElems
 PUBLIC::GetMeshMinMax
 PUBLIC::GetGlobalNonUniqueSideID
-!PUBLIC::InitElemBoundingBox
 !===================================================================================================================================
 
 CONTAINS

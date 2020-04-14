@@ -772,9 +772,6 @@ END IF
 CALL InitializeVariables()
 IF(useBGField) CALL InitializeBackgroundField()
 
-! Read-in number of porous boundaries
-nPorousBC = GETINT('Part-nPorousBC', '0')
-
 !#if USE_MPI
 !CALL InitEmissionParticlesToProcs()
 !#endif
@@ -1778,7 +1775,7 @@ USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary,PartStateBoundarySpec
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
@@ -1798,6 +1795,8 @@ CHARACTER(200)        :: tmpString
 ! Read in boundary parameters
 dummy_int = CountOption('Part-nBounds')       ! check if Part-nBounds is present in .ini file
 nPartBound = GETINT('Part-nBounds','1.') ! get number of particle boundaries
+! Read-in number of porous boundaries
+nPorousBC = GETINT('Part-nPorousBC', '0')
 IF ((nPartBound.LE.0).OR.(dummy_int.LT.0)) THEN
   CALL abort(&
 __STAMP__&
