@@ -639,6 +639,7 @@ USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact, GetWallTemperature
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
@@ -802,9 +803,9 @@ IF (.NOT.IsAuxBC) THEN
       q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
     END IF
 
-    SampWall(SurfSideID)%State(1,p,q) = SampWall(SurfSideID)%State(1,p,q) + EtraOld * MacroParticleFactor
-    SampWall(SurfSideID)%State(2,p,q) = SampWall(SurfSideID)%State(2,p,q) + EtraWall * MacroParticleFactor
-    SampWall(SurfSideID)%State(3,p,q) = SampWall(SurfSideID)%State(3,p,q) + EtraNew * MacroParticleFactor
+    SampWallState(1,p,q,SurfSideID) = SampWallState(1,p,q,SurfSideID) + EtraOld  * MacroParticleFactor
+    SampWallState(2,p,q,SurfSideID) = SampWallState(2,p,q,SurfSideID) + EtraWall * MacroParticleFactor
+    SampWallState(3,p,q,SurfSideID) = SampWallState(3,p,q,SurfSideID) + EtraNew  * MacroParticleFactor
 
     ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
     IF(ALLOCATED(PartStateIntEn))THEN
@@ -863,9 +864,9 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
 
         IF (DoSample) THEN
           !----  Sampling for internal energy accommodation at walls
-          SampWall(SurfSideID)%State(4,p,q)=SampWall(SurfSideID)%State(4,p,q)+PartStateIntEn(2,PartID) * MacroParticleFactor
-          SampWall(SurfSideID)%State(5,p,q)=SampWall(SurfSideID)%State(5,p,q)+ErotWall * MacroParticleFactor
-          SampWall(SurfSideID)%State(6,p,q)=SampWall(SurfSideID)%State(6,p,q)+ErotNew * MacroParticleFactor
+          SampWallState(4,p,q,SurfSideID)=SampWallState(4,p,q,SurfSideID)+PartStateIntEn(2,PartID) * MacroParticleFactor
+          SampWallState(5,p,q,SurfSideID)=SampWallState(5,p,q,SurfSideID)+ErotWall * MacroParticleFactor
+          SampWallState(6,p,q,SurfSideID)=SampWallState(6,p,q,SurfSideID)+ErotNew * MacroParticleFactor
         END IF
 
         PartStateIntEn(2,PartID) = ErotNew
@@ -926,19 +927,19 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
             IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
               iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
               DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-                SampWall(SurfSideID)%State(7,p,q)= SampWall(SurfSideID)%State(7,p,q) &
+                SampWallState(7,p,q,SurfSideID)= SampWallState(7,p,q,SurfSideID) &
                     + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
                     * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * MacroParticleFactor
-                SampWall(SurfSideID)%State(8,p,q)= SampWall(SurfSideID)%State(8,p,q) + VibQuantWallPoly(iDOF) * BoltzmannConst &
+                SampWallState(8,p,q,SurfSideID)= SampWallState(8,p,q,SurfSideID) + VibQuantWallPoly(iDOF) * BoltzmannConst &
                     * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * MacroParticleFactor
               END DO
             ELSE
-              SampWall(SurfSideID)%State(7,p,q)= SampWall(SurfSideID)%State(7,p,q) + (VibQuant + DSMC%GammaQuant) &
+              SampWallState(7,p,q,SurfSideID)= SampWallState(7,p,q,SurfSideID) + (VibQuant + DSMC%GammaQuant) &
                   * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib * MacroParticleFactor
-              SampWall(SurfSideID)%State(8,p,q)= SampWall(SurfSideID)%State(8,p,q) + VibQuantWall &
+              SampWallState(8,p,q,SurfSideID)= SampWallState(8,p,q,SurfSideID) + VibQuantWall &
                   * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib * MacroParticleFactor
             END IF
-            SampWall(SurfSideID)%State(9,p,q)= SampWall(SurfSideID)%State(9,p,q) + EvibNew * MacroParticleFactor
+            SampWallState(9,p,q,SurfSideID)= SampWallState(9,p,q,SurfSideID) + EvibNew * MacroParticleFactor
             ! #endif
           END IF
           IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) VibQuantsPar(PartID)%Quants(:) = VibQuantTemp(:)
@@ -954,7 +955,7 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
   IF (VarTimeStep%UseVariableTimeStep) THEN
     adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
     IF (DoSample) THEN
-      SampWall(SurfSideID)%State(12+nSpecies+1,p,q) = SampWall(SurfSideID)%State(12+nSpecies+1,p,q) + adaptTimeStep
+      SampWallState(12+nSpecies+1,p,q,SurfSideID) = SampWallState(12+nSpecies+1,p,q,SurfSideID) + adaptTimeStep
     END IF
   ELSE
     adaptTimeStep = 1.
@@ -1000,11 +1001,11 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
 
   IF (DoSample) THEN
     !----  Sampling force at walls
-    SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) &
+    SampWallState(10:12,p,q,SurfSideID)= SampWallState(10:12,p,q,SurfSideID) &
         + Species(PartSpecies(PartID))%MassIC * (PartState(4:6,PartID) - NewVelo(1:3)) * MacroParticleFactor
     !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
     IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
-      SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) +1
+      SampWallState(12+PartSpecies(PartID),p,q,SurfSideID)= SampWallState(12+PartSpecies(PartID),p,q,SurfSideID) +1
       IF (CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
         AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
         AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
@@ -1056,6 +1057,7 @@ SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,n_Loc,PartID,SideID,IsSpecies
 USE MOD_Globals                 ,ONLY: abort,VECNORM
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SampWall,dXiEQ_SurfSample,SurfMesh,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,usevMPF
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
@@ -1153,7 +1155,7 @@ ELSE
           q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
         END IF
 
-        SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) = SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
+        SampWallState(12+PartSpecies(PartID),p,q,SurfSideID) = SampWallState(12+PartSpecies(PartID),p,q,SurfSideID) + 1
         IF (CalcSurfCollis%AnalyzeSurfCollis .AND. (ANY(AnalyzeSurfCollis%BCs.EQ.0) .OR. ANY(AnalyzeSurfCollis%BCs.EQ.locBCID))) THEN
           AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
           AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
@@ -1195,7 +1197,7 @@ ELSE
           q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
         END IF
         !----  Sampling Forces at walls
-        SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
+        SampWallState(10:12,p,q,SurfSideID)= SampWallState(10:12,p,q,SurfSideID) + Species(PartSpecies(PartID))%MassIC &
             * PartState(4:6,PartID) * MacroParticleFactor
       END IF
 

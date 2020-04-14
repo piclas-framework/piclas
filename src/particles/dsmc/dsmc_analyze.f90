@@ -187,7 +187,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
 
       ! even if no impacts happened, sampling is necessary due to surfacemodels -> DO NOT CYCLE
       IF(VarTimeStep%UseVariableTimeStep .AND. CounterSum.GT.0.0) THEN
-        TimeSampleTemp = TimeSample * SampWall(iSurfSide)%State(SAMPWALL_NVARS+nSpecies+1,p,q) / CounterSum
+        TimeSampleTemp = TimeSample * SampWallState_Shared(SAMPWALL_NVARS+nSpecies+1,p,q,iSurfSide) / CounterSum
       ELSE
         TimeSampleTemp = TimeSample
       END IF

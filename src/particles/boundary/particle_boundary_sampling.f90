@@ -694,9 +694,6 @@ INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCo
 REAL                                :: tstart,tend
 !===================================================================================================================================
 
-! TODO. Still broken, return for now
-!RETURN
-
 #if USE_MPI
 ! Return if not a sampling leader
 IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
@@ -1126,7 +1123,8 @@ SUBROUTINE FinalizeParticleBoundarySampling()
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars
 #if USE_MPI
-USE MOD_Particle_MPI_Vars           ,ONLY:SurfSendBuf,SurfRecvBuf,SurfExchange,PartHaloSideToProc,PorousBCSendBuf,PorousBCRecvBuf
+USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_LEADERS_SURF,nSurfLeaders
+USE MOD_Particle_MPI_Vars           ,ONLY: SurfSendBuf,SurfRecvBuf,SurfExchange,PartHaloSideToProc,PorousBCSendBuf,PorousBCRecvBuf
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1151,14 +1149,14 @@ SDEALLOCATE(SurfMesh%innerBCSideToHaloMap)
 !SDEALLOCATE(SampWall%Force)
 !SDEALLOCATE(SampWall%Counter)
 DO iSurfSide=1,SurfMesh%nTotalSides
-  SDEALLOCATE(SampWall(iSurfSide)%State)
+!  SDEALLOCATE(SampWall(iSurfSide)%State)
   SDEALLOCATE(SampWall(iSurfSide)%SurfModelState)
   SDEALLOCATE(SampWall(iSurfSide)%Accomodation)
   SDEALLOCATE(SampWall(iSurfSide)%SurfModelReactCount)
-  SDEALLOCATE(SampWall(iSurfSide)%ImpactEnergy)
-  SDEALLOCATE(SampWall(iSurfSide)%ImpactVector)
-  SDEALLOCATE(SampWall(iSurfSide)%ImpactAngle)
-  SDEALLOCATE(SampWall(iSurfSide)%ImpactNumber)
+!  SDEALLOCATE(SampWall(iSurfSide)%ImpactEnergy)
+!  SDEALLOCATE(SampWall(iSurfSide)%ImpactVector)
+!  SDEALLOCATE(SampWall(iSurfSide)%ImpactAngle)
+!  SDEALLOCATE(SampWall(iSurfSide)%ImpactNumber)
 END DO
 SDEALLOCATE(SurfBCName)
 SDEALLOCATE(SampWall)
@@ -1187,8 +1185,6 @@ SDEALLOCATE(PorousBCSendBuf)
 SDEALLOCATE(PorousBCRecvBuf)
 SDEALLOCATE(OffSetSurfSideMPI)
 SDEALLOCATE(OffSetInnerSurfSideMPI)
-IF(SurfCOMM%OutputCOMM.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%OutputCOMM,iERROR)
-IF(SurfCOMM%COMM.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(SurfCOMM%COMM,iERROR)
 #endif /*USE_MPI*/
 SDEALLOCATE(CalcSurfCollis%SpeciesFlags)
 SDEALLOCATE(AnalyzeSurfCollis%Data)
@@ -1197,6 +1193,47 @@ SDEALLOCATE(AnalyzeSurfCollis%BCid)
 SDEALLOCATE(AnalyzeSurfCollis%Number)
 !SDEALLOCATE(AnalyzeSurfCollis%Rate)
 SDEALLOCATE(AnalyzeSurfCollis%BCs)
+
+! adjusted for new halo region
+SDEALLOCATE(SampWallState)
+SDEALLOCATE(SampWallPumpCapacity)
+SDEALLOCATE(SampWallImpactEnergy)
+SDEALLOCATE(SampWallImpactVector)
+SDEALLOCATE(SampWallImpactAngle)
+SDEALLOCATE(SampWallImpactNumber)
+ADEALLOCATE(SurfSideArea)
+ADEALLOCATE(GlobalSide2SurfSide)
+ADEALLOCATE(SurfSide2GlobalSide)
+ADEALLOCATE(GlobalSide2SurfSide_Shared)
+ADEALLOCATE(SurfSide2GlobalSide_Shared)
+#if USE_MPI
+IF(MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_LEADERS_SURF,iERROR)
+SDEALLOCATE(GlobalSide2SurfHaloSide)
+SDEALLOCATE(SurfHaloSide2GlobalSide)
+IF (ALLOCATED(SurfMapping)) THEN
+  DO iProc = 0,nSurfLeaders-1
+    SDEALLOCATE(SurfMapping(iProc)%RecvSurfGlobalID)
+    SDEALLOCATE(SurfMapping(iProc)%SendSurfGlobalID)
+  END DO
+  SDEALLOCATE(SurfMapping)
+END IF
+CALL MPI_WIN_UNLOCK_ALL(SampWallState_Shared_Win,iError)
+CALL MPI_WIN_FREE(SampWallState_Shared_Win,iError)
+IF(nPorousBC.GT.0) THEN
+  CALL MPI_WIN_UNLOCK_ALL(SampWallPumpCapacity_Shared_Win,iError)
+  CALL MPI_WIN_FREE(SampWallPumpCapacity_Shared_Win,iError)
+END IF
+IF (CalcSurfaceImpact) THEN
+  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactEnergy_Shared_Win,iError)
+  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactVector_Shared_Win,iError)
+  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactAngle_Shared_Win,iError)
+  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactNumber_Shared_Win,iError)
+  CALL MPI_WIN_FREE(SampWallImpactEnergy_Shared_Win,iError)
+  CALL MPI_WIN_FREE(SampWallImpactVector_Shared_Win,iError)
+  CALL MPI_WIN_FREE(SampWallImpactAngle_Shared_Win,iError)
+  CALL MPI_WIN_FREE(SampWallImpactNumber_Shared_Win,iError)
+END IF
+#endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeParticleBoundarySampling
 

@@ -767,6 +767,8 @@ USE MOD_DSMC_Vars                 ,ONLY: useDSMC
 #endif
 USE MOD_Particle_Boundary_Vars    ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh, SampWall, PartBound, CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,SampWallImpactEnergy,SampWallImpactVector
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity,SampWallImpactAngle,SampWallImpactNumber
 USE MOD_DSMC_Analyze              ,ONLY: DSMC_data_sampling, WriteDSMCToHDF5
 USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 #if (PP_TimeDiscMethod!=42) && !defined(LSERK)
@@ -1050,21 +1052,21 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
   IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
     CALL CalcSurfaceValues()
     DO iSide=1,SurfMesh%nTotalSides
-      SampWall(iSide)%State=0.
+      SampWallState(:,:,:,iSide)=0.
       IF (ANY(PartBound%Reactive)) THEN
         SampWall(iSide)%SurfModelState=0.
         SampWall(iSide)%Accomodation=0.
         SampWall(iSide)%SurfModelReactCount=0.
       END IF
       IF(nPorousBC.GT.0) THEN
-        SampWall(iSide)%PumpCapacity=0.
+        SampWallPumpCapacity(iSide)=0.
       END IF
       ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
       IF(CalcSurfaceImpact)THEN
-        SampWall(iSide)%ImpactEnergy=0.
-        SampWall(iSide)%ImpactVector=0.
-        SampWall(iSide)%ImpactAngle=0.
-        SampWall(iSide)%ImpactNumber=0.
+        SampWallImpactEnergy(:,:,:,:,iSide)=0.
+        SampWallImpactVector(:,:,:,:,iSide)=0.
+        SampWallImpactAngle (:,:,:,  iSide)=0.
+        SampWallImpactNumber(:,:,:,  iSide)=0.
       END IF ! CalcSurfaceImpact
     END DO
     Adsorption%NumCovsamples=0
@@ -1107,7 +1109,7 @@ IF(OutPutHDF5)THEN
       IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
         CALL CalcSurfaceValues
         DO iSide=1,SurfMesh%nTotalSides
-          SampWall(iSide)%State=0.
+          SampWallState(:,:,:,iSide)=0.
         END DO
         IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
           AnalyzeSurfCollis%Data=0.
