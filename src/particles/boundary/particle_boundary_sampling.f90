@@ -567,21 +567,21 @@ DO iSide = firstSide,LastSide
     ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
     LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
     area = 0.
-    xNod = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,LocSideID,ElemID))
-    yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,LocSideID,ElemID))
-    zNod = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,LocSideID,ElemID))
+    xNod = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
+    yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
+    zNod = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
     IF(Symmetry2D) THEN
       SurfSideArea(1,1,iSide) = DSMC_2D_CalcSymmetryArea(LocSideID,ElemID)
     ELSE
       DO TriNum = 1,2
         Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
         Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-        Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)) - xNod
-        Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)) - yNod
-        Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)) - zNod
-        Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)) - xNod
-        Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)) - yNod
-        Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)) - zNod
+        Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - xNod
+        Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - yNod
+        Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - zNod
+        Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - xNod
+        Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - yNod
+        Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - zNod
         nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
         ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
         nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
