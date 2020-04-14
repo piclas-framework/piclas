@@ -46,7 +46,7 @@ SUBROUTINE InitSurfCommunication()
 USE MOD_Globals
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_SURF
 !USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors
-USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
+USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,myComputeNoderank,nLeaderGroupProcs
 USE MOD_MPI_Shared_Vars         ,ONLY: MPIRankSharedLeader,MPIRankSurfLeader
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank,nSurfLeaders!,nSurfCommProc
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,offsetComputeNodeSurfSide
@@ -229,6 +229,9 @@ DO iProc = 0,nSurfLeaders-1
 END DO
 
 !--- Allocate send and recv buffer for each surf leader
+ALLOCATE(SurfSendBuf(0:nSurfLeaders-1))
+ALLOCATE(SurfRecvBuf(0:nSurfLeaders-1))
+
 DO iProc = 0,nSurfLeaders-1
   ! Get message size
   SampSizeAllocate = SurfSampSize
@@ -344,6 +347,7 @@ IF (CalcSurfaceImpact) THEN
   CALL MPI_WIN_SYNC(SampWallImpactAngle_Shared_Win ,IERROR)
   CALL MPI_WIN_SYNC(SampWallImpactNumber_Shared_Win,IERROR)
 END IF
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
 ! now the shadow arrays can be nullified
 SampWallState        = 0.
@@ -391,6 +395,9 @@ IF (myComputeNodeRank.EQ.0) THEN
 
   ! build message
   DO iProc = 0,nSurfLeaders-1
+    ! Ignore myself
+    IF (iProc .EQ. mySurfRank) CYCLE
+
     ! Only assemble message if we are expecting sides to send to this leader node
     IF (SurfMapping(iProc)%nSendSurfSides.EQ.0) CYCLE
 

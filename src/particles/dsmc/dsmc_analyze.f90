@@ -75,21 +75,27 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Timedisc_Vars              ,ONLY: time,dt
-USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal, DSMC ,MacroSurfaceSpecVal
-USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption
-USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis,nPorousBC, PartBound, CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars     ,ONLY: MapSurfSideToPorousBC
+USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal,DSMC,MacroSurfaceSpecVal
+USE MOD_Mesh_Vars                  ,ONLY: MeshFile,BC
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis,nPorousBC,PartBound,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide
+USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides
+USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState_Shared,SampWallImpactNumber_Shared,SampWallImpactEnergy_Shared
+USE MOD_Particle_Boundary_vars     ,ONLY: SampWallImpactVector_Shared,SampWallImpactAngle_Shared
+USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea_Shared
+USE MOD_Particle_Boundary_Vars     ,ONLY: MapSurfSideToPorousBC
+USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
+USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry2D
+USE MOD_Restart_Vars               ,ONLY: RestartTime
+USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption
+USE MOD_TimeDisc_Vars              ,ONLY: TEnd
+USE MOD_Timedisc_Vars              ,ONLY: time,dt
 #if USE_MPI
+USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOnNode
-USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
 USE MOD_Particle_MPI_Boundary_Sampling,ONLY: ExchangeSurfData
 #endif
-USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry2D
-USE MOD_TimeDisc_Vars              ,ONLY: TEnd
-USE MOD_Mesh_Vars                  ,ONLY: MeshFile, BC
-USE MOD_Restart_Vars               ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -99,6 +105,7 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                            :: BCID
 INTEGER                            :: iSpec,iSurfSide,p,q, iReact, nVar, nVarSpec, iPBC, nVarCount
 INTEGER                            :: nAdsSamples, iAdsSampl
 REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum
@@ -139,13 +146,16 @@ IF(.NOT.SurfOnNode) RETURN
 CALL ExchangeSurfData()
 #endif
 
+! Only surface sampling leaders take part in the remainder of this routine
+IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
+
 ! Determine the number of variables
 nVar = 5
 nVarSpec = 1
 IF(ANY(PartBound%Reactive)) THEN
   nAdsSamples = 5
-  nVar = nVar + nAdsSamples
-  nVarSpec = nVarSpec + 2 + 2*Adsorption%ReactNum
+  nVar        = nVar + nAdsSamples
+  nVarSpec    = nVarSpec + 2 + 2*Adsorption%ReactNum
 END IF
 
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8 to the buffer length
@@ -155,60 +165,60 @@ IF(nPorousBC.GT.0) THEN
   nVar = nVar + nPorousBC
 END IF
 ! Allocate the output container
-ALLOCATE(MacroSurfaceVal(1:nVar         , 1:nSurfSample , 1:nSurfSample , SurfMesh%nOutputSides))
-MacroSurfaceVal=0.
-ALLOCATE(MacroSurfaceSpecVal(1:nVarSpec , 1:nSurfSample , 1:nSurfSample , SurfMesh%nOutputSides   , nSpecies))
-MacroSurfaceSpecVal=0.
+ALLOCATE(MacroSurfaceVal(1:nVar         , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfSides))
+MacroSurfaceVal     = 0.
+ALLOCATE(MacroSurfaceSpecVal(1:nVarSpec , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfSides , nSpecies))
+MacroSurfaceSpecVal = 0.
 
 IF (CalcSurfCollis%Output) THEN
   ALLOCATE(CounterTotal(1:nSpecies))
   ALLOCATE(SumCounterTotal(1:nSpecies+1))
-  CounterTotal(1:nSpecies)=0
-  SumCounterTotal(1:nSpecies+1)=0
+  CounterTotal(1:nSpecies)      = 0
+  SumCounterTotal(1:nSpecies+1) = 0
 END IF
 
 OutputCounter = 0
 
-DO iSurfSide=1,SurfMesh%nSides
-  IF(iSurfSide.GT.SurfMesh%nBCSides) THEN
-    IF(SurfMesh%innerBCSideToHaloMap(SurfMesh%SurfIDToSideID(iSurfSide)).NE.-1) CYCLE
-  END IF
+DO iSurfSide = 1,nComputeNodeSurfSides
   OutputCounter = OutputCounter + 1
-  DO q=1,nSurfSample
-    DO p=1,nSurfSample
-      CounterSum = SUM(SampWall(iSurfSide)%State(SAMPWALL_NVARS+1:SAMPWALL_NVARS+nSpecies,p,q))
+  DO q = 1,nSurfSample
+    DO p = 1,nSurfSample
+      CounterSum = SUM(SampWallState_Shared(SAMPWALL_NVARS+1:SAMPWALL_NVARS+nSpecies,p,q,iSurfSide))
+
       ! even if no impacts happened, sampling is necessary due to surfacemodels -> DO NOT CYCLE
-      !IF(CounterSum.GT.0.0) THEN
-        IF(VarTimeStep%UseVariableTimeStep .AND. CounterSum.GT.0.0) THEN
-          TimeSampleTemp = TimeSample * SampWall(iSurfSide)%State(SAMPWALL_NVARS+nSpecies+1,p,q) / CounterSum
-        ELSE
-          TimeSampleTemp = TimeSample
-        END IF
-      !ELSE
-      !   No impacts on that surface -> skip the element
-      !  CYCLE
-      !END IF
+      IF(VarTimeStep%UseVariableTimeStep .AND. CounterSum.GT.0.0) THEN
+        TimeSampleTemp = TimeSample * SampWall(iSurfSide)%State(SAMPWALL_NVARS+nSpecies+1,p,q) / CounterSum
+      ELSE
+        TimeSampleTemp = TimeSample
+      END IF
+
       ! Force per area in x,y,z-direction
-      MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWall(iSurfSide)%State(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q) &
-                                           / (SurfMesh%SurfaceArea(p,q,iSurfSide)*TimeSampleTemp)
+      MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWallState_Shared(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q,iSurfSide) &
+                                             / (SurfSideArea_Shared(p,q,iSurfSide)*TimeSampleTemp)
       ! Deleting the z-component for 2D/axisymmetric simulations
       IF(Symmetry2D) MacroSurfaceVal(3,p,q,OutputCounter) = 0.
-      MacroSurfaceVal(4,p,q,OutputCounter) = (SampWall(iSurfSide)%State(SAMPWALL_ETRANSOLD,p,q) &
-                                         +SampWall(iSurfSide)%State(SAMPWALL_EROTOLD  ,p,q) &
-                                         +SampWall(iSurfSide)%State(SAMPWALL_EVIBOLD  ,p,q) &
-                                         -SampWall(iSurfSide)%State(SAMPWALL_ETRANSNEW,p,q) &
-                                         -SampWall(iSurfSide)%State(SAMPWALL_EROTNEW  ,p,q) &
-                                         -SampWall(iSurfSide)%State(SAMPWALL_EVIBNEW  ,p,q)) &
-                                         / (SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSampleTemp)
+      MacroSurfaceVal(4,p,q,OutputCounter) = (SampWallState_Shared(SAMPWALL_ETRANSOLD,p,q,iSurfSide)  &
+                                           +  SampWallState_Shared(SAMPWALL_EROTOLD  ,p,q,iSurfSide)  &
+                                           +  SampWallState_Shared(SAMPWALL_EVIBOLD  ,p,q,iSurfSide)  &
+                                           -  SampWallState_Shared(SAMPWALL_ETRANSNEW,p,q,iSurfSide)  &
+                                           -  SampWallState_Shared(SAMPWALL_EROTNEW  ,p,q,iSurfSide)  &
+                                           -  SampWallState_Shared(SAMPWALL_EVIBNEW  ,p,q,iSurfSide)) &
+                                           / (SurfSideArea_Shared(p,q,iSurfSide) * TimeSampleTemp)
+
       nVarCount = 5
-      IF (PartBound%Reactive(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(iSurfSide))))) THEN
+      BCID = SideInfo_Shared(SIDE_BCID,SurfSide2GlobalSide(SURF_SIDEID,iSurfSide))
+      IF (PartBound%Reactive(PartBound%MapToPartBC(BC(BCID)))) THEN
+        ! Currently not working with new halo region
+        RETURN
+
         MacroSurfaceVal(4,p,q,OutputCounter) = MacroSurfaceVal(4,p,q,OutputCounter) + &
-                                          (-SampWall(iSurfSide)%SurfModelState(1,p,q)  &
-                                           -SampWall(iSurfSide)%SurfModelState(2,p,q)  &
-                                           -SampWall(iSurfSide)%SurfModelState(3,p,q)  &
-                                           -SampWall(iSurfSide)%SurfModelState(4,p,q)  &
-                                           -SampWall(iSurfSide)%SurfModelState(5,p,q) )&
-                                           / (SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSampleTemp)
+                                          (-  SampWall(iSurfSide)%SurfModelState(1,p,q)  &
+                                           -  SampWall(iSurfSide)%SurfModelState(2,p,q)  &
+                                           -  SampWall(iSurfSide)%SurfModelState(3,p,q)  &
+                                           -  SampWall(iSurfSide)%SurfModelState(4,p,q)  &
+                                           -  SampWall(iSurfSide)%SurfModelState(5,p,q) )&
+                                           / (SurfSideArea_Shared(p,q,iSurfSide) * TimeSampleTemp)
+
         DO iAdsSampl=1, nAdsSamples
           ! Note: the if-statement is required to prevent the output of "-0" in the .h5 file!
           IF(ABS(SampWall(iSurfSide)%SurfModelState(iAdssampl,p,q)).GT.0.0)THEN
@@ -218,7 +228,11 @@ DO iSurfSide=1,SurfMesh%nSides
         END DO
         nVarCount = nVarCount + nAdsSamples
       END IF
+
       IF(nPorousBC.GT.0) THEN
+        ! Currently not working with new halo region
+        RETURN
+
         DO iPBC=1, nPorousBC
           IF(MapSurfSideToPorousBC(iSurfSide).EQ.iPBC) THEN
             ! Pump capacity is already in cubic meter per second (diving by the number of iterations)
@@ -226,15 +240,19 @@ DO iSurfSide=1,SurfMesh%nSides
           END IF
         END DO
       END IF
+
       DO iSpec=1,nSpecies
-        ASSOCIATE( nColl    => SampWall(iSurfSide)%State(SAMPWALL_NVARS+iSpec,p,q) )
-          IF (CalcSurfCollis%Output) CounterTotal(iSpec)=CounterTotal(iSpec)+INT(nColl)
-          IF (CalcSurfCollis%SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
+        ASSOCIATE( nColl    => SampWallState_Shared(SAMPWALL_NVARS+iSpec,p,q,iSurfSide) )
+          IF (CalcSurfCollis%Output) CounterTotal(iSpec) = CounterTotal(iSpec) + INT(nColl)
+
+          ! Sum up all Collisions with SpeciesFlags for output
+          IF (CalcSurfCollis%SpeciesFlags(iSpec)) THEN
             MacroSurfaceVal(5,p,q,OutputCounter) = MacroSurfaceVal(5,p,q,OutputCounter) + nColl/TimeSample
           END IF
+
           idx = 1
           MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nColl / TimeSample
-          IF (PartBound%Reactive(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(iSurfSide))))) THEN
+          IF (PartBound%Reactive(PartBound%MapToPartBC(BC(BCID)))) THEN
             ! calculate accomodation coefficient
             idx = idx + 1
             IF (nColl.EQ.0) THEN
@@ -261,27 +279,27 @@ DO iSurfSide=1,SurfMesh%nSides
 
           ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
           IF(CalcSurfaceImpact)THEN
-            ASSOCIATE( nImpacts => SampWall(iSurfSide)%ImpactNumber(iSpec,p,q) )
+            ASSOCIATE( nImpacts => SampWallImpactNumber_Shared(iSpec,p,q,iSurfSide))
               IF(nImpacts.GT.0.)THEN
                 ! Add average impact energy for each species (trans, rot, vib)
                 idx = idx + 1
-                MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWall(iSurfSide)%ImpactEnergy(iSpec,1,p,q) / nImpacts
+                MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactEnergy_Shared(iSpec,1,p,q,iSurfSide) / nImpacts
                 idx = idx + 1
-                MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWall(iSurfSide)%ImpactEnergy(iSpec,2,p,q) / nImpacts
+                MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactEnergy_Shared(iSpec,2,p,q,iSurfSide) / nImpacts
                 idx = idx + 1
-                MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWall(iSurfSide)%ImpactEnergy(iSpec,3,p,q) / nImpacts
+                MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactEnergy_Shared(iSpec,3,p,q,iSurfSide) / nImpacts
 
                 ! Add average impact vector (x,y,z) for each species
                 idx = idx + 1
-                MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWall(iSurfSide)%ImpactVector(iSpec,1,p,q) / nImpacts
+                MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactVector_Shared(iSpec,1,p,q,iSurfSide) / nImpacts
                 idx = idx + 1
-                MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWall(iSurfSide)%ImpactVector(iSpec,2,p,q) / nImpacts
+                MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactVector_Shared(iSpec,2,p,q,iSurfSide) / nImpacts
                 idx = idx + 1
-                MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWall(iSurfSide)%ImpactVector(iSpec,3,p,q) / nImpacts
+                MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactVector_Shared(iSpec,3,p,q,iSurfSide) / nImpacts
 
                 ! Add average impact angle for each species
                 idx = idx + 1
-                MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWall(iSurfSide)%ImpactAngle(iSpec,p,q) / nImpacts
+                MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactAngle_Shared(iSpec,p,q,iSurfSide) / nImpacts
 
                 ! Add number of impacts
                 idx = idx + 1
@@ -298,22 +316,20 @@ DO iSurfSide=1,SurfMesh%nSides
 END DO ! iSurfSide=1,SurfMesh%nOutputSides
 
 IF (CalcSurfCollis%Output) THEN
-#if USE_MPI
-  ! TODO: this does not work anymore!
-  CALL MPI_REDUCE(CounterTotal,SumCounterTotal(1:nSpecies),nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%COMM,iError)
-#else
-  SumCounterTotal(1:nSpecies)=CounterTotal
-#endif
-  DO iSpec=1,nSpecies
-    IF (CalcSurfCollis%SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
+  SumCounterTotal(1:nSpecies) = CounterTotal
+  DO iSpec = 1,nSpecies
+    ! Sum up all Collisions with SpeciesFlags for output
+    IF (CalcSurfCollis%SpeciesFlags(iSpec)) THEN
       SumCounterTotal(nSpecies+1) = SumCounterTotal(nSpecies+1) + SumCounterTotal(iSpec)
     END IF
   END DO
+
   SWRITE(UNIT_stdOut,'(A)') ' The following species swaps at walls have been sampled:'
   DO iSpec=1,nSpecies
-    SWRITE(*,'(A9,I2,A2,E16.9,A6)') ' Species ',iSpec,': ',REAL(SumCounterTotal(iSpec)) / TimeSample,' MP/s;'
+    SWRITE(*,'(A9,I2,A2,E16.9,A6)') ' Species ',iSpec,': '   ,REAL(SumCounterTotal(iSpec))      / TimeSample,' MP/s;'
   END DO
-  SWRITE(*,'(A23,E16.9,A6)') ' All with SpeciesFlag: ',REAL(SumCounterTotal(nSpecies+1)) / TimeSample,' MP/s.'
+  SWRITE(*,'(A23,E16.9,A6)')        ' All with SpeciesFlag: ',REAL(SumCounterTotal(nSpecies+1)) / TimeSample,' MP/s.'
+
   DEALLOCATE(CounterTotal)
   DEALLOCATE(SumCounterTotal)
 END IF
