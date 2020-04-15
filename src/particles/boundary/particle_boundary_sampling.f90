@@ -162,7 +162,7 @@ REAL                                   :: XiOut(1:2),E,F,G,D,tmp1,tmpI2,tmpJ2
 REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz
 #if USE_MPI
 INTEGER                                :: iLeader
-INTEGER                                :: offsetSurfTotalSidesProc
+INTEGER                                :: offsetSurfSidesProc,offsetSurfTotalSidesProc
 INTEGER                                :: GlobalElemID,GlobalElemRank
 INTEGER(KIND=MPI_ADDRESS_KIND)         :: MPISharedSize
 INTEGER                                :: sendbuf,recvbuf
@@ -309,7 +309,7 @@ DO iSide = firstSide,lastSide
   END IF ! reflective side
 END DO
 
-! Find CN global number of surf sides and write Side to Surf Side mapping into shared array
+! Find CN global number of total surf sides and write Side to Surf Side mapping into shared array
 #if USE_MPI
 sendbuf = nSurfSidesProc
 recvbuf = 0
@@ -320,23 +320,36 @@ sendbuf = offsetSurfTotalSidesProc + nSurfSidesProc
 CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
 nComputeNodeSurfTotalSides = sendbuf
 
-! nComputeNodeSurfSides can use ALLREDUCE as we are not interested in the offset
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,nComputeNodeSurfSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+! Find CN global number of local surf sides and write Side to Surf Side mapping into shared array
+sendbuf = nComputeNodeSurfSides
+recvbuf = 0
+CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+offsetSurfSidesProc   = recvbuf
+! last proc knows CN total number of BC elems
+sendbuf = offsetSurfSidesProc + nComputeNodeSurfSides
+CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+nComputeNodeSurfSides = sendbuf
 
 ! increment SURF_SIDEID by offset
 DO iSide = firstSide,lastSide
   IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
-  GlobalSide2SurfSideProc(SURF_SIDEID,iSide) = GlobalSide2SurfSideProc(SURF_SIDEID,iSide) + offsetSurfTotalSidesProc
-END DO
 
-GlobalSide2SurfSide(SURF_SIDEID,firstSide:lastSide) = GlobalSide2SurfSideProc(SURF_SIDEID,firstSide:lastSide)
-GlobalSide2SurfSide(SURF_RANK  ,firstSide:lastSide) = GlobalSide2SurfSideProc(SURF_RANK  ,firstSide:lastSide)
-GlobalSide2SurfSide(SURF_LEADER,firstSide:lastSide) = GlobalSide2SurfSideProc(SURF_LEADER,firstSide:lastSide)
+  ! sort compute-node local sides first
+  IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) THEN
+    GlobalSide2SurfSideProc(SURF_SIDEID,iSide) = GlobalSide2SurfSideProc(SURF_SIDEID,iSide) + offsetSurfSidesProc
+    GlobalSide2SurfSide    (:          ,iSide) = GlobalSide2SurfSideProc(:          ,iSide)
+  ! sampling sides in halo region follow at the end
+  ELSE
+    GlobalSide2SurfSideProc(SURF_SIDEID,iSide) = GlobalSide2SurfSideProc(SURF_SIDEID,iSide) + nComputeNodeSurfSides     &
+                                                                                            + offsetSurfTotalSidesProc  &
+                                                                                            - offsetSurfSidesProc
+    GlobalSide2SurfSide    (:          ,iSide) = GlobalSide2SurfSideProc(:          ,iSide)
+  END IF
+END DO
 
 #else
 offsetSurfTotalSidesProc  = 0
-
-GlobalSide2SurfSide(:          ,firstSide:lastSide) = GlobalSide2SurfSide(:,firstSide:lastSide)
+GlobalSide2SurfSide(:,firstSide:lastSide) = GlobalSide2SurfSide(:,firstSide:lastSide)
 #endif /*USE_MPI*/
 
 ! Build inverse mapping
@@ -1121,7 +1134,9 @@ SUBROUTINE FinalizeParticleBoundarySampling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_DSMC_Vars                   ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
+USE MOD_Particle_Vars               ,ONLY: WriteMacroSurfaceValues
 #if USE_MPI
 USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_LEADERS_SURF,nSurfLeaders
 USE MOD_Particle_MPI_Vars           ,ONLY: SurfSendBuf,SurfRecvBuf,SurfExchange,PartHaloSideToProc,PorousBCSendBuf,PorousBCRecvBuf
@@ -1139,6 +1154,9 @@ INTEGER :: iSurfSide
 INTEGER :: iProc
 #endif /*USE_MPI*/
 !===================================================================================================================================
+
+! Return if nothing was allocated
+IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive)).AND..NOT.(nPorousBC.GT.0)) RETURN
 
 SDEALLOCATE(XiEQ_SurfSample)
 SDEALLOCATE(SurfMesh%SurfaceArea)
