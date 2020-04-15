@@ -939,4 +939,40 @@ END DO
 
 END SUBROUTINE CheckPeriodicSides
 
+
+#if GCC_VERSION < 90000
+PURE FUNCTION FINDLOC(Array,Value,Dim)
+!===================================================================================================================================
+!> Implements a subset of the intrinsic FINDLOC function for Fortran < 2008
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals                ,ONLY: ABORT
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+INTEGER,INTENT(IN)             :: Array(:)
+INTEGER,INTENT(IN)             :: Value
+INTEGER,INTENT(IN)             :: Dim
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+INTEGER                        :: FINDLOC
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: iVar
+!===================================================================================================================================
+DO iVar = 1,SIZE(ARRAY,1)
+  IF (Array(iVar).EQ.Value) THEN
+    FINDLOC = iVar
+    RETURN
+  END IF
+END DO
+
+CALL ABORT(__STAMP__,'Periodic vector not found in array!')
+
+END FUNCTION FINDLOC
+#endif
+
+
 END MODULE MOD_Particle_BGM

@@ -22,6 +22,9 @@
 #  define IEEE_IS_NAN ISNAN
 #endif
 
+! Calculate GCC version
+#define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
+
 #define SIZEOF_F(x) (STORAGE_SIZE(x)/8)
 
 #ifdef GNU
