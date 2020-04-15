@@ -946,7 +946,7 @@ PURE FUNCTION FINDLOC(Array,Value,Dim)
 !> Implements a subset of the intrinsic FINDLOC function for Fortran < 2008
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals                ,ONLY: ABORT
+!USE MOD_Globals                ,ONLY: ABORT
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -969,7 +969,7 @@ DO iVar = 1,SIZE(ARRAY,1)
   END IF
 END DO
 
-CALL ABORT(__STAMP__,'Periodic vector not found in array!')
+!CALL ABORT(__STAMP__,'Periodic vector not found in array!')
 
 END FUNCTION FINDLOC
 #endif
