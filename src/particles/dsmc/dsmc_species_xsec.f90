@@ -24,12 +24,7 @@ INTERFACE InterpolateCrossSection
   MODULE PROCEDURE InterpolateCrossSection
 END INTERFACE
 
-INTERFACE XSec_Argon_DravinLotz
-  MODULE PROCEDURE XSec_Argon_DravinLotz
-END INTERFACE
-
 PUBLIC :: InterpolateCrossSection
-PUBLIC :: XSec_Argon_DravinLotz
 !===================================================================================================================================
 
 CONTAINS
@@ -44,7 +39,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_PARTICLE_Vars         ,ONLY: nSpecies
-USE MOD_DSMC_Vars             ,ONLY: BGGas, SpecDSMC, XSec_Database, SpecXSec
+USE MOD_DSMC_Vars             ,ONLY: BGGas, SpecDSMC, XSec_Database, SpecXSec, XSec_NullCollision
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -54,7 +49,7 @@ REAL          :: TotalProb
 !===================================================================================================================================
 
 XSec_Database = TRIM(GETSTR('Particles-CollXSec-Database'))
-! XSec_Verification = 
+XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
 
 IF(TRIM(XSec_Database).EQ.'none') THEN
   CALL abort(&
@@ -69,31 +64,30 @@ IF (BGGas%NumberOfSpecies.EQ.0) THEN
 END IF
 
 ALLOCATE(SpecXSec(nSpecies,nSpecies))
-TotalProb = 0.
 
 DO iSpec = 1,nSpecies
-  IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
-    IF(SpecDSMC(iSpec)%UseCollXSec) THEN
-      DO jSpec = 1, nSpecies
-        IF(BGGas%BackgroundSpecies(jSpec)) THEN
-          ! Read-in cross-section data for collisions of particles from the background gas and the current species
-          CALL ReadCollXSec(iSpec, jSpec)
-          ! Store the energy value in J (read-in was in eV)
-          SpecXSec(iSpec,jSpec)%CollXSecData(1,:) = SpecXSec(iSpec,jSpec)%CollXSecData(1,:) * ElementaryCharge
-          ! ! Determine the maximum collision frequency for the null collision method
-          CALL DetermineNullCollProb(iSpec,jSpec)
-          TotalProb = TotalProb + SpecXSec(iSpec,jSpec)%ProbNull
-        END IF
-      END DO
+  IF(BGGas%BackgroundSpecies(iSpec)) CYCLE
+  IF(.NOT.SpecDSMC(iSpec)%UseCollXSec) CYCLE
+  TotalProb = 0.
+  DO jSpec = 1, nSpecies
+    IF(.NOT.BGGas%BackgroundSpecies(jSpec)) CYCLE
+    ! Read-in cross-section data for collisions of particles from the background gas and the current species
+    CALL ReadCollXSec(iSpec, jSpec)
+    ! Store the energy value in J (read-in was in eV)
+    SpecXSec(iSpec,jSpec)%CollXSecData(1,:) = SpecXSec(iSpec,jSpec)%CollXSecData(1,:) * ElementaryCharge
+    IF(XSec_NullCollision) THEN
+      ! Determine the maximum collision frequency for the null collision method
+      CALL DetermineNullCollProb(iSpec,jSpec)
+      TotalProb = TotalProb + SpecXSec(iSpec,jSpec)%ProbNull
+      IF(TotalProb.GT.1.0) THEN
+        CALL abort(&
+        __STAMP__&
+        ,'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: '&
+        ,RealInfoOpt=TotalProb)
+      END IF
     END IF
-  END IF
+  END DO
 END DO
-
-IF(TotalProb.GT.1.0) THEN
-  CALL abort(&
-  __STAMP__&
-  ,'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: ',RealInfoOpt=TotalProb)
-END IF
 
 END SUBROUTINE MCC_Init
 
@@ -252,48 +246,5 @@ DO iDOF = 1, MaxDOF
 END DO
 
 END FUNCTION InterpolateCrossSection
-
-
-SUBROUTINE XSec_Argon_DravinLotz(SpecToExec, iPair)
-!===================================================================================================================================
-! Subroutine computing the collision probability o the Argion ionization
-!===================================================================================================================================
-! MODULES
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, SpecDSMC
-  USE MOD_Equation_Vars,          ONLY : eps0
-  USE MOD_Globals_Vars,           ONLY : Pi, ElementaryCharge
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: SpecToExec, iPair
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                          :: BohrRad, Rydberg
-!===================================================================================================================================
-
-! local constants
-BohrRad = 0.5291772109E-10
-Rydberg = 13.60569253*ElementaryCharge
-
-!.... Elastic scattering cross section
-  Coll_pData(iPair)%Sigma(1) = SQRT(0.5*Pi*SpecDSMC(SpecToExec)%RelPolarizability &
-                             * BohrRad**3*ElementaryCharge**2     &   ! AIAA07 Paper
-                             / (eps0*Coll_pData(iPair)%Ec))                    ! units checked
-
-!.... Ionization cross section (Lotz)
-IF ((Coll_pData(iPair)%Ec/ElementaryCharge).GE.SpecDSMC(SpecToExec)%Eion_eV) THEN
-  Coll_pData(iPair)%Sigma(2) = 2.78*SpecDSMC(SpecToExec)%NumEquivElecOutShell*Pi &
-             * BohrRad**2*Rydberg**2 &    ! units checked
-             / (Coll_pData(iPair)%Ec*SpecDSMC(SpecToExec)%Eion_eV*ElementaryCharge) &
-             * LOG(Coll_pData(iPair)%Ec/(ElementaryCharge*SpecDSMC(SpecToExec)%Eion_eV))
-ELSE
-  Coll_pData(iPair)%Sigma(2) = 0.0
-ENDIF
-Coll_pData(iPair)%Sigma(0)=Coll_pData(iPair)%Sigma(1)+Coll_pData(iPair)%Sigma(2) ! Calc of Sigma total
-
-END SUBROUTINE XSec_Argon_DravinLotz
 
 END MODULE MOD_DSMC_SpecXSec

@@ -367,7 +367,7 @@ SUBROUTINE MCC_pairing_bggas(iElem)
 USE MOD_Globals
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles, XSec_NullCollision
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
@@ -426,7 +426,7 @@ DO iSpec = 1,nSpecies
     DO jSpec = 1, nSpecies
       IF(BGGas%BackgroundSpecies(jSpec)) THEN     ! Loop over all background species
         bgSpec = BGGas%MapSpecToBGSpec(jSpec)
-        IF(SpecDSMC(iSpec)%UseCollXSec) THEN
+        IF(SpecDSMC(iSpec)%UseCollXSec.AND.XSec_NullCollision) THEN
           ! Collision cross-section: The maximum number of pairs to check is collision pair specific and depends on the null collision probability
           SpecPairNumReal = CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull
           SpecPairNumTemp = INT(CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull)
@@ -468,7 +468,7 @@ DO iSpec = 1,nSpecies                             ! Loop over all non-background
       IF(BGGas%BackgroundSpecies(jSpec)) THEN
         DO iLoop = 1, SpecPairNum(iSpec,jSpec)    ! Loop over all the number of pairs required for this species pairing
           ! Getting the index of the simulation particle
-          IF(SpecDSMC(iSpec)%UseCollXSec) THEN
+          IF(SpecDSMC(iSpec)%UseCollXSec.AND.XSec_NullCollision) THEN
             ! MCC: Choosing random particles from the available number of particles
             IF(SpecPartNum(iSpec).GT.0) THEN
               CALL RANDOM_NUMBER(iRan)

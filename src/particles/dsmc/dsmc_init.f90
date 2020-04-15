@@ -362,6 +362,10 @@ CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for th
                                                                'should be named with species pair (e.g. "Ar-electron"). The '//&
                                                                'first column shall contain the energy in eV and the second '//&
                                                                'column the cross-section in m^2', 'none')
+CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
+                                           ,'Utilize the null collision method for the determination of the number of pairs '//&
+                                            'based on the maximum collision frequency and time step' &
+                                           ,'.FALSE.')
 
 END SUBROUTINE DefineParametersDSMC
 

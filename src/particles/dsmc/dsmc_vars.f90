@@ -296,6 +296,7 @@ TYPE(tBGGas)                        :: BGGas
 
 LOGICAL                             :: UseMCC
 CHARACTER(LEN=256)                  :: XSec_Database
+LOGICAL                             :: XSec_NullCollision
 INTEGER                             :: MCC_TotalPairNum
 
 TYPE tPairData
@@ -304,11 +305,6 @@ TYPE tPairData
   INTEGER           :: iPart_p1                             ! first particle of the pair
   INTEGER           :: iPart_p2                             ! second particle of the pair
   INTEGER           :: PairType                             ! type of pair (=iCase, CollInf%Coll_Case)
-  REAL, ALLOCATABLE :: Sigma(:)                             ! cross sections sigma of the pair
-                                                            !       0: sigma total
-                                                            !       1: sigma elast
-                                                            !       2: sigma ionization
-                                                            !       3: sigma exciation
   REAL              :: Ec                                   ! Collision Energy
   LOGICAL           :: NeedForRec                           ! Flag if pair is need for Recombination
 END TYPE tPairData
