@@ -1237,10 +1237,12 @@ SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,Si
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Mesh_Vars              ,ONLY: BoundaryType
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,SidePeriodicType
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO!,SidePeriodicType
 USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,PEM
-USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
+!USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
 #if defined(IMPA)
 USE MOD_TimeDisc_Vars          ,ONLY: ESDIRK_a,ERK_a
 #endif /*IMPA */
@@ -1265,7 +1267,8 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 INTEGER                              :: PVID,moved(2),locSideID
 !===================================================================================================================================
 
-PVID = SidePeriodicType(SideID)
+!PVID = SidePeriodicType(SideID)
+PVID = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
 
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -1280,12 +1283,10 @@ END IF
 ! set last particle position on face
 LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + PartTrajectory(1:3)*alpha
 ! perform the periodic movement
-LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 ! update particle positon after periodic BC
-!PartState(1:3,PartID)   = PartState(1:3,PartID) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (lengthPartTrajectory-alpha)*PartTrajectory
 lengthPartTrajectory  = lengthPartTrajectory - alpha
-
 
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -1303,21 +1304,24 @@ PEM%PeriodicMoved(PartID)=.TRUE.
 
 ! refmapping and tracing
 ! move particle from old element to new element
-locSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
-Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
-ElemID    = Moved(1)
-#if USE_MPI
-IF(ElemID.EQ.-1)THEN
-  CALL abort(&
-__STAMP__&
-,' Halo region to small. Neighbor element is missing!')
-END IF
-#endif /*USE_MPI*/
-IF (TrackingMethod.EQ.REFMAPPING) PEM%LastElement(PartID) = 0
+ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
 
-IF(1.EQ.2)THEN
-  alpha=0.2
-END IF
+
+!locSideID = PartSideToElem(S2E_LOC_SIDE_ID,SideID)
+!Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
+!ElemID    = Moved(1)
+!#if USE_MPI
+!IF(ElemID.EQ.-1)THEN
+!  CALL abort(&
+!__STAMP__&
+!,' Halo region to small. Neighbor element is missing!')
+!END IF
+!#endif /*USE_MPI*/
+!IF (TrackingMethod.EQ.REFMAPPING) PEM%LastElement(PartID) = 0
+!
+!IF(1.EQ.2)THEN
+!  alpha=0.2
+!END IF
 
 END SUBROUTINE PeriodicBC
 
