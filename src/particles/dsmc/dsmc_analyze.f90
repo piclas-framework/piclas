@@ -571,37 +571,39 @@ USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)                :: MeanEelec  ! Charak TVib, mean vibrational Energy of all molecules
-INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
+REAL, INTENT(IN)      :: MeanEelec  !< Mean electronic energy
+INTEGER, INTENT(IN)   :: iSpec      !< Species index
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                         :: ii
-REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
-REAL(KIND=8)                    :: eps_prec=0.1   ! precision of zero point search
-REAL(KIND=8)                    :: SumOne, SumTwo    ! both summs
+INTEGER               :: ii
+REAL                  :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
+REAL,PARAMETER        :: eps_prec=1E-3           !< Relative precision of root-finding algorithm
+REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the electronic partition function
 !===================================================================================================================================
 
-! lower limit: very small value or lowest temperature if ionized
-! upper limit: highest possible temperature
-IF ( MeanEelec .GT. 0 ) THEN
-  IF ( SpecDSMC(iSpec)%ElectronicState(2,0) .EQ. 0 ) THEN
+IF (MeanEelec.GT.0) THEN
+  ! Lower limit: very small value or lowest temperature if ionized
+  IF (SpecDSMC(iSpec)%ElectronicState(2,0).EQ.0.0) THEN
     LowerTemp = 1.0
   ELSE
     LowerTemp = SpecDSMC(iSpec)%ElectronicState(2,0)
   END IF
+  ! Upper limit: Last excitation level (ionization limit)
   UpperTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant-1)
-  DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
+  MiddleTemp = LowerTemp
+  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
     MiddleTemp = 0.5*( LowerTemp + UpperTemp)
     SumOne = 0.0
     SumTwo = 0.0
     DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
-      SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * &
-                exp( - SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp )
-      SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * &
-                exp( - SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp )
+      TempRatio = SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp
+      IF(CHECKEXP(TempRatio)) THEN
+        SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * EXP(-TempRatio)
+        SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * EXP(-TempRatio)
+      END IF
     END DO
     IF ( SumTwo / SumOne .GT. MeanEelec / BoltzmannConst ) THEN
       UpperTemp = MiddleTemp
@@ -609,7 +611,7 @@ IF ( MeanEelec .GT. 0 ) THEN
       LowerTemp = MiddleTemp
     END IF
   END DO
-  CalcTelec = UpperTemp ! or 0.5*( Tmax + Tmin)
+  CalcTelec = MiddleTemp
 ELSE
   CalcTelec = 0. ! sup
 END IF
@@ -637,33 +639,36 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                         :: iDOF,iPolyatMole
-REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
-REAl(KIND=8)                    :: eps_prec=0.1   ! precision of zero point search
-REAL(KIND=8)                    :: SumOne    ! both summs
+INTEGER                 :: iDOF, iPolyatMole
+REAL                    :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
+REAL                    :: EGuess                           !< Energy value at the current MiddleTemp
+REAL,PARAMETER          :: eps_prec=5E-3                    !< Relative precision of root-finding algorithm
 !===================================================================================================================================
 
 ! lower limit: very small value or lowest temperature if ionized
 ! upper limit: highest possible temperature
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-IF ( MeanEVib .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
+IF (MeanEVib.GT.SpecDSMC(iSpec)%EZeroPoint) THEN
   LowerTemp = 1.0
   UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/BoltzmannConst
-  DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
-    MiddleTemp = 0.5*( LowerTemp + UpperTemp)
-    SumOne = 0.0
+  MiddleTemp = LowerTemp
+  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
+    MiddleTemp = 0.5*(LowerTemp + UpperTemp)
+    EGuess = SpecDSMC(iSpec)%EZeroPoint
     DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-      SumOne = SumOne + 0.5*BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
-            + BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
-            / (EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/MiddleTemp) -1.0)
+      ASSOCIATE(CharTVib => PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+        IF(CHECKEXP(CharTVib/MiddleTemp)) THEN
+          EGuess = EGuess + BoltzmannConst * CharTVib / (EXP(CharTVib/MiddleTemp) - 1.0)
+        END IF
+      END ASSOCIATE
     END DO
-    IF ( SumOne .GT. MeanEVib) THEN
+    IF (EGuess.GT.MeanEVib) THEN
       UpperTemp = MiddleTemp
     ELSE
       LowerTemp = MiddleTemp
     END IF
   END DO
-  CalcTVibPoly = UpperTemp ! or 0.5*( Tmax + Tmin)
+  CalcTVibPoly = MiddleTemp
 ELSE
   CalcTVibPoly = 0. ! sup
 END IF
@@ -679,7 +684,7 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: Pi
-USE MOD_Particle_Vars ,ONLY: Species, nSpecies
+USE MOD_Particle_Vars ,ONLY: Species, nSpecies, usevMPF
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, RadialWeighting
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -700,7 +705,7 @@ CalcMeanFreePath = 0.0
 
 IF (nPart.LE.1 .OR. ALL(SpecPartNum.EQ.0.) .OR.Volume.EQ.0) RETURN
 ! Calculation of mixture reference diameter
-IF(RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   MacroParticleFactor = 1.
 ELSE
   MacroParticleFactor = Species(1)%MacroParticleFactor
@@ -766,61 +771,51 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iDOF, iPolyatMole
-REAL                  :: CharaTVib
+REAL                  :: CharaTVib, TempTrans, GammaVib
 !===================================================================================================================================
 
 ! Calculate GammaVib Factor  = Xi_Vib² * exp(CharaTVib/T_trans) / 2
 DO iSpec = 1, nSpecies
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    ! First, reset the GammaVib array/value
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-      CharaTVib = 0.
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-      DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        CharaTVib = MAX(CharaTVib,PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
-      END DO
-    ELSE
-      CharaTVib = SpecDSMC(iSpec)%CharaTVib
-    END IF
-    IF((DSMC%InstantTransTemp(iSpec).GT.0.0).AND.(CharaTVib/DSMC%InstantTransTemp(iSpec).LT.80)) THEN
-      ! If CharaTVib/DSMC%InstantTransTemp(iSpec) is too high the exp function can produce NAN
-      ! CharaTVib/DSMC%InstantTransTemp(iSpec)=80 results in a of GammaVib=2.31020977644213E-31
-      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-        IF (DSMC%PolySingleMode) THEN
-          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-            PolyatomMolDSMC(iPolyatMole)%GammaVib(iDOF) =                                                        &
-                (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (DSMC%InstantTransTemp(iSpec)              &
-                *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
-                * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec)) / 2.
-          END DO
-        ELSE
-          SpecDSMC(iSpec)%GammaVib = 0.0
-          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-            SpecDSMC(iSpec)%GammaVib = SpecDSMC(iSpec)%GammaVib &
-                + (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (DSMC%InstantTransTemp(iSpec)            &
-                *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
-                * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec)) / 2.
-          END DO
-        END IF
-      ELSE
-        SpecDSMC(iSpec)%GammaVib = (2.*SpecDSMC(iSpec)%CharaTVib / (DSMC%InstantTransTemp(iSpec)               &
-                                    *(EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
-                                    * EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec)) / 2.
-      END IF
-    ELSE ! Temperature to low
-      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-        IF (DSMC%PolySingleMode) THEN
-          PolyatomMolDSMC(iPolyatMole)%GammaVib = 0.
-        ELSE
-          SpecDSMC(iSpec)%GammaVib = 0.
-        END IF
+      IF (DSMC%PolySingleMode) THEN
+        PolyatomMolDSMC(iPolyatMole)%GammaVib = 0.
       ELSE
         SpecDSMC(iSpec)%GammaVib = 0.
       END IF
+    ELSE
+      SpecDSMC(iSpec)%GammaVib = 0.
     END IF
-  END IF
-END DO
+    TempTrans = DSMC%InstantTransTemp(iSpec)
+    IF(TempTrans.GT.0.0) THEN
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+        CharaTVib = MAXVAL(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+      ELSE
+        CharaTVib = SpecDSMC(iSpec)%CharaTVib
+      END IF
+      IF(CharaTVib/TempTrans.LT.80) THEN
+        ! If CharaTVib/TempTrans is too high the exp function can produce NAN
+        ! CharaTVib/TempTrans=80 results in a of GammaVib=2.31020977644213E-31
+        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+            CharaTVib = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+            GammaVib = (2.*CharaTVib / (TempTrans *(EXP(CharaTVib/TempTrans)-1.)))**2. * EXP(CharaTVib/TempTrans) / 2.
+            IF (DSMC%PolySingleMode) THEN
+              PolyatomMolDSMC(iPolyatMole)%GammaVib(iDOF) = GammaVib
+            ELSE
+              SpecDSMC(iSpec)%GammaVib = SpecDSMC(iSpec)%GammaVib + GammaVib
+            END IF
+          END DO
+        ELSE
+          CharaTVib = SpecDSMC(iSpec)%CharaTVib
+          SpecDSMC(iSpec)%GammaVib = (2.*CharaTVib / (TempTrans *(EXP(CharaTVib/TempTrans)-1.)))**2. * EXP(CharaTVib/TempTrans) / 2.
+        END IF
+      END IF  ! CharaTVib/TempTrans.LT.80
+    END IF    ! TempTrans.GT.0.0
+  END IF      ! (SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)
+END DO        ! iSpec = 1, nSpecies
 
 END SUBROUTINE CalcGammaVib
 

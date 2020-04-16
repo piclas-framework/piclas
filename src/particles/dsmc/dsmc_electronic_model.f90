@@ -116,7 +116,7 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi)
 ! Electronic energy exchange
 !===================================================================================================================================
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, VarTimeStep
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, VarTimeStep, usevMPF
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_part_tools              ,ONLY: GetParticleWeight
 #if (PP_TimeDiscMethod==42)
@@ -134,7 +134,7 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi)
   REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp, CollisionEnergy
 !===================================================================================================================================
 
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     CollisionEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart1)
   ELSE
     CollisionEnergy = Coll_pData(iPair)%Ec
@@ -487,40 +487,46 @@ REAL FUNCTION DiffElecEnergy(En1, En2)
 END FUNCTION DiffElecEnergy
 
 
-REAL FUNCTION CalcXiElec(Telec, iSpec)
+PURE REAL FUNCTION CalcXiElec(Telec, iSpec)
 !===================================================================================================================================
-! Calculation of the electronic degree of freedom
+!> Calculation of the electronic degree of freedom for a given temperature and species
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL, INTENT(IN)                :: Telec  !
-  INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
+REAL, INTENT(IN)                :: Telec  !
+INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-  INTEGER                         :: iQua
-  REAL                            :: SumOne, SumTwo
+INTEGER                         :: iQua
+REAL                            :: TempRatio, SumOne, SumTwo
 !===================================================================================================================================
 
-  SumOne = 0.0
-  SumTwo = 0.0
-  DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant-1
-    SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,iQua) * BoltzmannConst* SpecDSMC(iSpec)%ElectronicState(2,iQua) * &
-              EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua) / Telec)
-    SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua) / Telec)
-  END DO
-  CalcXiElec = 2. * SumOne / (SumTwo * BoltzmannConst * Telec)
+SumOne = 0.0
+SumTwo = 0.0
 
-  RETURN
+DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant-1
+  TempRatio = SpecDSMC(iSpec)%ElectronicState(2,iQua)/Telec
+  IF(CHECKEXP(TempRatio)) THEN
+    SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,iQua)*SpecDSMC(iSpec)%ElectronicState(2,iQua)*EXP(-TempRatio)
+    SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,iQua)*EXP(-TempRatio)
+  END IF
+END DO
+
+IF((SumOne.GT.0.0).AND.(SumTwo.GT.0.0)) THEN
+  CalcXiElec = 2. * SumOne / (SumTwo * Telec)
+ELSE
+  CalcXiElec = 0.0
+END IF
+
+RETURN
 
 END FUNCTION CalcXiElec
-
 
 END MODULE MOD_DSMC_ElectronicModel
