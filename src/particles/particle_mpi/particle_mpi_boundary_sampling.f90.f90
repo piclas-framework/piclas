@@ -492,7 +492,7 @@ IF (myComputeNodeRank.EQ.0) THEN
                   , IERROR)
   END DO ! iProc
 
-  ! Finish received number of particles
+  ! Finish received number of sampling surfaces
   DO iProc = 0,nSurfLeaders-1
     ! ignore myself
     IF (iProc.EQ.mySurfRank) CYCLE
@@ -510,6 +510,10 @@ IF (myComputeNodeRank.EQ.0) THEN
 
   ! add data do my list
   DO iProc = 0,nSurfLeaders-1
+    ! ignore myself
+    IF (iProc.EQ.mySurfRank) CYCLE
+
+    ! Only open recv buffer if we are expecting sides from this leader node
     IF (SurfMapping(iProc)%nRecvSurfSides.EQ.0) CYCLE
 
     iPos=0
