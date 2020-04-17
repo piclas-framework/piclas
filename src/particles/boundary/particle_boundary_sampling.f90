@@ -116,7 +116,7 @@ USE MOD_PICDepo_Vars            ,ONLY: SFResampleAnalyzeSurfCollis
 USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
 #if USE_MPI
 USE MOD_MPI_Shared              ,ONLY: Allocate_Shared
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPIRankLeader
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPIRankLeader,nLeaderGroupProcs
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeTotalSides,nNonUniqueGlobalSides
@@ -297,9 +297,13 @@ DO iSide = firstSide,lastSide
       GlobalSide2SurfSideProc(SURF_LEADER,iSide) = myLeaderGroupRank
     ELSE
       ! find the compute node
-      DO iLeader = 0,nLeaderProcs-1
+      DO iLeader = 0,nLeaderGroupProcs-2
+        ! The last proc is not a leader proc, so catch it separately
         IF ((GlobalElemRank.GE.MPIRankLeader(iLeader)).AND.(GlobalElemRank.LT.MPIRankLeader(iLeader+1))) THEN
           GlobalSide2SurfSideProc(SURF_LEADER,iSide) = iLeader
+          EXIT
+        ELSE
+          GlobalSide2SurfSideProc(SURF_LEADER,iSide) = nLeaderGroupProcs-1
           EXIT
         END IF
       END DO

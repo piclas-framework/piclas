@@ -405,7 +405,7 @@ MPISharedSize = INT((ELEM_HALOFLAG)*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_K
 CALL Allocate_Shared(MPISharedSize,(/ELEMINFOSIZE,nGlobalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemInfo_Shared_Win,IERROR)
 ElemInfo_Shared(1:ELEMINFOSIZE_H5,offsetElem+1:offsetElem+nElems) = ElemInfo(:,:)
-ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = 0
+ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = myRank
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
 ALLOCATE(ElemInfo_Shared_tmp(offsetElem+1:offsetElem+nElems))
 ElemInfo_Shared_tmp(offsetElem+1:offsetElem+nElems) = myRank
@@ -844,7 +844,7 @@ IF(myComputeNodeRank.EQ.0)THEN
   END DO
   recvcountElem(nLeaderGroupProcs-1) = nGlobalElems - displsElem(nLeaderGroupProcs-1)
 END IF
-  
+
 ! Broadcast compute node side offset on node
 offsetComputeNodeSide=offsetSideID
 CALL MPI_BCAST(offsetComputeNodeSide,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)

@@ -451,8 +451,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER                        :: iElem
-!INTEGER                        :: ElemID
+INTEGER                        :: iElem,ElemID
 REAL                           :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
 REAL                           :: Vdm_EQNGeo_CLN (0:PP_N ,0:NGeo)
 REAL                           :: Vdm_CLNloc_N   (0:PP_N ,0:PP_N)
@@ -482,18 +481,18 @@ CALL InitializeVandermonde(NGeo,NGeo,wBaryCL_NGeo,Xi_NGeo,XiCL_NGeo,Vdm_NGeo_CLN
 
 #if USE_MPI
 ! This is a trick. Allocate as 1D array and then set a pointer with the proper array bounds
-MPISharedSize = INT((3*(NGeo+1)**3*nComputeNodeElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/3*  (NGeo+1)*(NGeo+1)*(NGeo+1)*nComputeNodeElems/), XCL_NGeo_Shared_Win,XCL_NGeo_Array)
-MPISharedSize = INT((3*(PP_N+1)**3*nComputeNodeElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/3*  (PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeElems/), Elem_xGP_Shared_Win,Elem_xGP_Array)
-MPISharedSize = INT((3*3*(NGeo+1)**3*nComputeNodeElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/3*3*(NGeo+1)*(NGeo+1)*(NGeo+1)*nComputeNodeElems/),dXCL_NGeo_Shared_Win,dXCL_NGeo_Array)
+MPISharedSize = INT((3*(NGeo+1)**3*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3*  (NGeo+1)*(NGeo+1)*(NGeo+1)*nComputeNodeTotalElems/), XCL_NGeo_Shared_Win,XCL_NGeo_Array)
+MPISharedSize = INT((3*(PP_N+1)**3*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3*  (PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems/), Elem_xGP_Shared_Win,Elem_xGP_Array)
+MPISharedSize = INT((3*3*(NGeo+1)**3*nComputeNodeTotalElems),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3*3*(NGeo+1)*(NGeo+1)*(NGeo+1)*nComputeNodeTotalElems/),dXCL_NGeo_Shared_Win,dXCL_NGeo_Array)
 CALL MPI_WIN_LOCK_ALL(0,XCL_NGeo_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,Elem_xGP_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,dXCL_NGeo_Shared_Win,IERROR)
-XCL_NGeo_Shared (1:3    ,0:NGeo,0:NGeo,0:NGeo,1:nComputeNodeElems) => XCL_NGeo_Array
-Elem_xGP_Shared (1:3    ,0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeElems) => Elem_xGP_Array
-dXCL_NGeo_Shared(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nComputeNodeElems) => dXCL_NGeo_Array
+XCL_NGeo_Shared (1:3    ,0:NGeo,0:NGeo,0:NGeo,1:nComputeNodeTotalElems) => XCL_NGeo_Array
+Elem_xGP_Shared (1:3    ,0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeTotalElems) => Elem_xGP_Array
+dXCL_NGeo_Shared(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nComputeNodeTotalElems) => dXCL_NGeo_Array
 ! Copy local XCL and dXCL into shared
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
   DO iElem = 1, nElems
@@ -510,8 +509,8 @@ ELSE
 END IF
 nComputeNodeHaloElems = nComputeNodeTotalElems - nComputeNodeElems
 IF (nComputeNodeHaloElems.GT.nComputeNodeProcessors) THEN
-  firstHaloElem=INT(REAL(myComputeNodeRank*nComputeNodeHaloElems)/REAL(nComputeNodeProcessors))+1
-  lastHaloElem=INT(REAL((myComputeNodeRank+1)*nComputeNodeHaloElems)/REAL(nComputeNodeProcessors))
+  firstHaloElem = INT(REAL( myComputeNodeRank   *nComputeNodeHaloElems)/REAL(nComputeNodeProcessors))+1
+  lastHaloElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeHaloElems)/REAL(nComputeNodeProcessors))
 ELSE
   firstHaloElem = myComputeNodeRank + 1
   IF (myComputeNodeRank.LT.nComputeNodeHaloElems) THEN
@@ -538,12 +537,13 @@ ELSE
   CALL GetDerivativeMatrix(NGeo  , NodeTypeCL  , DCL_Ngeo)
 
   DO iElem = firstHaloElem, lastHaloElem
-    firstNodeID=ElemInfo_Shared(ELEM_FIRSTNODEIND,GetGlobalElemID(nComputeNodeElems+iElem))+1
+    ElemID = GetGlobalElemID(nComputeNodeElems+iElem)
+    firstNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+1
     nodeID = 0
     DO i = 0, NGeo
       DO j = 0, NGeo
         DO k = 0, NGeo
-          NodeCoordstmp(:,i,j,k) = NodeCoords_Shared(1,firstNodeID+NodeID)
+          NodeCoordstmp(:,i,j,k) = NodeCoords_Shared(:,firstNodeID+NodeID)
           nodeID = nodeID + 1
         END DO
       END DO
@@ -554,9 +554,12 @@ ELSE
     DO k=0,NGeo; DO j=0,NGeo; DO i=0,NGeo
       ! Matrix-vector multiplication
       DO ll=0,Ngeo
-        dXCL_NGeo_Shared(1,:,i,j,k,iElem) = dXCL_NGeo_Shared(1,:,i,j,k,iElem) + DCL_NGeo(i,ll)*XCL_NGeo_Shared(:,ll,j,k,iElem)
-        dXCL_NGeo_Shared(2,:,i,j,k,iElem) = dXCL_NGeo_Shared(2,:,i,j,k,iElem) + DCL_NGeo(j,ll)*XCL_NGeo_Shared(:,i,ll,k,iElem)
-        dXCL_NGeo_Shared(3,:,i,j,k,iElem) = dXCL_NGeo_Shared(3,:,i,j,k,iElem) + DCL_NGeo(k,ll)*XCL_NGeo_Shared(:,i,j,ll,iElem)
+        dXCL_NGeo_Shared(1,:,i,j,k,nComputeNodeElems+iElem) = dXCL_NGeo_Shared(1,:,i,j,k,nComputeNodeElems+iElem) + DCL_NGeo(i,ll) &
+                                                            *  XCL_NGeo_Shared(: ,ll,j,k,nComputeNodeElems+iElem)
+        dXCL_NGeo_Shared(2,:,i,j,k,nComputeNodeElems+iElem) = dXCL_NGeo_Shared(2,:,i,j,k,nComputeNodeElems+iElem) + DCL_NGeo(j,ll) &
+                                                            *  XCL_NGeo_Shared(: ,i,ll,k,nComputeNodeElems+iElem)
+        dXCL_NGeo_Shared(3,:,i,j,k,nComputeNodeElems+iElem) = dXCL_NGeo_Shared(3,:,i,j,k,nComputeNodeElems+iElem) + DCL_NGeo(k,ll) &
+                                                            *  XCL_NGeo_Shared(: ,i,j,ll,nComputeNodeElems+iElem)
       END DO !l=0,N
     END DO; END DO; END DO !i,j,k=0,Ngeo
     END DO ! iElem = firstHaloElem, lastHaloElem
@@ -1389,8 +1392,18 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
           ,slenXiEtaZetaBasis(1:6,1:nElems))
 #endif
 
-ElemRadiusNGeo =0.
-ElemRadius2NGeo=0.
+#if USE_MPI
+IF(myComputeNodeRank.EQ.0) THEN
+#endif
+  ElemRadiusNGeo =0.
+  ElemRadius2NGeo=0.
+#if USE_MPI
+END IF
+
+CALL MPI_WIN_SYNC(ElemRadiusNGeo_Shared_Win,IERROR)
+CALL MPI_WIN_SYNC(ElemRadius2NGeo_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif
 
 #if USE_MPI
 firstElem=INT(REAL( myComputeNodeRank*   nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
@@ -1507,7 +1520,16 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
           ,ElemRadius2NGeo( nElems)
 #endif
 
-ElemRadius2NGeo=0.
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /* USE_MPI*/
+  ElemRadius2NGeo = 0.
+#if USE_MPI
+END IF
+
+CALL MPI_WIN_SYNC(ElemRadius2NGeo_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /* USE_MPI*/
 
 #if USE_MPI
 firstElem=INT(REAL(myComputeNodeRank*    nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
@@ -1611,14 +1633,24 @@ CALL MPI_WIN_LOCK_ALL(0,ElemBaryNGeo_Shared_Win,IERROR)
 ASSOCIATE(XCL_NGeo => XCL_NGeo_Shared)
 
 ! Set ranges
-firstElem = INT(REAL(myComputeNodeRank*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
 #endif
 
-ElemBaryNGeo_Shared=0.
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /* USE_MPI*/
+  ElemBaryNGeo_Shared = 0.
+#if USE_MPI
+END IF
+
+CALL MPI_WIN_SYNC(ElemBaryNGeo_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /* USE_MPI*/
+
 DO iElem=firstElem,lastElem
   ! evaluate the polynomial at origin: Xi=(/0.0,0.0,0.0/)
   CALL LagrangeInterpolationPolys(0.0,NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
@@ -2241,6 +2273,8 @@ IF (halo_eps.EQ.0) THEN
     BC_halo_eps = DOT_PRODUCT(vec,vec)
     SWRITE(UNIT_stdOUt,'(A,F11.3)') ' | No halo_eps given and could not be reconstructed. Using global diag with ',BC_halo_eps
   END IF
+ELSE
+  BC_halo_eps = halo_eps
 END IF
 
 #else
