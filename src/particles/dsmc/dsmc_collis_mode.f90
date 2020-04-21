@@ -1108,7 +1108,10 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
               CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
-              IF(ChemReac%RecombParticle.EQ. 0) THEN
+              IF(ChemReac%RecombParticle.EQ.0) THEN
+                ! A pair was broken up before to use its first collision partner as a third recombination partner. Now that the
+                ! recombination occurred, the collision will not be performed anymore and the second collision partner is saved as
+                ! a possible third recombination partner
                 Coll_pData(PairForRec)%NeedForRec = .TRUE.
                 ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
                 ChemReac%nPairForRec = ChemReac%nPairForRec + 1
@@ -1119,6 +1122,16 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
               ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
+              ! Reset the recombination particle in the case of a reservoir simulation, where the reaction is not performed
+              IF (DSMC%ReservoirSimuRate) THEN
+                IF(ChemReac%RecombParticle.EQ.0) THEN
+                  Coll_pData(PairForRec)%NeedForRec = .TRUE.
+                  ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                  ChemReac%nPairForRec = ChemReac%nPairForRec + 1
+                ELSE
+                  ChemReac%RecombParticle = 0
+                END IF
+              END IF
             END IF
 #endif
             RelaxToDo = .FALSE.
