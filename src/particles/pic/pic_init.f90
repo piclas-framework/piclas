@@ -232,7 +232,7 @@ USE MOD_Globals
 USE MOD_PICInterpolation_Vars,  ONLY: externalField
 USE MOD_PICInterpolation       ,ONLY: InitializeParticleInterpolation
 USE MOD_PICDepo                ,ONLY: InitializeDeposition
-USE MOD_PIC_Vars ,              ONLY: PICInitIsDone, PIC
+USE MOD_PIC_Vars ,              ONLY: PICInitIsDone
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -251,9 +251,6 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PIC ...'
 
 CALL InitializeParticleInterpolation()
 CALL InitializeDeposition()
-
-! So far, nothing to do here...
-IF (externalField(6).NE.0) PIC%GyroVecDirSIGN = -externalField(6)/(ABS(externalField(6)))
 
 PICInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PIC DONE!'

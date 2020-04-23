@@ -2056,7 +2056,8 @@ __STAMP__&
     IF (TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).EQ.'constant' &
       .AND. .NOT.Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit &
       .AND. .NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
-      CALL SetParticleVelocity(iSpec,iSF,NbrOfParticle,2)
+  !#'TODO'
+!      CALL SetParticleVelocity(iSpec,iSF,NbrOfParticle,2)    
     END IF
     CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
     IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(iSpec,NbrOfParticle)

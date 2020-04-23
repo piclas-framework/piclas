@@ -46,10 +46,6 @@ INTERFACE CalcVelocity_taylorgreenvortex
   MODULE PROCEDURE CalcVelocity_taylorgreenvortex
 END INTERFACE
 
-INTERFACE CalcVelocity_emmert
-  MODULE PROCEDURE CalcVelocity_emmert
-END INTERFACE
-
 INTERFACE SamplePoissonDistri
   MODULE PROCEDURE SamplePoissonDistri
 END INTERFACE
@@ -85,7 +81,7 @@ END INTERFACE
 #endif /*CODE_ANALYZE*/
 
 !===================================================================================================================================
-PUBLIC :: CalcVelocity_taylorgreenvortex, CalcVelocity_emmert
+PUBLIC :: CalcVelocity_taylorgreenvortex, CalcVelocity_gyrotroncircle
 PUBLIC :: IntegerDivide,SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn,SamplePoissonDistri
 PUBLIC :: BessK,DEVI,SYNGE,QUASIREL
 PUBLIC :: SetCellLocalParticlePosition,InsideExcludeRegionCheck
@@ -384,7 +380,6 @@ Vec3D(1:3) = Vec3D(1:3) + v_drift
 
 END SUBROUTINE CalcVelocity_maxwell_lpn
 
-
 SUBROUTINE CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit, Element)
 !===================================================================================================================================
 ! Subroutine to sample current cell values (partly copied from 'LD_DSMC_Mean_Bufferzone_A_Val' and 'dsmc_analyze')
@@ -396,7 +391,7 @@ USE MOD_Particle_Vars      ,ONLY: Species
 USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 INTEGER,INTENT(IN)               :: FractNbr
-INTEGER,INTENT(IN), OPTIONAL     :: iInit
+INTEGER,INTENT(IN)               :: iInit
 INTEGER                          :: Element
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -458,97 +453,109 @@ Vec3D(1:3) = Vec3D(1:3) + v_drift
 
 END SUBROUTINE CalcVelocity_taylorgreenvortex
 
-
-SUBROUTINE CalcVelocity_emmert(FractNbr, iInit, Vec3D)
+SUBROUTINE CalcVelocity_gyrotroncircle(FractNbr, Vec3D, iInit, iPart)
 !===================================================================================================================================
-! Subroutine to sample particle velos in VecIC from distri by Emmert et al. [Phys. Fluids 23, 803 (1980)] and in normal dir. from MB
+! Subroutine to sample current cell values (partly copied from 'LD_DSMC_Mean_Bufferzone_A_Val' and 'dsmc_analyze')
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-USE MOD_Particle_Vars,          ONLY : Species!, DoZigguratSampling
-!USE Ziggurat,                   ONLY : rnor
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: FractNbr, iInit
+USE MOD_Particle_Vars      ,ONLY: Species, PartState
+USE MOD_PICInterpolation_vars ,ONLY: externalField
+INTEGER,INTENT(IN)               :: FractNbr, iPart
+INTEGER,INTENT(IN)               :: iInit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                 :: Vec3D(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                             :: RandVal(3), Velo1, Velo2, Velosq, T, v_dir(3), vec_t1(3), vec_t2(3), v_d
+REAL                 :: r1, r2, x_1, y_1, x_2, y_2, a, b, e, f, g, x_01, x_02, y_01, y_02, RandVal1, Radius(3), n_vec(3), tan_vec(3)
+REAL                 :: NormalIC(1:3), RadiusIC, RadiusICGyro, Alpha, GyroVecDirSIGN, VeloIC
 !===================================================================================================================================
-
-T=Species(FractNbr)%Init(iInit)%MWTemperatureIC
-v_dir=Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
-v_d=Species(FractNbr)%Init(iInit)%VeloIC
-
-!--build arbitrary vectors normal to v_dir
-IF (.NOT.ALMOSTEQUAL(v_dir(3),0.)) THEN
-  vec_t1(1) = 1.0
-  vec_t1(2) = 1.0
-  vec_t1(3) = -(v_dir(1)+v_dir(2))/v_dir(3)
-  vec_t2(1) = v_dir(2) * vec_t1(3) - v_dir(3)
-  vec_t2(2) = v_dir(3) - v_dir(1) * vec_t1(3)
-  vec_t2(3) = v_dir(1) - v_dir(2)
-  vec_t1 = vec_t1 / SQRT(2.0 + vec_t1(3)*vec_t1(3))
-ELSE
-  IF (.NOT.ALMOSTEQUAL(v_dir(2),0.)) THEN
-    vec_t1(1) = 1.0
-    vec_t1(3) = 1.0
-    vec_t1(2) = -(v_dir(1)+v_dir(3))/v_dir(2)
-    vec_t2(1) = v_dir(2) - v_dir(3) * vec_t1(2)
-    vec_t2(2) = v_dir(3) - v_dir(1)
-    vec_t2(3) = v_dir(1) * vec_t1(2) - v_dir(2)
-    vec_t1 = vec_t1 / SQRT(2.0 + vec_t1(2)*vec_t1(2))
+!! Position of particle on gyro circle changed in SetParticlePosition.F90: Problem
+!! We don't have the radius-vector any more. Thus transport the radius vector from there to here.
+! Or do Alternative way: Hack the radius by intersecting two circles (big IC and small gyro circle)
+  IF (externalField(6).NE.0) THEN
+    GyroVecDirSIGN = -externalField(6)/(ABS(externalField(6)))
   ELSE
-    IF (.NOT.ALMOSTEQUAL(v_dir(1),0.)) THEN
-      vec_t1(2) = 1.0
-      vec_t1(3) = 1.0
-      vec_t1(1) = -(v_dir(2)+v_dir(3))/v_dir(1)
-      vec_t2(1) = v_dir(2) - v_dir(3)
-      vec_t2(2) = v_dir(3) * vec_t1(1) - v_dir(1)
-      vec_t2(3) = v_dir(1) - v_dir(2) * vec_t1(1)
-      vec_t1 = vec_t1 / SQRT(2.0 + vec_t1(1)*vec_t1(1))
-    ELSE
-      CALL abort(&
-__STAMP__&
-,'Error in CalcVelocity_emmert, VeloVecIC is zero!')
-    END IF
+    GyroVecDirSIGN = -1.
   END IF
-END IF
-vec_t2 = vec_t2 / SQRT(vec_t2(1)*vec_t2(1) + vec_t2(2)*vec_t2(2) + vec_t2(3)*vec_t2(3))
+  NormalIC=Species(FractNbr)%Init(iInit)%NormalIC(1:3)
+  RadiusIC=Species(FractNbr)%Init(iInit)%RadiusIC
+  RadiusICGyro=Species(FractNbr)%Init(iInit)%RadiusICGyro
+  Alpha=Species(FractNbr)%Init(iInit)%alpha
+  VeloIC=Species(FractNbr)%Init(iInit)%VeloIC
+  r1 = RadiusIC
+  r2 = RadiusICGyro
+  x_1 = 0.
+  y_1 = 0.
+  x_2 = PartState(1,iPart)
+  y_2 = PartState(2,iPart)
+  IF (x_1 .eq. x_2) THEN
+    a = (x_1 - x_2)/(y_2-y_1)
+    b = ((r1**2-r2**2)-(x_1**2-x_2**2)-(y_1**2-y_2**2))&
+    & /(2.*y_2-2.*y_1)
+    e = (a**2+1.)
+    f = (2.*a*(b-y_1))-2.*x_1
+    g = (b-y_1)**2-r1**2+x_1**2
+    ! intersection points
+    x_01 = (-f + SQRT(ABS(f**2 - 4. * e * g)))/(2.*e) ! the term in SQRT can be -0.0 , therefore the ABS
+    x_02 = (-f - SQRT(ABS(f**2 - 4. * e * g)))/(2.*e) ! the term in SQRT can be -0.0 , therefore the ABS
+    y_01 = x_01 * a + b
+    y_02 = x_02 * a + b
+  ELSE
+    a = (y_1 - y_2)/(x_2-x_1)
+    b = ((r1**2 - r2**2)-(x_1**2-x_2**2)-(y_1**2-y_2**2))&
+    & /(2.*x_2 - 2. * x_1)
+    e = (a**2 + 1.)
+    f = 2. * a * (b - x_1) -2 *y_1
+    g = (b-x_1)**2 - r1**2 + y_1**2
+    y_01 = (-f + SQRT(ABS(f**2 - 4. * e * g)))/(2.*e) ! the term in SQRT can be -0.0 , therefore the ABS
+    y_02 = (-f - SQRT(ABS(f**2 - 4. * e * g)))/(2.*e) ! the term in SQRT can be -0.0 , therefore the ABS
+    x_01 = y_01 * a + b
+    x_02 = y_02 * a + b
+  END IF
+  CALL RANDOM_NUMBER(RandVal1)
+  IF (RandVal1 .ge. 0.5) THEN
+    Radius(1) = PartState(1,iPart) - x_01
+    Radius(2) = PartState(2,iPart) - y_01
+  ELSE
+    Radius(1) = PartState(1,iPart) - x_02
+    Radius(2) = PartState(2,iPart) - y_02
+  END IF
 
-!--sample velocities
-!IF (.NOT.DoZigguratSampling) THEN !polar method
-  Velosq = 2
-  DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-    CALL RANDOM_NUMBER(RandVal)
-    Velo1 = 2.*RandVal(1) - 1.
-    Velo2 = 2.*RandVal(2) - 1.
-    Velosq = Velo1**2 + Velo2**2
-  END DO
-  Vec3D(1:3) =              vec_t1(1:3)*Velo1*SQRT(-2*BoltzmannConst*T/ &
-    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !n1-Komponente (maxwell_lpn)
-  Vec3D(1:3) = Vec3D(1:3) + vec_t2(1:3)*Velo2*SQRT(-2*BoltzmannConst*T/ &
-    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !n2-Komponente (maxwell_lpn)
-!ELSE !ziggurat method
-!  Velo1=rnor()
-!  Vec3D(1:3) =              vec_t1(1:3)*Velo1*SQRT(BoltzmannConst*T/ &
-!    Species(FractNbr)%MassIC)                                !n1-Komponente (maxwell_lpn)
-!  Velo2=rnor()
-!  Vec3D(1:3) = Vec3D(1:3) + vec_t2(1:3)*Velo2*SQRT(BoltzmannConst*T/ &
-!    Species(FractNbr)%MassIC)                                !n2-Komponente (maxwell_lpn)
-!END IF
-Vec3D(1:3) = Vec3D(1:3) + v_dir(1:3)*SQRT(BoltzmannConst*T/Species(FractNbr)%MassIC)* &                ! (emmert)
-  sign(1.d0,RandVal(3)-0.5d0)*SQRT(-2*log(1-sign(1.d0,RandVal(3)-0.5d0)*(2*RandVal(3)-1)))
+  Radius(3) = 0.
+  !Check if Radius has correct length
+  IF ((SQRT(Radius(1)**2+Radius(2)**2)-r1).ge.1E-15) THEN
+    IPWRITE(UNIT_stdOut,*)"Error in setparticle velocity, gyrotron circle. &
+    & Radius too big after intersection."
+  END IF
+  !  Normal Vector of circle
+  n_vec(1:3) = NormalIC(1:3)
+  Radius(1:3) = Radius(1:3) / SQRT(Radius(1)**2+Radius(2)**2+Radius(3)**2)
+  !  Vector Product rxn
+  tan_vec(1) = Radius(2)*n_vec(3) * GyroVecDirSIGN - Radius(3)*n_vec(2)
+  tan_vec(2) = Radius(3)*n_vec(1) - Radius(1)*n_vec(3) * GyroVecDirSIGN
+  tan_vec(3) = Radius(1)*n_vec(2) - Radius(2)*n_vec(1)
+  ! If Gyrotron resonator: Add velocity in normal direction!
+  IF (Alpha .gt. 0.) THEN
+    n_vec = n_vec * ( 1. / Alpha )
+  ELSE
+    n_vec = 0.
+  END IF
 
-Vec3D(1:3) = Vec3D(1:3) + v_dir(1:3)*v_d
+  Vec3D(1:3) = (tan_vec(1:3) + n_vec(1:3)) * VeloIC
 
-END SUBROUTINE CalcVelocity_emmert
+  IF (ABS(SQRT(Vec3D(1)*Vec3D(1) + Vec3D(2)*Vec3D(2))- VeloIC) .GT. 10.) THEN
+    SWRITE(*,'(A,3(E21.14,X))') 'Velocity=', PartState(4:6,iPart)
+    CALL abort(&
+    __STAMP__&
+    ,'ERROR in gyrotron_circle spaceIC!',iPart)
+  END If
+  IF (Vec3D(1).NE.Vec3D(1).OR.Vec3D(2).NE.Vec3D(2).OR.Vec3D(3).NE.Vec3D(3)) THEN
+    SWRITE(*,'(A,3(E21.14,X))') 'WARNING:! NaN: Velocity=', Vec3D(1:3)
+  END If
 
+END SUBROUTINE CalcVelocity_gyrotroncircle
 
 FUNCTION BessK(ord,arg)
 !===================================================================================================================================
