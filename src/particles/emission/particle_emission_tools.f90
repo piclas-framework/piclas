@@ -1053,5 +1053,48 @@ END IF
 END FUNCTION CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
 
+PURE FUNCTION CalcLaserIntensity(x,x_norm)
+
+! lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
+!   Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
+! lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
+!   Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(3)
+! lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
+!   Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
+
+! basePoint = Species(iSpec)%Init(iInit)%BasePointIC
+
+! IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
+!   CALL abort(&
+!     __STAMP__&
+!     ,'BaseVectors are parallel!')
+! ELSE
+!   lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
+!     lineVector(3) * lineVector(3))
+! END IF
+
+! basePointToPos(1:3) = position(1:3) - basePoint(1:3)
+
+! radius = SQRT(DOTPRODUCT(basePointToPos)**2-(DOT_PRODUCT(lineVector,basePointToPos))**2)
+
+!===================================================================================================================================
+!> 
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)         :: x, x_norm
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                     :: CalcLaserIntensity
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+CalcLaserIntensity = EXP(-(x/x_norm)**2)
+
+END FUNCTION CalcLaserIntensity
 
 END MODULE MOD_part_emission_tools

@@ -187,6 +187,10 @@ __STAMP__&
   RETURN
 END IF
 
+IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') THEN
+
+END IF
+
 
 PartIns=0.
 lineVector = 0.0
