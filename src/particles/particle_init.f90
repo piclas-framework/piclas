@@ -134,9 +134,6 @@ CALL prms%CreateRealArrayOption('Part-PeriodicVector[$]'      , 'TODO-DEFINE-PAR
 CALL prms%CreateRealOption(     'Part-DelayTime'              , "TODO-DEFINE-PARAMETER\n"//&
                                                                 "During delay time the particles,"//&
                                                                     " won't be moved so the EM field can be evolved", '0.0')
-CALL prms%CreateLogicalOption(  'Particles-OutputVpiWarnings' , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Flag for warnings for rejected'//&
-                                                                ' v if VPI+PartDensity', '.FALSE.')
 
 CALL prms%CreateRealOption(     'Part-SafetyFactor'           , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Factor to scale the halo region with MPI'&
@@ -283,15 +280,6 @@ CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-velocityDistribution'  
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Specifying keyword for velocity distribution', 'constant'&
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-rotation' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Direction of rotation, similar to TE-mode', '1', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-velocityspread' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Velocity spread in percent', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-velocityspreadmethod' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Method to compute the velocity spread', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-InflowRiseTime' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Time to ramp the number of inflow particles linearly from zero to unity'&
@@ -364,70 +352,18 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-MWTemperatureIC' &
                                   'Temperature for Maxwell Distribution', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-PartDensity' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'PartDensity (real particles per m^3) or (vpi_)cub./cyl. '//&
-                                  'as alternative to Part.Emis. in Type1 ', '0.', numberedmulti=.TRUE.)
+                                  'PartDensity (real particles per m^3)', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-ParticleEmissionType'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Emission Type \n'//&
                                   '1 = emission rate in 1/s,\n'//&
-                                  '2 = emission rate 1/iteration\n'//&
-                                  '3 = user def. emission rate\n'//&
-                                  '4 = const. cell pressure\n'//&
-                                  '5 = cell pres. w. complete part removal\n'//&
-                                  '6 = outflow BC (characteristics method)', '2', numberedmulti=.TRUE.)
+                                  '2 = emission rate 1/iteration\n', '2', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ParticleEmission' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Emission in [1/s] or [1/Iteration]', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-NumberOfExcludeRegions'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Number of different regions to be excluded', '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-MJxRatio' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'x direction portion of velocity for Maxwell-Juettner', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-MJyRatio' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'y direction portion of velocity for Maxwell-Juettner', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-MJzRatio' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'z direction portion of velocity for Maxwell-Juettner', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-WeibelVeloPar' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Parallel velocity component for Weibel', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-WeibelVeloPer' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Perpendicular velocity component for Weibel', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-OneDTwoStreamVelo' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Stream Velocity for the Two Stream Instability', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-OneDTwoStreamTransRatio' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Ratio between perpendicular and parallel velocity', '0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-vpiDomainType'  &
-                                   , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Specifying Keyword for virtual Pre-Inserting region\n'//&
-                                  'implemented: - perpendicular_extrusion (default)\n'//&
-                                  ' - freestream\n'//&
-                                  ' - orifice\n'//&
-                                  ' - ...more following...\n'&
-                                  , 'perpendicular_extrusion', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Init[$]-vpiBV1BufferNeg' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'incl. buffer region in -BV1 direction?', '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Init[$]-vpiBV1BufferPos' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'incl. buffer region in +BV1 direction?', '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Init[$]-vpiBV2BufferNeg' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'incl. buffer region in -BV2 direction?', '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Init[$]-vpiBV2BufferPos' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'incl. buffer region in +BV2 direction?', '.TRUE.', numberedmulti=.TRUE.)
 
 CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-MacroRestartFileID'  &
                                 , 'Define File ID of file used for Elem specific cell_local init of all macroscopic values' &
@@ -2270,14 +2206,6 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution'&
         ,'maxwell_lpn'))
     END IF
-    IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'tangential_constant')THEN
-      Species(iSpec)%Init(iInit)%Rotation        = GETINT('Part-Species'//TRIM(hilf2)//'-rotation','1')
-      Species(iSpec)%Init(iInit)%VelocitySpread  = GETREAL('Part-Species'//TRIM(hilf2)//'-velocityspread','0.')
-      IF(Species(iSpec)%Init(iInit)%VelocitySpread.LT.0. .OR. Species(iSpec)%Init(iInit)%VelocitySpread.GT.1.) CALL abort(&
-__STAMP__&
-          ,' Wrong input parameter for VelocitySpread in [0;1].')
-      Species(iSpec)%Init(iInit)%VelocitySpreadMethod  = GETINT('Part-Species'//TRIM(hilf2)//'-velocityspreadmethod','0')
-    END IF
     Species(iSpec)%Init(iInit)%InflowRiseTime        = GETREAL('Part-Species'//TRIM(hilf2)//'-InflowRiseTime','0.')
     IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
       Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
@@ -2332,19 +2260,6 @@ __STAMP__&
     Species(iSpec)%Init(iInit)%NumberOfExcludeRegions= GETINT('Part-Species'//TRIM(hilf2)//'-NumberOfExcludeRegions','0')
     Species(iSpec)%Init(iInit)%InsertedParticle      = 0
     Species(iSpec)%Init(iInit)%InsertedParticleSurplus = 0
-    IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell-juettner') THEN
-      Species(iSpec)%Init(iInit)%MJxRatio       = GETREAL('Part-Species'//TRIM(hilf2)//'-MJxRatio','0')
-      Species(iSpec)%Init(iInit)%MJyRatio       = GETREAL('Part-Species'//TRIM(hilf2)//'-MJyRatio','0')
-      Species(iSpec)%Init(iInit)%MJzRatio       = GETREAL('Part-Species'//TRIM(hilf2)//'-MJzRatio','0')
-    END IF
-    IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'weibel') THEN
-      Species(iSpec)%Init(iInit)%WeibelVeloPar       = GETREAL('Part-Species'//TRIM(hilf2)//'-WeibelVeloPar','0')
-      Species(iSpec)%Init(iInit)%WeibelVeloPer       = GETREAL('Part-Species'//TRIM(hilf2)//'-WeibelVeloPer','0')
-    END IF
-    IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ. 'OneD-twostreaminstabilty') THEN
-      Species(iSpec)%Init(iInit)%OneDTwoStreamVelo   = GETREAL('Part-Species'//TRIM(hilf2)//'-OneDTwoStreamVelo','0')
-      Species(iSpec)%Init(iInit)%OneDTwoStreamTransRatio = GETREAL('Part-Species'//TRIM(hilf2)//'-OneDTwoStreamTransRatio','0')
-    END IF
 
     !----------- various checks/calculations after read-in of Species(i)%Init(iInit)%-data ----------------------------------!
     !--- Check if Initial ParticleInserting is really used
@@ -2410,7 +2325,6 @@ __STAMP__&
       Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2) + &
       Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
     IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder')&
-        .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_vpi') &
         .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
         Species(iSpec)%Init(iInit)%BaseVector1IC =&
                   Species(iSpec)%Init(iInit)%RadiusIC * Species(iSpec)%Init(iInit)%BaseVector1IC /     &
@@ -2435,9 +2349,7 @@ __STAMP__&
       ALLOCATE(Species(iSpec)%Init(iInit)%ExcludeRegion(1:Species(iSpec)%Init(iInit)%NumberOfExcludeRegions))
       IF (((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') &
       .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder') &
-      .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) &
-      .OR.((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_vpi') &
-       .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_vpi'))) THEN
+      .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere'))) THEN
         DO iExclude=1,Species(iSpec)%Init(iInit)%NumberOfExcludeRegions
           WRITE(UNIT=hilf3,FMT='(I0)') iExclude
           hilf3=TRIM(hilf2)//'-ExcludeRegion'//TRIM(hilf3)
@@ -2518,7 +2430,7 @@ __STAMP__&
       ELSE
         CALL abort(&
 __STAMP__&
-,'Error in ParticleInit, ExcludeRegions are currently only implemented for the SpaceIC cuboid(_vpi) or cylinder(_vpi)!')
+,'Error in ParticleInit, ExcludeRegions are currently only implemented for the SpaceIC cuboid, sphere or cylinder!')
       END IF
     END IF
     !--- stuff for calculating ParticleEmission/InitialParticleNumber from PartDensity
@@ -2538,8 +2450,7 @@ __STAMP__&
           .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
         IF  ((((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell') ) &
-          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) &
-          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'emmert') ) THEN
+          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) ) THEN
           IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
             CALL abort(&
 __STAMP__&
@@ -2567,7 +2478,7 @@ __STAMP__&
               ELSE
                 CALL abort(&
 __STAMP__&
-                  ,'PartDensity is only supported for CalcHeightFromDt, vpi, or initial ParticleInserting!')
+                  ,'PartDensity is only supported for CalcHeightFromDt, or initial ParticleInserting!')
               END IF
             END IF
             IF ( TRIM(Species(iSpec)%Init(iInit)%SpaceIC) .EQ. 'cylinder' ) THEN

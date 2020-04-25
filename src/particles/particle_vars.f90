@@ -132,11 +132,8 @@ TYPE tInit                                                                   ! P
   REAL                                   :: RadiusIC                         ! Radius for IC circle
   REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder (ring)
   REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
-  INTEGER                                :: Rotation                         ! direction of rotation, similar to TE-mode
-  INTEGER                                :: VelocitySpreadMethod             ! method to compute the velocity spread
   REAL                                   :: InflowRiseTime                   ! time to ramp the number of inflow particles
                                                                              ! linearly from zero to unity
-  REAL                                   :: VelocitySpread                   ! velocity spread in percent
   REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
   REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
   REAL                                   :: BaseVector1IC(3)                 ! first base vector for IC cuboid
@@ -155,13 +152,6 @@ TYPE tInit                                                                   ! P
   INTEGER                                :: maxParticleNumberX               ! Maximum Number of all Particles in x direction
   INTEGER                                :: maxParticleNumberY               ! Maximum Number of all Particles in y direction
   INTEGER                                :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction
-  REAL                                   :: MJxRatio                         ! x direction portion of velocity for Maxwell-Juettner
-  REAL                                   :: MJyRatio                         ! y direction portion of velocity for Maxwell-Juettner
-  REAL                                   :: MJzRatio                         ! z direction portion of velocity for Maxwell-Juettner
-  REAL                                   :: WeibelVeloPar                    ! Parallel velocity component for Weibel
-  REAL                                   :: WeibelVeloPer                    ! Perpendicular velocity component for Weibel
-  REAL                                   :: OneDTwoStreamVelo                ! Stream Velocity for the Two Stream Instability
-  REAL                                   :: OneDTwoStreamTransRatio          ! Ratio between perpendicular and parallel velocity
   REAL                                   :: Alpha                            ! WaveNumber for sin-deviation initiation.
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
   REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) 
