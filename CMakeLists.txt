@@ -643,6 +643,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # collect all F90 files needed for libpiclasstatic
 FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
+                            ./src/readIMD/*.f90
                                 ./src/analyze/*.f90
                                 ./src/filter/*.f90
                                 ./src/globals/*.f90

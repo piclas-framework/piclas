@@ -194,7 +194,7 @@ USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
-USE MOD_Particle_Vars         ,ONLY: Species,nSpecies, VarTimeStep, PDM
+USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep, PDM, usevMPF
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
@@ -556,7 +556,7 @@ END IF
 
 
 IF(CalcReacRates) THEN
-  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     CALL abort(&
       __STAMP__&
       ,'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
@@ -2028,7 +2028,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars         ,ONLY: Species,usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_DSMC_Vars             ,ONLY: BGGas, RadialWeighting
-USE MOD_Particle_Vars         ,ONLY: nSpecies
+USE MOD_Particle_Vars         ,ONLY: nSpecies, usevMPF
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2067,31 +2067,33 @@ END SUBROUTINE CalcNumberDensity
 
 SUBROUTINE CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec)
 !===================================================================================================================================
-! computes the temperature, subroutine performs all the MPI communication, do to it at ONE place and CORRECT
+!> Computes the species-specific and mixture temperature (MPI communication is in the respective subroutines)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_PARTICLE_Vars         ,ONLY: nSpecies
-USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
-USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, PolyatomMolDSMC,CollisMode
-USE MOD_DSMC_ElectronicModel  ,ONLY: CalcXiElec
+USE MOD_PARTICLE_Vars             ,ONLY: nSpecies
+USE MOD_Particle_Analyze_Vars     ,ONLY: nSpecAnalyze
+USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, CollisMode
+USE MOD_DSMC_ElectronicModel      ,ONLY: CalcXiElec
+USE MOD_DSMC_Relaxation           ,ONLY: CalcXiVib
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-REAL, INTENT(IN)                   :: NumSpec(nSpecAnalyze)    ! number of real particles (already GLOBAL number)
+REAL, INTENT(IN)                  :: NumSpec(nSpecAnalyze)    ! number of real particles (already GLOBAL number)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)                  :: Temp(nSpecAnalyze)
-REAL, INTENT(OUT)                  :: IntEn(nSpecAnalyze,3)
-REAL, INTENT(OUT)                  :: IntTemp(nSpecies,3)
-REAL, INTENT(OUT)                  :: TempTotal(nSpecAnalyze)
-REAL, INTENT(OUT)                  :: Xi_Vib(nSpecies), Xi_Elec(nSpecies)
+REAL, INTENT(OUT)                 :: Temp(nSpecAnalyze)
+REAL, INTENT(OUT)                 :: IntEn(nSpecAnalyze,3)
+REAL, INTENT(OUT)                 :: IntTemp(nSpecies,3)
+REAL, INTENT(OUT)                 :: TempTotal(nSpecAnalyze)
+REAL, INTENT(OUT)                 :: Xi_Vib(nSpecies), Xi_Elec(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                            :: iPolyatMole,iDOF,iSpec
+INTEGER                           :: iSpec
+REAL                              :: TempTotalDOF, XiTotal
 !===================================================================================================================================
 
 CALL CalcTransTemp(NumSpec, Temp)
@@ -2103,32 +2105,23 @@ IF (CollisMode.GT.1) THEN
     Xi_Vib = 0.0
     Xi_Elec = 0.0
     DO iSpec = 1, nSpecies
+      TempTotalDOF = 3.*Temp(iSpec)
+      XiTotal = 3.
+      ! If the species is molecular, add the vibrational energy to the temperature calculation
       IF(((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)).AND.(NumSpec(iSpec).GT.0)) THEN
-        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-          IF(IntTemp(iSpec,1).GT.0) THEN
-            iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-            DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-              Xi_Vib(iSpec) = Xi_Vib(iSpec) + 2*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/IntTemp(iSpec,1) &
-                            /(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/IntTemp(iSpec,1)) - 1)
-            END DO
-          ELSE
-            Xi_Vib(iSpec) = 0.0
-          END IF
-        ELSE
-          IF(IntTemp(iSpec,1).GT.0) THEN
-            Xi_Vib(iSpec) = 2*SpecDSMC(iSpec)%CharaTVib/IntTemp(iSpec,1)/(EXP(SpecDSMC(iSpec)%CharaTVib/IntTemp(iSpec,1)) - 1)
-          ELSE
-            Xi_Vib(iSpec) = 0.0
-          END IF
-        END IF
-        IF(IntTemp(iSpec,3).GT.0.0) Xi_Elec(iSpec) = CalcXiElec(IntTemp(iSpec,3), iSpec)
-        TempTotal(iSpec) = (3*Temp(iSpec)+SpecDSMC(iSpec)%Xi_Rot*IntTemp(iSpec,2) &
-                            + Xi_Vib(iSpec)*IntTemp(iSpec,1) + Xi_Elec(iSpec)*IntTemp(iSpec,3)) &
-                            / (3+SpecDSMC(iSpec)%Xi_Rot+Xi_Vib(iSpec)+Xi_Elec(iSpec))
-      ELSE
-        IF(IntTemp(iSpec,3).GT.0.0) Xi_Elec(iSpec) = CalcXiElec(IntTemp(iSpec,3), iSpec)
-        TempTotal(iSpec) = (3*Temp(iSpec) + Xi_Elec(iSpec)*IntTemp(iSpec,3)) / (3+Xi_Elec(iSpec))
+        CALL CalcXiVib(IntTemp(iSpec,1), iSpec, XiVibTotal=Xi_Vib(iSpec))
+        XiTotal = XiTotal + SpecDSMC(iSpec)%Xi_Rot + Xi_Vib(iSpec)
+        TempTotalDOF = TempTotalDOF + SpecDSMC(iSpec)%Xi_Rot*IntTemp(iSpec,2) + Xi_Vib(iSpec)*IntTemp(iSpec,1)
       END IF
+      ! If electronic energy is greater zero, added it to the temperature calculation
+      IF(IntTemp(iSpec,3).GT.0.) THEN
+        Xi_Elec(iSpec) = CalcXiElec(IntTemp(iSpec,3), iSpec)
+        XiTotal = XiTotal + Xi_Elec(iSpec)
+        TempTotalDOF = TempTotalDOF + Xi_Elec(iSpec)*IntTemp(iSpec,3)
+      END IF
+      ! Calculate the species-specific total temperature
+      TempTotal(iSpec) = TempTotalDOF / XiTotal
+      ! Calculate the total temperature of the mixture (weighted with the particle number)
       IF(nSpecAnalyze.GT.1)THEN
         TempTotal(nSpecAnalyze) = TempTotal(nSpecAnalyze) + TempTotal(iSpec)*NumSpec(iSpec)
       END IF

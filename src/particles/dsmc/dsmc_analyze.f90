@@ -57,8 +57,12 @@ INTERFACE CalcInstantTransTemp
   MODULE PROCEDURE CalcInstantTransTemp
 END INTERFACE
 
-INTERFACE SamplingRotVibRelaxProb
-  MODULE PROCEDURE SamplingRotVibRelaxProb
+INTERFACE SummarizeQualityFactors
+  MODULE PROCEDURE SummarizeQualityFactors
+END INTERFACE
+
+INTERFACE DSMCMacroSampling
+  MODULE PROCEDURE DSMCMacroSampling
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -68,7 +72,7 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMCHO_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
 PUBLIC :: CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly, InitHODSMC, WriteDSMCHOToHDF5, CalcGammaVib
-PUBLIC :: CalcInstantTransTemp, SamplingRotVibRelaxProb
+PUBLIC :: CalcInstantTransTemp, SummarizeQualityFactors, DSMCMacroSampling
 !===================================================================================================================================
 
 CONTAINS
@@ -567,37 +571,39 @@ USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)                :: MeanEelec  ! Charak TVib, mean vibrational Energy of all molecules
-INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
+REAL, INTENT(IN)      :: MeanEelec  !< Mean electronic energy
+INTEGER, INTENT(IN)   :: iSpec      !< Species index
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                         :: ii
-REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
-REAL(KIND=8)                    :: eps_prec=0.1   ! precision of zero point search
-REAL(KIND=8)                    :: SumOne, SumTwo    ! both summs
+INTEGER               :: ii
+REAL                  :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
+REAL,PARAMETER        :: eps_prec=1E-3           !< Relative precision of root-finding algorithm
+REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the electronic partition function
 !===================================================================================================================================
 
-! lower limit: very small value or lowest temperature if ionized
-! upper limit: highest possible temperature
-IF ( MeanEelec .GT. 0 ) THEN
-  IF ( SpecDSMC(iSpec)%ElectronicState(2,0) .EQ. 0 ) THEN
+IF (MeanEelec.GT.0) THEN
+  ! Lower limit: very small value or lowest temperature if ionized
+  IF (SpecDSMC(iSpec)%ElectronicState(2,0).EQ.0.0) THEN
     LowerTemp = 1.0
   ELSE
     LowerTemp = SpecDSMC(iSpec)%ElectronicState(2,0)
   END IF
+  ! Upper limit: Last excitation level (ionization limit)
   UpperTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant-1)
-  DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
+  MiddleTemp = LowerTemp
+  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
     MiddleTemp = 0.5*( LowerTemp + UpperTemp)
     SumOne = 0.0
     SumTwo = 0.0
     DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
-      SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * &
-                exp( - SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp )
-      SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * &
-                exp( - SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp )
+      TempRatio = SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp
+      IF(CHECKEXP(TempRatio)) THEN
+        SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * EXP(-TempRatio)
+        SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * EXP(-TempRatio)
+      END IF
     END DO
     IF ( SumTwo / SumOne .GT. MeanEelec / BoltzmannConst ) THEN
       UpperTemp = MiddleTemp
@@ -605,7 +611,7 @@ IF ( MeanEelec .GT. 0 ) THEN
       LowerTemp = MiddleTemp
     END IF
   END DO
-  CalcTelec = UpperTemp ! or 0.5*( Tmax + Tmin)
+  CalcTelec = MiddleTemp
 ELSE
   CalcTelec = 0. ! sup
 END IF
@@ -633,33 +639,36 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                         :: iDOF,iPolyatMole
-REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
-REAl(KIND=8)                    :: eps_prec=0.1   ! precision of zero point search
-REAL(KIND=8)                    :: SumOne    ! both summs
+INTEGER                 :: iDOF, iPolyatMole
+REAL                    :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
+REAL                    :: EGuess                           !< Energy value at the current MiddleTemp
+REAL,PARAMETER          :: eps_prec=5E-3                    !< Relative precision of root-finding algorithm
 !===================================================================================================================================
 
 ! lower limit: very small value or lowest temperature if ionized
 ! upper limit: highest possible temperature
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-IF ( MeanEVib .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
+IF (MeanEVib.GT.SpecDSMC(iSpec)%EZeroPoint) THEN
   LowerTemp = 1.0
   UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/BoltzmannConst
-  DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
-    MiddleTemp = 0.5*( LowerTemp + UpperTemp)
-    SumOne = 0.0
+  MiddleTemp = LowerTemp
+  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
+    MiddleTemp = 0.5*(LowerTemp + UpperTemp)
+    EGuess = SpecDSMC(iSpec)%EZeroPoint
     DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-      SumOne = SumOne + 0.5*BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
-            + BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
-            / (EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/MiddleTemp) -1.0)
+      ASSOCIATE(CharTVib => PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+        IF(CHECKEXP(CharTVib/MiddleTemp)) THEN
+          EGuess = EGuess + BoltzmannConst * CharTVib / (EXP(CharTVib/MiddleTemp) - 1.0)
+        END IF
+      END ASSOCIATE
     END DO
-    IF ( SumOne .GT. MeanEVib) THEN
+    IF (EGuess.GT.MeanEVib) THEN
       UpperTemp = MiddleTemp
     ELSE
       LowerTemp = MiddleTemp
     END IF
   END DO
-  CalcTVibPoly = UpperTemp ! or 0.5*( Tmax + Tmin)
+  CalcTVibPoly = MiddleTemp
 ELSE
   CalcTVibPoly = 0. ! sup
 END IF
@@ -675,7 +684,7 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: Pi
-USE MOD_Particle_Vars ,ONLY: Species, nSpecies
+USE MOD_Particle_Vars ,ONLY: Species, nSpecies, usevMPF
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, RadialWeighting
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -696,7 +705,7 @@ CalcMeanFreePath = 0.0
 
 IF (nPart.LE.1 .OR. ALL(SpecPartNum.EQ.0.) .OR.Volume.EQ.0) RETURN
 ! Calculation of mixture reference diameter
-IF(RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   MacroParticleFactor = 1.
 ELSE
   MacroParticleFactor = Species(1)%MacroParticleFactor
@@ -762,61 +771,51 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iDOF, iPolyatMole
-REAL                  :: CharaTVib
+REAL                  :: CharaTVib, TempTrans, GammaVib
 !===================================================================================================================================
 
 ! Calculate GammaVib Factor  = Xi_Vib² * exp(CharaTVib/T_trans) / 2
 DO iSpec = 1, nSpecies
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    ! First, reset the GammaVib array/value
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-      CharaTVib = 0.
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-      DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        CharaTVib = MAX(CharaTVib,PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
-      END DO
-    ELSE
-      CharaTVib = SpecDSMC(iSpec)%CharaTVib
-    END IF
-    IF((DSMC%InstantTransTemp(iSpec).GT.0.0).AND.(CharaTVib/DSMC%InstantTransTemp(iSpec).LT.80)) THEN
-      ! If CharaTVib/DSMC%InstantTransTemp(iSpec) is too high the exp function can produce NAN
-      ! CharaTVib/DSMC%InstantTransTemp(iSpec)=80 results in a of GammaVib=2.31020977644213E-31
-      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-        IF (DSMC%PolySingleMode) THEN
-          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-            PolyatomMolDSMC(iPolyatMole)%GammaVib(iDOF) =                                                        &
-                (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (DSMC%InstantTransTemp(iSpec)              &
-                *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
-                * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec)) / 2.
-          END DO
-        ELSE
-          SpecDSMC(iSpec)%GammaVib = 0.0
-          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-            SpecDSMC(iSpec)%GammaVib = SpecDSMC(iSpec)%GammaVib &
-                + (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (DSMC%InstantTransTemp(iSpec)            &
-                *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
-                * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec)) / 2.
-          END DO
-        END IF
-      ELSE
-        SpecDSMC(iSpec)%GammaVib = (2.*SpecDSMC(iSpec)%CharaTVib / (DSMC%InstantTransTemp(iSpec)               &
-                                    *(EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
-                                    * EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec)) / 2.
-      END IF
-    ELSE ! Temperature to low
-      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-        IF (DSMC%PolySingleMode) THEN
-          PolyatomMolDSMC(iPolyatMole)%GammaVib = 0.
-        ELSE
-          SpecDSMC(iSpec)%GammaVib = 0.
-        END IF
+      IF (DSMC%PolySingleMode) THEN
+        PolyatomMolDSMC(iPolyatMole)%GammaVib = 0.
       ELSE
         SpecDSMC(iSpec)%GammaVib = 0.
       END IF
+    ELSE
+      SpecDSMC(iSpec)%GammaVib = 0.
     END IF
-  END IF
-END DO
+    TempTrans = DSMC%InstantTransTemp(iSpec)
+    IF(TempTrans.GT.0.0) THEN
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+        CharaTVib = MAXVAL(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+      ELSE
+        CharaTVib = SpecDSMC(iSpec)%CharaTVib
+      END IF
+      IF(CharaTVib/TempTrans.LT.80) THEN
+        ! If CharaTVib/TempTrans is too high the exp function can produce NAN
+        ! CharaTVib/TempTrans=80 results in a of GammaVib=2.31020977644213E-31
+        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+            CharaTVib = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+            GammaVib = (2.*CharaTVib / (TempTrans *(EXP(CharaTVib/TempTrans)-1.)))**2. * EXP(CharaTVib/TempTrans) / 2.
+            IF (DSMC%PolySingleMode) THEN
+              PolyatomMolDSMC(iPolyatMole)%GammaVib(iDOF) = GammaVib
+            ELSE
+              SpecDSMC(iSpec)%GammaVib = SpecDSMC(iSpec)%GammaVib + GammaVib
+            END IF
+          END DO
+        ELSE
+          CharaTVib = SpecDSMC(iSpec)%CharaTVib
+          SpecDSMC(iSpec)%GammaVib = (2.*CharaTVib / (TempTrans *(EXP(CharaTVib/TempTrans)-1.)))**2. * EXP(CharaTVib/TempTrans) / 2.
+        END IF
+      END IF  ! CharaTVib/TempTrans.LT.80
+    END IF    ! TempTrans.GT.0.0
+  END IF      ! (SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)
+END DO        ! iSpec = 1, nSpecies
 
 END SUBROUTINE CalcGammaVib
 
@@ -3533,5 +3532,126 @@ INTEGER                       :: iSpec
   END IF
 END SUBROUTINE SamplingRotVibRelaxProb
 
+
+SUBROUTINE SummarizeQualityFactors(iElem)
+!===================================================================================================================================
+!> Sample quality factors. MCS over MFP, max and mean collision probability
+!===================================================================================================================================
+! MODULES
+USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: DSMC
+USE MOD_Particle_Vars         ,ONLY: WriteMacroVolumeValues
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)    :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+  ! mean collision probability of all collision pairs
+  IF(DSMC%CollProbMeanCount.GT.0) THEN
+    DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
+    DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + DSMC%CollProbMean / REAL(DSMC%CollProbMeanCount)
+  END IF
+  ! mean collision separation distance of actual collisions
+  IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
+  ! Counting sample size
+  DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
+  ! Sample rotation relaxation probability
+  IF((DSMC%RotRelaxProb.EQ.2).OR.(DSMC%VibRelaxProb.EQ.2)) CALL SamplingRotVibRelaxProb(iElem)
+END IF
+! mean collision separation distance of actual collisions
+IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
+! Counting sample size
+DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
+
+END SUBROUTINE SummarizeQualityFactors
+
+
+SUBROUTINE DSMCMacroSampling()
+!===================================================================================================================================
+!> Check if sampling should be activated and perform sampling
+!===================================================================================================================================
+! MODULES
+USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: DSMC
+USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
+USE MOD_Restart_Vars          ,ONLY: RestartTime
+USE MOD_Mesh_Vars             ,ONLY: MeshFile
+USE MOD_TimeDisc_Vars         ,ONLY: iter
+USE MOD_DSMC_Vars             ,ONLY: UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: nOutput
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+#if (PP_TimeDiscMethod==42)
+! Do not perform sampling in the case of a reservoir simulation
+IF (DSMC%ReservoirSimu) RETURN
+#endif
+
+IF(UseQCrit) THEN
+  ! Use QCriterion (Burt,Boyd) for steady - state detection
+  IF((.NOT.SamplingActive).AND.(iter-QCritLastTest.EQ.QCritTestStep)) THEN
+    CALL QCrit_evaluation()
+    QCritLastTest=iter
+    IF(SamplingActive) THEN
+      SWRITE(*,*)'Sampling active'
+      ! Set TimeFracSamp and DeltaTimeOutput -> correct number of outputs
+      DSMC%TimeFracSamp = (TEnd-Time)/TEnd
+      DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+    ENDIF
+  ENDIF
+ELSEIF(UseSSD) THEN
+  ! Use SSD for steady - state detection
+  IF((.NOT.SamplingActive)) THEN
+    CALL SteadyStateDetection_main()
+    IF(SamplingActive) THEN
+      SWRITE(*,*)'Sampling active'
+      ! Set TimeFracSamp and DeltaTimeOutput -> correct number of outputs
+      DSMC%TimeFracSamp = (TEnd-Time)/TEnd
+      DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+    ENDIF
+  ENDIF
+ELSE
+  ! Use user given TimeFracSamp
+  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
+    SamplingActive=.TRUE.
+    SWRITE(*,*)'Sampling active'
+  ENDIF
+ENDIF
+!
+! Calculate Entropy using Theorem of Boltzmann
+!CALL EntropyCalculation()
+!
+
+IF(SamplingActive) THEN
+  CALL DSMCHO_data_sampling()
+  IF(DSMC%NumOutput.NE.0) THEN
+    nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
+    IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
+      DSMC%NumOutput = DSMC%NumOutput - 1
+      ! Skipping outputs immediately after the first few iterations
+      IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN
+        CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
+        IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
+      END IF
+    END IF
+  END IF
+END IF
+
+END SUBROUTINE DSMCMacroSampling
 
 END MODULE MOD_DSMC_Analyze

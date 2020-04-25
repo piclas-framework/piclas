@@ -202,6 +202,8 @@ CALL prms%CreateIntOption(      'Part-vMPFCellSplitOrder'     , 'TODO-DEFINE-PAR
                                                               , '15')
 CALL prms%CreateIntOption(      'Part-vMPFMergeParticleTarget', 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Count of particles wanted after merge.', '0')
+CALL prms%CreateIntOption(      'Part-vMPFNewPartNum'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                                'Count of particles wanted after merge.')
 CALL prms%CreateIntOption(      'Part-vMPFSplitParticleTarget', 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Number of particles wanted after split.','0')
 CALL prms%CreateIntOption(      'Part-vMPFMergeParticleIter'  , 'TODO-DEFINE-PARAMETER\n'//&
@@ -1070,7 +1072,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
-USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary,PartStateBoundarySpec
+USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary
 USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO
 USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, TriaSurfaceFlux
@@ -1381,7 +1383,8 @@ END IF
 
 
 ! init varibale MPF per particle
-IF (usevMPF) THEN
+IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+  vMPFNewPartNum = GETINT('Part-vMPFNewPartNum')
   enableParticleMerge = GETLOGICAL('Part-vMPFPartMerge','.FALSE.')
   IF (enableParticleMerge) THEN
     vMPFMergePolyOrder = GETINT('Part-vMPFMergePolOrder','2')
@@ -1400,6 +1403,8 @@ __STAMP__&
     END IF
     ALLOCATE(vMPF_SpecNumElem(1:nElems,1:nSpecies))
   END IF
+END IF
+IF (usevMPF) THEN
   ALLOCATE(PartMPF(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
@@ -1407,7 +1412,6 @@ __STAMP__&
     ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
   END IF
 END IF
-
 ! output of macroscopic values
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
 IF(WriteMacroValues)THEN
@@ -2400,20 +2404,10 @@ END IF
 
 ! Surface particle output to .h5
 IF(DoBoundaryParticleOutput)THEN
-  ALLOCATE(PartStateBoundary(1:9,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-        __STAMP__&
-        ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
-  END IF
+  ! Allocate PartStateBoundary for a small number of particles and double the array size each time the 
+  ! maximum is reached
+  ALLOCATE(PartStateBoundary(1:10,1:10), STAT=ALLOCSTAT)
   PartStateBoundary=0.
-  ALLOCATE(PartStateBoundarySpec(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-        __STAMP__&
-        ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundarySpec array!')
-  END IF
-  PartStateBoundarySpec=0
 END IF
 
 ! Set mapping from field boundary to particle boundary index
@@ -2455,7 +2449,7 @@ IF (ALLOCSTAT.NE.0) THEN
 __STAMP__&
   ,' Cannot allocate PEM arrays!')
 END IF
-IF (useDSMC.OR.PartPressureCell) THEN
+IF (useDSMC.OR.PartPressureCell.OR.usevMPF) THEN
   ALLOCATE(PEM%pStart(1:nElems)                         , &
            PEM%pNumber(1:nElems)                        , &
            PEM%pEnd(1:nElems)                           , &
@@ -3329,7 +3323,6 @@ SDEALLOCATE(PartBound%SolidCrystalIndx)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutput)
 SDEALLOCATE(PartStateBoundary)
-SDEALLOCATE(PartStateBoundarySpec)
 SDEALLOCATE(PEM%Element)
 SDEALLOCATE(PEM%lastElement)
 SDEALLOCATE(PEM%pStart)
