@@ -319,7 +319,7 @@ END TYPE tPairData
 
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)            ! Data of collision pairs into a cell (nPair)
 
-TYPE tCollInf             ! informations of collision
+TYPE tCollInf             ! information of collision
   INTEGER       , ALLOCATABLE    :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
   INTEGER                        :: NumCase                 ! Number of possible collision combination
   INTEGER       , ALLOCATABLE    :: Coll_CaseNum(:)         ! number of species combination per cell Sab (number of cases)
@@ -366,12 +366,12 @@ TYPE tReactInfo
                                                             ! (quant num part1, quant num part2)
    REAL,  ALLOCATABLE             :: Beta_Rec_Arrhenius(:,:)  ! Beta_d for calculation of the Recombination reaction probability
                                                             ! (nSpecies, quant num part3)
-   INTEGER, ALLOCATABLE           :: StoichCoeff(:,:)     ! Stoichiometric coefficient (nSpecies,1:2) (1: reactants, 2: products)
+   INTEGER, ALLOCATABLE           :: StoichCoeff(:,:)       ! Stoichiometric coefficient (nSpecies,1:2) (1: reactants, 2: products)
 END TYPE
 
 TYPE tArbDiss
   INTEGER                         :: NumOfNonReactives      ! Number
-  INTEGER, ALLOCATABLE            :: NonReactiveSpecies(:)    ! Array with the non-reactive collision partners for dissociation
+  INTEGER, ALLOCATABLE            :: NonReactiveSpecies(:)  ! Array with the non-reactive collision partners for dissociation
 END TYPE
 
 TYPE tChemReactions
@@ -393,7 +393,7 @@ TYPE tChemReactions
                                                             !    x (simple charge exchange reaction)
   INTEGER, ALLOCATABLE            :: DefinedReact(:,:,:)    ! Defined Reaction
                                                             ! (reaction num; 1:reactant, 2:product;
-                                                            !  1-3 spezieses of reactants and products,
+                                                            !  1-3 species of reactants and products,
                                                             ! 0: no spezies -> only 2 reactants or products)
   INTEGER, ALLOCATABLE            :: ReactCase(:,:)             ! Case of reaction in combination of (spec1, spec2)
   INTEGER, ALLOCATABLE            :: ReactNum(:,:,:)            ! Number of Reaction of (spec1, spec2,
@@ -437,7 +437,7 @@ TYPE tChemReactions
   INTEGER                         :: RecombParticle = 0     ! P. Index for Recombination, if zero -> no recomb particle avaible
   INTEGER                         :: nPairForRec            !
   REAL, ALLOCATABLE               :: Hab(:)                 ! Factor Hab of Arrhenius Ansatz for diatomic/polyatomic molecs
-  TYPE(tReactInfo), ALLOCATABLE   :: ReactInfo(:)           ! Informations of Reactions (nReactions)
+  TYPE(tReactInfo), ALLOCATABLE   :: ReactInfo(:)           ! Information of Reactions (nReactions)
   INTEGER                         :: NumDeleteProducts      !
   INTEGER, ALLOCATABLE            :: DeleteProductsList(:)  !
 END TYPE

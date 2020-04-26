@@ -59,8 +59,7 @@ ELSE
   Ec = Coll_pData(iPair)%Ec
 END IF
 
-MaxColQua = Ec/(BoltzmannConst*SpecDSMC(PartSpecies(iPart))%CharaTVib)  &
-          - DSMC%GammaQuant
+MaxColQua = Ec/(BoltzmannConst*SpecDSMC(PartSpecies(iPart))%CharaTVib) - DSMC%GammaQuant
 iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(iPart))%MaxVibQuant)
 CALL RANDOM_NUMBER(iRan)
 iQua = INT(iRan * iQuaMax)
@@ -71,8 +70,8 @@ DO WHILE (iRan.GT.(1 - REAL(iQua)/REAL(MaxColQua))**FakXi)
   iQua = INT(iRan * iQuaMax)
   CALL RANDOM_NUMBER(iRan)
 END DO
-PartStateIntEn(1,iPart) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-              * SpecDSMC(PartSpecies(iPart))%CharaTVib
+
+PartStateIntEn(1,iPart) = (iQua + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(PartSpecies(iPart))%CharaTVib
 
 END SUBROUTINE DSMC_VibRelaxDiatomic
 

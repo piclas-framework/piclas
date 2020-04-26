@@ -57,8 +57,12 @@ INTERFACE CalcInstantTransTemp
   MODULE PROCEDURE CalcInstantTransTemp
 END INTERFACE
 
-INTERFACE SamplingRotVibRelaxProb
-  MODULE PROCEDURE SamplingRotVibRelaxProb
+INTERFACE SummarizeQualityFactors
+  MODULE PROCEDURE SummarizeQualityFactors
+END INTERFACE
+
+INTERFACE DSMCMacroSampling
+  MODULE PROCEDURE DSMCMacroSampling
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -68,7 +72,7 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMCHO_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
 PUBLIC :: CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly, InitHODSMC, WriteDSMCHOToHDF5, CalcGammaVib
-PUBLIC :: CalcInstantTransTemp, SamplingRotVibRelaxProb
+PUBLIC :: CalcInstantTransTemp, SummarizeQualityFactors, DSMCMacroSampling
 !===================================================================================================================================
 
 CONTAINS
@@ -3528,5 +3532,126 @@ INTEGER                       :: iSpec
   END IF
 END SUBROUTINE SamplingRotVibRelaxProb
 
+
+SUBROUTINE SummarizeQualityFactors(iElem)
+!===================================================================================================================================
+!> Sample quality factors. MCS over MFP, max and mean collision probability
+!===================================================================================================================================
+! MODULES
+USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: DSMC
+USE MOD_Particle_Vars         ,ONLY: WriteMacroVolumeValues
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)    :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+  ! mean collision probability of all collision pairs
+  IF(DSMC%CollProbMeanCount.GT.0) THEN
+    DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
+    DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + DSMC%CollProbMean / REAL(DSMC%CollProbMeanCount)
+  END IF
+  ! mean collision separation distance of actual collisions
+  IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
+  ! Counting sample size
+  DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
+  ! Sample rotation relaxation probability
+  IF((DSMC%RotRelaxProb.EQ.2).OR.(DSMC%VibRelaxProb.EQ.2)) CALL SamplingRotVibRelaxProb(iElem)
+END IF
+! mean collision separation distance of actual collisions
+IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
+! Counting sample size
+DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
+
+END SUBROUTINE SummarizeQualityFactors
+
+
+SUBROUTINE DSMCMacroSampling()
+!===================================================================================================================================
+!> Check if sampling should be activated and perform sampling
+!===================================================================================================================================
+! MODULES
+USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: DSMC
+USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
+USE MOD_Restart_Vars          ,ONLY: RestartTime
+USE MOD_Mesh_Vars             ,ONLY: MeshFile
+USE MOD_TimeDisc_Vars         ,ONLY: iter
+USE MOD_DSMC_Vars             ,ONLY: UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: nOutput
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+#if (PP_TimeDiscMethod==42)
+! Do not perform sampling in the case of a reservoir simulation
+IF (DSMC%ReservoirSimu) RETURN
+#endif
+
+IF(UseQCrit) THEN
+  ! Use QCriterion (Burt,Boyd) for steady - state detection
+  IF((.NOT.SamplingActive).AND.(iter-QCritLastTest.EQ.QCritTestStep)) THEN
+    CALL QCrit_evaluation()
+    QCritLastTest=iter
+    IF(SamplingActive) THEN
+      SWRITE(*,*)'Sampling active'
+      ! Set TimeFracSamp and DeltaTimeOutput -> correct number of outputs
+      DSMC%TimeFracSamp = (TEnd-Time)/TEnd
+      DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+    ENDIF
+  ENDIF
+ELSEIF(UseSSD) THEN
+  ! Use SSD for steady - state detection
+  IF((.NOT.SamplingActive)) THEN
+    CALL SteadyStateDetection_main()
+    IF(SamplingActive) THEN
+      SWRITE(*,*)'Sampling active'
+      ! Set TimeFracSamp and DeltaTimeOutput -> correct number of outputs
+      DSMC%TimeFracSamp = (TEnd-Time)/TEnd
+      DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+    ENDIF
+  ENDIF
+ELSE
+  ! Use user given TimeFracSamp
+  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
+    SamplingActive=.TRUE.
+    SWRITE(*,*)'Sampling active'
+  ENDIF
+ENDIF
+!
+! Calculate Entropy using Theorem of Boltzmann
+!CALL EntropyCalculation()
+!
+
+IF(SamplingActive) THEN
+  CALL DSMCHO_data_sampling()
+  IF(DSMC%NumOutput.NE.0) THEN
+    nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
+    IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
+      DSMC%NumOutput = DSMC%NumOutput - 1
+      ! Skipping outputs immediately after the first few iterations
+      IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN
+        CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
+        IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
+      END IF
+    END IF
+  END IF
+END IF
+
+END SUBROUTINE DSMCMacroSampling
 
 END MODULE MOD_DSMC_Analyze
