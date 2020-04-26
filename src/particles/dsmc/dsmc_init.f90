@@ -365,6 +365,9 @@ CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for th
 CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
                                            ,'Utilize the null collision method for the determination of the number of pairs '//&
                                             'based on the maximum collision frequency and time step' &
+                                           ,'.TRUE.')
+CALL prms%CreateLogicalOption(  'Particles-CollXSec-Relaxation'  &
+                                           ,'Utilize cross sections for vibrational relaxation probabilities' &
                                            ,'.FALSE.')
 
 END SUBROUTINE DefineParametersDSMC

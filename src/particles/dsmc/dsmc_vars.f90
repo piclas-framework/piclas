@@ -180,6 +180,12 @@ END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
 
+TYPE tXSecVibMode
+  REAL,ALLOCATABLE                  :: XSecData(:,:)        ! Vibrational cross-section as read-in from the database
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: Cross-section at the respective energy level [m^2]
+END TYPE tXSecVibMode
+
 TYPE tSpeciesXSec
   REAL,ALLOCATABLE                  :: CollXSecData(:,:)    ! Collision cross-section as read-in from the database
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
@@ -187,6 +193,7 @@ TYPE tSpeciesXSec
   REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
                                                             ! null collision method of MCC
   REAL                              :: MaxCollFreq          ! Maximal collision frequency at certain energy level and cross-section
+  TYPE(tXSecVibMode),ALLOCATABLE    :: VibMode(:)           !
 END TYPE tSpeciesXSec
 
 TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:,:)        ! Species cross-section related data (nSpec,nSpec). First column is used
@@ -297,6 +304,7 @@ TYPE(tBGGas)                        :: BGGas
 LOGICAL                             :: UseMCC
 CHARACTER(LEN=256)                  :: XSec_Database
 LOGICAL                             :: XSec_NullCollision
+LOGICAL                             :: XSec_Relaxation
 INTEGER                             :: MCC_TotalPairNum
 
 TYPE tPairData
