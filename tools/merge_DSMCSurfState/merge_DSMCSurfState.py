@@ -78,11 +78,13 @@ for statefile in args.files :
             maxtimestr = timestr
             maxtimeFile = statefile
             newFile = re.sub(timestr+'.h5', '', statefile)+maxtimestr+'_merged.h5'
+
+        if time == mintime :
+            mintimestr = timestr
         files.append(statefile)
     except :
         print("not considering "+statefile)
 
-mintimestr = str(mintime)
 
 print("t_min     : %s" % mintime)
 print("t_min_str : %s" % mintimestr)
@@ -147,7 +149,6 @@ for statefile in files :
             b1_merged = b1_merged + b1
     elif n == 1: 
         # Create empty array when processing the first file
-        print("now")
         b1_merged = np.empty(b1.shape, dtype=float, order='C') # Whether to store multi-dimensional data in row-major (C-style) or column-major (Fortran-style) order in memory.
 
 
