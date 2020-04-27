@@ -27,8 +27,8 @@ USE MOD_HDF5_Input
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
-INTEGER,ALLOCATABLE  :: NodeInfo(:)
-INTEGER,ALLOCATABLE  :: NodeMap(:)
+!INTEGER,ALLOCATABLE  :: NodeInfo(:)
+!INTEGER,ALLOCATABLE  :: NodeMap(:)
 INTEGER              :: nNodeIDs
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -206,28 +206,27 @@ USE MOD_Mesh_Vars            ,ONLY: nGlobalUniqueSidesFromMesh
 USE MOD_Mesh_Vars            ,ONLY: useCurveds
 USE MOD_Mesh_Vars            ,ONLY: BoundaryType
 USE MOD_Mesh_Vars            ,ONLY: MeshInitIsDone
-USE MOD_Mesh_Vars            ,ONLY: Elems,Nodes
-USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE,createSides
+USE MOD_Mesh_Vars            ,ONLY: Elems!,Nodes
+USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE!,createSides
+USE MOD_Mesh_Vars            ,ONLY: ElemInfo,SideInfo
 USE MOD_IO_HDF5
 #if USE_MPI
-USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc, offsetElemMPI
-USE MOD_MPI_Shared_Vars
-USE MOD_MPI_Shared           ,ONLY: Allocate_Shared
+USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc!,offsetElemMPI
 USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
 USE MOD_Particle_Mesh_Vars
+#endif /*USE_MPI*/
 #ifdef PARTICLES
+USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshBasics
+USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshElems,ReadMeshSides,ReadMeshSideNeighbors
+USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshNodes,ReadMeshTrees,CommunicateMeshReadin
+#endif /*PARTICLES*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem
-#endif /*USE_LOADBALANCE*/
-#endif /*PARTICLES*/
-USE MOD_PreProc
-USE MOD_ReadInTools
-USE MOD_StringTools          ,ONLY: STRICMP
-#endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars     ,ONLY: nTracksPerElem,nPartsPerBCElem,nPartsPerElem,nSurfacefluxPerElem
 USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 #endif /*PARTICLES*/
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -240,32 +239,20 @@ CHARACTER(LEN=*),INTENT(IN)  :: FileString
 TYPE(tElem),POINTER            :: aElem
 TYPE(tSide),POINTER            :: aSide,bSide
 REAL,ALLOCATABLE               :: NodeCoordsTmp(:,:,:,:,:)
-INTEGER,ALLOCATABLE            :: ElemInfo(:,:),SideInfo(:,:)
-INTEGER,ALLOCATABLE            :: MortarInfo(:,:),MortarMapping(:)
 INTEGER                        :: BCindex
 INTEGER                        :: iElem,ElemID
-INTEGER                        :: iNode,jNode,iNodeP,NodeID
-INTEGER                        :: offsetNodeID
-REAL   ,ALLOCATABLE            :: NodeCoords_indx(:,:)
-INTEGER                        :: CornerNodeIDswitch(8)
+INTEGER                        :: iNode
 INTEGER                        :: iLocSide,nbLocSide
 INTEGER                        :: iSide
-INTEGER                        :: FirstNodeInd,LastNodeInd,FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
+INTEGER                        :: FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
 INTEGER                        :: nPeriodicSides,nMPIPeriodics
 INTEGER                        :: ReduceData(11)
-INTEGER                        :: nSideIDs,offsetSideID, nlocSides, sideCount, nlocSidesNb, NbElemID, jLocSide
-INTEGER                        :: iMortar,jMortar,nMortars, NbSideID
+INTEGER                        :: nSideIDs,offsetSideID
+INTEGER                        :: iMortar,jMortar,nMortars
 #if USE_MPI
 INTEGER                        :: iNbProc
 INTEGER                        :: iProc
 INTEGER,ALLOCATABLE            :: MPISideCount(:)
-INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
-INTEGER,ALLOCATABLE            :: ElemInfo_Shared_tmp(:),SideInfo_Shared_tmp(:)
-INTEGER,ALLOCATABLE            :: displsCN(:),recvcountCN(:)
-INTEGER,ALLOCATABLE            :: displsElem(:),recvcountElem(:)
-INTEGER,ALLOCATABLE            :: displsSide(:),recvcountSide(:)
-INTEGER,ALLOCATABLE            :: displsNode(:),recvcountNode(:)
-INTEGER,ALLOCATABLE            :: displsTree(:),recvcountTree(:)
 #endif /*USE_MPI*/
 LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
@@ -399,43 +386,15 @@ DO iElem=FirstElemInd,LastElemInd
   aElem%Zone   = ElemInfo(ELEM_ZONE,iElem)
 END DO
 
-#if USE_MPI
-CALL MPI_ALLREDUCE(nElems,nComputeNodeElems,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
-MPISharedSize = INT((ELEM_HALOFLAG)*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/ELEMINFOSIZE,nGlobalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
-CALL MPI_WIN_LOCK_ALL(0,ElemInfo_Shared_Win,IERROR)
-ElemInfo_Shared(1:ELEMINFOSIZE_H5,offsetElem+1:offsetElem+nElems) = ElemInfo(:,:)
-ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = myRank
-CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
-ALLOCATE(ElemInfo_Shared_tmp(offsetElem+1:offsetElem+nElems))
-ElemInfo_Shared_tmp(offsetElem+1:offsetElem+nElems) = myRank
-offsetComputeNodeElem=offsetElem
-CALL MPI_BCAST(offsetComputeNodeElem,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-#else
-ALLOCATE(ElemInfo_Shared(1:ELEMINFOSIZE,1:nElems))
-ElemInfo_Shared(1:ELEMINFOSIZE_H5,1:nElems) = ElemInfo(:,:)
-#endif  /*USE_MPI*/
-
-! Create global element index to global processor index mapping
-#if USE_MPI
-MPISharedSize = INT(nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/nGlobalElems/),ElemToProcID_Shared_Win,ElemToProcID_Shared)
-CALL MPI_WIN_LOCK_ALL(0,ElemToProcID_Shared_Win,IERROR)
-IF(myComputeNodeRank.EQ.0)THEN
-  DO iProc = 1, nProcessors
-    ElemToProcID_Shared(offsetElemMPI(iProc-1)+1:offsetElemMPI(iProc)) = iProc - 1
-  END DO ! iProc = 1, nProcessors
-END IF
-CALL MPI_WIN_SYNC(ElemToProcID_Shared_Win,IERROR)
-#endif  /*USE_MPI*/
+#ifdef PARTICLES
+CALL ReadMeshElems()
+#endif
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              SIDES
 !----------------------------------------------------------------------------------------------------------------------------
 
-#if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-#endif /*USE_MPI*/
+! get offset of local side indices in the global sides
 offsetSideID = ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
 nSideIDs     = ElemInfo(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
 !read local SideInfo from data file
@@ -451,57 +410,11 @@ ASSOCIATE (&
   CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo(1:SideInfoSize,:))
 END ASSOCIATE
 
-#if USE_MPI
-! all procs on my compute-node communicate the number of non-unique sides
-CALL MPI_ALLREDUCE(nSideIDs,nComputeNodeSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
-MPISharedSize = INT((SIDEINFOSIZE+1)*nNonUniqueGlobalSides,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/SIDEINFOSIZE+1,nNonUniqueGlobalSides/),SideInfo_Shared_Win,SideInfo_Shared)
-CALL MPI_WIN_LOCK_ALL(0,SideInfo_Shared_Win,IERROR)
-SideInfo_Shared(1:SIDEINFOSIZE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo(:,:)
-SideInfo_Shared(SIDEINFOSIZE+1,offsetSideID+1:offsetSideID+nSideIDs) = 0
-CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#ifdef PARTICLES
+CALL ReadMeshSides()
+#endif
 
-! fill the SIDE_LOCALID. Basically, this array contains the 1:6 local sides of an element. ! If an element has hanging nodes (i.e.
-! has a big mortar side), the big side has negative index (-1,-2 or -3) and the next 2 (-2, -3) or 4 (-1) sides are the subsides.
-! Consequently, a hexahedral element can have more than 6 non-unique sides. If we find a small mortar side in the small element,
-! the SIDE_LOCALID points to the global ID of the big mortar side, indicated by negative sign
-DO iElem=FirstElemInd,LastElemInd
-  iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)
-  SideInfo_Shared(SIDE_ELEMID,iSide+1:ElemInfo_Shared(ELEM_LASTSIDEIND,iElem)) = iElem
-  sideCount = 0
-  nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,iElem) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)
-  DO iLocSide = 1,nlocSides
-    iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) + iLocSide
-    ! Big mortar side
-    IF (SideInfo_Shared(SIDE_TYPE,iSide).GT.4) THEN
-      ! Check all sides on the small element side to find the small mortar side pointing back
-      NbElemID    = SideInfo_Shared(SIDE_NBELEMID,iSide)
-      nlocSidesNb = ElemInfo_Shared(ELEM_LASTSIDEIND,NbElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,NbElemID)
-      DO jLocSide = 1,nlocSidesNb
-        NbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,NbElemID) + jLocSide
-        IF (ABS(SideInfo_Shared(SIDE_ID,iSide)).EQ.ABS(SideInfo_Shared(SIDE_ID,NbSideID))) THEN
-          SideInfo_Shared(SIDE_LOCALID,iSide) = -NbSideID
-          EXIT
-        END IF
-      END DO
-    ! Regular side
-    ELSE
-      sideCount = sideCount + 1
-      SideInfo_Shared(SIDE_LOCALID,iSide) = sideCount
-    END IF
-  END DO
-END DO
-CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
-
-#else
-ALLOCATE(SideInfo_Shared(1:SIDEINFOSIZE,1:nSideIDs))
-SideInfo_Shared(1:SIDEINFOSIZE,1:nSideIDs) = SideInfo(:,:)
-SideInfo_Shared(SIDEINFOSIZE+1,1:nSideIDs) = 0
-#endif  /*USE_MPI*/
-ALLOCATE(SideInfo_Shared_tmp(offsetSideID+1:offsetSideID+nSideIDs))
-
+! iterate over all local elements and within each element over all sides
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
   iSide=ElemInfo(ELEM_FIRSTSIDEIND,iElem) !first index -1 in Sideinfo
@@ -625,12 +538,9 @@ DO iElem=FirstElemInd,LastElemInd
           aSide%connection%flip=aSide%flip
           aSide%connection%Elem=>GETNEWELEM()
           aSide%NbProc = ELEMIPROC(elemID)
-          IF (ElemID.LE.offsetComputeNodeElem+1 .OR. ElemID.GT.offsetComputeNodeElem+nComputeNodeElems) THEN
-            ! neighbour element is outside of compute-node
-            SideInfo_Shared_tmp(iSide) = 2
-          ELSE
-            SideInfo_Shared_tmp(iSide) = 1
-          END IF ! ElemID.LT.offsetComputeNodeElem+1 .OR. ElemID.GT.offsetComputeNodeElem+nComputeNodeElems
+#ifdef PARTICLES
+          CALL ReadMeshSideNeighbors(elemID,iSide)
+#endif
 #else
           CALL abort(__STAMP__, &
             ' ElemID of neighbor not in global Elem list ')
@@ -641,88 +551,14 @@ DO iElem=FirstElemInd,LastElemInd
   END DO !iLocSide
 END DO !iElem
 
-#if USE_MPI
-CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
-#endif
-
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              NODES
 !----------------------------------------------------------------------------------------------------------------------------
-
-!read local Node Info from data file
-offsetNodeID=ElemInfo(ELEM_FIRSTNODEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
-nNodeIDs=ElemInfo(ELEM_LASTNODEIND,LastElemInd)-ElemInfo(ELEM_FIRSTNODEIND,FirstElemind)
-FirstNodeInd=offsetNodeID+1
-LastNodeInd=offsetNodeID+nNodeIDs
-ALLOCATE(NodeInfo(FirstNodeInd:LastNodeInd))
-
-! Associate construct for integer KIND=8 possibility
-ASSOCIATE (&
-      nNodeIDs     => INT(nNodeIDs,IK)     ,&
-      offsetNodeID => INT(offsetNodeID,IK) )
-  CALL ReadArray('GlobalNodeIDs',1,(/nNodeIDs/),offsetNodeID,1,IntegerArray_i4=NodeInfo)
-  ALLOCATE(NodeCoords_indx(3,nNodeIDs))
-  CALL ReadArray('NodeCoords',2,(/3_IK,nNodeIDs/),offsetNodeID,2,RealArray=NodeCoords_indx)
-END ASSOCIATE
-
-#if USE_MPI
-CALL MPI_ALLREDUCE(nNodeIDs,nComputeNodeNodes,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
-MPISharedSize = INT(nNonUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/nNonUniqueGlobalNodes/),NodeInfo_Shared_Win,NodeInfo_Shared)
-CALL MPI_WIN_LOCK_ALL(0,NodeInfo_Shared_Win,IERROR)
-NodeInfo_Shared(offsetNodeID+1:offsetNodeID+nNodeIDs) = NodeInfo(:)
-CALL MPI_WIN_SYNC(NodeInfo_Shared_Win,IERROR)
-
-MPISharedSize = INT(3*nNonUniqueGlobalNodes,MPI_ADDRESS_KIND)*MPI_DOUBLE
-CALL Allocate_Shared(MPISharedSize,(/3,nNonUniqueGlobalNodes/),NodeCoords_Shared_Win,NodeCoords_Shared)
-CALL MPI_WIN_LOCK_ALL(0,NodeCoords_Shared_Win,IERROR)
-NodeCoords_Shared(:,offsetNodeID+1:offsetNodeID+nNodeIDs) = NodeCoords_indx(:,:)
-CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
-#else
-ALLOCATE(NodeInfo_Shared(1:nNodeIDs))
-NodeInfo_Shared(1:nNodeIDs) = NodeInfo(:)
-ALLOCATE(NodeCoords_Shared(3,nNodeIDs))
-NodeCoords_Shared(:,:) = NodeCoords_indx(:,:)
-#endif  /*USE_MPI*/
-
-CALL GetNodeMap() !get nNodes and local NodeMap from NodeInfo array
-LOGWRITE(*,*)'MIN,MAX,SIZE of NodeMap',MINVAL(NodeMap),MAXVAL(NodeMap),SIZE(NodeMap,1)
-
-ALLOCATE(Nodes(1:nNodes)) ! pointer list, entry is known by INVMAP(i,nNodes,NodeMap)
-DO iNode=1,nNodes
-  NULLIFY(Nodes(iNode)%np)
-END DO
-! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
-CornerNodeIDswitch(1)=1
-CornerNodeIDswitch(2)=(Ngeo+1)
-CornerNodeIDswitch(3)=(Ngeo+1)**2
-CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
-CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
-CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
-CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
-CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
-
-!assign nodes and get physical coordinates to Node pointers (new procedure compared to old mapping due to new meshformat)
-DO iElem=FirstElemInd,LastElemInd
-  aElem=>Elems(iElem)%ep
-  !iNode=ElemInfo(ELEM_FIRSTNODEIND,iElem) !first index -1 in NodeInfo
-  DO jNode=1,8
-    iNode = ElemInfo(ELEM_FIRSTNODEIND,iElem)+CornerNodeIDswitch(jNode)
-    NodeID=ABS(NodeInfo(iNode))       !global, unique NodeID
-    iNodeP=INVMAP(NodeID,nNodes,NodeMap)  ! index in local Nodes pointer array
-    IF(iNodeP.LE.0) STOP 'Problem in INVMAP'
-    IF(.NOT.ASSOCIATED(Nodes(iNodeP)%np))THEN
-      ALLOCATE(Nodes(iNodeP)%np)
-      Nodes(iNodeP)%np%ind = NodeID
-      Nodes(iNodeP)%np%x   = NodeCoords_indx(:,iNode-offsetNodeID)
-    END IF
-    aElem%Node(jNode)%np=>Nodes(iNodeP)%np
-  END DO
-  CALL createSides(aElem)
-END DO
-DEALLOCATE(NodeCoords_indx)
-
+#ifdef PARTICLES
+! Particles want to node coords in the old 2D format, hence this readin happens twice
+CALL ReadMeshNodes()
+#endif
 
 ! get physical coordinates
 IF(useCurveds)THEN
@@ -731,7 +567,9 @@ IF(useCurveds)THEN
 ELSE
   ALLOCATE(NodeCoords(   3,0:1,   0:1,   0:1,   nElems))
   ALLOCATE(NodeCoordsTmp(3,0:NGeo,0:NGeo,0:NGeo,nElems))
+  ! read all nodes
   CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoordsTmp)
+  ! throw away all nodes except the 8 corner nodes of each hexa
   NodeCoords(:,0,0,0,:)=NodeCoordsTmp(:,0,   0,   0,   :)
   NodeCoords(:,1,0,0,:)=NodeCoordsTmp(:,NGeo,0,   0,   :)
   NodeCoords(:,0,1,0,:)=NodeCoordsTmp(:,0,   NGeo,0,   :)
@@ -741,8 +579,8 @@ ELSE
   NodeCoords(:,0,1,1,:)=NodeCoordsTmp(:,0,   NGeo,NGeo,:)
   NodeCoords(:,1,1,1,:)=NodeCoordsTmp(:,NGeo,NGeo,NGeo,:)
   DEALLOCATE(NodeCoordsTmp)
+  NGeo=1 ! linear mesh; set polynomial degree of geometry to 1
 ENDIF
-IF(.NOT.useCurveds) NGeo=1
 
 !! IJK SORTING --------------------------------------------
 !!read local ElemInfo from data file
@@ -776,20 +614,6 @@ IF(isMortarMesh)THEN
     ElemToTree=0
     CALL ReadArray('ElemToTree',1,(/nElems/),offsetElem,1,IntegerArray_i4=ElemToTree)
   END ASSOCIATE
-#if USE_MPI
-  MPISharedSize = INT(3*2*nGlobalElems,MPI_ADDRESS_KIND)*MPI_DOUBLE
-  CALL Allocate_Shared(MPISharedSize,(/3,2,nGlobalElems/),xiMinMax_Shared_Win,xiMinMax_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,xiMinMax_Shared_Win,IERROR)
-  xiMinMax_Shared(:,:,offsetElem+1:offsetElem+nElems) = xiMinMax(:,:,:)
-  CALL MPI_WIN_SYNC(xiMinMax_Shared_Win,IERROR)
-
-  MPISharedSize = INT(nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/nGlobalElems/),ElemToTree_Shared_Win,ElemToTree_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,ElemToTree_Shared_Win,IERROR)
-  ElemToTree_Shared(offsetElem+1:offsetElem+nElems) = ElemToTree(:)
-  CALL MPI_WIN_SYNC(ElemToTree_Shared_Win,IERROR)
-#endif  /*USE_MPI*/
-
 
   ! only read trees, connected to a procs elements
   offsetTree=MINVAL(ElemToTree)-1
@@ -806,126 +630,24 @@ IF(isMortarMesh)THEN
     CALL ReadArray('TreeCoords',2,(/3_IK,(NGeoTree+1_IK)**3_IK*nTrees/),&
         (NGeoTree+1_IK)**3_IK*offsetTree,2,RealArray=TreeCoords)
   END ASSOCIATE
-#if USE_MPI
-  CALL MPI_ALLREDUCE(nTrees,nNonUniqueGlobalTrees,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
-  MPISharedSize = INT((NGeoTree+1)**3*nNonUniqueGlobalTrees,MPI_ADDRESS_KIND)*MPI_DOUBLE
-  CALL Allocate_Shared(MPISharedSize,(/3,nGeoTree+1,nGeoTree+1,nGeoTree+1,nNonUniqueGlobalTrees/),TreeCoords_Shared_Win,TreeCoords_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,TreeCoords_Shared_Win,IERROR)
-  TreeCoords_Shared(:,:,:,:,offsetTree:offsetTree+nTrees) = TreeCoords(:,:,:,:,:)
-  CALL MPI_WIN_SYNC(TreeCoords_Shared_Win,IERROR)
-#endif  /*USE_MPI*/
+
+#ifdef PARTICLES
+  CALL ReadMeshTrees()
+#endif
+
 ELSE
   nTrees=0
 END IF
 
-DEALLOCATE(ElemInfo,SideInfo,NodeInfo,NodeMap)
-
 CALL CloseDataFile()
 
-#if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#ifdef PARTICLES
+CALL CommunicateMeshReadin()
+#endif
 
-IF(myComputeNodeRank.EQ.0)THEN
-  ! Arrays for the compute-node to communicate their offsets
-  ALLOCATE(displsCN(0:nLeaderGroupProcs-1))
-  ALLOCATE(recvcountCN(0:nLeaderGroupProcs-1))
-  DO iProc=0,nLeaderGroupProcs-1
-    displsCN(iProc) = iProc
-  END DO
-  recvcountCN(:) = 1
-  ! Arrays for the compute node to hold the elem offsets
-  ALLOCATE(displsElem(0:nLeaderGroupProcs-1))
-  ALLOCATE(recvcountElem(0:nLeaderGroupProcs-1))
-  displsElem(myLeaderGroupRank) = offsetComputeNodeElem
-  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsElem,recvcountCN,displsCN  &
-        ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  DO iProc=1,nLeaderGroupProcs-1
-    recvcountElem(iProc-1) = displsElem(iProc)-displsElem(iProc-1)
-  END DO
-  recvcountElem(nLeaderGroupProcs-1) = nGlobalElems - displsElem(nLeaderGroupProcs-1)
-END IF
-
-! Broadcast compute node side offset on node
-offsetComputeNodeSide=offsetSideID
-CALL MPI_BCAST(offsetComputeNodeSide,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-
-IF(myComputeNodeRank.EQ.0)THEN
-  ! Arrays for the compute node to hold the side offsets
-  ALLOCATE(displsSide(0:nLeaderGroupProcs-1))
-  ALLOCATE(recvcountSide(0:nLeaderGroupProcs-1))
-  displsSide(myLeaderGroupRank) = offsetComputeNodeSide
-  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsSide,recvcountCN,displsCN &
-        ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  DO iProc=1,nLeaderGroupProcs-1
-    recvcountSide(iProc-1) = displsSide(iProc)-displsSide(iProc-1)
-  END DO
-  recvcountSide(nLeaderGroupProcs-1) = nNonUniqueGlobalSides - displsSide(nLeaderGroupProcs-1)
-END IF
-
-! Broadcast compute node node offset on node
-offsetComputeNodeNode=offsetNodeID
-CALL MPI_BCAST(offsetComputeNodeNode,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-
-IF(myComputeNodeRank.EQ.0)THEN
-  ! Arrays for the compute node to hold the node offsets
-  ALLOCATE(displsNode(0:nLeaderGroupProcs-1))
-  ALLOCATE(recvcountNode(0:nLeaderGroupProcs-1))
-  displsNode(myLeaderGroupRank) = offsetComputeNodeNode
-  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsNode,recvcountCN,displsCN &
-        ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  DO iProc=1,nLeaderGroupProcs-1
-    recvcountNode(iProc-1) = displsNode(iProc)-displsNode(iProc-1)
-  END DO
-  recvcountNode(nLeaderGroupProcs-1) = nNonUniqueGlobalNodes - displsNode(nLeaderGroupProcs-1)
-END IF
-
-! Broadcast compute node tree offset on node
-offsetComputeNodeTree=offsetTree
-CALL MPI_BCAST(offsetComputeNodeTree,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
-
-IF(myComputeNodeRank.EQ.0)THEN
-  ! Arrays for the compute node to hold the node offsets
-  ALLOCATE(displsTree(0:nLeaderGroupProcs-1))
-  ALLOCATE(recvcountTree(0:nLeaderGroupProcs-1))
-  displsTree(myLeaderGroupRank) = offsetComputeNodeTree
-  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsTree,recvcountCN,displsCN &
-        ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  DO iProc=1,nLeaderGroupProcs-1
-    recvcountTree(iProc-1) = displsTree(iProc)-displsTree(iProc-1)
-  END DO
-  recvcountTree(nLeaderGroupProcs-1) = nNonUniqueGlobalTrees - displsTree(nLeaderGroupProcs-1)
-
-  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared,ELEMINFOSIZE    *recvcountElem  &
-      ,ELEMINFOSIZE*displsElem    ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,(SIDEINFOSIZE+1)*recvcountSide  &
-      ,(SIDEINFOSIZE+1)*displsSide,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeInfo_Shared,                 recvcountNode  &
-      ,displsNode                 ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeCoords_Shared,3             *recvcountNode  &
-      ,3*displsNode               ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
-  IF(isMortarMesh)THEN
-    CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,xiMinMax_Shared,3*2           *recvcountElem  &
-        ,3*2*displsElem           ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
-    CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemToTree_Shared ,            recvcountElem  &
-        ,displsElem               ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
-    CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,TreeCoords_Shared ,(NGeoTree+1)**3*recvcountTree &
-        ,displsTree               ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,IERROR)
-  END IF
-END IF
-#endif  /*USE_MPI*/
-ElemInfo_Shared(ELEM_RANK,offsetElem+1:offsetElem+nElems) = ElemInfo_Shared_tmp
-SideInfo_Shared(SIDEINFOSIZE+1,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
-DEALLOCATE(ElemInfo_Shared_tmp,SideInfo_Shared_tmp)
-CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(SideInfo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(NodeInfo_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
-IF (isMortarMesh) THEN
-  CALL MPI_WIN_SYNC(xiMinMax_Shared_Win,IERROR)
-  CALL MPI_WIN_SYNC(ElemToTree_Shared_Win,IERROR)
-  CALL MPI_WIN_SYNC(TreeCoords_Shared_Win,IERROR)
-END IF
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+!DEALLOCATE(ElemInfo,SideInfo,NodeInfo,NodeMap)
+DEALLOCATE(ElemInfo,SideInfo)
+! Readin of mesh is now finished
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              COUNT SIDES
@@ -1070,44 +792,44 @@ SWRITE(UNIT_stdOut,'(132("."))')
 END SUBROUTINE ReadMesh
 
 
-SUBROUTINE GetNodeMap()
-!===================================================================================================================================
-! take NodeInfo array, sort it, eliminate mulitple IDs and return the Mapping 1->NodeID1, 2->NodeID2, ...
-! this is useful if the NodeID list of the mesh are not contiguous, essentially occuring when using domain decomposition (MPI)
-!===================================================================================================================================
-! MODULES
-USE MOD_mesh_vars,ONLY:nNodes
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                            :: temp(nNodeIDs+1),i,nullpos
-!===================================================================================================================================
-temp(1)=0
-temp(2:nNodeIDs+1)=NodeInfo
-!sort
-CALL Qsort1Int(temp)
-nullpos=INVMAP(0,nNodeIDs+1,temp)
-!count unique entries
-nNodes=1
-DO i=nullpos+2,nNodeIDs+1
-  IF(temp(i).NE.temp(i-1)) nNodes = nNodes+1
-END DO
-!associate unique entries
-ALLOCATE(NodeMap(nNodes))
-nNodes=1
-NodeMap(1)=temp(nullpos+1)
-DO i=nullpos+2,nNodeIDs+1
-  IF(temp(i).NE.temp(i-1)) THEN
-    nNodes = nNodes+1
-    NodeMap(nNodes)=temp(i)
-  END IF
-END DO
-END SUBROUTINE GetNodeMap
+!SUBROUTINE GetNodeMap()
+!!===================================================================================================================================
+!! take NodeInfo array, sort it, eliminate mulitple IDs and return the Mapping 1->NodeID1, 2->NodeID2, ...
+!! this is useful if the NodeID list of the mesh are not contiguous, essentially occuring when using domain decomposition (MPI)
+!!===================================================================================================================================
+!! MODULES
+!USE MOD_mesh_vars,ONLY:nNodes
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! INPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER                            :: temp(nNodeIDs+1),i,nullpos
+!!===================================================================================================================================
+!temp(1)=0
+!temp(2:nNodeIDs+1)=NodeInfo
+!!sort
+!CALL Qsort1Int(temp)
+!nullpos=INVMAP(0,nNodeIDs+1,temp)
+!!count unique entries
+!nNodes=1
+!DO i=nullpos+2,nNodeIDs+1
+!  IF(temp(i).NE.temp(i-1)) nNodes = nNodes+1
+!END DO
+!!associate unique entries
+!ALLOCATE(NodeMap(nNodes))
+!nNodes=1
+!NodeMap(1)=temp(nullpos+1)
+!DO i=nullpos+2,nNodeIDs+1
+!  IF(temp(i).NE.temp(i-1)) THEN
+!    nNodes = nNodes+1
+!    NodeMap(nNodes)=temp(i)
+!  END IF
+!END DO
+!END SUBROUTINE GetNodeMap
 
 
 FUNCTION INVMAP(ID,nIDs,ArrID)

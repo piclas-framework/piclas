@@ -50,124 +50,6 @@ PUBLIC :: EvaluateFieldAtRefPos
 
 CONTAINS
 
-SUBROUTINE EvaluateFieldAtPhysPos(x_in,NVar,N_in,U_In,U_Out,ElemID,PartID)
-!===================================================================================================================================
-!> 1) Get position within reference element (x_in -> xi=[-1,1]) by inverting the mapping
-!> 2) interpolate DG solution to position (U_In -> U_Out(x_in))
-!> 3) interpolate backgroundfield to position ( U_Out -> U_Out(x_in)+BG_field(x_in) )
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Basis                 ,ONLY: LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary
-USE MOD_Interpolation_Vars    ,ONLY: NBG,BGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
-USE MOD_Mesh_Vars             ,ONLY: dXCL_NGeo,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
-USE MOD_Mesh_Vars             ,ONLY: wBaryCL_NGeo1,XiCL_NGeo1
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCurved
-USE MOD_PICInterpolation_Vars ,ONLY: useBGField
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)  :: NVar                                  !< 6 (Ex, Ey, Ez, Bx, By, Bz)
-INTEGER,INTENT(IN)  :: N_In                                  !< usually PP_N
-INTEGER,INTENT(IN)  :: ElemID                                !< Element index
-REAL,INTENT(IN)     :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)     !< State in Element
-REAL,INTENT(IN)     :: x_in(3)                               !< position in physical space
-INTEGER,INTENT(IN),OPTIONAL :: PartID                        !< particle ID
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)    :: U_Out(1:NVar)                         !< Interpolated state at physical position x_in
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER             :: i,j,k
-REAL                :: xi(3)
-REAL                :: L_xi(3,0:PP_N), L_eta_zeta
-REAL                :: XCL_NGeo1(1:3,0:1,0:1,0:1)
-REAL                :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)
-! h5-external e,b field
-REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
-!===================================================================================================================================
-
-CALL GetRefNewtonStartValue(X_in,Xi,ElemID)
-
-IF(ElemCurved(ElemID))THEN
-  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID) &
-                    ,NGeo,ElemID,Mode=1,PartID=PartID)
-ELSE
-  ! fill dummy XCL_NGeo1
-  XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,ElemID)
-  XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  ,ElemID)
-  XCL_NGeo1(1:3,0,1,0) = XCL_NGeo(1:3, 0  ,NGeo, 0  ,ElemID)
-  XCL_NGeo1(1:3,1,1,0) = XCL_NGeo(1:3,NGeo,NGeo, 0  ,ElemID)
-  XCL_NGeo1(1:3,0,0,1) = XCL_NGeo(1:3, 0  , 0  ,NGeo,ElemID)
-  XCL_NGeo1(1:3,1,0,1) = XCL_NGeo(1:3,NGeo, 0  ,NGeo,ElemID)
-  XCL_NGeo1(1:3,0,1,1) = XCL_NGeo(1:3, 0  ,NGeo,NGeo,ElemID)
-  XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo,ElemID)
-  ! fill dummy dXCL_NGeo1
-  dXCL_NGeo1(1:3,1:3,0,0,0) = dXCL_NGeo(1:3,1:3, 0  , 0  , 0  ,ElemID)
-  dXCL_NGeo1(1:3,1:3,1,0,0) = dXCL_NGeo(1:3,1:3,NGeo, 0  , 0  ,ElemID)
-  dXCL_NGeo1(1:3,1:3,0,1,0) = dXCL_NGeo(1:3,1:3, 0  ,NGeo, 0  ,ElemID)
-  dXCL_NGeo1(1:3,1:3,1,1,0) = dXCL_NGeo(1:3,1:3,NGeo,NGeo, 0  ,ElemID)
-  dXCL_NGeo1(1:3,1:3,0,0,1) = dXCL_NGeo(1:3,1:3, 0  , 0  ,NGeo,ElemID)
-  dXCL_NGeo1(1:3,1:3,1,0,1) = dXCL_NGeo(1:3,1:3,NGeo, 0  ,NGeo,ElemID)
-  dXCL_NGeo1(1:3,1:3,0,1,1) = dXCL_NGeo(1:3,1:3, 0  ,NGeo,NGeo,ElemID)
-  dXCL_NGeo1(1:3,1:3,1,1,1) = dXCL_NGeo(1:3,1:3,NGeo,NGeo,NGeo,ElemID)
-  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=1,PartID=PartID)
-END IF
-
-! 2.1) get "Vandermonde" vectors
-CALL LagrangeInterpolationPolys(xi(1),N_in,xGP,wBary,L_xi(1,:))
-CALL LagrangeInterpolationPolys(xi(2),N_in,xGP,wBary,L_xi(2,:))
-CALL LagrangeInterpolationPolys(xi(3),N_in,xGP,wBary,L_xi(3,:))
-
-! "more efficient" - Quote Thomas B.
-U_out(:)=0
-DO k=0,N_in
-  DO j=0,N_in
-    L_eta_zeta=L_xi(2,j)*L_xi(3,k)
-    DO i=0,N_in
-      U_out = U_out + U_IN(:,i,j,k)*L_xi(1,i)*L_Eta_Zeta
-    END DO ! i=0,N_In
-  END DO ! j=0,N_In
-END DO ! k=0,N_In
-
-IF(useBGField)THEN
-  ! use of BG-Field with possible different polynomial order and nodetype
-  ALLOCATE( L_xi_BGField(3,0:NBG)             &
-          , U_BGField(1:BGDataSize)           )
-!          , X3D_tmp1(BGDataSize,0:NBG,0:NBG) &
-!          , X3D_tmp2(BGDataSize,0:NBG)       &
-!          , X3D_tmp3(BGDataSize)             )
-  CALL LagrangeInterpolationPolys(xi(1),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(1,:))
-  CALL LagrangeInterpolationPolys(xi(2),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(2,:))
-  CALL LagrangeInterpolationPolys(xi(3),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(3,:))
-
-  U_BGField(:)=0
-  DO k=0,NBG
-    DO j=0,NBG
-      L_eta_zeta=L_xi_BGField(2,j)*L_xi_BGField(3,k)
-      DO i=0,NBG
-        U_BGField = U_BGField + BGField(:,i,j,k,ElemID)*L_xi_BGField(1,i)*L_Eta_Zeta
-      END DO ! i=0,NBG
-    END DO ! j=0,NBG
-  END DO ! k=0,NBG
-
-  SELECT CASE(BGType)
-  CASE(1)
-    U_Out(1:3)=U_Out(1:3)+U_BGField
-  CASE(2)
-    U_Out(4:6)=U_Out(4:6)+U_BGField
-  CASE(3)
-    U_Out=U_Out+U_BGField
-  END SELECT
-  DEALLOCATE( L_xi_BGField, U_BGField)! X3d_tmp1, x3d_tmp2, x3d_tmp3)
-END IF ! useBGField
-
-END SUBROUTINE EvaluateFieldAtPhysPos
-
-
 SUBROUTINE GetPositionInRefElem(x_in,xi,ElemID,DoReUseMap,ForceMode)
 !===================================================================================================================================
 !> Get Position within reference element (x_in -> xi=[-1,1])
@@ -180,6 +62,7 @@ USE MOD_Mesh_Vars,               ONLY:NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Mesh_Vars,               ONLY:wBaryCL_NGeo1,XiCL_NGeo1
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemCurved
 #if USE_MPI
+USE MOD_Particle_Mesh_Tools,     ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars,      ONLY:XCL_NGeo_Shared,dXCL_NGeo_Shared
 #else
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,XCL_NGeo
@@ -203,10 +86,9 @@ REAL                       :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)
 !===================================================================================================================================
 
 #if USE_MPI
-! TODO: This might become required once we reduce the halo region
-!ASSOCIATE(ElemID   => GlobalElem2CNTotalElem(ElemID), &
-!          XCL_NGeo => XCL_NGeo_Shared)
-ASSOCIATE( XCL_NGeo =>  XCL_NGeo_Shared &
+ASSOCIATE(ElemID     => GetCNElemID(ElemID) &
+!ASSOCIATE( XCL_NGeo  => XCL_NGeo_Shared     &
+         , XCL_NGeo  => XCL_NGeo_Shared     &
          ,dXCL_NGeo => dXCL_NGeo_Shared)
 #endif
 
@@ -290,6 +172,143 @@ DO k=0,N_in
   END DO ! j=0,N_In
 END DO ! k=0,N_In
 END SUBROUTINE TensorProductInterpolation
+
+
+SUBROUTINE EvaluateFieldAtPhysPos(x_in,NVar,N_in,U_In,U_Out,ElemID,PartID)
+!===================================================================================================================================
+!> 1) Get position within reference element (x_in -> xi=[-1,1]) by inverting the mapping
+!> 2) interpolate DG solution to position (U_In -> U_Out(x_in))
+!> 3) interpolate backgroundfield to position ( U_Out -> U_Out(x_in)+BG_field(x_in) )
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Basis                 ,ONLY: LagrangeInterpolationPolys
+USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary
+USE MOD_Interpolation_Vars    ,ONLY: NBG,BGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
+!USE MOD_Mesh_Vars             ,ONLY: dXCL_NGeo,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_Mesh_Vars             ,ONLY: NGeo,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_Mesh_Vars             ,ONLY: wBaryCL_NGeo1,XiCL_NGeo1
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCurved
+USE MOD_PICInterpolation_Vars ,ONLY: useBGField
+#if USE_MPI
+USE MOD_Particle_Mesh_Tools,   ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars,    ONLY: XCL_NGeo_Shared,dXCL_NGeo_Shared
+#else
+USE MOD_Mesh_Vars,             ONLY: XCL_NGeo,dXCL_NGeo
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)  :: NVar                                  !< 6 (Ex, Ey, Ez, Bx, By, Bz)
+INTEGER,INTENT(IN)  :: N_In                                  !< usually PP_N
+INTEGER,INTENT(IN)  :: ElemID                                !< Element index
+REAL,INTENT(IN)     :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)     !< State in Element
+REAL,INTENT(IN)     :: x_in(3)                               !< position in physical space
+INTEGER,INTENT(IN),OPTIONAL :: PartID                        !< particle ID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)    :: U_Out(1:NVar)                         !< Interpolated state at physical position x_in
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: i,j,k
+REAL                :: xi(3)
+REAL                :: L_xi(3,0:PP_N), L_eta_zeta
+REAL                :: XCL_NGeo1(1:3,0:1,0:1,0:1)
+REAL                :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)
+! h5-external e,b field
+REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
+!===================================================================================================================================
+
+#if USE_MPI
+ASSOCIATE(ElemID     => GetCNElemID(ElemID) &
+         , XCL_NGeo  =>  XCL_NGeo_Shared    &
+!ASSOCIATE( XCL_NGeo  =>  XCL_NGeo_Shared    &
+         ,dXCL_NGeo  => dXCL_NGeo_Shared)
+#endif /*USE_MPI*/
+CALL GetRefNewtonStartValue(X_in,Xi,ElemID)
+
+! If the element is curved, all Gauss points are required
+IF(ElemCurved(ElemID))THEN
+  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID) &
+                    ,NGeo,ElemID,Mode=1,PartID=PartID)
+! If the element is not curved, only the corner nodes are required
+ELSE
+  ! fill dummy XCL_NGeo1
+  XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,ElemID)
+  XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  ,ElemID)
+  XCL_NGeo1(1:3,0,1,0) = XCL_NGeo(1:3, 0  ,NGeo, 0  ,ElemID)
+  XCL_NGeo1(1:3,1,1,0) = XCL_NGeo(1:3,NGeo,NGeo, 0  ,ElemID)
+  XCL_NGeo1(1:3,0,0,1) = XCL_NGeo(1:3, 0  , 0  ,NGeo,ElemID)
+  XCL_NGeo1(1:3,1,0,1) = XCL_NGeo(1:3,NGeo, 0  ,NGeo,ElemID)
+  XCL_NGeo1(1:3,0,1,1) = XCL_NGeo(1:3, 0  ,NGeo,NGeo,ElemID)
+  XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo,ElemID)
+  ! fill dummy dXCL_NGeo1
+  dXCL_NGeo1(1:3,1:3,0,0,0) = dXCL_NGeo(1:3,1:3, 0  , 0  , 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,0,0) = dXCL_NGeo(1:3,1:3,NGeo, 0  , 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,1,0) = dXCL_NGeo(1:3,1:3, 0  ,NGeo, 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,1,0) = dXCL_NGeo(1:3,1:3,NGeo,NGeo, 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,0,1) = dXCL_NGeo(1:3,1:3, 0  , 0  ,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,0,1) = dXCL_NGeo(1:3,1:3,NGeo, 0  ,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,1,1) = dXCL_NGeo(1:3,1:3, 0  ,NGeo,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,1,1) = dXCL_NGeo(1:3,1:3,NGeo,NGeo,NGeo,ElemID)
+  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=1,PartID=PartID)
+END IF
+
+! 2.1) get "Vandermonde" vectors
+CALL LagrangeInterpolationPolys(xi(1),N_in,xGP,wBary,L_xi(1,:))
+CALL LagrangeInterpolationPolys(xi(2),N_in,xGP,wBary,L_xi(2,:))
+CALL LagrangeInterpolationPolys(xi(3),N_in,xGP,wBary,L_xi(3,:))
+
+! "more efficient" - Quote Thomas B.
+U_out(:)=0
+DO k=0,N_in
+  DO j=0,N_in
+    L_eta_zeta=L_xi(2,j)*L_xi(3,k)
+    DO i=0,N_in
+      U_out = U_out + U_IN(:,i,j,k)*L_xi(1,i)*L_Eta_Zeta
+    END DO ! i=0,N_In
+  END DO ! j=0,N_In
+END DO ! k=0,N_In
+
+IF(useBGField)THEN
+  ! use of BG-Field with possible different polynomial order and nodetype
+  ALLOCATE( L_xi_BGField(3,0:NBG)             &
+          , U_BGField(1:BGDataSize)           )
+!          , X3D_tmp1(BGDataSize,0:NBG,0:NBG) &
+!          , X3D_tmp2(BGDataSize,0:NBG)       &
+!          , X3D_tmp3(BGDataSize)             )
+  CALL LagrangeInterpolationPolys(xi(1),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(1,:))
+  CALL LagrangeInterpolationPolys(xi(2),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(2,:))
+  CALL LagrangeInterpolationPolys(xi(3),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(3,:))
+
+  U_BGField(:)=0
+  DO k=0,NBG
+    DO j=0,NBG
+      L_eta_zeta=L_xi_BGField(2,j)*L_xi_BGField(3,k)
+      DO i=0,NBG
+        U_BGField = U_BGField + BGField(:,i,j,k,ElemID)*L_xi_BGField(1,i)*L_Eta_Zeta
+      END DO ! i=0,NBG
+    END DO ! j=0,NBG
+  END DO ! k=0,NBG
+
+  SELECT CASE(BGType)
+  CASE(1)
+    U_Out(1:3)=U_Out(1:3)+U_BGField
+  CASE(2)
+    U_Out(4:6)=U_Out(4:6)+U_BGField
+  CASE(3)
+    U_Out=U_Out+U_BGField
+  END SELECT
+  DEALLOCATE( L_xi_BGField, U_BGField)! X3d_tmp1, x3d_tmp2, x3d_tmp3)
+END IF ! useBGField
+
+#if USE_MPI
+END ASSOCIATE
+#endif
+
+END SUBROUTINE EvaluateFieldAtPhysPos
 
 
 SUBROUTINE EvaluateFieldAtRefPos(xi_in,NVar,N_in,U_In,U_Out,ElemID)
@@ -446,11 +465,11 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)               :: N_In,ElemID
 INTEGER,INTENT(IN)               :: Mode
 INTEGER,INTENT(IN),OPTIONAL      :: PartID
-REAL,INTENT(IN)                  :: X_in(3) ! position in physical space
-REAL,INTENT(IN)                  :: XiCL_N_in(0:N_In)               ! position of CL points in reference space
-REAL,INTENT(IN)                  ::  XCL_N_in(3,0:N_In,0:N_in,0:N_In) ! position of CL points in physical space
-REAL,INTENT(IN)                  :: dXCL_N_in(3,3,0:N_In,0:N_in,0:N_In) ! derivation of CL points
-REAL,INTENT(IN)                  :: wBaryCL_N_in(0:N_In) ! derivation of CL points
+REAL,INTENT(IN)                  :: X_in(3)                  !> position in physical space
+REAL,INTENT(IN)                  :: XiCL_N_in(0:N_In)        !> position of CL points in reference space
+REAL,INTENT(IN)                  ::  XCL_N_in(3,0:N_In,0:N_in,0:N_In)   !> position of CL points in physical space
+REAL,INTENT(IN)                  :: dXCL_N_in(3,3,0:N_In,0:N_in,0:N_In) !> derivation of CL points
+REAL,INTENT(IN)                  :: wBaryCL_N_in(0:N_In)     !> derivation of CL points
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)               :: Xi(3) ! position in reference element
@@ -463,7 +482,6 @@ REAL                             :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
 REAL                             :: buff,buff2, Norm_F, Norm_F_old,lambda
 INTEGER                          :: iArmijo
 !===================================================================================================================================
-
 
 ! initial guess
 CALL LagrangeInterpolationPolys(Xi(1),N_In,XiCL_N_in,wBaryCL_N_in,Lag(1,:))
@@ -813,6 +831,7 @@ SUBROUTINE GetRefNewtonStartValue(X_in,Xi,ElemID)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc,                 ONLY:PP_N,PP_nElems
+USE MOD_Globals
 !USE MOD_Mesh_Vars,               ONLY:Elem_xGP,XCL_NGeo,offsetElem
 USE MOD_Mesh_Vars,               ONLY:NGeo,XiCL_NGeo
 USE MOD_Interpolation_Vars,      ONLY:xGP
@@ -847,13 +866,15 @@ epsOne=1.0+RefMappingEps
 RefMappingGuessLoc=RefMappingGuess
 ! the location of the Gauss-points within halo elements is not communicated. Instead of looking for the closest Gauss-point, the
 ! closest CL-point is used
-IF(ElemID.GT.PP_nElems)THEN
-  IF(DoRefMapping)THEN
-    IF(RefMappingGuess.EQ.2) RefMappingGuessLoc=3
-  ELSE
-    IF(RefMappingGuess.EQ.2) RefMappingGuessLoc=1
-  END IF
-END IF
+! this is no longer true with the new halo region
+!IF(ElemID.GT.PP_nElems) THEN
+!  IF(DoRefMapping)THEN
+!    IF(RefMappingGuess.EQ.2) RefMappingGuessLoc=3
+!  ELSE
+!    IF(RefMappingGuess.EQ.2) RefMappingGuessLoc=1
+!  END IF
+!END IF
+
 SELECT CASE(RefMappingGuessLoc)
 CASE(1)
   Ptild=X_in - ElemBaryNGeo(:,ElemID)

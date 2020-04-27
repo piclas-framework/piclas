@@ -3068,6 +3068,9 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars
+#if USE_MPI
+USE MOD_Particle_MPI_Halo,          ONLY: FinalizePartExchangeProcs
+#endif /*USE_MPI*/
 !#if USE_MPI
 !USE MOD_Particle_MPI_Emission      ,ONLY: FinalizeEmissionParticlesToProcs
 !#endif
@@ -3182,6 +3185,11 @@ SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
 SDEALLOCATE(RegionBounds)
 SDEALLOCATE(RegionElectronRef)
+
+#if USE_MPI
+! particle MPI halo exchange
+CALL FinalizePartExchangeProcs()
+#endif
 END SUBROUTINE FinalizeParticles
 
 !-- matrices for coordtrafo:

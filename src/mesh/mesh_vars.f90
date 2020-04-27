@@ -116,6 +116,10 @@ INTEGER,ALLOCATABLE :: FS2M(:,:,:,:)     !< flip slave side to master and revers
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! mapping from element to sides and sides to element
 !-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,ALLOCATABLE :: ElemInfo(:,:)           !< array containing the node and side connectivity of the elments as stored in the
+                                               !< mesh file
+INTEGER,ALLOCATABLE :: SideInfo(:,:)           !< array containing the connectivity, flip,... of the sides as stored in the
+                                               !< mesh file
 INTEGER,ALLOCATABLE :: ElemToSide(:,:,:) !< SideID    = ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
                                          !< flip      = ElemToSide(E2S_FLIP,ZETA_PLUS,iElem)
 INTEGER,ALLOCATABLE :: SideToElem(:,:)   !< ElemID    = SideToElem(S2E_ELEM_ID,SideID)
@@ -451,7 +455,7 @@ DO iNode=1,nNodes
     DEALLOCATE(Nodes(iNode)%np)
   END IF
 END DO
-DEALLOCATE(Nodes)
+!DEALLOCATE(Nodes)
 END SUBROUTINE deleteMeshPointer
 
 

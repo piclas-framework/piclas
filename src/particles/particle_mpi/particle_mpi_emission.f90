@@ -178,6 +178,8 @@ chunkState = -1
 
 !--- 1/4 Open receive buffer (located and non-located particles)
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+
   !--- MPI_IRECV lengths of lists of particles entering local mesh
   CALL MPI_IRECV( PartMPIInsert%nPartsRecv(:,iProc)                           &
                 , 2                                                           &
@@ -226,7 +228,7 @@ DO i=1,chunkSize
     nBGMElems = FIBGM_nElems(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))
 
     DO iBGMElem = 1, nBGMElems
-      ElemID = GetCNElemID(FIBGM_Element(FIBGM_offsetElem(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))+iBGMElem))
+      ElemID = FIBGM_Element(FIBGM_offsetElem(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))+iBGMElem)
 
       ! Check if element is on node (or halo region of node)
       IF(ElemInfo_Shared(ELEM_HALOFLAG,ElemID).EQ.0) THEN ! it is 0 or 2
@@ -239,12 +241,13 @@ END DO ! i = 1, chunkSize
 !--- Find non-local particles for sending to other nodes
 DO i = 1, chunkSize
   IF(.NOT.InsideMyBGM(i)) THEN
-    !--- check all cells associated with this beckground mesh cell
+    !--- check all cells associated with this background mesh cell. The
+    !--- information is still present as it was set in particle_bgm.f90
     nBGMElems = FIBGM_nElems(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))
 
     ! Loop over all BGM elements and count number of particles per procs for sending
     DO iBGMElem = 1, nBGMElems
-      ElemID = GetCNElemID(FIBGM_Element(FIBGM_offsetElem(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))+iBGMElem))
+      ElemID = FIBGM_Element(FIBGM_offsetElem(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))+iBGMElem)
       ProcID = ElemToProcID_Shared(ElemID)
 
       tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
@@ -256,6 +259,8 @@ END DO ! i = 1, chunkSize
 
 !--- 2/4 Send number of non-located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+
   ! send particles
   !--- MPI_ISEND lengths of lists of particles leaving local mesh
   CALL MPI_ISEND( PartMPIInsert%nPartsSend( 1,iProc)                          &
@@ -284,7 +289,7 @@ DO i = 1, chunkSize
 
     ! Loop over all BGM elements and count number of particles per procs for sending
     DO iBGMElem = 1, nBGMElems
-      ElemID = GetCNElemID(FIBGM_Element(FIBGM_offsetElem(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))+iBGMElem))
+      ElemID = FIBGM_Element(FIBGM_offsetElem(ijkBGM(1,i),ijkBGM(2,i),ijkBGM(3,i))+iBGMElem)
       ProcID = ElemToProcID_Shared(ElemID)
 
       tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
@@ -304,6 +309,8 @@ END DO ! i = 1, chunkSize
 
 !--- 4/4 Receive actual non-located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+
   CALL MPI_WAIT(PartMPIInsert%SendRequest(1,iProc),msg_status(:),IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
   CALL MPI_WAIT(PartMPIInsert%RecvRequest(1,iProc),msg_status(:),IERROR)
@@ -314,6 +321,8 @@ END DO
 ALLOCATE(recvPartPos(1:SUM(PartMPIInsert%nPartsRecv(1,:)*DimSend)), STAT=ALLOCSTAT)
 TotalNbrOfRecvParts = 0
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+
   IF (PartMPIInsert%nPartsRecv(1,iProc).GT.0) THEN
   !--- MPI_IRECV lengths of lists of particles entering local mesh
     CALL MPI_IRECV( recvPartPos(TotalNbrOfRecvParts*DimSend+1)                &
@@ -398,6 +407,8 @@ END DO ! i = 1, chunkSize
 
 !---  /  Send number of located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+
   ! send particles
   !--- MPI_ISEND lengths of lists of particles leaving local mesh
   CALL MPI_ISEND( PartMPILocate%nPartsSend( 1,iProc)                          &
@@ -440,6 +451,8 @@ END DO ! i = 1, chunkSize
 
 !--- 4/4 Receive actual non-located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+
   CALL MPI_WAIT(PartMPILocate%SendRequest(1,iProc),msg_status(:),IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
   CALL MPI_WAIT(PartMPILocate%RecvRequest(1,iProc),msg_status(:),IERROR)
@@ -447,6 +460,8 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 END DO
 
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+
   ! Allocate receive array and open receive buffer if expecting particles from iProc
   IF (PartMPILocate%nPartsRecv(1,iProc).GT.0) THEN
     nRecvParticles = PartMPILocate%nPartsRecv(1,iProc)
@@ -486,6 +501,8 @@ END DO
 
 !--- 5/4 Finish communication of actual non-located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+
   IF (PartMPIInsert%nPartsSend(1,iProc).GT.0) THEN
     CALL MPI_WAIT(PartMPIInsert%SendRequest(2,iProc),msg_status(:),IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
@@ -530,6 +547,8 @@ END DO
 
 !--- 7/4 Finish communication of actual non-located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+
   IF (PartMPILocate%nPartsSend(1,iProc).GT.0) THEN
     CALL MPI_WAIT(PartMPILocate%SendRequest(2,iProc),msg_status(:),IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
@@ -542,7 +561,7 @@ END DO
 
 !--- 8/4 Write located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  IF (iProc.EQ.myRank) CYCLE
+  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
   IF (PartMPILocate%nPartsRecv(1,iProc).EQ.0) CYCLE
 
   DO i = 1,PartMPILocate%nPartsRecv(1,iProc)

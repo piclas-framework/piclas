@@ -117,10 +117,11 @@ USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
 #if USE_MPI
 USE MOD_MPI_Shared              ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPIRankLeader,nLeaderGroupProcs
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF,mySurfRank
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
-USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeTotalSides,nNonUniqueGlobalSides
-USE MOD_MPI_Shared_Vars         ,ONLY: offsetComputeNodeElem,nComputeNodeElems
+USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeTotalSides
+USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,nComputeNodeElems
 USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide_Shared,GlobalSide2SurfSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide_Shared,SurfSide2GlobalSide_Shared_Win
@@ -146,6 +147,7 @@ IMPLICIT NONE
 INTEGER                                :: iBC,iSpec
 INTEGER                                :: iSide,firstSide,lastSide
 INTEGER                                :: nSurfSidesProc
+INTEGER                                :: offsetSurfTotalSidesProc
 INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
 INTEGER,ALLOCATABLE                    :: SurfSide2GlobalSideProc(:,:)
 INTEGER,ALLOCATABLE                    :: CalcSurfCollis_SpeciesRead(:)                       ! help array for reading surface stuff
@@ -162,7 +164,7 @@ REAL                                   :: XiOut(1:2),E,F,G,D,tmp1,tmpI2,tmpJ2
 REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz
 #if USE_MPI
 INTEGER                                :: iLeader
-INTEGER                                :: offsetSurfSidesProc,offsetSurfTotalSidesProc
+INTEGER                                :: offsetSurfSidesProc
 INTEGER                                :: GlobalElemID,GlobalElemRank
 INTEGER(KIND=MPI_ADDRESS_KIND)         :: MPISharedSize
 INTEGER                                :: sendbuf,recvbuf
@@ -204,14 +206,14 @@ CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalSides/),GlobalSide2SurfS
 CALL MPI_WIN_LOCK_ALL(0,GlobalSide2SurfSide_Shared_Win,IERROR)
 GlobalSide2SurfSide => GlobalSide2SurfSide_Shared
 #else
-ALLOCATE(GlobalSide2SurfSide(1:3,1:nComputeNodeTotalSides))
+ALLOCATE(GlobalSide2SurfSide(1:3,1:nComputeNodeSides))
 #endif /*USE_MPI*/
 
 ! only CN root nullifies
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
 #endif /* USE_MPI*/
-  nComputeNodeTotalSides = -1.
+  GlobalSide2SurfSide = -1.
 #if USE_MPI
 END IF
 
@@ -253,9 +255,9 @@ ALLOCATE(GlobalSide2SurfSideProc(1:3,firstSide:lastSide) &
         ,SurfSide2GlobalSideProc(1:3,1         :INT(nNonUniqueGlobalSides/REAL(nComputeNodeProcessors))))
 #else
 firstSide = 1
-lastSide  = nComputeNodeTotalSides
-ALLOCATE(GlobalSide2SurfSideProc(1:3,1:nComputeNodeTotalSides) &
-        ,SurfSideProc2GlobalSide(1:3,1:nComputeNodeTotalSides))
+lastSide  = nComputeNodeSides
+ALLOCATE(GlobalSide2SurfSideProc(1:3,1:nComputeNodeSides) &
+        ,SurfSide2GlobalSideProc(1:3,1:nComputeNodeSides))
 #endif /*USE_MPI*/
 
 GlobalSide2SurfSideProc    = -1
@@ -275,7 +277,6 @@ DO iSide = firstSide,lastSide
   IF ((PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
       (SideInfo_Shared(SIDE_TYPE,iSide).EQ.100)) THEN
     nSurfSidesProc = nSurfSidesProc + 1
-#if USE_MPI
     ! check if element for this side is on the current compute-node
     IF ((SideInfo_Shared(SIDE_ID,iSide).GT.ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1))                  .AND. &
         (SideInfo_Shared(SIDE_ID,iSide).LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
@@ -285,10 +286,10 @@ DO iSide = firstSide,lastSide
     ! TODO: Add another check to determine the surface side in halo_eps from current proc. Node-wide halo can become quite large with
     !       with 128 procs!
 
-#endif /*USE_MPI*/
     ! Write local mapping from Side to Surf side. The rank is already correct, the offset must be corrected by the proc offset later
     GlobalSide2SurfSideProc(SURF_SIDEID,iSide) = nSurfSidesProc
     GlobalSide2SurfSideProc(SURF_RANK  ,iSide) = ElemInfo_Shared(ELEM_RANK,SideInfo_Shared(SIDE_ELEMID,iSide))
+#if USE_MPI
     ! get global Elem ID
     GlobalElemID   = SideInfo_Shared(SIDE_ELEMID,iSide)
     GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
@@ -308,6 +309,15 @@ DO iSide = firstSide,lastSide
         END IF
       END DO
     END IF
+#else
+    GlobalSide2SurfSideProc(SURF_LEADER,iSide) = GlobalSide2SurfSideProc(SURF_RANK,iSide)
+#endif /*USE_MPI*/
+
+    ! check if element for this side is on the current compute-node. Alternative version to the check above
+!    IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) THEN
+!      nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
+!    END IF
+
     SurfSide2GlobalSideProc(SURF_SIDEID,nSurfSidesProc) = iSide
     SurfSide2GlobalSideProc(2:3        ,nSurfSidesProc) = GlobalSide2SurfSideProc(2:3,iSide)
   END IF ! reflective side
@@ -353,6 +363,7 @@ END DO
 
 #else
 offsetSurfTotalSidesProc  = 0
+nComputeNodeSurfTotalSides = nSurfSidesProc
 GlobalSide2SurfSide(:,firstSide:lastSide) = GlobalSide2SurfSide(:,firstSide:lastSide)
 #endif /*USE_MPI*/
 
@@ -364,6 +375,7 @@ CALL MPI_WIN_LOCK_ALL(0,SurfSide2GlobalSide_Shared_Win,IERROR)
 SurfSide2GlobalSide => SurfSide2GlobalSide_Shared
 
 ! This barrier MIGHT not be required
+CALL MPI_WIN_SYNC(GlobalSide2SurfSide_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(SurfSide2GlobalSide_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
@@ -395,7 +407,8 @@ END IF
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 CALL MPI_BCAST(nSurfTotalSides,1,MPI_INTEGER,0,MPI_COMM_SHARED,iError)
 #else
-nSurfTotalSides = nComputeNodeTotalSides
+mySurfRank      = 0
+nSurfTotalSides = nComputeNodeSurfTotalSides
 #endif /* USE_MPI */
 
 !> User sanity check
@@ -503,8 +516,16 @@ END IF
 MPISharedSize = INT((SurfSampSize*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/SurfSampSize,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallState_Shared_Win,SampWallState_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SampWallState_Shared_Win,IERROR)
+#else
+ALLOCATE(SampWallState_Shared(1:SurfSampSize,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+SampWallState_Shared = 0.
+#endif /*USE_MPI*/
+
+#if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
   SampWallState_Shared = 0.
+#if USE_MPI
 END IF
 CALL MPI_WIN_SYNC(SampWallState_Shared_Win,IERROR)
 !
@@ -540,6 +561,8 @@ IF (CalcSurfaceImpact) THEN
   CALL MPI_WIN_SYNC(SampWallImpactAngle_Shared_Win ,IERROR)
   CALL MPI_WIN_SYNC(SampWallImpactNumber_Shared_Win,IERROR)
 END IF
+#else
+CALL ABORT(__STAMP__,'Still needs to be implemented for MPI=OFF')
 #endif /*USE_MPI*/
 
 ! Surf sides are shared, array calculation can be distributed
@@ -647,8 +670,10 @@ area=0.
 IF (myComputeNodeRank.EQ.0) THEN
 #endif /*USE_MPI*/
   DO iSide = 1,nComputeNodeSurfTotalSides
+#if USE_MPI
     ! ignore sides in halo region
     IF (SurfSide2GlobalSide(SURF_LEADER,iSide).NE.myLeaderGroupRank) CYCLE
+#endif /*USE_MPI*/
 
     area = area + SUM(SurfSideArea(:,:,iSide))
   END DO ! iSide = 1,nComputeNodeSurfTotalSides
@@ -661,12 +686,17 @@ END IF
 CALL MPI_BCAST(area,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
 #endif /*USE_MPI*/
 
-SWRITE(UNIT_stdOut,'(A,ES25.14E3)') ' Surface-Area: ', Area
-
 ! de-allocate temporary interpolation points and weights
 DEALLOCATE(Xi_NGeo,wGP_NGeo)
 
-SWRITE(UNIT_stdOut,'(A)') ' ... DONE.'
+#if USE_MPI
+IF (mySurfRank.EQ.0) THEN
+#endif
+  WRITE(UNIT_StdOut,'(A,ES10.4E2)') ' | Surface-Area:                         ', Area
+  WRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING DONE'
+#if USE_MPI
+END IF
+#endif
 
 END SUBROUTINE InitParticleBoundarySampling
 
@@ -1142,8 +1172,8 @@ USE MOD_DSMC_Vars                   ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
 USE MOD_Particle_Vars               ,ONLY: WriteMacroSurfaceValues
 #if USE_MPI
-USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_LEADERS_SURF,nSurfLeaders
-USE MOD_Particle_MPI_Vars           ,ONLY: SurfSendBuf,SurfRecvBuf,SurfExchange,PartHaloSideToProc,PorousBCSendBuf,PorousBCRecvBuf
+USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
+USE MOD_Particle_MPI_Boundary_Sampling ,ONLY: FinalizeSurfCommunication
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1162,100 +1192,137 @@ INTEGER :: iProc
 ! Return if nothing was allocated
 IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive)).AND..NOT.(nPorousBC.GT.0)) RETURN
 
-SDEALLOCATE(XiEQ_SurfSample)
-SDEALLOCATE(SurfMesh%SurfaceArea)
-SDEALLOCATE(SurfMesh%SideIDToSurfID)
-SDEALLOCATE(SurfMesh%SurfIDToSideID)
-SDEALLOCATE(SurfMesh%innerBCSideToHaloMap)
-!SDALLOCATE(SampWall%Energy)
-!SDEALLOCATE(SampWall%Force)
-!SDEALLOCATE(SampWall%Counter)
-DO iSurfSide=1,SurfMesh%nTotalSides
-!  SDEALLOCATE(SampWall(iSurfSide)%State)
-  SDEALLOCATE(SampWall(iSurfSide)%SurfModelState)
-  SDEALLOCATE(SampWall(iSurfSide)%Accomodation)
-  SDEALLOCATE(SampWall(iSurfSide)%SurfModelReactCount)
-!  SDEALLOCATE(SampWall(iSurfSide)%ImpactEnergy)
-!  SDEALLOCATE(SampWall(iSurfSide)%ImpactVector)
-!  SDEALLOCATE(SampWall(iSurfSide)%ImpactAngle)
-!  SDEALLOCATE(SampWall(iSurfSide)%ImpactNumber)
-END DO
-SDEALLOCATE(SurfBCName)
-SDEALLOCATE(SampWall)
+! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
-SDEALLOCATE(PartHaloSideToProc)
-SDEALLOCATE(SurfExchange%nSidesSend)
-SDEALLOCATE(SurfExchange%nSidesRecv)
-SDEALLOCATE(SurfExchange%SendRequest)
-SDEALLOCATE(SurfExchange%RecvRequest)
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF (ALLOCATED(SurfSendBuf))THEN
-    SDEALLOCATE(SurfSendBuf(iProc)%content)
-  END IF
-  IF (ALLOCATED(SurfRecvBuf))THEN
-    SDEALLOCATE(SurfRecvBuf(iProc)%content)
-  END IF
-  IF (ALLOCATED(SurfCOMM%MPINeighbor))THEN
-    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SendList)
-    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvList)
-  END IF
-END DO ! iProc=1,PartMPI%nMPINeighbors
-SDEALLOCATE(SurfCOMM%MPINeighbor)
-SDEALLOCATE(SurfSendBuf)
-SDEALLOCATE(SurfRecvBuf)
-SDEALLOCATE(PorousBCSendBuf)
-SDEALLOCATE(PorousBCRecvBuf)
-SDEALLOCATE(OffSetSurfSideMPI)
-SDEALLOCATE(OffSetInnerSurfSideMPI)
-#endif /*USE_MPI*/
-SDEALLOCATE(CalcSurfCollis%SpeciesFlags)
-SDEALLOCATE(AnalyzeSurfCollis%Data)
-SDEALLOCATE(AnalyzeSurfCollis%Spec)
-SDEALLOCATE(AnalyzeSurfCollis%BCid)
-SDEALLOCATE(AnalyzeSurfCollis%Number)
-!SDEALLOCATE(AnalyzeSurfCollis%Rate)
-SDEALLOCATE(AnalyzeSurfCollis%BCs)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
-! adjusted for new halo region
+CALL MPI_WIN_UNLOCK_ALL(SampWallState_Shared_Win      ,iError)
+CALL MPI_WIN_FREE(      SampWallState_Shared_Win      ,iError)
+CALL MPI_WIN_UNLOCK_ALL(GlobalSide2SurfSide_Shared_Win,iError)
+CALL MPI_WIN_FREE(      GlobalSide2SurfSide_Shared_Win,iError)
+CALL MPI_WIN_UNLOCK_ALL(SurfSide2GlobalSide_Shared_Win,iError)
+CALL MPI_WIN_FREE(      SurfSide2GlobalSide_Shared_Win,iError)
+CALL MPI_WIN_UNLOCK_ALL(SurfSideArea_Shared_Win       ,iError)
+CALL MPI_WIN_FREE(      SurfSideArea_Shared_Win       ,iError)
+
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+! Communication is handled in particle_mpi_boundary_sampling.f90
+CALL FinalizeSurfCommunication()
+
+IF(MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
+  CALL MPI_COMM_FREE(MPI_COMM_LEADERS_SURF,iERROR)
+END IF
+
+ADEALLOCATE(SampWallState_Shared)
+ADEALLOCATE(SurfSideArea_Shared)
+ADEALLOCATE(GlobalSide2SurfSide_Shared)
+ADEALLOCATE(SurfSide2GlobalSide_Shared)
+#endif /*USE_MPI*/
+
+! Then, free the pointers or arrays
+SDEALLOCATE(XiEQ_SurfSample)
+SDEALLOCATE(SurfBCName)
 SDEALLOCATE(SampWallState)
-SDEALLOCATE(SampWallPumpCapacity)
-SDEALLOCATE(SampWallImpactEnergy)
-SDEALLOCATE(SampWallImpactVector)
-SDEALLOCATE(SampWallImpactAngle)
-SDEALLOCATE(SampWallImpactNumber)
 ADEALLOCATE(SurfSideArea)
 ADEALLOCATE(GlobalSide2SurfSide)
 ADEALLOCATE(SurfSide2GlobalSide)
-ADEALLOCATE(GlobalSide2SurfSide_Shared)
-ADEALLOCATE(SurfSide2GlobalSide_Shared)
-#if USE_MPI
-IF(MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_LEADERS_SURF,iERROR)
-SDEALLOCATE(GlobalSide2SurfHaloSide)
-SDEALLOCATE(SurfHaloSide2GlobalSide)
-IF (ALLOCATED(SurfMapping)) THEN
-  DO iProc = 0,nSurfLeaders-1
-    SDEALLOCATE(SurfMapping(iProc)%RecvSurfGlobalID)
-    SDEALLOCATE(SurfMapping(iProc)%SendSurfGlobalID)
-  END DO
-  SDEALLOCATE(SurfMapping)
-END IF
-CALL MPI_WIN_UNLOCK_ALL(SampWallState_Shared_Win,iError)
-CALL MPI_WIN_FREE(SampWallState_Shared_Win,iError)
-IF(nPorousBC.GT.0) THEN
-  CALL MPI_WIN_UNLOCK_ALL(SampWallPumpCapacity_Shared_Win,iError)
-  CALL MPI_WIN_FREE(SampWallPumpCapacity_Shared_Win,iError)
-END IF
-IF (CalcSurfaceImpact) THEN
-  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactEnergy_Shared_Win,iError)
-  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactVector_Shared_Win,iError)
-  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactAngle_Shared_Win,iError)
-  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactNumber_Shared_Win,iError)
-  CALL MPI_WIN_FREE(SampWallImpactEnergy_Shared_Win,iError)
-  CALL MPI_WIN_FREE(SampWallImpactVector_Shared_Win,iError)
-  CALL MPI_WIN_FREE(SampWallImpactAngle_Shared_Win,iError)
-  CALL MPI_WIN_FREE(SampWallImpactNumber_Shared_Win,iError)
-END IF
-#endif /*USE_MPI*/
+
+! Old stuff
+!SDEALLOCATE(XiEQ_SurfSample)
+!SDEALLOCATE(SurfMesh%SurfaceArea)
+!SDEALLOCATE(SurfMesh%SideIDToSurfID)
+!SDEALLOCATE(SurfMesh%SurfIDToSideID)
+!SDEALLOCATE(SurfMesh%innerBCSideToHaloMap)
+!!SDALLOCATE(SampWall%Energy)
+!!SDEALLOCATE(SampWall%Force)
+!!SDEALLOCATE(SampWall%Counter)
+!DO iSurfSide=1,SurfMesh%nTotalSides
+!!  SDEALLOCATE(SampWall(iSurfSide)%State)
+!  SDEALLOCATE(SampWall(iSurfSide)%SurfModelState)
+!  SDEALLOCATE(SampWall(iSurfSide)%Accomodation)
+!  SDEALLOCATE(SampWall(iSurfSide)%SurfModelReactCount)
+!!  SDEALLOCATE(SampWall(iSurfSide)%ImpactEnergy)
+!!  SDEALLOCATE(SampWall(iSurfSide)%ImpactVector)
+!!  SDEALLOCATE(SampWall(iSurfSide)%ImpactAngle)
+!!  SDEALLOCATE(SampWall(iSurfSide)%ImpactNumber)
+!END DO
+!SDEALLOCATE(SurfBCName)
+!SDEALLOCATE(SampWall)
+!#if USE_MPI
+!SDEALLOCATE(PartHaloSideToProc)
+!SDEALLOCATE(SurfExchange%nSidesSend)
+!SDEALLOCATE(SurfExchange%nSidesRecv)
+!SDEALLOCATE(SurfExchange%SendRequest)
+!SDEALLOCATE(SurfExchange%RecvRequest)
+!DO iProc=1,SurfCOMM%nMPINeighbors
+!  IF (ALLOCATED(SurfSendBuf))THEN
+!    SDEALLOCATE(SurfSendBuf(iProc)%content)
+!  END IF
+!  IF (ALLOCATED(SurfRecvBuf))THEN
+!    SDEALLOCATE(SurfRecvBuf(iProc)%content)
+!  END IF
+!  IF (ALLOCATED(SurfCOMM%MPINeighbor))THEN
+!    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%SendList)
+!    SDEALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvList)
+!  END IF
+!END DO ! iProc=1,PartMPI%nMPINeighbors
+!SDEALLOCATE(SurfCOMM%MPINeighbor)
+!SDEALLOCATE(SurfSendBuf)
+!SDEALLOCATE(SurfRecvBuf)
+!SDEALLOCATE(PorousBCSendBuf)
+!SDEALLOCATE(PorousBCRecvBuf)
+!SDEALLOCATE(OffSetSurfSideMPI)
+!SDEALLOCATE(OffSetInnerSurfSideMPI)
+!#endif /*USE_MPI*/
+!SDEALLOCATE(CalcSurfCollis%SpeciesFlags)
+!SDEALLOCATE(AnalyzeSurfCollis%Data)
+!SDEALLOCATE(AnalyzeSurfCollis%Spec)
+!SDEALLOCATE(AnalyzeSurfCollis%BCid)
+!SDEALLOCATE(AnalyzeSurfCollis%Number)
+!!SDEALLOCATE(AnalyzeSurfCollis%Rate)
+!SDEALLOCATE(AnalyzeSurfCollis%BCs)
+!
+!! adjusted for new halo region
+!SDEALLOCATE(SampWallState)
+!SDEALLOCATE(SampWallPumpCapacity)
+!SDEALLOCATE(SampWallImpactEnergy)
+!SDEALLOCATE(SampWallImpactVector)
+!SDEALLOCATE(SampWallImpactAngle)
+!SDEALLOCATE(SampWallImpactNumber)
+!ADEALLOCATE(SurfSideArea)
+!ADEALLOCATE(GlobalSide2SurfSide)
+!ADEALLOCATE(SurfSide2GlobalSide)
+!ADEALLOCATE(GlobalSide2SurfSide_Shared)
+!ADEALLOCATE(SurfSide2GlobalSide_Shared)
+!#if USE_MPI
+!IF(MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_LEADERS_SURF,iERROR)
+!SDEALLOCATE(GlobalSide2SurfHaloSide)
+!SDEALLOCATE(SurfHaloSide2GlobalSide)
+!IF (ALLOCATED(SurfMapping)) THEN
+!  DO iProc = 0,nSurfLeaders-1
+!    SDEALLOCATE(SurfMapping(iProc)%RecvSurfGlobalID)
+!    SDEALLOCATE(SurfMapping(iProc)%SendSurfGlobalID)
+!  END DO
+!  SDEALLOCATE(SurfMapping)
+!END IF
+!CALL MPI_WIN_UNLOCK_ALL(SampWallState_Shared_Win,iError)
+!CALL MPI_WIN_FREE(SampWallState_Shared_Win,iError)
+!IF(nPorousBC.GT.0) THEN
+!  CALL MPI_WIN_UNLOCK_ALL(SampWallPumpCapacity_Shared_Win,iError)
+!  CALL MPI_WIN_FREE(SampWallPumpCapacity_Shared_Win,iError)
+!END IF
+!IF (CalcSurfaceImpact) THEN
+!  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactEnergy_Shared_Win,iError)
+!  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactVector_Shared_Win,iError)
+!  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactAngle_Shared_Win,iError)
+!  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactNumber_Shared_Win,iError)
+!  CALL MPI_WIN_FREE(SampWallImpactEnergy_Shared_Win,iError)
+!  CALL MPI_WIN_FREE(SampWallImpactVector_Shared_Win,iError)
+!  CALL MPI_WIN_FREE(SampWallImpactAngle_Shared_Win,iError)
+!  CALL MPI_WIN_FREE(SampWallImpactNumber_Shared_Win,iError)
+!END IF
+!#endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeParticleBoundarySampling
 

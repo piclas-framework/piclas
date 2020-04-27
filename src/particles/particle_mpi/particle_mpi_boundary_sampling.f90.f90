@@ -30,9 +30,13 @@ INTERFACE ExchangeSurfData
   MODULE PROCEDURE ExchangeSurfData
 END INTERFACE
 
+INTERFACE FinalizeSurfCommunication
+  MODULE PROCEDURE FinalizeSurfCommunication
+END INTERFACE
 
 PUBLIC :: InitSurfCommunication
 PUBLIC :: ExchangeSurfData
+PUBLIC :: FinalizeSurfCommunication
 !===================================================================================================================================
 
 CONTAINS
@@ -75,6 +79,9 @@ INTEGER                       :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(
 INTEGER                       :: SendSurfGlobalID(0:nLeaderGroupProcs-1,1:nComputeNodeSurfTotalSides)
 INTEGER                       :: SampSizeAllocate
 !===================================================================================================================================
+
+nRecvSurfSidesTmp = 0
+
 !--- Open receive buffer (number of sampling surfaces in other node's halo region)
 DO iProc = 0,nLeaderGroupProcs-1
   IF (iProc.EQ.myLeaderGroupRank) CYCLE
@@ -90,7 +97,6 @@ DO iProc = 0,nLeaderGroupProcs-1
 END DO
 
 !--- count all surf sides per other compute-node which get sampling data from current leader
-nRecvSurfSidesTmp = 0
 nSendSurfSidesTmp = 0
 
 DO iSide = 1,nComputeNodeSurfTotalSides
@@ -118,9 +124,9 @@ END DO
 DO iProc = 0,nLeaderGroupProcs-1
   IF (iProc.EQ.myLeaderGroupRank) CYCLE
 
-  CALL MPI_WAIT(SendRequest(iProc),msg_status(:),IERROR)
+  CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-  CALL MPI_WAIT(RecvRequest(iProc),msg_status(:),IERROR)
+  CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
@@ -148,7 +154,7 @@ CALL MPI_COMM_GROUP(MPI_COMM_LEADERS_SURF  ,surfGroup   ,IERROR)
 
 ! Finally translate global rank to local rank
 CALL MPI_GROUP_TRANSLATE_RANKS(leadersGroup,nLeaderGroupProcs,MPIRankSharedLeader,surfGroup,MPIRankSurfLeader,IERROR)
-SWRITE(UNIT_stdOUt,'(A,I3,A)') ' Starting surface communication between ', nSurfLeaders, ' compute nodes'
+SWRITE(UNIT_stdOUt,'(A,I0,A)') ' Starting surface communication between ', nSurfLeaders, ' compute nodes'
 
 !!--- Count all communicated sides and build mapping for other leaders
 !ALLOCATE(nSurfSidesLeader(1:2,0:nSurfLeaders-1))
@@ -168,13 +174,17 @@ SWRITE(UNIT_stdOUt,'(A,I3,A)') ' Starting surface communication between ', nSurf
 
 !--- Open receive buffer (mapping from message surface ID to global side ID)
 ALLOCATE(SurfMapping(0:nSurfLeaders-1))
+
+!SurfMapping(:)%nRecvSurfSides = 0
+!SurfMapping(:)%nSendSurfSides = 0
+
 DO iProc = 0,nSurfLeaders-1
   ! Ignore myself
   IF (iProc .EQ. mySurfRank) CYCLE
 
   ! Save number of send and recv sides
-  SurfMapping(iProc)%nRecvSurfSides = nSendSurfSidesTmp(MPIRankSurfLeader(iProc))
-  SurfMapping(iProc)%nSendSurfSides = nRecvSurfSidesTmp(MPIRankSurfLeader(iProc))
+  SurfMapping(iProc)%nRecvSurfSides = nRecvSurfSidesTmp(MPIRankSurfLeader(iProc))
+  SurfMapping(iProc)%nSendSurfSides = nSendSurfSidesTmp(MPIRankSurfLeader(iProc))
 
   ! Only open recv buffer if we are expecting sides from this leader node
   IF (nRecvSurfSidesTmp(MPIRankSurfLeader(iProc)).EQ.0) CYCLE
@@ -594,6 +604,55 @@ END IF
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
 END SUBROUTINE ExchangeSurfData
+
+
+SUBROUTINE FinalizeSurfCommunication()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Deallocated arrays used for sampling surface communication
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping
+USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,mySurfRank
+USE MOD_MPI_Shared_Vars         ,ONLY: MPIRankSharedLeader,MPIRankSurfLeader
+USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iProc
+!===================================================================================================================================
+
+IF (myComputeNodeRank.NE.0) RETURN
+
+! nodes without sampling surfaces do not take part in this routine
+IF (.NOT.SurfOnNode) RETURN
+
+SDEALLOCATE(MPIRankSharedLeader)
+SDEALLOCATE(MPIRankSurfLeader)
+
+DO iProc = 0,nSurfLeaders-1
+  ! Ignore myself
+  IF (iProc .EQ. mySurfRank) CYCLE
+
+  IF (SurfMapping(iProc)%nRecvSurfSides.NE.0) THEN
+    SDEALLOCATE(SurfMapping(iProc)%RecvSurfGlobalID)
+    SDEALLOCATE(SurfRecvBuf(iProc)%content)
+  END IF
+
+  IF (SurfMapping(iProc)%nSendSurfSides.NE.0) THEN
+    SDEALLOCATE(SurfMapping(iProc)%SendSurfGlobalID)
+    SDEALLOCATE(SurfSendBuf(iProc)%content)
+  END IF
+END DO
+SDEALLOCATE(SurfMapping)
+SDEALLOCATE(SurfSendBuf)
+SDEALLOCATE(SurfRecvBuf)
+
+END SUBROUTINE FinalizeSurfCommunication
 #endif /*USE_MPI*/
 
 END MODULE MOD_Particle_MPI_Boundary_Sampling

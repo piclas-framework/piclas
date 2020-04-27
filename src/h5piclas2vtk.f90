@@ -938,8 +938,8 @@ USE MOD_IO_HDF5,                ONLY: HSize
 USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize
 USE MOD_Mesh_ReadIn,            ONLY: readMesh
 USE MOD_Mesh_Vars,              ONLY: NGeo, nElems, offsetElem, nGlobalElems
-USE MOD_MPI_Shared_Vars
-USE MOD_Particle_Mesh_Vars      ,ONLY:ElemNodeID_Shared,ElemSideNodeID_Shared,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides,nNonUniqueGlobalNodes
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,ElemSideNodeID_Shared,NodeCoords_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1081,7 +1081,7 @@ USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,G
 USE MOD_Mesh_ReadIn,            ONLY: readMesh
 USE MOD_Mesh_Vars,              ONLY: nElems, offsetElem, nGlobalElems
 USE MOD_Mesh_Vars,              ONLY: NGeo, SurfConnect,BoundaryName
-USE MOD_MPI_Shared_Vars
+USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides,nNonUniqueGlobalNodes
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars      ,ONLY:ElemNodeID_Shared,ElemSideNodeID_Shared,NodeCoords_Shared,SideInfo_Shared,NodeInfo_Shared
 #endif
@@ -1285,7 +1285,7 @@ USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,G
 USE MOD_Mesh_ReadIn,            ONLY: readMesh
 USE MOD_Mesh_Vars,              ONLY: SurfConnect, BoundaryName
 USE MOD_Particle_Mesh_Vars,     ONLY: ElemSideNodeID_Shared,SideInfo_Shared,NodeCoords_Shared,NodeInfo_Shared
-USE MOD_MPI_Shared_Vars
+USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

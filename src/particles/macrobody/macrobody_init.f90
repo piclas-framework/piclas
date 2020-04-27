@@ -85,7 +85,8 @@ USE MOD_MacroBody_Vars
 USE MOD_Particle_Vars          ,ONLY: nPointsMCVolumeEstimate
 USE MOD_DSMC_Vars              ,ONLY: ConsiderVolumePortions
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, nTotalElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+!USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems
 USE MOD_IO_HDF5                ,ONLY: AddToElemData, ElementOut
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -137,7 +138,9 @@ END IF
 ConsiderVolumePortions=.FALSE.
 IF (UseMacroBody) THEN
   ConsiderVolumePortions=.TRUE.
-  ALLOCATE(ElemHasMacroBody(1:nTotalElems, 1:nMacroBody))
+!  ALLOCATE(ElemHasMacroBody(1:nTotalElems, 1:nMacroBody))
+  CALL ABORT(__STAMP__,'Still needs to be adjusted to new halo region => do it in shared memory!')
+
   ElemHasMacroBody(:,:)=.FALSE.
   MacroPartWriteElemData=GETLOGICAL('MacroBody-WriteElemData')
   IF (MacroPartWriteElemData) THEN

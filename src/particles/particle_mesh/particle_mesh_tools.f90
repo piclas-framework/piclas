@@ -25,9 +25,9 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-INTERFACE BoundsOfElement
-  MODULE PROCEDURE BoundsOfElement
-END INTERFACE
+!INTERFACE BoundsOfElement
+!  MODULE PROCEDURE BoundsOfElement
+!END INTERFACE
 
 INTERFACE ParticleInsideQuad3D
   MODULE PROCEDURE ParticleInsideQuad3D
@@ -77,98 +77,100 @@ END INTERFACE
 
 PUBLIC::InitGetGlobalElemID
 PUBLIC::InitGetCNElemID
-PUBLIC::BoundsOfElement, ParticleInsideQuad3D!, ParticleInsideQuad3D_MortarMPI
+!PUBLIC::BoundsOfElement
+PUBLIC::ParticleInsideQuad3D
+!PUBLIC::ParticleInsideQuad3D_MortarMPI
 !===================================================================================================================================
 CONTAINS
 
-SUBROUTINE BoundsOfElement(ElemID,Bounds)
-!===================================================================================================================================
-! computes the min/max of element in xyz (Based on BGMIndexOfElement)
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,sVdm_Bezier
-USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo
-USE MOD_Mesh_Vars              ,ONLY: NGeo
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
-USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-INTEGER,INTENT(IN)        :: ElemID
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)          :: Bounds(1:2,1:3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                   :: ilocSide, SideID
-REAL                      :: xmin,xmax,ymin,ymax,zmin,zmax
-REAL                      :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
-!===================================================================================================================================
-
-xmin = HUGE(1.0)
-xmax =-HUGE(1.0)
-ymin = HUGE(1.0)
-ymax =-HUGE(1.0)
-zmin = HUGE(1.0)
-zmax =-HUGE(1.0)
-
-! get min,max of BezierControlPoints of Element
-DO iLocSide = 1,6
-  SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, ElemID)
-  IF(DoRefMapping)THEN
-    IF(SideID.GT.0)THEN
-      IF(PartElemToSide(E2S_FLIP,ilocSide,ElemID).EQ.0)THEN
-        BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-      ELSE
-        SELECT CASE(ilocSide)
-        CASE(XI_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,ElemID),BezierControlPoints3D_tmp)
-        CASE(XI_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,ElemID),BezierControlPoints3D_tmp)
-        CASE(ETA_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,ElemID),BezierControlPoints3D_tmp)
-        CASE(ETA_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,ElemID),BezierControlPoints3D_tmp)
-        CASE(ZETA_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,ElemID),BezierControlPoints3D_tmp)
-        CASE(ZETA_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,ElemID),BezierControlPoints3D_tmp)
-        END SELECT
-      END IF
-    ELSE
-      SELECT CASE(ilocSide)
-      CASE(XI_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,ElemID),BezierControlPoints3D_tmp)
-      CASE(XI_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,ElemID),BezierControlPoints3D_tmp)
-      CASE(ETA_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,ElemID),BezierControlPoints3D_tmp)
-      CASE(ETA_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,ElemID),BezierControlPoints3D_tmp)
-      CASE(ZETA_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,ElemID),BezierControlPoints3D_tmp)
-      CASE(ZETA_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,ElemID),BezierControlPoints3D_tmp)
-      END SELECT
-    END IF
-  ELSE ! pure tracing
-    BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-  END IF
-  xmin=MIN(xmin,MINVAL(BezierControlPoints3D_tmp(1,:,:)))
-  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D_tmp(1,:,:)))
-  ymin=MIN(ymin,MINVAL(BezierControlPoints3D_tmp(2,:,:)))
-  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D_tmp(2,:,:)))
-  zmin=MIN(zmin,MINVAL(BezierControlPoints3D_tmp(3,:,:)))
-  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D_tmp(3,:,:)))
-END DO ! ilocSide
-Bounds(:,1)=(/xmin,xmax/)
-Bounds(:,2)=(/ymin,ymax/)
-Bounds(:,3)=(/zmin,zmax/)
-
-END SUBROUTINE BoundsOfElement
+!SUBROUTINE BoundsOfElement(ElemID,Bounds)
+!!===================================================================================================================================
+!! computes the min/max of element in xyz (Based on BGMIndexOfElement)
+!!===================================================================================================================================
+!! MODULES                                                                                                                          !
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
+!USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,sVdm_Bezier
+!USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo
+!USE MOD_Mesh_Vars              ,ONLY: NGeo
+!USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+!USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!! INPUT VARIABLES
+!INTEGER,INTENT(IN)        :: ElemID
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! OUTPUT VARIABLES
+!REAL,INTENT(OUT)          :: Bounds(1:2,1:3)
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER                   :: ilocSide, SideID
+!REAL                      :: xmin,xmax,ymin,ymax,zmin,zmax
+!REAL                      :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
+!!===================================================================================================================================
+!
+!xmin = HUGE(1.0)
+!xmax =-HUGE(1.0)
+!ymin = HUGE(1.0)
+!ymax =-HUGE(1.0)
+!zmin = HUGE(1.0)
+!zmax =-HUGE(1.0)
+!
+!! get min,max of BezierControlPoints of Element
+!DO iLocSide = 1,6
+!  SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, ElemID)
+!  IF(DoRefMapping)THEN
+!    IF(SideID.GT.0)THEN
+!      IF(PartElemToSide(E2S_FLIP,ilocSide,ElemID).EQ.0)THEN
+!        BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
+!      ELSE
+!        SELECT CASE(ilocSide)
+!        CASE(XI_MINUS)
+!          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,ElemID),BezierControlPoints3D_tmp)
+!        CASE(XI_PLUS)
+!          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,ElemID),BezierControlPoints3D_tmp)
+!        CASE(ETA_MINUS)
+!          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,ElemID),BezierControlPoints3D_tmp)
+!        CASE(ETA_PLUS)
+!          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,ElemID),BezierControlPoints3D_tmp)
+!        CASE(ZETA_MINUS)
+!          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,ElemID),BezierControlPoints3D_tmp)
+!        CASE(ZETA_PLUS)
+!          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,ElemID),BezierControlPoints3D_tmp)
+!        END SELECT
+!      END IF
+!    ELSE
+!      SELECT CASE(ilocSide)
+!      CASE(XI_MINUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,ElemID),BezierControlPoints3D_tmp)
+!      CASE(XI_PLUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,ElemID),BezierControlPoints3D_tmp)
+!      CASE(ETA_MINUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,ElemID),BezierControlPoints3D_tmp)
+!      CASE(ETA_PLUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,ElemID),BezierControlPoints3D_tmp)
+!      CASE(ZETA_MINUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,ElemID),BezierControlPoints3D_tmp)
+!      CASE(ZETA_PLUS)
+!        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,ElemID),BezierControlPoints3D_tmp)
+!      END SELECT
+!    END IF
+!  ELSE ! pure tracing
+!    BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
+!  END IF
+!  xmin=MIN(xmin,MINVAL(BezierControlPoints3D_tmp(1,:,:)))
+!  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D_tmp(1,:,:)))
+!  ymin=MIN(ymin,MINVAL(BezierControlPoints3D_tmp(2,:,:)))
+!  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D_tmp(2,:,:)))
+!  zmin=MIN(zmin,MINVAL(BezierControlPoints3D_tmp(3,:,:)))
+!  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D_tmp(3,:,:)))
+!END DO ! ilocSide
+!Bounds(:,1)=(/xmin,xmax/)
+!Bounds(:,2)=(/ymin,ymax/)
+!Bounds(:,3)=(/zmin,zmax/)
+!
+!END SUBROUTINE BoundsOfElement
 
 
 !PURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)

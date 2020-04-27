@@ -35,11 +35,13 @@ INTERFACE GetBoundaryInteractionAuxBC
   MODULE PROCEDURE GetBoundaryInteractionAuxBC
 END INTERFACE
 
-INTERFACE PartSwitchElement
-  MODULE PROCEDURE PartSwitchElement
-END INTERFACE
+!INTERFACE PartSwitchElement
+!  MODULE PROCEDURE PartSwitchElement
+!END INTERFACE
 
-PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionAuxBC,PartSwitchElement
+PUBLIC :: GetBoundaryInteraction
+PUBLIC :: GetBoundaryInteractionAuxBC
+!PUBLIC :: PartSwitchElement
 !===================================================================================================================================
 
 CONTAINS
@@ -130,7 +132,7 @@ CASE(REFMAPPING,TRACING)
            + BezierControlPoints3D(:,NGeo,0   ,SideID)  &
            + BezierControlPoints3D(:,0   ,NGeo,SideID)  &
            + BezierControlPoints3D(:,NGeo,NGeo,SideID))
-  v2 = v1  - ElemBaryNGeo_Shared(:,ElemID)
+    v2 = v1  - ElemBaryNGeo(:,ElemID)
 
   IF (DOT_PRODUCT(v2,n_loc).LT.0) THEN
     IPWRITE(UNIT_stdout,*) 'Obtained wrong side orientation from flip. flip:',flip,'PartID:',iPart
@@ -1388,94 +1390,96 @@ __STAMP__&
 
 ! refmapping and tracing
 ! move particle from old element to new element
-Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
-ElemID    = Moved(1)
-#if USE_MPI
-IF(ElemID.EQ.-1)THEN
-  CALL abort(&
-__STAMP__&
-,' Mesh-connectivity broken or halo region to small. Neighbor element is missing!')
-END IF
-#endif /*USE_MPI*/
+ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
+
+!Moved     = PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
+!ElemID    = Moved(1)
+!#if USE_MPI
+!IF(ElemID.EQ.-1)THEN
+!  CALL abort(&
+!__STAMP__&
+!,' Mesh-connectivity broken or halo region to small. Neighbor element is missing!')
+!END IF
+!#endif /*USE_MPI*/
 
 END SUBROUTINE SideAnalysis
 
 
-FUNCTION PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
-!===================================================================================================================================
-! particle moves through face and switches element
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Mesh_Vars ,ONLY: PartElemToElemAndSide
-USE MOD_Mesh_Vars          ,ONLY: MortarType
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)  :: locSideID, SideID,ElemID
-REAL,INTENT(IN)     :: xi,eta
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER,DIMENSION(2) :: PARTSWITCHELEMENT
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-! move particle to new element
-!     Type 1               Type 2              Type3
-!      eta                  eta                 eta
-!       ^                    ^                   ^
-!       |                    |                   |
-!   +---+---+            +---+---+           +---+---+
-!   | 3 | 4 |            |   2   |           |   |   |
-!   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
-!   | 1 | 2 |            |   1   |           |   |   |
-!   +---+---+            +---+---+           +---+---+
-
-CALL ABORT(__STAMP__,'Not yet implemented for new halo region')
-
-SELECT CASE(MortarType(1,SideID))
-CASE(1)
-  IF(Xi.GT.0.)THEN
-    IF(Eta.GT.0.)THEN
-      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(4  ,locSideID,ElemID)
-      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(4+4,locSideID,ElemID)
-    ELSE
-      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
-      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
-    END IF
-  ELSE
-    IF(Eta.GT.0.)THEN
-      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(3  ,locSideID,ElemID)
-      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(3+4,locSideID,ElemID)
-    ELSE
-      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
-      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
-    END IF
-  END IF
-CASE(2)
-  IF(Eta.GT.0.)THEN
-    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
-    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
-  ELSE
-    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
-    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
-  END IF
-CASE(3)
-  IF(Xi.LE.0.)THEN
-    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
-    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
-  ELSE
-    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
-    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
-  END IF
-CASE DEFAULT ! normal side OR small mortar side
-  PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
-  PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
-END SELECT
-
-END FUNCTION PARTSWITCHELEMENT
+!FUNCTION PARTSWITCHELEMENT(xi,eta,locSideID,SideID,ElemID)
+!!===================================================================================================================================
+!! particle moves through face and switches element
+!!===================================================================================================================================
+!! MODULES
+!USE MOD_Globals
+!USE MOD_Particle_Mesh_Vars ,ONLY: PartElemToElemAndSide
+!USE MOD_Mesh_Vars          ,ONLY: MortarType
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! INPUT VARIABLES
+!INTEGER,INTENT(IN)  :: locSideID, SideID,ElemID
+!REAL,INTENT(IN)     :: xi,eta
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! OUTPUT VARIABLES
+!INTEGER,DIMENSION(2) :: PARTSWITCHELEMENT
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!!===================================================================================================================================
+!
+!! move particle to new element
+!!     Type 1               Type 2              Type3
+!!      eta                  eta                 eta
+!!       ^                    ^                   ^
+!!       |                    |                   |
+!!   +---+---+            +---+---+           +---+---+
+!!   | 3 | 4 |            |   2   |           |   |   |
+!!   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
+!!   | 1 | 2 |            |   1   |           |   |   |
+!!   +---+---+            +---+---+           +---+---+
+!
+!CALL ABORT(__STAMP__,'Not yet implemented for new halo region')
+!
+!SELECT CASE(MortarType(1,SideID))
+!CASE(1)
+!  IF(Xi.GT.0.)THEN
+!    IF(Eta.GT.0.)THEN
+!      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(4  ,locSideID,ElemID)
+!      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(4+4,locSideID,ElemID)
+!    ELSE
+!      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
+!      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
+!    END IF
+!  ELSE
+!    IF(Eta.GT.0.)THEN
+!      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(3  ,locSideID,ElemID)
+!      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(3+4,locSideID,ElemID)
+!    ELSE
+!      PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
+!      PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
+!    END IF
+!  END IF
+!CASE(2)
+!  IF(Eta.GT.0.)THEN
+!    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
+!    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
+!  ELSE
+!    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
+!    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
+!  END IF
+!CASE(3)
+!  IF(Xi.LE.0.)THEN
+!    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
+!    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
+!  ELSE
+!    PARTSWITCHELEMENT(1)=PartElemToElemAndSide(2  ,locSideID,ElemID)
+!    PARTSWITCHELEMENT(2)=PartElemToElemAndSide(2+4,locSideID,ElemID)
+!  END IF
+!CASE DEFAULT ! normal side OR small mortar side
+!  PARTSWITCHELEMENT(1)=PartElemToElemAndSide(1  ,locSideID,ElemID)
+!  PARTSWITCHELEMENT(2)=PartElemToElemAndSide(1+4,locSideID,ElemID)
+!END SELECT
+!
+!END FUNCTION PARTSWITCHELEMENT
 
 
 SUBROUTINE SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
