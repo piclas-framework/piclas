@@ -111,7 +111,7 @@ INTEGER                        :: BGMimax, BGMimin, BGMjmax, BGMjmin, BGMkmax, B
 INTEGER                        :: BGMiDelta,BGMjDelta,BGMkDelta
 INTEGER                        :: BGMCellXmax, BGMCellXmin, BGMCellYmax, BGMCellYmin, BGMCellZmax, BGMCellZmin
 #if USE_MPI
-INTEGER                        :: errType,iStage
+INTEGER                        :: errType
 INTEGER                        :: iSide, SideID
 INTEGER                        :: ElemID
 REAL                           :: deltaT
