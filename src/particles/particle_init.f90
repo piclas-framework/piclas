@@ -654,7 +654,7 @@ USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
 USE MOD_Particle_Boundary_Vars     ,ONLY: nPorousBC, PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TriaTracking,DoRefMapping,TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Particle_Vars              ,ONLY: MacroRestartData_tmp
+USE MOD_Particle_Vars              ,ONLY: MacroRestartData_tmp, Symmetry2D
 USE MOD_PICInterpolation_Vars      ,ONLY: useBGField
 USE MOD_Restart_Vars               ,ONLY: DoRestart
 USE MOD_Surface_Flux               ,ONLY: InitializeParticleSurfaceflux
@@ -698,6 +698,11 @@ CASE(TRIATRACKING)
   DoRefMapping=.FALSE.
   TriaTracking=.TRUE.
 END SELECT
+IF (Symmetry2D) THEN
+  DoRefMapping=.FALSE.
+  TriaTracking=.TRUE.
+  SWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
+END IF
 
 IF(.NOT.ALLOCATED(nPartsPerElem))THEN
   ALLOCATE(nPartsPerElem(1:nElems))

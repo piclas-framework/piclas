@@ -127,6 +127,12 @@ TYPE tBCdata_auxSF
 END TYPE tBCdata_auxSF
 TYPE(tBCdata_auxSF),ALLOCATABLE          :: BCdata_auxSF(:)             !aux. data of BCs for surfacefluxes, (1:nPartBound) (!!!)
 
+TYPE tBCdata_auxSFRadWeight
+  REAL, ALLOCATABLE   :: SubSideWeight(:,:)
+  REAL, ALLOCATABLE   :: WeightingFactor(:)
+  REAL, ALLOCATABLE   :: SubSideArea(:,:)
+END TYPE
+
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Surfaces_Vars

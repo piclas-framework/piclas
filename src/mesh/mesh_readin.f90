@@ -474,7 +474,7 @@ DO iElem=FirstElemInd,LastElemInd
   DO iLocSide = 1,nlocSides
     iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) + iLocSide
     ! Big mortar side
-    IF (SideInfo_Shared(SIDE_TYPE,iSide).GT.4) THEN
+    IF (SideInfo_Shared(SIDE_TYPE,iSide).GT.100) THEN
       ! Check all sides on the small element side to find the small mortar side pointing back
       NbElemID    = SideInfo_Shared(SIDE_NBELEMID,iSide)
       nlocSidesNb = ElemInfo_Shared(ELEM_LASTSIDEIND,NbElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,NbElemID)

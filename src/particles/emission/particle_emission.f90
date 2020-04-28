@@ -441,8 +441,6 @@ DO i=1,nSpecies
        PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
        PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
        !CALL UpdateNextFreePosition()
-
-
     END IF
     ! compute number of input particles and energy
     IF(CalcPartBalance) THEN

@@ -189,6 +189,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts,CartesianPeriodic
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking, WriteTriaDebugMesh
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
+USE MOD_Particle_Vars          ,ONLY: Symmetry2D
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
@@ -394,6 +395,10 @@ END IF
 ! BezierAreaSample stuff:
 WRITE(hilf,'(L1)') TriaTracking
 TriaSurfaceFlux = GETLOGICAL('TriaSurfaceFlux',TRIM(hilf))
+IF (Symmetry2D) THEN
+  SWRITE(UNIT_stdOut,'(A)') "Surface Flux set to Triangle-aproximation due to Symmetry2D."
+  TriaSurfaceFlux = .TRUE.
+END IF
 IF (TriaSurfaceFlux) THEN
   BezierSampleN = 1
   SurfFluxSideSize=(/1,2/)
