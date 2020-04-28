@@ -74,6 +74,7 @@ DO iSpec = 1,nSpecies
   DO jSpec = 1, nSpecies
     IF(.NOT.BGGas%BackgroundSpecies(jSpec)) CYCLE
     ! Read-in cross-section data for collisions of particles from the background gas and the current species
+    ! Allocating CollXSecData within the following routine
     CALL ReadCollXSec(iSpec, jSpec)
     ! Store the energy value in J (read-in was in eV)
     SpecXSec(iSpec,jSpec)%CollXSecData(1,:) = SpecXSec(iSpec,jSpec)%CollXSecData(1,:) * ElementaryCharge
