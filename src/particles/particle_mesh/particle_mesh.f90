@@ -384,11 +384,14 @@ CASE(TRACING,REFMAPPING)
     CALL GetLinearSideBaseVectors()
 
     IF (TrackingMethod.EQ.REFMAPPING) THEN
-    ! Identify BCElems
-    CALL BuildBCElemDistance()
-  END IF
+      ! Identify BCSides and build side origin and radius
+      CALL GetBCSidesAndOrgin()
 
-  CALL BuildEpsOneCell()
+      ! Identify BCElems
+      CALL BuildBCElemDistance()
+    END IF
+
+    CALL BuildEpsOneCell()
 
   CASE DEFAULT
     CALL ABORT(__STAMP__,'Invalid tracking method in particle_mesh.f90!')
@@ -2351,6 +2354,150 @@ SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 elems: ', nCur
 END SUBROUTINE IdentifyElemAndSideType
 
 
+SUBROUTINE GetBCSidesAndOrgin()
+!===================================================================================================================================
+! Globally identifies all BC sides and build side origin and radius
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Basis                  ,ONLY: DeCasteljauInterpolation
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: BCSide2SideID,SideID2BCSide,BCSideMetrics
+USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides,nUniqueBCSides
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+#if USE_MPI
+USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars     ,ONLY: BCSide2SideID_Shared,SideID2BCSide_Shared,BCSideMetrics_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: BCSide2SideID_Shared_Win,SideID2BCSide_Shared_Win,BCSideMetrics_Shared_Win
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: p,q
+INTEGER                        :: iSide,firstSide,lastSide,BCSideID
+INTEGER                        :: nUniqueBCSidesProc,offsetUniqueBCSidesProc
+REAL                           :: origin(1:3),xi(1:2),radius,radiusMax,vec(1:3)
+#if USE_MPI
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
+INTEGER                        :: sendbuf,recvbuf
+#endif /*USE_MPI*/
+!===================================================================================================================================
+
+#if USE_MPI
+firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+#else
+firstSide = 1
+lastSide  = nNonUniqueGlobalSides
+#endif /*USE_MPI*/
+
+! Count number of BC sides in range
+nUniqueBCSidesProc = 0
+DO iSide = firstSide,lastSide
+  ! ignore inner and virtual (mortar) sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+
+  nUniqueBCSidesProc = nUniqueBCSidesProc + 1
+END DO
+
+! Find global number of BC sides and write side <=> BCSide mapping into shared array
+#if USE_MPI
+sendbuf = nUniqueBCSidesProc
+recvbuf = 0
+CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+offsetUniqueBCSidesProc   = recvbuf
+! last proc knows CN total number of BC elems
+sendbuf = offsetUniqueBCSidesProc + nUniqueBCSidesProc
+CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+nUniqueBCSides = sendbuf
+
+MPISharedSize = INT((nUniqueBCSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nUniqueBCSides/),BCSide2SideID_Shared_Win,BCSide2SideID_Shared)
+CALL MPI_WIN_LOCK_ALL(0,BCSide2SideID_Shared_Win,IERROR)
+MPISharedSize = INT((nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/nNonUniqueGlobalSides/),SideID2BCSide_Shared_Win,SideID2BCSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideID2BCSide_Shared_Win,IERROR)
+BCSide2SideID => BCSide2SideID_Shared
+SideID2BCSide => SideID2BCSide_Shared
+
+! Also allocate array to hold BC Side metrics
+MPISharedSize = INT((4*nUniqueBCSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/4,nUniqueBCSides/),BCSideMetrics_Shared_Win,BCSideMetrics_Shared)
+CALL MPI_WIN_LOCK_ALL(0,BCSideMetrics_Shared_Win,IERROR)
+BCSideMetrics => BCSideMetrics_Shared
+#else
+offsetUniqueBCSidesProc = 0
+nUniqueBCSides = nUniqueBCSidesProc
+
+ALLOCATE(BCSide2SideID(    1:nUniqueBCSides)        &
+        ,SideID2BCSide(    1:nNonUniqueGlobalSides))
+! Also allocate array to hold BC Side metrics
+ALLOCATE(BCSideMetrics(1:4,1:nUniqueBCSides)
+#endif /*USE_MPI*/
+
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
+  BCSide2SideID = -1
+  SideID2BCSide = -1
+  BCSideMetrics = -1
+#if USE_MPI
+END IF
+
+CALL MPI_WIN_SYNC(BCSide2SideID_Shared_Win,iError)
+CALL MPI_WIN_SYNC(SideID2BCSide_Shared_Win,iError)
+CALL MPI_WIN_SYNC(BCSideMetrics_Shared_Win,iError)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /*USE_MPI*/
+
+nUniqueBCSidesProc = 0
+DO iSide = firstSide,lastSide
+  ! ignore inner and virtual (mortar) sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+
+  nUniqueBCSidesProc = nUniqueBCSidesProc + 1
+  BCSideID           = offsetUniqueBCSidesProc + nUniqueBCSidesProc
+  BCSide2SideID(BCSideID) = iSide
+  SideID2BCSide(iSide)    = BCSideID
+
+  ! calculate origin, radius for all BC sides
+  !> build side origin
+  xi     = 0.
+  ! TODO: BezierControlPoints are alloced with global side ID, so this SHOULD work. Breaks if we reduce the halo region
+  CALL DeCasteljauInterpolation(NGeo,xi,iSide,origin)
+  BCSideMetrics(1:3,BCSideID) = origin(1:3)
+
+  !> build side radius
+  radiusMax = 0.
+  DO q = 0,NGeo
+    DO p = 0,NGeo
+      vec(1:3) = BezierControlPoints3D(:,p,q,iSide) - origin
+      radius   = DOT_PRODUCT(Vec,Vec)
+      radiusMax= MAX(radiusMax,radius)
+    END DO
+  END DO
+  BCSideMetrics(4,BCSideID) = SQRT(RadiusMax)
+END DO
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(BCSide2SideID_Shared_Win,iError)
+CALL MPI_WIN_SYNC(SideID2BCSide_Shared_Win,iError)
+CALL MPI_WIN_SYNC(BCSideMetrics_Shared_Win,iError)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#endif /*USE_MPI*/
+
+END SUBROUTINE GetBCSidesAndOrgin
+
+
 SUBROUTINE BuildBCElemDistance()
 !===================================================================================================================================
 ! get the distance of each BC face
@@ -2361,24 +2508,23 @@ SUBROUTINE BuildBCElemDistance()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Basis                  ,ONLY: DeCasteljauInterpolation
 USE MOD_Equation_Vars          ,ONLY: c
 USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides,SideBCMetrics
+USE MOD_Particle_Mesh_Vars     ,ONLY: BCSide2SideID,SideID2BCSide,BCSideMetrics
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo,ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides,nUniqueBCSides
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Vars          ,ONLY: ManualTimeStep
 USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
-USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides_Shared,SideBCMetrics_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides_Shared_Win,SideBCMetrics_Shared_Win
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps,halo_eps_velo
@@ -2407,17 +2553,15 @@ INTEGER                        :: iElem,firstElem,lastElem
 INTEGER                        :: iSide,firstSide,lastSide,iLocSide
 INTEGER                        :: nComputeNodeBCSides
 INTEGER                        :: nBCSidesElem,nBCSidesProc,offsetBCSidesProc,offsetBCSides
+INTEGER                        :: iBCSide,BCElemID,BCSideID
 INTEGER,ALLOCATABLE            :: ElemToBCSidesProc(:,:)
-LOGICAL,ALLOCATABLE            :: BCSideElem(:)
-LOGICAL                        :: SideInRange
 REAL                           :: dX,dY,dZ
-REAL                           :: origin(1:3),xi(1:2),radius,radiusMax,vec(1:3)
-REAL                           :: NodesLocSide(1:3,0:NGeo,0:NGeo),NodeBCSide(1:3)
-REAL                           :: BC_halo_eps,BC_halo_eps_velo,deltaT
+REAL                           :: origin(1:3),vec(1:3)
+REAL                           :: BC_halo_eps,BC_halo_eps_velo,BC_halo_diag,deltaT
+LOGICAL                        :: fullMesh
 REAL,ALLOCATABLE               :: tmpSideBCMetrics(:,:)
 REAL,ALLOCATABLE               :: tmpSideBCDistance(:)
 INTEGER,ALLOCATABLE            :: intSideBCMetrics(:)
-LOGICAL,ALLOCATABLE            :: SideBCMetricsProc(:,:)
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 INTEGER                        :: sendbuf,recvbuf
@@ -2456,9 +2600,9 @@ lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nCompute
 firstSide = 1
 lastSide  = nNonUniqueGlobalSides
 ALLOCATE(ElemToBCSidesProc(1:2,1:nComputeNodeTotalElems))
-ALLOCATE(BCSideElem(           1:nNonUniqueGlobalSides))
 
 ! if running on one node, halo_eps is meaningless. Get a representative BC_halo_eps for BC side identification
+fullMesh = .FALSE.
 IF (halo_eps.EQ.0) THEN
   ! reconstruct halo_eps_velo
   IF (halo_eps_velo.EQ.0) THEN
@@ -2489,18 +2633,31 @@ IF (halo_eps.EQ.0) THEN
   BC_halo_eps = BC_halo_eps_velo*deltaT
 #endif
 
-  ! sanity check the calculated halo_eps
-  IF (.NOT.ALMOSTZERO(BC_halo_eps)) THEN
+  vec(1)   = GEO%xmaxglob-GEO%xminglob
+  vec(2)   = GEO%ymaxglob-GEO%yminglob
+  vec(3)   = GEO%zmaxglob-GEO%zminglob
+  BC_halo_diag = VECNORM(vec)
+
+  ! compare halo_eps against global diagonal and reduce if necessary
+  IF (.NOT.ALMOSTZERO(BC_halo_eps).AND.(BC_halo_diag.GE.BC_halo_eps)) THEN
     SWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to ',BC_halo_eps
+  ELSEIF (.NOT.ALMOSTZERO(BC_halo_eps).AND.(BC_halo_diag.LT.BC_halo_eps)) THEN
+    fullMesh = .TRUE.
+    BC_halo_eps = BC_halo_diag
+    SWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to global diag with ',BC_halo_eps
   ! halo_eps still at zero. Set it to global diagonal
   ELSE
-    vec(1)   = GEO%xmaxglob-GEO%xminglob
-    vec(2)   = GEO%ymaxglob-GEO%yminglob
-    vec(3)   = GEO%zmaxglob-GEO%zminglob
-    BC_halo_eps = DOT_PRODUCT(vec,vec)
+    fullMesh = .TRUE.
+    BC_halo_eps = BC_halo_diag
     SWRITE(UNIT_stdOUt,'(A,F11.3)') ' | No halo_eps given and could not be reconstructed. Using global diag with ',BC_halo_eps
   END IF
 ELSE
+  vec(1)   = GEO%xmaxglob-GEO%xminglob
+  vec(2)   = GEO%ymaxglob-GEO%yminglob
+  vec(3)   = GEO%zmaxglob-GEO%zminglob
+  BC_halo_diag = VECNORM(vec)
+
+  IF (BC_halo_diag.LE.halo_eps) fullMesh = .TRUE.
   BC_halo_eps = halo_eps
 END IF
 
@@ -2510,104 +2667,133 @@ vec(1)   = GEO%xmaxglob-GEO%xminglob
 vec(2)   = GEO%ymaxglob-GEO%yminglob
 vec(3)   = GEO%zmaxglob-GEO%zminglob
 BC_halo_eps = DOT_PRODUCT(vec,vec)
+fullMesh = .TRUE.
 
 firstElem = 1
 lastElem  = nElems
 firstSide = 1
-lastSide  = nComputeNodeSides
+lastSide  = nNonUniqueGlobalSides
 ALLOCATE(ElemToBCSidesProc(1:2,1:nElems))
-ALLOCATE(BCSideElem(1:nComputeNodeSides))
 #endif /*USE_MPI*/
 
 ElemToBCSidesProc = -1
 nBCSidesProc      = 0
 offsetBCSides     = 0
 
-! Allocate temporary array to hold the information
-ALLOCATE(SideBCMetricsProc(firstElem:lastElem,firstSide:lastSide))
-SideBCMetricsProc = .FALSE.
+! for fullMesh, each element requires ALL BC faces
+IF (fullMesh) THEN
+  DO iElem = firstElem,lastElem
+    ElemID = GetGlobalElemID(iElem)
+    nBCSidesElem  = 0
 
-! sum up all BC sides in range of BC_halo_eps
-DO iElem = firstElem,lastElem
-  ElemID = GetGlobalElemID(iElem)
-  nBCSidesElem  = 0
-  BCSideElem    = .FALSE.
+    ! check local side of an element
+    DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
 
-  ! check local side of an element
-  DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
-    IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
-    nBCSidesElem = nBCSidesElem + 1
-    nBCSidesProc = nBCSidesProc + 1
-    SideBCMetricsProc(iElem,iSide) = .TRUE.
-  END DO
-
-  ! loop over all sides. Check distance from every local side to total sides. Once a side has been flagged,
-  ! it must not be counted again
-  DO ilocSide = 1,6
-    SideID = GetGlobalNonUniqueSideID(ElemID,ilocSide)
-    ! Get BezierControlPoints for local side. BezierControlPoints3D available for ALL sides in shared memory
-    NodesLocSide(:,:,:)= BezierControlPoints3D(:,:,:,SideID)
-    SELECT CASE(ilocSide)
-      CASE(XI_MINUS,XI_PLUS)
-        firstBezierPoint = 0
-        lastBezierPoint  = NGeo
-      CASE DEFAULT
-        firstBezierPoint = 1
-        lastBezierPoint  = NGeo-1
-    END SELECT
-
-    ! check every BC side
-    DO iSide = firstSide,lastSide
-      ! ignore non-BC sides
+      ! ignore inner and virtual (mortar) sides
       IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
-      ! ignore sides of the same element
-      IF (SideInfo_Shared(SIDE_ELEMID,iSide).EQ.ElemID) CYCLE
-      ! ignore already flagged sides
-      IF (BCSideElem(iSide).EQV..TRUE.) CYCLE
 
-      ! compare all nodes between local and BC side to check if within BC_halo_eps. Once one node pair is in range, flag the entire
-      ! side and stop checking
-      SideInRange = .FALSE.
-      DO q = firstBezierPoint,lastBezierPoint
-        DO p = firstBezierPoint,lastBezierPoint
-          ! get all nodes for BC side
-          NodeBCSide(:) = BezierControlPoints3D(:,p,q,iSide)
-          ! finally compare the node coords
-          DO s = firstBezierPoint,lastBezierPoint
-            DO r = firstBezierPoint,lastBezierPoint
-              dX = ABS(NodesLocSide(1,r,s)-NodeBCSide(1))
-              IF (dX.GT.BC_halo_eps) CYCLE
-              dY = ABS(NodesLocSide(2,r,s)-NodeBCSide(2))
-              IF (dY.GT.BC_halo_eps) CYCLE
-              dZ = ABS(NodesLocSide(3,r,s)-NodeBCSide(3))
-              IF (dZ.GT.BC_halo_eps) CYCLE
+      nBCSidesElem = nBCSidesElem + 1
+      nBCSidesProc = nBCSidesProc + 1
+    END DO
 
-              IF (SQRT(dX*dX+dY*dY+dZ*dZ).LE.BC_halo_eps) THEN
-                nBCSidesElem = nBCSidesElem + 1
-                nBCSidesProc = nBCSidesProc + 1
-                BCSideElem(iSide) = .TRUE.
-                SideInRange       = .TRUE.
-                SideBCMetricsProc(iElem,iSide) = .TRUE.
-                EXIT
-              END IF
-            END DO ! r
-            IF (SideInRange) EXIT
-          END DO ! s
-          IF (SideInRange) EXIT
-        END DO ! p
-        IF (SideInRange) EXIT
-      END DO ! q
-    END DO ! iSide
-  END DO ! ilocSide
+    DO iBCSide = 1,nUniqueBCSides
+      BCSideID = BCSide2SideID(iBCSide)
+      BCElemID = SideInfo_Shared(SIDE_ELEMID,BCSideID)
 
-  ! Write local mapping from Elem to BC sides. The number is already correct, the offset must be corrected later
-  IF (nBCSidesElem.GT.0) THEN
-    ElemToBCSidesProc(ELEM_NBR_BCSIDES ,iElem) = nBCSidesElem
-    ElemToBCSidesProc(ELEM_FIRST_BCSIDE,iElem) = offsetBCSides + 1
-  END IF
+      ! Ignore the same element
+      IF (BCElemID.EQ.iElem) CYCLE
 
-  offsetBCSides = nBCSidesProc
-END DO
+      nBCSidesElem = nBCSidesElem + 1
+      nBCSidesProc = nBCSidesProc + 1
+    END DO ! iBCSide
+
+    ! Write local mapping from Elem to BC sides. The number is already correct, the offset must be corrected later
+    IF (nBCSidesElem.GT.0) THEN
+      ElemToBCSidesProc(ELEM_NBR_BCSIDES ,iElem) = nBCSidesElem
+      ElemToBCSidesProc(ELEM_FIRST_BCSIDE,iElem) = offsetBCSides + 1
+    END IF
+  END DO ! iElem
+
+! .NOT. fullMesh
+ELSE
+  ! sum up all BC sides in range of BC_halo_eps
+  DO iElem = firstElem,lastElem
+    ElemID = GetGlobalElemID(iElem)
+    nBCSidesElem  = 0
+
+    ! check local side of an element
+    DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
+      ! ignore inner and virtual (mortar) sides
+      IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+
+      nBCSidesElem = nBCSidesElem + 1
+      nBCSidesProc = nBCSidesProc + 1
+    END DO
+
+    ! loop over all sides. Check distance from every local side to total sides.
+    DO iBCSide = 1,nUniqueBCSides
+
+      BCSideID = BCSide2SideID(iBCSide)
+      BCElemID = SideInfo_Shared(SIDE_ELEMID,BCSideID)
+
+      ! Ignore the same element
+      IF (BCElemID.EQ.iElem) CYCLE
+
+      ! Check if barycenter of element is in range
+      IF (VECNORM(ElemBaryNGeo(:,ElemID) - ElemBaryNGeo(:,BCElemID)) &
+        .GT. (BC_halo_eps + ElemRadiusNGeo(ElemID) + ElemRadiusNGeo(BCElemID))) CYCLE
+
+      ! loop over all local sides of the element. Use a named loop so the entire element can be cycled
+Check1: DO ilocSide = 1,6
+      SideID = GetGlobalNonUniqueSideID(ElemID,ilocSide)
+
+        ! compare all nodes between local and BC side to check if within BC_halo_eps. Once one node pair is in range, flag the entire
+        ! side and stop checking. First, get BezierControlPoints for local side. BezierControlPoints3D available for ALL sides in shared memory
+        SELECT CASE(ilocSide)
+          CASE(XI_MINUS,XI_PLUS)
+            firstBezierPoint = 0
+            lastBezierPoint  = NGeo
+          CASE DEFAULT
+            firstBezierPoint = 1
+            lastBezierPoint  = NGeo-1
+        END SELECT
+
+        ! finally compare the node coords
+        DO q = firstBezierPoint,lastBezierPoint
+          DO p = firstBezierPoint,lastBezierPoint
+  !           ! get all nodes for BC side
+  !           NodeBCSide(:) = BezierControlPoints3D(:,p,q,BCSideID)
+            ! finally compare the node coords
+            DO s = firstBezierPoint,lastBezierPoint
+              DO r = firstBezierPoint,lastBezierPoint
+                dX = ABS(BezierControlPoints3D(1,r,s,SideID)-BezierControlPoints3D(1,p,q,BCSideID))
+                IF (dX.GT.BC_halo_eps) CYCLE
+                dY = ABS(BezierControlPoints3D(2,r,s,SideID)-BezierControlPoints3D(2,p,q,BCSideID))
+                IF (dY.GT.BC_halo_eps) CYCLE
+                dZ = ABS(BezierControlPoints3D(3,r,s,SideID)-BezierControlPoints3D(3,p,q,BCSideID))
+                IF (dZ.GT.BC_halo_eps) CYCLE
+
+                IF (SQRT(dX*dX+dY*dY+dZ*dZ).LE.BC_halo_eps) THEN
+                  nBCSidesElem = nBCSidesElem + 1
+                  nBCSidesProc = nBCSidesProc + 1
+                  EXIT Check1
+                END IF
+              END DO ! r
+            END DO ! s
+          END DO ! p
+        END DO ! q
+      END DO Check1 ! ilocSide
+    END DO ! iBCSide
+
+    ! Write local mapping from Elem to BC sides. The number is already correct, the offset must be corrected later
+    IF (nBCSidesElem.GT.0) THEN
+      ElemToBCSidesProc(ELEM_NBR_BCSIDES ,iElem) = nBCSidesElem
+      ElemToBCSidesProc(ELEM_FIRST_BCSIDE,iElem) = offsetBCSides + 1
+    END IF
+
+    offsetBCSides = nBCSidesProc
+  END DO ! iElem
+END IF ! fullMesh
 
 ! Find CN global number of BC sides and write Elem to BC Side mapping into shared array
 #if USE_MPI
@@ -2656,33 +2842,112 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 nBCSidesProc      = 0
 
 ! We did not know the number of BC sides before. Therefore, we need to do the check again and build the final mapping
-DO iElem = firstElem,lastElem
-  ElemID     = GetGlobalElemID(iElem)
+! for fullMesh, each element requires ALL BC faces
+IF (fullMesh) THEN
+  DO iElem = firstElem,lastElem
+    ElemID = GetGlobalElemID(iElem)
+    nBCSidesElem  = 0
 
-  ! check local side of an element
-  DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
-    ! ignore inner and virtual (mortar) sides
-    IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+    ! check local side of an element
+    DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
 
-    nBCSidesProc = nBCSidesProc + 1
-    SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(iSide)
-    SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(iElem)
-  END DO
+      ! ignore inner and virtual (mortar) sides
+      IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
 
-  DO iSide = firstSide,lastSide
-    ! ignore local sides of the element
-    IF (SideInfo_Shared(SIDE_ELEMID,iSide).EQ.ElemID) CYCLE
+      nBCSidesProc = nBCSidesProc + 1
+      SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(iSide)
+      SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(iElem)
+    END DO
 
-    ! ignore sides not flagged as BC side
-    IF (.NOT.SideBCMetricsProc(iElem,iSide)) CYCLE
+    DO iBCSide = 1,nUniqueBCSides
+      BCSideID = BCSide2SideID(iBCSide)
+      BCElemID = SideInfo_Shared(SIDE_ELEMID,BCSideID)
 
-    nBCSidesProc = nBCSidesProc + 1
-    SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(iSide)
-    SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(ElemID)
-  END DO
-END DO
+      ! Ignore the same element
+      IF (BCElemID.EQ.iElem) CYCLE
 
-DEALLOCATE(SideBCMetricsProc)
+      nBCSidesProc = nBCSidesProc + 1
+      SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)
+      SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(BCElemID)
+    END DO ! iBCSide
+  END DO ! iElem
+
+! .NOT. fullMesh
+ELSE
+  ! sum up all BC sides in range of BC_halo_eps
+  DO iElem = firstElem,lastElem
+    ElemID = GetGlobalElemID(iElem)
+    nBCSidesElem  = 0
+
+    ! check local side of an element
+    DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
+
+      ! ignore inner and virtual (mortar) sides
+      IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+
+      nBCSidesProc = nBCSidesProc + 1
+      SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(iSide)
+      SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(iElem)
+    END DO
+
+    ! loop over all sides. Check distance from every local side to total sides. Once a side has been flagged,
+    ! it must not be counted again
+    DO iBCSide = 1,nUniqueBCSides
+
+      BCSideID = BCSide2SideID(iBCSide)
+      BCElemID = SideInfo_Shared(SIDE_ELEMID,BCSideID)
+
+      ! Ignore the same element
+      IF (BCElemID.EQ.iElem) CYCLE
+
+      ! Check if barycenter of element is in range
+      IF (VECNORM(ElemBaryNGeo(:,ElemID) - ElemBaryNGeo(:,BCElemID)) &
+        .GT. (BC_halo_eps + ElemRadiusNGeo(ElemID) + ElemRadiusNGeo(BCElemID))) CYCLE
+
+      ! loop over all local sides of the element. Use a named loop so the entire element can be cycled
+Check2: DO ilocSide = 1,6
+        SideID = GetGlobalNonUniqueSideID(ElemID,ilocSide)
+
+        ! compare all nodes between local and BC side to check if within BC_halo_eps. Once one node pair is in range, flag the entire
+        ! side and stop checking. First, get BezierControlPoints for local side. BezierControlPoints3D available for ALL sides in shared memory
+        SELECT CASE(ilocSide)
+          CASE(XI_MINUS,XI_PLUS)
+            firstBezierPoint = 0
+            lastBezierPoint  = NGeo
+          CASE DEFAULT
+            firstBezierPoint = 1
+            lastBezierPoint  = NGeo-1
+        END SELECT
+
+        ! finally compare the node coords
+        DO q = firstBezierPoint,lastBezierPoint
+          DO p = firstBezierPoint,lastBezierPoint
+!           ! get all nodes for BC side
+!           NodeBCSide(:) = BezierControlPoints3D(:,p,q,BCSideID)
+            ! finally compare the node coords
+            DO s = firstBezierPoint,lastBezierPoint
+              DO r = firstBezierPoint,lastBezierPoint
+                dX = ABS(BezierControlPoints3D(1,r,s,SideID)-BezierControlPoints3D(1,p,q,BCSideID))
+                IF (dX.GT.BC_halo_eps) CYCLE
+                dY = ABS(BezierControlPoints3D(2,r,s,SideID)-BezierControlPoints3D(2,p,q,BCSideID))
+                IF (dY.GT.BC_halo_eps) CYCLE
+                dZ = ABS(BezierControlPoints3D(3,r,s,SideID)-BezierControlPoints3D(3,p,q,BCSideID))
+                IF (dZ.GT.BC_halo_eps) CYCLE
+
+                IF (SQRT(dX*dX+dY*dY+dZ*dZ).LE.BC_halo_eps) THEN
+                  nBCSidesProc = nBCSidesProc + 1
+                  SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)
+                  SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(BCElemID)
+                  EXIT Check2
+                END IF
+              END DO ! r
+            END DO ! s
+          END DO ! p
+        END DO ! q
+      END DO Check2 ! ilocSide
+    END DO ! iBCSide
+  END DO ! iElem
+END IF ! fullMesh
 
 #if USE_MPI
 CALL MPI_WIN_SYNC(SideBCMetrics_Shared_Win,IERROR)
@@ -2697,25 +2962,13 @@ lastSide  = nComputeNodeBCSides
 
 ! calculate origin, radius and distance to sides
 DO iSide = firstSide,lastSide
-  SideID = INT(SideBCMetrics(BCSIDE_SIDEID,iSide))
-  ElemID = INT(SideBCMetrics(BCSIDE_ELEMID,iSide))
+  SideID   = INT(SideBCMetrics(BCSIDE_SIDEID,iSide))
+  BCSideID = SideID2BCSide(SideID)
+  ElemID   = INT(SideBCMetrics(BCSIDE_ELEMID,iSide))
 
-  !> build side origin
-  xi     = 0.
-  ! TODO: BezierControlPoints are alloced with global side ID, so this SHOULD work. Breaks if we reduce the halo region
-  CALL DeCasteljauInterpolation(NGeo,xi,SideID,origin)
-  SideBCMetrics(5:7,iSide) = origin(1:3)
-
-  !> build side radius
-  radiusMax = 0.
-  DO q = 0,NGeo
-    DO p = 0,NGeo
-      vec(1:3) = BezierControlPoints3D(:,p,q,SideID) - origin
-      radius   = DOT_PRODUCT(Vec,Vec)
-      radiusMax= MAX(radiusMax,radius)
-    END DO
-  END DO
-  SideBCMetrics(BCSIDE_RADIUS,iSide) = SQRT(RadiusMax)
+  !> get origin and radius from BC Side
+  SideBCMetrics(5:7          ,iSide) = BCSideMetrics(1:3,BCSideID)
+  SideBCMetrics(BCSIDE_RADIUS,iSide) = BCSideMetrics(4  ,BCSideID)
 
   !> build side distance
   origin(1:3) = ElemBaryNGeo(1:3,ElemID)
@@ -3145,6 +3398,14 @@ SELECT CASE (TrackingMethod)
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
+    ! GetBCSidesAndOrgin
+    CALL MPI_WIN_UNLOCK_ALL(BCSide2SideID_Shared_Win        ,iError)
+    CALL MPI_WIN_FREE(      BCSide2SideID_Shared_Win        ,iError)
+    CALL MPI_WIN_UNLOCK_ALL(SideID2BCSide_Shared_Win        ,iError)
+    CALL MPI_WIN_FREE(      SideID2BCSide_Shared_Win        ,iError)
+    CALL MPI_WIN_UNLOCK_ALL(BCSideMetrics_Shared_Win        ,iError)
+    CALL MPI_WIN_FREE(      BCSideMetrics_Shared_Win        ,iError)
+
     ! CalcParticleMeshMetrics
     CALL MPI_WIN_UNLOCK_ALL(XCL_NGeo_Shared_Win             ,iError)
     CALL MPI_WIN_FREE(      XCL_NGeo_Shared_Win             ,iError)
@@ -3223,6 +3484,11 @@ SELECT CASE (TrackingMethod)
 #endif /*USE_MPI*/
 
     ! Then, free the pointers or arrays
+    ! GetBCSidesAndOrgin
+    ADEALLOCATE(BCSide2SideID_Shared)
+    ADEALLOCATE(SideID2BCSide_Shared)
+    ADEALLOCATE(BCSideMetrics_Shared)
+
     ! CalcParticleMeshMetrics
     ADEALLOCATE(XCL_NGeo_Array)
     ADEALLOCATE(Elem_xGP_Array)

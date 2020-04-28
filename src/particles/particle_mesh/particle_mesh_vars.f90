@@ -35,6 +35,7 @@ INTEGER            :: nNonUniqueGlobalSides                 !> total nb. of non-
 INTEGER            :: nNonUniqueGlobalNodes                 !> total nb. of non-unique nodes of mesh (hexahedral: 8**NGeo * nElems)
 INTEGER            :: nNonUniqueGlobalTrees                 !> total nb. of trees
 INTEGER            :: nUniqueMasterMortarSides              !> total nb. of master mortar sides in the mesh
+INTEGER            :: nUniqueBCSides                        !> total nb. of BC sides in the mesh
 INTEGER            :: nComputeNodeElems                     !> Number of elems on current compute-node
 INTEGER            :: nComputeNodeSides                     !> Number of sides on current compute-node
 INTEGER            :: nComputeNodeNodes                     !> Number of nodes on current compute-node
@@ -67,6 +68,11 @@ REAL,ALLOCPOINT,DIMENSION(:,:)           :: SideBCMetrics(:,:) ! Metrics for BC 
 
 REAL,ALLOCPOINT,DIMENSION(:,:,:,:)       :: ElemsJ             !< 1/DetJac for each Gauss Point
 REAL,ALLOCPOINT,DIMENSION(:)             :: ElemEpsOneCell     ! tolerance for particle in inside ref element 1+epsinCell
+
+! Boundary sides
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: BCSide2SideID      !> Mapping from compute-node BC side ID to global Side ID
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: SideID2BCSide      !> Inverse mapping
+REAL,ALLOCPOINT,DIMENSION(:,:)           :: BCSideMetrics      !> Side origin and radius for each compute-node BC side
 
 ! Shared arrays containing information for complete mesh
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToProcID_Shared
@@ -129,6 +135,11 @@ REAL,ALLOCPOINT    :: BaseVectors1_Shared(:,:)
 REAL,ALLOCPOINT    :: BaseVectors2_Shared(:,:)
 REAL,ALLOCPOINT    :: BaseVectors3_Shared(:,:)
 REAL,ALLOCPOINT    :: BaseVectorsScale_Shared(:)
+
+! Boundary sides
+INTEGER,ALLOCPOINT :: BCSide2SideID_Shared(:)
+INTEGER,ALLOCPOINT :: SideID2BCSide_Shared(:)
+REAL,ALLOCPOINT    :: BCSideMetrics_Shared(:,:)
 
 ! Shared arrays containing information for mesh on compute node
 REAL,ALLOCPOINT    :: ElemVolume_Shared(:)
@@ -193,6 +204,11 @@ INTEGER         :: BaseVectors1_Shared_Win
 INTEGER         :: BaseVectors2_Shared_Win
 INTEGER         :: BaseVectors3_Shared_Win
 INTEGER         :: BaseVectorsScale_Shared_Win
+
+! Boundary sides
+INTEGER           :: BCSide2SideID_Shared_Win
+INTEGER           :: SideID2BCSide_Shared_Win
+INTEGER           :: BCSideMetrics_Shared_Win
 
 ! Shared arrays containing information for mesh on compute node
 INTEGER         :: ElemVolume_Shared_Win
