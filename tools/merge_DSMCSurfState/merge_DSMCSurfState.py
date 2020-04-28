@@ -120,8 +120,6 @@ for statefile in files :
     # --------------------------------------------
     # When sorting is used, the sorted array is written to the original .h5 file with a new name
     f1 = h5py.File(statefile,'r+')
-
-    file_version  = f1.attrs.get('File_Version', default=-1.)[0]
     
     # Usage:
     # -------------------
@@ -136,6 +134,10 @@ for statefile in files :
     b1 = f1[data_set][:]
     print("".ljust(max_length-len(statefile)),statefile," | PartData%s" % str(b1.shape))
 
+    if n == 1: 
+        # Create empty array when processing the first file
+        b1_merged = np.empty(b1.shape, dtype=float, order='C') # Whether to store multi-dimensional data in row-major (C-style) or column-major (Fortran-style) order in memory.
+
 
     # Save old file
     if n > 1 :
@@ -144,12 +146,9 @@ for statefile in files :
             s="\nDatasets are not compatible due to different shapes: Files [%s] and [%s] have shapes %s and %s\nThe dimensions dim1 = %s and dim2 = %s must be equal!\n\nAborted!" % (statefile,statefile_old,b1.shape,b2.shape,b1.shape[0],b2.shape[0])
             print(s)
             exit(1)
-        else :
-            # Add ne current array stored in b1 to b
-            b1_merged = b1_merged + b1
-    elif n == 1: 
-        # Create empty array when processing the first file
-        b1_merged = np.empty(b1.shape, dtype=float, order='C') # Whether to store multi-dimensional data in row-major (C-style) or column-major (Fortran-style) order in memory.
+    
+    # Add ne current array stored in b1 to b
+    b1_merged = b1_merged + b1
 
 
     # store the old shape for checking with next state file
