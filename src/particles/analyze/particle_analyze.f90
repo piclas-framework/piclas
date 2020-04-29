@@ -682,6 +682,7 @@ REAL                :: ETotal, MacroParticleFactor
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2),VibRelaxProbSpec(nSpecies,nSpecies)
+INTEGER             :: jSpec
 #endif
 #if USE_MPI
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
@@ -692,7 +693,7 @@ INTEGER             :: RECBIM(nSpecies)
 #endif /*USE_MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
-INTEGER             :: iCase,jSpec
+INTEGER             :: iCase
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
 INTEGER             :: ii, iunit
@@ -2281,11 +2282,13 @@ ELSE
     IF(SUM(DSMC%CalcVibProb(1:nSpecies,3)).GT.0) THEN
       VibRelaxProb(2) = SUM(DSMC%CalcVibProb(1:nSpecies,1))/SUM(DSMC%CalcVibProb(1:nSpecies,3))
     END IF
+    VibRelaxProbSpec = 0.
     IF(XSec_Relaxation) THEN
       DO iSpec=1,nSpecies
         DO jSpec=1,nSpecies
-          IF(SpecXSec(iSpec,jSpec)%VibProb(2).GT.0) &
-          VibRelaxProbSpec(iSpec,jSpec)=SpecXSec(iSpec,jSpec)%VibProb(1)/SpecXSec(iSpec,jSpec)%VibProb(2)
+          IF(SpecXSec(iSpec,jSpec)%VibProb(2).GT.0.0) THEN
+            VibRelaxProbSpec(iSpec,jSpec)=SpecXSec(iSpec,jSpec)%VibProb(1)/SpecXSec(iSpec,jSpec)%VibProb(2)
+          END IF
         END DO
       END DO
     END IF

@@ -128,9 +128,11 @@ DO iSpec = 1,nSpecies
           ! Interpolate the vibrational cross section at the energy levels of the effective collision cross section and sum-up the
           ! vibrational probability (vibrational cross-section divided by the effective)
           DO iStep = 1, nStep
-            SpecXSec(iSpec,jSpec)%CollXSecData(3,iStep) = SpecXSec(iSpec,jSpec)%CollXSecData(3,iStep) + &
-              InterpolateCrossSection_Vib(iSpec,jSpec,iVib,SpecXSec(iSpec,jSpec)%CollXSecData(1,iStep)) &
-                                                          / SpecXSec(iSpec,jSpec)%CollXSecData(2,iStep)
+            IF(SpecXSec(iSpec,jSpec)%CollXSecData(2,iStep).GT.0.0) THEN
+              SpecXSec(iSpec,jSpec)%CollXSecData(3,iStep) = SpecXSec(iSpec,jSpec)%CollXSecData(3,iStep) + &
+                InterpolateCrossSection_Vib(iSpec,jSpec,iVib,SpecXSec(iSpec,jSpec)%CollXSecData(1,iStep)) &
+                                                            / SpecXSec(iSpec,jSpec)%CollXSecData(2,iStep)
+            END IF
           END DO
         END DO
       END IF
@@ -207,7 +209,7 @@ ELSE
 END IF
 
 ALLOCATE(SpecXSec(iSpec,jSpec)%CollXSecData(nVar,dims(2)))
-SpecXSec(iSpec,jSpec)%CollXSecData(nVar,dims(2)) = 0.
+SpecXSec(iSpec,jSpec)%CollXSecData = 0.
 ! read data
 CALL H5DREAD_F(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecXSec(iSpec,jSpec)%CollXSecData(1:2,1:dims(2)), dims, err)
 
