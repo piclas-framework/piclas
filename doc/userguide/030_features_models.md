@@ -1102,6 +1102,7 @@ Every time step particles are generated from the background gas (for a mixture, 
 For modelling of particle collisions with the Particle-in-Cell method, often the Monte Carlo Collision (MCC) algorithm is utilized. Here, experimentally measured or ab-initio calculated cross-sections are typically utilized to determine the collision probability. In PICLas, the null collision method after [@Birdsall1991],[@Vahedi1995] is implemented, where the number of collision pairs is determined based a maximum collision frequency. Thus, the computational effort is reduced as not every particle has to be checked for a collision, such as in the previously described DSMC-based background gas. To activate the MCC procedure, the collision cross-sections have to be supplied via read-in from a database
 
     Particles-CollXSec-Database = MCC_Database.h5
+    Particles-CollXSec-NullCollision = TRUE
 
 Cross-section data can be retrieved from the [LXCat database](https://fr.lxcat.net/home/) and converted with a Python script provided in the tools folder: `piclas/tools/crosssection_database`. Details on how to create an own database with custom cross-section data is given in Section \ref{sec:tools_mcc}. Finally, the input which species should be treated with the MCC model is required
 
@@ -1109,6 +1110,14 @@ Cross-section data can be retrieved from the [LXCat database](https://fr.lxcat.n
     Part-Species2-UseCollXSec = T
 
 The read-in of the cross-section data is based on the provided species name and the species name of the background gas (e.g. if the background species name is Ar, the code will look for a container named `Ar-electron` in the MCC database). Finally, the cross-section based collision modelling (e.g. for neutral-charged collisions) and the VHS model (e.g. for neutral-neutral collisions) can be utilized within a simulation for different species.
+
+### Cross-section based vibrational relaxation probability
+
+In the following, the utilization of cross-section data is extended to the determination of the vibrational relaxation probability. When data is available, it will be read-in by the Python script described above. If different vibrational levels are available, they will be summarized to a single relaxation probability. Afterwards the regular DSMC-based relaxation procedure will be performed. To enable the utilization of these levels, the following flag shall be supplied
+
+    Part-Species2-UseVibXSec = T
+
+It should be noted that even if Species2 corresponds to an electron, the vibrational cross-section data will be read-in for any molecule-electron pair.
 
 ## Modelling of Continuum Gas Flows \label{sec:continuum}
 

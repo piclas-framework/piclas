@@ -384,10 +384,6 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_vib(iPair, iSpec1, iSpec2, Xi_rel, iElem, ProbVib1)
     IF(ProbVib1.GT.iRan) DoVib1 = .TRUE.
-    IF(DSMC%CalcQualityFactors.AND.(DSMC%VibRelaxProb.EQ.2)) THEN
-      DSMC%CalcVibProb(iSpec1,1) = DSMC%CalcVibProb(iSpec1,1) + ProbVib1
-      DSMC%CalcVibProb(iSpec1,3) = DSMC%CalcVibProb(iSpec1,3) + 1
-    END IF
   END IF
   IF ( DSMC%ElectronicModel ) THEN
     IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
@@ -414,10 +410,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_vib(iPair, iSpec2, iSpec1, Xi_rel, iElem, ProbVib2)
     IF(ProbVib2.GT.iRan) DoVib2 = .TRUE.
-    IF(DSMC%CalcQualityFactors.AND.(DSMC%VibRelaxProb.EQ.2)) THEN
-      DSMC%CalcVibProb(iSpec2,1) = DSMC%CalcVibProb(iSpec2,1) + ProbVib2
-      DSMC%CalcVibProb(iSpec2,3) = DSMC%CalcVibProb(iSpec2,3) + 1
-    END IF
+
   END IF
   IF ( DSMC%ElectronicModel ) THEN
     IF((SpecDSMC(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) THEN
@@ -2837,7 +2830,7 @@ SUBROUTINE DSMC_calc_P_vib(iPair, iSpec, jSpec, Xi_rel, iElem, ProbVib)
 ! MODULES
 USE MOD_Globals            ,ONLY: Abort
 USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, DSMC, VarVibRelaxProb, useRelaxProbCorrFactor, XSec_Relaxation, CollInf, Coll_pData
-USE MOD_DSMC_Vars          ,ONLY: PolyatomMolDSMC
+USE MOD_DSMC_Vars          ,ONLY: PolyatomMolDSMC, SpecXSec
 USE MOD_DSMC_SpecXSec      ,ONLY: InterpolateVibRelaxProb
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -2868,7 +2861,7 @@ REAL                      :: CollisionEnergy
   END IF
 
   IF((DSMC%VibRelaxProb.GE.0.0).AND.(DSMC%VibRelaxProb.LE.1.0)) THEN
-    IF(XSec_Relaxation.AND.(SpecDSMC(iSpec)%UseCollXSec.OR.SpecDSMC(jSpec)%UseCollXSec)) THEN
+    IF(SpecDSMC(iSpec)%UseVibXSec.OR.SpecDSMC(jSpec)%UseVibXSec) THEN
       CollisionEnergy = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%CRela2
       ProbVib = InterpolateVibRelaxProb(iSpec,jSpec,CollisionEnergy)
     ELSE
@@ -2894,6 +2887,15 @@ REAL                      :: CollisionEnergy
     __STAMP__&
     ,'Error! Model for vibrational relaxation undefined:',RealInfoOpt=DSMC%VibRelaxProb)
   END IF
+
+IF(DSMC%CalcQualityFactors) THEN
+  DSMC%CalcVibProb(iSpec,1) = DSMC%CalcVibProb(iSpec,1) + ProbVib
+  DSMC%CalcVibProb(iSpec,3) = DSMC%CalcVibProb(iSpec,3) + 1
+  IF(XSec_Relaxation) THEN
+    SpecXSec(iSpec,jSpec)%VibProb(1) = SpecXSec(iSpec,jSpec)%VibProb(1) + ProbVib
+    SpecXSec(iSpec,jSpec)%VibProb(2) = SpecXSec(iSpec,jSpec)%VibProb(2) + 1.0
+  END IF
+END IF
 
 END SUBROUTINE DSMC_calc_P_vib
 

@@ -44,10 +44,10 @@ USE MOD_Globals
 USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC
+USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC, XSec_Relaxation, SpecXSec
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Collis           ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
-USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry2D
+USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry2D, nSpecies
 USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
@@ -69,6 +69,7 @@ INTEGER           :: iElem, nPart
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
+INTEGER           :: iSpec, jSpec
 !===================================================================================================================================
 
 ! Reset the right-hand side (DoElement: coupled BGK/FP-DSMC simulations, which might utilize the RHS)
@@ -95,7 +96,14 @@ DO iElem = 1, nElems ! element/cell main loop
     DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
     DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
     IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
-    IF(DSMC%VibRelaxProb.EQ.2) DSMC%CalcVibProb = 0.
+    DSMC%CalcVibProb = 0.
+    IF(XSec_Relaxation) THEN
+      DO iSpec=1,nSpecies
+        DO jSpec=1,nSpecies
+          SpecXSec(iSpec,jSpec)%VibProb = 0.
+        END DO
+      END DO
+    END IF
   END IF
   IF (CollisMode.NE.0) THEN
     ChemReac%nPairForRec = 0

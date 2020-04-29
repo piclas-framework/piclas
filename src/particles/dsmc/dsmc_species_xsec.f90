@@ -31,8 +31,7 @@ CONTAINS
 
 SUBROUTINE MCC_Init()
 !===================================================================================================================================
-!> Initialization of the MCC algorithm: Read-in of the collision cross-section database and calculation of the maximal collision
-!> frequency for the null collision method.
+!> Read-in of the collision and vibrational cross-section database and initialization of the null collision method.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -51,7 +50,7 @@ INTEGER       :: iVib, nVib, iStep, nStep
 
 XSec_Database = TRIM(GETSTR('Particles-CollXSec-Database'))
 XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
-XSec_Relaxation = GETLOGICAL('Particles-CollXSec-Relaxation')
+XSec_Relaxation = .FALSE.
 
 IF(TRIM(XSec_Database).EQ.'none') THEN
   CALL abort(&
@@ -64,6 +63,31 @@ IF (BGGas%NumberOfSpecies.EQ.0) THEN
   __STAMP__&
   ,'ERROR: Usage of read-in collision cross-sections only possible with a background gas!')
 END IF
+
+! ALLOCATE(SpecXSec(CollInf%NumCase))
+
+! DO iSpec = 1, nSpecies
+!   DO jSpec = iSpec, nSpecies
+!     iCase = CollInf%Coll_Case(iSpec,jSpec)
+!     ! Skip species, which shall not be treated with collision cross-sections
+!     IF(.NOT.SpecDSMC(iSpec)%UseCollXSec.AND..NOT.SpecDSMC(jSpec)%UseCollXSec) CYCLE
+!     ! Read-in cross-section data for collisions of particles, allocating CollXSecData within the following routine
+!     CALL ReadCollXSec(iCase, iSpec, jSpec)
+!     ! Store the energy value in J (read-in was in eV)
+!     SpecXSec(iCase)%CollXSecData(1,:) = SpecXSec(iCase)%CollXSecData(1,:) * ElementaryCharge
+!     IF(XSec_NullCollision) THEN
+!       ! Determine the maximum collision frequency for the null collision method
+!       CALL DetermineNullCollProb(iSpec,jSpec)
+!       TotalProb = TotalProb + SpecXSec(iCase)%ProbNull
+!       IF(TotalProb.GT.1.0) THEN
+!         CALL abort(&
+!         __STAMP__&
+!         ,'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: '&
+!         ,RealInfoOpt=TotalProb)
+!       END IF
+!     END IF
+!   END DO
+! END DO
 
 ALLOCATE(SpecXSec(nSpecies,nSpecies))
 
@@ -89,8 +113,11 @@ DO iSpec = 1,nSpecies
         ,RealInfoOpt=TotalProb)
       END IF
     END IF
-    IF((SpecDSMC(jSpec)%InterID.EQ.2).OR.(SpecDSMC(jSpec)%InterID.EQ.20)) THEN
-      IF(XSec_Relaxation) THEN
+    IF(SpecDSMC(iSpec)%UseVibXSec) THEN
+      XSec_Relaxation = .TRUE.
+      ! Perform read-in if the current species is molecular or the collision partner
+      IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20).OR.(SpecDSMC(jSpec)%InterID.EQ.2) &
+        .OR.(SpecDSMC(jSpec)%InterID.EQ.20)) THEN
         ! Read-in the vibrational levels
         CALL ReadVibXSec(iSpec, jSpec)
         nVib = SIZE(SpecXSec(iSpec,jSpec)%VibMode)
@@ -118,11 +145,12 @@ END SUBROUTINE MCC_Init
 SUBROUTINE ReadCollXSec(iSpec,jSpec)
 !===================================================================================================================================
 !> Read-in of collision cross-sections from a given database. Dataset name is composed of SpeciesName-SpeciesName (e.g. Ar-electron)
+!> Trying to swap the species indices if dataset not found.
 !===================================================================================================================================
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_DSMC_Vars                 ,ONLY: XSec_Database, SpecXSec, SpecDSMC, XSec_Relaxation
+USE MOD_DSMC_Vars                 ,ONLY: XSec_Database, SpecXSec, SpecDSMC
 USE MOD_HDF5_Input                ,ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -172,7 +200,7 @@ CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
 ! get size
 CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
 
-IF(XSec_Relaxation) THEN
+IF(SpecDSMC(iSpec)%UseVibXSec) THEN
   nVar = 3
 ELSE
   nVar = 2
@@ -193,7 +221,8 @@ END SUBROUTINE ReadCollXSec
 
 SUBROUTINE ReadVibXSec(iSpec,jSpec)
 !===================================================================================================================================
-!> Read-in of collision cross-sections from a given database. Dataset name is composed of SpeciesName-SpeciesName (e.g. Ar-electron)
+!> Read-in of vibrational cross-sections from a given database. Using the effective cross-section database to check whether the
+!> group exists. Trying to swap the species indices if dataset not found.
 !===================================================================================================================================
 ! use module
 USE MOD_io_hdf5
@@ -209,7 +238,7 @@ INTEGER,INTENT(IN)                :: iSpec, jSpec
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=64)                 :: dsetname, groupname, spec_pair
+CHARACTER(LEN=64)                 :: dsetname, groupname, spec_pair, dsetname2
 INTEGER                           :: err
 INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
 INTEGER(HID_T)                    :: file_id_dsmc                       ! File identifier
@@ -219,6 +248,7 @@ INTEGER(HID_T)                    :: filespace                          ! filesp
 INTEGER(SIZE_T)                   :: size                               ! Size of name
 INTEGER(HSIZE_T)                  :: iVib                               ! Index
 INTEGER                           :: storage, nVib, max_corder
+LOGICAL                           :: DataSetFound
 !===================================================================================================================================
 spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
 SWRITE(UNIT_StdOut,'(A)') 'Read vibrational excitation cross section for '//TRIM(spec_pair)//' from '//TRIM(XSec_Database)
@@ -227,6 +257,25 @@ SWRITE(UNIT_StdOut,'(A)') 'Read vibrational excitation cross section for '//TRIM
 CALL H5OPEN_F(err)
 ! Open the file.
 CALL H5FOPEN_F (TRIM(XSec_Database), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+
+! Check if the species container is available
+dsetname = TRIM('/'//TRIM(spec_pair)//'/EFFECTIVE')
+CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
+
+! Check if the dataset exist
+IF(.NOT.DataSetFound) THEN
+  ! Try to swap the species names
+  dsetname = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)//'/EFFECTIVE'
+  CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
+  IF(DataSetFound) THEN
+    spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
+  ELSE
+    dsetname2 = TRIM(spec_pair)//'/EFFECTIVE'
+    CALL abort(&
+    __STAMP__&
+    ,'Dataset not found: ['//TRIM(dsetname2)//'] or ['//TRIM(dsetname)//'] not found in ['//TRIM(XSec_Database)//']')
+  END IF
+END IF
 
 groupname = TRIM('/'//TRIM(spec_pair)//'/VIBRATION/')
 
@@ -353,7 +402,7 @@ END FUNCTION InterpolateCrossSection
 
 PURE REAL FUNCTION InterpolateCrossSection_Vib(iSpec,jSpec,iVib,CollisionEnergy)
 !===================================================================================================================================
-!> 
+!> Interpolate the vibrational cross-section data for specific vibrational level at the given collision energy
 !> Note: Requires the data to be sorted by ascending energy values
 !> Assumption: First species given is the particle species, second species input is the backgroung gas species
 !===================================================================================================================================
@@ -404,7 +453,7 @@ END FUNCTION InterpolateCrossSection_Vib
 
 PURE REAL FUNCTION InterpolateVibRelaxProb(iSpec,jSpec,CollisionEnergy)
 !===================================================================================================================================
-!> 
+!> Interpolate the vibrational relaxation probability at the same intervals as the effective collision cross-section
 !> Note: Requires the data to be sorted by ascending energy values
 !> Assumption: First species given is the particle species, second species input is the backgroung gas species
 !===================================================================================================================================

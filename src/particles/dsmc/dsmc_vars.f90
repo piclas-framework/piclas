@@ -176,6 +176,8 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   ! Collision cross-sections for MCC
   LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
                                                             ! treated with read-in collision cross-section (currently only with BGG)
+  LOGICAL                           :: UseVibXSec           ! Flag if the vibrational relaxation probability should be treated,
+                                                            ! using read-in cross-sectional data (currently only with BGG)
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
@@ -194,6 +196,7 @@ TYPE tSpeciesXSec
                                                             ! null collision method of MCC
   REAL                              :: MaxCollFreq          ! Maximal collision frequency at certain energy level and cross-section
   TYPE(tXSecVibMode),ALLOCATABLE    :: VibMode(:)           !
+  REAL                              :: VibProb(2)
 END TYPE tSpeciesXSec
 
 TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:,:)        ! Species cross-section related data (nSpec,nSpec). First column is used
