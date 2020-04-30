@@ -415,8 +415,6 @@ DO i = 1,PDM%ParticleVecLength
       IF (PEM%Element(i).LE.PP_nElems) CALL DSMC_2D_RadialWeighting(i,PEM%Element(i))
     END IF
   END IF
-!  IPWRITE(*,*) i,ElemID
-  IF (ElemID.GT.50) print*,'noooooooooooooo', ElemID, DoneLastElem(1,1)
 END DO ! i = 1,PDM%ParticleVecLength
 
 END SUBROUTINE ParticleTriaTracking
