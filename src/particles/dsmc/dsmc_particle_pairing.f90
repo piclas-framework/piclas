@@ -653,7 +653,7 @@ DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
 IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
   ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
   ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-  IF((DSMC%MeanFreePath.LT.(ElemCharLength_Shared(iElem))) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+  IF((DSMC%MeanFreePath.LT.(ElemCharLength_Shared(iElem+offSetElem))) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
     ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
     TreeNode%PNum_Node = nPart
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
@@ -905,7 +905,7 @@ DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), Volume)
 IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
   ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
   ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-  IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(iElem)).OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+  IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(iElem+offSetElem)).OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
     ALLOCATE(TreeNode%MappedPartStates(1:2,1:nPart))
     TreeNode%PNum_Node = nPart
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
@@ -2356,6 +2356,7 @@ SUBROUTINE GeoCoordToMap2D(x_in,xi_Out,iElem)
 !USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_DSMC_Vars             ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
+USE MOD_Mesh_Vars             ,ONLY: offsetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2379,7 +2380,7 @@ REAL                          :: T_inv(2,2), DP(2), T(2,2)
 ! 1.1.) initial guess from linear part:
 SideID = SymmetrySide(iElem,2)
 DO iNode = 1,4
-  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,iElem)+1)
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,iElem+offSetElem)+1)
 END DO
 T(:,1) = 0.5 * (P(:,2)-P(:,1))
 T(:,2) = 0.5 * (P(:,4)-P(:,1))
@@ -2441,6 +2442,7 @@ FUNCTION MapToGeo2D(xi,iElem)
 !USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
+USE MOD_Mesh_Vars               ,ONLY: offsetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2456,7 +2458,7 @@ REAL                            :: MapToGeo2D(2),P(2,4)
 !===================================================================================================================================
 SideID = SymmetrySide(iElem,2)
 DO iNode = 1,4
-  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,iElem)+1)
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,iElem+offSetElem)+1)
 END DO
 
 MapToGeo2D =0.25*(P(:,1)*(1-xi(1)) * (1-xi(2)) &

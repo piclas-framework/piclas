@@ -21,8 +21,21 @@ MODULE MOD_Particle_BGM
 IMPLICIT NONE
 PRIVATE
 
+INTERFACE DefineParametersParticleBGM
+    MODULE PROCEDURE DefineParametersParticleBGM
+END INTERFACE
+
+INTERFACE BuildBGMAndIdentifyHaloRegion
+    MODULE PROCEDURE BuildBGMAndIdentifyHaloRegion
+END INTERFACE
+
+INTERFACE FinalizeBGM
+    MODULE PROCEDURE FinalizeBGM
+END INTERFACE
+
 PUBLIC::DefineParametersParticleBGM
 PUBLIC::BuildBGMAndIdentifyHaloRegion
+PUBLIC :: FinalizeBGM
 
 CONTAINS
 
@@ -89,12 +102,16 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: iElem
+INTEGER                        :: FirstElem,LastElem
+INTEGER                        :: firstNodeID,lastNodeID
+INTEGER                        :: offsetNodeID,nNodeIDs,currentOffset,moveBGMindex
 REAL                           :: xmin, xmax, ymin, ymax, zmin, zmax
 INTEGER                        :: iBGM, jBGM, kBGM
 INTEGER                        :: BGMimax, BGMimin, BGMjmax, BGMjmin, BGMkmax, BGMkmin
 INTEGER                        :: BGMiDelta,BGMjDelta,BGMkDelta
 INTEGER                        :: BGMCellXmax, BGMCellXmin, BGMCellYmax, BGMCellYmin, BGMCellZmax, BGMCellZmin
 #if USE_MPI
+INTEGER                        :: errType
 INTEGER                        :: iSide, SideID
 INTEGER                        :: ElemID
 REAL                           :: deltaT
@@ -102,15 +119,13 @@ REAL                           :: globalDiag
 INTEGER,ALLOCATABLE            :: sendbuf(:,:,:), recvbuf(:,:,:)
 INTEGER,ALLOCATABLE            :: offsetElemsInBGMCell(:,:,:)
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
-INTEGER                        :: nHaloElems, nMPISidesShared, currentOffset, moveBGMindex
+INTEGER                        :: nHaloElems,nMPISidesShared
 INTEGER,ALLOCATABLE            :: offsetCNHalo2GlobalElem(:), offsetMPISideShared(:)
 REAL,ALLOCATABLE               :: BoundsOfElemCenter(:), MPISideBoundsOfElemCenter(:,:)
 LOGICAL                        :: ElemInsideHalo
-INTEGER                        :: FirstElem, LastElem, firstHaloElem, lastHaloElem
-INTEGER                        :: offsetNodeID, nNodeIDs, firstNodeID, lastNodeID
+INTEGER                        :: firstHaloElem,lastHaloElem
 #else
-INTEGER,ALLOCATABLE            :: ElemToBGM(:,:)
-REAL,POINTER                   :: NodeCoordsPointer(:,:,:,:,:)
+REAL                           :: halo_eps
 #endif
 !===================================================================================================================================
 
@@ -121,7 +136,6 @@ GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 ! Read periodic vectors from parameter file
 CALL InitPeriodicBC()
-
 
 #if USE_MPI
 MPISharedSize = INT(6*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
@@ -195,11 +209,14 @@ IF (ALLOCATED(GEO%FIBGM)) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 
+#if USE_MPI
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
+#endif /*USE_MPI*/
   halo_eps  = 0.
+#if USE_MPI
   halo_eps2 = 0.
 ELSE
   IF (ManualTimeStep.EQ.0.0) THEN
@@ -257,6 +274,7 @@ ELSE
   halo_eps2=halo_eps*halo_eps
   CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
 END IF
+#endif /*USE_MPI*/
 
 moveBGMindex = 1 ! BGM indices must be >0 --> move by 1
 ! enlarge BGM with halo region (all element outside of this region will be cut off)
@@ -437,9 +455,11 @@ ELSE
 END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
 CALL MPI_WIN_SYNC(ElemInfo_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
-#endif  /*USE_MPI*/
 
 IF (GEO%nPeriodicVectors.GT.0) CALL CheckPeriodicSides()
+#else
+ElemInfo_Shared(ELEM_HALOFLAG,:) = 1
+#endif  /*USE_MPI*/
 
 !--- compute number of elements in each background cell
 DO iElem = offsetElem+1, offsetElem+nElems
@@ -512,9 +532,12 @@ END IF
 ! allocated shared memory for nElems per BGM cell
 ! MPI shared memory is continouos, beginning from 1. All shared arrays have to
 ! be shifted from BGM[i]min to 1
+#endif /*USE_MPI*/
 BGMiDelta=BGMimax-BGMimin
 BGMjDelta=BGMjmax-BGMjmin
 BGMkDelta=BGMkmax-BGMkmin
+
+#if USE_MPI
 MPISharedSize = INT((BGMiDelta+1)*(BGMjDelta+1)*(BGMkDelta+1),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/BGMiDelta+1,BGMjDelta+1,BGMkDelta+1/) &
                     ,FIBGM_nElems_Shared_Win,FIBGM_nElems_Shared)
@@ -727,6 +750,54 @@ ALLOCATE(Distance    (1:MAXVAL(FIBGM_nElems)) &
 END SUBROUTINE BuildBGMAndIdentifyHaloRegion
 
 
+SUBROUTINE FinalizeBGM()
+!===================================================================================================================================
+! Deallocates variables for the particle background mesh
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_MPI_Shared_Vars
+USE MOD_Particle_Mesh_Vars
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+#if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+CALL MPI_WIN_UNLOCK_ALL(ElemToBGM_Shared_Win,iError)
+CALL MPI_WIN_FREE(ElemToBGM_Shared_Win,iError)
+CALL MPI_WIN_UNLOCK_ALL(BoundsOfElem_Shared_Win,iError)
+CALL MPI_WIN_FREE(BoundsOfElem_Shared_Win,iError)
+CALL MPI_WIN_UNLOCK_ALL(FIBGM_nElems_Shared_Win,iError)
+CALL MPI_WIN_FREE(FIBGM_nElems_Shared_Win,iError)
+CALL MPI_WIN_UNLOCK_ALL(FIBGM_offsetElem_Shared_Win,iError)
+CALL MPI_WIN_FREE(FIBGM_offsetElem_Shared_Win,iError)
+CALL MPI_WIN_UNLOCK_ALL(FIBGM_Element_Shared_Win,iError)
+CALL MPI_WIN_FREE(FIBGM_Element_Shared_Win,iError)
+
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+! Then, free the pointers or arrays
+SDEALLOCATE(CNTotalElem2GlobalElem)
+SDEALLOCATE(GlobalElem2CNTotalElem)
+#endif /*USE_MPI*/
+
+ADEALLOCATE(ElemToBGM_Shared)
+ADEALLOCATE(BoundsOfElem_Shared)
+ADEALLOCATE(FIBGM_nElems_Shared)
+ADEALLOCATE(FIBGM_offsetElem_Shared)
+ADEALLOCATE(FIBGM_Element_Shared)
+
+END SUBROUTINE FinalizeBGM
+
+
+#if USE_MPI
 SUBROUTINE CheckPeriodicSides()
 !===================================================================================================================================
 !> checks the elements against periodic distance
@@ -761,13 +832,8 @@ REAL,ALLOCATABLE               :: PeriodicSideBoundsOfElemCenter(:,:)
 INTEGER,ALLOCATABLE            :: nPeriodicVectorsPerElem(:,:)
 !===================================================================================================================================
 
-#if USE_MPI
 firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
-#else
-firstElem = 1
-lastElem  = nElems
-#endif  /*USE_MPI*/
 
 ! count number of elements with periodic sides
 nPeriodicElems = 0
@@ -853,6 +919,8 @@ DO iElem = firstElem,lastElem
       CASE(1)
         ! check the only possible periodic vector
         iPeriodicVector = FINDLOC(ABS(nPeriodicVectorsPerElem(:,iPeriodicElem)),1,1)
+        IF (iPeriodicVector.EQ.-1) &
+          CALL ABORT(__STAMP__,'Error determining periodic vector!')
         ! check if element is within halo_eps of periodically displaced element
         IF (VECNORM( BoundsOfElemCenter(1:3)                                                                               &
                    + GEO%PeriodicVectors(1:3,iPeriodicVector) * nPeriodicVectorsPerElem(iPeriodicVector,iPeriodicElem)     &
@@ -958,7 +1026,6 @@ PURE FUNCTION FINDLOC(Array,Value,Dim)
 !> Implements a subset of the intrinsic FINDLOC function for Fortran < 2008
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-!USE MOD_Globals                ,ONLY: ABORT
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -981,10 +1048,12 @@ DO iVar = 1,SIZE(ARRAY,1)
   END IF
 END DO
 
-!CALL ABORT(__STAMP__,'Periodic vector not found in array!')
+! Return error code -1 if the value was not found
+FINDLOC = -1
 
 END FUNCTION FINDLOC
-#endif
+#endif /*GCC_VERSION < 90000*/
+#endif /*USE_MPI*/
 
 
 END MODULE MOD_Particle_BGM

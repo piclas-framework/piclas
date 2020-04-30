@@ -466,22 +466,6 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Defin
                               'boundary [$] are to be stored in an additional .h5 file for post-processing analysis [.TRUE.] '//&
                               'or not [.FALSE.].'&
                               , '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Adaptive'  &
-  , 'Define if particle boundary [$] is adaptive [.TRUE.] or not [.FALSE.]', '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-AdaptiveType'  &
-  , 'Define type of adaptive boundary [$]\n'//&
-    '[1] (STREAM INLET) with define temperature and pressure and pressurefraction\n'//&
-    '[2] (STREAM OUTLET) with defined pressure and pressurefraction', '2', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-AdaptiveMacroRestartFileID'  &
-  , 'Define FileID of adaptive boundary [$] macro restart if macro restart is used' &
-    , '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AdaptiveTemp'  &
-  , 'Define temperature for adaptive particle boundary [$] (in [K])', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-AdaptivePressure'  &
-  , 'Define pressure for adaptive particle boundary [$] (in [Pa])', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-Pressurefraction'  &
-  , 'If particle boundary [$] adaptive, define pressurefractions for each species, so sum of all species for this adaptive'//&
-    'is 1.0. Results in abort if not set right.' , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Voltage on boundary [$]', '0.', numberedmulti=.TRUE.)
@@ -1716,7 +1700,7 @@ USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,nPorousBC
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary,PartStateBoundarySpec
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
@@ -1770,18 +1754,6 @@ PartBound%SolidState(  1:nPartBound) = .FALSE.
 PartBound%Reactive(    1:nPartBound) = .FALSE.
 PartBound%SurfaceModel(1:nPartBound) = 0
 
-ALLOCATE(PartBound%Adaptive(1:nPartBound))
-ALLOCATE(PartBound%AdaptiveType(1:nPartBound))
-ALLOCATE(PartBound%AdaptiveMacroRestartFileID(1:nPartBound))
-ALLOCATE(PartBound%AdaptiveTemp(1:nPartBound))
-ALLOCATE(PartBound%AdaptivePressure(1:nPartBound))
-nAdaptiveBC = 0
-PartBound%Adaptive(:) = .FALSE.
-PartBound%AdaptiveType(:) = -1
-PartBound%AdaptiveMacroRestartFileID(:) = 0
-PartBound%AdaptiveTemp(:) = -1.
-PartBound%AdaptivePressure(:) = -1.
-
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 ALLOCATE(PartBound%UseForQCrit(1:nPartBound))
 ALLOCATE(PartBound%Voltage_CollectCharges(1:nPartBound))
@@ -1816,34 +1788,7 @@ DO iPartBound=1,nPartBound
   tmpString = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-Condition','open'))
   SELECT CASE (TRIM(tmpString))
   CASE('open')
-    PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
-    PartBound%Adaptive(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Adaptive','.FALSE.')
-    IF(PartBound%Adaptive(iPartBound)) THEN
-      nAdaptiveBC = nAdaptiveBC + 1
-      PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
-      IF (nMacroRestartFiles.GT.0) THEN
-        PartBound%AdaptiveMacroRestartFileID(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveMacroRestartFileID','0')
-      END IF
-      FileID = PartBound%AdaptiveMacroRestartFileID(iPartBound)
-      IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
-!        MacroRestartFileUsed(FileID) = .TRUE.
-        IF (PartBound%AdaptiveType(iPartBound).EQ.1) THEN
-          PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
-          IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
-              __STAMP__&
-              ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
-        END IF
-      ELSE
-        PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
-        IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
-            __STAMP__&
-            ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
-      END IF
-      PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
-      IF (PartBound%AdaptivePressure(iPartBound).EQ.0.) CALL abort(&
-          __STAMP__&
-          ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptivePressure not defined')
-    END IF
+    PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic  
     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0.')
   CASE('reflective')
 #if defined(IMPA) || defined(ROS)
@@ -3073,6 +3018,9 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars
+#if USE_MPI
+USE MOD_Particle_MPI_Halo,          ONLY: FinalizePartExchangeProcs
+#endif /*USE_MPI*/
 !#if USE_MPI
 !USE MOD_Particle_MPI_Emission      ,ONLY: FinalizeEmissionParticlesToProcs
 !#endif
@@ -3153,11 +3101,6 @@ SDEALLOCATE(PartBound%RotACC)
 SDEALLOCATE(PartBound%ElecACC)
 SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
-SDEALLOCATE(PartBound%Adaptive)
-SDEALLOCATE(PartBound%AdaptiveType)
-SDEALLOCATE(PartBound%AdaptiveMacroRestartFileID)
-SDEALLOCATE(PartBound%AdaptiveTemp)
-SDEALLOCATE(PartBound%AdaptivePressure)
 SDEALLOCATE(Adaptive_MacroVal)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%UseForQCrit)
@@ -3187,6 +3130,11 @@ SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
 SDEALLOCATE(RegionBounds)
 SDEALLOCATE(RegionElectronRef)
+
+#if USE_MPI
+! particle MPI halo exchange
+CALL FinalizePartExchangeProcs()
+#endif
 END SUBROUTINE FinalizeParticles
 
 !-- matrices for coordtrafo:

@@ -57,9 +57,9 @@ INTERFACE GetSideBoundingBox
   MODULE PROCEDURE GetSideBoundingBox
 END INTERFACE
 
-INTERFACE GetElemSlabNormalsAndIntervals
-  MODULE PROCEDURE GetElemSlabNormalsAndIntervals
-END INTERFACE
+!INTERFACE GetElemSlabNormalsAndIntervals
+!  MODULE PROCEDURE GetElemSlabNormalsAndIntervals
+!END INTERFACE
 
 INTERFACE GetBezierSampledAreas
   MODULE PROCEDURE GetBezierSampledAreas
@@ -87,16 +87,19 @@ INTERFACE OutputBezierControlPoints
 END INTERFACE
 #endif /*CODE_ANALYZE*/
 
-!PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, GetBezierControlPoints3D, GetSideSlabNormalsAndIntervals, &
-!        GetSideBoundingBox,GetElemSlabNormalsAndIntervals,GetBezierSampledAreas,EvaluateBezierPolynomialAndGradient
-PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, GetSideSlabNormalsAndIntervals, &
-        GetSideBoundingBox,GetElemSlabNormalsAndIntervals,GetBezierSampledAreas,EvaluateBezierPolynomialAndGradient
-
-PUBLIC::CalcNormAndTangBilinear, CalcNormAndTangBezier, CalcNormAndTangTriangle
-PUBLIC::RotateMasterToSlave
-PUBLIC::ElevateBezierPolynomial
-PUBLIC::GetBezierControlPoints3DElevated
-
+PUBLIC :: InitParticleSurfaces
+PUBLIC :: FinalizeParticleSurfaces
+!PUBLIC :: GetBezierControlPoints3D
+PUBLIC :: GetBezierControlPoints3DElevated
+PUBLIC :: GetSideSlabNormalsAndIntervals
+PUBLIC :: GetSideBoundingBox
+!PUBLIC :: GetElemSlabNormalsAndIntervals
+PUBLIC :: GetBezierSampledAreas
+PUBLIC :: EvaluateBezierPolynomialAndGradient
+PUBLIC :: CalcNormAndTangBilinear
+PUBLIC :: CalcNormAndTangBezier
+PUBLIC :: CalcNormAndTangTriangle
+PUBLIC :: RotateMasterToSlave
 #ifdef CODE_ANALYZE
 PUBLIC::OutputBezierControlPoints
 #endif /*CODE_ANALYZE*/
@@ -173,24 +176,24 @@ tmp=2*(NGeo+1)
 WRITE(dummy,'(I2.2)') tmp
 BezierClipMaxIntersec = GETINT('BezierClipMaxIntersec',dummy)
 
-! Set local BC sides (without halo and without inner BC)
-IF(DoRefMapping)THEN
-  !MultipleBCs    = GETLOGICAL('MultibleBCs',".FALSE.")
-  ALLOCATE(PartBCSideList(1:nSides))
-  PartBCSideList(:) = -1
-  DO iSide=1,nBCSides
-    PartBCSideList(iSide)=iSide
-  END DO
-  !nTotalBCSides=nBCSides
- ! iBCSide=nBCSides
- ! DO iSide=nBCSides+1,nSides
- !   IF(BC(iSide).EQ.1) THEN
- !     iBCSide=iBCSide+1
- !     PartBCSideList(iSide)=iBCSide
- !   END IF
- ! END DO
- ! nTotalBCSides=iBCSide
-END IF
+!! Set local BC sides (without halo and without inner BC)
+!IF(DoRefMapping)THEN
+!  !MultipleBCs    = GETLOGICAL('MultibleBCs',".FALSE.")
+!  ALLOCATE(PartBCSideList(1:nSides))
+!  PartBCSideList(:) = -1
+!  DO iSide=1,nBCSides
+!    PartBCSideList(iSide)=iSide
+!  END DO
+!  nTotalBCSides=nBCSides
+!  iBCSide=nBCSides
+!  DO iSide=nBCSides+1,nSides
+!    IF(BC(iSide).EQ.1) THEN
+!      iBCSide=iBCSide+1
+!      PartBCSideList(iSide)=iBCSide
+!    END IF
+!  END DO
+!  nTotalBCSides=iBCSide
+!END IF
 
 #ifdef CODE_ANALYZE
 rBoundingBoxChecks=0.
@@ -213,8 +216,8 @@ rTotalBezierNewton=0.
 
 ALLOCATE( locAlpha(1:BezierClipMaxIntersec) &
         , locXi   (1:BezierClipMaxIntersec) &
-        , locEta  (1:BezierClipMaxIntersec) )
-ALLOCATE( XiArray (1:2,1:BezierClipMaxIter) &
+        , locEta  (1:BezierClipMaxIntersec) &
+        , XiArray (1:2,1:BezierClipMaxIter) &
         , EtaArray(1:2,1:BezierClipMaxIter) )
 
 
@@ -266,44 +269,50 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-#if !(USE_MPI)
-SDEALLOCATE(SideType_Shared)
-SDEALLOCATE(SideNormVec_Shared)
-SDEALLOCATE(SideDistance_Shared)
-SDEALLOCATE(SideSlabNormals)
-SDEALLOCATE(SideSlabIntervals)
-SDEALLOCATE(ElemSlabNormals)
-SDEALLOCATE(ElemSlabIntervals)
-SDEALLOCATE(BoundingBoxIsEmpty)
-#endif /*!(USE_MPI)*/
-!SDEALLOCATE(BiLinearCoeff)
-!SDEALLOCATE(SuperSampledBiLinearCoeff)
+! InitParticleMeshBasis
+SDEALLOCATE(Vdm_Bezier)
+SDEALLOCATE(sVdm_Bezier)
+SDEALLOCATE(D_Bezier)
+
+! InitParticleMesh
+SDEALLOCATE(BezierSampleXi)
+#if CODE_ANALYZE
+SDEALLOCATE(SideBoundingBoxVolume)
+#endif
+
+! CalcBezierControlPoints (MPI3 shared freed in FinalizeParticleMesh)
+ADEALLOCATE(BezierControlPoints3D)
+ADEALLOCATE(BezierControlPoints3DElevated)
+
+! GetSideSlabNormalsAndIntervals (MPI3 shared freed in FinalizeParticleMesh)
+ADEALLOCATE(SideSlabNormals)
+ADEALLOCATE(SideSlabIntervals)
+ADEALLOCATE(BoundingBoxIsEmpty)
+
+! GetLinearSideBaseVectors (MPI3 shared freed in FinalizeParticleMesh)
 ADEALLOCATE(BaseVectors0)
 ADEALLOCATE(BaseVectors1)
 ADEALLOCATE(BaseVectors2)
 ADEALLOCATE(BaseVectors3)
 ADEALLOCATE(BaseVectorsScale)
+
+! BuildBezierVdm
+SDEALLOCATE(arrayNChooseK)
+SDEALLOCATE(FacNchooseK)
 SDEALLOCATE(ElevationMatrix)
-ADEALLOCATE(BezierControlPoints3D)
-ADEALLOCATE(BezierControlPoints3DElevated)
+
+! InitParticleSurfaces
 SDEALLOCATE(locAlpha)
 SDEALLOCATE(locXi)
 SDEALLOCATE(locEta)
 SDEALLOCATE(XiArray)
 SDEALLOCATE(EtaArray)
-SDEALLOCATE(Vdm_Bezier)
-SDEALLOCATE(sVdm_Bezier)
-SDEALLOCATE(D_Bezier)
-SDEALLOCATE(arrayNChooseK)
-SDEALLOCATE(FacNchooseK)
-SDEALLOCATE(BezierSampleXi)
+
+! Surface flux
 SDEALLOCATE(SurfMeshSubSideData)
 SDEALLOCATE(SurfMeshSideAreas)
 SDEALLOCATE(BCdata_auxSF)
-#ifdef CODE_ANALYZE
-SDEALLOCATE(SideBoundingBoxVolume)
-#endif
-!SDEALLOCATE(gElemBCSide)
+
 ParticleSurfaceInitIsDone=.FALSE.
 
 END SUBROUTINE FinalizeParticleSurfaces
@@ -1078,152 +1087,152 @@ END SUBROUTINE GetSideBoundingBox
 
 
 
-SUBROUTINE GetElemSlabNormalsAndIntervals(NGeo,ElemID)
-!===================================================================================================================================
-! computes the oriented-slab box for each bezier basis surface (i.e. 3 slab normals + 3 intervalls)
-! of each element. This routine must be called after GetSideSlabNormalsAndIntervals(...), because the elevation takes place there
-! see article:
-!    author = {Shyue-wu Wang and Zen-chung Shih and Ruei-chuan Chang},
-!    title = {An Efficient and Stable Ray Tracing Algorithm for Parametric Surfaces},
-!    year = {2001},
-! original article: oriented-slab box (cartesian bounding box)
-!   author = {Yen, Jonathan and Spach, Susan and Smith, Mark and Pulleyblank, Ron},
-!   title = {Parallel Boxing in B-Spline Intersection},
-!   issue_date = {January 1991},
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide,GEO,RefMappingEps
-USE MOD_Particle_Surfaces_Vars,   ONLY:ElemSlabNormals,ElemSlabIntervals,BezierControlPoints3DElevated,BezierElevation
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: ElemID,NGeo
-!REAL,INTENT(IN)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER            :: p,q,iLocSide,SideID,SideIDOrigin
-REAL               :: skalprod(3),dx,dy,dz
-!===================================================================================================================================
-
-!BezierControlPoints(:,:,:,ElemID)
-!ElemSlabNormals( x y z,1 2 3 , ElemID)
-IF(GEO%nPeriodicVectors.GT.0)THEN
-    CALL  Abort(&
-  __STAMP__&
-  ,' computation of wrong bounding box!')
-  SWRITE(*,*) ' Computation of wrong bounding box in peridodic'
-END IF
-
-!-----------------------------------------------------------------------------------------------------------------------------------
-! 0.) check if side is planar
-!-----------------------------------------------------------------------------------------------------------------------------------
-!ElemIsPlanar=.FALSE.
-
-!-----------------------------------------------------------------------------------------------------------------------------------
-! 1.) slab normal vectors (use the first local element side)
-!-----------------------------------------------------------------------------------------------------------------------------------
-SideIDOrigin=PartElemToSide(E2S_SIDE_ID,1,ElemID)
-ElemSlabNormals(:,0,ElemID)=SideIDOrigin
-! n_1=V_1+V_2 (V: corner vectors in xi-direction)
-ElemSlabNormals(:,1,ElemID)= &
-                BezierControlPoints3DElevated(:,NGeo+BezierElevation,0,SideIDOrigin)- &
-                BezierControlPoints3DElevated(:,0,0,SideIDOrigin)+&
-                BezierControlPoints3DElevated(:,NGeo+BezierElevation,NGeo+BezierElevation,SideIDOrigin)-&
-                BezierControlPoints3DElevated(:,0,NGeo+BezierElevation,SideIDOrigin)
-ElemSlabNormals(:,1,ElemID)=ElemSlabNormals(:,1,ElemID)/SQRT(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID)))
-! n_2=n_1 x (U_1+U_2) (U: corner vectors in eta-direction)
-ElemSlabNormals(:,2,ElemID)= &
-                BezierControlPoints3DElevated(:,0,NGeo+BezierElevation,SideIDOrigin)   &
-                -BezierControlPoints3DElevated(:,0,0,SideIDOrigin)+&
-                BezierControlPoints3DElevated(:,NGeo+BezierElevation,NGeo+BezierElevation,SideIDOrigin)&
-                -BezierControlPoints3DElevated(:,NGeo+BezierElevation,0,SideIDOrigin)
-ElemSlabNormals(:,2,ElemID)=CROSSNORM(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID))
-! n_3=n_1 x n_2
-ElemSlabNormals(:,3,ElemID)=CROSSNORM(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,1,ElemID))
-
-! check vector length=1
-IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID))-1.)).GT.1.E-6) CALL Abort(&
-__STAMP__&
-,'Element slab normal 1 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID)))
-IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,2,ElemID))-1.)).GT.1.E-6) CALL Abort(&
-__STAMP__&
-,'Element slab normal 2 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,2,ElemID)))
-IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,3,ElemID),ElemSlabNormals(:,3,ElemID))-1.)).GT.1.E-6) CALL Abort(&
-__STAMP__&
-,'Element slab normal 3 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,3,ElemID),ElemSlabNormals(:,3,ElemID)))
-
-! check perpendicularity
-IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID)))).GT.1.E-6) CALL Abort(&
-__STAMP__&
-,'Element slab normal 1 and 2 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID))))
-IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,3,ElemID)))).GT.1.E-6) CALL Abort(&
-__STAMP__&
-,'Element slab normal 1 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,3,ElemID))))
-IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,3,ElemID)))).GT.1.E-6) CALL Abort(&
-__STAMP__&
-,'Element slab normal 2 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,3,ElemID))))
-
-!-----------------------------------------------------------------------------------------------------------------------------------
-! 2.) slab box intervalls beta_1, beta_2, beta_3
-!-----------------------------------------------------------------------------------------------------------------------------------
-!ElemSlabIntervals(x- x+ y- y+ z- z+, ElemID)
-
-ElemSlabIntervals(:,ElemID)=0.
-DO iLocSide=1,6
-  SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-  DO q=0,NGeo+BezierElevation
-    DO p=0,NGeo+BezierElevation
-      IF((p.EQ.0).AND.(q.EQ.0))CYCLE
-      skalprod(1)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q,SideID)-&
-                              BezierControlPoints3DElevated(:,0,0,SideIDOrigin),ElemSlabNormals(:,1,ElemID))
-      skalprod(2)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q,SideID)-&
-                              BezierControlPoints3DElevated(:,0,0,SideIDOrigin),ElemSlabNormals(:,2,ElemID))
-      skalprod(3)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q,SideID)-&
-                              BezierControlPoints3DElevated(:,0,0,SideIDOrigin),ElemSlabNormals(:,3,ElemID))
-      IF    (skalprod(1).LT.0.)THEN
-        ElemSlabIntervals(1, ElemID)=MIN(ElemSlabIntervals(1,ElemID),skalprod(1))
-      ELSEIF(skalprod(1).GT.0.)THEN
-        ElemSlabIntervals(2, ElemID)=MAX(ElemSlabIntervals(2,ElemID),skalprod(1))
-      END IF
-      IF    (skalprod(2).LT.0.)THEN
-        ElemSlabIntervals(3, ElemID)=MIN(ElemSlabIntervals(3,ElemID),skalprod(2))
-      ELSEIF(skalprod(2).GT.0.)THEN
-        ElemSlabIntervals(4, ElemID)=MAX(ElemSlabIntervals(4,ElemID),skalprod(2))
-      END IF
-      IF    (skalprod(3).LT.0.)THEN
-        ElemSlabIntervals(5, ElemID)=MIN(ElemSlabIntervals(5,ElemID),skalprod(3))
-      ELSEIF(skalprod(3).GT.0.)THEN
-        ElemSlabIntervals(6, ElemID)=MAX(ElemSlabIntervals(6,ElemID),skalprod(3))
-      END IF
-    END DO !p
-  END DO !q
-END DO !iLocSide=1:6
-dx=ABS(ABS(ElemSlabIntervals(2, ElemID))-ABS(ElemSlabIntervals(1, ElemID)))
-dy=ABS(ABS(ElemSlabIntervals(4, ElemID))-ABS(ElemSlabIntervals(3, ElemID)))
-dz=ABS(ABS(ElemSlabIntervals(6, ElemID))-ABS(ElemSlabIntervals(5, ElemID)))
-ElemSlabIntervals(1,ElemID)=ElemSlabInterVals(1,ElemID)-RefMappingEps
-ElemSlabIntervals(2,ElemID)=ElemSlabInterVals(2,ElemID)+RefMappingEps
-ElemSlabIntervals(3,ElemID)=ElemSlabInterVals(3,ElemID)-RefMappingEps
-ElemSlabIntervals(4,ElemID)=ElemSlabInterVals(4,ElemID)+RefMappingEps
-ElemSlabIntervals(5,ElemID)=ElemSlabInterVals(5,ElemID)-RefMappingEps
-ElemSlabIntervals(6,ElemID)=ElemSlabInterVals(6,ElemID)+RefMappingEps
-IF(dx*dy*dz.LT.0) CALL Abort(&
-__STAMP__&
-,'A bounding box (for elements) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
-!IF((dx*dy*dz).LT.GEO%Volume(ElemID))THEN
-!  IPWRITE(*,*) 'Volume', dx*dy*dz
-!  IPWRITE(*,*) 'DG-Volume', GEO%Volume(ElemID)
-!  CALL Abort(&
+!SUBROUTINE GetElemSlabNormalsAndIntervals(NGeo,ElemID)
+!!===================================================================================================================================
+!! computes the oriented-slab box for each bezier basis surface (i.e. 3 slab normals + 3 intervalls)
+!! of each element. This routine must be called after GetSideSlabNormalsAndIntervals(...), because the elevation takes place there
+!! see article:
+!!    author = {Shyue-wu Wang and Zen-chung Shih and Ruei-chuan Chang},
+!!    title = {An Efficient and Stable Ray Tracing Algorithm for Parametric Surfaces},
+!!    year = {2001},
+!! original article: oriented-slab box (cartesian bounding box)
+!!   author = {Yen, Jonathan and Spach, Susan and Smith, Mark and Pulleyblank, Ron},
+!!   title = {Parallel Boxing in B-Spline Intersection},
+!!   issue_date = {January 1991},
+!!===================================================================================================================================
+!! MODULES
+!USE MOD_Globals
+!USE MOD_Preproc
+!USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide,GEO,RefMappingEps
+!USE MOD_Particle_Surfaces_Vars,   ONLY:ElemSlabNormals,ElemSlabIntervals,BezierControlPoints3DElevated,BezierElevation
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!! INPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! INPUT VARIABLES
+!INTEGER,INTENT(IN) :: ElemID,NGeo
+!!REAL,INTENT(IN)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo)
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER            :: p,q,iLocSide,SideID,SideIDOrigin
+!REAL               :: skalprod(3),dx,dy,dz
+!!===================================================================================================================================
+!
+!!BezierControlPoints(:,:,:,ElemID)
+!!ElemSlabNormals( x y z,1 2 3 , ElemID)
+!IF(GEO%nPeriodicVectors.GT.0)THEN
+!    CALL  Abort(&
 !  __STAMP__&
-!  'The bounding box is smaller than element! BoundingBox-volume:')
+!  ,' computation of wrong bounding box!')
+!  SWRITE(*,*) ' Computation of wrong bounding box in peridodic'
 !END IF
-END SUBROUTINE GetElemSlabNormalsAndIntervals
+!
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! 0.) check if side is planar
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!!ElemIsPlanar=.FALSE.
+!
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! 1.) slab normal vectors (use the first local element side)
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!SideIDOrigin=PartElemToSide(E2S_SIDE_ID,1,ElemID)
+!ElemSlabNormals(:,0,ElemID)=SideIDOrigin
+!! n_1=V_1+V_2 (V: corner vectors in xi-direction)
+!ElemSlabNormals(:,1,ElemID)= &
+!                BezierControlPoints3DElevated(:,NGeo+BezierElevation,0,SideIDOrigin)- &
+!                BezierControlPoints3DElevated(:,0,0,SideIDOrigin)+&
+!                BezierControlPoints3DElevated(:,NGeo+BezierElevation,NGeo+BezierElevation,SideIDOrigin)-&
+!                BezierControlPoints3DElevated(:,0,NGeo+BezierElevation,SideIDOrigin)
+!ElemSlabNormals(:,1,ElemID)=ElemSlabNormals(:,1,ElemID)/SQRT(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID)))
+!! n_2=n_1 x (U_1+U_2) (U: corner vectors in eta-direction)
+!ElemSlabNormals(:,2,ElemID)= &
+!                BezierControlPoints3DElevated(:,0,NGeo+BezierElevation,SideIDOrigin)   &
+!                -BezierControlPoints3DElevated(:,0,0,SideIDOrigin)+&
+!                BezierControlPoints3DElevated(:,NGeo+BezierElevation,NGeo+BezierElevation,SideIDOrigin)&
+!                -BezierControlPoints3DElevated(:,NGeo+BezierElevation,0,SideIDOrigin)
+!ElemSlabNormals(:,2,ElemID)=CROSSNORM(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID))
+!! n_3=n_1 x n_2
+!ElemSlabNormals(:,3,ElemID)=CROSSNORM(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,1,ElemID))
+!
+!! check vector length=1
+!IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID))-1.)).GT.1.E-6) CALL Abort(&
+!__STAMP__&
+!,'Element slab normal 1 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID)))
+!IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,2,ElemID))-1.)).GT.1.E-6) CALL Abort(&
+!__STAMP__&
+!,'Element slab normal 2 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,2,ElemID)))
+!IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,3,ElemID),ElemSlabNormals(:,3,ElemID))-1.)).GT.1.E-6) CALL Abort(&
+!__STAMP__&
+!,'Element slab normal 3 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,3,ElemID),ElemSlabNormals(:,3,ElemID)))
+!
+!! check perpendicularity
+!IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID)))).GT.1.E-6) CALL Abort(&
+!__STAMP__&
+!,'Element slab normal 1 and 2 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID))))
+!IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,3,ElemID)))).GT.1.E-6) CALL Abort(&
+!__STAMP__&
+!,'Element slab normal 1 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,3,ElemID))))
+!IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,3,ElemID)))).GT.1.E-6) CALL Abort(&
+!__STAMP__&
+!,'Element slab normal 2 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,3,ElemID))))
+!
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! 2.) slab box intervalls beta_1, beta_2, beta_3
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!!ElemSlabIntervals(x- x+ y- y+ z- z+, ElemID)
+!
+!ElemSlabIntervals(:,ElemID)=0.
+!DO iLocSide=1,6
+!  SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+!  DO q=0,NGeo+BezierElevation
+!    DO p=0,NGeo+BezierElevation
+!      IF((p.EQ.0).AND.(q.EQ.0))CYCLE
+!      skalprod(1)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q,SideID)-&
+!                              BezierControlPoints3DElevated(:,0,0,SideIDOrigin),ElemSlabNormals(:,1,ElemID))
+!      skalprod(2)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q,SideID)-&
+!                              BezierControlPoints3DElevated(:,0,0,SideIDOrigin),ElemSlabNormals(:,2,ElemID))
+!      skalprod(3)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q,SideID)-&
+!                              BezierControlPoints3DElevated(:,0,0,SideIDOrigin),ElemSlabNormals(:,3,ElemID))
+!      IF    (skalprod(1).LT.0.)THEN
+!        ElemSlabIntervals(1, ElemID)=MIN(ElemSlabIntervals(1,ElemID),skalprod(1))
+!      ELSEIF(skalprod(1).GT.0.)THEN
+!        ElemSlabIntervals(2, ElemID)=MAX(ElemSlabIntervals(2,ElemID),skalprod(1))
+!      END IF
+!      IF    (skalprod(2).LT.0.)THEN
+!        ElemSlabIntervals(3, ElemID)=MIN(ElemSlabIntervals(3,ElemID),skalprod(2))
+!      ELSEIF(skalprod(2).GT.0.)THEN
+!        ElemSlabIntervals(4, ElemID)=MAX(ElemSlabIntervals(4,ElemID),skalprod(2))
+!      END IF
+!      IF    (skalprod(3).LT.0.)THEN
+!        ElemSlabIntervals(5, ElemID)=MIN(ElemSlabIntervals(5,ElemID),skalprod(3))
+!      ELSEIF(skalprod(3).GT.0.)THEN
+!        ElemSlabIntervals(6, ElemID)=MAX(ElemSlabIntervals(6,ElemID),skalprod(3))
+!      END IF
+!    END DO !p
+!  END DO !q
+!END DO !iLocSide=1:6
+!dx=ABS(ABS(ElemSlabIntervals(2, ElemID))-ABS(ElemSlabIntervals(1, ElemID)))
+!dy=ABS(ABS(ElemSlabIntervals(4, ElemID))-ABS(ElemSlabIntervals(3, ElemID)))
+!dz=ABS(ABS(ElemSlabIntervals(6, ElemID))-ABS(ElemSlabIntervals(5, ElemID)))
+!ElemSlabIntervals(1,ElemID)=ElemSlabInterVals(1,ElemID)-RefMappingEps
+!ElemSlabIntervals(2,ElemID)=ElemSlabInterVals(2,ElemID)+RefMappingEps
+!ElemSlabIntervals(3,ElemID)=ElemSlabInterVals(3,ElemID)-RefMappingEps
+!ElemSlabIntervals(4,ElemID)=ElemSlabInterVals(4,ElemID)+RefMappingEps
+!ElemSlabIntervals(5,ElemID)=ElemSlabInterVals(5,ElemID)-RefMappingEps
+!ElemSlabIntervals(6,ElemID)=ElemSlabInterVals(6,ElemID)+RefMappingEps
+!IF(dx*dy*dz.LT.0) CALL Abort(&
+!__STAMP__&
+!,'A bounding box (for elements) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
+!!IF((dx*dy*dz).LT.GEO%Volume(ElemID))THEN
+!!  IPWRITE(*,*) 'Volume', dx*dy*dz
+!!  IPWRITE(*,*) 'DG-Volume', GEO%Volume(ElemID)
+!!  CALL Abort(&
+!!  __STAMP__&
+!!  'The bounding box is smaller than element! BoundingBox-volume:')
+!!END IF
+!END SUBROUTINE GetElemSlabNormalsAndIntervals
 
 
 SUBROUTINE GetBezierControlPoints3DElevated(NGeo,NGeoElevated,BezierControlPoints,BezierControlPointsElevated)
@@ -1265,7 +1274,7 @@ SUBROUTINE GetBezierSampledAreas(SideID,BezierSampleN,BezierSurfFluxProjection_o
                                 ,SurfMeshSubSideVec_nOut_opt,SurfMeshSubSideVec_t1_opt,SurfMeshSubSideVec_t2_opt &
                                 ,DmaxSampleN_opt,Dmax_opt,BezierControlPoints2D_opt)
 !===================================================================================================================================
-! equidistanlty super-sampled bezier surface area and vector calculation
+! equidistanlty super-sampled bezier surface area and vector calculation. Required for surface flux
 ! --------------------------------------
 ! book: see also for general remarks
 ! author = {Farin, Gerald},

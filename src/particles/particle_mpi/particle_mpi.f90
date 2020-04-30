@@ -118,20 +118,19 @@ IF(ParticleMPIInitIsDone) &
   ,' Particle MPI already initialized!')
 
 #if USE_MPI
-PartMPI%myRank = myRank
-color = 999
-CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,PartMPI%MyRank,PartMPI%COMM,iERROR)
-CALL MPI_COMM_SIZE (PartMPI%COMM,PartMPI%nProcs ,iError)
-!PartMPI%COMM   = MPI_COMM_WORLD
+!PartMPI%myRank = myRank
+!color = 999
+!CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,PartMPI%MyRank,PartMPI%COMM,iERROR)
+CALL MPI_COMM_DUP (MPI_COMM_WORLD,PartMPI%COMM,iError)
+CALL MPI_COMM_RANK(PartMPI%COMM,PartMPI%myRank,iError)
+CALL MPI_COMM_SIZE(PartMPI%COMM,PartMPI%nProcs,iError)
+
 IF(PartMPI%nProcs.NE.nProcessors) CALL ABORT(&
     __STAMP__&
     ,' MPI Communicater-size does not match!', IERROR)
 PartCommSize   = 0
-IF(PartMPI%MyRank.EQ.0) THEN
-  PartMPI%MPIRoot=.TRUE.
-ELSE
-  PartMPI%MPIRoot=.FALSE.
-END IF
+PartMPI%MPIRoot = .FALSE.
+IF(PartMPI%MyRank.EQ.0) PartMPI%MPIRoot=.TRUE.
 iMessage=0
 #else
 PartMPI%myRank = 0
@@ -363,6 +362,7 @@ doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 
 ! 1) get number of send particles
+!--- Count number of particles in cells in the halo region and add them to the message
 PartMPIExchange%nPartsSend=0
 
 PartTargetProc=-1
@@ -546,6 +546,8 @@ END IF
 
 
 ! 2) send number of send particles
+!--- Loop over all neighboring procs. Map local proc ID to global through ExchangeProcToGlobalProc.
+!--- Asynchronous communication, just send here and check for success later.
 DO iProc=0,nExchangeProcessors-1
   CALL MPI_ISEND( PartMPIExchange%nPartsSend(:,iProc)                        &
                 , 2                                                          &
@@ -665,6 +667,8 @@ DO iProc=0,nExchangeProcessors-1
                 + nSendExtParticles * ExtPartCommSize
   ELSE
     IF(nSendParticles.EQ.0) CYCLE
+
+  ! allocate SendBuff of required size
     MessageSize=nSendParticles*PartCommSize
   END IF
 

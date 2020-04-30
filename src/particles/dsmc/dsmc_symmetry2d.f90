@@ -82,7 +82,9 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
-USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
+USE MOD_Particle_Mesh           ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
 #endif /*USE_MPI*/
@@ -94,8 +96,8 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shar
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, iLocSide, i, j, ElemID, iNode
-REAL                            :: radius
+INTEGER                         :: SideID, iLocSide, i, j, ElemID, iNode, BCSideID, locElemID
+REAL                            :: radius, triarea(2)
 LOGICAL                         :: SymmetryBCExists
 INTEGER                         :: firstElem,lastElem
 !===================================================================================================================================
@@ -123,33 +125,35 @@ IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
     ,'ERROR: Please orient your mesh with one cell in z-direction around 0, |z_min| = z_max !')
 END IF
 
-DO SideID=1,nBCSides
-  ! Get the SideID of the symmetry sides defined as symmetry BC ('symmetric')
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).EQ.PartBound%SymmetryBC) THEN
-    ElemID = SideToElem(1,SideID)
-    IF (ElemID.LT.1) THEN
-      ElemID = SideToElem(2,SideID)
-      iLocSide = SideToElem(4,SideID)
-    ELSE
-      iLocSide = SideToElem(3,SideID)
-    END IF
+DO BCSideID=1,nBCSides
+  locElemID = SideToElem(1,BCSideID)
+  IF (locElemID.LT.1) THEN !not sure if necessary
+    locElemID = SideToElem(2,BCSideID)
+    iLocSide = SideToElem(4,BCSideID)
+  ELSE
+    iLocSide = SideToElem(3,BCSideID)
+  END IF
+  SideID=GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%SymmetryBC) THEN
+    ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+    iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
     ! Exclude the symmetry axis (y=0)
     IF(MAXVAL(NodeCoords_Shared(2,ElemSideNodeID_Shared(:,iLocSide,ElemID)+1)).GT.0.0) THEN
       ! The z-plane with the positive z component is chosen
       IF(MINVAL(NodeCoords_Shared(3,ElemSideNodeID_Shared(:,iLocSide,ElemID)+1)).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
-        IF(SymmetrySide(ElemID,1).GT.0) THEN
+        IF(SymmetrySide(locElemID,1).GT.0) THEN
           CALL abort(__STAMP__&
             ,'ERROR: PICLas could not determine a unique symmetry surface for 2D/axisymmetric calculation!'//&
             ' Please orient your mesh with x as the symmetry axis and positive y as the second/radial direction!')
         END IF
-        SymmetrySide(ElemID,1) = SideID
-        SymmetrySide(ElemID,2) = iLocSide
+        SymmetrySide(locElemID,1) = BCSideID
+        SymmetrySide(locElemID,2) = iLocSide
         ! The volume calculated at this point (final volume for the 2D case) corresponds to the cell face area (z-dimension=1) in
         ! the xy-plane.
         ElemVolume_Shared(ElemID) = 0.0
-        DO j=0,PP_N; DO i=0,PP_N
-          ElemVolume_Shared(ElemID) = ElemVolume_Shared(ElemID) + wGP(i)*wGP(j)*SurfElem(i,j,SideID)
-        END DO; END DO
+        CALL CalcNormAndTangTriangle(area=triarea(1),TriNum=1, SideID=SideID)
+        CALL CalcNormAndTangTriangle(area=triarea(2),TriNum=2, SideID=SideID)
+        ElemVolume_Shared(ElemID) = triarea(1) + triarea(2)
         ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/axisymmetric case
         ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
         ! requirement.
@@ -383,7 +387,6 @@ USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPar
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
-USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -452,7 +455,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PartSpecies(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Species
   ElemID = ClonedParticles(iPart,DelayCounter)%Element
   ! Set the global element number with the offset
-  PEM%Element(PositionNbr) = ElemID + offSetElem
+  PEM%Element(PositionNbr) = ElemID
   PEM%lastElement(PositionNbr) = PEM%Element(PositionNbr)
   LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor

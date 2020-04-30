@@ -30,6 +30,9 @@ INTERFACE IdentifyPartExchangeProcs
   MODULE PROCEDURE IdentifyPartExchangeProcs
 END INTERFACE
 
+INTERFACE FinalizePartExchangeProcs
+  MODULE PROCEDURE FinalizePartExchangeProcs
+END INTERFACE
 
 !INTERFACE IdentifyHaloMPINeighborhood
 !  MODULE PROCEDURE IdentifyHaloMPINeighborhood
@@ -44,6 +47,7 @@ END INTERFACE
 !END INTERFACE
 
 PUBLIC :: IdentifyPartExchangeProcs
+PUBLIC :: FinalizePartExchangeProcs
 !PUBLIC :: IdentifyHaloMPINeighborhood
 !PUBLIC :: ExchangeHaloGeometry
 !PUBLIC :: WriteParticlePartitionInformation
@@ -64,16 +68,19 @@ SUBROUTINE IdentifyPartExchangeProcs
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_MPI_Shared_Vars
-USE MOD_Particle_Mesh          ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh           ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
-USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
+USE MOD_Particle_MPI_Vars       ,ONLY: halo_eps
+USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                        :: iPeriodicVector,jPeriodicVector,iPeriodicDir
+INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
 INTEGER                        :: iElem,ElemID,firstElem,lastElem,NbElemID
 INTEGER                        :: iSide,SideID,iLocSide
 !INTEGER                        :: firstSide,lastSide
@@ -224,8 +231,10 @@ IF (nComputeNodeElems.NE.nComputeNodeTotalElems) THEN
   !> Check all elements in the CN halo region against local MPI sides. Check is identical to particle_bgm.f90
   !>>> Check the bounding box of each element in compute-nodes' halo domain against the bounding boxes of the
   !>>> of the elements of the MPI-surface (local proc MPI sides)
-  DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
-    ElemID = CNTotalElem2GlobalElem(iElem)
+
+  ! Use a named loop so the entire element can be cycled
+ElemLoop:  DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
+    ElemID   = GetGlobalElemID(iElem)
     HaloProc = ElemInfo_Shared(ELEM_RANK,ElemID)
 
 !#if CODE_ANALYZE
@@ -253,15 +262,133 @@ IF (nComputeNodeElems.NE.nComputeNodeTotalElems) THEN
     DO iSide = 1, nExchangeSides
         ! compare distance of centers with sum of element outer radii+halo_eps
         IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iSide)) &
-            .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) CYCLE
+          .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide)) THEN
 
+        ! Also check periodic directions. Only MPI sides of the local proc are
+        ! taken into account, so do not perform additional case distinction
+        SELECT CASE(GEO%nPeriodicVectors)
+          ! One periodic vector
+          CASE(1)
+            DO iPeriodicDir = 1,2
+              IF (VECNORM( BoundsOfElemCenter(1:3)                                                       &
+                         + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)                  &
+                         - MPISideBoundsOfElemCenter(1:3,iSide))                                         &
+                .LE. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
         ! flag the proc as exchange proc (in halo region)
         GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
         GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
         nExchangeProcessors = nExchangeProcessors + 1
-        EXIT
-      END DO ! iSide = 1, nExchangeSides
+                  CYCLE ElemLoop
+                END IF
   END DO
+
+          ! Two periodic vectors. Also check linear combination, see particle_bgm.f90
+          CASE(2)
+            DO iPeriodicVector = 1,2
+              DO iPeriodicDir = 1,2
+                ! check if element is within halo_eps of periodically displaced element
+                IF (VECNORM( BoundsOfElemCenter(1:3)                                                    &
+                           + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
+                           - MPISideBoundsOfElemCenter(1:3,iSide))                                      &
+                          .LE. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
+                  ! flag the proc as exchange proc (in halo region)
+                  GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
+                  GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
+                  nExchangeProcessors = nExchangeProcessors + 1
+                  CYCLE ElemLoop
+END IF
+
+                DO jPeriodicVector = 1,2
+
+                  ! check if element is within halo_eps of periodically displaced element
+                  IF (VECNORM( BoundsOfElemCenter(1:3)                                                    &
+                             + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
+                             + GEO%PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
+                             - MPISideBoundsOfElemCenter(1:3,iSide))                                      &
+                          .LE. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
+                    ! flag the proc as exchange proc (in halo region)
+                    GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
+                    GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
+                    nExchangeProcessors = nExchangeProcessors + 1
+                    CYCLE ElemLoop
+                  END IF
+                END DO
+              END DO
+            END DO
+
+          ! Two periodic vectors. Also check linear combination, see particle_bgm.f90
+          CASE(3)
+            ! check the three periodic vectors. Begin with checking the first periodic vector, followed by the combination of
+            ! the first periodic vector with the others. Then check the other combinations, i.e. 1, 1+2, 1+3, 2, 2+3, 3, 1+2+3
+            DO iPeriodicVector = 1,3
+              DO iPeriodicDir = 1,2
+                ! element might be already added back
+                ! check if element is within halo_eps of periodically displaced element
+                IF (VECNORM( BoundsOfElemCenter(1:3)                                                      &
+                           + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)   &
+                           - MPISideBoundsOfElemCenter(1:3,iSide))                                        &
+                          .LE. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
+                  ! flag the proc as exchange proc (in halo region)
+                  GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
+                  GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
+                  nExchangeProcessors = nExchangeProcessors + 1
+                  CYCLE ElemLoop
+                END IF
+
+                DO jPeriodicVector = 1,3
+                  IF (iPeriodicVector.GE.jPeriodicVector) CYCLE
+
+                  ! check if element is within halo_eps of periodically displaced element
+                  IF (VECNORM( BoundsOfElemCenter(1:3)                                                    &
+                             + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
+                             + GEO%PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
+                             - MPISideBoundsOfElemCenter(1:3,iSide))                                      &
+                          .LE. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
+                    ! flag the proc as exchange proc (in halo region)
+                    GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
+                    GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
+                    nExchangeProcessors = nExchangeProcessors + 1
+                    CYCLE ElemLoop
+                  END IF
+
+                END DO
+              END DO
+            END DO
+
+            ! check if element is within halo_eps of periodically displaced element
+            DO iPeriodicDir = 1,2
+              IF (VECNORM( BoundsOfElemCenter(1:3)                                                        &
+                         + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)                   &
+                         + GEO%PeriodicVectors(1:3,2) * DirPeriodicVector(iPeriodicDir)                   &
+                         + GEO%PeriodicVectors(1:3,3) * DirPeriodicVector(iPeriodicDir)                   &
+                         - MPISideBoundsOfElemCenter(1:3,iSide))                                          &
+                      .LE. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) THEN
+                ! flag the proc as exchange proc (in halo region)
+                GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
+                GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
+                nExchangeProcessors = nExchangeProcessors + 1
+                CYCLE ElemLoop
+              END IF
+            END DO
+
+          ! No periodic vectors, element out of range
+          CASE(0)
+            ! Do nothing
+
+          CASE DEFAULT
+            CALL ABORT(__STAMP__,'Invalid number of periodic vectors in particle_mpi_halo.f90')
+
+        END SELECT
+
+      ! Element is in range of not-periodically displaced MPI side
+      ELSE
+        GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
+        GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
+        nExchangeProcessors = nExchangeProcessors + 1
+        CYCLE ElemLoop
+      END IF
+    END DO ! iSide = 1, nExchangeSides
+  END DO ElemLoop
 END IF
 
 !
@@ -282,11 +409,30 @@ DO iProc = 0,nProcessors_Global-1
   END IF
 END DO
 
-SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' IDENTIFYING Particle Exchange Processors DONE!'
+SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE IdentifyPartExchangeProcs
 
+
+!===================================================================================================================================
+! Deallocates arrays for halo exchange
+!===================================================================================================================================
+SUBROUTINE FinalizePartExchangeProcs()
+! MODULES
+USE MOD_Particle_MPI_Vars       ,ONLY: ExchangeProcToGlobalProc,GlobalProcToExchangeProc
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT/OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+SDEALLOCATE(ExchangeProcToGlobalProc)
+SDEALLOCATE(GlobalProcToExchangeProc)
+
+END SUBROUTINE FinalizePartExchangeProcs
 
 !SUBROUTINE IdentifyHaloMPINeighborhood(iProc,SideIndex,ElemIndex)
 !!===================================================================================================================================

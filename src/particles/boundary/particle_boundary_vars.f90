@@ -320,11 +320,6 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: SolidAreaIncrease(:)
   INTEGER , ALLOCATABLE                  :: SolidStructure(:)             ! crystal structure of solid boundary (1:fcc100 2:fcc111)
   INTEGER , ALLOCATABLE                  :: SolidCrystalIndx(:)
-  LOGICAL , ALLOCATABLE                  :: Adaptive(:)
-  INTEGER , ALLOCATABLE                  :: AdaptiveType(:)
-  INTEGER , ALLOCATABLE                  :: AdaptiveMacroRestartFileID(:)
-  REAL    , ALLOCATABLE                  :: AdaptivePressure(:)
-  REAL    , ALLOCATABLE                  :: AdaptiveTemp(:)
   LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                ! Use Boundary for Q-Criterion ?
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibirum Distribution with reflection
   LOGICAL , ALLOCATABLE                  :: Dielectric(:)                 ! Define if particle boundary [$] is a dielectric
@@ -337,7 +332,6 @@ TYPE tPartBoundary
 END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries
-INTEGER                                  :: nAdaptiveBC
 TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
 
 INTEGER                                  :: nAuxBCs                     ! number of aux. BCs that are checked during tracing

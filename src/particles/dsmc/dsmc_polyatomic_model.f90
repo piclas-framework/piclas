@@ -220,42 +220,24 @@ ElemID = PEM%Element(iPart) - offSetElem
       ELSE
         TRot=Species(iSpecies)%Init(iInit)%ElemTRot(ElemID)
       END IF
-    CASE(2) !SurfaceFlux
-      IF(iInit.GT.Species(iSpecies)%nSurfacefluxBCs)THEN
-        !-- compute number of to be inserted particles
-        SELECT CASE(PartBound%AdaptiveType(Species(iSpecies)%Surfaceflux(iInit)%BC))
-        CASE(1) ! Pressure inlet (pressure, temperature const)
-          TVib=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TVib
-          TRot=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TRot
-        CASE(2) ! adaptive Outlet/freestream
-          pressure = PartBound%AdaptivePressure(Species(iSpecies)%Surfaceflux(iInit)%BC)
-          TVib = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
-          TRot = TVib
-        CASE(3) ! pressure outlet (pressure defined)
-        CASE DEFAULT
-          CALL abort(&
-__STAMP__&
-,'wrong adaptive type for Surfaceflux in vib/rot poly!')
+    CASE(2) !SurfaceFlux     
+      IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
+        SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
+          CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
+            TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+            TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+          CASE(2) ! adaptive Outlet/freestream
+            TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
+                    / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpecies))
+            TRot = TVib
+          CASE DEFAULT
+            CALL abort(&
+            __STAMP__&
+            ,'Wrong adaptive type for Surfaceflux in vib/rot poly!')
         END SELECT
       ELSE
-        IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
-          SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
-            CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
-              TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-              TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-            CASE(2) ! adaptive Outlet/freestream
-              TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
-                      / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpecies))
-              TRot = TVib
-            CASE DEFAULT
-              CALL abort(&
-              __STAMP__&
-              ,'Wrong adaptive type for Surfaceflux in vib/rot poly!')
-          END SELECT
-        ELSE
-          TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-          TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-        END IF
+        TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+        TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
       END IF
     CASE DEFAULT
       CALL abort(&

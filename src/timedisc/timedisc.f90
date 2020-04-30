@@ -323,7 +323,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTra
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 #endif /* USE_LOADBALANCE && PARTICLES*/
 USE MOD_Part_Emission          ,ONLY: AdaptiveBCAnalyze
-USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
+USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -598,7 +598,7 @@ DO !iter_t=0,MaxIter
   CALL PerformAnalyze(time,FirstOrLastIter=finalIter,OutPutHDF5=.FALSE.)
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values
-  IF((nAdaptiveBC.GT.0).OR.UseAdaptive.OR.(nPorousBC.GT.0)) CALL AdaptiveBCAnalyze()
+  IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL AdaptiveBCAnalyze()
 #endif /*PARICLES*/
   ! output of state file
   !IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end

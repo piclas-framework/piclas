@@ -85,7 +85,7 @@ USE MOD_Restart_Vars           ,ONLY: RestartFile
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
 USE MOD_Particle_Vars          ,ONLY: UseAdaptive
-USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC,nPorousBC,DoBoundaryParticleOutput
+USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC,DoBoundaryParticleOutput
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #endif /*PARTICLES*/
 #ifdef PP_POIS
@@ -350,7 +350,7 @@ IF(DoBoundaryParticleOutput) THEN
   END IF
 END IF
 CALL WriteMacroParticleToHDF5(FileName)
-IF(UseAdaptive.OR.(nAdaptiveBC.GT.0).OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
+IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
 IF(RadialWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)

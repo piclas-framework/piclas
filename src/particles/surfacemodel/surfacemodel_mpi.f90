@@ -640,7 +640,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SurfComm, nSurfSample, PartBound
 USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfDistSendBuf, SurfDistRecvBuf, SurfModelExchange
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo
 USE MOD_Mesh_Vars              ,ONLY: BC,nBCSides,nSides
-USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
+!USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -755,11 +755,13 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   SurfDistRecvBuf(iProc)%content_int = 0
 END DO ! iProc
 
+CALL ABORT(__STAMP__,'Still needs to be adjusted for new halo region, line 764')
+
 IF(SurfMesh%nSides.GT.SurfMesh%nOutputSides) THEN ! There are reflective inner BCs on SlaveSide
   DO iSide=nBCSides+1,nSides
     IF(BC(iSide).EQ.0) CYCLE
     IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
-      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1) THEN ! SlaveSide
+!      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.-1) THEN ! SlaveSide
         DO q=1,nSurfSample
           DO p=1,nSurfSample
             TargetHaloSide = SurfMesh%innerBCSideToHaloMap(iSide)
@@ -777,7 +779,7 @@ IF(SurfMesh%nSides.GT.SurfMesh%nOutputSides) THEN ! There are reflective inner B
             END IF
           END DO
         END DO
-      END IF
+!      END IF
     END IF
   END DO
 END IF

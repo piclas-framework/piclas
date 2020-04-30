@@ -382,7 +382,7 @@ USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState       ,ONLY: DSMC_SteadyStateInit
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
-USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, PartBound
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_DSMC_SpecXSec          ,ONLY: MCC_Init
 ! IMPLICIT VARIABLE HANDLING
@@ -795,7 +795,7 @@ ELSE !CollisMode.GT.0
             END IF !ElemMacroRestart TElec
           END IF ! electronic model
         END DO !Inits
-        ALLOCATE(SpecDSMC(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC))
+        ALLOCATE(SpecDSMC(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs))
         DO iInit = 1, Species(iSpec)%nSurfacefluxBCs
           WRITE(UNIT=hilf2,FMT='(I0)') iInit
           hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
@@ -815,63 +815,6 @@ ELSE !CollisMode.GT.0
               CALL Abort(&
                   __STAMP__&
                   ,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelec for iSpec, iInit',iSpec,REAL(iInit))
-            END IF
-          END IF
-        END DO !SurfaceFluxBCs
-        ! add Adaptive boundaries
-        ! initialize  rot, vib and elec temperature of macrovalues
-        DO iInit = (Species(iSpec)%nSurfacefluxBCs+1),(Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC)
-          ! read rot and vib temperatures
-          IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-            SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib      = Partbound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iInit)%BC)
-            !SpecDSMC(iSpec)%Init(0)%TVib
-            SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot      = Partbound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iInit)%BC)
-            !SpecDSMC(iSpec)%Init(0)%TRot
-            IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot*SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib.EQ.0.) THEN
-              CALL Abort(&
-                  __STAMP__&
-                  ,'Error! TVib and TRot not def. in Part-SpeciesXX-SurfacefluxXX-TempVib/TempRot for iSpec, iInit',iSpec,REAL(iInit))
-            END IF
-            currentBC = Species(iSpec)%Surfaceflux(iInit)%BC !go through sides if present in proc...
-            IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
-              DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
-                BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
-                ElemID = SideToElem(1,BCSideID)
-                IF (ElemID.LT.1) THEN !not sure if necessary
-                  ElemID = SideToElem(2,BCSideID)
-                END IF
-                Adaptive_MacroVal(8,ElemID,iSpec) = SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib
-                Adaptive_MacroVal(9,ElemID,iSpec) = SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot
-              END DO
-            ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
-              CALL abort(&
-                  __STAMP__&
-                  ,'ERROR in DSMC_init of rot, vib and elec_shell: Someting is wrong with SideNumber of BC ',currentBC)
-            END IF
-          END IF
-          ! read electronic temperature
-          IF ( DSMC%ElectronicModel ) THEN
-            SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec   =  Partbound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iInit)%BC)
-            !SpecDSMC(iSpec)%Init(0)%Telec
-            IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
-              CALL Abort(&
-                  __STAMP__&
-                  ,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelec for iSpec, iInit',iSpec,REAL(iInit))
-            END IF
-            currentBC = Species(iSpec)%Surfaceflux(iInit)%BC !go through sides if present in proc...
-            IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
-              DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
-                BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
-                ElemID = SideToElem(1,BCSideID)
-                IF (ElemID.LT.1) THEN !not sure if necessary
-                  ElemID = SideToElem(2,BCSideID)
-                END IF
-                Adaptive_MacroVal(10,ElemID,iSpec) = SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec
-              END DO
-            ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
-              CALL abort(&
-                  __STAMP__&
-                  ,'ERROR in DSMC_init of elec_temperatur: Someting is wrong with SideNumber of BC ',currentBC)
             END IF
           END IF
         END DO !SurfaceFluxBCs
@@ -1467,43 +1410,23 @@ ElemID = PEM%Element(iPart) - offSetElem
         TRot=Species(iSpecies)%Init(iInit)%ElemTRot(ElemID)
       END IF
     CASE(2) !SurfaceFlux
-      IF(iInit.GT.Species(iSpecies)%nSurfacefluxBCs)THEN
-        !-- compute number of to be inserted particles
-        SELECT CASE(PartBound%AdaptiveType(Species(iSpecies)%Surfaceflux(iInit)%BC))
-        CASE(1) ! Pressure inlet (pressure, temperature const)
-          TVib=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TVib
-          TRot=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TRot
-        CASE(2) ! adaptive Outlet/freestream
-          pressure = PartBound%AdaptivePressure(Species(iSpecies)%Surfaceflux(iInit)%BC)
-          TVib = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
-          TRot = TVib
-          !TVib=Adaptive_MacroVal(8,ElemID,iSpecies)
-          !TRot=Adaptive_MacroVal(9,ElemID,iSpecies)
-        CASE(3) ! pressure outlet (pressure defined)
-        CASE DEFAULT
-          CALL abort(&
-__STAMP__&
-,'wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
+      IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
+        SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
+          CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
+            TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+            TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+          CASE(2) ! adaptive Outlet/freestream
+            TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
+                    / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpecies))
+            TRot = TVib
+          CASE DEFAULT
+            CALL abort(&
+            __STAMP__&
+            ,'Wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
         END SELECT
       ELSE
-        IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
-          SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
-            CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
-              TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-              TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-            CASE(2) ! adaptive Outlet/freestream
-              TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
-                      / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpecies))
-              TRot = TVib
-            CASE DEFAULT
-              CALL abort(&
-              __STAMP__&
-              ,'Wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
-          END SELECT
-        ELSE
-          TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-          TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-        END IF
+        TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+        TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
       END IF
     CASE DEFAULT
       CALL abort(&

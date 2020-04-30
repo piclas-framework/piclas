@@ -793,16 +793,16 @@ DO iPart=1,PDM%ParticleVecLength
     DSMC_Solution(11,iElem, iSpec) = DSMC_Solution(11,iElem, iSpec) + 1.0 !simpartnum
   END IF
 END DO
-IF(ConsiderVolumePortions) THEN
-  ! DO iElem=1,nElems
-  !   DSMC_VolumeSample(iElem) = DSMC_VolumeSample(iElem) + ElemVolume_Shared(iElem+offSetElem)*(1.-GEO%MPVolumePortion(iElem))
-  ! END DO
-  CALL abort(&
-__STAMP__&
-  ,' OUTPUT OF MACROBUDDIES NOT IMPLEMENTED YET!')
-ELSE
-  DSMC_VolumeSample(1:nElems) = ElemVolume_Shared(1+offSetElem:nElems+offSetElem)
-END IF
+!IF(ConsiderVolumePortions) THEN
+!  ! DO iElem=1,nElems
+!  !   DSMC_VolumeSample(iElem) = DSMC_VolumeSample(iElem) + ElemVolume_Shared(iElem+offSetElem)*(1.-GEO%MPVolumePortion(iElem))
+!  ! END DO
+!  CALL abort(&
+!__STAMP__&
+!  ,' OUTPUT OF MACROBUDDIES NOT IMPLEMENTED YET!')
+!ELSE
+!  DSMC_VolumeSample(1:nElems) = ElemVolume_Shared(1+offSetElem:nElems+offSetElem)
+!END IF
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -825,7 +825,7 @@ USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, WriteMacroVolumeValues, 
 USE MOD_Particle_VarTimeStep  ,ONLY: CalcVarTimeStep
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars         ,ONLY: time,TEnd,iter,dt
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemMidPoint_Shared
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -864,10 +864,9 @@ DO iElem = 1, nElems ! element/cell main loop
               Total_TempRot  => DSMC_MacroVal(nVarLoc*nSpecTemp+9,iElem)             ,&
               Total_Tempelec => DSMC_MacroVal(nVarLoc*nSpecTemp+10,iElem)            ,&
               Total_PartNum  => DSMC_MacroVal(nVarLoc*nSpecTemp+11,iElem)            ,&
-              SimVolume      => DSMC_VolumeSample(iElem) &
+              SimVolume      => ElemVolume_Shared(iElem+offSetElem) &
               )
     ! compute simulation cell volume
-    SimVolume = SimVolume / REAL(DSMC%SampNum)
     DO iSpec = 1, nSpecies
       ASSOCIATE ( PartVelo   => DSMC_Solution(1:3,iElem,iSpec) ,&
                   PartVelo2  => DSMC_Solution(4:6,iElem,iSpec) ,&
@@ -982,7 +981,6 @@ DO iElem = 1, nElems ! element/cell main loop
     END IF
   END ASSOCIATE
 END DO
-
 ! write dsmc quality values
 IF (DSMC%CalcQualityFactors) THEN
   IF(WriteMacroVolumeValues) THEN

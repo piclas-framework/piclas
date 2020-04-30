@@ -384,9 +384,6 @@ CALL FinalizePiclas(IsLoadBalance=.TRUE.)
 ! reallocate
 CALL InitPiclas(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
 
-! restart
-CALL Restart()
-
 ! compute imbalance
 !CALL ComputeImbalance(NewImbalance,MaxWeight,MinWeight,ElemTime)  ! --> new imbalance has already been calculated in mesh_readin
 
