@@ -263,6 +263,7 @@ TYPE tSpecies                                                                ! P
 END TYPE
 
 LOGICAL                                  :: UseCircularInflow                !
+INTEGER, ALLOCATABLE                     :: CountCircInflowType(:,:,:)
 LOGICAL                                  :: UseAdaptive                 !
 REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
                                                                              ! instantaneous values with those

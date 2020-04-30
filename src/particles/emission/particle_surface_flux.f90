@@ -542,6 +542,187 @@ END DO !iBC
 
 END SUBROUTINE CreateSideListAndFinalizeAreasSurfFlux
 
+SUBROUTINE AllocateAdaptiveBCSampling(AdaptiveInitDone)
+!===================================================================================================================================
+! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
+! communicated.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_IO_HDF5                 
+USE MOD_Mesh_Vars               ,ONLY: offsetElem, nElems
+USE MOD_Particle_Vars           ,ONLY: nSpecies, Adaptive_MacroVal
+USE MOD_Restart_Vars            ,ONLY: DoRestart,RestartFile
+USE MOD_HDF5_INPUT              ,ONLY: ReadArray
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL, INTENT(OUT)              :: AdaptiveInitDone
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                           :: AdaptiveDataExists
+REAL,ALLOCATABLE                  :: ElemData_HDF5(:,:,:)
+INTEGER                           :: FileID, iElem
+!===================================================================================================================================
+ALLOCATE(Adaptive_MacroVal(1:13,1:nElems,1:nSpecies))
+Adaptive_MacroVal(:,:,:)=0
+! If restart is done, check if adptiveinfo exists in state, read it in and write to adaptive_macrovalues
+AdaptiveInitDone = .FALSE.
+IF (DoRestart) THEN
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  ! read local ParticleInfo from HDF5
+  CALL DatasetExists(File_ID,'AdaptiveInfo',AdaptiveDataExists)
+  IF(AdaptiveDataExists)THEN
+    AdaptiveInitDone = .TRUE.
+    ALLOCATE(ElemData_HDF5(1:10,1:nSpecies,1:nElems))
+    ! Associate construct for integer KIND=8 possibility
+    ASSOCIATE (&
+          nSpecies   => INT(nSpecies,IK) ,&
+          offsetElem => INT(offsetElem,IK),&
+          nElems     => INT(nElems,IK)    )
+      CALL ReadArray('AdaptiveInfo',3,(/10_IK, nSpecies, nElems/),offsetElem,3,RealArray=ElemData_HDF5(:,:,:))
+    END ASSOCIATE
+    DO iElem = 1,nElems
+      Adaptive_MacroVal(DSMC_VELOX,iElem,:)   = ElemData_HDF5(1,:,iElem)
+      Adaptive_MacroVal(DSMC_VELOY,iElem,:)   = ElemData_HDF5(2,:,iElem)
+      Adaptive_MacroVal(DSMC_VELOZ,iElem,:)   = ElemData_HDF5(3,:,iElem)
+      Adaptive_MacroVal(DSMC_TEMPX,iElem,:)   = ElemData_HDF5(4,:,iElem)
+      Adaptive_MacroVal(DSMC_TEMPY,iElem,:)   = ElemData_HDF5(5,:,iElem)
+      Adaptive_MacroVal(DSMC_TEMPZ,iElem,:)   = ElemData_HDF5(6,:,iElem)
+      Adaptive_MacroVal(DSMC_NUMDENS,iElem,:) = ElemData_HDF5(7,:,iElem)
+      ! Porous BC parameter (11: Pumping capacity [m3/s], 12: Static pressure [Pa], 13: Integral pressure difference [Pa])
+      Adaptive_MacroVal(11:13,iElem,:)        = ElemData_HDF5(8:10,:,iElem)
+    END DO
+    SDEALLOCATE(ElemData_HDF5)
+  END IF
+  CALL CloseDataFile()
+END IF
+
+END SUBROUTINE AllocateAdaptiveBCSampling
+
+SUBROUTINE DefineCircInflowRejectType(BCSideID, iSpec, iSF, iSide)
+!===================================================================================================================================
+! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
+! communicated.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Surfaces         ,ONLY: GetSideBoundingBox
+USE MOD_PARTICLE_Vars             ,ONLY: Species
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)   :: BCSideID, iSpec, iSF, iSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                  :: BoundingBox(1:3,1:8), origin(2), Vector1(3), Vector2(3), Vector3(3), xyzNod(3), VecBoundingBox(3)
+REAL                  :: corner(3), corners(2,4), radiusCorner(2,4), rmax, rmin, point(2), vec(2)
+LOGICAL               :: r0inside, intersecExists(2,2)
+INTEGER               :: dir(3), iNode
+!===================================================================================================================================
+!-- check where the sides are located relative to rmax (based on corner nodes of bounding box)
+!- RejectType=0 : complete side is inside valid bounds
+!- RejectType=1 : complete side is outside of valid bounds
+!- RejectType=2 : side is partly inside valid bounds
+CALL GetSideBoundingBox(BCSideID,BoundingBox)
+intersecExists=.FALSE.
+!atan2Shift=0.
+r0inside=.FALSE.
+dir=Species(iSpec)%Surfaceflux(iSF)%dir
+origin=Species(iSpec)%Surfaceflux(iSF)%origin
+Vector1(:)=0.
+Vector2(:)=0.
+Vector3(:)=0.
+xyzNod(1)=MINVAL(BoundingBox(1,:))
+xyzNod(2)=MINVAL(BoundingBox(2,:))
+xyzNod(3)=MINVAL(BoundingBox(3,:))
+VecBoundingBox(1) = MAXVAL(BoundingBox(1,:)) -MINVAL(BoundingBox(1,:))
+VecBoundingBox(2) = MAXVAL(BoundingBox(2,:)) -MINVAL(BoundingBox(2,:))
+VecBoundingBox(3) = MAXVAL(BoundingBox(3,:)) -MINVAL(BoundingBox(3,:))
+Vector1(dir(2)) = VecBoundingBox(dir(2))
+Vector2(dir(2)) = VecBoundingBox(dir(2))
+Vector2(dir(3)) = VecBoundingBox(dir(3))
+Vector3(dir(3)) = VecBoundingBox(dir(3))
+
+!-- determine rmax (and corners)
+DO iNode=1,4
+  SELECT CASE(iNode)
+  CASE(1)
+    corner = xyzNod
+  CASE(2)
+    corner = xyzNod + Vector1
+  CASE(3)
+    corner = xyzNod + Vector2
+  CASE(4)
+    corner = xyzNod + Vector3
+  END SELECT
+  corner(dir(2)) = corner(dir(2)) - origin(1)
+  corner(dir(3)) = corner(dir(3)) - origin(2)
+  corners(1:2,iNode)=(/corner(dir(2)),corner(dir(3))/) !coordinates of orth. dirs
+  radiusCorner(1,iNode)=SQRT(corner(dir(2))**2+corner(dir(3))**2)
+END DO !iNode
+rmax=MAXVAL(radiusCorner(1,1:4))
+
+!-- determine rmin
+DO iNode=1,4
+  SELECT CASE(iNode)
+  CASE(1)
+    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
+    vec=(/Vector1(dir(2)),Vector1(dir(3))/)
+  CASE(2)
+    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
+    vec=(/Vector3(dir(2)),Vector3(dir(3))/)
+  CASE(3)
+    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
+    vec=(/-Vector1(dir(2)),-Vector1(dir(3))/)
+  CASE(4)
+    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
+    vec=(/-Vector3(dir(2)),-Vector3(dir(3))/)
+  END SELECT
+  vec=point + MIN(MAX(-DOT_PRODUCT(point,vec)/DOT_PRODUCT(vec,vec),0.),1.)*vec
+  radiusCorner(2,iNode)=SQRT(DOT_PRODUCT(vec,vec)) !rmin
+END DO !iNode
+
+!-- determine if r0 is inside of bounding box
+IF ((origin(1) .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:))) .AND. &
+   (origin(1) .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:))) .AND. &
+   (origin(2) .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:))) .AND. &
+   (origin(2) .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:))) ) THEN
+   r0inside = .TRUE.
+END IF
+IF (r0inside) THEN
+  rmin = 0.
+ELSE
+  rmin=MINVAL(radiusCorner(2,1:4))
+END IF
+! define rejecttype
+IF ( (rmin .GT. Species(iSpec)%Surfaceflux(iSF)%rmax) .OR. (rmax .LT. Species(iSpec)%Surfaceflux(iSF)%rmin) ) THEN
+  Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=1
+#ifdef CODE_ANALYZE
+  CountCircInflowType(2,iSF,iSpec)=CountCircInflowType(2,iSF,iSpec)+1
+#endif
+ELSE IF ( (rmax .LE. Species(iSpec)%Surfaceflux(iSF)%rmax) .AND. (rmin .GE. Species(iSpec)%Surfaceflux(iSF)%rmin) ) THEN
+  Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=0
+#ifdef CODE_ANALYZE
+  CountCircInflowType(1,iSF,iSpec)=CountCircInflowType(1,iSF,iSpec)+1
+#endif
+ELSE
+  Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=2
+#ifdef CODE_ANALYZE
+  CountCircInflowType(3,iSF,iSpec)=CountCircInflowType(3,iSF,iSpec)+1
+#endif
+END IF !  (rmin > Surfaceflux-rmax) .OR. (rmax < Surfaceflux-rmin)
+IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
+  IF((Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).NE.1)   &
+      .AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)) CALL CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
+END IF
+END SUBROUTINE DefineCircInflowRejectType
 
 SUBROUTINE InitializeParticleSurfaceflux()
 !===================================================================================================================================
@@ -568,7 +749,7 @@ USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux, DoPoisso
 USE MOD_Particle_Vars          ,ONLY: Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: nMacroRestartFiles, UseAdaptive, UseCircularInflow
 USE MOD_Particle_Vars          ,ONLY: DoForceFreeSurfaceFlux
-USE MOD_Particle_Vars          ,ONLY: Symmetry2D, Symmetry2DAxisymmetric
+USE MOD_Particle_Vars          ,ONLY: Symmetry2D, Symmetry2DAxisymmetric, CountCircInflowType
 USE MOD_ReadInTools
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
@@ -597,7 +778,6 @@ INTEGER,ALLOCATABLE   :: TmpSideStart(:)                     ! Start of Linked L
 INTEGER,ALLOCATABLE   :: TmpSideNumber(:)                    ! Number of Particles in Sides in SurfacefluxBC
 INTEGER,ALLOCATABLE   :: TmpSideEnd(:)                       ! End of Linked List for Sides in SurfacefluxBC
 INTEGER,ALLOCATABLE   :: TmpSideNext(:)                      ! Next Side in same SurfacefluxBC (Linked List)
-INTEGER,ALLOCATABLE   :: nType0(:,:), nType1(:,:), nType2(:,:)
 REAL,ALLOCATABLE      :: tmp_SubSideDmax(:,:)
 REAL                  :: tmp_SubSideAreas(SurfFluxSideSize(1),SurfFluxSideSize(2))
 REAL,ALLOCATABLE      :: tmp_Vec_nOut(:,:,:), tmp_Vec_t1(:,:,:), tmp_Vec_t2(:,:,:)
@@ -617,7 +797,7 @@ LOGICAL               :: r0inside, intersecExists(2,2)
 REAL                  :: corners(2,4),rmin,rmax!,atan2Shift
 INTEGER               :: FileID
 LOGICAL               :: OutputSurfaceFluxLinked
-REAL,ALLOCATABLE      :: ElemData_HDF5(:,:,:)
+
 LOGICAL               :: AdaptiveDataExists, AdaptiveInitDone
 INTEGER               :: iElem
 #if USE_MPI
@@ -661,52 +841,16 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoTimeDepInflow,1,MPI_LOGICAL,MPI_LAND,PartMPI%C
 
 CALL CreateSideListAndFinalizeAreasSurfFlux(nDataBC, BCdata_auxSFTemp)
 
+#ifdef CODE_ANALYZE
 IF (UseCircularInflow) THEN
-  ALLOCATE(nType0(1:MaxSurfacefluxBCs,1:nSpecies), &
-    nType1(1:MaxSurfacefluxBCs,1:nSpecies), &
-    nType2(1:MaxSurfacefluxBCs,1:nSpecies) )
-  nType0=0
-  nType1=0
-  nType2=0
+  ALLOCATE(CountCircInflowType(1:3,1:MaxSurfacefluxBCs,1:nSpecies))
+  CountCircInflowType = 0
 END IF
+#endif
 
 !-- 3.: initialize Surfaceflux-specific data
 ! Allocate sampling of near adaptive boundary element values
-IF(UseAdaptive.OR.(nPorousBC.GT.0))THEN
-  ALLOCATE(Adaptive_MacroVal(1:13,1:nElems,1:nSpecies))
-  Adaptive_MacroVal(:,:,:)=0
-  ! If restart is done, check if adptiveinfo exists in state, read it in and write to adaptive_macrovalues
-  AdaptiveInitDone = .FALSE.
-  IF (DoRestart) THEN
-    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-    ! read local ParticleInfo from HDF5
-    CALL DatasetExists(File_ID,'AdaptiveInfo',AdaptiveDataExists)
-    IF(AdaptiveDataExists)THEN
-      AdaptiveInitDone = .TRUE.
-      ALLOCATE(ElemData_HDF5(1:10,1:nSpecies,1:nElems))
-      ! Associate construct for integer KIND=8 possibility
-      ASSOCIATE (&
-            nSpecies   => INT(nSpecies,IK) ,&
-            offsetElem => INT(offsetElem,IK),&
-            nElems     => INT(nElems,IK)    )
-        CALL ReadArray('AdaptiveInfo',3,(/10_IK, nSpecies, nElems/),offsetElem,3,RealArray=ElemData_HDF5(:,:,:))
-      END ASSOCIATE
-      DO iElem = 1,nElems
-        Adaptive_MacroVal(DSMC_VELOX,iElem,:)   = ElemData_HDF5(1,:,iElem)
-        Adaptive_MacroVal(DSMC_VELOY,iElem,:)   = ElemData_HDF5(2,:,iElem)
-        Adaptive_MacroVal(DSMC_VELOZ,iElem,:)   = ElemData_HDF5(3,:,iElem)
-        Adaptive_MacroVal(DSMC_TEMPX,iElem,:)   = ElemData_HDF5(4,:,iElem)
-        Adaptive_MacroVal(DSMC_TEMPY,iElem,:)   = ElemData_HDF5(5,:,iElem)
-        Adaptive_MacroVal(DSMC_TEMPZ,iElem,:)   = ElemData_HDF5(6,:,iElem)
-        Adaptive_MacroVal(DSMC_NUMDENS,iElem,:) = ElemData_HDF5(7,:,iElem)
-        ! Porous BC parameter (11: Pumping capacity [m3/s], 12: Static pressure [Pa], 13: Integral pressure difference [Pa])
-        Adaptive_MacroVal(11:13,iElem,:)        = ElemData_HDF5(8:10,:,iElem)
-      END DO
-      SDEALLOCATE(ElemData_HDF5)
-    END IF
-    CALL CloseDataFile()
-  END IF
-END IF
+IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL AllocateAdaptiveBCSampling(AdaptiveInitDone)
 
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
@@ -758,97 +902,8 @@ DO iSpec=1,nSpecies
           END DO; END DO
         END IF
         !-- check where the sides are located relative to rmax (based on corner nodes of bounding box)
-        !- RejectType=0 : complete side is inside valid bounds
-        !- RejectType=1 : complete side is outside of valid bounds
-        !- RejectType=2 : side is partly inside valid bounds
-        IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-          CALL GetSideBoundingBox(BCSideID,BoundingBox)
-          intersecExists=.FALSE.
-          !atan2Shift=0.
-          r0inside=.FALSE.
-          dir=Species(iSpec)%Surfaceflux(iSF)%dir
-          origin=Species(iSpec)%Surfaceflux(iSF)%origin
-          Vector1(:)=0.
-          Vector2(:)=0.
-          Vector3(:)=0.
-          xyzNod(1)=MINVAL(BoundingBox(1,:))
-          xyzNod(2)=MINVAL(BoundingBox(2,:))
-          xyzNod(3)=MINVAL(BoundingBox(3,:))
-          VecBoundingBox(1) = MAXVAL(BoundingBox(1,:)) -MINVAL(BoundingBox(1,:))
-          VecBoundingBox(2) = MAXVAL(BoundingBox(2,:)) -MINVAL(BoundingBox(2,:))
-          VecBoundingBox(3) = MAXVAL(BoundingBox(3,:)) -MINVAL(BoundingBox(3,:))
-          Vector1(dir(2)) = VecBoundingBox(dir(2))
-          Vector2(dir(2)) = VecBoundingBox(dir(2))
-          Vector2(dir(3)) = VecBoundingBox(dir(3))
-          Vector3(dir(3)) = VecBoundingBox(dir(3))
+        IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) CALL DefineCircInflowRejectType(BCSideID, iSpec, iSF, iSide)         
 
-          !-- determine rmax (and corners)
-          DO iNode=1,4
-            SELECT CASE(iNode)
-            CASE(1)
-              corner = xyzNod
-            CASE(2)
-              corner = xyzNod + Vector1
-            CASE(3)
-              corner = xyzNod + Vector2
-            CASE(4)
-              corner = xyzNod + Vector3
-            END SELECT
-            corner(dir(2)) = corner(dir(2)) - origin(1)
-            corner(dir(3)) = corner(dir(3)) - origin(2)
-            corners(1:2,iNode)=(/corner(dir(2)),corner(dir(3))/) !coordinates of orth. dirs
-            radiusCorner(1,iNode)=SQRT(corner(dir(2))**2+corner(dir(3))**2)
-          END DO !iNode
-          rmax=MAXVAL(radiusCorner(1,1:4))
-
-          !-- determine rmin
-          DO iNode=1,4
-            SELECT CASE(iNode)
-            CASE(1)
-              point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
-              vec=(/Vector1(dir(2)),Vector1(dir(3))/)
-            CASE(2)
-              point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
-              vec=(/Vector3(dir(2)),Vector3(dir(3))/)
-            CASE(3)
-              point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
-              vec=(/-Vector1(dir(2)),-Vector1(dir(3))/)
-            CASE(4)
-              point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
-              vec=(/-Vector3(dir(2)),-Vector3(dir(3))/)
-            END SELECT
-            vec=point + MIN(MAX(-DOT_PRODUCT(point,vec)/DOT_PRODUCT(vec,vec),0.),1.)*vec
-            radiusCorner(2,iNode)=SQRT(DOT_PRODUCT(vec,vec)) !rmin
-          END DO !iNode
-
-          !-- determine if r0 is inside of bounding box
-          IF ((origin(1) .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:))) .AND. &
-             (origin(1) .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(2),:))) .AND. &
-             (origin(2) .GE. MINVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:))) .AND. &
-             (origin(2) .LE. MAXVAL(BoundingBox(Species(iSpec)%Surfaceflux(iSF)%dir(3),:))) ) THEN
-             r0inside = .TRUE.
-          END IF
-          IF (r0inside) THEN
-            rmin = 0.
-          ELSE
-            rmin=MINVAL(radiusCorner(2,1:4))
-          END IF
-          ! define rejecttype
-          IF ( (rmin .GT. Species(iSpec)%Surfaceflux(iSF)%rmax) .OR. (rmax .LT. Species(iSpec)%Surfaceflux(iSF)%rmin) ) THEN
-            Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=1
-            nType1(iSF,iSpec)=nType1(iSF,iSpec)+1
-          ELSE IF ( (rmax .LE. Species(iSpec)%Surfaceflux(iSF)%rmax) .AND. (rmin .GE. Species(iSpec)%Surfaceflux(iSF)%rmin) ) THEN
-            Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=0
-            nType0(iSF,iSpec)=nType0(iSF,iSpec)+1
-          ELSE
-            Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=2
-            nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
-          END IF !  (rmin > Surfaceflux-rmax) .OR. (rmax < Surfaceflux-rmin)
-          IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
-            IF((Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).NE.1)   &
-                .AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)) CALL CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
-          END IF
-        END IF ! CircularInflow: check r-bounds
         IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
           DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
             vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
@@ -967,12 +1022,6 @@ __STAMP__&
 __STAMP__&
 ,'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
     END IF
-#ifdef CODE_ANALYZE
-    IF (BCdata_auxSF(currentBC)%SideNumber.GT.0 .AND. Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-      IPWRITE(*,'(I4,A,2(x,I0),A,3(x,I0))') ' For Surfaceflux/Spec',iSF,iSpec,' are nType0,1,2: ' &
-                                            , nType0(iSF,iSpec),nType1(iSF,iSpec),nType2(iSF,iSpec)
-    END IF
-#endif /*CODE_ANALYZE*/
 
     !--- 3b: ReduceNoise initialization
     IF (Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN
@@ -1006,9 +1055,20 @@ __STAMP__&
       END IF
     END IF
 #endif
+
+#ifdef CODE_ANALYZE
+    IF (BCdata_auxSF(currentBC)%SideNumber.GT.0 .AND. Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+      IPWRITE(*,'(I4,A,2(x,I0),A,3(x,I0))') ' For Surfaceflux/Spec',iSF,iSpec,' are nType0,1,2: ' &
+                                            , CountCircInflowType(1,iSF,iSpec),CountCircInflowType(2, iSF,iSpec) & 
+                                            , CountCircInflowType(3, iSF,iSpec)
+    END IF
+#endif /*CODE_ANALYZE*/
   END DO !iSF
 END DO !iSpec
 
+#ifdef CODE_ANALYZE
+SDEALLOCATE(CountCircInflowType)
+#endif
 ! Deallocate auxiliary variable container (no pointers used inside container)
 IF(RadialWeighting%DoRadialWeighting.AND.ALLOCATED(BCdata_auxSFTemp)) DEALLOCATE(BCdata_auxSFTemp)
 
