@@ -1504,7 +1504,7 @@ IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
     DO iPart=1,PDM%ParticleVecLength
       PDM%nextFreePosition(iPart)=iPart
     END DO
-    CALL SetParticleVelocity(1,0,PDM%ParticleVecLength,1)
+    CALL SetParticleVelocity(1,1,PDM%ParticleVecLength)
   END IF
 ELSE
   IF (DoSurfaceFlux) THEN
