@@ -326,7 +326,7 @@ USE MOD_Globals,                              ONLY:ABORT
 USE MOD_PreProc
 USE MOD_Particle_Surfaces_Vars,               ONLY:SideNormVec, SideType
 USE MOD_Particle_Tracking_Vars,               ONLY:TriaTracking
-USE MOD_Particle_Mesh                         ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Tools,                  ONLY:GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars,                   ONLY:SideInfo_Shared,NodeCoords_Shared,ElemSideNodeID_Shared
 USE MOD_Mesh_Vars,                            ONLY:XCL_NGeo, NGeo, offSetElem
 ! IMPLICIT VARIABLE HANDLING
@@ -466,12 +466,16 @@ END IF
 Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
 Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
 IF (TriaTracking) THEN
+  print*,'Hmmm', SideID, LocSideID, ElemID
   Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - xNod
   Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - yNod
   Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - zNod
   Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - xNod
   Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - yNod
   Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - zNod
+  print*, 'hmmm vec1', Vector1
+  print*, 'hmmm vec2', Vector2
+  read*
 ELSE IF (TriNum.EQ.1) THEN
   Vector1 = SideCoord(:,1,0) - (/xNod,yNod,zNod/)
   Vector2 = SideCoord(:,1,1) - (/xNod,yNod,zNod/)

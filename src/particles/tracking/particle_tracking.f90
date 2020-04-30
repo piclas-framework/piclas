@@ -461,8 +461,7 @@ USE MOD_Particle_Mesh_Vars          ,ONLY: ElemRadiusNGeo,ElemHasAuxBCs!,PartEle
 USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
-USE MOD_Particle_Mesh               ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Particle_Mesh_Tools         ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Tools         ,ONLY: GetGlobalElemID, GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
 USE MOD_Particle_Localization       ,ONLY: LocateParticleInElement
 USE MOD_Particle_Localization       ,ONLY: PartInElemCheck
@@ -2024,7 +2023,7 @@ USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputeBiLinearIntersection
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
-USE MOD_Particle_Mesh               ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Tools         ,ONLY: GetGlobalNonUniqueSideID
 !USE MOD_Particle_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Particle_Surfaces           ,ONLY: CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Surfaces_Vars      ,ONLY: SideNormVec

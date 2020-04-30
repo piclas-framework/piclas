@@ -49,10 +49,6 @@ INTERFACE MarkAuxBCElems
   MODULE PROCEDURE MarkAuxBCElems
 END INTERFACE
 
-INTERFACE GetGlobalNonUniqueSideID
-  MODULE PROCEDURE GetGlobalNonUniqueSideID
-END INTERFACE
-
 !INTERFACE InitFIBGM
 !  MODULE PROCEDURE InitFIBGM
 !END INTERFACE
@@ -68,7 +64,6 @@ PUBLIC::FinalizeParticleMesh
 PUBLIC::MapRegionToElem
 PUBLIC::MarkAuxBCElems
 PUBLIC::GetMeshMinMax
-PUBLIC::GetGlobalNonUniqueSideID
 !===================================================================================================================================
 
 CONTAINS
@@ -642,7 +637,7 @@ USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides,SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: XCL_NGeo_Shared
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID, GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierControlPoints3DElevated
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,sVdm_Bezier
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3DElevated,BezierElevation
@@ -1397,7 +1392,7 @@ USE MOD_Mesh_Vars              ,ONLY: NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars     ,ONLY: XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID, GetGlobalNonUniqueSideID
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: Allocate_Shared
@@ -1897,7 +1892,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides
 USE MOD_Mesh_Vars              ,ONLY: Vdm_CLNGeo1_CLNGeo,NGeo,Vdm_CLNGeo1_CLNGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: XCL_NGeo_Shared,ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,ElemCurved
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID,GetCNElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID,GetCNElemID, GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideType,SideNormVec,SideDistance
 #if USE_MPI
@@ -2521,7 +2516,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides,SideBCMetrics
 USE MOD_Particle_Mesh_Vars     ,ONLY: BCSide2SideID,SideID2BCSide,BCSideMetrics
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo,ElemRadiusNGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: nNonUniqueGlobalSides,nUniqueBCSides
-USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalElemID, GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Vars          ,ONLY: ManualTimeStep
 USE MOD_Utils                  ,ONLY: InsertionSort
@@ -8255,43 +8250,5 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !
 ! END SUBROUTINE SetHaloInfo
 !#endif /*USE_MPI*/
-
-FUNCTION GetGlobalNonUniqueSideID(ElemID,localSideID)
-!===================================================================================================================================
-!> Determines the non-unique global side ID of the local side in global element ElemID
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared, SideInfo_Shared
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN) :: ElemID                              !< global element ID
-INTEGER,INTENT(IN) :: localSideID                         !< local side id of an element (1:6)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-INTEGER :: GetGlobalNonUniqueSideID
-INTEGER :: iSide,firstSide,lastSide
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-!===================================================================================================================================
-firstSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + 1
-lastSide  = ElemInfo_Shared(ELEM_LASTSIDEIND, ElemID)
-
-! Small mortar sides are added after
-DO iSide = firstSide,lastSide
-  IF (SideInfo_Shared(SIDE_LOCALID,iSide).EQ.localSideID) THEN
-    GetGlobalNonUniqueSideID = iSide
-    RETURN
-  END IF
-END DO
-
-! We should never arrive here
-CALL ABORT(__STAMP__,'GlobalSideID not found for Elem',ElemID)
-END FUNCTION GetGlobalNonUniqueSideID
-
-
-
 
 END MODULE MOD_Particle_Mesh

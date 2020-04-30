@@ -75,10 +75,16 @@ INTERFACE InitGetCNElemID
   MODULE PROCEDURE InitGetCNElemID
 END INTERFACE
 
+INTERFACE GetGlobalNonUniqueSideID
+  MODULE PROCEDURE GetGlobalNonUniqueSideID
+END INTERFACE
+
+
 PUBLIC::InitGetGlobalElemID
 PUBLIC::InitGetCNElemID
 !PUBLIC::BoundsOfElement
 PUBLIC::ParticleInsideQuad3D
+PUBLIC::GetGlobalNonUniqueSideID
 !PUBLIC::ParticleInsideQuad3D_MortarMPI
 !===================================================================================================================================
 CONTAINS
@@ -703,5 +709,39 @@ GetCNElemID_fromTotalElem = GlobalElem2CNTotalElem(iElem)
 END FUNCTION GetCNElemID_fromTotalElem
 #endif /*USE_MPI*/
 
+FUNCTION GetGlobalNonUniqueSideID(ElemID,localSideID)
+!===================================================================================================================================
+!> Determines the non-unique global side ID of the local side in global element ElemID
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared, SideInfo_Shared
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: ElemID                              !< global element ID
+INTEGER,INTENT(IN) :: localSideID                         !< local side id of an element (1:6)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+INTEGER :: GetGlobalNonUniqueSideID
+INTEGER :: iSide,firstSide,lastSide
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+!===================================================================================================================================
+firstSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + 1
+lastSide  = ElemInfo_Shared(ELEM_LASTSIDEIND, ElemID)
+
+! Small mortar sides are added after
+DO iSide = firstSide,lastSide
+  IF (SideInfo_Shared(SIDE_LOCALID,iSide).EQ.localSideID) THEN
+    GetGlobalNonUniqueSideID = iSide
+    RETURN
+  END IF
+END DO
+
+! We should never arrive here
+CALL ABORT(__STAMP__,'GlobalSideID not found for Elem',ElemID)
+END FUNCTION GetGlobalNonUniqueSideID
 
 END MODULE MOD_Particle_Mesh_Tools

@@ -259,7 +259,7 @@ SUBROUTINE BCSurfMeshSideAreasandNormals()
 USE MOD_Globals
 USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, SurfMeshSubSideData, BezierSampleN, SurfMeshSideAreas, TriaSurfaceFlux
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, offsetElem, SideToElem
-USE MOD_Particle_Mesh          ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas, CalcNormAndTangTriangle
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -334,7 +334,7 @@ SUBROUTINE CreateSideListAndFinalizeAreasSurfFlux(nDataBC, BCdata_auxSFTemp)
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Particle_Mesh          ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, SurfMeshSubSideData, SurfFluxSideSize, TriaSurfaceFlux, tBCdata_auxSFRadWeight
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideType
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
@@ -553,7 +553,7 @@ USE MOD_IO_HDF5
 USE MOD_Mesh_Vars               ,ONLY: offsetElem, nElems
 USE MOD_Particle_Vars           ,ONLY: nSpecies, Adaptive_MacroVal
 USE MOD_Restart_Vars            ,ONLY: DoRestart,RestartFile
-USE MOD_HDF5_INPUT              ,ONLY: ReadArray
+USE MOD_HDF5_INPUT              ,ONLY: ReadArray, DatasetExists
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -738,7 +738,7 @@ USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray,GetD
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound, nPorousBC
-USE MOD_Particle_Mesh          ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Tools          ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas, tBCdata_auxSFRadWeight
@@ -1199,7 +1199,7 @@ USE MOD_Particle_Analyze_Vars   ,ONLY: nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMesh, PartBound, nSurfSample
-USE MOD_Particle_Mesh           ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
@@ -2151,7 +2151,7 @@ USE MOD_Particle_Vars          ,ONLY: Species, Adaptive_MacroVal
 USE MOD_Particle_Surfaces_Vars ,ONLY: SurfMeshSubSideData, BCdata_auxSF, SurfFluxSideSize
 USE MOD_TimeDisc_Vars          ,ONLY: dt, RKdtFrac
 USE MOD_Mesh_Vars              ,ONLY: SideToElem, offsetElem
-USE MOD_Particle_Mesh          ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif

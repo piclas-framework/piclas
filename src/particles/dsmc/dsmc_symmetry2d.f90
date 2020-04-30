@@ -83,7 +83,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
-USE MOD_Particle_Mesh           ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
