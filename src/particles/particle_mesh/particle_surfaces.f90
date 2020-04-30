@@ -326,7 +326,9 @@ USE MOD_Globals,                              ONLY:ABORT
 USE MOD_PreProc
 USE MOD_Particle_Surfaces_Vars,               ONLY:SideNormVec, SideType
 USE MOD_Particle_Tracking_Vars,               ONLY:TriaTracking
+USE MOD_Particle_Mesh                         ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars,                   ONLY:SideInfo_Shared,NodeCoords_Shared,ElemSideNodeID_Shared
+USE MOD_Mesh_Vars,                            ONLY:XCL_NGeo, NGeo, offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -342,10 +344,10 @@ REAL,INTENT(INOUT),OPTIONAL            :: xyzNod(3) ,Vectors(3,3)
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                :: ElemID, LocSideID
-!INTEGER                                :: flip, p, q
+INTEGER                                :: flip, p, q
 INTEGER                                :: Node1, Node2
 REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(3)
-!REAL                                   :: SideCoord(1:3,0:1,0:1),SideCoord_tmp(1:3,0:1,0:1)
+REAL                                   :: SideCoord(1:3,0:1,0:1),SideCoord_tmp(1:3,0:1,0:1)
 REAL                                   :: nVal, ndistVal, nx, ny, nz, dotpr
 !================================================================================================================================
 IF (PRESENT(ElemID_opt).AND.PRESENT(LocSideID_opt)) THEN
@@ -374,88 +376,88 @@ __STAMP__&
 END IF
 
 ! NodeCoords_Shared are now always available
-!IF (TriaTracking) THEN
+IF (TriaTracking) THEN
   xNod = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
   yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
   zNod = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
-!ELSE
-!! -- .NOT.TriaTracking: GEO%NodeCoords do not exist -> build Points in same way (cf. InitTriaParticleGeometry in particle_surface.f90)
-!! -- but consider only the min/max of edges (i.e., 0,NGeo). This is required, since Vector1 and Vector2 must give the right nVec and
-!! -- the rule of how the xyz and Vectors build the 2 trias must be consistent! Yes, the following is the same for Tria1/2, but it is just in the init...
-!  SELECT CASE(LocSideID)
-!  CASE(XI_MINUS)
-!    DO q=0,1
-!      DO p=0,1
-!        SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,0,q*NGeo,p*NGeo,ElemID)
-!      END DO !p
-!    END DO !q
-!  CASE(XI_PLUS)
-!    DO q=0,1
-!      DO p=0,1
-!        SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,NGeo,p*NGeo,q*NGeo,ElemID)
-!      END DO !p
-!    END DO !q
-!  CASE(ETA_MINUS)
-!    DO q=0,1
-!      DO p=0,1
-!        SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,p*NGeo,0,q*NGeo,ElemID)
-!      END DO !p
-!    END DO !q
-!  CASE(ETA_PLUS)
-!    DO q=0,1
-!      DO p=0,1
-!        SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,NGeo*(1-p),NGeo,q*NGeo,ElemID)
-!      END DO !p
-!    END DO !q
-!  CASE(ZETA_MINUS)
-!    DO q=0,1
-!      DO p=0,1
-!        SideCoord_tmp(1:3,q,p)=XCL_NGeo(1:3,p*NGeo,q*NGeo,0,ElemID)
-!      END DO !p
-!    END DO !q
-!  CASE(ZETA_PLUS)
-!    DO q=0,1
-!      DO p=0,1
-!        SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,p*NGeo,q*NGeo,NGeo,ElemID)
-!      END DO !p
-!    END DO ! q
-!  END SELECT
-!
-!  flip=SideInfo_Shared(SIDE_FLIP,GetGlobalNonUniqueSideID(ElemID,LocSideID))
-!  ! master side, flip=0
-!  ! slave side,  flip=1,..,4
-!  SELECT CASE(flip)
-!  CASE(0) ! master side
-!    SideCoord(:,:,:)=SideCoord_tmp
-!  CASE(1) ! slave side, SideID=q,jSide=p
-!    DO q=0,1
-!      DO p=0,1
-!        SideCoord(:,p,q)=SideCoord_tmp(:,p,q)
-!      END DO ! p
-!    END DO ! q
-!  CASE(2) ! slave side, SideID=N-p,jSide=q
-!    DO q=0,1
-!      DO p=0,1
-!        SideCoord(:,p,q)=SideCoord_tmp(:,1-q,p)
-!      END DO ! p
-!    END DO ! q
-!  CASE(3) ! slave side, SideID=N-q,jSide=N-p
-!    DO q=0,1
-!      DO p=0,1
-!        SideCoord(:,p,q)=SideCoord_tmp(:,1-p,1-q)
-!      END DO ! p
-!    END DO ! q
-!  CASE(4) ! slave side, SideID=p,jSide=N-q
-!    DO q=0,1
-!      DO p=0,1
-!        SideCoord(:,p,q)=SideCoord_tmp(:,q,1-p)
-!      END DO ! p
-!    END DO ! q
-!  END SELECT
-!  xNod = SideCoord(1,0,0)
-!  yNod = SideCoord(2,0,0)
-!  zNod = SideCoord(3,0,0)
-!END IF !TriaTracking
+ELSE
+! -- .NOT.TriaTracking: GEO%NodeCoords do not exist -> build Points in same way (cf. InitTriaParticleGeometry in particle_surface.f90)
+! -- but consider only the min/max of edges (i.e., 0,NGeo). This is required, since Vector1 and Vector2 must give the right nVec and
+! -- the rule of how the xyz and Vectors build the 2 trias must be consistent! Yes, the following is the same for Tria1/2, but it is just in the init...
+  SELECT CASE(LocSideID)
+  CASE(XI_MINUS)
+    DO q=0,1
+      DO p=0,1
+        SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,0,q*NGeo,p*NGeo,ElemID-offsetElem)
+      END DO !p
+    END DO !q
+  CASE(XI_PLUS)
+    DO q=0,1
+      DO p=0,1
+        SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,NGeo,p*NGeo,q*NGeo,ElemID-offsetElem)
+      END DO !p
+    END DO !q
+  CASE(ETA_MINUS)
+    DO q=0,1
+      DO p=0,1
+        SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,p*NGeo,0,q*NGeo,ElemID-offsetElem)
+      END DO !p
+    END DO !q
+  CASE(ETA_PLUS)
+    DO q=0,1
+      DO p=0,1
+        SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,NGeo*(1-p),NGeo,q*NGeo,ElemID-offsetElem)
+      END DO !p
+    END DO !q
+  CASE(ZETA_MINUS)
+    DO q=0,1
+      DO p=0,1
+        SideCoord_tmp(1:3,q,p)=XCL_NGeo(1:3,p*NGeo,q*NGeo,0,ElemID-offsetElem)
+      END DO !p
+    END DO !q
+  CASE(ZETA_PLUS)
+    DO q=0,1
+      DO p=0,1
+        SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,p*NGeo,q*NGeo,NGeo,ElemID-offsetElem)
+      END DO !p
+    END DO ! q
+  END SELECT
+
+  flip=SideInfo_Shared(SIDE_FLIP,GetGlobalNonUniqueSideID(ElemID,LocSideID))
+  ! master side, flip=0
+  ! slave side,  flip=1,..,4
+  SELECT CASE(flip)
+  CASE(0) ! master side
+    SideCoord(:,:,:)=SideCoord_tmp
+  CASE(1) ! slave side, SideID=q,jSide=p
+    DO q=0,1
+      DO p=0,1
+        SideCoord(:,p,q)=SideCoord_tmp(:,p,q)
+      END DO ! p
+    END DO ! q
+  CASE(2) ! slave side, SideID=N-p,jSide=q
+    DO q=0,1
+      DO p=0,1
+        SideCoord(:,p,q)=SideCoord_tmp(:,1-q,p)
+      END DO ! p
+    END DO ! q
+  CASE(3) ! slave side, SideID=N-q,jSide=N-p
+    DO q=0,1
+      DO p=0,1
+        SideCoord(:,p,q)=SideCoord_tmp(:,1-p,1-q)
+      END DO ! p
+    END DO ! q
+  CASE(4) ! slave side, SideID=p,jSide=N-q
+    DO q=0,1
+      DO p=0,1
+        SideCoord(:,p,q)=SideCoord_tmp(:,q,1-p)
+      END DO ! p
+    END DO ! q
+  END SELECT
+  xNod = SideCoord(1,0,0)
+  yNod = SideCoord(2,0,0)
+  zNod = SideCoord(3,0,0)
+END IF !TriaTracking
 
 IF(PRESENT(xyzNod) .AND. TriNum.EQ.1) THEN !only write for first Tria
   xyzNod = (/xNod,yNod,zNod/)
@@ -463,20 +465,20 @@ END IF
 
 Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
 Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-!IF (TriaTracking) THEN
+IF (TriaTracking) THEN
   Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - xNod
   Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - yNod
   Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - zNod
   Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - xNod
   Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - yNod
   Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - zNod
-!ELSE IF (TriNum.EQ.1) THEN
-!  Vector1 = SideCoord(:,1,0) - (/xNod,yNod,zNod/)
-!  Vector2 = SideCoord(:,1,1) - (/xNod,yNod,zNod/)
-!ELSE !TriNum.EQ.2
-!  Vector1 = SideCoord(:,1,1) - (/xNod,yNod,zNod/)
-!  Vector2 = SideCoord(:,0,1) - (/xNod,yNod,zNod/)
-!END IF
+ELSE IF (TriNum.EQ.1) THEN
+  Vector1 = SideCoord(:,1,0) - (/xNod,yNod,zNod/)
+  Vector2 = SideCoord(:,1,1) - (/xNod,yNod,zNod/)
+ELSE !TriNum.EQ.2
+  Vector1 = SideCoord(:,1,1) - (/xNod,yNod,zNod/)
+  Vector2 = SideCoord(:,0,1) - (/xNod,yNod,zNod/)
+END IF
 nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
 ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
 nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)

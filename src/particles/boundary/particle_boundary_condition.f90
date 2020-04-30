@@ -731,17 +731,11 @@ IF(Symmetry2DAxisymmetric) THEN
   VelZ = PartState(3,PartID) - LastPartPos(3,PartID)
 
   ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
-  IF (ElemID .EQ. TrackInfo%CurrElem) THEN
-    LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
-  ELSE
-    ! TODO mortars!
-    ElemID    = SideInfo_Shared(SIDE_NBELEMID,SideID)
-    LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
-  END IF
+  LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
 
   ! Getting the vectors, which span the cell (1-2 and 1-4)
-  Vector1(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(2,LocSideID,ElemID))-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,ElemID))
-  Vector2(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(4,LocSideID,ElemID))-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,ElemID))
+  Vector1(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(2,LocSideID,ElemID)+1)-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
+  Vector2(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(4,LocSideID,ElemID)+1)-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
 
   ! Get the vector, which does NOT have the z-component
   IF (ABS(Vector1(3)).GT.ABS(Vector2(3))) THEN
