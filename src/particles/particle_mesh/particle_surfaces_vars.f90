@@ -99,7 +99,7 @@ REAL,ALLOCATABLE,DIMENSION(:)           :: SideBoundingBoxVolume        ! Boundi
 INTEGER                                 :: BezierSampleN                ! equidistant sampling of bezier surface for emission
 INTEGER                                 :: SurfFluxSideSize(2)          ! discretization of sides for Surfaceflux
 REAL,ALLOCATABLE,DIMENSION(:)           :: BezierSampleXi               ! ref coordinate for equidistant bezier surface sampling
-LOGICAL                                 :: TriaSurfaceFlux, WriteTriaSurfaceFluxDebugMesh
+LOGICAL                                 :: TriaSurfaceFlux
 
 REAL,ALLOCATABLE,DIMENSION(:)           :: SurfMeshSideAreas            ! areas of of sides of surface mesh (1:nBCSides)
 TYPE tSurfMeshSubSideData

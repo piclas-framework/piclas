@@ -177,7 +177,7 @@ USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: InitGetGlobalElemID,InitGetCNElemID
 USE MOD_Particle_Surfaces      ,ONLY: GetSideSlabNormalsAndIntervals
-USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux,WriteTriaSurfaceFluxDebugMesh
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierControlPoints3DElevated,SideSlabNormals,SideSlabIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty
@@ -404,11 +404,9 @@ END IF
 IF (TriaSurfaceFlux) THEN
   BezierSampleN = 1
   SurfFluxSideSize=(/1,2/)
-  WriteTriaSurfaceFluxDebugMesh = GETLOGICAL('Write-TriaSurfaceFlux-DebugMesh','.FALSE.')
 ELSE
   WRITE(tmpStr,'(I2.2)') NGeo
   BezierSampleN = GETINT('BezierSampleN',tmpStr)
-  WriteTriaSurfaceFluxDebugMesh=.FALSE.
   SurfFluxSideSize=BezierSampleN
   ALLOCATE(BezierSampleXi(0:BezierSampleN))!,STAT=ALLOCSTAT)
   DO iSample=0,BezierSampleN
@@ -926,6 +924,7 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 !                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+3,4)+1,iLocSide))%np%NodeID/)
 !  END DO
 !END DO
+
 DO iElem = firstElem,lastElem
   ElemID = GetGlobalElemID(iElem)
   DO iNode = 1,8

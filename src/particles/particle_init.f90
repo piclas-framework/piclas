@@ -786,7 +786,6 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: FileID
 !===================================================================================================================================
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
@@ -1035,7 +1034,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nPartBound
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(32)         :: hilf, hilf2
+CHARACTER(32)         :: hilf
 INTEGER               :: iCC
 !===================================================================================================================================
 nDataBC_CollectCharges=0
@@ -1284,7 +1283,6 @@ USE MOD_TimeDisc_Vars          ,ONLY: TEnd
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: ALLOCSTAT
 !===================================================================================================================================
 ! output of macroscopic values
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
@@ -1712,7 +1710,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, FileID
+INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps
 INTEGER               :: ALLOCSTAT, dummy_int
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
