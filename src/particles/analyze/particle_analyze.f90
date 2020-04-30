@@ -2183,9 +2183,7 @@ USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_DSMC_Vars             ,ONLY: DSMC, VarVibRelaxProb, CollisMode, SpecXSec, XSec_Relaxation
 USE MOD_Mesh_Vars             ,ONLY: nElems, nGlobalElems
-#if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
