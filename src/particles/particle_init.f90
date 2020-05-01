@@ -1102,6 +1102,7 @@ USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWei
 USE MOD_part_RHS               ,ONLY: InitPartRHS
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
+USE MOD_part_emission_tools    ,ONLY: FlagElements_Cylinder_Photoionization
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1710,6 +1711,10 @@ __STAMP__&
         CALL abort(__STAMP__&
             ,'ERROR: Only one background definition per species is allowed!')
       END IF
+    END IF
+    ! Photoionization in cylinderical volume (modelling a laser pulse)
+    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') THEN
+      CALL FlagElements_Cylinder_Photoionization(iSpec,iInit)
     END IF
     IF (Species(iSpec)%Init(iInit)%UseForEmission) THEN
       Species(iSpec)%Init(iInit)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf2)//'-ParticleEmissionType','2')

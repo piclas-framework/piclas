@@ -92,6 +92,7 @@ PUBLIC :: SetCellLocalParticlePosition,InsideExcludeRegionCheck
 #if CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
+PUBLIC :: FlagElements_Cylinder_PhotoIonization, Insert_Cylinder_Photoionization
 !===================================================================================================================================
 CONTAINS
 
@@ -1054,29 +1055,6 @@ END FUNCTION CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
 
 PURE FUNCTION CalcLaserIntensity(x,x_norm)
-
-! lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
-!   Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
-! lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
-!   Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(3)
-! lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
-!   Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
-
-! basePoint = Species(iSpec)%Init(iInit)%BasePointIC
-
-! IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-!   CALL abort(&
-!     __STAMP__&
-!     ,'BaseVectors are parallel!')
-! ELSE
-!   lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
-!     lineVector(3) * lineVector(3))
-! END IF
-
-! basePointToPos(1:3) = position(1:3) - basePoint(1:3)
-
-! radius = SQRT(DOTPRODUCT(basePointToPos)**2-(DOT_PRODUCT(lineVector,basePointToPos))**2)
-
 !===================================================================================================================================
 !> 
 !===================================================================================================================================
@@ -1096,5 +1074,149 @@ REAL                     :: CalcLaserIntensity
 CalcLaserIntensity = EXP(-(x/x_norm)**2)
 
 END FUNCTION CalcLaserIntensity
+
+
+SUBROUTINE FlagElements_Cylinder_PhotoIonization(iSpec,iInit)
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Mesh_Vars               ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iSpec
+INTEGER, INTENT(IN)             :: iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INOUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iElem, photoElem
+INTEGER, ALLOCATABLE            :: TempMapping(:)
+REAL                            :: lineVector(3), basePoint(3), radius, basePointToPos(3), height
+!-----------------------------------------------------------------------------------------------------------------------------------
+lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
+  Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
+lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
+  Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(3)
+lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
+  Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
+
+basePoint = Species(iSpec)%Init(iInit)%BasePointIC
+
+IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
+  CALL abort(&
+    __STAMP__&
+    ,'BaseVectors are parallel!')
+ELSE
+  lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
+    lineVector(3) * lineVector(3))
+END IF
+
+ALLOCATE(TempMapping(1:nElems))
+TempMapping = 0
+photoElem = 0
+
+DO iElem = 1, nElems
+  basePointToPos(1:3) = GEO%ElemMidPoint(1:3,iElem) - basePoint(1:3)
+  height = ABS(DOT_PRODUCT(lineVector,basePointToPos))
+  IF(height.LE.Species(iSpec)%Init(iInit)%CylinderHeightIC) THEN
+    radius = SQRT(DOTPRODUCT(basePointToPos)-height**2)
+    IF(radius.LE.Species(iSpec)%Init(iInit)%RadiusIC) THEN
+      photoElem = photoElem + 1
+      TempMapping(photoElem) = iElem
+    END IF
+  END IF
+END DO
+
+ALLOCATE(Species(iSpec)%Init(iInit)%PhotoIonElemMap(1:photoElem))
+Species(iSpec)%Init(iInit)%PhotoIonElems = photoElem
+
+Species(iSpec)%Init(iInit)%PhotoIonElemMap(1:photoElem) = TempMapping(1:photoElem)
+DEALLOCATE(TempMapping)
+
+END SUBROUTINE FlagElements_Cylinder_PhotoIonization
+
+
+SUBROUTINE Insert_Cylinder_PhotoIonization(chunkSize,iSpec,iInit)
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
+USE MOD_Particle_Mesh          ,ONLY: PartInElemCheck
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, epsOneCell
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)              :: iSpec
+INTEGER, INTENT(IN)              :: iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INOUTPUT VARIABLES
+INTEGER, INTENT(INOUT)           :: chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: iElem, ichunkSize, photoElem
+INTEGER                          :: iPart,  nPart
+REAL                             :: RandomPos(3)
+LOGICAL                          :: InsideFlag
+REAL                             :: Det(6,2)
+REAL                             :: RefPos(1:3)
+INTEGER                          :: ParticleIndexNbr
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+ichunkSize = 1
+ParticleIndexNbr = 1
+DO photoElem = 1, Species(iSpec)%Init(iInit)%PhotoIonElems
+  iElem = Species(iSpec)%Init(iInit)%PhotoIonElemMap(photoElem)
+  ! TODO: Insertion of particles based on intensity and cross-section
+  nPart = Species(iSpec)%Init(iInit)%ParticleEmission
+  DO iPart = 1, nPart
+    ParticleIndexNbr = PDM%nextFreePosition(iChunksize + PDM%CurrentNextFreePosition)
+    IF (ParticleIndexNbr.NE.0) THEN
+      InsideFlag=.FALSE.
+      DO WHILE(.NOT.InsideFlag)
+        CALL RANDOM_NUMBER(RandomPos)
+        RandomPos = GEO%BoundsOfElem(1,:,iElem) + RandomPos*(GEO%BoundsOfElem(2,:,iElem)-GEO%BoundsOfElem(1,:,iElem))
+        IF (DoRefMapping) THEN
+          CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
+          IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+        ELSE
+          IF (TriaTracking) THEN
+            CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+          ELSE
+            CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+          END IF
+        END IF
+      END DO
+      PartState(1:3,ParticleIndexNbr) = RandomPos(1:3)
+      PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
+      PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
+      PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
+      PEM%Element(ParticleIndexNbr) = iElem
+      ichunkSize = ichunkSize + 1
+    ELSE
+      CALL abort(&
+          __STAMP__&
+          ,'ERROR in Insert_Cylinder_Photoionization: Maximum particle number reached during inserting! --> ParticleIndexNbr.EQ.0')
+    END IF
+  END DO
+END DO
+chunkSize = ichunkSize - 1
+
+END SUBROUTINE Insert_Cylinder_PhotoIonization
 
 END MODULE MOD_part_emission_tools

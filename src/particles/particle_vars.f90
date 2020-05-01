@@ -229,6 +229,8 @@ TYPE tInit                                                                   ! P
 #if USE_MPI
   INTEGER                                :: InitComm                          ! number of init-communicator
 #endif /*USE_MPI*/
+  INTEGER, ALLOCATABLE                    :: PhotoIonElemMap(:)
+  INTEGER                                 :: PhotoIonElems
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData

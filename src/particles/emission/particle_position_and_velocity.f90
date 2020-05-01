@@ -73,6 +73,7 @@ USE MOD_Equation_vars          ,ONLY: c_inv
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_part_emission_tools    ,ONLY: IntegerDivide,CalcVelocity_maxwell_lpn,SamplePoissonDistri,SetCellLocalParticlePosition
 USE MOD_part_emission_tools    ,ONLY: InsideExcludeRegionCheck
+USE MOD_part_emission_tools    ,ONLY: Insert_Cylinder_Photoionization
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -188,7 +189,10 @@ __STAMP__&
 END IF
 
 IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') THEN
-
+  chunksize = 0
+  CALL Insert_Cylinder_Photoionization(chunkSize,FractNbr,iInit)
+  NbrOfParticle = chunksize
+  RETURN
 END IF
 
 
