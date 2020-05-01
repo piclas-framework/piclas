@@ -227,10 +227,11 @@ CALL InitGetGlobalElemID()
 ! Initialize mapping function: GetCNElemID()
 CALL InitGetCNElemID()
 
-IF ((TrackingMethod.EQ.REFMAPPING.OR.UseCurveds.OR.(NGeo.GT.1)).AND.(TrackingMethod.EQ.TRIATRACKING)) THEN
-  CALL CollectiveStop(__STAMP__, &
-         'TrackingMethod=REFMAPPING .OR. UseCurveds=T .OR. NGEO>1! Not possible with TrackingMethod=TRIATRACKING at the same time!')
-END IF
+!IF ((TrackingMethod.EQ.REFMAPPING.OR.UseCurveds.OR.(NGeo.GT.1)).AND.(TrackingMethod.EQ.TRIATRACKING)) THEN
+!  CALL CollectiveStop(__STAMP__, &
+!         'TrackingMethod=REFMAPPING .OR. UseCurveds=T .OR. NGEO>1! Not possible with TrackingMethod=TRIATRACKING at the same time!')
+!END IF
+
 CountNbOfLostParts = GETLOGICAL('CountNbOfLostParts',".FALSE.")
 nLostParts         = 0
 
@@ -3398,12 +3399,14 @@ SELECT CASE (TrackingMethod)
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
     ! GetBCSidesAndOrgin
-    CALL MPI_WIN_UNLOCK_ALL(BCSide2SideID_Shared_Win        ,iError)
-    CALL MPI_WIN_FREE(      BCSide2SideID_Shared_Win        ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(SideID2BCSide_Shared_Win        ,iError)
-    CALL MPI_WIN_FREE(      SideID2BCSide_Shared_Win        ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(BCSideMetrics_Shared_Win        ,iError)
-    CALL MPI_WIN_FREE(      BCSideMetrics_Shared_Win        ,iError)
+    IF (TrackingMethod.EQ.REFMAPPING) THEN
+      CALL MPI_WIN_UNLOCK_ALL(BCSide2SideID_Shared_Win        ,iError)
+      CALL MPI_WIN_FREE(      BCSide2SideID_Shared_Win        ,iError)
+      CALL MPI_WIN_UNLOCK_ALL(SideID2BCSide_Shared_Win        ,iError)
+      CALL MPI_WIN_FREE(      SideID2BCSide_Shared_Win        ,iError)
+      CALL MPI_WIN_UNLOCK_ALL(BCSideMetrics_Shared_Win        ,iError)
+      CALL MPI_WIN_FREE(      BCSideMetrics_Shared_Win        ,iError)
+    END IF
 
     ! CalcParticleMeshMetrics
     CALL MPI_WIN_UNLOCK_ALL(XCL_NGeo_Shared_Win             ,iError)
@@ -3484,9 +3487,14 @@ SELECT CASE (TrackingMethod)
 
     ! Then, free the pointers or arrays
     ! GetBCSidesAndOrgin
-    ADEALLOCATE(BCSide2SideID_Shared)
-    ADEALLOCATE(SideID2BCSide_Shared)
-    ADEALLOCATE(BCSideMetrics_Shared)
+    IF (TrackingMethod.EQ.REFMAPPING) THEN
+      ADEALLOCATE(BCSide2SideID_Shared)
+      ADEALLOCATE(SideID2BCSide_Shared)
+      ADEALLOCATE(BCSideMetrics_Shared)
+      ADEALLOCATE(BCSide2SideID)
+      ADEALLOCATE(SideID2BCSide)
+      ADEALLOCATE(BCSideMetrics)
+    END IF
 
     ! CalcParticleMeshMetrics
     ADEALLOCATE(XCL_NGeo_Array)
