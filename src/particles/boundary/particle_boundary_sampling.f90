@@ -669,12 +669,7 @@ area=0.
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
 #endif /*USE_MPI*/
-  DO iSide = 1,nComputeNodeSurfTotalSides
-#if USE_MPI
-    ! ignore sides in halo region
-    IF (SurfSide2GlobalSide(SURF_LEADER,iSide).NE.myLeaderGroupRank) CYCLE
-#endif /*USE_MPI*/
-
+  DO iSide = 1,nComputeNodeSurfSides
     area = area + SUM(SurfSideArea(:,:,iSide))
   END DO ! iSide = 1,nComputeNodeSurfTotalSides
 #if USE_MPI
