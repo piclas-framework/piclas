@@ -79,12 +79,16 @@ INTERFACE GetGlobalNonUniqueSideID
   MODULE PROCEDURE GetGlobalNonUniqueSideID
 END INTERFACE
 
+INTERFACE GetSideBoundingBoxTria
+  MODULE PROCEDURE GetSideBoundingBoxTria
+END INTERFACE
 
 PUBLIC::InitGetGlobalElemID
 PUBLIC::InitGetCNElemID
 !PUBLIC::BoundsOfElement
 PUBLIC::ParticleInsideQuad3D
 PUBLIC::GetGlobalNonUniqueSideID
+PUBLIC::GetSideBoundingBoxTria
 !PUBLIC::ParticleInsideQuad3D_MortarMPI
 !===================================================================================================================================
 CONTAINS
@@ -743,5 +747,45 @@ END DO
 ! We should never arrive here
 CALL ABORT(__STAMP__,'GlobalSideID not found for Elem',ElemID)
 END FUNCTION GetGlobalNonUniqueSideID
+
+!==================================================================================================================================!
+!> Initialize GetGlobalElemID function (mapping of compute-node element ID to global element ID)
+!==================================================================================================================================!
+SUBROUTINE GetSideBoundingBoxTria(SideID, BoundingBox)
+! MODULES
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
+!----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+INTEGER, INTENT(IN)           :: SideID
+REAL, INTENT(OUT)             :: BoundingBox(1:3,1:8)
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: iLocSide, globElemId, iNode         
+REAL                      :: NodePoints(1:3,1:4)
+REAL                      :: xMin, xMax, yMin, yMax, zMin, zMax
+!==================================================================================================================================
+globElemId = SideInfo_Shared(SIDE_ELEMID,SideID)
+iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
+DO iNode = 1, 4
+  NodePoints(1:3,iNode) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,globElemId)+1)
+END DO
+xMin = MINVAL(NodePoints(1,:))
+yMin = MINVAL(NodePoints(2,:))
+zMin = MINVAL(NodePoints(3,:))
+xMax = MAXVAL(NodePoints(1,:))
+yMax = MAXVAL(NodePoints(2,:))
+zMax = MAXVAL(NodePoints(3,:))
+BoundingBox(1:3,1) = (/xMin,yMin,zMin/)
+BoundingBox(1:3,2) = (/xMax,yMin,zMin/)
+BoundingBox(1:3,3) = (/xMax,yMax,zMin/)
+BoundingBox(1:3,4) = (/xMin,yMax,zMin/)
+BoundingBox(1:3,5) = (/xMin,yMin,zMax/)
+BoundingBox(1:3,6) = (/xMax,yMin,zMax/)
+BoundingBox(1:3,7) = (/xMax,yMax,zMax/)
+BoundingBox(1:3,8) = (/xMin,yMax,zMax/)
+
+END SUBROUTINE GetSideBoundingBoxTria
+
 
 END MODULE MOD_Particle_Mesh_Tools

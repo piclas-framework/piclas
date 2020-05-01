@@ -608,9 +608,12 @@ SUBROUTINE DefineCircInflowRejectType(iSpec, iSF, iSide)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Mesh_Vars                 ,ONLY: offsetElem, SideToElem
 USE MOD_Particle_Surfaces         ,ONLY: GetSideBoundingBox
 USE MOD_Particle_Surfaces_Vars    ,ONLY: BCdata_auxSF
-USE MOD_PARTICLE_Vars             ,ONLY: Species
+USE MOD_Particle_Vars             ,ONLY: Species
+USE MOD_Particle_Mesh_Tools       ,ONLY: GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
+USE MOD_Particle_Tracking_Vars    ,ONLY: TriaTracking
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -623,7 +626,7 @@ INTEGER, INTENT(IN)   :: iSpec, iSF, iSide
 REAL                  :: BoundingBox(1:3,1:8), origin(2), Vector1(3), Vector2(3), Vector3(3), xyzNod(3), VecBoundingBox(3)
 REAL                  :: corner(3), corners(2,4), radiusCorner(2,4), rmax, rmin, point(2), vec(2)
 LOGICAL               :: r0inside, intersecExists(2,2)
-INTEGER               :: dir(3), iNode, currentBC, BCSideID
+INTEGER               :: dir(3), iNode, currentBC, BCSideID, ElemID, iLocSide, SideID
 !===================================================================================================================================
 !-- check where the sides are located relative to rmax (based on corner nodes of bounding box)
 !- RejectType=0 : complete side is inside valid bounds
@@ -631,7 +634,19 @@ INTEGER               :: dir(3), iNode, currentBC, BCSideID
 !- RejectType=2 : side is partly inside valid bounds
 currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
 BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
-CALL GetSideBoundingBox(BCSideID,BoundingBox)
+IF  (TriaTracking) THEN
+  ElemID = SideToElem(1,BCSideID)
+  IF (ElemID.LT.1) THEN !not sure if necessary
+    ElemID = SideToElem(2,BCSideID)
+    iLocSide = SideToElem(4,BCSideID)
+  ELSE
+    iLocSide = SideToElem(3,BCSideID)
+  END IF
+  SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
+  CALL GetSideBoundingBoxTria(SideID,BoundingBox)
+ELSE
+  CALL GetSideBoundingBox(BCSideID,BoundingBox)
+END IF
 intersecExists=.FALSE.
 !atan2Shift=0.
 r0inside=.FALSE.
@@ -826,8 +841,9 @@ SUBROUTINE InitAdaptiveSurfFlux(iSpec, iSF, ElemID, AdaptiveInitDone)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Adaptive_MacroVal, nMacroRestartFiles, MacroRestartData_tmp
+USE MOD_Particle_Vars          ,ONLY: Species, Adaptive_MacroVal
 USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC
+USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart, MacroRestartValues  
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -838,19 +854,17 @@ LOGICAL, INTENT(IN)   :: AdaptiveInitDone
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                :: FileID
 !===================================================================================================================================
 IF (.NOT.AdaptiveInitDone) THEN
   ! initialize velocity, trans_temperature and density of macrovalues
-  FileID = Species(iSpec)%Init(1)%ElemPartDensityFileID
-  IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
-    Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOX,ElemID,iSpec,FileID)
-    Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOY,ElemID,iSpec,FileID)
-    Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOZ,ElemID,iSpec,FileID)
-    Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPX,ElemID,iSpec,FileID))
-    Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPY,ElemID,iSpec,FileID))
-    Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPZ,ElemID,iSpec,FileID))
-    Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec) = MacroRestartData_tmp(DSMC_NUMDENS,ElemID,iSpec,FileID)
+  IF (DoMacroscopicRestart) THEN
+    Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_VELOX)
+    Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_VELOY)
+    Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_VELOZ)
+    Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = MAX(0.,MacroRestartValues(ElemID,iSpec,DSMC_TEMPX))
+    Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MAX(0.,MacroRestartValues(ElemID,iSpec,DSMC_TEMPY))
+    Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MAX(0.,MacroRestartValues(ElemID,iSpec,DSMC_TEMPZ))
+    Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec) = MacroRestartValues(ElemID,iSpec,DSMC_NUMDENS)
     IF(nPorousBC.GT.0) THEN
       CALL abort(&
 __STAMP__&
