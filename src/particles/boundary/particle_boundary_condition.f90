@@ -640,7 +640,7 @@ USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Boundary_Vars  ,ONLY: dXiEQ_SurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Tools ,ONLY: CountSurfaceImpact, GetWallTemperature
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
@@ -787,7 +787,7 @@ IF (.NOT.IsAuxBC) THEN
   IF (DoSample) THEN
     !----  Sampling for energy (translation) accommodation at walls
     ! has to be corrected to new scheme
-    SurfSideID=SurfMesh%SideIDToSurfID(SideID)
+    SurfSideID=GlobalSide2SurfSide(SURF_SIDEID,SideID)
     ! compute p and q
     ! correction of xi and eta, can only be applied if xi & eta are not used later!
     IF (TrackingMethod.EQ.TRIATRACKING) THEN
@@ -1052,8 +1052,8 @@ SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,n_Loc,PartID,SideID,IsSpecies
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                 ,ONLY: abort,VECNORM
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SampWall,dXiEQ_SurfSample,SurfMesh,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,SampWall,dXiEQ_SurfSample,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState,GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,usevMPF
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
@@ -1139,7 +1139,7 @@ ELSE
     IF ( (targetSpecies.eq.0) .OR. (.NOT.CalcSurfCollis%Only0Swaps) ) THEN
       IF (DoSample) THEN
         !---- Counter for swap species collisions
-        SurfSideID=SurfMesh%SideIDToSurfID(SideID)
+        SurfSideID=GlobalSide2SurfSide(SURF_SIDEID,SideID)
         ! compute p and q
         ! correction of xi and eta, can only be applied if xi & eta are not used later!
         IF (TrackingMethod.EQ.TRIATRACKING) THEN
@@ -1183,7 +1183,7 @@ ELSE
       END DO
       ! sample values of deleted species
       IF (DoSample) THEN
-        SurfSideID=SurfMesh%SideIDToSurfID(SideID)
+        SurfSideID=GlobalSide2SurfSide(SURF_SIDEID,SideID)
         IF (TrackingMethod.EQ.TRIATRACKING) THEN
           p=1 ; q=1
         ELSE

@@ -322,7 +322,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: LastPartPos
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, MapSurfSideToPorousBC, PorousBC, MapSurfSideToPorousSide
 USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, GlobalSide2SurfSide
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_part_operations        ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
@@ -341,7 +341,7 @@ REAL                          :: point(1:2), intersectionPoint(1:3), radius, iRa
 INTEGER                       :: SurfSideID, PorousBCID, pBCSideID
 LOGICAL                       :: ParticleHitPorousBC
 !===================================================================================================================================
-SurfSideID = SurfMesh%SideIDToSurfID(SideID)
+SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
 PorousBCID = MapSurfSideToPorousBC(SurfSideID)
 
 IF(PorousBCID.GT.0) THEN
@@ -554,7 +554,7 @@ SUBROUTINE ExchangeImpingedPartPorousBC()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfComm, nPorousBC, nPorousBCVars, MapSurfSideToPorousSide, MapSurfSideToPorousBC
-USE MOD_Particle_Boundary_Vars  ,ONLY: PorousBC, SurfMesh
+USE MOD_Particle_Boundary_Vars  ,ONLY: PorousBC, SurfMesh, GlobalSide2SurfSide
 USE MOD_Particle_MPI_Vars       ,ONLY: PorousBCSendBuf, PorousBCRecvBuf, SurfExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -591,7 +591,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   iPos=0
   PorousBCSendBuf(iProc)%content = 0.
   DO iSurfSide=1,SurfExchange%nSidesSend(iProc)
-    SurfSideID = SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide))
+    SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide))
     PorousBCID = MapSurfSideToPorousBC(SurfSideID)
     IF(PorousBCID.GT.0) THEN
       PorousBCSideID = MapSurfSideToPorousSide(SurfSideID)
@@ -637,7 +637,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
   iPos=0
   DO iSurfSide=1,SurfExchange%nSidesRecv(iProc)
-    SurfSideID = SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide))
+    SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide))
     PorousBCID = MapSurfSideToPorousBC(SurfSideID)
     IF(PorousBCID.GT.0) THEN
       PorousBCSideID = MapSurfSideToPorousSide(SurfSideID)
@@ -663,6 +663,7 @@ SUBROUTINE ExchangeRemovalProbabilityPorousBC
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars      ,ONLY: SurfComm, MapSurfSideToPorousSide, MapSurfSideToPorousBC, PorousBC, SurfMesh
+USE MOD_Particle_Boundary_Vars      ,ONLY: GlobalSide2SurfSide
 USE MOD_Particle_MPI_Vars           ,ONLY: SurfExchange
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -694,7 +695,7 @@ END DO
 ! These are the halo sides (from which we usually receive information -> using nSidesRecv and RecvList)
 DO iProc=1, SurfCOMM%nMPINeighbors
   DO iCommSide=1, SurfExchange%nSidesRecv(iProc)
-    SurfSideID = SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%RecvList(iCommSide))
+    SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SurfCOMM%MPINeighbor(iProc)%RecvList(iCommSide))
     pBCID = MapSurfSideToPorousBC(SurfSideID)
     IF(pBCID.GT.0) THEN
       TempArrayProc(iProc)%SendMsg(iCommSide) = PorousBC(pBCID)%RemovalProbability(MapSurfSideToPorousSide(SurfSideID))
@@ -725,7 +726,7 @@ END DO
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
   DO iCommSide=1,SurfExchange%nSidesSend(iProc)
-    SurfSideID = SurfMesh%SideIDToSurfID(SurfCOMM%MPINeighbor(iProc)%SendList(iCommSide))
+    SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SurfCOMM%MPINeighbor(iProc)%SendList(iCommSide))
     pBCID = MapSurfSideToPorousBC(SurfSideID)
     IF(pBCID.GT.0) THEN
       PorousBC(pBCID)%RemovalProbability(MapSurfSideToPorousSide(SurfSideID)) = TempArrayProc(iProc)%RecvMsg(iCommSide)
