@@ -501,19 +501,13 @@ DO iSpec = 1,nSpecies                             ! Loop over all non-background
     DO jSpec = 1, nSpecies                        ! Loop over all background species
       IF(BGGas%BackgroundSpecies(jSpec)) THEN
         DO iLoop = 1, SpecPairNum(iSpec,jSpec)    ! Loop over all the number of pairs required for this species pairing
-          ! Getting the index of the simulation particle
-          IF(SpecDSMC(iSpec)%UseCollXSec.AND.XSec_NullCollision) THEN
-            ! MCC: Choosing random particles from the available number of particles
-            IF(SpecPartNum(iSpec).GT.0) THEN
-              CALL RANDOM_NUMBER(iRan)
-              RandomPart = INT(SpecPartNum(iSpec)*iRan) + 1
-              PartIndex = iPartIndexSpec(RandomPart,iSpec)
-              iPartIndexSpec(RandomPart, iSpec) = iPartIndexSpec(SpecPartNum(iSpec),iSpec)
-              SpecPartNum(iSpec) = SpecPartNum(iSpec) - 1
-            END IF
-          ELSE
-            ! Regular: Pairing every particle with a background gas particle
-            PartIndex = iPartIndexSpec(iLoop,iSpec)
+          ! Choosing random particles from the available number of particles, getting the index of the simulation particle
+          IF(SpecPartNum(iSpec).GT.0) THEN
+            CALL RANDOM_NUMBER(iRan)
+            RandomPart = INT(SpecPartNum(iSpec)*iRan) + 1
+            PartIndex = iPartIndexSpec(RandomPart,iSpec)
+            iPartIndexSpec(RandomPart, iSpec) = iPartIndexSpec(SpecPartNum(iSpec),iSpec)
+            SpecPartNum(iSpec) = SpecPartNum(iSpec) - 1
           END IF
           ! Creating a new background gas particle
           DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
