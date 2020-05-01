@@ -634,18 +634,18 @@ INTEGER               :: dir(3), iNode, currentBC, BCSideID, ElemID, iLocSide, S
 !- RejectType=2 : side is partly inside valid bounds
 currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
 BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
+ElemID = SideToElem(1,BCSideID)
+IF (ElemID.LT.1) THEN !not sure if necessary
+  ElemID = SideToElem(2,BCSideID)
+  iLocSide = SideToElem(4,BCSideID)
+ELSE
+  iLocSide = SideToElem(3,BCSideID)
+END IF
+SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
 IF  (TriaTracking) THEN
-  ElemID = SideToElem(1,BCSideID)
-  IF (ElemID.LT.1) THEN !not sure if necessary
-    ElemID = SideToElem(2,BCSideID)
-    iLocSide = SideToElem(4,BCSideID)
-  ELSE
-    iLocSide = SideToElem(3,BCSideID)
-  END IF
-  SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
   CALL GetSideBoundingBoxTria(SideID,BoundingBox)
 ELSE
-  CALL GetSideBoundingBox(BCSideID,BoundingBox)
+  CALL GetSideBoundingBox(SideID,BoundingBox)
 END IF
 intersecExists=.FALSE.
 !atan2Shift=0.
