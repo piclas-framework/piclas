@@ -1200,7 +1200,7 @@ ELSE IF(nRandomSeeds.EQ.0) THEN
  !   IF (Restart) THEN
  !   CALL !numbers from state file
  ! ELSE IF (.NOT.Restart) THEN
-CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
+  CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 ELSE IF(nRandomSeeds.GT.0) THEN
   ! read in numbers from ini
   IF(nRandomSeeds.GT.SeedSize) THEN

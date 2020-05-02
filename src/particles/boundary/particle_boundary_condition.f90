@@ -121,7 +121,7 @@ CASE(REFMAPPING,TRACING)
   CASE(BILINEAR)
     CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   CASE(CURVED)
-    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
+    CALL CalcNormAndTangBezier(  nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   END SELECT
 
   IF(flip.NE.0) n_loc=-n_loc

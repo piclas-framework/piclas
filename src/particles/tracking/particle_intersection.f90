@@ -14,7 +14,7 @@
 
 MODULE MOD_Particle_InterSection
 !===================================================================================================================================
-! Contains global variables provided by the particle surfaces routines
+! Provides routines to calculate the intersection of the particle trajectory with a side depending on the side type
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

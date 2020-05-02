@@ -324,7 +324,7 @@ SUBROUTINE CalcNormAndTangTriangle(nVec,tang1,tang2,area,midpoint,ndist,xyzNod,V
 !================================================================================================================================
 USE MOD_Globals,                              ONLY:ABORT
 USE MOD_PreProc
-USE MOD_Particle_Surfaces_Vars,               ONLY:SideNormVec, SideType
+USE MOD_Particle_Surfaces_Vars,               ONLY:SideNormVec,SideType
 USE MOD_Particle_Tracking_Vars,               ONLY:TriaTracking
 USE MOD_Particle_Mesh_Tools,                  ONLY:GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars,                   ONLY:SideInfo_Shared,NodeCoords_Shared,ElemSideNodeID_Shared
@@ -586,7 +586,6 @@ REAL,INTENT(OUT),OPTIONAL              :: tang1(3), tang2(3)
 ! LOCAL VARIABLES
 REAL,DIMENSION(3)                      :: a,b
 !================================================================================================================================
-
 
 b=xi*0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NGeo,0  ,SideID)  &
           +BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID) ) &
