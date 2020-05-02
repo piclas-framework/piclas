@@ -229,8 +229,12 @@ TYPE tInit                                                                   ! P
 #if USE_MPI
   INTEGER                                :: InitComm                          ! number of init-communicator
 #endif /*USE_MPI*/
+!====================================photo ionization =======================================================
   INTEGER, ALLOCATABLE                    :: PhotoIonElemMap(:)
   INTEGER                                 :: PhotoIonElems
+  REAL, ALLOCATABLE                       :: ElementRadius(:)
+  REAL                                    :: PulseDuration
+  REAL                                    :: WaistRadius
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData

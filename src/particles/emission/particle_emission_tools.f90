@@ -1100,6 +1100,7 @@ INTEGER, INTENT(IN)             :: iInit
 INTEGER                         :: iElem, photoElem
 INTEGER, ALLOCATABLE            :: TempMapping(:)
 REAL                            :: lineVector(3), basePoint(3), radius, basePointToPos(3), height
+REAL, ALLOCATABLE               :: TempRadius(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
   Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
@@ -1121,6 +1122,8 @@ END IF
 
 ALLOCATE(TempMapping(1:nElems))
 TempMapping = 0
+ALLOCATE(TempRadius(1:nElems))
+TempRadius = 0
 photoElem = 0
 
 DO iElem = 1, nElems
@@ -1131,15 +1134,19 @@ DO iElem = 1, nElems
     IF(radius.LE.Species(iSpec)%Init(iInit)%RadiusIC) THEN
       photoElem = photoElem + 1
       TempMapping(photoElem) = iElem
+      TempRadius(photoElem) = radius
     END IF
   END IF
 END DO
 
-ALLOCATE(Species(iSpec)%Init(iInit)%PhotoIonElemMap(1:photoElem))
 Species(iSpec)%Init(iInit)%PhotoIonElems = photoElem
-
+ALLOCATE(Species(iSpec)%Init(iInit)%PhotoIonElemMap(1:photoElem))
 Species(iSpec)%Init(iInit)%PhotoIonElemMap(1:photoElem) = TempMapping(1:photoElem)
 DEALLOCATE(TempMapping)
+ALLOCATE(Species(iSpec)%Init(iInit)%ElementRadius(1:photoElem))
+Species(iSpec)%Init(iInit)%ElementRadius(1:photoElem) = TempRadius(1:photoElem)
+DEALLOCATE(TempRadius)
+
 
 END SUBROUTINE FlagElements_Cylinder_PhotoIonization
 
@@ -1150,32 +1157,34 @@ SUBROUTINE Insert_Cylinder_PhotoIonization(chunkSize,iSpec,iInit)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
-USE MOD_Particle_Mesh          ,ONLY: PartInElemCheck
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, epsOneCell
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM
+USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping, TriaTracking
+USE MOD_Particle_Mesh           ,ONLY: PartInElemCheck
+USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, epsOneCell
+USE MOD_TimeDisc_Vars           ,ONLY: time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)              :: iSpec
-INTEGER, INTENT(IN)              :: iInit
+INTEGER, INTENT(IN)             :: iSpec
+INTEGER, INTENT(IN)             :: iInit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INOUTPUT VARIABLES
-INTEGER, INTENT(INOUT)           :: chunkSize
+INTEGER, INTENT(INOUT)          :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: iElem, ichunkSize, photoElem
-INTEGER                          :: iPart,  nPart
-REAL                             :: RandomPos(3)
-LOGICAL                          :: InsideFlag
-REAL                             :: Det(6,2)
-REAL                             :: RefPos(1:3)
-INTEGER                          :: ParticleIndexNbr
+INTEGER                         :: iElem, ichunkSize, photoElem
+INTEGER                         :: iPart,  nPart
+REAL                            :: RandomPos(3)
+LOGICAL                         :: InsideFlag
+REAL                            :: Det(6,2)
+REAL                            :: RefPos(1:3)
+INTEGER                         :: ParticleIndexNbr
+REAL                            :: waistRadius, elemRadius, pulseDuration
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 ichunkSize = 1
@@ -1183,7 +1192,10 @@ ParticleIndexNbr = 1
 DO photoElem = 1, Species(iSpec)%Init(iInit)%PhotoIonElems
   iElem = Species(iSpec)%Init(iInit)%PhotoIonElemMap(photoElem)
   ! TODO: Insertion of particles based on intensity and cross-section
-  nPart = Species(iSpec)%Init(iInit)%ParticleEmission
+  waistRadius = Species(iSpec)%Init(iInit)%WaistRadius
+  elemRadius = Species(iSpec)%Init(iInit)%ElementRadius(photoElem)
+  pulseDuration = Species(iSpec)%Init(iInit)%PulseDuration
+  nPart = Species(iSpec)%Init(iInit)%ParticleEmission*CalcLaserIntensity(elemRadius,waistRadius)*CalcLaserIntensity(time,pulseDuration)
   DO iPart = 1, nPart
     ParticleIndexNbr = PDM%nextFreePosition(iChunksize + PDM%CurrentNextFreePosition)
     IF (ParticleIndexNbr.NE.0) THEN

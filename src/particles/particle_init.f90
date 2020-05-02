@@ -935,6 +935,14 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-halfangle'  &
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
 
+! ====================================== cylinder photoionization =================================================================
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-PulseDuration'  &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-WaistRadius'  &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+
 END SUBROUTINE DefineParametersParticles
 
 SUBROUTINE InitParticles()
@@ -1714,7 +1722,9 @@ __STAMP__&
     END IF
     ! Photoionization in cylinderical volume (modelling a laser pulse)
     IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') THEN
-      CALL FlagElements_Cylinder_Photoionization(iSpec,iInit)
+      Species(iSpec)%Init(iInit)%PulseDuration      = GETREAL('Part-Species'//TRIM(hilf2)//'-PulseDuration')
+      Species(iSpec)%Init(iInit)%WaistRadius        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaistRadius')
+      CALL FlagElements_Cylinder_PhotoIonization(iSpec,iInit)
     END IF
     IF (Species(iSpec)%Init(iInit)%UseForEmission) THEN
       Species(iSpec)%Init(iInit)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf2)//'-ParticleEmissionType','2')
