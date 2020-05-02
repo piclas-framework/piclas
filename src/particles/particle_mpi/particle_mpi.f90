@@ -1121,9 +1121,9 @@ USE MOD_Particle_Vars          ,ONLY: Pt_temp
 !USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemIsMortar
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts,ExtPartCommSize
 USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF
+USE MOD_Mesh_Vars              ,ONLY: OffSetElem
 #if defined(ROS) || defined(IMPA)
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK
-USE MOD_Mesh_Vars              ,ONLY: OffSetElem
 USE MOD_Particle_Vars          ,ONLY: PartStateN,PartStage,PartDtFrac,PartQ
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToGlobalElemID
@@ -1458,6 +1458,7 @@ IF(RadialWeighting%PerformCloning) THEN
   ! Checking whether received particles have to be cloned or deleted
   DO iPart = 1,nrecv
     PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
+    IF ((PEM%Element(PartID).GE.1+offSetElem).AND.(PEM%Element(PartID).LE.PP_nElems+offSetElem)) &
     CALL DSMC_2D_RadialWeighting(PartID,PEM%Element(PartID))
   END DO
 END IF

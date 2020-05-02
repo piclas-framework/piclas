@@ -387,6 +387,7 @@ USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPar
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
+USE MOD_Mesh_Vars               ,ONLY: offsetElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -395,7 +396,7 @@ USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iPart, PositionNbr, iPolyatMole, DelayCounter, ElemID
+INTEGER                         :: iPart, PositionNbr, iPolyatMole, DelayCounter, ElemID, locElemID
 REAL                            :: iRan
 !===================================================================================================================================
 
@@ -456,15 +457,16 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   ElemID = ClonedParticles(iPart,DelayCounter)%Element
   ! Set the global element number with the offset
   PEM%Element(PositionNbr) = ElemID
+  locElemID = ElemID - offSetElem
   PEM%lastElement(PositionNbr) = PEM%Element(PositionNbr)
   LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
   IF (VarTimeStep%UseVariableTimeStep) THEN
-    VarTimeStep%ParticleTimeStep(PositionNbr) = CalcVarTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),ElemID)
+    VarTimeStep%ParticleTimeStep(PositionNbr) = CalcVarTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID)
   END IF
   ! Counting the number of clones per cell
   IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
-    IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(ElemID,5) = DSMC%QualityFacSamp(ElemID,5) + 1
+    IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(locElemID,5) = DSMC%QualityFacSamp(locElemID,5) + 1
   END IF
   IF(CalcPartBalance) THEN
     nPartIn(PartSpecies(PositionNbr))=nPartIn(PartSpecies(PositionNbr)) + 1

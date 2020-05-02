@@ -412,7 +412,7 @@ DO i = 1,PDM%ParticleVecLength
   ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
   IF(RadialWeighting%PerformCloning) THEN
     IF(PDM%ParticleInside(i)) THEN
-      IF ((PEM%Element(i).GT.1+offSetElem).AND.(PEM%Element(i).LT.PP_nElems+offSetElem)) &
+      IF ((PEM%Element(i).GE.1+offSetElem).AND.(PEM%Element(i).LE.PP_nElems+offSetElem)) &
           CALL DSMC_2D_RadialWeighting(i,PEM%Element(i))
     END IF
   END IF
