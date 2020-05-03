@@ -24,6 +24,10 @@ INTERFACE CalcPartRHS
   MODULE PROCEDURE CalcPartRHS
 END INTERFACE
 
+INTERFACE CalcPartRHSSingleParticle
+  MODULE PROCEDURE CalcPartRHSSingleParticle
+END INTERFACE
+
 INTERFACE PartVeloToImp
   MODULE PROCEDURE PartVeloToImp
 END INTERFACE
@@ -36,6 +40,7 @@ END INTERFACE
 PUBLIC :: CalcPartRHS
 PUBLIC :: PartVeloToImp
 PUBLIC :: PartRHS
+PUBLIC :: CalcPartRHSSingleParticle
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
@@ -55,6 +60,7 @@ INTEGER,PARAMETER      :: PRM_PART_RHS_W   = 2   ! wrong
 INTEGER,PARAMETER      :: PRM_PART_RHS_RN  = 3   ! relativistic-new
 INTEGER,PARAMETER      :: PRM_PART_RHS_REM = 31  ! relativistic-EM (electromangetic)
 INTEGER,PARAMETER      :: PRM_PART_RHS_RM  = 5   ! relativistic, momentum-based
+INTEGER,PARAMETER      :: PRM_PART_RHS_CEM = 9   ! constant-EM (acceleration due to an electro-magnetic field that is constant)
 
 
 INTERFACE InitPartRHS
@@ -84,14 +90,15 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle RHS")
 CALL prms%CreateIntFromStringOption('Part-LorentzType', "Lorentz force calculation for charged particles: "//&
-                                                        "non-relativistic, default, wrong, relativistic-new, relativistic-EM", &
-                                                        "relativistic-new")
+                                                        "non-relativistic, default, wrong, relativistic-new, relativistic-EM, "//&
+                                                        "constant-EM", "relativistic-new")
 CALL addStrListEntry('Part-LorentzType' , 'non-relativistic'      , PRM_PART_RHS_NR)
 CALL addStrListEntry('Part-LorentzType' , 'default'               , PRM_PART_RHS_D)
 CALL addStrListEntry('Part-LorentzType' , 'wrong'                 , PRM_PART_RHS_W)
 CALL addStrListEntry('Part-LorentzType' , 'relativistic-new'      , PRM_PART_RHS_RN)
 CALL addStrListEntry('Part-LorentzType' , 'relativistic-EM'       , PRM_PART_RHS_REM)
 CALL addStrListEntry('Part-LorentzType' , 'relativistic-momentum' , PRM_PART_RHS_RM)
+CALL addStrListEntry('Part-LorentzType' , 'constant-EM'           , PRM_PART_RHS_CEM)
 END SUBROUTINE DefineParametersParticleRHS
 
 
@@ -124,6 +131,8 @@ CASE(PRM_PART_RHS_REM) ! 31
   PartRHS => PartRHS_REM
 CASE(PRM_PART_RHS_RM) ! 5
   PartRHS => PartRHS_RM
+CASE(PRM_PART_RHS_CEM) ! 9
+  PartRHS => PartRHS_CEM
 CASE DEFAULT
   CALL CollectiveStop(__STAMP__,&
     'Part-LorentzType-new not defined!')
@@ -137,6 +146,7 @@ CALL PartRHS_W(0,(/0.,0.,0.,0.,0.,0./),dummy)
 CALL PartRHS_RN(0,(/0.,0.,0.,0.,0.,0./),dummy)
 CALL PartRHS_REM(0,(/0.,0.,0.,0.,0.,0./),dummy)
 CALL PartRHS_RM(0,(/0.,0.,0.,0.,0.,0./),dummy)
+CALL PartRHS_CEM(0,(/0.,0.,0.,0.,0.,0./),dummy)
 END SUBROUTINE InitPartRHS
 
 
@@ -168,6 +178,30 @@ DO iPart = 1,PDM%ParticleVecLength
   Pt(:,iPart)=0.
 END DO
 END SUBROUTINE CalcPartRHS
+
+
+SUBROUTINE CalcPartRHSSingleParticle(iPart)
+!===================================================================================================================================
+! Computes the acceleration from the Lorentz force with respect to the species data and velocity
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars         ,ONLY: PDM,Pt
+USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLE
+INTEGER,INTENT(IN)            :: iPart
+!===================================================================================================================================
+! Particle is inside and not a neutral particle
+IF(PDM%ParticleInside(iPart))THEN
+  CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
+  RETURN
+END IF ! PDM%ParticleInside(iPart)
+Pt(:,iPart)=0.
+END SUBROUTINE CalcPartRHSSingleParticle
 
 
 PURE SUBROUTINE PartRHS_NR(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
@@ -599,6 +633,77 @@ Pt(3) = E(3)
 #endif
 
 END SUBROUTINE PartRHS_RM
+
+
+SUBROUTINE PartRHS_CEM(PartID,FieldAtParticle,Pt,LorentzFacInvIn)
+!===================================================================================================================================
+! 'constant-EM'
+!
+! A constant electromagnetic field E = (/Ex, Ey, Ez/) = const. and B = (/Bx, By, Bz/) = const. is used for all charged 
+! particles (simply uses the "externalField" variable)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals               ,ONLY: abort
+USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies
+USE MOD_Equation_Vars         ,ONLY: c2_inv,c2
+#if USE_MPI
+USE MOD_Globals               ,ONLY: MyRank
+#endif
+USE MOD_PICInterpolation_Vars ,ONLY: externalField
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)       :: PartID
+REAL,INTENT(IN)          :: FieldAtParticle(1:6)
+REAL,INTENT(IN),OPTIONAL :: LorentzFacInvIn
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)         :: Pt(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                :: qmt
+REAL                :: velosq,F(1:3)
+!===================================================================================================================================
+ASSOCIATE (&
+      qmt => Species(PartSpecies(PartID))%ChargeIC/Species(PartSpecies(PartID))%MassIC ,& ! charge/m_0
+      vx  => PartState(4,PartID) ,& ! Velocity in x
+      vy  => PartState(5,PartID) ,& ! Velocity in y
+      vz  => PartState(6,PartID) ,& ! Velocity in z
+      E1  => externalField(1)    ,& ! Electric field in x
+      E2  => externalField(2)    ,& ! Electric field in y
+      E3  => externalField(3)    ,& ! Electric field in z
+      B1  => externalField(4)    ,& ! Magnetic field in x
+      B2  => externalField(5)    ,& ! Magnetic field in y
+      B3  => externalField(6)     & ! Magnetic field in z
+      )
+
+  ! Check squared velocity with c^2
+  velosq = vx*vx + vy*vy + vz*vz
+  IF(velosq.GT.c2) THEN
+    IPWRITE(*,*) ' Particle is faster than the speed of light (v_x^2 + v_y^2 + v_z^2 > c^2)'
+    IPWRITE(*,*) ' Species-ID',PartSpecies(PartID)
+    IPWRITE(*,*) ' x=',PartState(1,PartID),' y=',PartState(2,PartID),' z=',PartState(3,PartID)
+    CALL abort(&
+        __STAMP__&
+        ,'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)
+  END IF
+  ASSOCIATE ( gammas => SQRT(1.0-velosq*c2_inv) ) ! Inverse of Lorentz factor
+
+    F(1) = E1 + vy * B3 - vz * B2
+    F(2) = E2 + vz * B1 - vx * B3
+    F(3) = E3 + vx * B2 - vy * B1
+
+    ! Calculate the acceleration
+    Pt = gammas * qmt * ( F - DOT_PRODUCT(F,PartState(4:6,PartID))*PartState(4:6,PartID)*c2_inv )
+  END ASSOCIATE
+END ASSOCIATE
+
+! Suppress compiler warning
+RETURN
+velosq=LorentzFacInvIn ! dummy statement
+
+END SUBROUTINE PartRHS_CEM
 
 
 SUBROUTINE PartVeloToImp(VeloToImp,doParticle_In)

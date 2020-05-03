@@ -172,26 +172,32 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
   LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
   INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
-!                                                           ! ionization)
+                                                            ! ionization)
   ! Collision cross-sections for MCC
   LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
                                                             ! treated with read-in collision cross-section (currently only with BGG)
-  REAL,ALLOCATABLE                  :: CollXSec(:,:)        ! Collision cross-section as read-in from the database
+END TYPE tSpeciesDSMC
+
+TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
+
+TYPE tSpeciesXSec
+  REAL,ALLOCATABLE                  :: CollXSecData(:,:)    ! Collision cross-section as read-in from the database
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
   REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
                                                             ! null collision method of MCC
   REAL                              :: MaxCollFreq          ! Maximal collision frequency at certain energy level and cross-section
-END TYPE tSpeciesDSMC
+END TYPE tSpeciesXSec
 
-TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
+TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:,:)        ! Species cross-section related data (nSpec,nSpec). First column is used
+                                                            ! for the particle species, second column for the background species
 
 TYPE tDSMC
   INTEGER                       :: ElectronSpecies          ! Species of the electron
   REAL                          :: EpsElecBin               ! percentage parameter of electronic energy level merging
   REAL                          :: GammaQuant               ! GammaQuant for zero point energy in Evib (perhaps also Erot),
                                                             ! should be 0.5 or 0
-  INTEGER(KIND=8), ALLOCATABLE  :: NumColl(:)               ! Number of Collision for each case + entire Collision number
+  REAL, ALLOCATABLE             :: NumColl(:)               ! Number of Collision for each case + entire Collision number
   REAL                          :: TimeFracSamp=0.          ! %-of simulation time for sampling
   INTEGER                       :: SampNum                  ! number of Samplingsteps
   INTEGER                       :: NumOutput                ! number of Outputs
@@ -277,10 +283,11 @@ END TYPE tDSMC
 TYPE(tDSMC)                     :: DSMC
 
 TYPE tBGGas
-  INTEGER                       :: BGGasSpecies             ! Number which Species is Background Gas
-  REAL                          :: BGGasDensity             ! Density of Background Gas
-  REAL                          :: BGColl_SpecPartNum       ! PartNum of BGGas per cell
-  INTEGER                       :: BGMeanEVibQua            ! Mean EVib qua number for dissociation probability
+  INTEGER                       :: NumberOfSpecies          ! Number of background gas species
+  LOGICAL, ALLOCATABLE          :: BackgroundSpecies(:)     ! Flag, if a species is a background gas species, [1:nSpecies]
+  INTEGER, ALLOCATABLE          :: MapSpecToBGSpec(:)       ! Input: [1:nSpecies], output is the corresponding background species
+  REAL, ALLOCATABLE             :: SpeciesFraction(:)       ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
+  REAL, ALLOCATABLE             :: NumberDensity(:)         ! Number densities of the background gas, [1:BGGas%NumberOfSpecies]
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
 END TYPE tBGGas
@@ -288,7 +295,7 @@ END TYPE tBGGas
 TYPE(tBGGas)                        :: BGGas
 
 LOGICAL                             :: UseMCC
-CHARACTER(LEN=256)                  :: MCC_Database
+CHARACTER(LEN=256)                  :: XSec_Database
 INTEGER                             :: MCC_TotalPairNum
 
 TYPE tPairData
@@ -308,7 +315,7 @@ END TYPE tPairData
 
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)            ! Data of collision pairs into a cell (nPair)
 
-TYPE tCollInf             ! informations of collision
+TYPE tCollInf             ! information of collision
   INTEGER       , ALLOCATABLE    :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
   INTEGER                        :: NumCase                 ! Number of possible collision combination
   INTEGER       , ALLOCATABLE    :: Coll_CaseNum(:)         ! number of species combination per cell Sab (number of cases)
@@ -355,26 +362,25 @@ TYPE tReactInfo
                                                             ! (quant num part1, quant num part2)
    REAL,  ALLOCATABLE             :: Beta_Rec_Arrhenius(:,:)  ! Beta_d for calculation of the Recombination reaction probability
                                                             ! (nSpecies, quant num part3)
-   INTEGER, ALLOCATABLE           :: StoichCoeff(:,:)     ! Stoichiometric coefficient (nSpecies,1:2) (1: reactants, 2: products)
+   INTEGER, ALLOCATABLE           :: StoichCoeff(:,:)       ! Stoichiometric coefficient (nSpecies,1:2) (1: reactants, 2: products)
 END TYPE
 
 TYPE tArbDiss
   INTEGER                         :: NumOfNonReactives      ! Number
-  INTEGER, ALLOCATABLE            :: NonReactiveSpecies(:)    ! Array with the non-reactive collision partners for dissociation
+  INTEGER, ALLOCATABLE            :: NonReactiveSpecies(:)  ! Array with the non-reactive collision partners for dissociation
 END TYPE
 
 TYPE tChemReactions
   INTEGER                         :: NumOfReact             ! Number of possible Reactions
-  TYPE(tArbDiss), ALLOCATABLE     :: ArbDiss(:)  !
+  TYPE(tArbDiss), ALLOCATABLE     :: ArbDiss(:)             !
   LOGICAL, ALLOCATABLE            :: QKProcedure(:)         ! Defines if QK Procedure is selected
   INTEGER, ALLOCATABLE            :: QKMethod(:)            ! Recombination method for Q-K model (1 by Bird / 2 by Gallis)
   REAL,ALLOCATABLE,DIMENSION(:,:) :: QKCoeff                ! QKRecombiCoeff for Birds method
-  REAL, ALLOCATABLE               :: NumReac(:)             ! Number of occured reactions for each reaction number
+  REAL, ALLOCATABLE               :: NumReac(:)             ! Number of occurred reactions for each reaction number
   INTEGER, ALLOCATABLE            :: ReacCount(:)           ! Counter of chemical reactions for the determination of rate
                                                             ! coefficient based on the reaction probabilities
   REAL, ALLOCATABLE               :: ReacCollMean(:)        ! Mean Collision Probability for each reaction number
   INTEGER, ALLOCATABLE            :: ReacCollMeanCount(:)   ! counter for mean Collision Probability max for each reaction number
-!  INTEGER(KIND=8), ALLOCATABLE    :: NumReac(:)            ! Number of occured reactions for each reaction number
   CHARACTER(LEN=5),ALLOCATABLE    :: ReactType(:)           ! Type of Reaction (reaction num)
                                                             !    i (electron impact ionization)
                                                             !    R (molecular recombination
@@ -382,8 +388,8 @@ TYPE tChemReactions
                                                             !    E (molecular exchange reaction)
                                                             !    x (simple charge exchange reaction)
   INTEGER, ALLOCATABLE            :: DefinedReact(:,:,:)    ! Defined Reaction
-                                                            !(reaction num; 1:reactant, 2:product;
-                                                            !  1-3 spezieses of reactants and products,
+                                                            ! (reaction num; 1:reactant, 2:product;
+                                                            !  1-3 species of reactants and products,
                                                             ! 0: no spezies -> only 2 reactants or products)
   INTEGER, ALLOCATABLE            :: ReactCase(:,:)             ! Case of reaction in combination of (spec1, spec2)
   INTEGER, ALLOCATABLE            :: ReactNum(:,:,:)            ! Number of Reaction of (spec1, spec2,
@@ -406,26 +412,30 @@ TYPE tChemReactions
                                                                 ! Case 15: 1 exchange and 1 recomb possible
                                                                 ! Case 16: simple CEX, only 1
                                                                 ! Case 17: associative ionization and recombination possible
-   INTEGER, ALLOCATABLE           :: ReactNumRecomb(:,:,:)      ! Number of Reaction of (spec1, spec2, spec3)
-   REAL,  ALLOCATABLE             :: Arrhenius_Prefactor(:)     ! pre-exponential factor af of Arrhenius ansatz (nReactions)
-   REAL,  ALLOCATABLE             :: Arrhenius_Powerfactor(:)   ! powerfactor bf of temperature in Arrhenius ansatz (nReactions)
-   REAL,  ALLOCATABLE             :: EActiv(:)              ! activation energy (relative to k) (nReactions)
-   REAL,  ALLOCATABLE             :: EForm(:)               ! heat of formation  (relative to k) (nReactions)
-   REAL,  ALLOCATABLE             :: MeanEVib_PerIter(:)    ! MeanEVib per iteration for calculation of
-   INTEGER,  ALLOCATABLE          :: MeanEVibQua_PerIter(:) ! MeanEVib per iteration for calculation of
+  INTEGER, ALLOCATABLE            :: ReactNumRecomb(:,:,:)      ! Number of Reaction of (spec1, spec2, spec3)
+  REAL,  ALLOCATABLE              :: Arrhenius_Prefactor(:)     ! pre-exponential factor af of Arrhenius ansatz (nReactions)
+  REAL,  ALLOCATABLE              :: Arrhenius_Powerfactor(:)   ! powerfactor bf of temperature in Arrhenius ansatz (nReactions)
+  REAL,  ALLOCATABLE              :: EActiv(:)              ! activation energy (relative to k) (nReactions)
+  REAL,  ALLOCATABLE              :: EForm(:)               ! heat of formation  (relative to k) (nReactions)
+  REAL,  ALLOCATABLE              :: MeanEVib_PerIter(:)    ! MeanEVib per iteration for calculation of
+  INTEGER,  ALLOCATABLE           :: MeanEVibQua_PerIter(:) ! MeanEVib per iteration for calculation of
                                                             ! xi_vib per cell (nSpecies)
-   REAL,  ALLOCATABLE             :: CEXa(:)                ! CEX log-factor (g-dep. cross section in Angstrom (nReactions)
-   REAL,  ALLOCATABLE             :: CEXb(:)                ! CEX const. factor (g-dep. cross section in Angstrom (nReactions)
-   REAL,  ALLOCATABLE             :: MEXa(:)                ! MEX log-factor (g-dep. cross section in Angstrom (nReactions)
-   REAL,  ALLOCATABLE             :: MEXb(:)                ! MEX const. factor (g-dep. cross section in Angstrom (nReactions)
-   REAL,  ALLOCATABLE             :: ELa(:)                 ! EL log-factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
-   REAL,  ALLOCATABLE             :: ELb(:)                 ! EL const. factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
-   LOGICAL, ALLOCATABLE           :: DoScat(:)              ! Do Scattering Calculation by Lookup table
-   CHARACTER(LEN=200),ALLOCATABLE :: TLU_FileName(:)        ! Name of file containing table lookup data for Scattering
-   INTEGER                       :: RecombParticle = 0      ! P. Index for Recombination, if zero -> no recomb particle avaible
-   INTEGER                       :: nPairForRec
-   REAL, ALLOCATABLE             :: Hab(:)                  ! Factor Hab of Arrhenius Ansatz for diatomic/polyatomic molecs
-   TYPE(tReactInfo), ALLOCATABLE  :: ReactInfo(:)           ! Informations of Reactions (nReactions)
+  REAL, ALLOCATABLE               :: MeanXiVib_PerIter(:)   ! Mean vibrational degree of freedom user for chemical reactions of
+                                                            ! diatomic species
+  REAL,  ALLOCATABLE              :: CEXa(:)                ! CEX log-factor (g-dep. cross section in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: CEXb(:)                ! CEX const. factor (g-dep. cross section in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: MEXa(:)                ! MEX log-factor (g-dep. cross section in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: MEXb(:)                ! MEX const. factor (g-dep. cross section in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: ELa(:)                 ! EL log-factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
+  REAL,  ALLOCATABLE              :: ELb(:)                 ! EL const. factor (g&cut-off-angle-dep. cs in Angstrom (nReactions)
+  LOGICAL, ALLOCATABLE            :: DoScat(:)              ! Do Scattering Calculation by Lookup table
+  CHARACTER(LEN=200),ALLOCATABLE  :: TLU_FileName(:)        ! Name of file containing table lookup data for Scattering
+  INTEGER                         :: RecombParticle = 0     ! P. Index for Recombination, if zero -> no recomb particle avaible
+  INTEGER                         :: nPairForRec            !
+  REAL, ALLOCATABLE               :: Hab(:)                 ! Factor Hab of Arrhenius Ansatz for diatomic/polyatomic molecs
+  TYPE(tReactInfo), ALLOCATABLE   :: ReactInfo(:)           ! Information of Reactions (nReactions)
+  INTEGER                         :: NumDeleteProducts      !
+  INTEGER, ALLOCATABLE            :: DeleteProductsList(:)  !
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
@@ -437,20 +447,16 @@ END TYPE
 
 TYPE(tQKAnalytic), ALLOCATABLE    :: QKAnalytic(:)
 
-REAL                              :: realtime               ! realtime of simulation
-
 TYPE tPolyatomMolDSMC !DSMC Species Param
   LOGICAL                         :: LinearMolec            ! Is a linear Molec?
   INTEGER                         :: NumOfAtoms             ! Number of Atoms in Molec
   INTEGER                         :: VibDOF                 ! DOF in Vibration, equals number of independent SHO's
-  REAL, ALLOCATABLE              :: CharaTVibDOF(:)        ! Chara TVib for each DOF
-  INTEGER,ALLOCATABLE           :: LastVibQuantNums(:,:)    ! Last quantum numbers for vibrational inserting (VibDOF,nInits)
-  INTEGER, ALLOCATABLE          :: MaxVibQuantDOF(:)      ! Max Vib Quant for each DOF
-  REAL                            :: Xi_Vib_Mean            ! mean xi vib for chemical reactions
-  REAL                            :: TVib
-  REAL, ALLOCATABLE              :: GammaVib(:)            ! GammaVib: correction factor for Gimelshein Relaxation Procedure
-  REAL, ALLOCATABLE              :: VibRelaxProb(:)
-  REAL, ALLOCATABLE              :: CharaTRotDOF(:)        ! Chara TRot for each DOF
+  REAL, ALLOCATABLE               :: CharaTVibDOF(:)        ! Chara TVib for each DOF
+  INTEGER,ALLOCATABLE             :: LastVibQuantNums(:,:)  ! Last quantum numbers for vibrational inserting (VibDOF,nInits)
+  INTEGER, ALLOCATABLE            :: MaxVibQuantDOF(:)      ! Max Vib Quant for each DOF
+  REAL, ALLOCATABLE               :: GammaVib(:)            ! GammaVib: correction factor for Gimelshein Relaxation Procedure
+  REAL, ALLOCATABLE               :: VibRelaxProb(:)
+  REAL, ALLOCATABLE               :: CharaTRotDOF(:)        ! Chara TRot for each DOF
 END TYPE
 
 TYPE (tPolyatomMolDSMC), ALLOCATABLE    :: PolyatomMolDSMC(:)        ! Infos for Polyatomic Molecule

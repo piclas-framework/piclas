@@ -56,6 +56,8 @@ grep -nri --include=*.f90 --color "VibQuantData([[:alpha:]]" | grep -inv "VibQua
 
 grep -nri --include=*.f90 --color "SurfPartData([[:alpha:]]" |grep -inv "SurfPartData(SurfPartDataSize" | grep -in --color SurfPartData
 
+grep -nri --include=*.f90 --color "velocityAtTime([[:alpha:]]"
+
 # octree stuff
 grep -nri --include=*.f90 --color "MappedPartStates([[:alpha:]]"
 

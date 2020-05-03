@@ -155,8 +155,8 @@ CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected
                                                                 '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
 
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
-#if (PP_TimeDiscMethod==509)
-CALL prms%CreateLogicalOption(  'velocityOutputAtTime' , 'Flag if leapfrog uses an velocity-output at real time' , '.TRUE.')
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+CALL prms%CreateLogicalOption(  'velocityOutputAtTime'        , 'Flag if leapfrog uses a velocity-output at real time' , '.FALSE.')
 #endif
 
 CALL prms%CreateLogicalOption(  'Part-DoFieldIonization'      , 'Do Field Ionization by quantum tunneling.', '.FALSE.')
@@ -202,6 +202,8 @@ CALL prms%CreateIntOption(      'Part-vMPFCellSplitOrder'     , 'TODO-DEFINE-PAR
                                                               , '15')
 CALL prms%CreateIntOption(      'Part-vMPFMergeParticleTarget', 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Count of particles wanted after merge.', '0')
+CALL prms%CreateIntOption(      'Part-vMPFNewPartNum'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                                'Count of particles wanted after merge.')
 CALL prms%CreateIntOption(      'Part-vMPFSplitParticleTarget', 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Number of particles wanted after split.','0')
 CALL prms%CreateIntOption(      'Part-vMPFMergeParticleIter'  , 'TODO-DEFINE-PARAMETER\n'//&
@@ -830,7 +832,9 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) '//&
                                     'by Levko2015 for copper electrondes\n'//&
                                 '6: SEE-E (secondary e- emission due to e- bombardment) '//&
-                                    'by Pagonakis2016 for molybdenum (originally from Harrower1956)'&
+                                    'by Pagonakis2016 for molybdenum (originally from Harrower1956)'//&
+                                '7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for '//&
+                                'secondary e- emission with 0.13 probability) by Depla2009\n'//&
                                 '101: Maxwell scattering\n'//&
                                 '102: MD dsitributionfunction' &
                                 , '0', numberedmulti=.TRUE.)
@@ -1068,7 +1072,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
-USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary,PartStateBoundarySpec
+USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary
 USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO
 USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, TriaSurfaceFlux
@@ -1097,6 +1101,7 @@ USE MOD_Particle_VarTimeStep   ,ONLY: VarTimeStep_CalcElemFacs
 USE MOD_DSMC_Symmetry2D        ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
 USE MOD_part_RHS               ,ONLY: InitPartRHS
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1128,7 +1133,7 @@ REAL                  :: particlenumber_tmp, phimax_tmp
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
-#if (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 velocityOutputAtTime = GETLOGICAL('velocityOutputAtTime','.FALSE.')
 #endif
 
@@ -1143,9 +1148,9 @@ __STAMP__&
 END IF
 Pt_temp=0.
 #endif
-#if (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 IF (velocityOutputAtTime) THEN
-  ALLOCATE(velocityAtTime(1:PDM%maxParticleNumber,1:3), STAT=ALLOCSTAT)
+  ALLOCATE(velocityAtTime(1:3,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
       __STAMP__&
@@ -1153,7 +1158,7 @@ IF (velocityOutputAtTime) THEN
   END IF
   velocityAtTime=0.
 END IF
-#endif /*(PP_TimeDiscMethod==509)*/
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 
 #ifdef IMPA
 ALLOCATE(PartStage(1:6,1:nRKStages-1,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
@@ -1378,7 +1383,8 @@ END IF
 
 
 ! init varibale MPF per particle
-IF (usevMPF) THEN
+IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+  vMPFNewPartNum = GETINT('Part-vMPFNewPartNum')
   enableParticleMerge = GETLOGICAL('Part-vMPFPartMerge','.FALSE.')
   IF (enableParticleMerge) THEN
     vMPFMergePolyOrder = GETINT('Part-vMPFMergePolOrder','2')
@@ -1397,6 +1403,8 @@ __STAMP__&
     END IF
     ALLOCATE(vMPF_SpecNumElem(1:nElems,1:nSpecies))
   END IF
+END IF
+IF (usevMPF) THEN
   ALLOCATE(PartMPF(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
@@ -1404,7 +1412,6 @@ __STAMP__&
     ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
   END IF
 END IF
-
 ! output of macroscopic values
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
 IF(WriteMacroValues)THEN
@@ -1483,6 +1490,12 @@ DoFieldIonization = GETLOGICAL('Part-DoFieldIonization')
 IF(DoFieldIonization)THEN
   FieldIonizationModel = GETINT('FieldIonizationModel')
 END IF
+
+BGGas%NumberOfSpecies = 0
+ALLOCATE(BGGas%BackgroundSpecies(nSpecies))
+BGGas%BackgroundSpecies = .FALSE.
+ALLOCATE(BGGas%NumberDensity(nSpecies))
+BGGas%NumberDensity = 0.
 
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -1686,6 +1699,17 @@ __STAMP__&
       Species(iSpec)%Init(iInit)%PartDensity           = GETREAL('Part-Species'//TRIM(hilf2)//'-PartDensity','0.')
     ELSE
       Species(iSpec)%Init(iInit)%PartDensity           = 0.
+    END IF
+    ! Background gas definition
+    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'background') THEN
+      IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
+        BGGas%NumberOfSpecies = BGGas%NumberOfSpecies + 1
+        BGGas%BackgroundSpecies(iSpec)  = .TRUE.
+        BGGas%NumberDensity(iSpec)      = Species(iSpec)%Init(iInit)%PartDensity
+      ELSE
+        CALL abort(__STAMP__&
+            ,'ERROR: Only one background definition per species is allowed!')
+      END IF
     END IF
     IF (Species(iSpec)%Init(iInit)%UseForEmission) THEN
       Species(iSpec)%Init(iInit)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf2)//'-ParticleEmissionType','2')
@@ -2068,6 +2092,8 @@ __STAMP__&
 __STAMP__&
           ,'Only const. or maxwell_lpn is supported as velocityDistr. using cell_local inserting with PartDensity!')
         END IF
+      ELSE IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'background') THEN
+        ! do nothing
       ELSE
         CALL abort(&
 __STAMP__&
@@ -2277,7 +2303,7 @@ DO iPartBound=1,nPartBound
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
       CASE (0)
         PartBound%Reactive(iPartBound)        = .FALSE.
-      CASE (2,3,5,6,101,102)
+      CASE (2,3,5,6,7,101,102)
         PartBound%Reactive(iPartBound)        = .TRUE.
       CASE DEFAULT
         CALL abort(&
@@ -2378,20 +2404,10 @@ END IF
 
 ! Surface particle output to .h5
 IF(DoBoundaryParticleOutput)THEN
-  ALLOCATE(PartStateBoundary(1:9,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-        __STAMP__&
-        ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
-  END IF
+  ! Allocate PartStateBoundary for a small number of particles and double the array size each time the 
+  ! maximum is reached
+  ALLOCATE(PartStateBoundary(1:10,1:10), STAT=ALLOCSTAT)
   PartStateBoundary=0.
-  ALLOCATE(PartStateBoundarySpec(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-        __STAMP__&
-        ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundarySpec array!')
-  END IF
-  PartStateBoundarySpec=0
 END IF
 
 ! Set mapping from field boundary to particle boundary index
@@ -2433,7 +2449,7 @@ IF (ALLOCSTAT.NE.0) THEN
 __STAMP__&
   ,' Cannot allocate PEM arrays!')
 END IF
-IF (useDSMC.OR.PartPressureCell) THEN
+IF (useDSMC.OR.PartPressureCell.OR.usevMPF) THEN
   ALLOCATE(PEM%pStart(1:nElems)                         , &
            PEM%pNumber(1:nElems)                        , &
            PEM%pEnd(1:nElems)                           , &
@@ -2885,65 +2901,11 @@ END IF !nCollectChargesBCs .GT. 0
 !-- reading BG Gas stuff
 !   (moved here from dsmc_init for switching off the initial emission)
 IF (useDSMC) THEN
-  BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
-  IF (BGGas%BGGasSpecies.NE.0) THEN
-    IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
-      CALL abort(&
-      __STAMP__&
-      ,'ERROR: 2D/Axisymmetric and variable timestep are not implemented with a background gas yet!')
-    END IF
-    IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
-      .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0) CALL abort(&
-__STAMP__&
-,'BGG species can be used ONLY for BGG!')
-    IF (Species(BGGas%BGGasSpecies)%Init(0)%UseForInit .OR. Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission) THEN
-      SWRITE(*,*) 'WARNING: Emission was switched off for BGG species!'
-      Species(BGGas%BGGasSpecies)%Init(0)%UseForInit=.FALSE.
-      Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission=.FALSE.
-    END IF
-    IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.GT.0 &
-      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0 &
-      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID .GT.0 ) THEN! &
-      !-- from MacroRestartFile (inner DOF not yet implemented!):
-      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.LE.0 .OR. &
-        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureIC)) CALL abort(&
-__STAMP__&
-,'ElemTemperatureIC not defined in Init0 for BGG from MacroRestartFile!')
-      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.LE.0 .OR. &
-        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensity)) CALL abort(&
-__STAMP__&
-,'ElemPartDensity not defined in Init0 for BGG from MacroRestartFile!')
-      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID.LE.0 .OR. &
-        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityIC)) THEN
-        CALL abort(&
-__STAMP__&
-,'ElemVelocityIC not defined in Init0 for BGG from MacroRestartFile!')
-      ELSE IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') THEN !(use always Init 0 for BGG !!!)
-        CALL abort(&
-__STAMP__&
-,'only maxwell_lpn is implemened as velocity-distribution for BGG from MacroRestartFile!')
-      END IF
-    ELSE
-      !-- constant values (some from init0)
-      BGGas%BGGasDensity  = GETREAL('Particles-DSMCBackgroundGasDensity','0.')
-      IF (BGGas%BGGasDensity.EQ.0.) CALL abort(&
-__STAMP__&
-,'BGGas%BGGasDensity must be defined for homogeneous BGG!')
-      IF (Species(BGGas%BGGasSpecies)%Init(0)%MWTemperatureIC.EQ.0.) CALL abort(&
-__STAMP__&
-,'ERROR: MWTemperatureIC not defined in Init0 for homogeneous BGG!')
-      SELECT CASE(Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution)
-        CASE('maxwell','maxwell_lpn')
-          ! Others have to be tested first.
-        CASE DEFAULT
-          CALL abort(&
-__STAMP__&
-,'ERROR: VelocityDistribution not supported/defined in Init0 for homogeneous BGG! Only maxwell/maxwell_lpn is allowed!')
-      END SELECT
-    END IF
-    ALLOCATE(BGGas%PairingPartner(PDM%maxParticleNumber))
-    BGGas%PairingPartner = 0
-  END IF !BGGas%BGGasSpecies.NE.0
+  IF (BGGas%NumberOfSpecies.GT.0) THEN
+    CALL BGGas_Initialize()
+  ELSE
+    DEALLOCATE(BGGas%NumberDensity)
+  END IF ! BGGas%NumberOfSpecies.GT.0
 END IF !useDSMC
 
 ! ------- Variable Time Step Initialization (parts requiring completed particle_init and readMesh)
@@ -3276,11 +3238,11 @@ IMPLICIT NONE
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 SDEALLOCATE( Pt_temp)
 #endif
-#if (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 IF (velocityOutputAtTime) THEN
   SDEALLOCATE(velocityAtTime)
 END IF
-#endif /*(PP_TimeDiscMethod==509)*/
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 #if defined(ROS) || defined(IMPA)
 SDEALLOCATE(PartStage)
 SDEALLOCATE(PartStateN)
@@ -3361,7 +3323,6 @@ SDEALLOCATE(PartBound%SolidCrystalIndx)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutput)
 SDEALLOCATE(PartStateBoundary)
-SDEALLOCATE(PartStateBoundarySpec)
 SDEALLOCATE(PEM%Element)
 SDEALLOCATE(PEM%lastElement)
 SDEALLOCATE(PEM%pStart)

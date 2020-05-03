@@ -238,6 +238,7 @@ USE MOD_Mesh_Vars    ,ONLY: MeshFile,nGlobalElems,offsetElem
 USE MOD_Globals_Vars ,ONLY: ProjectName
 USE MOD_io_HDF5
 USE MOD_QDS_DG_Vars  ,ONLY: nQDSElems,QDSSpeciesMass,QDSMacroValues
+USE MOD_Mesh_Vars    ,ONLY: DoWriteStateToHDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -257,6 +258,9 @@ REAL                :: StartT,EndT
 INTEGER             :: iElem,j,k,l
 REAL                :: Utemp(1:6,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems)
 !===================================================================================================================================
+! Check if state file creation should be skipped
+IF(.NOT.DoWriteStateToHDF5) RETURN
+
 N_variables=6
 ! create global Eps field for parallel output of Eps distribution
 StrVarNames(1) = 'Density'
