@@ -621,7 +621,7 @@ USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC,CollisMode
 USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn,DSMC, useDSMC, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar
-USE MOD_DSMC_ElectronicModel    ,ONLY: RelaxElectronicShellWallInter
+USE MOD_DSMC_ElectronicModel    ,ONLY: RelaxElectronicShellWall
 USE MOD_TimeDisc_Vars           ,ONLY: dt,tend,time,RKdtFrac
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, PartSideToElem
 #if (PP_TimeDiscMethod==400)
@@ -930,7 +930,7 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
           CALL RANDOM_NUMBER(RanNum)
           IF (RanNum.LT.ElecACC) THEN
             IF (DoSample) SampWall(SurfSideID)%State(4,p,q)=SampWall(SurfSideID)%State(4,p,q)+PartStateIntEn(3,PartID) * MacroParticleFactor
-            CALL RelaxElectronicShellWallInter(PartID, WallTemp)
+            PartStateIntEn(3,PartID) = RelaxElectronicShellWall(PartID, WallTemp)
             IF (DoSample) THEN
               SampWall(SurfSideID)%State(5,p,q)=SampWall(SurfSideID)%State(5,p,q)+PartStateIntEn(3,PartID) * MacroParticleFactor
               SampWall(SurfSideID)%State(6,p,q)=SampWall(SurfSideID)%State(6,p,q)+PartStateIntEn(3,PartID) * MacroParticleFactor
