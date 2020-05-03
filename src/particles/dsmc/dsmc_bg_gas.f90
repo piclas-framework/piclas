@@ -196,7 +196,7 @@ SUBROUTINE BGGas_InsertParticles()
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort
 USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC
+USE MOD_DSMC_Vars              ,ONLY: BGGas, SpecDSMC, CollisMode
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PartState, PEM, PartPosRef
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn
@@ -230,10 +230,12 @@ __STAMP__&
     END IF
     iSpec = BGGas_GetSpecies()
     PartSpecies(PositionNbr) = iSpec
-    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-      CALL DSMC_SetInternalEnr_Poly(iSpec,0,PositionNbr,1)
-    ELSE
-      CALL DSMC_SetInternalEnr_LauxVFD(iSpec,0,PositionNbr,1)
+    IF(CollisMode.GT.1) THEN
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+        CALL DSMC_SetInternalEnr_Poly(iSpec,0,PositionNbr,1)
+      ELSE
+        CALL DSMC_SetInternalEnr_LauxVFD(iSpec,0,PositionNbr,1)
+      END IF
     END IF
     PEM%Element(PositionNbr) = PEM%Element(iPart)
     PDM%ParticleInside(PositionNbr) = .true.
@@ -524,10 +526,12 @@ DO iSpec = 1,nSpecies                             ! Loop over all non-background
           END IF
           ! Set the species of the background gas particle
           PartSpecies(bggPartIndex) = jSpec
-          IF(SpecDSMC(jSpec)%PolyatomicMol) THEN
-            CALL DSMC_SetInternalEnr_Poly(jSpec,0,bggPartIndex,1)
-          ELSE
-            CALL DSMC_SetInternalEnr_LauxVFD(jSpec,0,bggPartIndex,1)
+          IF(CollisMode.GT.1) THEN
+            IF(SpecDSMC(jSpec)%PolyatomicMol) THEN
+              CALL DSMC_SetInternalEnr_Poly(jSpec,0,bggPartIndex,1)
+            ELSE
+              CALL DSMC_SetInternalEnr_LauxVFD(jSpec,0,bggPartIndex,1)
+            END IF
           END IF
           PEM%Element(bggPartIndex) = iElem
           PDM%ParticleInside(bggPartIndex) = .TRUE.
