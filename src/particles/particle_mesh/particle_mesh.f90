@@ -832,13 +832,13 @@ CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
 
 ! New crazy corner node switch (philipesque)
 ASSOCIATE(CNS => CornerNodeIDswitch )
-  ! CGNS Mapping
-  NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
-  NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
-  NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
-  NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
-  NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
-  NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
+! CGNS Mapping
+NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
+NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
+NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
+NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
+NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
+NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
 
 !ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),       &
 !         GEO%ElemSideNodeID(1:4,1:6,1:nElems), &
