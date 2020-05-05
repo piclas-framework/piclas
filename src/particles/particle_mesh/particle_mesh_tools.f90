@@ -75,6 +75,14 @@ INTERFACE InitGetCNElemID
   MODULE PROCEDURE InitGetCNElemID
 END INTERFACE
 
+INTERFACE InitPEM_LocalElemID
+  MODULE PROCEDURE InitPEM_LocalElemID
+END INTERFACE
+
+INTERFACE InitPEM_CNElemID
+  MODULE PROCEDURE InitPEM_CNElemID
+END INTERFACE
+
 INTERFACE GetGlobalNonUniqueSideID
   MODULE PROCEDURE GetGlobalNonUniqueSideID
 END INTERFACE
@@ -85,6 +93,8 @@ END INTERFACE
 
 PUBLIC::InitGetGlobalElemID
 PUBLIC::InitGetCNElemID
+PUBLIC::InitPEM_LocalElemID
+PUBLIC::InitPEM_CNElemID
 !PUBLIC::BoundsOfElement
 PUBLIC::ParticleInsideQuad3D
 PUBLIC::GetGlobalNonUniqueSideID
@@ -649,7 +659,7 @@ END FUNCTION GetGlobalElemID_fromTotalElem
 SUBROUTINE InitGetCNElemID()
 ! MODULES
 #if USE_MPI
-USE MOD_MPI_Shared_Vars, ONLY:nComputeNodeProcessors,nProcessors_Global
+USE MOD_MPI_Shared_Vars ,ONLY: nComputeNodeProcessors,nProcessors_Global
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
@@ -662,7 +672,7 @@ INTEGER  :: dummy
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
   GetCNElemID => GetCNElemID_iElem
 ELSE
-  GetCNElemID => GetCNElemID_fromTotalElem
+  GetCNElemID => GetGlobalElem2CNTotalElem
 END IF
 #else
 GetCNElemID => GetCNElemID_iElem
@@ -671,7 +681,7 @@ GetCNElemID => GetCNElemID_iElem
 ! Suppress compiler warning
 RETURN
 #if USE_MPI
-dummy=GetCNElemID_fromTotalElem(1)
+dummy=GetGlobalElem2CNTotalElem(1)
 #endif
 dummy=GetCNElemID_iElem(1)
 END SUBROUTINE InitGetCNElemID
@@ -683,7 +693,7 @@ END SUBROUTINE InitGetCNElemID
 PURE FUNCTION GetCNElemID_iElem(iElem)
 ! MODULES
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)              :: iElem
+INTEGER,INTENT(IN)              :: iElem ! Global and local element ID are the same
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -698,20 +708,144 @@ END FUNCTION GetCNElemID_iElem
 !==================================================================================================================================!
 !> Get the CN element ID in case of MPI=ON for single or multiple compute nodes (CN)
 !==================================================================================================================================!
-PURE FUNCTION GetCNElemID_fromTotalElem(iElem)
+PURE FUNCTION GetGlobalElem2CNTotalElem(iElem)
 ! MODULES
 USE MOD_MPI_Shared_Vars, ONLY:GlobalElem2CNTotalElem
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)              :: iElem
+INTEGER,INTENT(IN)              :: iElem ! Global element ID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER :: GetCNElemID_fromTotalElem
+INTEGER :: GetGlobalElem2CNTotalElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-GetCNElemID_fromTotalElem = GlobalElem2CNTotalElem(iElem)
-END FUNCTION GetCNElemID_fromTotalElem
+GetGlobalElem2CNTotalElem = GlobalElem2CNTotalElem(iElem)
+END FUNCTION GetGlobalElem2CNTotalElem
 #endif /*USE_MPI*/
+
+
+!==================================================================================================================================!
+!> Initialize PEM%LocalElemID(iPart) function (mapping of global element ID, which is first obtained from PEM%GlobalElemID(iPart) to 
+!> compute-node element ID)
+!==================================================================================================================================!
+SUBROUTINE InitPEM_LocalElemID()
+! MODULES
+USE MOD_Particle_Vars ,ONLY: PEM
+!----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER  :: dummy
+!==================================================================================================================================
+#if USE_MPI
+PEM%LocalElemID => GetGlobalID_minus_offset
+#else
+PEM%LocalElemID => GetGlobalID
+#endif
+
+! Suppress compiler warning
+RETURN
+#if USE_MPI
+dummy=GetGlobalID_minus_offset(1)
+#else
+dummy=GetGlobalID(1)
+#endif
+END SUBROUTINE InitPEM_LocalElemID
+
+
+!==================================================================================================================================!
+!> Get the global element ID from PEM%GlobalElemID(iPart)
+!==================================================================================================================================!
+PURE FUNCTION GetGlobalID(iPart)
+! MODULES
+USE MOD_Particle_Vars ,ONLY: PEM
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)              :: iPart ! Particle ID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: GetGlobalID
+!===================================================================================================================================
+GetGlobalID = PEM%GlobalElemID(iPart)
+END FUNCTION GetGlobalID
+
+
+!==================================================================================================================================!
+!> Get the local element ID from PEM%GlobalElemID(iPart) - offsetElem
+!==================================================================================================================================!
+PURE FUNCTION GetGlobalID_minus_offset(iPart)
+! MODULES
+USE MOD_Mesh_Vars     ,ONLY: offSetElem
+USE MOD_Particle_Vars ,ONLY: PEM
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)              :: iPart ! Particle ID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: GetGlobalID_minus_offset
+!===================================================================================================================================
+GetGlobalID_minus_offset = PEM%GlobalElemID(iPart) - offsetElem
+END FUNCTION GetGlobalID_minus_offset
+
+
+!==================================================================================================================================!
+!> Initialize PEM%CNElemID(iPart) function (mapping of global element ID, which is first obtained from PEM%GlobalElemID(iPart) to
+!> compute-node element ID)
+!==================================================================================================================================!
+SUBROUTINE InitPEM_CNElemID()
+! MODULES
+#if USE_MPI
+USE MOD_MPI_Shared_Vars ,ONLY: nComputeNodeProcessors,nProcessors_Global
+USE MOD_Particle_Vars   ,ONLY: PEM
+#endif /*USE_MPI*/
+!----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER  :: dummy
+!==================================================================================================================================
+#if USE_MPI
+IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
+  PEM%CNElemID => GetGlobalID
+ELSE
+  PEM%CNElemID => GetGlobalElem2CNTotalElem_iPart
+END IF
+#else
+PEM%CNElemID => GetGlobalID
+#endif
+
+! Suppress compiler warning
+RETURN
+#if USE_MPI
+dummy=GetGlobalElem2CNTotalElem_iPart(1)
+#endif
+dummy=GetGlobalID(1)
+END SUBROUTINE InitPEM_CNElemID
+
+
+!==================================================================================================================================!
+!> Get the CN element ID from the global element ID, which is first obtained from PEM%GlobalElemID(iPart) in case of MPI=ON for 
+!> single or multiple compute nodes (CN)
+!==================================================================================================================================!
+PURE FUNCTION GetGlobalElem2CNTotalElem_iPart(iPart)
+! MODULES
+USE MOD_MPI_Shared_Vars ,ONLY: GlobalElem2CNTotalElem
+USE MOD_Particle_Vars   ,ONLY: PEM
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)              :: iPart ! Particle ID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: GetGlobalElem2CNTotalElem_iPart
+!===================================================================================================================================
+GetGlobalElem2CNTotalElem_iPart = GlobalElem2CNTotalElem(PEM%GlobalElemID(iPart))
+END FUNCTION GetGlobalElem2CNTotalElem_iPart
+
 
 FUNCTION GetGlobalNonUniqueSideID(ElemID,localSideID)
 !===================================================================================================================================

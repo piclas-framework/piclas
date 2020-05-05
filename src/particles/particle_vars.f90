@@ -299,6 +299,12 @@ LOGICAL                                  :: PartMeshHasReflectiveBCs
 TYPE tParticleElementMapping
   INTEGER                , ALLOCATABLE   :: GlobalElemID(:)     ! =>NULL() ! Current global element number assigned to each Particle
   INTEGER                , ALLOCATABLE   :: LastGlobalElemID(:) ! =>NULL() ! Global element number of the old particle position
+
+  PROCEDURE(ElemID_INTERFACE),POINTER,NOPASS :: LocalElemID !< pointer defining the mapping : global element ID -> local element ID
+                                                            !< the function simply returns  : PEM%GlobalElemID(iPart) - offsetElem
+
+  PROCEDURE(ElemID_INTERFACE),POINTER,NOPASS :: CNElemID    !< pointer defining the mapping : global element ID -> compute-node element ID
+                                                            !< the function simply returns  : PEM%GlobalElemID(iPart) - offsetElem
 #if defined(IMPA) || defined(ROS)
   INTEGER                , ALLOCATABLE   :: ElementN(:)  !      =>NULL()  ! Element number allocated
   REAL                   , ALLOCATABLE   :: NormVec(:,:)  !      =>NULL()  ! Element number allocated
@@ -322,6 +328,12 @@ TYPE tParticleElementMapping
 END TYPE
 
 TYPE(tParticleElementMapping)            :: PEM
+
+ABSTRACT INTERFACE
+  PURE INTEGER FUNCTION ElemID_INTERFACE(iPart)
+    INTEGER,INTENT(IN) :: iPart
+  END FUNCTION
+END INTERFACE
 
 TYPE tParticleDataManagement
   INTEGER                                :: CurrentNextFreePosition           ! Index of nextfree index in nextFreePosition-Array

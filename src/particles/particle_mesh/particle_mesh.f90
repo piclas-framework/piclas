@@ -175,7 +175,7 @@ USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
 USE MOD_Mesh_Vars              ,ONLY: useCurveds
 USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Mesh_Tools    ,ONLY: InitGetGlobalElemID,InitGetCNElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: InitGetGlobalElemID,InitGetCNElemID,InitPEM_LocalElemID,InitPEM_CNElemID
 USE MOD_Particle_Surfaces      ,ONLY: GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
@@ -221,11 +221,17 @@ __STAMP__&
 ! Build BGM to Element mapping and identify which of the elements, sides and nodes are in the compute-node local and halo region
 CALL BuildBGMAndIdentifyHaloRegion()
 
-! Initialize mapping function: GetGlobalElemID()
+! Initialize mapping function: GetGlobalElemID(1:nComputeNodeTotalElems)
 CALL InitGetGlobalElemID()
 
-! Initialize mapping function: GetCNElemID()
+! Initialize mapping function: GetCNElemID(1:GlobalElemID)
 CALL InitGetCNElemID()
+
+! Initialize mapping function: PEM%LocalElemID(1:PDM%ParticleVecLength)
+CALL InitPEM_LocalElemID()
+
+! Initialize mapping function: PEM%CNElemID(1:PDM%ParticleVecLength)
+CALL InitPEM_CNElemID()
 
 !IF ((TrackingMethod.EQ.REFMAPPING.OR.UseCurveds.OR.(NGeo.GT.1)).AND.(TrackingMethod.EQ.TRIATRACKING)) THEN
 !  CALL CollectiveStop(__STAMP__, &
