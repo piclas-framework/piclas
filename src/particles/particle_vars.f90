@@ -304,7 +304,7 @@ TYPE tParticleElementMapping
                                                             !< the function simply returns  : PEM%GlobalElemID(iPart) - offsetElem
 
   PROCEDURE(ElemID_INTERFACE),POINTER,NOPASS :: CNElemID    !< pointer defining the mapping : global element ID -> compute-node element ID
-                                                            !< the function simply returns  : PEM%GlobalElemID(iPart) - offsetElem
+                                                            !< the function simply returns  : GlobalElem2CNTotalElem(PEM%GlobalElemID(iPart))
 #if defined(IMPA) || defined(ROS)
   INTEGER                , ALLOCATABLE   :: ElementN(:)  !      =>NULL()  ! Element number allocated
   REAL                   , ALLOCATABLE   :: NormVec(:,:)  !      =>NULL()  ! Element number allocated
