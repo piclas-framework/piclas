@@ -258,7 +258,7 @@ END DO ! species
 
 !--- set last element to current element (needed when ParticlePush is not executed, e.g. "delay")
 DO i = 1,PDM%ParticleVecLength
-  PEM%lastElement(i) = PEM%Element(i)
+  PEM%LastGlobalElemID(i) = PEM%GlobalElemID(i)
 END DO
 
 !--- Remove particles from dielectric regions if DielectricNoParticles=.TRUE.
@@ -266,7 +266,7 @@ IF(DoDielectric)THEN
   IF(DielectricNoParticles)THEN
     DO i = 1,PDM%ParticleVecLength
       ! Remove particles in dielectric elements
-      IF(isDielectricElem(PEM%Element(i)))THEN
+      IF(isDielectricElem(PEM%GlobalElemID(i)))THEN
         PDM%ParticleInside(i) = .FALSE.
       END IF
     END DO
@@ -521,7 +521,7 @@ CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
-    GlobalElemID = PEM%Element(i)
+    GlobalElemID = PEM%GlobalElemID(i)
     ElemID = GlobalElemID - offsetElem
     ! not a BC element
     ! IF (ElemToBCSides(ELEM_NBR_BCSIDES,ElemID).EQ.-1) CYCLE

@@ -338,7 +338,7 @@ USE MOD_Mesh_Vars               ,ONLY: offSetElem
   iPart2 = Coll_pData(iPair)%iPart_p2
   iSpec1 = PartSpecies(iPart1)
   iSpec2 = PartSpecies(iPart2)
-  iElem  = PEM%Element(iPart1) - offSetElem
+  iElem  = PEM%GlobalElemID(iPart1) - offSetElem
 
   IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ReducedMass = (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) * Species(iSpec2)%MassIC*GetParticleWeight(iPart2))  &
@@ -630,7 +630,7 @@ USE MOD_Mesh_Vars               ,ONLY: offSetElem
 
   iSpec = PartSpecies(Coll_pData(iPair)%iPart_p1)
   jSpec = PartSpecies(Coll_pData(iPair)%iPart_p2)
-  iElem  = PEM%Element(Coll_pData(iPair)%iPart_p1) - offSetElem
+  iElem  = PEM%GlobalElemID(Coll_pData(iPair)%iPart_p1) - offSetElem
 
   Xi_rel = 2.*(2. - SpecDSMC(iSpec)%omegaVHS) ! DOF of relative motion in VHS model
   FakXi = 0.5*Xi_rel - 1.

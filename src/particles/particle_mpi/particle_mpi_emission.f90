@@ -396,7 +396,7 @@ DO i = 1, chunkSize
         IF(DoRefMapping)THEN
           CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
         END IF ! DoRefMapping
-        PEM%Element(ParticleIndexNbr)         = ElemID
+        PEM%GlobalElemID(ParticleIndexNbr)         = ElemID
       ELSE
         CALL ABORT(__STAMP__,'ERROR in ParticleMPIEmission:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
       END IF
@@ -533,7 +533,7 @@ DO i = 1,TotalNbrOfRecvParts
     IF (DoRefMapping) THEN
       PartPosRef(1:3,ParticleIndexNbr) = recvPartPos(DimSend*(i-1)+4:DimSend*(i-1)+6)
     END IF ! DoRefMapping
-    PEM%Element(ParticleIndexNbr)    = INT(recvPartPos(DimSend*(i-1)+PartCommSize),KIND=4)
+    PEM%GlobalElemID(ParticleIndexNbr)    = INT(recvPartPos(DimSend*(i-1)+PartCommSize),KIND=4)
 
     PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
     IF(DoRefMapping)THEN
@@ -573,12 +573,12 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
       IF (DoRefMapping) THEN
         PartPosRef(1:3,ParticleIndexNbr) = EmissionRecvBuf(iProc)%content(PartCommSize*(i-1)+4:PartCommSize*(i-1)+6)
       END IF ! DoRefMapping
-      PEM%Element(ParticleIndexNbr)    = INT(EmissionRecvBuf(iProc)%content(PartCommSize*(i)),KIND=4)
-!      WRITE(*,*) ParticleIndexNbr,PEM%Element(ParticleIndexNbr)
+      PEM%GlobalElemID(ParticleIndexNbr)    = INT(EmissionRecvBuf(iProc)%content(PartCommSize*(i)),KIND=4)
+!      WRITE(*,*) ParticleIndexNbr,PEM%GlobalElemID(ParticleIndexNbr)
 
       PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
       IF(DoRefMapping)THEN
-        CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),PEM%Element(ParticleIndexNbr))
+        CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),PEM%GlobalElemID(ParticleIndexNbr))
       END IF ! DoRefMapping
     ELSE
       CALL ABORT(__STAMP__,'ERROR in ParticleMPIEmission:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')

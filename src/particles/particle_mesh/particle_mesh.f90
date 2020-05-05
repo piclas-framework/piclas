@@ -8113,7 +8113,7 @@ END SUBROUTINE CheckBoundsWithCartRadius
 !     HaloInfoSendBuf(iProc)%content(1+iPos) = REAL(myrank,KIND=8)
 !     jPos=iPos+1
 !
-!     ! local element ID of new host proc: PEM%Element(PartID)
+!     ! local element ID of new host proc: PEM%GlobalElemID(PartID)
 !     HaloInfoSendBuf(iProc)%content(    1+jPos)    = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,iElem),KIND=8)
 !     jPos=jPos+1
 !

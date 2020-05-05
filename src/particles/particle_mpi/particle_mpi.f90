@@ -378,7 +378,7 @@ DO iPart=1,PDM%ParticleVecLength
   END IF
 
   ! This is already the global ElemID
-  ElemID = PEM%Element(iPart)
+  ElemID = PEM%GlobalElemID(iPart)
   ProcID = ElemInfo_Shared(ELEM_RANK,ElemID)
 
   ! Particle on local proc, do nothing
@@ -534,7 +534,7 @@ IF(DoExternalParts)THEN
       ! particle shall not be send to MyRank, is fixed without MPI communication in MPIParticleSend
       IF(ProcID.EQ.PartMPI%MyRank) CYCLE
       ! if shapeproc is target proc, to net send
-      !ElemID=PEM%Element(iPart)
+      !ElemID=PEM%GlobalElemID(iPart)
       !IF(PartHaloElemToProc(NATIVE_PROC_ID,ElemID).EQ.ProcID) CYCLE
       ! short version
       LocalProcID=GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
@@ -755,7 +755,7 @@ DO iProc=0,nExchangeProcessors-1
       PEM%NormVec(1:3,iPart) = 0.
       jPos=jPos+3
       !>> particle elmentN
-      PartSendBuf(iProc)%content(jPos+1) = REAL(ElemToGlobalElemID(PEM%ElementN(iPart)))
+      PartSendBuf(iProc)%content(jPos+1) = REAL(ElemToGlobalElemID(PEM%GlobalElemIDN(iPart)))
       jPos=jPos+1
       !>> periodic movement
       IF (PEM%PeriodicMoved(iPart)) THEN
@@ -803,7 +803,7 @@ DO iProc=0,nExchangeProcessors-1
 #endif /*IMPA*/
 
       !>> particle element
-      PartSendBuf(iProc)%content(    1+jPos) = REAL(PEM%Element(iPart),KIND=8)
+      PartSendBuf(iProc)%content(    1+jPos) = REAL(PEM%GlobalElemID(iPart),KIND=8)
       jPos=jPos+1
 
       IF (useDSMC.AND.(CollisMode.GT.1)) THEN
@@ -1282,22 +1282,22 @@ DO iProc=0,nExchangeProcessors-1
     !>> particle elmentN
     LocElemID = INT(PartRecvBuf(iProc)%content(jPos+1),KIND=4)
     IF((LocElemID-OffSetElem.GE.1).AND.(LocElemID-OffSetElem.LE.nElems))THEN
-      PEM%ElementN(PartID)=LocElemID-OffSetElem
+      PEM%GlobalElemIDN(PartID)=LocElemID-OffSetElem
     ELSE
       ! TODO: This is still broken, halo elems are no longer behind nElems
       CALL ABORT(__STAMP__,'External particles not yet supported with new halo region)
 
-!       PEM%ElementN(PartID)=0
+!       PEM%GlobalElemIDN(PartID)=0
 !       DO iElem=PP_nElems+1,nTotalElems
 !         IF(ElemToGlobalElemID(iElem).EQ.LocElemID)THEN
-!           PEM%ElementN(PartID)=iElem
+!           PEM%GlobalElemIDN(PartID)=iElem
 !           EXIT
 !         END IF
 !       END DO ! iElem=1,nTotalElems
-!       IF(PEM%ElementN(PartID).EQ.0)THEN
+!       IF(PEM%GlobalElemIDN(PartID).EQ.0)THEN
 !         CALL ABORT(&
 !           __STAMP__&
-!           ,'Error with IsNewPart in MPIParticleRecv: PEM%ElementN(PartID) = 0!')
+!           ,'Error with IsNewPart in MPIParticleRecv: PEM%GlobalElemIDN(PartID) = 0!')
 !       END IF
 !     END IF
     ! END TODO
@@ -1348,13 +1348,13 @@ DO iProc=0,nExchangeProcessors-1
 #endif /*IMPA*/
 
     !>> particle element
-    PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(1+jPos),KIND=4)
+    PEM%GlobalElemID(PartID)     = INT(PartRecvBuf(iProc)%content(1+jPos),KIND=4)
 
     ! Consider special particles that are communicated with negative species ID (ghost partilces that are deposited on surface
     ! with their charge and are then removed)
     IF(PartSpecies(PartID).LT.0)THEN
       PartSpecies(PartID) = -PartSpecies(PartID) ! make positive species ID again
-      CALL DepositParticleOnNodes(PartID,PartState(1:3,PartID),PEM%Element(PartID))
+      CALL DepositParticleOnNodes(PartID,PartState(1:3,PartID),PEM%GlobalElemID(PartID))
       PartSpecies(PartID) = 0 ! For safety: nullify the speciesID
       PDM%ParticleInside(PartID) = .FALSE.
 #ifdef IMPA
@@ -1419,18 +1419,18 @@ DO iProc=0,nExchangeProcessors-1
 #if defined(IMPA) || defined(ROS)
     ! only for fully implicit
     !IF(PartIsImplicit(PartID))THEN
-    !    ! get LastElement in local system
+    !    ! get LastGlobalElemID in local system
     !    ! element position is verified in armijo if it is needed. This prevents a
     !    ! circular definition.
-    !    PEM%LastElement(PartID)=-1
+    !    PEM%LastGlobalElemID(PartID)=-1
     ! END IF
-!   ! PEM%StageElement(PartID)= PEM%Element(PartID)
+!   ! PEM%StageElement(PartID)= PEM%GlobalElemID(PartID)
 !    StagePartPos(PartID,1)  = PartState(1,PartID)
 !    StagePartPos(PartID,2)  = PartState(2,PartID)
 !    StagePartPos(PartID,3)  = PartState(3,PartID)
 #else
-    !>> lastElement only know to previous proc
-    PEM%lastElement(PartID) = -888
+    !>> LastGlobalElemID only know to previous proc
+    PEM%LastGlobalElemID(PartID) = -888
 #endif
   END DO
 
@@ -1458,8 +1458,8 @@ IF(RadialWeighting%PerformCloning) THEN
   ! Checking whether received particles have to be cloned or deleted
   DO iPart = 1,nrecv
     PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
-    IF ((PEM%Element(PartID).GE.1+offSetElem).AND.(PEM%Element(PartID).LE.PP_nElems+offSetElem)) &
-    CALL DSMC_2D_RadialWeighting(PartID,PEM%Element(PartID))
+    IF ((PEM%GlobalElemID(PartID).GE.1+offSetElem).AND.(PEM%GlobalElemID(PartID).LE.PP_nElems+offSetElem)) &
+    CALL DSMC_2D_RadialWeighting(PartID,PEM%GlobalElemID(PartID))
   END DO
 END IF
 
@@ -1503,7 +1503,7 @@ IF(.NOT.DoSFLocalDepoAtBounds)THEN
 END IF
 
 ! Check if particle is inside a local deposition element
-IF(IsLocalDepositionBCElem(PEM%Element(PartID)))THEN
+IF(IsLocalDepositionBCElem(PEM%GlobalElemID(PartID)))THEN
   SkipExternalSFParticles=.TRUE.
 ELSE
   SkipExternalSFParticles=.FALSE.

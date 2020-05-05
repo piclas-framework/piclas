@@ -207,7 +207,7 @@ INTEGER                                  :: i,PositionNbr
 DO i=1, NbrOfParticle
   PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
   VarTimeStep%ParticleTimeStep(PositionNbr) = &
-                CalcVarTimeStep(PartState(1,PositionNbr), PartState(2,PositionNbr),PEM%Element(PositionNbr))
+                CalcVarTimeStep(PartState(1,PositionNbr), PartState(2,PositionNbr),PEM%GlobalElemID(PositionNbr))
 END DO
 
 END SUBROUTINE SetParticleTimeStep
@@ -946,7 +946,7 @@ __STAMP__,&
           PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
           PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
           PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
-          PEM%Element(ParticleIndexNbr) = iElem
+          PEM%GlobalElemID(ParticleIndexNbr) = iElem
           ichunkSize = ichunkSize + 1
         ELSE
           CALL abort(&

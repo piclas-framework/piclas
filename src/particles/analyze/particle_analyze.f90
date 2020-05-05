@@ -3018,7 +3018,7 @@ IF(FILEEXISTS(outfile))THEN
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
           delimiter,1./SQRT(1-(DOTPRODUCT(PartState(4:6,i))*c2_inv)), & ! gamma
 #endif
-          delimiter,REAL(PEM%Element(i))                                                  ! Element
+          delimiter,REAL(PEM%GlobalElemID(i))                                                  ! Element
       WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
     END IF
   END DO
@@ -3351,7 +3351,7 @@ DO iPart=1,PDM%ParticleVecLength
     MPF = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
   END IF
   ASSOCIATE ( &
-    ElemID  => PEM%Element(iPart)                              )  ! Element ID
+    ElemID  => PEM%GlobalElemID(iPart)                              )  ! Element ID
     ASSOCIATE ( &
       n_e    => ElectronDensityCell(ElemID),& ! Electron density (cell average)
       n_i    => IonDensityCell(ElemID)     ,& ! Ion density (cell average)
@@ -3444,7 +3444,7 @@ PartVandV2 = 0.
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     IF(.NOT.PARTISELECTRON(iPart)) CYCLE  ! ignore anything that is not an electron
-    ElemID                      = PEM%Element(iPart)
+    ElemID                      = PEM%GlobalElemID(iPart)
     IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
       WeightingFactor = GetParticleWeight(iPart)
     ELSE
@@ -3699,7 +3699,7 @@ MaxVeloAbs(1:nElems,1:3) = 0.0
 ! loop over all particles
 DO iPart = 1, PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
-    iElem = PEM%Element(iPart)
+    iElem = PEM%GlobalElemID(iPart)
     ! Check velocity of each particle in each direction at get the highest value
     MaxVelo(iElem,1) = MAX(MaxVelo(iElem,1),PartState(4,iPart))
     MaxVelo(iElem,2) = MAX(MaxVelo(iElem,2),PartState(5,iPart))
@@ -4181,7 +4181,7 @@ CASE('after')
   EDiff         = ABS(EDiff + CalcEkinPart(iPart))
   PCoupl        = PCoupl + EDiff
   PCouplAverage = PCouplAverage + EDiff
-  iElem         = PEM%Element(iPart)
+  iElem         = PEM%GlobalElemID(iPart)
   iSpec         = PartSpecies(iPart)
   PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/ElemVolume_Shared(iElem)
 END SELECT

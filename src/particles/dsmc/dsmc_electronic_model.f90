@@ -73,7 +73,7 @@ USE MOD_Mesh_Vars               ,ONLY: offSetElem
     IF (Species(iSpecies)%Init(iInit)%ElemTElecFileID.EQ.0) THEN
       TElec=SpecDSMC(iSpecies)%Init(iInit)%TElec
     ELSE
-      TElec=Species(iSpecies)%Init(iInit)%ElemTElec(PEM%Element(iPart) - offSetElem)
+      TElec=Species(iSpecies)%Init(iInit)%ElemTElec(PEM%GlobalElemID(iPart) - offSetElem)
     END IF
   CASE(2) !SurfaceFlux
     Telec=SpecDSMC(iSpecies)%Surfaceflux(iInit)%Telec

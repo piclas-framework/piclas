@@ -948,7 +948,7 @@ Pt=0.
 PartSpecies        = 0
 PDM%nextFreePosition(1:PDM%maxParticleNumber)=0
 
-ALLOCATE(PEM%Element(1:PDM%maxParticleNumber), PEM%lastElement(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber), PEM%LastGlobalElemID(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
  CALL abort(&
 __STAMP__&
@@ -2667,13 +2667,13 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
-ALLOCATE(PEM%ElementN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
+ALLOCATE(PEM%GlobalElemIDN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
  __STAMP__&
    ,' Cannot allocate the stage position and element arrays!')
 END IF
-PEM%ElementN=0
+PEM%GlobalElemIDN=0
 ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
@@ -2705,13 +2705,13 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
-ALLOCATE(PEM%ElementN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
+ALLOCATE(PEM%GlobalElemIDN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
  __STAMP__&
    ,' Cannot allocate the stage position and element arrays!')
 END IF
-PEM%ElementN=0
+PEM%GlobalElemIDN=0
 ALLOCATE(PEM%NormVec(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
    CALL abort(&
@@ -2925,12 +2925,12 @@ DO iPart=1,PDM%ParticleVecLength
         ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
         ! species
         location                            = MINLOC(ABS(SpeciesCharge-ChargeLower),1)
-        ElemCharge(PEM%Element(iPart))      = ElemCharge(PEM%Element(iPart))+ChargeLower
+        ElemCharge(PEM%GlobalElemID(iPart))      = ElemCharge(PEM%GlobalElemID(iPart))+ChargeLower
       ELSE ! Select the upper charge number
         ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
         ! species
         location                            = MINLOC(ABS(SpeciesCharge-ChargeUpper),1)
-        ElemCharge(PEM%Element(iPart))      = ElemCharge(PEM%Element(iPart))+ChargeUpper
+        ElemCharge(PEM%GlobalElemID(iPart))      = ElemCharge(PEM%GlobalElemID(iPart))+ChargeUpper
       END IF
 
       ! Set the species ID to atom/singly charged ion/doubly charged ... and so on
@@ -2993,7 +2993,7 @@ DO iElem=1,PP_nElems
     END IF
 
     ! Set the element ID of the electron to the current element ID
-    PEM%Element(ParticleIndexNbr) = iElem
+    PEM%GlobalElemID(ParticleIndexNbr) = iElem
 
     ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
     CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(4:6,ParticleIndexNbr),&
@@ -3048,7 +3048,7 @@ SDEALLOCATE(PartStage)
 SDEALLOCATE(PartStateN)
 SDEALLOCATE(PartQ)
 SDEALLOCATE(PartDtFrac)
-SDEALLOCATE(PEM%ElementN)
+SDEALLOCATE(PEM%GlobalElemIDN)
 SDEALLOCATE(PEM%NormVec)
 SDEALLOCATE(PEM%PeriodicMoved)
 #endif /*defined(ROS) || defined(IMPA)*/
@@ -3119,8 +3119,8 @@ SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutput)
 SDEALLOCATE(PartStateBoundary)
 SDEALLOCATE(PartStateBoundarySpec)
-SDEALLOCATE(PEM%Element)
-SDEALLOCATE(PEM%lastElement)
+SDEALLOCATE(PEM%GlobalElemID)
+SDEALLOCATE(PEM%LastGlobalElemID)
 SDEALLOCATE(PEM%pStart)
 SDEALLOCATE(PEM%pNumber)
 SDEALLOCATE(PEM%pEnd)

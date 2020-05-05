@@ -101,13 +101,13 @@ END IF
 PDM%ParticleInside(newParticleID) = .TRUE.
 PDM%dtFracPush(newParticleID)     = .FALSE.
 PDM%IsNewPart(newParticleID)      = .FALSE.   ! ??????? correct ????
-PEM%Element(newParticleID)        = ElemID
-PEM%lastElement(newParticleID)    = ElemID
+PEM%GlobalElemID(newParticleID)        = ElemID
+PEM%LastGlobalElemID(newParticleID)    = ElemID
 
 ! ?????? necessary?
 ! IF (VarTimeStep%UseVariableTimeStep) THEN
 !   VarTimeStep%ParticleTimeStep(newParticleID) &
-!     = CalcVarTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%Element(newParticleID))
+!     = CalcVarTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%GlobalElemID(newParticleID))
 ! END IF
 ! IF (RadialWeighting%DoRadialWeighting) THEN
 !   PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID), 1,newParticleID)

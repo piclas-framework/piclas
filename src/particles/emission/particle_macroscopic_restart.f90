@@ -267,8 +267,8 @@ END IF
 
 ! 3) Set the species and element number
 PartSpecies(iPart) = iSpec
-PEM%Element(iPart) = iElem
-PEM%lastElement(iPart) = iElem
+PEM%GlobalElemID(iPart) = iElem
+PEM%LastGlobalElemID(iPart) = iElem
 PDM%ParticleInside(iPart) = .TRUE.
 
 ! 4) Set particle weights (if required)

@@ -151,7 +151,7 @@ DO iPart = 1, PDM%ParticleVecLength
         PartState(1:3,ElectronIndex)      = PartState(1:3,iPart)
         PartState(4:6,ElectronIndex)      = Species(DSMC%ElectronSpecies)%MassIC / Species(oldSpec)%MassIC * PartState(4:6,iPart)
         PartState(4:6,iPart)              = Species(newSpec)%MassIC              / Species(oldSpec)%MassIC * PartState(4:6,iPart)
-        PEM%Element(ElectronIndex)        = PEM%Element(iPart)
+        PEM%GlobalElemID(ElectronIndex)        = PEM%GlobalElemID(iPart)
         ! Setting the species of the ionized particle
         oldSpec = newSpec
         IF(usevMPF) PartMPF(ElectronIndex) = PartMPF(iPart)
@@ -252,7 +252,7 @@ DO iPart = 1, PDM%ParticleVecLength
         PartState(1:3,ElectronIndex)      = PartState(1:3,iPart)
         PartState(4:6,ElectronIndex)      = Species(DSMC%ElectronSpecies)%MassIC / Species(oldSpec)%MassIC * PartState(4:6,iPart)
         PartState(4:6,iPart)              = Species(newSpec)%MassIC              / Species(oldSpec)%MassIC * PartState(4:6,iPart)
-        PEM%Element(ElectronIndex)        = PEM%Element(iPart)
+        PEM%GlobalElemID(ElectronIndex)        = PEM%GlobalElemID(iPart)
         ! Setting the species of the ionized particle
         oldSpec = newSpec
         IF(usevMPF) PartMPF(ElectronIndex) = PartMPF(iPart)

@@ -840,8 +840,8 @@ IF(DoRestart)THEN
             DO iLoop = PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1_IK , PartInt(iElem,ELEM_LastPartInd)- offsetnPart
               IF(SpecReset(INT(PartData(7,offsetnPart+iLoop),4))) CYCLE
               iPart = iPart +1
-              PEM%Element(iPart)  = iElem
-              PEM%LastElement(iPart)  = iElem
+              PEM%GlobalElemID(iPart)  = iElem
+              PEM%LastGlobalElemID(iPart)  = iElem
             END DO ! iLoop
           END IF ! PartInt(iElem,ELEM_LastPartInd).GT.PartInt(iElem,ELEM_FirstPartInd)
         END DO ! iElem=FirstElemInd,LastElemInd
@@ -874,8 +874,8 @@ IF(DoRestart)THEN
 
       IF(DoRefMapping) THEN
         DO i = 1,PDM%ParticleVecLength
-          CALL GetPositionInRefElem(PartState(1:3,i),Xi,PEM%Element(i))
-          IF(ALL(ABS(Xi).LE.ElemEpsOneCell(PEM%Element(i)))) THEN ! particle inside
+          CALL GetPositionInRefElem(PartState(1:3,i),Xi,PEM%GlobalElemID(i))
+          IF(ALL(ABS(Xi).LE.ElemEpsOneCell(PEM%GlobalElemID(i)))) THEN ! particle inside
             InElementCheck=.TRUE.
             PartPosRef(1:3,i)=Xi
           ELSE
@@ -894,14 +894,14 @@ IF(DoRestart)THEN
               END IF
               PartPosRef(1:3,i) = -888.
             ELSE
-              PEM%LastElement(i) = PEM%Element(i)
+              PEM%LastGlobalElemID(i) = PEM%GlobalElemID(i)
             END IF
           END IF
         END DO ! i = 1,PDM%ParticleVecLength
       ELSE ! no Ref Mapping
         IF (TriaTracking) THEN
           DO i = 1,PDM%ParticleVecLength
-            CALL ParticleInsideQuad3D(PartState(1:3,i),PEM%Element(i),InElementCheck,det)
+            CALL ParticleInsideQuad3D(PartState(1:3,i),PEM%GlobalElemID(i),InElementCheck,det)
             IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
               COUNTER = COUNTER + 1
               CALL LocateParticleInElement(i,doHALO=.FALSE.)
@@ -914,13 +914,13 @@ IF(DoRestart)THEN
                   END IF
                 END IF
               ELSE
-                PEM%LastElement(i) = PEM%Element(i)
+                PEM%LastGlobalElemID(i) = PEM%GlobalElemID(i)
               END IF
             END IF
           END DO ! i = 1,PDM%ParticleVecLength
         ELSE ! not TriaTracking
           DO i = 1,PDM%ParticleVecLength
-            CALL GetPositionInRefElem(PartState(1:3,i),Xi,PEM%Element(i))
+            CALL GetPositionInRefElem(PartState(1:3,i),Xi,PEM%GlobalElemID(i))
             IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
               InElementCheck=.TRUE.
               IF(ALLOCATED(PartPosRef)) PartPosRef(1:3,i)=Xi
@@ -939,7 +939,7 @@ IF(DoRestart)THEN
                   END IF
                 END IF
               ELSE
-                PEM%LastElement(i) = PEM%Element(i)
+                PEM%LastGlobalElemID(i) = PEM%GlobalElemID(i)
               END IF ! .NOT.PDM%ParticleInside(i)
             END IF ! .NOT.InElementCheck
           END DO ! i = 1,PDM%ParticleVecLength
@@ -1027,7 +1027,7 @@ IF(DoRestart)THEN
           PDM%ParticleInside(CurrentPartNum) = .true.
           CALL LocateParticleInElement(CurrentPartNum,doHALO=.FALSE.)
           IF (PDM%ParticleInside(CurrentPartNum)) THEN
-            PEM%LastElement(CurrentPartNum) = PEM%Element(CurrentPartNum)
+            PEM%LastGlobalElemID(CurrentPartNum) = PEM%GlobalElemID(CurrentPartNum)
             NbrOfFoundParts = NbrOfFoundParts + 1
             PartSpecies(CurrentPartNum) = INT(RecBuff(COUNTER+7))
             IF (useDSMC) THEN

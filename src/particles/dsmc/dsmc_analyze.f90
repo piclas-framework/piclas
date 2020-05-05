@@ -771,7 +771,7 @@ CALL LBStartTime(tLBStart)
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     iSpec = PartSpecies(iPart)
-    iElem = PEM%Element(iPart) - offSetElem
+    iElem = PEM%GlobalElemID(iPart) - offSetElem
     partWeight = GetParticleWeight(iPart)
     DSMC_Solution(1:3,iElem,iSpec) = DSMC_Solution(1:3,iElem,iSpec) + PartState(4:6,iPart)*partWeight
     DSMC_Solution(4:6,iElem,iSpec) = DSMC_Solution(4:6,iElem,iSpec) + PartState(4:6,iPart)**2*partWeight
