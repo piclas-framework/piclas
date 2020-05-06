@@ -20,11 +20,7 @@ MODULE MOD_DSMC_SpecXSec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 
-INTERFACE InterpolateCrossSection
-  MODULE PROCEDURE InterpolateCrossSection
-END INTERFACE
-
-PUBLIC :: InterpolateCrossSection
+PUBLIC :: InterpolateCrossSection, XSec_CalcCollisionProb
 !===================================================================================================================================
 
 CONTAINS
@@ -49,19 +45,17 @@ INTEGER       :: iVib, nVib, iStep, nStep
 !===================================================================================================================================
 
 XSec_Database = TRIM(GETSTR('Particles-CollXSec-Database'))
-XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
+ELSE
+  XSec_NullCollision = .FALSE.
+END IF
 XSec_Relaxation = .FALSE.
 
 IF(TRIM(XSec_Database).EQ.'none') THEN
   CALL abort(&
   __STAMP__&
   ,'ERROR: No database for the collision cross-section given!')
-END IF
-
-IF (BGGas%NumberOfSpecies.EQ.0) THEN
-  CALL abort(&
-  __STAMP__&
-  ,'ERROR: Usage of read-in collision cross-sections only possible with a background gas!')
 END IF
 
 ALLOCATE(SpecXSec(CollInf%NumCase))
@@ -81,17 +75,24 @@ DO iSpec = 1, nSpecies
     END IF
     ! Read-in cross-section data for collisions of particles, allocating CollXSecData within the following routine
     CALL ReadCollXSec(iCase, iSpec, jSpec)
-    ! Store the energy value in J (read-in was in eV)
-    SpecXSec(iCase)%CollXSecData(1,:) = SpecXSec(iCase)%CollXSecData(1,:) * ElementaryCharge
-    IF(XSec_NullCollision) THEN
-      ! Determine the maximum collision frequency for the null collision method
-      CALL DetermineNullCollProb(iCase,iSpec,jSpec)
-      TotalProb = TotalProb + SpecXSec(iCase)%ProbNull
-      IF(TotalProb.GT.1.0) THEN
+    IF(SpecXSec(iCase)%UseCollXSec) THEN
+      IF(SpecDSMC(iSpec)%UseCollXSec.AND.SpecDSMC(jSpec)%UseCollXSec) THEN
         CALL abort(&
-        __STAMP__&
-        ,'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: '&
-        ,RealInfoOpt=TotalProb)
+          __STAMP__&
+          ,'ERROR: Both species defined to use collisional cross-section, define only the source species with UseCollXSec!')
+      END IF
+      ! Store the energy value in J (read-in was in eV)
+      SpecXSec(iCase)%CollXSecData(1,:) = SpecXSec(iCase)%CollXSecData(1,:) * ElementaryCharge
+      IF(XSec_NullCollision) THEN
+        ! Determine the maximum collision frequency for the null collision method
+        CALL DetermineNullCollProb(iCase,iSpec,jSpec)
+        TotalProb = TotalProb + SpecXSec(iCase)%ProbNull
+        IF(TotalProb.GT.1.0) THEN
+          CALL abort(&
+          __STAMP__&
+          ,'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: '&
+          ,RealInfoOpt=TotalProb)
+        END IF
       END IF
     END IF
     ! Vibrational relaxation probabilities: Interpolate and store the probability at the effective cross-section levels
@@ -173,11 +174,13 @@ IF(.NOT.DatasetFound) THEN
     spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
   ELSE
     dsetname2 = TRIM(spec_pair)//'/EFFECTIVE'
-    CALL abort(&
-    __STAMP__&
-    ,'Dataset not found: ['//TRIM(dsetname2)//'] or ['//TRIM(dsetname)//'] not found in ['//TRIM(XSec_Database)//']')
+    SWRITE(UNIT_StdOut,'(A)') 'Dataset not found: ['//TRIM(dsetname2)//']. Using standard collision modelling.'
+    SpecXSec(iCase)%UseCollXSec = .FALSE.
+    RETURN
   END IF
 END IF
+
+SpecXSec(iCase)%UseCollXSec = .TRUE.
 
 ! Open the dataset.
 CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
@@ -533,5 +536,62 @@ END DO
 
 END FUNCTION InterpolateVibRelaxProb
 
+
+PURE REAL FUNCTION XSec_CalcCollisionProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
+!===================================================================================================================================
+!> Calculate the collision probability if collision cross-section data is used. Can be utilized in combination with the regular
+!> DSMC collision calculation probability.
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, XSec_NullCollision
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PartState
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(IN)            :: iPair
+REAL,INTENT(IN)               :: SpecNum1, SpecNum2, CollCaseNum, MacroParticleFactor, Volume, dtCell
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: CollEnergy, VeloSquare, SpecNumTarget, SpecNumSource
+INTEGER                       :: XSecSpec, XSecPart, targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase
+!===================================================================================================================================
+
+iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
+iSpec_p1 = PartSpecies(iPart_p1);      iSpec_p2 = PartSpecies(iPart_p2)
+iCase = CollInf%Coll_Case(iSpec_p1,iSpec_p2)
+
+IF(SpecXSec(iCase)%UseCollXSec) THEN
+  IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
+    XSecSpec = iSpec_p1; targetSpec = iSpec_p2; XSecPart = iPart_p1; SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
+  ELSE
+    XSecSpec = iSpec_p2; targetSpec = iSpec_p1; XSecPart = iPart_p2; SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
+  END IF
+  ! Using the kinetic energy of the particle (as is described in Vahedi1995 and Birdsall1991)
+  VeloSquare = DOT_PRODUCT(PartState(4:6,XSecPart),PartState(4:6,XSecPart))
+  CollEnergy = 0.5 * Species(XSecSpec)%MassIC * VeloSquare
+  ! Calculate the collision probability
+  IF(BGGas%BackgroundSpecies(targetSpec)) THEN
+    ! Correct the collision probability in the case of the second species being a background species as the number of pairs
+    ! is either determined based on the null collision probability or in the case of mixture on the species fraction
+    IF(XSec_NullCollision) THEN
+      XSec_CalcCollisionProb = (1. - EXP(-SQRT(VeloSquare) * InterpolateCrossSection(iCase,CollEnergy) &
+            * SpecNumTarget * MacroParticleFactor / Volume * dtCell)) / SpecXSec(iCase)%ProbNull
+    ELSE
+      XSec_CalcCollisionProb = (1. - EXP(-SQRT(VeloSquare) * InterpolateCrossSection(iCase,CollEnergy) &
+            * SpecNumTarget * MacroParticleFactor / Volume * dtCell)) / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
+    END IF
+  ELSE
+    XSec_CalcCollisionProb = (1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iCase,CollEnergy) &
+            * SpecNumTarget * MacroParticleFactor/Volume*dtCell)) * SpecNumSource / CollInf%Coll_CaseNum(iCase)
+  END IF
+ELSE
+  XSec_CalcCollisionProb = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
+          * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
+          * MacroParticleFactor / CollCaseNum                                                     &
+          * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(iSpec_p1)%omegaVHS) &
+          * dtCell / Volume
+END IF
+
+END FUNCTION
 
 END MODULE MOD_DSMC_SpecXSec

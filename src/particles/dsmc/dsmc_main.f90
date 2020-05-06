@@ -106,10 +106,12 @@ DO iElem = 1, nElems ! element/cell main loop
   IF (CollisMode.NE.0) THEN
     ChemReac%nPairForRec = 0
     CALL InitCalcVibRelaxProb
-    IF(UseMCC) THEN
-      CALL MCC_pairing_bggas(iElem)
-    ELSE IF(BGGas%NumberOfSpecies.GT.0) THEN
-      CALL DSMC_pairing_bggas(iElem)
+    IF(BGGas%NumberOfSpecies.GT.0) THEN
+      IF(UseMCC) THEN
+        CALL MCC_pairing_bggas(iElem)
+      ELSE
+        CALL DSMC_pairing_bggas(iElem)
+      END IF
     ELSE IF (nPart.GT.1) THEN
       IF (DSMC%UseOctree) THEN
         ! On-the-fly cell refinement and pairing within subcells
