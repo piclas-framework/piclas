@@ -422,7 +422,7 @@ INTEGER, INTENT(IN)           :: iElem
 ! LOCAL VARIABLES
 INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, jSpec, bgSpec, PartIndex, bggPartIndex, PairCount, RandomPart
 INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNumTemp
-INTEGER,ALLOCATABLE           :: iPartIndex(:), PairingPartner(:), iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:,:)
+INTEGER,ALLOCATABLE           :: iPartIndex(:), PairingPartner(:), iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:)
 REAL                          :: iRan, ProbRest, SpecPairNumReal
 !===================================================================================================================================
 nPart = PEM%pNumber(iElem)
@@ -435,7 +435,7 @@ CollInf%Coll_CaseNum = 0
 ALLOCATE(iPartIndexSpec(nPart,nSpecies))
 iPartIndexSpec = 0
 
-ALLOCATE(SpecPartNum(nSpecies),SpecPairNum(nSpecies,nSpecies))
+ALLOCATE(SpecPartNum(nSpecies),SpecPairNum(CollInf%NumCase))
 SpecPairNum = 0; SpecPairNumTemp = 0; SpecPairNumReal = 0.; SpecPartNum = 0
 CALL InitCalcVibRelaxProb()
 
@@ -461,27 +461,28 @@ DO iSpec = 1,nSpecies
   IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN    ! Loop over all non-background species
     DO jSpec = 1, nSpecies
       IF(BGGas%BackgroundSpecies(jSpec)) THEN     ! Loop over all background species
+        iCase = CollInf%Coll_Case(iSpec,jSpec)
         bgSpec = BGGas%MapSpecToBGSpec(jSpec)
         IF(SpecDSMC(iSpec)%UseCollXSec.AND.XSec_NullCollision) THEN
           ! Collision cross-section: The maximum number of pairs to check is collision pair specific and depends on the null collision probability
-          SpecPairNumReal = CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull
-          SpecPairNumTemp = INT(CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iSpec,jSpec)%ProbNull)
+          SpecPairNumReal = CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iCase)%ProbNull
+          SpecPairNumTemp = INT(CollInf%Coll_SpecPartNum(iSpec)*SpecXSec(iCase)%ProbNull)
         ELSE
           ! Regular: The maximum number of pairs corresponds to the particle number
           SpecPairNumReal = BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec)
           SpecPairNumTemp = INT(BGGas%SpeciesFraction(bgSpec)*CollInf%Coll_SpecPartNum(iSpec))
         END IF
         ! Avoid creating more pairs than currently particles in the simulation
-        IF(SpecPairNum(iSpec,jSpec) + SpecPairNumTemp.LT.SpecPartNum(iSpec)) THEN
+        IF(SpecPairNum(iCase) + SpecPairNumTemp.LT.SpecPartNum(iSpec)) THEN
           ! Randomly deciding whether an additional pair is added based on the difference between the real and integer value
           ProbRest = SpecPairNumReal - REAL(SpecPairNumTemp)
           CALL RANDOM_NUMBER(iRan)
           IF (ProbRest.GT.iRan) SpecPairNumTemp = SpecPairNumTemp + 1
           ! Adding the number of pairs to the species-specific number and the cell total
-          SpecPairNum(iSpec,jSpec) = SpecPairNum(iSpec,jSpec) + SpecPairNumTemp
+          SpecPairNum(iCase) = SpecPairNum(iCase) + SpecPairNumTemp
           MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNumTemp
-        ELSE IF(SpecPairNum(iSpec,jSpec) + SpecPairNumTemp.EQ.SpecPartNum(iSpec)) THEN
-          SpecPairNum(iSpec,jSpec) = SpecPairNum(iSpec,jSpec) + SpecPairNumTemp
+        ELSE IF(SpecPairNum(iCase) + SpecPairNumTemp.EQ.SpecPartNum(iSpec)) THEN
+          SpecPairNum(iCase) = SpecPairNum(iCase) + SpecPairNumTemp
           MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNumTemp
         END IF
       END IF
@@ -502,7 +503,8 @@ DO iSpec = 1,nSpecies                             ! Loop over all non-background
   IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
     DO jSpec = 1, nSpecies                        ! Loop over all background species
       IF(BGGas%BackgroundSpecies(jSpec)) THEN
-        DO iLoop = 1, SpecPairNum(iSpec,jSpec)    ! Loop over all the number of pairs required for this species pairing
+        iCase = CollInf%Coll_Case(iSpec,jSpec)
+        DO iLoop = 1, SpecPairNum(iCase)    ! Loop over all the number of pairs required for this species pairing
           ! Choosing random particles from the available number of particles, getting the index of the simulation particle
           IF(SpecPartNum(iSpec).GT.0) THEN
             CALL RANDOM_NUMBER(iRan)

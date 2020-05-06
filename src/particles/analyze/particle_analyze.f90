@@ -681,8 +681,8 @@ REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpec
 REAL                :: ETotal, MacroParticleFactor
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
-REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2),VibRelaxProbSpec(nSpecies,nSpecies)
-INTEGER             :: jSpec
+REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2),VibRelaxProbCase(CollInf%NumCase)
+INTEGER             :: jSpec, iCase
 #endif
 #if USE_MPI
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
@@ -693,7 +693,6 @@ INTEGER             :: RECBIM(nSpecies)
 #endif /*USE_MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
-INTEGER             :: iCase
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
 INTEGER             :: ii, iunit
@@ -1117,8 +1116,8 @@ INTEGER             :: dir
                                                               GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
       END IF
     END IF
-    VibRelaxProbSpec = 0.
-    IF(CalcRelaxProb) CALL CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb,VibRelaxProbSpec)
+    VibRelaxProbCase = 0.
+    IF(CalcRelaxProb) CALL CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb,VibRelaxProbCase)
   END IF
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1471,11 +1470,12 @@ IF (PartMPI%MPIROOT) THEN
         IF(XSec_Relaxation) THEN
           DO iSpec = 1, nSpecies
             DO jSpec = iSpec, nSpecies
+              iCase = CollInf%Coll_Case(iSpec,jSpec)
               ! Skip entry if both species are NOT molecules
               IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
                   ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') VibRelaxProbSpec(iSpec,jSpec)
+              WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') VibRelaxProbCase(iCase)
             END DO
           END DO
         END IF
@@ -2173,7 +2173,7 @@ END SUBROUTINE CalcTemperature
 
 
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==43 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
-SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb,VibRelaxProbSpec)
+SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb,VibRelaxProbCase)
 !===================================================================================================================================
 ! Calculates global rotational and vibrational relaxation probability for PartAnalyse.csv
 !===================================================================================================================================
@@ -2181,7 +2181,7 @@ SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb,VibRelaxProbSpec)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: nSpecies
-USE MOD_DSMC_Vars             ,ONLY: DSMC, VarVibRelaxProb, CollisMode, SpecXSec, XSec_Relaxation
+USE MOD_DSMC_Vars             ,ONLY: DSMC, VarVibRelaxProb, CollisMode, SpecXSec, XSec_Relaxation, CollInf
 USE MOD_Mesh_Vars             ,ONLY: nElems, nGlobalElems
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 ! IMPLICIT VARIABLE HANDLING
@@ -2189,10 +2189,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: RotRelaxProb(2),VibRelaxProb(2)       !< output value is already the GLOBAL RelaxProbs
-REAL,INTENT(OUT)                :: VibRelaxProbSpec(nSpecies,nSpecies)
+REAL,INTENT(OUT)                :: VibRelaxProbCase(CollInf%NumCase)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iElem, iSpec, jSpec
+INTEGER                         :: iElem, iSpec, iCase
 REAL                            :: PartNum
 !===================================================================================================================================
 IF(CollisMode.LT.2) RETURN
@@ -2256,22 +2256,16 @@ ELSE
     CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%CalcVibProb(1:nSpecies,2),nSpecies,MPI_DOUBLE_PRECISION,MPI_MAX,0,PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%CalcVibProb(1:nSpecies,3),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     IF(XSec_Relaxation) THEN
-      DO iSpec=1,nSpecies
-        DO jSpec=1,nSpecies
-          CALL MPI_REDUCE(MPI_IN_PLACE,SpecXSec(iSpec,jSpec)%VibProb(1:2),2,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
-        END DO
-      END DO
+      CALL MPI_REDUCE(MPI_IN_PLACE,SpecXSec(:)%VibProb(1),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,SpecXSec(:)%VibProb(2),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     END IF
   ELSE
     CALL MPI_REDUCE(DSMC%CalcVibProb(1:nSpecies,1),DSMC%CalcVibProb(1:nSpecies,1),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(DSMC%CalcVibProb(1:nSpecies,2),DSMC%CalcVibProb(1:nSpecies,2),nSpecies,MPI_DOUBLE_PRECISION,MPI_MAX,0,PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(DSMC%CalcVibProb(1:nSpecies,3),DSMC%CalcVibProb(1:nSpecies,3),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     IF(XSec_Relaxation) THEN
-      DO iSpec=1,nSpecies
-        DO jSpec=1,nSpecies
-          CALL MPI_REDUCE(SpecXSec(iSpec,jSpec)%VibProb(1:2),SpecXSec(iSpec,jSpec)%VibProb(1:2),2,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
-        END DO
-      END DO
+      CALL MPI_REDUCE(SpecXSec(:)%VibProb(1),SpecXSec(:)%VibProb(1),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(SpecXSec(:)%VibProb(2),SpecXSec(:)%VibProb(2),CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     END IF
   END IF
 #endif /*USE_MPI*/
@@ -2280,14 +2274,12 @@ ELSE
     IF(SUM(DSMC%CalcVibProb(1:nSpecies,3)).GT.0) THEN
       VibRelaxProb(2) = SUM(DSMC%CalcVibProb(1:nSpecies,1))/SUM(DSMC%CalcVibProb(1:nSpecies,3))
     END IF
-    VibRelaxProbSpec = 0.
+    VibRelaxProbCase = 0.
     IF(XSec_Relaxation) THEN
-      DO iSpec=1,nSpecies
-        DO jSpec=1,nSpecies
-          IF(SpecXSec(iSpec,jSpec)%VibProb(2).GT.0.0) THEN
-            VibRelaxProbSpec(iSpec,jSpec)=SpecXSec(iSpec,jSpec)%VibProb(1)/SpecXSec(iSpec,jSpec)%VibProb(2)
-          END IF
-        END DO
+      DO iCase=1,CollInf%NumCase
+        IF(SpecXSec(iCase)%VibProb(2).GT.0.0) THEN
+          VibRelaxProbCase(iCase)=SpecXSec(iCase)%VibProb(1)/SpecXSec(iCase)%VibProb(2)
+        END IF
       END DO
     END IF
   END IF

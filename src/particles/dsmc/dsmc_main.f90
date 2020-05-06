@@ -47,7 +47,7 @@ USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedPar
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC, XSec_Relaxation, SpecXSec
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Collis           ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
-USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry2D, nSpecies
+USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry2D
 USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
@@ -69,7 +69,7 @@ INTEGER           :: iElem, nPart
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER           :: iSpec, jSpec
+INTEGER           :: iCase
 !===================================================================================================================================
 
 ! Reset the right-hand side (DoElement: coupled BGK/FP-DSMC simulations, which might utilize the RHS)
@@ -98,10 +98,8 @@ DO iElem = 1, nElems ! element/cell main loop
     IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
     DSMC%CalcVibProb = 0.
     IF(XSec_Relaxation) THEN
-      DO iSpec=1,nSpecies
-        DO jSpec=1,nSpecies
-          SpecXSec(iSpec,jSpec)%VibProb = 0.
-        END DO
+      DO iCase=1,CollInf%NumCase
+        SpecXSec(iCase)%VibProb(1:2) = 0.
       END DO
     END IF
   END IF

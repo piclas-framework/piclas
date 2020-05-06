@@ -189,17 +189,18 @@ TYPE tXSecVibMode
 END TYPE tXSecVibMode
 
 TYPE tSpeciesXSec
+  LOGICAL                           :: UseCollXSec
   REAL,ALLOCATABLE                  :: CollXSecData(:,:)    ! Collision cross-section as read-in from the database
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
   REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
                                                             ! null collision method of MCC
-  REAL                              :: MaxCollFreq          ! Maximal collision frequency at certain energy level and cross-section
+  LOGICAL                           :: UseVibXSec
   TYPE(tXSecVibMode),ALLOCATABLE    :: VibMode(:)           !
   REAL                              :: VibProb(2)
 END TYPE tSpeciesXSec
 
-TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:,:)        ! Species cross-section related data (nSpec,nSpec). First column is used
+TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:)          ! Species cross-section related data (CollCase). First column is used
                                                             ! for the particle species, second column for the background species
 
 TYPE tDSMC
@@ -282,7 +283,6 @@ TYPE tDSMC
                                                             ! coefficient with the equilibrium constant by partition functions
   REAL                          :: PartitionMaxTemp         ! Temperature limit for pre-stored partition function (DEF: 20 000K)
   REAL                          :: PartitionInterval        ! Temperature interval for pre-stored partition function (DEF: 10K)
-  REAL, ALLOCATABLE             :: veloMinColl(:)           ! min velo-magn. for spec allowed to perform collision (def.: 0.)
 #if (PP_TimeDiscMethod==42)
   LOGICAL                       :: CompareLandauTeller      ! Keeps the translational temperature at the fixed value of the init
 #endif

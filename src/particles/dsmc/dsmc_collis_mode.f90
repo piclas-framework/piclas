@@ -2845,7 +2845,7 @@ REAL, INTENT(OUT)         :: ProbVib
 ! LOCAL VARIABLES
 REAL                      :: CorrFact       ! CorrFact: To correct sample Bias
                                             ! (fewer DSMC particles than natural ones)
-INTEGER                   :: iPolyatMole, iDOF
+INTEGER                   :: iPolyatMole, iDOF, iCase
 REAL                      :: CollisionEnergy
 !===================================================================================================================================
 
@@ -2861,9 +2861,10 @@ REAL                      :: CollisionEnergy
   END IF
 
   IF((DSMC%VibRelaxProb.GE.0.0).AND.(DSMC%VibRelaxProb.LE.1.0)) THEN
-    IF(SpecDSMC(iSpec)%UseVibXSec.OR.SpecDSMC(jSpec)%UseVibXSec) THEN
+    iCase = CollInf%Coll_Case(iSpec,jSpec)
+    IF(SpecXSec(iCase)%UseVibXSec) THEN
       CollisionEnergy = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%CRela2
-      ProbVib = InterpolateVibRelaxProb(iSpec,jSpec,CollisionEnergy)
+      ProbVib = InterpolateVibRelaxProb(iCase,CollisionEnergy)
     ELSE
       IF (SpecDSMC(iSpec)%PolyatomicMol.AND.(DSMC%PolySingleMode)) THEN
         iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
@@ -2892,8 +2893,9 @@ IF(DSMC%CalcQualityFactors) THEN
   DSMC%CalcVibProb(iSpec,1) = DSMC%CalcVibProb(iSpec,1) + ProbVib
   DSMC%CalcVibProb(iSpec,3) = DSMC%CalcVibProb(iSpec,3) + 1
   IF(XSec_Relaxation) THEN
-    SpecXSec(iSpec,jSpec)%VibProb(1) = SpecXSec(iSpec,jSpec)%VibProb(1) + ProbVib
-    SpecXSec(iSpec,jSpec)%VibProb(2) = SpecXSec(iSpec,jSpec)%VibProb(2) + 1.0
+    iCase = CollInf%Coll_Case(iSpec,jSpec)
+    SpecXSec(iCase)%VibProb(1) = SpecXSec(iCase)%VibProb(1) + ProbVib
+    SpecXSec(iCase)%VibProb(2) = SpecXSec(iCase)%VibProb(2) + 1.0
   END IF
 END IF
 
