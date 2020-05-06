@@ -189,15 +189,16 @@ TYPE tXSecVibMode
 END TYPE tXSecVibMode
 
 TYPE tSpeciesXSec
-  LOGICAL                           :: UseCollXSec
+  LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species pair should be treated with
+                                                            ! read-in collision cross-section (currently only with BGG)
   REAL,ALLOCATABLE                  :: CollXSecData(:,:)    ! Collision cross-section as read-in from the database
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
   REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
                                                             ! null collision method of MCC
-  LOGICAL                           :: UseVibXSec
-  TYPE(tXSecVibMode),ALLOCATABLE    :: VibMode(:)           !
-  REAL                              :: VibProb(2)
+  LOGICAL                           :: UseVibXSec           ! Flag if cross-section data will be used for the relaxation probability
+  TYPE(tXSecVibMode),ALLOCATABLE    :: VibMode(:)           ! Vibrational cross-sections (nVib: Number of levels found in database)
+  REAL                              :: VibProb(2)           ! 1: Sum of vibrational relaxation probability, 2: Event counter
 END TYPE tSpeciesXSec
 
 TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:)          ! Species cross-section related data (CollCase). First column is used

@@ -665,6 +665,8 @@ ELSE !CollisMode.GT.0
     CALL MCC_Init()
   ELSE
     UseMCC = .FALSE.
+    XSec_NullCollision =.FALSE.
+    XSec_Relaxation = .FALSE.
   END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! reading/writing molecular stuff

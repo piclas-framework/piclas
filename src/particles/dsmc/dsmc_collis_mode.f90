@@ -2861,21 +2861,22 @@ REAL                      :: CollisionEnergy
   END IF
 
   IF((DSMC%VibRelaxProb.GE.0.0).AND.(DSMC%VibRelaxProb.LE.1.0)) THEN
-    iCase = CollInf%Coll_Case(iSpec,jSpec)
-    IF(SpecXSec(iCase)%UseVibXSec) THEN
-      CollisionEnergy = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%CRela2
-      ProbVib = InterpolateVibRelaxProb(iCase,CollisionEnergy)
+    IF (SpecDSMC(iSpec)%PolyatomicMol.AND.(DSMC%PolySingleMode)) THEN
+      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+      PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(1) = DSMC%VibRelaxProb   &
+                                                  * (1. + PolyatomMolDSMC(iPolyatMole)%GammaVib(1)/Xi_rel)
+      DO iDOF = 2, PolyatomMolDSMC(iPolyatMole)%VibDOF
+        PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(iDOF) = PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(iDOF - 1)   &
+                                                        + DSMC%VibRelaxProb * (1. + PolyatomMolDSMC(iPolyatMole)%GammaVib(1)/Xi_rel)
+      END DO
     ELSE
-      IF (SpecDSMC(iSpec)%PolyatomicMol.AND.(DSMC%PolySingleMode)) THEN
-        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-        PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(1) = DSMC%VibRelaxProb   &
-                                                    * (1. + PolyatomMolDSMC(iPolyatMole)%GammaVib(1)/Xi_rel)
-        DO iDOF = 2, PolyatomMolDSMC(iPolyatMole)%VibDOF
-          PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(iDOF) = PolyatomMolDSMC(iPolyatMole)%VibRelaxProb(iDOF - 1)   &
-                                                          + DSMC%VibRelaxProb * (1. + PolyatomMolDSMC(iPolyatMole)%GammaVib(1)/Xi_rel)
-        END DO
-      ELSE
-        ProbVib = DSMC%VibRelaxProb * CorrFact
+      ProbVib = DSMC%VibRelaxProb * CorrFact
+    END IF
+    IF(XSec_Relaxation) THEN
+      iCase = CollInf%Coll_Case(iSpec,jSpec)
+      IF(SpecXSec(iCase)%UseVibXSec) THEN
+        CollisionEnergy = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%CRela2
+        ProbVib = InterpolateVibRelaxProb(iCase,CollisionEnergy)
       END IF
     END IF
   ELSE IF(DSMC%VibRelaxProb.EQ.2.0) THEN
