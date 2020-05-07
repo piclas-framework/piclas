@@ -25,6 +25,16 @@ For conventional computations on (bi-, tri-) linear meshes, the following tracki
 
     TrackingMethod = triatracking
 
+Following options are available to get more information about the tracking, e.g. number of lost particles:
+
+| Option                            | Values   | Notes                                                                                                                    |
+|:----------------------------------| :------: | :----------------------------------------------------------------------------------------------------------------------- |
+| DisplayLostParticles              |  F/T     | Display position, velocity, species and host element of                                                                  |
+|                                   |          | particles lost during particle tracking (TrackingMethod = triatracking, tracing) in the std.out                          |
+| CountNbrOfLostParts               |  T/F     | Count number of lost particles due to tolerance issues.                                                                  |
+|                                   |          | This number is a global number, summed over the full simulation duration and includes particles lost during the restart. |
+|                                   |          | The lost particles are output in a separate `*_PartStateLost*.h5` file.                                                  |
+
 The two alternative tracking routines and their options are described in the following.
 
 ### DoRefMapping
@@ -63,12 +73,6 @@ the edges of element faces) an additional safety check is performed by recomputi
 the particle is required. Particles traveling parallel to element faces are in an undefined state and are currently removed from the computation. 
 This leads to a warning message. Note that tracing on periodic meshes works only for non-mpi computations. Periodic displacement requires
 additional coding.
-
-
-|       Option       | Values |                          Notes                          |
-| :----------------: | :----: | :-----------------------------------------------------: |
-| CountNbOfLostParts |  T/F   | Count number of lost particles due to tolerance issues. |
-|                    |        | This number is a global number, summed over the full t. |
 
 ### Parameters for DoRefMapping and Tracing  (NEEDS UPDATING)
 
@@ -156,7 +160,7 @@ Table: Dielectric Test Cases \label{tab:dielectric_test_cases}
   |        `FishEyeLens`         |                                  none                                   |                                      function with radial dependence: $\varepsilon_{r}=n_{0}^{2}/(1 + (r/r_{max})^{2})^{2}$                                      |
   |           `Circle`           | `DielectricRadiusValue, DielectricRadiusValueB`, `DielectricCircleAxis` | Circular dielectric in x-y-direction (constant in z-direction)  with optional cut-out radius DielectricRadiusValueB along the axis given by DielectricCircleAxis |
   | `DielectricResonatorAntenna` |                         `DielectricRadiusValue`                         |                                                 Circular dielectric in x-y-direction (only elements with $z>0$)                                                  |
-  |          `FH_lens`           |                                  none                                   |                                              specific geometry (`SUBROUTINE SetGeometry` yields more information)                                               |
+  |          `FH_lens`           |                                  none                                   |                                               specific geometry (`SUBROUTINE SetGeometry` yields more information)                                               |
 
 For the Maxwell solver (DGSEM), the interface fluxes between vacuum and dielectric regions can
 either be conserving or non-conserving, which is selected by
@@ -282,15 +286,15 @@ Modelling of reactive surfaces is enabled by setting `Part-BoundaryX-Condition=r
 appropriate particle boundary surface model `Part-BoundaryX-SurfaceModel`.
 The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the table below.
 
-| SurfaceModel | Description                                                                                                                                                                     |
-| :----------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0 (default)  | Standard extended Maxwellian scattering                                                                                                                                         |
-|      2       | Simple recombination on surface collision, where an impinging particle as given by Ref. [@Reschke2019].                                                                         |
-|      3       | Kinetic Monte Carlo surface: Replicates surfaces with a specified lattice structure, either fcc(100) or fcc(111) and models complete catalysis as given by Ref. [@Reschke2019]. |
-|      5       | Secondary electron emission as given by Ref. [@Levko2015].                                                                                                                      |
-|      7       | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. [@Pflug2014] and given by Ref. [@Depla2009] with a constant yield of 13 \%.                                                                                                                      |
-|     101      | Evaporation from surfaces according to a Maxwellian velocity distribution.                                                                                                      |
-|     102      | Evaporation according to MD-fitted velocity distributions.                                                                                                                      |
+| SurfaceModel | Description                                                                                                                                                                         |
+| :----------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 (default)  | Standard extended Maxwellian scattering                                                                                                                                             |
+|      2       | Simple recombination on surface collision, where an impinging particle as given by Ref. [@Reschke2019].                                                                             |
+|      3       | Kinetic Monte Carlo surface: Replicates surfaces with a specified lattice structure, either fcc(100) or fcc(111) and models complete catalysis as given by Ref. [@Reschke2019].     |
+|      5       | Secondary electron emission as given by Ref. [@Levko2015].                                                                                                                          |
+|      7       | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. [@Pflug2014] and given by Ref. [@Depla2009] with a constant yield of 13 \%. |
+|     101      | Evaporation from surfaces according to a Maxwellian velocity distribution.                                                                                                          |
+|     102      | Evaporation according to MD-fitted velocity distributions.                                                                                                                          |
 
 For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
 

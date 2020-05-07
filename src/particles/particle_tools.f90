@@ -65,6 +65,10 @@ INTERFACE isInterpolateParticle
   MODULE PROCEDURE isInterpolateParticle
 END INTERFACE
 
+INTERFACE StoreLostParticleProperties
+  MODULE PROCEDURE StoreLostParticleProperties
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -72,7 +76,7 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: LIQUIDEVAP,LIQUIDREFL,ALPHALIQUID,BETALIQUID,TSURUTACONDENSCOEFF
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, isChargedParticle
-PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle
+PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties
 !===================================================================================================================================
 
 CONTAINS
@@ -84,7 +88,7 @@ SUBROUTINE UpdateNextFreePosition()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars        ,ONLY: PDM,PEM, PartSpecies, doParticleMerge, vMPF_SpecNumElem
-USE MOD_Particle_Vars        ,ONLY: PartState, VarTimeStep
+USE MOD_Particle_Vars        ,ONLY: PartState, VarTimeStep, usevMPF
 USE MOD_DSMC_Vars            ,ONLY: useDSMC, CollInf
 USE MOD_Particle_VarTimeStep ,ONLY: CalcVarTimeStep
 #if USE_MPI
@@ -116,7 +120,7 @@ CALL LBStartTime(tLBStart)
 
 IF(PDM%maxParticleNumber.EQ.0) RETURN
 counter1 = 1
-IF (useDSMC.OR.doParticleMerge) THEN
+IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
   PEM%pNumber(:) = 0
 END IF
 
@@ -125,7 +129,7 @@ PDM%ParticleVecLength = 0
 PDM%insideParticleNumber = 0
 IF (doParticleMerge) vMPF_SpecNumElem = 0
 
-IF (useDSMC.OR.doParticleMerge) THEN
+IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
   DO i=1,n
     IF (.NOT.PDM%ParticleInside(i)) THEN
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
@@ -174,6 +178,103 @@ CALL LBPauseTime(LB_UNFP,tLBStart)
 
   RETURN
 END SUBROUTINE UpdateNextFreePosition
+
+
+SUBROUTINE StoreLostParticleProperties(iPart,ElemID,UsePartState_opt)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Store information of a lost particle (during restart and during the simulation)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals                ,ONLY: abort
+USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState,LastPartPos
+USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartStateLostVecLength
+USE MOD_TimeDisc_Vars          ,ONLY: time
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)          :: iPart
+INTEGER,INTENT(IN)          :: ElemID
+LOGICAL,INTENT(IN),OPTIONAL :: UsePartState_opt
+INTEGER                     :: dims(2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                 :: MPF
+! Temporary arrays
+REAL, ALLOCATABLE    :: PartStateLost_tmp(:,:)   ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,MPF,time,ElemID,iPart
+!                                                !                 2nd index: 1 to number of lost particles
+INTEGER              :: ALLOCSTAT
+LOGICAL              :: UsePartState_loc
+!===================================================================================================================================
+UsePartState_loc = .FALSE.
+IF (PRESENT(UsePartState_opt)) UsePartState_loc = UsePartState_opt
+
+! Set macro particle factor
+IF (usevMPF) THEN
+  MPF = PartMPF(iPart)
+ELSE
+  MPF = Species(PartSpecies(iPart))%MacroParticleFactor
+END IF
+
+dims = SHAPE(PartStateLost)
+
+ASSOCIATE( iMax => PartStateLostVecLength )
+  ! Increase maximum number of boundary-impact particles
+  iMax = iMax + 1
+
+  ! Check if array maximum is reached. 
+  ! If this happens, re-allocate the arrays and increase their size (every time this barrier is reached, double the size)
+  IF(iMax.GT.dims(2))THEN
+
+    ! --- PartStateLost ---
+    ALLOCATE(PartStateLost_tmp(1:14,1:dims(2)), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+          __STAMP__&
+          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost_tmp temporary array!')
+    ! Save old data
+    PartStateLost_tmp(1:14,1:dims(2)) = PartStateLost(1:14,1:dims(2))
+
+    ! Re-allocate PartStateLost to twice the size
+    DEALLOCATE(PartStateLost)
+    ALLOCATE(PartStateLost(1:14,1:2*dims(2)), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+          __STAMP__&
+          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost array!')
+    PartStateLost(1:14,        1:  dims(2)) = PartStateLost_tmp(1:14,1:dims(2))
+    PartStateLost(1:14,dims(2)+1:2*dims(2)) = 0.
+
+  END IF
+
+  !ParticlePositionX,
+  !ParticlePositionY,
+  !ParticlePositionZ,
+  !VelocityX,
+  !VelocityY,
+  !VelocityZ,
+  !Species,
+  !ElementID,
+  !PartID,
+  !LastPos-X,
+  !LastPos-Y,
+  !LastPos-Z
+
+  IF(UsePartState_loc)THEN
+    PartStateLost(1:3,iMax) = PartState(1:3,iPart)
+  ELSE
+    PartStateLost(1:3,iMax) = LastPartPos(1:3,iPart)
+  END IF ! UsePartState_loc
+  PartStateLost(4:6  ,iMax) = PartState(4:6,iPart)
+  PartStateLost(7    ,iMax) = REAL(PartSpecies(iPart))
+  PartStateLost(8    ,iMax) = MPF
+  PartStateLost(9    ,iMax) = time
+  PartStateLost(10   ,iMax) = REAL(ElemID)
+  PartStateLost(11   ,iMax) = REAL(iPart)
+  PartStateLost(12:14,iMax) = PartState(1:3,iPart)
+END ASSOCIATE
+
+END SUBROUTINE StoreLostParticleProperties
+
 
 FUNCTION DiceUnitVector()
 !===================================================================================================================================

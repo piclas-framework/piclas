@@ -3,14 +3,86 @@ from timeit import default_timer as timer
 import argparse
 import re
 import shutil
+import os.path
+import configparser
 
 # Bind raw_input to input in Python 2
 try:
     input = raw_input
+    import ConfigParser as ConfPars
 except NameError:
+    import configparser as ConfPars
     pass
 
-def GetInfoFromDataset(statefile,data_set,NbrOfFiles) :
+def CreateConfig(parameterFile):
+    if os.path.exists(parameterFile):
+        with open(parameterFile, "r") as f:
+            lines = f.readlines()
+            
+        config = {}
+        for line in lines:
+            line=line.replace(" ", "").strip("\n")
+            if not line.startswith("!"):
+                idx = line.find('!')
+                if idx > -1:
+                    line=line[:idx]
+                if line:
+                    keyval=line.split("=")
+                    key=keyval[0]
+                    val=keyval[1]
+
+                    # check if the same parameter name (e.g. 'BoundaryName') occurs more than once in the list and
+                    # move multiple occurances to a separate key/value where the value is a list of all occurances
+                    # this must be done, because dicts cannot have the same key name more than once (it is a dictionary)
+                    found, number = isKeyOf(config,key)
+                    if found :
+                        if type(config[key]) == tuple:
+                            config[key] = config[key] + tuple([val])
+                        else:
+                            config[key] = tuple([config[key]]) + tuple([val])
+                    else :
+                        config[key] = val
+
+        with open(parameterFile+".new", "w") as output_new: 
+            output_new.write("[Section1]\n")
+            for x in config.keys():
+                if type(config[x]) == tuple:
+                    #print(x.ljust(40) +" = " + ", ".join(str(y) for y in config[x]))
+                    output_new.write(x.ljust(40) +" = " + ", ".join(str(y) for y in config[x])+"\n")
+                else:
+                    #print(x.ljust(40) +" = " + config[x].ljust(25))
+                    output_new.write(x.ljust(40) +" = " + config[x].ljust(25)+"\n")
+        exit_code=0
+    else:
+        exit_code=-1
+
+    return exit_code
+
+def isKeyOf(a,key_IN) :
+    """Check if the dictionary 'a' contains a key 'key_IN'"""
+    found = False
+    number = 0
+    for key in a.keys() :
+        if key == key_IN :
+            number += 1
+            found = True
+    return found, number
+
+def ReadConfig(parameterFile):
+    # Create config file that is conform with the format of ConfigParser()
+    exit_code = CreateConfig(parameterFile)
+
+    # Read config with ConfigParser()
+    if exit_code == 0:
+        config =  ConfPars.ConfigParser()
+        config.read(parameterFile+".new")
+    else:
+        config=None
+
+    return config
+
+
+def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read) :
     global InitialDataRead
     global SpeciesIndex
     global MPFIndex
@@ -88,22 +160,24 @@ def GetInfoFromDataset(statefile,data_set,NbrOfFiles) :
         SpeciesIndex = VarNamesParticles.index('Species')
         MPFIndex = VarNamesParticles.index('MacroParticleFactor')
 
-        Species=[]
-        for i in range(len(b1)):
-            SpecID = b1[i][SpeciesIndex]
-            if SpecID not in Species :
-                Species.append(SpecID)
-        Species = [x+1 for x in range(int(max(Species)))]
+        # Only request user input for species if this info could not be read automatically from parameter.ini
+        if not species_info_read:
+            Species=[]
+            for i in range(len(b1)):
+                SpecID = b1[i][SpeciesIndex]
+                if SpecID not in Species :
+                    Species.append(SpecID)
+            Species = [x+1 for x in range(int(max(Species)))]
 
-        #for i in range(len(b1)):
-            #for j in range(len(b1[i])):
-                #print(b1[i][j])
+            #for i in range(len(b1)):
+                #for j in range(len(b1[i])):
+                    #print(b1[i][j])
 
-        Charge={}
-        for iSpec in Species :
-            txt = input(yellow("    Enter the charge for species %s in multiples of the elementary charge e=1.602176634e-19 : " % iSpec))
-            Charge[iSpec] = float(txt)*1.602176634e-19
-        print(yellow("    The charges of the species are: %s" % Charge))
+            Charge={}
+            for iSpec in Species :
+                txt = input(yellow("    Enter the charge for species %s in multiples of the elementary charge e=1.602176634e-19 : " % iSpec))
+                Charge[iSpec] = float(txt)*1.602176634e-19
+            print(yellow("    The charges of the species are: %s" % Charge))
 
 
     # 2   Sum the chares in PartData and divide by the time difference to the current
@@ -116,7 +190,8 @@ def GetInfoFromDataset(statefile,data_set,NbrOfFiles) :
             print(yellow("    The charges of the species are: %s" % Charge))
         TotalCharge += Charge[SpecID] * b1[i][MPFIndex]
 
-    Current = TotalCharge / (Time-PreviousTime)
+    dt=Time-PreviousTime
+    Current = TotalCharge / dt
     PreviousTime = Time
     data[FileCount,0] = Time
     data[FileCount,1] = Current
@@ -124,6 +199,8 @@ def GetInfoFromDataset(statefile,data_set,NbrOfFiles) :
 
     # 3   Close .h5 data file
     f1.close()
+
+    print("%s  dt=%.2E  charge=%.2E  current=%.2E"% (statefile, dt, TotalCharge, Current))
 
 class bcolors :
     """color and font style definitions for changing output appearance"""
@@ -188,13 +265,37 @@ max_length=0
 for statefile in args.files :
     max_length = max(max_length,len(statefile))
 
+parameterFile="parameter.ini"
+config = ReadConfig(parameterFile)
+
+if config :
+    species_info_read=True
+
+    nSpecies = config.get("Section1","Part-nSpecies")
+
+    # Set species ID's
+    Species=[]
+    Species = [x+1 for x in range(int(max(nSpecies)))]
+
+    # Set charge of species
+    Charge={}
+    for iSpec in Species :
+        Charge[iSpec] = float(config.get("Section1","Part-Species%d-ChargeIC" % iSpec))
+    print(yellow("    Automatically fetched species ID's and charges from %s" % parameterFile))
+    print(yellow("    The charges of the species are: %s" % Charge))
+else:
+    species_info_read=False
+
 InitialDataRead = True
 NbrOfFiles = len(args.files)
 #print(NbrOfFiles)
 for statefile in args.files :
-    print(statefile)
-    # Flip PartData
-    GetInfoFromDataset(statefile,'PartData',NbrOfFiles)
+    if statefile.endswith('.h5'):
+        #print(statefile)
+        # Flip PartData
+        GetInfoFromDataset(statefile,'PartData',NbrOfFiles,species_info_read)
+    else:
+        print(statefile," skipping")
 
 print(132*"-")
 #print(data)
