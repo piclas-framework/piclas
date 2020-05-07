@@ -1776,14 +1776,9 @@ __STAMP__&
             IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal.AND.(.NOT.TriaSurfaceFlux)) THEN
               PartState(4:5,ParticleIndexNbr) = particle_xis(2*(iPart-1)+1:2*(iPart-1)+2) !use velo as dummy-storage for xi!
             END IF            
-            ! shift lastpartpos minimal into cell for fail-safe tracking
             LastPartPos(1:3,ParticleIndexNbr)=PartState(1:3,ParticleIndexNbr)
 #if defined(IMPA) || defined(ROS)
-            IF(DoRefMapping)THEN
-              CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),globElemId) !RefMap PartState
-              ! important for implicit, correct norm, etc.
-              PartState(1:3,ParticleIndexNbr)=LastPartPos(1:3,ParticleIndexNbr)
-            END IF            
+            IF(DoRefMapping) CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),globElemId)
 #endif /*IMPA*/
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
             PDM%dtFracPush(ParticleIndexNbr) = .TRUE.
