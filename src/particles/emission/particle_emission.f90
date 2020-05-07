@@ -88,21 +88,6 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmax' &
                                 , 'TODO-DEFINE-PARAMETER Max radius of to-be inserted particles', '1e21', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmin' &
                                 , 'TODO-DEFINE-PARAMETER Min radius of to-be inserted particles', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-SimpleRadialVeloFit' &
-                                      , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Fit of veloR/veloTot=-r*(A*exp(B*r)+C)', '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-preFac' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'A , see SimpleRadialVeloFit' &
-                                , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-powerFac' &
-                                      , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'B , see SimpleRadialVeloFit' &
-                                , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-shiftFac' &
-                                      , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'C , see SimpleRadialVeloFit' &
-                                , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-MWTemperatureIC' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Temperature for Maxwell Distribution', '0.', numberedmulti=.TRUE.)

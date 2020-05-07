@@ -217,10 +217,6 @@ TYPE typeSurfaceflux
   INTEGER(KIND=8)                        :: tmpInsertedParticle              ! tmp Number of all already inserted Particles
   INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus       ! tmp accumulated "negative" number of inserted Particles
   TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)      ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)
-  LOGICAL                                :: SimpleRadialVeloFit              ! fit of veloR/veloTot=-r*(A*exp(B*r)+C)
-  REAL                                   :: preFac !A
-  REAL                                   :: powerFac !B
-  REAL                                   :: shiftFac !C
   LOGICAL                                :: CircularInflow                   ! Circular region, which can be used to define small
                                                                              ! geometry features on large boundaries
   INTEGER                                :: dir(3)                           ! axial (1) and orth. coordinates (2,3) of polar system
