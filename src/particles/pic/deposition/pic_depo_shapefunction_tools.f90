@@ -463,10 +463,10 @@ IF(.NOT.DoSFLocalDepoAtBounds)THEN
 END IF
 
 ! 2.  Check Check if particle is inside of a local deposition element and if the current element is the same
-IF(IsLocalDepositionBCElem(PEM%Element(PartID)))THEN ! Particle element is a local deposition element
+IF(IsLocalDepositionBCElem(PEM%GlobalElemID(PartID)))THEN ! Particle element is a local deposition element
   DepoLoc=.TRUE.
   ! Check if particle is NOT in current element to prevent deposition in neighboring elements.
-  IF(ElemID.NE.PEM%Element(PartID)) RETURN
+  IF(ElemID.NE.PEM%GlobalElemID(PartID)) RETURN
 ELSE ! Particle element is NOT a local deposition element: perform deposition via shape function
   DepoLoc=.FALSE.
   RETURN

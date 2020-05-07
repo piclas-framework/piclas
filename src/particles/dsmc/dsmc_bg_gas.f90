@@ -203,8 +203,8 @@ __STAMP__&
     ELSE
       CALL DSMC_SetInternalEnr_LauxVFD(iSpec,1,PositionNbr,1)
     END IF
-    PEM%Element(PositionNbr) = PEM%Element(iPart)
-    LocalElemID = PEM%Element(PositionNbr) - offSetElem
+    PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(iPart)
+    LocalElemID = PEM%GlobalElemID(PositionNbr) - offSetElem
     PDM%ParticleInside(PositionNbr) = .true.
     PEM%pNext(PEM%pEnd(LocalElemID)) = PositionNbr     ! Next Particle of same Elem (Linked List)
     PEM%pEnd(LocalElemID) = PositionNbr
@@ -471,7 +471,7 @@ DO iSpec = 1,nSpecies                             ! Loop over all non-background
           ELSE
             CALL DSMC_SetInternalEnr_LauxVFD(jSpec,1,bggPartIndex,1)
           END IF
-          PEM%Element(bggPartIndex) = iElem + offSetElem
+          PEM%GlobalElemID(bggPartIndex) = iElem + offSetElem
           PDM%ParticleInside(bggPartIndex) = .TRUE.
           ! Determine the particle velocity
           CALL CalcVelocity_maxwell_lpn(FractNbr=jSpec, Vec3D=PartState(4:6,bggPartIndex), iInit=1)

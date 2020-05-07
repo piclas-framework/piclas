@@ -164,7 +164,7 @@ DO i = 1,PDM%ParticleVecLength
 #endif /*USE_LOADBALANCE*/
     IF (MeasureTrackTime) nTracks=nTracks+1
     PartisDone = .FALSE.
-    ElemID = PEM%lastElement(i)
+    ElemID = PEM%LastGlobalElemID(i)
     TrackInfo%CurrElem=ElemID
     SideID = 0
     DoneLastElem(:,:) = 0
@@ -175,8 +175,8 @@ DO i = 1,PDM%ParticleVecLength
       oldElemIsMortar = .FALSE.
       CALL ParticleInsideQuad3D(PartState(1:3,i),ElemID,InElementCheck,det)
       IF (InElementCheck) THEN
-        ! If particle is inside the given ElemID, set new PEM%Element and stop tracking this particle ->PartisDone
-        PEM%Element(i) = ElemID
+        ! If particle is inside the given ElemID, set new PEM%GlobalElemID and stop tracking this particle ->PartisDone
+        PEM%GlobalElemID(i) = ElemID
         PartisDone = .TRUE.
       ELSE
         ! 2b) If particle is not within the given element in a), the side through which the particle went is determined by checking
@@ -405,15 +405,15 @@ DO i = 1,PDM%ParticleVecLength
       END IF  ! InElementCheck = T/F
     END DO  ! .NOT.PartisDone
 #if USE_LOADBALANCE
-    IF (PEM%Element(i).GE.offsetElem+1 .AND.PEM%Element(i).LE.offsetElem+PP_nElems) &
-      CALL LBElemPauseTime(PEM%Element(i)-offsetElem,tLBStart)
+    IF (PEM%GlobalElemID(i).GE.offsetElem+1 .AND.PEM%GlobalElemID(i).LE.offsetElem+PP_nElems) &
+      CALL LBElemPauseTime(PEM%GlobalElemID(i)-offsetElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF
   ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
   IF(RadialWeighting%PerformCloning) THEN
     IF(PDM%ParticleInside(i)) THEN
-      IF ((PEM%Element(i).GE.1+offSetElem).AND.(PEM%Element(i).LE.PP_nElems+offSetElem)) &
-          CALL DSMC_2D_RadialWeighting(i,PEM%Element(i))
+      IF ((PEM%GlobalElemID(i).GE.1+offSetElem).AND.(PEM%GlobalElemID(i).LE.PP_nElems+offSetElem)) &
+          CALL DSMC_2D_RadialWeighting(i,PEM%GlobalElemID(i))
     END IF
   END IF
 END DO ! i = 1,PDM%ParticleVecLength
@@ -588,7 +588,7 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
     END IF
     ! caution: reuse of variable, foundHit=TRUE == inside
-    ElemID=PEM%lastElement(iPart)
+    ElemID=PEM%LastGlobalElemID(iPart)
     CALL GetPositionInRefElem(LastPartPos(1:3,iPart),RefPos,ElemID)
     IF (MAXVAL(ABS(RefPos)).LE.1.0+1e-4) foundHit=.TRUE.
     IF(.NOT.foundHit)THEN  ! particle not inside
@@ -615,7 +615,7 @@ DO iPart=1,PDM%ParticleVecLength
 ! -- 1. Initialize particle path and tracking info
     IF (MeasureTrackTime) nTracks=nTracks+1
     PartisDone=.FALSE.
-    ElemID = PEM%lastElement(iPart)
+    ElemID = PEM%LastGlobalElemID(iPart)
     PartTrajectory=PartState(1:3,iPart) - LastPartPos(1:3,iPart)
     lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
     alphaDoneRel=0.
@@ -626,7 +626,7 @@ DO iPart=1,PDM%ParticleVecLength
       IF (UseMacroBody) THEN
         onlyMacroPart=.TRUE.
       ELSE
-        PEM%Element(iPart)=ElemID
+        PEM%GlobalElemID(iPart)=ElemID
         PartisDone=.TRUE.
         CYCLE
       END IF
@@ -641,7 +641,7 @@ DO iPart=1,PDM%ParticleVecLength
       WRITE(UNIT_stdout,'(A32)')  ' ---------------------------------------------------------------'
       WRITE(UNIT_stdout,'(A)')    '     | Output of Particle information '
       CALL OutputTrajectory(iPart,PartState(1:3,iPart),PartTrajectory,lengthPartTrajectory)
-      WRITE(UNIT_stdOut,'(A,I0)') '     | global ElemID       ', PEM%LastElement(iPart)
+      WRITE(UNIT_stdOut,'(A,I0)') '     | global ElemID       ', PEM%LastGlobalElemID(iPart)
     END IF ; END IF
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
@@ -901,7 +901,7 @@ DO iPart=1,PDM%ParticleVecLength
         OldElemID=ElemID
         IF (currentIntersect%IntersectCase.EQ.0) THEN
           ! no intersection
-          PEM%Element(iPart)=ElemID
+          PEM%GlobalElemID(iPart)=ElemID
           PartisDone=.TRUE.
         ELSE
           SELECT CASE(currentIntersect%IntersectCase)
@@ -1063,8 +1063,8 @@ DO iPart=1,PDM%ParticleVecLength
         WRITE(UNIT_stdout,'(4(A,L))')      '     | crossed Side: ',crossedBC,' switched Element: ',SwitchedElement,&
           ' Particle tracking done: ',PartisDone,' Particle is double checked: ',PartDoubleCheck
         IF(SwitchedElement) THEN
-          WRITE(UNIT_stdout,'(A,I0,A,I0)') '     | First_ElemID: ',PEM%LastElement(iPart),' | new Element: ',ElemID
-          WRITE(UNIT_stdOut,'(A,I0)')      '     | first global ElemID       ', GetGlobalElemID(PEM%LastElement(iPart))
+          WRITE(UNIT_stdout,'(A,I0,A,I0)') '     | First_ElemID: ',PEM%LastGlobalElemID(iPart),' | new Element: ',ElemID
+          WRITE(UNIT_stdOut,'(A,I0)')      '     | first global ElemID       ', GetGlobalElemID(PEM%LastGlobalElemID(iPart))
           WRITE(UNIT_stdOut,'(A,I0)')      '     | new global ElemID       ', GetGlobalElemID(ElemID)
         END IF
         IF( crossedBC) THEN
@@ -1095,8 +1095,8 @@ DO iPart=1,PDM%ParticleVecLength
     END DO ! PartisDone=.FALSE.
 
 #if USE_LOADBALANCE
-    IF (PEM%Element(iPart).GE.offsetElem+1.AND.PEM%Element(iPart).GE.offsetElem+PP_nElems) &
-      CALL LBElemPauseTime(PEM%Element(iPart),tLBStart)
+    IF (PEM%GlobalElemID(iPart).GE.offsetElem+1.AND.PEM%GlobalElemID(iPart).GE.offsetElem+PP_nElems) &
+      CALL LBElemPauseTime(PEM%GlobalElemID(iPart),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF ! Part inside
 END DO ! iPart
@@ -1142,7 +1142,7 @@ DO iPart=1,PDM%ParticleVecLength
      ,' PartPos outside of mesh AFTER tracking. iPart= ,iStage= ',iPart,REAL(iStage))
     END IF
     ! caution: reuse of variable, foundHit=TRUE == inside
-    ElemID=PEM%Element(iPart)
+    ElemID=PEM%GlobalElemID(iPart)
     CALL GetPositionInRefElem(PartState(1:3,iPart),RefPos,ElemID)
     IF (MAXVAL(ABS(RefPos)).LE.1.0+1e-4) foundHit=.TRUE.
     IF(.NOT.foundHit)THEN  ! particle not inside
@@ -1326,7 +1326,7 @@ DO iPart=1,PDM%ParticleVecLength
 #else
   IF (PDM%ParticleInside(iPart)) THEN
 #endif /*IMPA*/
-    LastElemID = PEM%lastElement(iPart)
+    LastElemID = PEM%LastGlobalElemID(iPart)
     ElemID     = LastElemID
     CNElemID   = GetCNElemID(ElemID)
 #if USE_LOADBALANCE
@@ -1369,7 +1369,7 @@ DO iPart=1,PDM%ParticleVecLength
 
       ! particle is inside
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN
-         PEM%Element(iPart) = ElemID
+         PEM%GlobalElemID(iPart) = ElemID
 #if USE_LOADBALANCE
          ! Particle is on current proc, assign load to new cell
          IF (ElemID.GT.offsetElem+1.AND.ElemID.LE.offsetElem+PP_nElems) THEN
@@ -1403,14 +1403,14 @@ DO iPart=1,PDM%ParticleVecLength
 
       ! particle inside
       IF (MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN
-        PEM%Element(iPart) = ElemID
+        PEM%GlobalElemID(iPart) = ElemID
 #if USE_LOADBALANCE
          ! Particle is on current proc, assign load to new cell
          IF (ElemID.GT.offsetElem+1.AND.ElemID.LE.offsetElem+PP_nElems) THEN
            CALL LBElemPauseTime(ElemID-offsetElem,tLBStart)
          ! Dp not assign load in halo region yet
-!         ELSE IF(PEM%LastElement(iPart).LE.nComputeNodeTotalElems) THEN
-!           CALL LBElemPauseTime(PEM%LastElement(iPart),tLBStart)
+!         ELSE IF(PEM%LastGlobalElemID(iPart).LE.nComputeNodeTotalElems) THEN
+!           CALL LBElemPauseTime(PEM%LastGlobalElemID(iPart),tLBStart)
          END IF
 #endif /*USE_LOADBALANCE*/
         CYCLE
@@ -1423,14 +1423,14 @@ DO iPart=1,PDM%ParticleVecLength
       CALL LBElemPauseTime(ElemID-offsetElem,tLBStart)
     ! Particle moved into halo region, so blame the last cell on proc
     ! Dp not assign load in halo region yet
-!    ELSE IF(PEM%LastElement(iPart).LE.nComputeNodeTotalElems)THEN
-!      CALL LBElemPauseTime(PEM%LastElement(iPart),tLBStart)
+!    ELSE IF(PEM%LastGlobalElemID(iPart).LE.nComputeNodeTotalElems)THEN
+!      CALL LBElemPauseTime(PEM%LastGlobalElemID(iPart),tLBStart)
     END IF
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 
     ! relocate particle
-    oldElemID = PEM%lastElement(iPart) ! this is not!  a possible elem
+    oldElemID = PEM%LastGlobalElemID(iPart) ! this is not!  a possible elem
 
     ! get background mesh cell of particle
     ! FLOOR might give the wrong element if we are right on the edge
@@ -1497,7 +1497,7 @@ DO iPart=1,PDM%ParticleVecLength
 
       ! particle inside
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN
-        PEM%Element(iPart) = ElemID
+        PEM%GlobalElemID(iPart) = ElemID
         PartIsDone         = .TRUE.
         EXIT
       END IF
@@ -1513,20 +1513,20 @@ DO iPart=1,PDM%ParticleVecLength
       ! use best xi
       IF (MAXVAL(ABS(oldXi)).LT.MAXVAL(ABS(newXi))) THEN
         PartPosRef(1:3,iPart) = OldXi
-        PEM%Element(iPart)    = oldElemID
+        PEM%GlobalElemID(iPart)    = oldElemID
       ELSE
         PartPosRef(1:3,iPart) = NewXi
-        PEM%Element(iPart)    = NewElemID
+        PEM%GlobalElemID(iPart)    = NewElemID
         oldElemID             = NewElemID
       END IF
 
       ! set test element
-      TestElem = PEM%Element(iPart)
+      TestElem = PEM%GlobalElemID(iPart)
       CNTestElem = GetCNElemID(TestElem)
       IF(CNTestElem.LE.0.)THEN
         epsElement = MAXVAL(ElemEpsOneCell)
 #if defined(ROS) || defined(IMPA)
-        TestElem = PEM%ElementN(iPart)
+        TestElem = PEM%GlobalElemIDN(iPart)
         CNTestElem = GetCNElemID(TestElem)
 #endif
       ELSE
@@ -1560,7 +1560,7 @@ DO iPart=1,PDM%ParticleVecLength
           IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' displacementN/halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartStateN             ', PartStateN(1:3,iPart)
 #if USE_MPI
-          inelem=PEM%ElementN(ipart)
+          inelem=PEM%GlobalElemIDN(ipart)
           IF(inelem.LE.PP_nElems)THEN
             IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = F'
             IPWRITE(UNIT_stdout,'(I0,A,I0)') ' elemid-N               ', inelem+offsetelem
@@ -1570,11 +1570,11 @@ DO iPart=1,PDM%ParticleVecLength
 !                                                             + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
           END IF
 #else
-          IPWRITE(UNIt_stdOut,'(I0,A,I0)') ' elemid-N                 ', pem%element(ipart)+offsetelem
+          IPWRITE(UNIt_stdOut,'(I0,A,I0)') ' elemid-N                 ', PEM%GlobalElemID(ipart)+offsetelem
 #endif
 #endif /*ROS or IMPA*/
 #if USE_MPI
-          InElem=PEM%Element(iPart)
+          InElem=PEM%GlobalElemID(iPart)
           IF(InElem.LE.PP_nElems)THEN
             IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
             IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID                ', InElem+offSetElem
@@ -1584,10 +1584,10 @@ DO iPart=1,PDM%ParticleVecLength
 !                                                   + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
           END IF
 #else
-          IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID       ', PEM%Element(iPart)+offSetElem
+          IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID       ', PEM%GlobalElemID(iPart)+offSetElem
 #endif
 #if USE_MPI
-          InElem=PEM%LastElement(iPart)
+          InElem=PEM%LastGlobalElemID(iPart)
           IF(InElem.LE.PP_nElems)THEN
             IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
             IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Last-ElemID         ', InElem+offSetElem
@@ -1597,7 +1597,7 @@ DO iPart=1,PDM%ParticleVecLength
 !                                                   + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
           END IF
 #else
-          IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Last-ElemID  ', PEM%LastElement(iPart)+offSetElem
+          IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Last-ElemID  ', PEM%LastGlobalElemID(iPart)+offSetElem
 #endif
           IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' PartSpecies  ', PartSpecies(iPart)
           CALL abort(&
@@ -1663,7 +1663,7 @@ DO iPart=1,PDM%ParticleVecLength
               IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' displacementN/halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
               IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartStateN             ', PartStateN(1:3,iPart)
 #if USE_MPI
-              inelem=PEM%ElementN(ipart)
+              inelem=PEM%GlobalElemIDN(ipart)
               IF(inelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = F'
                 IPWRITE(UNIT_stdout,'(I0,A,I0)') ' elemid-N               ', inelem+offsetelem
@@ -1682,14 +1682,14 @@ DO iPart=1,PDM%ParticleVecLength
               END IF
 
 #else
-              IPWRITE(UNIt_stdOut,'(I0,A,I0)') ' elemid-N                 ', pem%element(ipart)+offsetelem
+              IPWRITE(UNIt_stdOut,'(I0,A,I0)') ' elemid-N                 ', PEM%GlobalElemID(ipart)+offsetelem
 #endif
 #endif /*ROS or IMPA*/
 #if defined(IMPA)
               IPWRITE(UNIT_stdOut,'(I0,A,X,L)') ' Implicit               ', PartIsImplicit(iPart)
 #endif
 #if USE_MPI
-              inelem=PEM%Element(ipart)
+              inelem=PEM%GlobalElemID(ipart)
               IF(inelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
                 IPWRITE(UNIT_stdout,'(I0,A,I0)') ' elemid               ', inelem+offsetelem
@@ -1708,7 +1708,7 @@ DO iPart=1,PDM%ParticleVecLength
               END IF
 
 #else
-              IPWRITE(UNIt_stdOut,'(I0,A,I0)') ' elemid                 ', pem%element(ipart)+offsetelem
+              IPWRITE(UNIt_stdOut,'(I0,A,I0)') ' elemid                 ', PEM%GlobalElemID(ipart)+offsetelem
 #endif
               IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' PartSpecies  ', PartSpecies(iPart)
               CALL abort(&
@@ -1716,7 +1716,7 @@ DO iPart=1,PDM%ParticleVecLength
                   ,'Particle not inside of Element, ipart',ipart)
             END IF ! inside
           ELSE
-            PEM%Element(iPart)=TestElem
+            PEM%GlobalElemID(iPart)=TestElem
           END IF ! epsCell
         END IF ! BCElem
       END IF ! inner eps too large
@@ -1796,7 +1796,7 @@ lengthPartTrajectory = SQRT( PartTrajectory(1)*PartTrajectory(1) &
 
 ! Check if the particle moved at all. If not, tracking is done
 IF (.NOT.PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo(ElemID))) THEN
-  PEM%Element(PartID) = ElemID
+  PEM%GlobalElemID(PartID) = ElemID
   PartisDone          = .TRUE.
   RETURN
 END IF
@@ -3095,7 +3095,7 @@ IF(   (PartState(1,PartID).GT.GEO%xmaxglob) &
      ,' PartPos outside of mesh. PartID=, iStage',PartID,REAL(iStage))
 END IF
 IF(.NOT.DoRefMapping)THEN
-  ElemID=PEM%Element(PartID)
+  ElemID=PEM%GlobalElemID(PartID)
 #ifdef CODE_ANALYZE
   CALL PartInElemCheck(PartState(1:3,PartID),PartID,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.)
 #else

@@ -511,7 +511,7 @@ IF(.NOT.PRESENT(iPart_p3)) THEN
     PartStateIntEn( 1,ReactInx(3)) = 0.
     PartStateIntEn( 2,ReactInx(3)) = 0.
     IF ( DSMC%ElectronicModel )  PartStateIntEn( 3,ReactInx(3)) = 0.
-    PEM%Element(ReactInx(3)) = PEM%Element(ReactInx(1))
+    PEM%GlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(1))
     IF(RadialWeighting%DoRadialWeighting) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
     IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(3)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
     WeightProd = Weight1

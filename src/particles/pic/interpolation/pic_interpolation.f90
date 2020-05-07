@@ -378,7 +378,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
         ! Don't interpolate the field at neutral particles (only when considering field ionization)
         IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
-          IF(PEM%Element(iPart).EQ.iElem)THEN
+          IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
             FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
           END IF! Element(iPart).EQ.iElem
         END IF
@@ -390,7 +390,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         IF(.NOT.PDM%ParticleInside(iPart))CYCLE
         ! Don't interpolate the field at neutral particles (only when considering field ionization)
         IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
-          IF(PEM%Element(iPart).EQ.iElem)THEN
+          IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
             Pos = PartState(1:3,iPart)
             !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -431,7 +431,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           ! Don't interpolate the field at neutral particles (only when considering field ionization)
           IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
-            IF(PEM%Element(iPart).EQ.iElem)THEN
+            IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
               IF(.NOT.DoRefMapping)THEN
                 CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem)
               END IF
@@ -473,7 +473,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           ! Don't interpolate the field at neutral particles (only when considering field ionization)
           IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
-            IF(PEM%Element(iPart).EQ.iElem)THEN
+            IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
               IF(PDM%dtFracPush(iPart))THEN ! same as in "particles are not yet mapped"
                 Pos = PartState(1:3,iPart)
                 !--- evaluate at Particle position
@@ -544,7 +544,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           ! Don't interpolate the field at neutral particles (only when considering field ionization)
           IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
-            IF(PEM%Element(iPart).EQ.iElem)THEN
+            IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
               Pos = PartState(1:3,iPart)
               !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -592,7 +592,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         IF(.NOT.PDM%ParticleInside(iPart))CYCLE
         ! Don't interpolate the field at neutral particles (only when considering field ionization)
         IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
-          IF(PEM%Element(iPart).EQ.iElem)THEN
+          IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
             IF(.NOT.DoRefMapping .OR. (NotMappedSurfFluxParts .AND. PDM%dtFracPush(iPart)))THEN
               CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem)
             END IF
@@ -775,7 +775,7 @@ END IF
 
 IF (DoInterpolation) THEN                 ! skip if no self fields are calculated
   field(1:6)=0.
-  ElemID=PEM%Element(PartID)
+  ElemID=PEM%GlobalElemID(PartID)
 #if USE_MPI
   IF(ElemID.GT.PP_nElems) RETURN
 #endif

@@ -1476,7 +1476,7 @@ IF ((PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) .AND. (Part
     CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray,.False.,emission_opt=.TRUE.)
     currentSurfFluxPart => currentSurfFluxPart%next
 #if USE_LOADBALANCE
-    CALL LBElemSplitTime(PEM%Element(PartID),tLBStart)
+    CALL LBElemSplitTime(PEM%LocalElemID(PartID),tLBStart)
 #endif /*USE_LOADBALANCE*/
     IF (ASSOCIATED(currentSurfFluxPart,Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart%next)) THEN
       currentSurfFluxPart => Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart
@@ -1788,12 +1788,12 @@ __STAMP__&
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
             PDM%dtFracPush(ParticleIndexNbr) = .TRUE.
             PDM%IsNewPart(ParticleIndexNbr) = .TRUE.
-            PEM%Element(ParticleIndexNbr) = globElemId
-            PEM%lastElement(ParticleIndexNbr) = globElemId !needed when ParticlePush is not executed, e.g. "delay"
+            PEM%GlobalElemID(ParticleIndexNbr) = globElemId
+            PEM%LastGlobalElemID(ParticleIndexNbr) = globElemId !needed when ParticlePush is not executed, e.g. "delay"
             iPartTotal = iPartTotal + 1
             IF (VarTimeStep%UseVariableTimeStep) THEN
               VarTimeStep%ParticleTimeStep(ParticleIndexNbr) &
-                = CalcVarTimeStep(PartState(1,ParticleIndexNbr),PartState(2,ParticleIndexNbr),PEM%Element(ParticleIndexNbr))
+                = CalcVarTimeStep(PartState(1,ParticleIndexNbr),PartState(2,ParticleIndexNbr),PEM%GlobalElemID(ParticleIndexNbr))
             END IF
             IF (RadialWeighting%DoRadialWeighting) THEN
               PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), 1,ParticleIndexNbr)

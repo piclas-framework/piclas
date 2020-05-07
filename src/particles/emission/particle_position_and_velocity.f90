@@ -349,7 +349,7 @@ CASE('constant')
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr.GT.0) THEN
       IF ((Is_ElemMacro).AND.(Species(FractNbr)%Init(iInit)%ElemVelocityICFileID.GT.0)) THEN
-        PartState(4:6,PositionNbr) = Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,PEM%Element(PositionNbr))
+        PartState(4:6,PositionNbr) = Species(FractNbr)%Init(iInit)%ElemVelocityIC(1:3,PEM%GlobalElemID(PositionNbr))
       ELSE
         PartState(4:6,PositionNbr) = VeloVecIC(1:3) * VeloIC
       END IF
@@ -368,7 +368,7 @@ CASE('maxwell_lpn')
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr.GT.0) THEN
        IF (Is_ElemMacro) THEN
-         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
+         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit, Element=PEM%GlobalElemID(PositionNbr))
        ELSE
          CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
        END IF
@@ -379,7 +379,7 @@ CASE('taylorgreenvortex')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr.GT.0) THEN
-       CALL CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
+       CALL CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit=iInit, Element=PEM%GlobalElemID(PositionNbr))
        PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF
   END DO

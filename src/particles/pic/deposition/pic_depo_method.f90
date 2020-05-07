@@ -286,7 +286,7 @@ DO iElem=1,PP_nElems
     END IF
     ! Don't deposit neutral particles!
     IF(.NOT.isDepositParticle(iPart)) CYCLE
-    IF(PEM%Element(iPart).EQ.iElem)THEN
+    IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
       IF (usevMPF) THEN
         prefac= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
       ELSE
@@ -438,7 +438,7 @@ DO iElem=1,PP_nElems
     END IF
     ! Don't deposit neutral particles!
     IF(.NOT.isDepositParticle(iPart)) CYCLE
-    IF(PEM%Element(iPart).EQ.iElem)THEN
+    IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
       IF(usevMPF)THEN
         IF(doCalculateCurrentDensity)THEN
           ElemSource(1:3,iElem) = ElemSource(1:3,iElem)+ PartState(4:6,iPart)*Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
@@ -566,7 +566,7 @@ DO iPart = FirstPart, LastPart
   ELSE
     Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
   END IF ! usevMPF
-  iElem = PEM%Element(iPart)
+  iElem = PEM%GlobalElemID(iPart)
   IF(DoRefMapping)THEN
     TempPartPos(1:3)=PartPosRef(1:3,iPart)
   ELSE
@@ -715,7 +715,7 @@ DO iPart=FirstPart,LastPart
     ELSE
       Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
     END IF
-    iElem = PEM%Element(iPart)
+    iElem = PEM%GlobalElemID(iPart)
     CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos(1:3),iElem,ForceMode=.TRUE.)
     TSource(:) = 0.0
     IF(doCalculateCurrentDensity)THEN
@@ -2035,7 +2035,7 @@ DO iElem=1,PP_nElems
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
-    IF(PEM%Element(iPart).EQ.iElem)THEN
+    IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
       ! Don't deposit neutral particles!
       IF(.NOT.isDepositParticle(iPart)) CYCLE
       ! Set pre-factor

@@ -1313,7 +1313,7 @@ ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
 !,' Halo region to small. Neighbor element is missing!')
 !END IF
 !#endif /*USE_MPI*/
-!IF (TrackingMethod.EQ.REFMAPPING) PEM%LastElement(PartID) = 0
+!IF (TrackingMethod.EQ.REFMAPPING) PEM%LastGlobalElemID(PartID) = 0
 !
 !IF(1.EQ.2)THEN
 !  alpha=0.2

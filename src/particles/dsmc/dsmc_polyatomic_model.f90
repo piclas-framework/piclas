@@ -207,7 +207,7 @@ USE MOD_Mesh_Vars               ,ONLY: offSetElem
   INTEGER                       :: ElemID
   REAL                          :: pressure
 !===================================================================================================================================
-ElemID = PEM%Element(iPart) - offSetElem
+ElemID = PEM%GlobalElemID(iPart) - offSetElem
   SELECT CASE (init_or_sf)
     CASE(1) !iInit
       IF (Species(iSpecies)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
@@ -314,7 +314,7 @@ USE MOD_Mesh_Vars               ,ONLY: offSetElem
   REAL                          :: TRot                       ! rotational temperature
 INTEGER                       :: ElemID
 !===================================================================================================================================
-ElemID = PEM%Element(iPart) - offSetElem
+ElemID = PEM%GlobalElemID(iPart) - offSetElem
   SELECT CASE (init_or_sf)
     CASE(1) !iInit
       IF (Species(iSpec)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
@@ -427,7 +427,7 @@ USE MOD_Mesh_Vars               ,ONLY: offSetElem
   REAL                          :: TRot                       ! rotational temperature
 INTEGER                       :: ElemID
 !===================================================================================================================================
-ElemID = PEM%Element(iPart) - offSetElem
+ElemID = PEM%GlobalElemID(iPart) - offSetElem
   SELECT CASE (init_or_sf)
     CASE(1) !iInit
       IF (Species(iSpec)%Init(iInit)%ElemTVibFileID.EQ.0) THEN
@@ -540,7 +540,7 @@ USE MOD_Mesh_Vars               ,ONLY: offSetElem
   REAL                          :: TRot                       ! rotational temperature
 INTEGER                       :: ElemID
 !===================================================================================================================================
-ElemID = PEM%Element(iPart) - offSetElem
+ElemID = PEM%GlobalElemID(iPart) - offSetElem
   SELECT CASE (init_or_sf)
     CASE(1) !iInit
       IF (Species(iSpec)%Init(iInitTmp)%ElemTVibFileID.EQ.0) THEN

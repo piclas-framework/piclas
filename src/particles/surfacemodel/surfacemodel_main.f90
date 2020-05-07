@@ -661,7 +661,7 @@ CASE(3) ! reactive interaction case
 
       PartTrajectory2=UNITVECTOR(NewVelo(1:3))
 
-      CALL CreateParticle(ProductSpec(2),LastPartPos(1:3,PartID),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
+      CALL CreateParticle(ProductSpec(2),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
       ! Adding the energy that is transferred from the surface onto the internal energies of the particle
       CALL SurfaceToPartEnergyInternal(NewPartID,WallTemp)
 

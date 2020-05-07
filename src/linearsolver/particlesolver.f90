@@ -353,7 +353,7 @@ IF(opt)THEN ! compute zero state
       LastPartPos(1,iPart)=PartStateN(1,iPart)
       LastPartPos(2,iPart)=PartStateN(2,iPart)
       LastPartPos(3,iPart)=PartStateN(3,iPart)
-      PEM%lastElement(iPart)=PEM%ElementN(iPart)
+      PEM%LastGlobalElemID(iPart)=PEM%GlobalElemIDN(iPart)
       ! HERE: rotate part to partstate back
       IF(PartLorentzType.EQ.5)THEN
         LorentzFacInv=1.0/SQRT(1.0+DOT_PRODUCT(PartState(4:6,iPart),PartState(4:6,iPart))*c2_inv)
@@ -388,11 +388,11 @@ ELSE
       !LastPartPos(1,iPart)=StagePartPos(iPart,1)
       !LastPartPos(2,iPart)=StagePartPos(iPart,2)
       !LastPartPos(3,iPart)=StagePartPos(iPart,3)
-      !PEM%lastElement(iPart)=PEM%StageElement(iPart)
+      !PEM%LastGlobalElemID(iPart)=PEM%StageElement(iPart)
       LastPartPos(1,iPart)=PartStateN(1,iPart)
       LastPartPos(2,iPart)=PartStateN(2,iPart)
       LastPartPos(3,iPart)=PartStateN(3,iPart)
-      PEM%lastElement(iPart)=PEM%ElementN(iPart)
+      PEM%LastGlobalElemID(iPart)=PEM%GlobalElemIDN(iPart)
       reMap=.FALSE.
       IF(PartMeshHasReflectiveBCs)THEN
         IF(SUM(ABS(PEM%NormVec(1:3,iPart))).GT.0.)THEN
@@ -746,7 +746,7 @@ DO iPart=1,PDM%ParticleVecLength
     LastPartPos(1,iPart)=PartStateN(1,iPart)
     LastPartPos(2,iPart)=PartStateN(2,iPart)
     LastPartPos(3,iPart)=PartStateN(3,iPart)
-    PEM%lastElement(iPart)=PEM%ElementN(iPart)
+    PEM%LastGlobalElemID(iPart)=PEM%GlobalElemIDN(iPart)
     ! and disable periodic movement
     IF(PartMeshHasReflectiveBCs) PEM%NormVec(:,iPart)=0.
     PEM%PeriodicMoved(iPart)=.FALSE.
@@ -981,7 +981,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       LastPartPos(1,iPart)=PartStateN(1,iPart)
       LastPartPos(2,iPart)=PartStateN(2,iPart)
       LastPartPos(3,iPart)=PartStateN(3,iPart)
-      PEM%lastElement(iPart)=PEM%ElementN(iPart)
+      PEM%LastGlobalElemID(iPart)=PEM%GlobalElemIDN(iPart)
       IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:3,iPart)=0.
       PEM%PeriodicMoved(iPart)=.FALSE.
       ! recompute part state

@@ -144,7 +144,7 @@ SUBROUTINE SplitParticle(iPart, deltaE,CSquare)
     PartStateIntEn(1,PositionNbr) = PartStateIntEn(1,iPart)
     PartStateIntEn(2,PositionNbr) = PartStateIntEn(2,iPart)
   END IF
-  PEM%Element(PositionNbr) = PEM%Element(iPart)
+  PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(iPart)
 
 !set new MPFs
   PartMPF(iPart) =  PartMPF(iPart) / 2.0
@@ -323,7 +323,7 @@ SUBROUTINE MergeParticles(iElem, NumFinPart, SpecNum, SpecID)
       !Set new particle parameters
       PDM%ParticleInside(PositionNbr) = .true.
       PartSpecies(PositionNbr) = SpecID
-      PEM%Element(PositionNbr) = iElem
+      PEM%GlobalElemID(PositionNbr) = iElem
     END DO
   END IF
 

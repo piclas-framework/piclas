@@ -664,7 +664,7 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
       END DO
     ELSE ! position in reference space [-1,1] has to be computed
       DO iLoop = 1, nPart
-        CALL GetPositionInRefElem(PartState(1:3,iPart),TreeNode%MappedPartStates(1:3,iLoop),PEM%Element(iPart))
+        CALL GetPositionInRefElem(PartState(1:3,iPart),TreeNode%MappedPartStates(1:3,iLoop),PEM%GlobalElemID(iPart))
         iPart = PEM%pNext(iPart)
       END DO
     END IF ! DoRefMapping

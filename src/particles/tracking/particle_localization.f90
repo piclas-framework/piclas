@@ -66,7 +66,7 @@ LOGICAL,INTENT(IN) :: doHalo
 INTEGER           :: ElemID
 !===================================================================================================================================
 ElemID = SinglePointToElement(PartState(1:3,PartID),doHALO=doHALO)
-PEM%Element(PartID) = ElemID
+PEM%GlobalElemID(PartID) = ElemID
 IF(ElemID.EQ.-1)THEN
   PDM%ParticleInside(PartID)=.FALSE.
 ELSE
@@ -392,7 +392,7 @@ END IF
 ! loop over all particles and add them up
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
-    ElemID = PEM%Element(iPart)
+    ElemID = PEM%GlobalElemID(iPart)
     IF(ElemID.LE.PP_nElems)THEN
       nPartsPerElem(ElemID)=nPartsPerElem(ElemID)+1
     END IF

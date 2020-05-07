@@ -456,9 +456,9 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PartSpecies(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Species
   ElemID = ClonedParticles(iPart,DelayCounter)%Element
   ! Set the global element number with the offset
-  PEM%Element(PositionNbr) = ElemID
+  PEM%GlobalElemID(PositionNbr) = ElemID
   locElemID = ElemID - offSetElem
-  PEM%lastElement(PositionNbr) = PEM%Element(PositionNbr)
+  PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PositionNbr)
   LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
   IF (VarTimeStep%UseVariableTimeStep) THEN
@@ -617,7 +617,7 @@ REAL                 :: yPosIn
 !===================================================================================================================================
 
 IF(RadialWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
-  yPosIn = ElemMidPoint_Shared(2,PEM%Element(iPart))
+  yPosIn = ElemMidPoint_Shared(2,PEM%GlobalElemID(iPart))
 ELSE
   yPosIn = yPos
 END IF
