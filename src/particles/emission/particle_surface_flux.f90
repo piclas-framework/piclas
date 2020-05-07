@@ -1386,7 +1386,7 @@ currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
   END IF ! wallmodel or liquidsim
 END SUBROUTINE CreateLinkedListReactiveBC
 
-SUBROUTINE SamplingForReactiveBC(iSpec, iSF, SideID, PartsEmitted, currentSurfFluxPart)
+SUBROUTINE SamplingForReactiveBC(iSpec, iSF, PartsEmitted, currentSurfFluxPart)
 !===================================================================================================================================
 ! SideList for SurfaceFlux in BCdata_auxSF is created. Furthermore, the side areas are corrected for Symmetry2D case and finally
 ! communicated.
@@ -1406,7 +1406,7 @@ USE MOD_LoadBalance_Timers            ,ONLY: LBStartTime, LBElemSplitTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 TYPE(tSurfFluxLink),POINTER, INTENT(INOUT) :: currentSurfFluxPart
-INTEGER, INTENT(IN)                        :: iSpec, iSF, SideID, PartsEmitted
+INTEGER, INTENT(IN)                        :: iSpec, iSF, PartsEmitted
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1733,7 +1733,7 @@ __STAMP__&
             IF (TriaSurfaceFlux) THEN
               Particle_pos(1:3) = CalcPartPosTriaSurface(xyzNod, Vector1, Vector2, ndist, midpoint)
             ELSE !.NOT.TriaSurfaceFlux
-              Particle_pos(1:3) = CalcPartPosBezier(iSpec, iSF, iSide, SideID)
+              Particle_pos(1:3) = CalcPartPosBezier(iSpec, iSF, iSample, jSample, iSide, SideID)
             END IF !TriaSurfaceFlux
 
             AcceptPos=.TRUE.
@@ -1856,7 +1856,7 @@ __STAMP__&
 __STAMP__&
 ,'ERROR in ParticleSurfaceflux: NbrOfParticle.NE.PartsEmitted')
     END IF
-    IF (PartBound%Reactive(CurrentBC)) CALL SamplingForReactiveBC(iSpec, iSF, SideID, PartsEmitted, currentSurfFluxPart)
+    IF (PartBound%Reactive(CurrentBC)) CALL SamplingForReactiveBC(iSpec, iSF, PartsEmitted, currentSurfFluxPart)
   END DO !iSF
 END DO !iSpec
 
@@ -1909,7 +1909,7 @@ REAL                        :: point(2), radius, origin(2)
 END FUNCTION InSideCircularInflow
 
 
-FUNCTION CalcPartPosBezier(iSpec, iSF, iSide, SideID)
+FUNCTION CalcPartPosBezier(iSpec, iSF, iSample, jSample, iSide, SideID)
 !===================================================================================================================================
 ! Calculate random normalized vector in 3D (unit space)
 !===================================================================================================================================
@@ -1923,20 +1923,20 @@ USE MOD_Mesh_Vars               ,ONLY: NGeo
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES)
-INTEGER, INTENT(IN)         :: iSpec, iSF, iSide, SideID
+INTEGER, INTENT(IN)         :: iSpec, iSF, iSide, SideID, iSample, jSample
 REAL                        :: CalcPartPosBezier(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                        :: RandVal2(2), xiab(1:2,1:2), xi(2), E, F, G, D, gradXiEta2D(1:2,1:2),gradXiEta3D(1:2,1:3), RandVal1
-INTEGER                     :: iLoop, ISample, JSample
+INTEGER                     :: iLoop
 !===================================================================================================================================
   iLoop=0
   DO !ARM for xi considering the dA of the Subside in RefSpace
     iLoop = iLoop+1
     CALL RANDOM_NUMBER(RandVal2)
-    xiab(1,1:2)=(/BezierSampleXi(ISample-1),BezierSampleXi(ISample)/) !correct order?!?
+    xiab(1,1:2)=(/BezierSampleXi(iSample-1),BezierSampleXi(iSample)/) !correct order?!?
     xiab(2,1:2)=(/BezierSampleXi(JSample-1),BezierSampleXi(JSample)/) !correct order?!?
     xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
     IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
@@ -2453,7 +2453,6 @@ USE MOD_Particle_Vars
 USE MOD_Part_Tools,             ONLY : VeloFromDistribution
 USE MOD_Particle_Surfaces_Vars, ONLY : SurfMeshSubSideData, TriaSurfaceFlux
 USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBezier
-USE MOD_Particle_Boundary_Vars, ONLY : PartBound
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
