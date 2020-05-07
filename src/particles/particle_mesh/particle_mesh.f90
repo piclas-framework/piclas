@@ -102,8 +102,11 @@ CALL prms%CreateLogicalOption( 'Write-TriaSurfaceFlux-DebugMesh'&
   , 'Writes per proc triangulated Surfacemesh used for TriaSurfaceFlux. Requires TriaSurfaceFlux=T.'&
   ,'.FALSE.')
 
-CALL prms%CreateLogicalOption( 'CountNbOfLostParts'&
-  , 'Count number of lost particles during tracking that can not be found with fallbacks.','.FALSE.')
+CALL prms%CreateLogicalOption( 'CountNbrOfLostParts'&
+    , 'Count the number of lost particles during tracking that cannot be found with fallbacks. Additionally, the lost particle '//&
+    'information is stored in a PartStateLost*.h5 file. When particles are not found during restart in their host cell '//&
+    '(sanity check), they are marked missing and are also written to PartStateLost*.h5 file even if they are re-located '//&
+    'on a different processor.','.TRUE.')
 CALL prms%CreateIntOption(     'PartOut'&
   , 'If compiled with CODE_ANALYZE flag: For This particle number every tracking information is written as STDOUT.','0')
 CALL prms%CreateIntOption(     'MPIRankOut'&
@@ -181,8 +184,10 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideS
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierControlPoints3DElevated,SideSlabNormals,SideSlabIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts,CartesianPeriodic
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, WriteTriaDebugMesh
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbrOfLostParts,CartesianPeriodic
+USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal
+USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, WriteTriaDebugMesh,DisplayLostParticles
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
 USE MOD_Particle_Vars          ,ONLY: Symmetry2D
@@ -238,8 +243,19 @@ CALL InitPEM_CNElemID()
 !         'TrackingMethod=REFMAPPING .OR. UseCurveds=T .OR. NGEO>1! Not possible with TrackingMethod=TRIATRACKING at the same time!')
 !END IF
 
-CountNbOfLostParts = GETLOGICAL('CountNbOfLostParts',".FALSE.")
-nLostParts         = 0
+CountNbrOfLostParts  = GETLOGICAL('CountNbrOfLostParts')
+IF(CountNbrOfLostParts)THEN
+  ! Nullify and reset lost parts container after write out
+  PartStateLostVecLength = 0
+
+  ! Allocate PartStateLost for a small number of particles and double the array size each time the 
+  ! maximum is reached
+  ALLOCATE(PartStateLost(1:14,1:10))
+  PartStateLost=0.
+END IF ! CountNbrOfLostParts
+NbrOfLostParticles      = 0
+NbrOfLostParticlesTotal = 0
+DisplayLostParticles    = GETLOGICAL('DisplayLostParticles')
 
 #ifdef CODE_ANALYZE
 PARTOUT            = GETINT('PartOut','0')

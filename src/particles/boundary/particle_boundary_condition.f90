@@ -393,7 +393,7 @@ USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBi
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues,PartLorentzType
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_DSMC_Vars               ,ONLY: DSMC,RadialWeighting,PartStateIntEn
-USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
+USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,usevMPF
 USE MOD_TImeDisc_Vars           ,ONLY: tend,time
 USE MOD_Equation_Vars           ,ONLY: c2_inv
 #if defined(LSERK)
@@ -648,6 +648,7 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry2D
 USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric, VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt,tend,time,RKdtFrac
+USE MOD_DSMC_ElectronicModel    ,ONLY: RelaxElectronicShellWall
 #if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
@@ -950,11 +951,11 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
         IF((SpecDSMC(PartSpecies(PartID))%InterID.NE.4).AND.(.NOT.SpecDSMC(PartSpecies(PartID))%FullyIonized)) THEN
           CALL RANDOM_NUMBER(RanNum)
           IF (RanNum.LT.ElecACC) THEN
-            IF (DoSample) SampWall(SurfSideID)%State(4,p,q)=SampWall(SurfSideID)%State(4,p,q)+PartStateIntEn(3,PartID) * MacroParticleFactor
+            IF (DoSample) SampWallState(4,p,q,SurfSideID)=SampWallState(4,p,q,SurfSideID)+PartStateIntEn(3,PartID) * MacroParticleFactor
             PartStateIntEn(3,PartID) = RelaxElectronicShellWall(PartID, WallTemp)
             IF (DoSample) THEN
-              SampWall(SurfSideID)%State(5,p,q)=SampWall(SurfSideID)%State(5,p,q)+PartStateIntEn(3,PartID) * MacroParticleFactor
-              SampWall(SurfSideID)%State(6,p,q)=SampWall(SurfSideID)%State(6,p,q)+PartStateIntEn(3,PartID) * MacroParticleFactor
+              SampWallState(5,p,q,SurfSideID)=SampWallState(5,p,q,SurfSideID)+PartStateIntEn(3,PartID) * MacroParticleFactor
+              SampWallState(6,p,q,SurfSideID)=SampWallState(6,p,q,SurfSideID)+PartStateIntEn(3,PartID) * MacroParticleFactor
             END IF
           END IF
         END IF

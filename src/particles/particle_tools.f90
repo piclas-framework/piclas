@@ -195,7 +195,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: time
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
 INTEGER,INTENT(IN)          :: iPart
-INTEGER,INTENT(IN)          :: ElemID
+INTEGER,INTENT(IN)          :: ElemID ! Global element index
 LOGICAL,INTENT(IN),OPTIONAL :: UsePartState_opt
 INTEGER                     :: dims(2)
 !-----------------------------------------------------------------------------------------------------------------------------------

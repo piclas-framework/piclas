@@ -893,7 +893,7 @@ IF(DoRestart)THEN
             IF (.NOT.PDM%ParticleInside(i)) THEN
               NbrOfLostParticles = NbrOfLostParticles + 1
 #if !(USE_MPI)
-              IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(i, PEM%Element(i), UsePartState_opt=.TRUE.)
+              IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(i, PEM%GlobalElemID(i), UsePartState_opt=.TRUE.)
 #endif /*!(USE_MPI)*/
               IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
                 IF(SpecDSMC(PartSpecies(i))%PolyatomicMol) THEN
@@ -917,7 +917,7 @@ IF(DoRestart)THEN
               IF (.NOT.PDM%ParticleInside(i)) THEN
                 NbrOfLostParticles = NbrOfLostParticles + 1
 #if !(USE_MPI)
-                IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(i, PEM%Element(i), UsePartState_opt=.TRUE.)
+                IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(i, PEM%GlobalElemID(i), UsePartState_opt=.TRUE.)
 #endif /*!(USE_MPI)*/
                 IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
                   IF(SpecDSMC(PartSpecies(i))%PolyatomicMol) THEN
@@ -945,7 +945,7 @@ IF(DoRestart)THEN
               IF (.NOT.PDM%ParticleInside(i)) THEN
                 NbrOfLostParticles = NbrOfLostParticles + 1
 #if !(USE_MPI)
-                IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(i, PEM%Element(i), UsePartState_opt=.TRUE.)
+                IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(i, PEM%GlobalElemID(i), UsePartState_opt=.TRUE.)
 #endif /*!(USE_MPI)*/
                 IF(useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
                   IF(SpecDSMC(PartSpecies(i))%PolyatomicMol) THEN
@@ -1086,7 +1086,7 @@ IF(DoRestart)THEN
             CurrentPartNum = CurrentPartNum + 1
           ELSE ! Particle could not be found and is therefore lost
             ! Save particle properties for writing to a .h5 file
-            IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(CurrentPartNum, PEM%Element(CurrentPartNum), UsePartState_opt=.TRUE.)
+            IF(CountNbrOfLostParts) CALL StoreLostParticleProperties(CurrentPartNum, PEM%GlobalElemID(CurrentPartNum), UsePartState_opt=.TRUE.)
           END IF
           NbrOfMissingParticles = NbrOfMissingParticles + PartDataSize
         END DO ! i = 1, SUM(TotalNbrOfMissingParticles)

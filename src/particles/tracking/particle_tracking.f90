@@ -473,7 +473,7 @@ USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
 USE MOD_Particle_Mesh_Vars          ,ONLY: ElemRadiusNGeo,ElemHasAuxBCs!,PartElemToSide
 USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
-USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
+USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbrOfLostParts, NbrOfLostParticles, DisplayLostParticles
 USE MOD_Particle_Mesh_Tools         ,ONLY: GetGlobalElemID, GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
 USE MOD_Particle_Localization       ,ONLY: LocateParticleInElement
@@ -488,6 +488,7 @@ USE MOD_MacroBody_Vars              ,ONLY: nMacroBody, UseMacroBody, ElemHasMacr
 USE MOD_MacroBody_tools             ,ONLY: INSIDEMACROBODY
 USE MOD_MacroBody_tools             ,ONLY: ComputeMacroSphereIntersection
 USE MOD_MacroBody_tools             ,ONLY: GetInteractionWithMacroBody
+USE MOD_Part_Tools                  ,ONLY: StoreLostParticleProperties
 #ifdef CODE_ANALYZE
 #ifdef IMPA
 USE MOD_Particle_Vars               ,ONLY: PartIsImplicit,PartDtFrac

@@ -61,6 +61,10 @@ INTERFACE DSMCMacroSampling
   MODULE PROCEDURE DSMCMacroSampling
 END INTERFACE
 
+INTERFACE SamplingRotVibRelaxProb
+  MODULE PROCEDURE SamplingRotVibRelaxProb
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -69,6 +73,7 @@ END INTERFACE
 PUBLIC :: DSMC_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
 PUBLIC :: CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly, CalcGammaVib
 PUBLIC :: CalcInstantTransTemp, SummarizeQualityFactors, DSMCMacroSampling
+PUBLIC :: SamplingRotVibRelaxProb
 !===================================================================================================================================
 
 CONTAINS
@@ -1814,14 +1819,14 @@ ENDIF
 !
 
 IF(SamplingActive) THEN
-  CALL DSMCHO_data_sampling()
+  CALL DSMC_data_sampling()
   IF(DSMC%NumOutput.NE.0) THEN
     nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
     IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
       DSMC%NumOutput = DSMC%NumOutput - 1
       ! Skipping outputs immediately after the first few iterations
       IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN
-        CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
+        CALL WriteDSMCToHDF5(TRIM(MeshFile),time)
         IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
       END IF
     END IF

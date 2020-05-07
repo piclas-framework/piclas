@@ -48,7 +48,7 @@ SUBROUTINE DSMC_pairing_standard(iElem)
 !> collision procedure is performed.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PEM, PDM, KeepWallParticles
+USE MOD_Particle_Vars         ,ONLY: PEM, PDM
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
@@ -65,11 +65,7 @@ INTEGER                       :: iPart, iLoop, nPart
 INTEGER, ALLOCATABLE          :: iPartIndx(:)                 !< List of particles in the cell required for pairing
 !===================================================================================================================================
 
-IF (KeepWallParticles) THEN
-  nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
-ELSE
-  nPart = PEM%pNumber(iElem)
-END IF
+nPart = PEM%pNumber(iElem)
 
 ALLOCATE(iPartIndx(nPart))
 iPartIndx = 0
@@ -79,12 +75,6 @@ iPartIndx = 0
 !     on the previous particle index. This mapping is done in the UpdateNextFreePosition routine.
 iPart = PEM%pStart(iElem)
 DO iLoop = 1, nPart
-  ! check if particle is on wall and chose next particle until particle is not at wall
-  IF (KeepWallParticles) THEN
-    DO WHILE (PDM%ParticleAtWall(iPart))
-      iPart = PEM%pNext(iPart)
-    END DO
-  END IF
   iPartIndx(iLoop) = iPart
   ! Choose next particle in the element
   iPart = PEM%pNext(iPart)
@@ -393,7 +383,7 @@ USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies,Par
 USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: GetParticleWeight
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared,GEO
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

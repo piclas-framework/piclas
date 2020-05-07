@@ -200,7 +200,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared
-USE MOD_Particle_Vars         ,ONLY: Species,nSpecies, VarTimeStep, PDM
+USE MOD_Particle_Vars         ,ONLY: Species,nSpecies, VarTimeStep, PDM, usevMPF
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL

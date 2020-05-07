@@ -44,36 +44,17 @@ USE MOD_Globals
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Analyze          ,ONLY: DSMC_data_sampling,CalcSurfaceValues, WriteDSMCToHDF5, CalcGammaVib,SamplingRotVibRelaxProb
 USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
-<<<<<<< HEAD
-USE MOD_DSMC_SteadyState      ,ONLY: QCrit_evaluation, SteadyStateDetection_main
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-USE MOD_DSMC_Vars             ,ONLY: ChemReac, SpecDSMC, VarVibRelaxProb, ConsiderVolumePortions, MCC_TotalPairNum, UseMCC
-USE MOD_DSMC_Vars             ,ONLY: UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
-USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, nSpecies, Symmetry2D, PartSpecies
-USE MOD_DSMC_Relaxation       ,ONLY: CalcMeanVibQuaDiatomic
-USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_octree, DSMC_pairing_statistical, DSMC_pairing_quadtree
-USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
-USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision, DSMC_calc_var_P_vib
-USE MOD_Restart_Vars          ,ONLY: RestartTime
-USE MOD_Mesh_Vars             ,ONLY: MeshFile,offsetElem
-USE MOD_TimeDisc_Vars         ,ONLY: iter
-USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
-USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared,ElemMPVolumePortion_Shared
-=======
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Collis           ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry2D
-USE MOD_DSMC_Analyze          ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree
 USE MOD_DSMC_CollisionProb    ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
->>>>>>> 3a37be3316afbbdf32e26ba9bc0518060c2bb9e8
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared,ElemMPVolumePortion_Shared
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
