@@ -43,6 +43,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel, CalcXiElec
+PUBLIC :: RelaxElectronicShellWall
 !===================================================================================================================================
 CONTAINS
 
@@ -84,7 +85,7 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 
   ElectronicPartition  = 0.
   ElectronicPartitionTemp = 0.
-  ! calculate sum over all energy levels == qartition function for temperature Telec
+  ! calculate sum over all energy levels == partition function for temperature Telec
   DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
     ElectronicPartitionTemp = SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
             EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec)
@@ -109,6 +110,64 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 #endif
   PartStateIntEn(3,iPart) = BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
 END SUBROUTINE InitElectronShell
+
+
+FUNCTION RelaxElectronicShellWall(iPart,TWall)
+!===================================================================================================================================
+!> Function to determine the new electronic state of a particle at the wall temperature
+!===================================================================================================================================
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC
+USE MOD_Particle_Vars         ,ONLY: PartSpecies
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPart
+REAL, INTENT(IN)              :: TWall
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                          :: RelaxElectronicShellWall
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iQua, iSpec
+REAL                          :: iRan, ElectronicPartition, ElectronicPartitionTemp, iRan2, TempRatio
+!===================================================================================================================================
+ElectronicPartition  = 0.
+ElectronicPartitionTemp = 0.
+iSpec = PartSpecies(iPart)
+! calculate sum over all energy levels == partition function for temperature Telec
+DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
+  TempRatio = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TWall
+  IF(CHECKEXP(TempRatio)) THEN
+    ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP (-TempRatio)
+    IF ( ElectronicPartitionTemp .GT. ElectronicPartition ) THEN
+      ElectronicPartition = ElectronicPartitionTemp
+    END IF
+  END IF
+END DO
+CALL RANDOM_NUMBER(iRan)
+iQua = INT(SpecDSMC(iSpec)%MaxElecQuant*iRan)
+TempRatio = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TWall
+IF(CHECKEXP(TempRatio)) THEN
+  ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP (-TempRatio)
+ELSE
+  ElectronicPartitionTemp = 0.
+END IF
+! select level
+CALL RANDOM_NUMBER(iRan2)
+DO WHILE ( iRan2 .GE. ElectronicPartitionTemp / ElectronicPartition )
+  CALL RANDOM_NUMBER(iRan)
+  iQua = int( ( SpecDSMC(iSpec)%MaxElecQuant ) * iRan)
+  TempRatio = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TWall
+  IF(CHECKEXP(TempRatio)) THEN
+    ElectronicPartitionTemp  = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-TempRatio)
+    CALL RANDOM_NUMBER(iRan2)
+  END IF
+END DO
+RelaxElectronicShellWall = BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
+
+END FUNCTION RelaxElectronicShellWall
 
 
 SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi)
