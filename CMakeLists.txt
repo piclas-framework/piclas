@@ -425,7 +425,7 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -p -O2 ${PICLAS_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit -init=snan -init=arrays")
    # add flags only for compiling not linking!
-   SET (PICLAS_COMPILE_FLAGS "-fpp -assume bscc")
+   SET (PICLAS_COMPILE_FLAGS "-fpp -assume bscc -fPIC")
 
 ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
   # set Flags
@@ -550,6 +550,7 @@ ENDIF()
 MESSAGE(STATUS "Using BLAS/Lapack library")
 IF (PICLAS_MKL)
   SET(BLA_VENDOR "Intel") #search only for Intel BLAS (=MKL)
+  LIST(APPEND linkedlibs "-lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5")
 ENDIF()
 FIND_PACKAGE(LAPACK QUIET)
 IF (LAPACK_FOUND)
@@ -643,6 +644,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # collect all F90 files needed for libpiclasstatic
 FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
+                            ./src/readIMD/*.f90
                                 ./src/analyze/*.f90
                                 ./src/filter/*.f90
                                 ./src/globals/*.f90

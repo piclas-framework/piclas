@@ -543,13 +543,17 @@ IF (CalcSurfaceImpact) THEN
   MPISharedSize = INT((nSpecies*3*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
   CALL Allocate_Shared(MPISharedSize,(/nSpecies,3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactEnergy_Shared_Win &
                                                                                                       ,SampWallImpactEnergy_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,SampWallImpactEnergy_Shared_Win,IERROR)
   CALL Allocate_Shared(MPISharedSize,(/nSpecies,3,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactVector_Shared_Win &
                                                                                                       ,SampWallImpactVector_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,SampWallImpactVector_Shared_Win,IERROR)
   MPISharedSize = INT((nSpecies*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
   CALL Allocate_Shared(MPISharedSize,(/nSpecies,  nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactAngle_Shared_Win  &
                                                                                                       ,SampWallImpactAngle_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,SampWallImpactAngle_Shared_Win,IERROR)
   CALL Allocate_Shared(MPISharedSize,(/nSpecies,  nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SampWallImpactNumber_Shared_Win &
                                                                                                       ,SampWallImpactNumber_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,SampWallImpactNumber_Shared_Win,IERROR)
   IF (myComputeNodeRank.EQ.0) THEN
     SampWallImpactEnergy_Shared = 0.
     SampWallImpactVector_Shared = 0.
@@ -1199,6 +1203,20 @@ CALL MPI_WIN_UNLOCK_ALL(SurfSide2GlobalSide_Shared_Win,iError)
 CALL MPI_WIN_FREE(      SurfSide2GlobalSide_Shared_Win,iError)
 CALL MPI_WIN_UNLOCK_ALL(SurfSideArea_Shared_Win       ,iError)
 CALL MPI_WIN_FREE(      SurfSideArea_Shared_Win       ,iError)
+IF(nPorousBC.GT.0) THEN
+  CALL MPI_WIN_UNLOCK_ALL(SampWallPumpCapacity_Shared_Win,iError)
+  CALL MPI_WIN_FREE(SampWallPumpCapacity_Shared_Win,iError)
+END IF
+IF (CalcSurfaceImpact) THEN
+  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactEnergy_Shared_Win,iError)
+  CALL MPI_WIN_FREE(SampWallImpactEnergy_Shared_Win,iError)
+  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactVector_Shared_Win,iError)
+  CALL MPI_WIN_FREE(SampWallImpactVector_Shared_Win,iError)
+  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactAngle_Shared_Win,iError)
+  CALL MPI_WIN_FREE(SampWallImpactAngle_Shared_Win,iError)
+  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactNumber_Shared_Win,iError)
+  CALL MPI_WIN_FREE(SampWallImpactNumber_Shared_Win,iError)
+END IF
 
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
@@ -1210,6 +1228,11 @@ IF(MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
 END IF
 
 ADEALLOCATE(SampWallState_Shared)
+ADEALLOCATE(SampWallPumpCapacity_Shared)
+ADEALLOCATE(SampWallImpactEnergy_Shared)
+ADEALLOCATE(SampWallImpactVector_Shared)
+ADEALLOCATE(SampWallImpactAngle_Shared)
+ADEALLOCATE(SampWallImpactNumber_Shared)
 ADEALLOCATE(SurfSideArea_Shared)
 ADEALLOCATE(GlobalSide2SurfSide_Shared)
 ADEALLOCATE(SurfSide2GlobalSide_Shared)
@@ -1219,6 +1242,11 @@ ADEALLOCATE(SurfSide2GlobalSide_Shared)
 SDEALLOCATE(XiEQ_SurfSample)
 SDEALLOCATE(SurfBCName)
 SDEALLOCATE(SampWallState)
+SDEALLOCATE(SampWallPumpCapacity)
+SDEALLOCATE(SampWallImpactEnergy)
+SDEALLOCATE(SampWallImpactVector)
+SDEALLOCATE(SampWallImpactAngle)
+SDEALLOCATE(SampWallImpactNumber)
 ADEALLOCATE(SurfSideArea)
 ADEALLOCATE(GlobalSide2SurfSide)
 ADEALLOCATE(SurfSide2GlobalSide)
@@ -1270,21 +1298,15 @@ ADEALLOCATE(SurfSide2GlobalSide)
 !SDEALLOCATE(OffSetSurfSideMPI)
 !SDEALLOCATE(OffSetInnerSurfSideMPI)
 !#endif /*USE_MPI*/
-!SDEALLOCATE(CalcSurfCollis%SpeciesFlags)
-!SDEALLOCATE(AnalyzeSurfCollis%Data)
-!SDEALLOCATE(AnalyzeSurfCollis%Spec)
-!SDEALLOCATE(AnalyzeSurfCollis%BCid)
-!SDEALLOCATE(AnalyzeSurfCollis%Number)
-!!SDEALLOCATE(AnalyzeSurfCollis%Rate)
-!SDEALLOCATE(AnalyzeSurfCollis%BCs)
+SDEALLOCATE(CalcSurfCollis%SpeciesFlags)
+SDEALLOCATE(AnalyzeSurfCollis%Data)
+SDEALLOCATE(AnalyzeSurfCollis%Spec)
+SDEALLOCATE(AnalyzeSurfCollis%BCid)
+SDEALLOCATE(AnalyzeSurfCollis%Number)
+! SDEALLOCATE(AnalyzeSurfCollis%Rate)
+SDEALLOCATE(AnalyzeSurfCollis%BCs)
 !
 !! adjusted for new halo region
-!SDEALLOCATE(SampWallState)
-!SDEALLOCATE(SampWallPumpCapacity)
-!SDEALLOCATE(SampWallImpactEnergy)
-!SDEALLOCATE(SampWallImpactVector)
-!SDEALLOCATE(SampWallImpactAngle)
-!SDEALLOCATE(SampWallImpactNumber)
 !ADEALLOCATE(SurfSideArea)
 !ADEALLOCATE(GlobalSide2SurfSide)
 !ADEALLOCATE(SurfSide2GlobalSide)
@@ -1301,23 +1323,6 @@ ADEALLOCATE(SurfSide2GlobalSide)
 !  END DO
 !  SDEALLOCATE(SurfMapping)
 !END IF
-!CALL MPI_WIN_UNLOCK_ALL(SampWallState_Shared_Win,iError)
-!CALL MPI_WIN_FREE(SampWallState_Shared_Win,iError)
-!IF(nPorousBC.GT.0) THEN
-!  CALL MPI_WIN_UNLOCK_ALL(SampWallPumpCapacity_Shared_Win,iError)
-!  CALL MPI_WIN_FREE(SampWallPumpCapacity_Shared_Win,iError)
-!END IF
-!IF (CalcSurfaceImpact) THEN
-!  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactEnergy_Shared_Win,iError)
-!  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactVector_Shared_Win,iError)
-!  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactAngle_Shared_Win,iError)
-!  CALL MPI_WIN_UNLOCK_ALL(SampWallImpactNumber_Shared_Win,iError)
-!  CALL MPI_WIN_FREE(SampWallImpactEnergy_Shared_Win,iError)
-!  CALL MPI_WIN_FREE(SampWallImpactVector_Shared_Win,iError)
-!  CALL MPI_WIN_FREE(SampWallImpactAngle_Shared_Win,iError)
-!  CALL MPI_WIN_FREE(SampWallImpactNumber_Shared_Win,iError)
-!END IF
-!#endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeParticleBoundarySampling
 

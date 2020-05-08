@@ -702,6 +702,15 @@ IF (ASSOCIATED(TreeCoords_Shared)) THEN
   CALL MPI_WIN_UNLOCK_ALL(TreeCoords_Shared_Win,iError)
   CALL MPI_WIN_FREE(TreeCoords_Shared_Win,iError)
 END IF
+
+! volumes
+CALL MPI_WIN_UNLOCK_ALL(ElemVolume_Shared_Win,iError)
+CALL MPI_WIN_FREE(ElemVolume_Shared_Win,iError)
+CALL MPI_WIN_UNLOCK_ALL(ElemMPVolumePortion_Shared_Win,iError)
+CALL MPI_WIN_FREE(ElemMPVolumePortion_Shared_Win,iError)
+CALL MPI_WIN_UNLOCK_ALL(ElemCharLength_Shared_Win,iError)
+CALL MPI_WIN_FREE(ElemCharLength_Shared_Win,iError)
+
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
 
@@ -712,6 +721,9 @@ ADEALLOCATE(SideInfo_Shared)
 ADEALLOCATE(NodeInfo_Shared)
 ADEALLOCATE(NodeCoords_Shared)
 ADEALLOCATE(TreeCoords_Shared)
+ADEALLOCATE(ElemVolume_Shared)
+ADEALLOCATE(ElemMPVolumePortion_Shared)
+ADEALLOCATE(ElemCharLength_Shared)
 
 END SUBROUTINE FinalizeMeshReadin
 

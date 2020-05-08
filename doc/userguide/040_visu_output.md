@@ -44,6 +44,12 @@ To sample the particles impinging on a certain surface between `Analyze_dt` outp
 
 The particle data will then be written to `*_PartStateBoundary_*.h5` and includes besides the position, velocity vector and kinetic energy (in eV), additionally the impact obliqueness angle between particle trajectory and surface normal vector, e.g. an impact vector perpendicular to the surface corresponds to an impact angle of $0^{\circ}$.
 
+The output of lost particles in a separate `*_PartStateLost*.h5` file can be enabled by
+
+    CountNbrOfLostParts = T
+
+It includes particles lost during the tracking (TrackingMethod = triatracking, tracing) as well as during the restart procedure. For the latter, the output includes particles that went missing but were found on other processors.
+
 ## Field Variables
 
 WIP
