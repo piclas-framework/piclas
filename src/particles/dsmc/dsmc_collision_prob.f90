@@ -44,7 +44,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
   USE MOD_DSMC_Vars,              ONLY : UseMCC, SpecXSec, XSec_NullCollision
   USE MOD_DSMC_Vars,              ONLY : ConsiderVolumePortions
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, PartState, VarTimeStep
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, VarTimeStep
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_DSMC_SpecXSec,          ONLY: InterpolateCrossSection, XSec_CalcCollisionProb
@@ -63,10 +63,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                             :: iPType, NbrOfReaction, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase
-  REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume
+  REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume, CollProb
   REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum
-  REAL                                :: CollEnergy, CollProb, VeloSquare, SpecNumTarget, SpecNumSource
-  INTEGER                             :: XSecSpec, XSecPart, targetSpec
 #if (PP_TimeDiscMethod==42)
   INTEGER                             :: iReac, iSpec
 #endif
