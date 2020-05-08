@@ -90,7 +90,9 @@ USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts, TrackInfo
+USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime,CountNbrOfLostParts, NbrOfLostParticles, TrackInfo
+USE MOD_Particle_Tracking_vars      ,ONLY: DisplayLostParticles
+USE MOD_Part_Tools                  ,ONLY: StoreLostParticleProperties
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
 USE MOD_Particle_Intersection       ,ONLY: IntersectionWithWall
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
@@ -252,13 +254,18 @@ DO i = 1,PDM%ParticleVecLength
           ! the determinants
           IF (NrOfThroughSides.EQ.0) THEN
             ! Particle appears to have not crossed any of the checked sides. Deleted!
-            IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',i,'lost. Element:', ElemID,'(species:',PartSpecies(i),')'
-            IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,i)
-            IPWRITE(*,*) 'Pos:     ', PartState(1:3,i)
-            IPWRITE(*,*) 'Velo:    ', PartState(4:6,i)
-            IPWRITE(*,*) 'Particle deleted!'
+            IF(DisplayLostParticles)THEN
+              IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',i,'lost. Element:', ElemID,'(species:',PartSpecies(i),')'
+              IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,i)
+              IPWRITE(*,*) 'Pos:     ', PartState(1:3,i)
+              IPWRITE(*,*) 'Velo:    ', PartState(4:6,i)
+              IPWRITE(*,*) 'Particle deleted!'
+            END IF ! DisplayLostParticles
             PDM%ParticleInside(i) = .FALSE.
-            IF(CountNbOfLostParts) nLostParts=nLostParts+1
+            IF(CountNbrOfLostParts) THEN
+              CALL StoreLostParticleProperties(i, ElemID)
+              NbrOfLostParticles=NbrOfLostParticles+1
+            END IF
             PartisDone = .TRUE.
             EXIT
           ELSE IF (NrOfThroughSides.GT.1) THEN
@@ -342,13 +349,18 @@ DO i = 1,PDM%ParticleVecLength
             END DO  ! ind2 = 1, NrOfThroughSides
             ! Particle that went through multiple sides first, but did not cross any sides during the second check -> Deleted!
             IF (SecondNrOfThroughSides.EQ.0) THEN
-              IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',i,'lost. Element:', ElemID,'(species:',PartSpecies(i),')'
-              IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,i)
-              IPWRITE(*,*) 'Pos:     ', PartState(1:3,i)
-              IPWRITE(*,*) 'Velo:    ', PartState(4:6,i)
-              IPWRITE(*,*) 'Particle deleted!'
+              IF(DisplayLostParticles)THEN
+                IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',i,'lost. Element:', ElemID,'(species:',PartSpecies(i),')'
+                IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,i)
+                IPWRITE(*,*) 'Pos:     ', PartState(1:3,i)
+                IPWRITE(*,*) 'Velo:    ', PartState(4:6,i)
+                IPWRITE(*,*) 'Particle deleted!'
+              END IF ! DisplayLostParticles
               PDM%ParticleInside(i) = .FALSE.
-              IF(CountNbOfLostParts) nLostParts=nLostParts+1
+              IF(CountNbrOfLostParts) THEN
+                CALL StoreLostParticleProperties(i, ElemID)
+                NbrOfLostParticles=NbrOfLostParticles+1
+              END IF
               PartisDone = .TRUE.
               EXIT
             END IF
@@ -461,7 +473,7 @@ USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
 USE MOD_Particle_Mesh_Vars          ,ONLY: ElemRadiusNGeo,ElemHasAuxBCs!,PartElemToSide
 USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
-USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
+USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbrOfLostParts, NbrOfLostParticles, DisplayLostParticles
 USE MOD_Particle_Mesh_Tools         ,ONLY: GetGlobalElemID, GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
 USE MOD_Particle_Localization       ,ONLY: LocateParticleInElement
@@ -476,6 +488,7 @@ USE MOD_MacroBody_Vars              ,ONLY: nMacroBody, UseMacroBody, ElemHasMacr
 USE MOD_MacroBody_tools             ,ONLY: INSIDEMACROBODY
 USE MOD_MacroBody_tools             ,ONLY: ComputeMacroSphereIntersection
 USE MOD_MacroBody_tools             ,ONLY: GetInteractionWithMacroBody
+USE MOD_Part_Tools                  ,ONLY: StoreLostParticleProperties
 #ifdef CODE_ANALYZE
 #ifdef IMPA
 USE MOD_Particle_Vars               ,ONLY: PartIsImplicit,PartDtFrac
@@ -778,14 +791,19 @@ DO iPart=1,PDM%ParticleVecLength
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
           IF(isCriticalParallelInFace)THEN
-            IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located inside of face and moves parallel to side. Undefined position. '
-            IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
+            IF(DisplayLostParticles)THEN
+              IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located inside of face and moves parallel to side. Undefined position. '
+              IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
+            END IF ! DisplayLostParticles
             PartIsDone=.TRUE.
             PDM%ParticleInside(iPart)=.FALSE.
 #ifdef IMPA
             DoParticle=.FALSE.
 #endif /*IMPA*/
-            IF(CountNbOfLostParts) nLostParts=nLostParts+1
+            IF(CountNbrOfLostParts) THEN
+              CALL StoreLostParticleProperties(iPart, ElemID)
+              NbrOfLostParticles=NbrOfLostParticles+1
+            END IF
             EXIT
           END IF
           IF(foundHit) THEN
@@ -823,14 +841,19 @@ DO iPart=1,PDM%ParticleVecLength
 !-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
 #endif /*CODE_ANALYZE*/
             IF(isCriticalParallelInFace)THEN
-              IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located inside of BC and moves parallel to side. Undefined position. '
-              IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
+              IF(DisplayLostParticles)THEN
+                IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located inside of BC and moves parallel to side. Undefined position. '
+                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
+              END IF ! DisplayLostParticles
               PartIsDone=.TRUE.
               PDM%ParticleInside(iPart)=.FALSE.
 #ifdef IMPA
               DoParticle=.FALSE.
 #endif /*IMPA*/
-              IF(CountNbOfLostParts) nLostParts=nLostParts+1
+              IF(CountNbrOfLostParts) THEN
+                CALL StoreLostParticleProperties(iPart, ElemID)
+                NbrOfLostParticles=NbrOfLostParticles+1
+              END IF
               EXIT
             END IF
             IF(foundHit) THEN

@@ -323,7 +323,7 @@ INTEGER,INTENT(INOUT)            :: NbrOfParticle
 INTEGER                          :: i, PositionNbr
 LOGICAL                          :: Is_ElemMacro
 CHARACTER(30)                    :: velocityDistribution
-REAL                             :: VeloIC, VeloVecIC(3), maxwellfac
+REAL                             :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
 REAL                             :: iRanPart(3, NbrOfParticle), Vec3D(3)
 !===================================================================================================================================
 
@@ -341,7 +341,10 @@ END IF
 velocityDistribution=Species(FractNbr)%Init(iInit)%velocityDistribution
 VeloIC=Species(FractNbr)%Init(iInit)%VeloIC
 VeloVecIC=Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
-VeloVecIC(1:3) = VeloVecIC(1:3) / VECNORM(VeloVecIC(1:3))
+VeloVecNorm = VECNORM(VeloVecIC(1:3))
+IF (VeloVecNorm.GT.0.0) THEN
+  VeloVecIC(1:3) = VeloVecIC(1:3) / VECNORM(VeloVecIC(1:3))
+END IF
 
 SELECT CASE(TRIM(velocityDistribution))
 CASE('constant')

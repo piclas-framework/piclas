@@ -143,7 +143,7 @@ for statefile in files :
     statefile_old = statefile
     f1.close()
 print(132*"-")
-print("Files have been merged into %s | PartData%s" % (newFile,b1_merged.shape))
+print("Files have been merged into %s | %s%s" % (newFile,data_set,b1_merged.shape))
 
 
 

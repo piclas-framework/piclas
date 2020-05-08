@@ -225,97 +225,126 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Analyze        ,ONLY: CalcGammaVib
+USE MOD_DSMC_Analyze        ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_DSMC_Vars           ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
+USE MOD_DSMC_Vars           ,ONLY: SpecDSMC, DSMC
 USE MOD_DSMC_Vars           ,ONLY: VarVibRelaxProb
-USE MOD_Particle_Vars       ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species
+USE MOD_Particle_Vars       ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species, WriteMacroVolumeValues
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars           ,ONLY: offsetElem
+USE MOD_DSMC_Collis         ,ONLY: DSMC_perform_collision
+USE MOD_DSMC_Collis         ,ONLY: FinalizeCalcVibRelaxProb, SumVibRelaxProb, InitCalcVibRelaxProb
+USE MOD_TimeDisc_Vars       ,ONLY: TEnd, time
+USE MOD_DSMC_CollisionProb  ,ONLY: DSMC_prob_calc
+USE MOD_DSMC_Relaxation     ,ONLY: CalcMeanVibQuaDiatomic
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iElem
+INTEGER, INTENT(IN)           :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: nPair, iPair, iPart, iLoop, nPart, iSpec
-  INTEGER                       :: cSpec1, cSpec2, iCase
+INTEGER                       :: nPair, iPair, iPart, iLoop, nPart
+INTEGER                       :: cSpec1, cSpec2, iCase, iSpec
+REAL                          :: iRan
 !===================================================================================================================================
-  nPart = PEM%pNumber(iElem)
-  nPair = INT(nPart/2)
-  IF(DSMC%VibRelaxProb.EQ.2.0) THEN ! Set summs for variable vibrational relaxation to zero
-    DO iSpec=1,nSpecies
-      VarVibRelaxProb%ProbVibAvNew(iSpec) = 0
-      VarVibRelaxProb%nCollis(iSpec) = 0
-    END DO
+nPart = PEM%pNumber(iElem)
+nPair = INT(nPart/2)
+CALL InitCalcVibRelaxProb()
+
+CollInf%Coll_SpecPartNum = 0
+CollInf%Coll_CaseNum = 0
+
+ALLOCATE(Coll_pData(nPair))
+Coll_pData%Ec=0
+iPair = 1
+
+IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
+
+iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+DO iLoop = 1, nPart
+  iSpec = PartSpecies(iPart)
+  ! Counting the number of particles per species
+  CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) + 1
+  ! Calculation of mean vibrational energy per cell and iter, necessary for dissociation probability
+  IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(1,iPart)
+  ! Creating pairs for species, which are not the background species
+  IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
+    Coll_pData(iPair)%iPart_p1 = iPart
+    Coll_pData(iPair)%iPart_p2 = BGGas%PairingPartner(iPart)
+    iPair = iPair + 1
   END IF
+  iPart = PEM%pNext(iPart)
+END DO
 
-  CollInf%Coll_SpecPartNum = 0
-  CollInf%Coll_CaseNum = 0
-
-  ALLOCATE(Coll_pData(nPair))
-  Coll_pData%Ec=0
-  iPair = 1
-
-  IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
-
-  iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-  DO iLoop = 1, nPart
-    iSpec = PartSpecies(iPart)
-    ! Counting the number of particles per species
-    CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) + 1
-    ! Calculation of mean vibrational energy per cell and iter, necessary for dissociation probability
-    IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(1,iPart)
-    ! Creating pairs for species, which are not the background species
-    IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
-      Coll_pData(iPair)%iPart_p1 = iPart
-      Coll_pData(iPair)%iPart_p2 = BGGas%PairingPartner(iPart)
-      iPair = iPair + 1
-    END IF
-    iPart = PEM%pNext(iPart)
-  END DO
-
-  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
-    ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
-    !           relaxation probability (CalcGammaVib)
-    ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
-    ! 3. Case: Temperature required for the mean free path with the VHS model
-    ! Instead of calculating the translation temperature, simply the input value of the BG gas is taken. If the other species have
-    ! an impact on the temperature, a background gas should not be utilized in the first place.
-    DSMC%InstantTransTemp(nSpecies+1) = 0.
-    DO iSpec = 1, nSpecies
-      IF(BGGas%BackgroundSpecies(iSpec)) THEN
-        DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies+1) &
-                                    + BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec)) * Species(iSpec)%Init(1)%MWTemperatureIC
-      END IF
-    END DO
-    IF(SelectionProc.EQ.2) CALL CalcGammaVib()
-  END IF
-
+IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
+  ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
+  !           relaxation probability (CalcGammaVib)
+  ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
+  ! 3. Case: Temperature required for the mean free path with the VHS model
+  ! Instead of calculating the translation temperature, simply the input value of the BG gas is taken. If the other species have
+  ! an impact on the temperature, a background gas should not be utilized in the first place.
+  DSMC%InstantTransTemp(nSpecies+1) = 0.
   DO iSpec = 1, nSpecies
     IF(BGGas%BackgroundSpecies(iSpec)) THEN
-      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec)) * ElemVolume_Shared(iElem+offSetElem) &
-                                        / Species(iSpec)%MacroParticleFactor
+      DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies+1) &
+                                    + BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec)) * Species(iSpec)%Init(1)%MWTemperatureIC
     END IF
   END DO
+  IF(SelectionProc.EQ.2) CALL CalcGammaVib()
+END IF
 
-  DO iPair = 1, nPair
-    cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
-    cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
-    IF (usevMPF) PartMPF(Coll_pData(iPair)%iPart_p2) = PartMPF(Coll_pData(iPair)%iPart_p1)
-    iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-    CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
-    Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
-                             -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
-                             + (PartState(5,Coll_pData(iPair)%iPart_p1) &
-                             -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
-                             + (PartState(6,Coll_pData(iPair)%iPart_p1) &
-                             -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
-    Coll_pData(iPair)%PairType = iCase
-    Coll_pData(iPair)%NeedForRec = .FALSE.
-  END DO
+DO iSpec = 1, nSpecies
+  IF(BGGas%BackgroundSpecies(iSpec)) THEN
+      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec)) * ElemVolume_Shared(iElem+offSetElem) &
+                                      / Species(iSpec)%MacroParticleFactor
+  END IF
+END DO
+
+DO iPair = 1, nPair
+  cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
+  cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
+  IF (usevMPF) PartMPF(Coll_pData(iPair)%iPart_p2) = PartMPF(Coll_pData(iPair)%iPart_p1)
+  iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+  CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
+  Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
+                            -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                            + (PartState(5,Coll_pData(iPair)%iPart_p1) &
+                            -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                            + (PartState(6,Coll_pData(iPair)%iPart_p1) &
+                            -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
+  Coll_pData(iPair)%PairType = iCase
+  Coll_pData(iPair)%NeedForRec = .FALSE.
+END DO
+
+IF(CollisMode.EQ.3) CALL CalcMeanVibQuaDiatomic()
+
+! 6.) Calculate the collision probability and perform the collision if necessary
+
+DO iPair = 1, nPair
+  CALL SumVibRelaxProb(iPair)
+  IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
+    CALL DSMC_prob_calc(iElem, iPair)
+    CALL RANDOM_NUMBER(iRan)
+    IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
+      CALL DSMC_perform_collision(iPair,iElem)
+    END IF
+  END IF
+END DO
+IF(DSMC%CalcQualityFactors) THEN
+  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+    ! Calculation of the mean free path
+    DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),ElemVolume_Shared(iElem+offSetElem), &
+                                          SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+    ! Determination of the MCS/MFP for the case without octree
+    IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
+                                                                                    / DSMC%MeanFreePath
+  END IF
+END IF
+DEALLOCATE(Coll_pData)
+CALL FinalizeCalcVibRelaxProb(iElem)
 
 END SUBROUTINE DSMC_pairing_bggas
 
@@ -334,7 +363,7 @@ SUBROUTINE MCC_pairing_bggas(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib
+USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec
@@ -346,6 +375,14 @@ USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartStat
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
+USE MOD_Particle_Vars           ,ONLY: WriteMacroVolumeValues
+USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
+USE MOD_DSMC_Collis             ,ONLY: FinalizeCalcVibRelaxProb, SumVibRelaxProb, InitCalcVibRelaxProb
+USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
+USE MOD_DSMC_CollisionProb      ,ONLY: DSMC_prob_calc
+USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -372,6 +409,7 @@ iPartIndexSpec = 0
 
 ALLOCATE(SpecPartNum(nSpecies),SpecPairNum(nSpecies,nSpecies))
 SpecPairNum = 0; SpecPairNumTemp = 0; SpecPairNumReal = 0.; SpecPartNum = 0
+CALL InitCalcVibRelaxProb()
 
 IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
 
@@ -519,6 +557,32 @@ DO iPair = 1, MCC_TotalPairNum
   Coll_pData(iPair)%PairType = iCase
   Coll_pData(iPair)%NeedForRec = .FALSE.
 END DO
+
+IF(CollisMode.EQ.3) CALL CalcMeanVibQuaDiatomic()
+
+! 6.) Calculate the collision probability and perform the collision if necessary
+DO iPair = 1, MCC_TotalPairNum
+  CALL SumVibRelaxProb(iPair)
+  IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
+    CALL DSMC_prob_calc(iElem, iPair)
+    CALL RANDOM_NUMBER(iRan)
+    IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
+      CALL DSMC_perform_collision(iPair,iElem)
+    END IF
+  END IF
+END DO
+IF(DSMC%CalcQualityFactors) THEN
+  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+    ! Calculation of the mean free path
+    DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum),ElemVolume_Shared(iElem+offSetElem), &
+                                            SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+    ! Determination of the MCS/MFP for the case without octree
+    IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
+                                                                                    / DSMC%MeanFreePath
+  END IF
+END IF
+DEALLOCATE(Coll_pData)
+CALL FinalizeCalcVibRelaxProb(iElem)
 
 END SUBROUTINE MCC_pairing_bggas
 

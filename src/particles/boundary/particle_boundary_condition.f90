@@ -75,7 +75,7 @@ USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
 #endif /*IMPA*/
 USE MOD_Dielectric_Vars          ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
-USE MOD_Particle_Boundary_Tools  ,ONLY: BoundaryParticleOutput,DielectricSurfaceCharge
+USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties,DielectricSurfaceCharge
 #if CODE_ANALYZE
 USE MOD_Globals                  ,ONLY: myRank
 USE MOD_Mesh_Vars                ,ONLY: NGeo
@@ -162,7 +162,7 @@ END IF
 ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   ! Surface particle output to .h5
   IF(DoBoundaryParticleOutput.AND.PartBound%BoundaryParticleOutput(iBC))THEN
-    CALL BoundaryParticleOutput(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc)
+    CALL StoreBoundaryParticleProperties(iPart,LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,PartTrajectory(1:3),n_loc)
   END IF
 
   ! Select the corresponding boundary condition and calculate particle treatment
@@ -393,7 +393,7 @@ USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBi
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues,PartLorentzType
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_DSMC_Vars               ,ONLY: DSMC,RadialWeighting,PartStateIntEn
-USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues, usevMPF
+USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,usevMPF
 USE MOD_TImeDisc_Vars           ,ONLY: tend,time
 USE MOD_Equation_Vars           ,ONLY: c2_inv
 #if defined(LSERK)
@@ -648,6 +648,7 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues,Symmetry2D
 USE MOD_Particle_Vars           ,ONLY: Symmetry2DAxisymmetric, VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt,tend,time,RKdtFrac
+USE MOD_DSMC_ElectronicModel    ,ONLY: RelaxElectronicShellWall
 #if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
@@ -675,7 +676,7 @@ REAL                                 :: VibQuantNewR                            
 !REAL,PARAMETER                       :: oneMinus=0.99999999
 REAL                                 :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
 REAL                                 :: EtraWall, EtraNew
-REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
+REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC, ElecACC
 REAL                                 :: tang1(1:3),tang2(1:3), NewVelo(3)
 REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                                 :: Xitild,EtaTild
@@ -711,6 +712,7 @@ IF (IsAuxBC) THEN
   TransACC   = PartAuxBC%TransACC(AuxBCIdx)
   VibACC     = PartAuxBC%VibACC(AuxBCIdx)
   RotACC     = PartAuxBC%RotACC(AuxBCIdx)
+  ElecACC    = PartAuxBC%ElecACC(AuxBCIdx)
 ELSE
   ! additional states
   locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
@@ -720,7 +722,7 @@ ELSE
   TransACC   = PartBound%TransACC(locBCID)
   VibACC     = PartBound%VibACC(locBCID)
   RotACC     = PartBound%RotACC(locBCID)
-
+  ElecACC    = PartBound%ElecACC(locBCID)
 END IF !IsAuxBC
 CALL OrthoNormVec(n_loc,tang1,tang2)
 
@@ -943,6 +945,20 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
 #if (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==300)
         END IF ! FPDoVibRelaxation || BGKDoVibRelaxation
 #endif
+      END IF
+
+      IF ( DSMC%ElectronicModel ) THEN
+        IF((SpecDSMC(PartSpecies(PartID))%InterID.NE.4).AND.(.NOT.SpecDSMC(PartSpecies(PartID))%FullyIonized)) THEN
+          CALL RANDOM_NUMBER(RanNum)
+          IF (RanNum.LT.ElecACC) THEN
+            IF (DoSample) SampWallState(4,p,q,SurfSideID)=SampWallState(4,p,q,SurfSideID)+PartStateIntEn(3,PartID) * MacroParticleFactor
+            PartStateIntEn(3,PartID) = RelaxElectronicShellWall(PartID, WallTemp)
+            IF (DoSample) THEN
+              SampWallState(5,p,q,SurfSideID)=SampWallState(5,p,q,SurfSideID)+PartStateIntEn(3,PartID) * MacroParticleFactor
+              SampWallState(6,p,q,SurfSideID)=SampWallState(6,p,q,SurfSideID)+PartStateIntEn(3,PartID) * MacroParticleFactor
+            END IF
+          END IF
+        END IF
       END IF
     END IF ! CollisMode > 1
   END IF ! useDSMC

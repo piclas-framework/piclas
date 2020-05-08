@@ -83,16 +83,17 @@ DO iSpec = 1,nSpecies
           ! ! Determine the maximum collision frequency for the null collision method
           CALL DetermineNullCollProb(iSpec,jSpec)
           TotalProb = TotalProb + SpecXSec(iSpec,jSpec)%ProbNull
-          IF(TotalProb.GT.1.0) THEN
-            CALL abort(&
-              __STAMP__&
-              ,'ERROR: Total null collision probability is above unity. Please reduce the time step!')
-          END IF
         END IF
       END DO
     END IF
   END IF
 END DO
+
+IF(TotalProb.GT.1.0) THEN
+  CALL abort(&
+  __STAMP__&
+  ,'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: ',RealInfoOpt=TotalProb)
+END IF
 
 END SUBROUTINE MCC_Init
 
