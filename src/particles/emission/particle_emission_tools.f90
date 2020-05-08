@@ -207,7 +207,7 @@ INTEGER                                  :: i,PositionNbr
 DO i=1, NbrOfParticle
   PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
   VarTimeStep%ParticleTimeStep(PositionNbr) = &
-                CalcVarTimeStep(PartState(1,PositionNbr), PartState(2,PositionNbr),PEM%GlobalElemID(PositionNbr))
+                CalcVarTimeStep(PartState(1,PositionNbr), PartState(2,PositionNbr),PEM%LocalElemID(PositionNbr))
 END DO
 
 END SUBROUTINE SetParticleTimeStep
