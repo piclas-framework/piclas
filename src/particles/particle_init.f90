@@ -1699,7 +1699,7 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary,PartStateBoundarySpec
+USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutput,PartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 ! IMPLICIT VARIABLE HANDLING
@@ -1915,13 +1915,6 @@ IF(DoBoundaryParticleOutput)THEN
         ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
   END IF
   PartStateBoundary=0.
-  ALLOCATE(PartStateBoundarySpec(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-        __STAMP__&
-        ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundarySpec array!')
-  END IF
-  PartStateBoundarySpec=0
 END IF
 
 ! Set mapping from field boundary to particle boundary index
@@ -3118,7 +3111,6 @@ SDEALLOCATE(PartBound%SolidCrystalIndx)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutput)
 SDEALLOCATE(PartStateBoundary)
-SDEALLOCATE(PartStateBoundarySpec)
 SDEALLOCATE(PEM%GlobalElemID)
 SDEALLOCATE(PEM%LastGlobalElemID)
 SDEALLOCATE(PEM%pStart)
