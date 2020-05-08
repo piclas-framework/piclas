@@ -62,6 +62,7 @@ print('='*132)
 
 # Loop over all files and identify the latet simulation time
 maxtime=-1.0
+mintime=1.0e99
 NbrOfFiles = len(args.files)
 files = []
 for statefile in args.files :
@@ -72,16 +73,28 @@ for statefile in args.files :
     try :
         time = float(timestr)
         maxtime=max(time,maxtime)
+        mintime=min(time,mintime)
         if time == maxtime :
             maxtimestr = timestr
             maxtimeFile = statefile
             newFile = re.sub(timestr+'.h5', '', statefile)+maxtimestr+'_merged.h5'
+
+        if time == mintime :
+            mintimestr = timestr
         files.append(statefile)
     except :
         print("not considering "+statefile)
 
+
+print("t_min     : %s" % mintime)
+print("t_min_str : %s" % mintimestr)
+
 print("t_max     : %s" % maxtime)
-print("t_max_str : %s" % timestr)
+print("t_max_str : %s" % maxtimestr)
+
+dt = maxtime-mintime
+print("delta t   : %s" % dt)
+
 print("newfile   : %s" % newFile)
 print()
 
@@ -107,8 +120,6 @@ for statefile in files :
     # --------------------------------------------
     # When sorting is used, the sorted array is written to the original .h5 file with a new name
     f1 = h5py.File(statefile,'r+')
-
-    file_version  = f1.attrs.get('File_Version', default=-1.)[0]
     
     # Usage:
     # -------------------
@@ -117,29 +128,31 @@ for statefile in files :
     # available attributes   : print('\n'.join(x for x in f1.attrs))                        # yields 'File_Type\n File_Version\n MeshFile'
     # get specific attribute : file_version  = f1.attrs.get('File_Version', default=-1.)[0] # yields, e.g., 1.5
     # -------------------
-    data_set= 'PartData'
+    data_set= 'SurfaceData'
     
     # 1.1.1   Read the dataset from the hdf5 file
     b1 = f1[data_set][:]
     print("".ljust(max_length-len(statefile)),statefile," | PartData%s" % str(b1.shape))
 
+    if n == 1: 
+        # Create empty array when processing the first file
+        b1_merged = np.empty(b1.shape, dtype=float, order='C') # Whether to store multi-dimensional data in row-major (C-style) or column-major (Fortran-style) order in memory.
+
+
     # Save old file
     if n > 1 :
         # Compare shape of the dataset of both files, throw error if they do not conincide
-        if b1.shape[0] != b2.shape[0] : # e.g.: b1.shape = (48, 1, 1, 32)
+        if b1.shape[0] != b2_shape : # e.g.: b1.shape = (48, 1, 1, 32)
             s="\nDatasets are not compatible due to different shapes: Files [%s] and [%s] have shapes %s and %s\nThe dimensions dim1 = %s and dim2 = %s must be equal!\n\nAborted!" % (statefile,statefile_old,b1.shape,b2.shape,b1.shape[0],b2.shape[0])
             print(s)
             exit(1)
-        # Concatenate files depending on the file version (beginning with v1.5 PartData's dimensions are switched)
-        if file_version < 1.5 :
-            # Concatenate columns
-            b1_merged = np.concatenate((b1_merged, b1), axis=1)
-        else :
-            # Concatenate rows
-            b1_merged = np.concatenate((b1_merged, b1), axis=0)
-    else :
-        b1_merged = b1
-    b2 = b1
+    
+    # Add ne current array stored in b1 to b
+    b1_merged = b1_merged + b1
+
+
+    # store the old shape for checking with next state file
+    b2_shape = b1.shape[0]
     statefile_old = statefile
     f1.close()
 print(132*"-")
