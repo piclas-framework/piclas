@@ -102,6 +102,9 @@ CALL prms%CreateLogicalOption( 'Write-TriaSurfaceFlux-DebugMesh'&
   , 'Writes per proc triangulated Surfacemesh used for TriaSurfaceFlux. Requires TriaSurfaceFlux=T.'&
   ,'.FALSE.')
 
+CALL prms%CreateLogicalOption( 'DisplayLostParticles'&
+  , 'Display position, velocity, species and host element of particles lost during particle tracking (TrackingMethod = '//&
+    'triatracking, tracing)','.FALSE.')
 CALL prms%CreateLogicalOption( 'CountNbrOfLostParts'&
     , 'Count the number of lost particles during tracking that cannot be found with fallbacks. Additionally, the lost particle '//&
     'information is stored in a PartStateLost*.h5 file. When particles are not found during restart in their host cell '//&
@@ -3390,7 +3393,7 @@ USE MOD_Particle_BGM           ,ONLY: FinalizeBGM
 USE MOD_Particle_Mesh_Readin   ,ONLY: FinalizeMeshReadin
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance,PartStateLost
 #if USE_MPI
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
 #endif
@@ -3644,6 +3647,7 @@ ADEALLOCATE(ElemRadius2NGeo)
 ADEALLOCATE(ElemEpsOneCell)
 SDEALLOCATE(Distance)
 SDEALLOCATE(ListDistance)
+SDEALLOCATE(PartStateLost)
 SDEALLOCATE(ElemTolerance)
 SDEALLOCATE(ElemToGlobalElemID)
 
