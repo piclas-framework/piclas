@@ -1211,6 +1211,8 @@ REAL                        :: TempRatio
 !===================================================================================================================================
 
 Qtra = (2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))**(1.5)
+Qvib = 1.
+Qrot = 1.
 IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
   IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
     iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
@@ -1221,7 +1223,6 @@ IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
                                                                       * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)    &
                                                                       * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)))
     END IF
-    Qvib = 1.
     DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
       TempRatio = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/Temp
       IF(CHECKEXP(TempRatio)) THEN
@@ -1235,9 +1236,6 @@ IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
       Qvib = 1. / (1. - EXP(-TempRatio))
     END IF
   END IF
-ELSE
-  Qrot = 1.
-  Qvib = 1.
 END IF
 IF((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
   Qelec = 1.
@@ -1250,6 +1248,8 @@ ELSE
     END IF
   END DO
 END IF
+
+IF(Qelec.EQ.0.) Qelec = 1.
 
 END SUBROUTINE CalcPartitionFunction
 

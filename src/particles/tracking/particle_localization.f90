@@ -392,7 +392,7 @@ END IF
 ! loop over all particles and add them up
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
-    ElemID = PEM%GlobalElemID(iPart)
+    ElemID = PEM%LocalElemID(iPart)
     IF(ElemID.LE.PP_nElems)THEN
       nPartsPerElem(ElemID)=nPartsPerElem(ElemID)+1
     END IF

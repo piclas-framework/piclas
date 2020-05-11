@@ -467,7 +467,6 @@ VarTimeStep%ElemFac = 1.0
 IF (VarTimeStep%Direction(1).GT.0.0) THEN
   DO iElem = 1, nElems
     GlobalElemID = iElem + offsetElem
-
     IF (ElemMidPoint_Shared(1,GlobalElemID).LT.VarTimeStep%StartPoint(1)) THEN
       VarTimeStep%ElemFac(iElem)=1.0
     ELSE IF (VarTimeStep%EndPoint(1).EQ.-99999.) THEN
