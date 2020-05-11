@@ -40,40 +40,41 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! Routine calculating the collision probability
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_DSMC_Vars,              ONLY: SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting, SpecXSec
-USE MOD_DSMC_Vars,              ONLY: ConsiderVolumePortions
-USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PartState, VarTimeStep
-USE MOD_Particle_Mesh_Vars,     ONLY: GEO
-USE MOD_TimeDisc_Vars,          ONLY: dt
-USE MOD_DSMC_SpecXSec,          ONLY: InterpolateCrossSection
-USE MOD_part_tools,             ONLY: GetParticleWeight
+  USE MOD_Globals
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
+  USE MOD_DSMC_Vars,              ONLY : UseMCC, SpecXSec, XSec_NullCollision
+  USE MOD_DSMC_Vars,              ONLY : ConsiderVolumePortions
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, VarTimeStep
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+  USE MOD_TimeDisc_Vars,          ONLY : dt
+  USE MOD_DSMC_SpecXSec,          ONLY: InterpolateCrossSection, XSec_CalcCollisionProb
+  USE MOD_part_tools,             ONLY : GetParticleWeight
 #if (PP_TimeDiscMethod==42)
-USE MOD_Particle_Vars,          ONLY: nSpecies
+  USE MOD_Particle_Vars,          ONLY : nSpecies
 #endif
 USE MOD_Particle_Mesh_Vars,     ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
+  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)                 :: iElem, iPair
-REAL(KIND=8), INTENT(IN), OPTIONAL  :: NodeVolume
+  INTEGER, INTENT(IN)                 :: iElem, iPair
+  REAL(KIND=8), INTENT(IN), OPTIONAL  :: NodeVolume
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                             :: iPType, NbrOfReaction, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2
-REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume
-REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum
-REAL                                :: CollEnergy, CollProb, VeloSquare
+  INTEGER                             :: iPType, NbrOfReaction, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase
+  REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume, CollProb
+  REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum
 #if (PP_TimeDiscMethod==42)
-INTEGER                             :: iReac, iSpec
+  INTEGER                             :: iReac, iSpec
 #endif
 !===================================================================================================================================
 
   iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
   iSpec_p1 = PartSpecies(iPart_p1);      iSpec_p2 = PartSpecies(iPart_p2)
+  iCase = CollInf%Coll_Case(iSpec_p1,iSpec_p2)
 
   iPType = SpecDSMC(iSpec_p1)%InterID + SpecDSMC(iSpec_p2)%InterID !definition of collision case
 
@@ -127,23 +128,13 @@ INTEGER                             :: iReac, iSpec
     CASE(2,3,4,5,11,12,21,22,20,30,40,6,14,24)
     ! Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic (non-CEX/MEX) Ion, Molecule-Atomic Ion, Atom-Molecular Ion, Molecule-Molecular Ion
     ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron
-      IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
-        ! Using the kinetic energy of the particle (as is described in Vahedi1995 and Birdsall1991)
-        VeloSquare = DOT_PRODUCT(PartState(4:6,iPart_p1),PartState(4:6,iPart_p1))
-        CollEnergy = 0.5 * Species(iSpec_p1)%MassIC * VeloSquare
-        ! Determining whether a real collision or a "null" collisions happens by comparing the current cross-section with the
-        ! maximal collision cross section
-        Coll_pData(iPair)%Prob = 1. - EXP(-SQRT(VeloSquare)*InterpolateCrossSection(iSpec_p1,iSpec_p2,CollEnergy) &
-                                  * SpecNum2*MacroParticleFactor/Volume*dt)
-        ! Correct the collision probability in the case of the second species being a background species as the number of pairs was
-        ! determined based on ProbNull
-        IF(BGGas%BackgroundSpecies(iSpec_p2)) Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / SpecXSec(iSpec_p1,iSpec_p2)%ProbNull
+      IF(UseMCC) THEN
+        Coll_pData(iPair)%Prob = XSec_CalcCollisionProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
       ELSE
         Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
                 * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
                 * MacroParticleFactor / CollCaseNum                                                     &
                 * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(iSpec_p1)%omegaVHS) &
-                        ! relative velo to the power of (1 -2omega) !! only one omega is used!!
                 * dtCell / Volume
       END IF
     CASE(8) !Electron - Electron
@@ -202,10 +193,6 @@ INTEGER                             :: iReac, iSpec
 __STAMP__&
 ,'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
   END SELECT
-  IF ( SQRT(DOT_PRODUCT(PartState(4:6,Coll_pData(iPair)%iPart_p1),PartState(4:6,Coll_pData(iPair)%iPart_p1)))&
-    .LT.DSMC%veloMinColl(PartSpecies(Coll_pData(iPair)%iPart_p1)) .OR. &
-       SQRT(DOT_PRODUCT(PartState(4:6,Coll_pData(iPair)%iPart_p2),PartState(4:6,Coll_pData(iPair)%iPart_p2)))&
-    .LT.DSMC%veloMinColl(PartSpecies(Coll_pData(iPair)%iPart_p2))) Coll_pData(iPair)%Prob = 0.
   IF (ISNAN(Coll_pData(iPair)%Prob)) THEN
     IPWRITE(UNIT_errOut,*)iPair,'in',iElem,'is NaN!'
     CALL Abort(&
@@ -213,13 +200,18 @@ __STAMP__&
 ,'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
   END IF
   IF(DSMC%CalcQualityFactors) THEN
-    IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
-      ! Calculate the collision probability for cross section case
-      IF(BGGas%BackgroundSpecies(iSpec_p2)) CollProb = Coll_pData(iPair)%Prob * SpecXSec(iSpec_p1,iSpec_p2)%ProbNull
-    ELSE
-      CollProb = Coll_pData(iPair)%Prob
-    END IF
+    CollProb = Coll_pData(iPair)%Prob
     DSMC%CollProbMax = MAX(CollProb, DSMC%CollProbMax)
+    ! Remove the correction factor for the mean collision probability
+    IF(UseMCC) THEN
+      IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
+        IF(XSec_NullCollision) THEN
+          CollProb = CollProb * SpecXSec(iCase)%ProbNull
+        ELSE
+          CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+        END IF
+      END IF
+    END IF
     DSMC%CollProbMean = DSMC%CollProbMean + CollProb
     DSMC%CollProbMeanCount = DSMC%CollProbMeanCount + 1
   END IF
@@ -227,13 +219,18 @@ __STAMP__&
   ! Sum of collision probabilities for the collision pair and the corresponding reaction, required for the correct reaction rate
   IF(ChemReac%NumOfReact.GT.0) THEN
     DO iSpec=1, nSpecies
-      iReac=ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2),iSpec)
+      iReac=ChemReac%ReactNum(iSpec_p1,iSpec_p2,iSpec)
       IF (iReac.NE.0) THEN
+        CollProb = Coll_pData(iPair)%Prob
         IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
-          ! Calculate the collision probability for the cross section case with background gas
-          IF(BGGas%BackgroundSpecies(iSpec_p2)) CollProb = Coll_pData(iPair)%Prob * SpecXSec(iSpec_p1,iSpec_p2)%ProbNull
-        ELSE
-          CollProb = Coll_pData(iPair)%Prob
+         ! Calculate the collision probability for the null collision probability case
+          IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
+            IF(XSec_NullCollision) THEN
+              CollProb = CollProb * SpecXSec(iCase)%ProbNull
+          ELSE
+              CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+            END IF
+          END IF
         END IF
         ChemReac%ReacCollMean(iReac) = ChemReac%ReacCollMean(iReac) + CollProb
         ChemReac%ReacCollMeanCount(iReac) = ChemReac%ReacCollMeanCount(iReac) + 1

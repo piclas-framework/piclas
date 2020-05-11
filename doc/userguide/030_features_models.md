@@ -286,7 +286,7 @@ Modelling of reactive surfaces is enabled by setting `Part-BoundaryX-Condition=r
 appropriate particle boundary surface model `Part-BoundaryX-SurfaceModel`.
 The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the table below.
 
-| SurfaceModel | Description                                                                                                                                                                         |
+| Model | Description                                                                                                                                                                         |
 | :----------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0 (default)  | Standard extended Maxwellian scattering                                                                                                                                             |
 |      2       | Simple recombination on surface collision, where an impinging particle as given by Ref. [@Reschke2019].                                                                             |
@@ -884,15 +884,25 @@ These parameters allow the simulation of non-reactive gases. Additional paramete
 
 ### Pairing & Collision Modelling \label{sec:dsmc_collision}
 
-By default, a conventional statistical pairing algorithm randomly pairs particles within a cell. Here, the mesh should resolve the mean free path to avoid numerical diffusion.
+By default, a conventional statistical pairing algorithm randomly pairs particles within a cell. Here, the mesh should resolve the mean free path to avoid numerical diffusion. To circumvent this requirement, an octree-based sorting and cell refinement [@Pfeiffer2013] can be enabled by
 
-The octree-based sorting and cell refinement in combination with the nearest neighbour pairing can be enabled by
+    Particles-DSMC-UseOctree        = T
+    Particles-OctreePartNumNode     = 80        ! (3D default, 2D default: 40)
+    Particles-OctreePartNumNodeMin  = 50        ! (3D default, 2D default: 28)
 
-    Particles-DSMC-UseOctree = T
+The algorithm refines a cell recursively as long as the mean free path is smaller than a characteristic length (approximated by the cubic root of the cell volume) and the number of particles is greater than `Particles-OctreePartNumNode`. The latter condition serves the purpose to accelerate the simulation by avoiding looking for the nearest neighbour in a cell with a large number of particles. To avoid cells with a low particle number, the cell refinement is stopped when the particle number is below `Particles-OctreePartNumNodeMin`. These two parameters have different default values for 2D/axisymmetric and 3D simulations.
 
-WIP: octree, nearest neighbor, VHS
+To further reduce numerical diffusion, the nearest neighbour search for the particle pairing can be enabled
 
-Particles-DSMC-ProhibitDoubleCollision [@Shevyrin2005,@Akhlaghi2018]
+    Particles-DSMC-UseNearestNeighbour = T
+
+An additional attempt to increase the quality of simulations results is to prohibit repeated collisions between particles [@Shevyrin2005;@Akhlaghi2018]. This options is enabled by default in 2D/axisymmetric simulations, but disabled by default in 3D simulations.
+
+    Particles-DSMC-ProhibitDoubleCollision = T
+
+#### Cross-section based collision probabilities
+
+Cross-section data to model collisional and relaxation probabilities (e.g. in case of electron-neutral collisions), analogous to Monte Carlo Collisions, can be utilized and is described in Section \ref{sec:xsec_collision} and \ref{sec:xsec_relax}.
 
 ### Inelastic Collisions \& Relaxation \label{sec:dsmc_relaxation}
 
@@ -1082,7 +1092,7 @@ $$w < \frac{1}{\left(\sqrt{2}\pi d_{\mathrm{ref}}^2 n^{2/3}\right)^3},$$
 
 where $d_{\mathrm{ref}}$ is the reference diameter and $n$ the number density. Here, the largest number density within the simulation domain should be used as the worst-case. For supersonic/hypersonic flows, the conditions behind a normal shock can be utilized as a first guess. For a thruster/nozzle expansion simulation, the chamber or throat conditions are the limiting factor.
 
-## Background Gas
+## Background Gas \label{sec:background_gas}
 
 A constant background gas (single species or mixture) can be utilized to enable efficient particle collisions between the background gas and other particle species (represented by actual simulation particles). The assumption is that the density of the background gas $n_{\mathrm{gas}}$ is much greater than the density of the particle species, e.g. the charged species in a plasma, $n_{\mathrm{charged}}$
 
@@ -1097,18 +1107,27 @@ Other species parameters such as mass, charge, temperature and velocity distribu
 
 Every time step particles are generated from the background gas (for a mixture, the species of the generated particle is chosen based on the species composition) and paired with the particle species. Consequently, the collision probabilities are calculated using the conventional DSMC routines and the VHS cross-section model. Aftwards, the collilsion process is performed (if the probability is greater than a random number) and it is tested whether additional energy exchange and chemical reactions occur. While the VHS model is sufficient to model collisions between neutral species, it cannot reproduce the phenomena of a neutral-electron interaction. For this purpose, the cross-section based collision probabilities should be utilized, which are discussed in the following.
 
-### Cross-section based collision probability
+### Cross-section based collision probability \label{sec:xsec_collision}
 
 For modelling of particle collisions with the Particle-in-Cell method, often the Monte Carlo Collision (MCC) algorithm is utilized. Here, experimentally measured or ab-initio calculated cross-sections are typically utilized to determine the collision probability. In PICLas, the null collision method after [@Birdsall1991],[@Vahedi1995] is implemented, where the number of collision pairs is determined based a maximum collision frequency. Thus, the computational effort is reduced as not every particle has to be checked for a collision, such as in the previously described DSMC-based background gas. To activate the MCC procedure, the collision cross-sections have to be supplied via read-in from a database
 
     Particles-CollXSec-Database = MCC_Database.h5
+    Particles-CollXSec-NullCollision = TRUE
 
-Cross-section data can be retrieved from the [LXCat database](https://fr.lxcat.net/home/) and converted with a Python script provided in the tools folder: `piclas/tools/crosssection_database`. Details on how to create an own database with custom cross-section data is given in Section \ref{sec:tools_mcc}. Finally, the input which species should be treated with the MCC model is required
+Cross-section data can be retrieved from the [LXCat database](https://fr.lxcat.net/home/) [@Pitchford2017] and converted with a Python script provided in the tools folder: `piclas/tools/crosssection_database`. Details on how to create an own database with custom cross-section data is given in Section \ref{sec:tools_mcc}. Finally, the input which species should be treated with the MCC model is required
 
     Part-Species2-SpeciesName = electron
     Part-Species2-UseCollXSec = T
 
 The read-in of the cross-section data is based on the provided species name and the species name of the background gas (e.g. if the background species name is Ar, the code will look for a container named `Ar-electron` in the MCC database). Finally, the cross-section based collision modelling (e.g. for neutral-charged collisions) and the VHS model (e.g. for neutral-neutral collisions) can be utilized within a simulation for different species.
+
+### Cross-section based vibrational relaxation probability \label{sec:xsec_relax}
+
+In the following, the utilization of cross-section data is extended to the determination of the vibrational relaxation probability. When data is available, it will be read-in by the Python script described above. If different vibrational levels are available, they will be summarized to a single relaxation probability. Afterwards the regular DSMC-based relaxation procedure will be performed. To enable the utilization of these levels, the following flag shall be supplied
+
+    Part-Species2-UseVibXSec = T
+
+It should be noted that even if Species2 corresponds to an electron, the vibrational cross-section data will be read-in for any molecule-electron pair.
 
 ## Modelling of Continuum Gas Flows \label{sec:continuum}
 
