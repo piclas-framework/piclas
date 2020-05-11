@@ -46,7 +46,7 @@ USE MOD_DSMC_Analyze          ,ONLY: DSMC_data_sampling,CalcSurfaceValues, Write
 USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC
+USE MOD_DSMC_Vars             ,ONLY: ChemReac, UseMCC, XSec_Relaxation, SpecXSec
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Collis           ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry2D
@@ -71,6 +71,7 @@ INTEGER           :: iElem, nPart
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
+INTEGER           :: iCase
 !===================================================================================================================================
 
 ! Reset the right-hand side (DoElement: coupled BGK/FP-DSMC simulations, which might utilize the RHS)
@@ -97,15 +98,22 @@ DO iElem = 1, nElems ! element/cell main loop
     DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
     DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
     IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
-    IF(DSMC%VibRelaxProb.EQ.2) DSMC%CalcVibProb = 0.
+    DSMC%CalcVibProb = 0.
+    IF(XSec_Relaxation) THEN
+      DO iCase=1,CollInf%NumCase
+        SpecXSec(iCase)%VibProb(1:2) = 0.
+      END DO
+    END IF
   END IF
   IF (CollisMode.NE.0) THEN
     ChemReac%nPairForRec = 0
     CALL InitCalcVibRelaxProb
-    IF(UseMCC) THEN
-      CALL MCC_pairing_bggas(iElem)
-    ELSE IF(BGGas%NumberOfSpecies.GT.0) THEN
-      CALL DSMC_pairing_bggas(iElem)
+    IF(BGGas%NumberOfSpecies.GT.0) THEN
+      IF(UseMCC) THEN
+        CALL MCC_pairing_bggas(iElem)
+      ELSE
+        CALL DSMC_pairing_bggas(iElem)
+      END IF
     ELSE IF (nPart.GT.1) THEN
       IF (DSMC%UseOctree) THEN
         ! On-the-fly cell refinement and pairing within subcells

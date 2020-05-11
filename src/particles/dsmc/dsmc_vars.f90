@@ -176,20 +176,32 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   ! Collision cross-sections for MCC
   LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
                                                             ! treated with read-in collision cross-section (currently only with BGG)
+  LOGICAL                           :: UseVibXSec           ! Flag if the vibrational relaxation probability should be treated,
+                                                            ! using read-in cross-sectional data (currently only with BGG)
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
 
+TYPE tXSecVibMode
+  REAL,ALLOCATABLE                  :: XSecData(:,:)        ! Vibrational cross-section as read-in from the database
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: Cross-section at the respective energy level [m^2]
+END TYPE tXSecVibMode
+
 TYPE tSpeciesXSec
+  LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species pair should be treated with
+                                                            ! read-in collision cross-section (currently only with BGG)
   REAL,ALLOCATABLE                  :: CollXSecData(:,:)    ! Collision cross-section as read-in from the database
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
   REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
                                                             ! null collision method of MCC
-  REAL                              :: MaxCollFreq          ! Maximal collision frequency at certain energy level and cross-section
+  LOGICAL                           :: UseVibXSec           ! Flag if cross-section data will be used for the relaxation probability
+  TYPE(tXSecVibMode),ALLOCATABLE    :: VibMode(:)           ! Vibrational cross-sections (nVib: Number of levels found in database)
+  REAL                              :: VibProb(2)           ! 1: Sum of vibrational relaxation probability, 2: Event counter
 END TYPE tSpeciesXSec
 
-TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:,:)        ! Species cross-section related data (nSpec,nSpec). First column is used
+TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:)          ! Species cross-section related data (CollCase). First column is used
                                                             ! for the particle species, second column for the background species
 
 TYPE tDSMC
@@ -272,7 +284,6 @@ TYPE tDSMC
                                                             ! coefficient with the equilibrium constant by partition functions
   REAL                          :: PartitionMaxTemp         ! Temperature limit for pre-stored partition function (DEF: 20 000K)
   REAL                          :: PartitionInterval        ! Temperature interval for pre-stored partition function (DEF: 10K)
-  REAL, ALLOCATABLE             :: veloMinColl(:)           ! min velo-magn. for spec allowed to perform collision (def.: 0.)
 #if (PP_TimeDiscMethod==42)
   LOGICAL                       :: CompareLandauTeller      ! Keeps the translational temperature at the fixed value of the init
 #endif
@@ -296,6 +307,8 @@ TYPE(tBGGas)                        :: BGGas
 
 LOGICAL                             :: UseMCC
 CHARACTER(LEN=256)                  :: XSec_Database
+LOGICAL                             :: XSec_NullCollision
+LOGICAL                             :: XSec_Relaxation
 INTEGER                             :: MCC_TotalPairNum
 
 TYPE tPairData
@@ -304,11 +317,6 @@ TYPE tPairData
   INTEGER           :: iPart_p1                             ! first particle of the pair
   INTEGER           :: iPart_p2                             ! second particle of the pair
   INTEGER           :: PairType                             ! type of pair (=iCase, CollInf%Coll_Case)
-  REAL, ALLOCATABLE :: Sigma(:)                             ! cross sections sigma of the pair
-                                                            !       0: sigma total
-                                                            !       1: sigma elast
-                                                            !       2: sigma ionization
-                                                            !       3: sigma exciation
   REAL              :: Ec                                   ! Collision Energy
   LOGICAL           :: NeedForRec                           ! Flag if pair is need for Recombination
 END TYPE tPairData
