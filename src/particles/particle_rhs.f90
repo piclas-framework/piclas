@@ -58,7 +58,7 @@ INTEGER,PARAMETER      :: PRM_PART_RHS_NR  = 0   ! non-relativistic
 INTEGER,PARAMETER      :: PRM_PART_RHS_D   = 1   ! default
 INTEGER,PARAMETER      :: PRM_PART_RHS_W   = 2   ! wrong
 INTEGER,PARAMETER      :: PRM_PART_RHS_RN  = 3   ! relativistic-new
-INTEGER,PARAMETER      :: PRM_PART_RHS_REM = 31  ! relativistic-EM (electromangetic)
+INTEGER,PARAMETER      :: PRM_PART_RHS_REM = 31  ! relativistic-EM (electromagnetic)
 INTEGER,PARAMETER      :: PRM_PART_RHS_RM  = 5   ! relativistic, momentum-based
 INTEGER,PARAMETER      :: PRM_PART_RHS_CEM = 9   ! constant-EM (acceleration due to an electro-magnetic field that is constant)
 
@@ -87,11 +87,17 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER            :: iSTATUS
 !==================================================================================================================================
 CALL prms%SetSection("Particle RHS")
 CALL prms%CreateIntFromStringOption('Part-LorentzType', "Lorentz force calculation for charged particles: "//&
-                                                        "non-relativistic, default, wrong, relativistic-new, relativistic-EM, "//&
-                                                        "constant-EM", "relativistic-new")
+                                                        "non-relativistic ("//TRIM(int2strf(PRM_PART_RHS_NR))//"), "//&
+                                                        "default ("//TRIM(int2strf(PRM_PART_RHS_D))//"), "//&
+                                                        "wrong ("//TRIM(int2strf(PRM_PART_RHS_W))//"), "//&
+                                                        "relativistic-new ("//TRIM(int2strf(PRM_PART_RHS_RN))//"), "//&
+                                                        "relativistic-EM ("//TRIM(int2strf(PRM_PART_RHS_REM))//"), "//&
+                                                        "relativistic-momentum ("//TRIM(int2strf(PRM_PART_RHS_RM))//"), "//&
+                                                        "constant-EM ("//TRIM(int2strf(PRM_PART_RHS_CEM))//")", "relativistic-new")
 CALL addStrListEntry('Part-LorentzType' , 'non-relativistic'      , PRM_PART_RHS_NR)
 CALL addStrListEntry('Part-LorentzType' , 'default'               , PRM_PART_RHS_D)
 CALL addStrListEntry('Part-LorentzType' , 'wrong'                 , PRM_PART_RHS_W)
