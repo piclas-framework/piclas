@@ -1220,31 +1220,31 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SDEALLOCATE(PorousBCMacroVal)
-SDEALLOCATE(PorousBC)
-SDEALLOCATE(PorousBCSampWall)
-SDEALLOCATE(PorousBCOutput)
 
-! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+IF(nPorousBC.GT.0) THEN
+  SDEALLOCATE(PorousBCMacroVal)
+  SDEALLOCATE(PorousBC)
+  SDEALLOCATE(PorousBCSampWall)
+  SDEALLOCATE(PorousBCOutput)
+  ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
-CALL MPI_WIN_UNLOCK_ALL(MapSurfSideToPorousSide_Shared_Win,iError)
-CALL MPI_WIN_FREE(MapSurfSideToPorousSide_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(PorousBCInfo_Shared_Win,iError)
-CALL MPI_WIN_FREE(PorousBCInfo_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(PorousBCProperties_Shared_Win,iError)
-CALL MPI_WIN_FREE(PorousBCProperties_Shared_Win,iError)
-CALL MPI_WIN_UNLOCK_ALL(PorousBCSampWall_Shared_Win,iError)
-CALL MPI_WIN_FREE(PorousBCSampWall_Shared_Win,iError)
-
-SDEALLOCATE(PorousBCSendBuf)
-SDEALLOCATE(PorousBCRecvBuf)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+  CALL MPI_WIN_UNLOCK_ALL(MapSurfSideToPorousSide_Shared_Win,iError)
+  CALL MPI_WIN_FREE(MapSurfSideToPorousSide_Shared_Win,iError)
+  CALL MPI_WIN_UNLOCK_ALL(PorousBCInfo_Shared_Win,iError)
+  CALL MPI_WIN_FREE(PorousBCInfo_Shared_Win,iError)
+  CALL MPI_WIN_UNLOCK_ALL(PorousBCProperties_Shared_Win,iError)
+  CALL MPI_WIN_FREE(PorousBCProperties_Shared_Win,iError)
+  CALL MPI_WIN_UNLOCK_ALL(PorousBCSampWall_Shared_Win,iError)
+  CALL MPI_WIN_FREE(PorousBCSampWall_Shared_Win,iError)
+  SDEALLOCATE(PorousBCSendBuf)
+  SDEALLOCATE(PorousBCRecvBuf)
 #endif
-
-ADEALLOCATE(MapSurfSideToPorousSide_Shared)
-ADEALLOCATE(PorousBCInfo_Shared)
-ADEALLOCATE(PorousBCProperties_Shared)
-ADEALLOCATE(PorousBCSampWall_Shared)
+  ADEALLOCATE(MapSurfSideToPorousSide_Shared)
+  ADEALLOCATE(PorousBCInfo_Shared)
+  ADEALLOCATE(PorousBCProperties_Shared)
+  ADEALLOCATE(PorousBCSampWall_Shared)
+END IF
 
 END SUBROUTINE FinalizePorousBoundaryCondition
 

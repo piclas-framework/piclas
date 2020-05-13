@@ -742,7 +742,6 @@ SUBROUTINE DSMC_data_sampling()
 USE MOD_Globals
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_VolumeSample, ConsiderVolumePortions
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM
