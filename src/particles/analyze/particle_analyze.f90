@@ -200,6 +200,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared
+USE MOD_Particle_Boundary_Vars,ONLY: nPorousBC
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep, PDM, usevMPF
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
@@ -647,9 +648,11 @@ IF(DoPartAnalyze)THEN
 END IF
 IsRestart = GETLOGICAL('IsRestart','.FALSE.')
 
-! Output for porous BC: Pump averaged values
-CalcPorousBCInfo = GETLOGICAL('CalcPorousBCInfo','.FALSE.')
-IF(CalcPorousBCInfo) DoPartAnalyze = .TRUE.
+IF(nPorousBC.GT.0) THEN
+  ! Output for porous BC: Pump averaged values
+  CalcPorousBCInfo = GETLOGICAL('CalcPorousBCInfo')
+  IF(CalcPorousBCInfo) DoPartAnalyze = .TRUE.
+END IF
 
 ParticleAnalyzeInitIsDone=.TRUE.
 
@@ -681,7 +684,7 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor,FP_MaxRotRelaxFactor,FP_MeanRelaxFactor,FP_MeanRelaxFactorCounter
 USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber,FPInitDone
 USE MOD_Particle_Analyze_Vars
-USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC,PorousBC
+USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC,PorousBCOutput
 USE MOD_Particle_Mesh_Vars     ,ONLY: MeshVolume
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_Particle_Vars          ,ONLY: Species,nSpecies,usevMPF
@@ -1186,9 +1189,7 @@ INTEGER             :: dir
     END IF
 #endif
     IF(CalcPorousBCInfo) THEN
-      DO iPBC = 1, nPorousBC
-        CALL MPI_REDUCE(MPI_IN_PLACE,PorousBC(iPBC)%Output,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-      END DO
+      CALL MPI_REDUCE(MPI_IN_PLACE,PorousBCOutput,5*nPorousBC,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
     END IF
     IF(FPInitDone) THEN
       IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
@@ -1231,9 +1232,7 @@ INTEGER             :: dir
     END IF
 #endif
     IF(CalcPorousBCInfo) THEN
-      DO iPBC = 1, nPorousBC
-        CALL MPI_REDUCE(PorousBC(iPBC)%Output,PorousBC(iPBC)%Output,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-      END DO
+      CALL MPI_REDUCE(PorousBCOutput,PorousBCOutput,5*nPorousBC,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
     END IF
     IF(FPInitDone) THEN
       IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
@@ -1267,10 +1266,10 @@ IF(PartMPI%MPIRoot) THEN
   END IF
   IF(CalcPorousBCInfo) THEN
     DO iPBC = 1, nPorousBC
-      IF(PorousBC(iPBC)%Output(1).GT.0.0) THEN
+      IF(PorousBCOutput(1,iPBC).GT.0.0) THEN
         ! Pumping Speed (Output(2)) is the sum of all elements (counter over particles exiting through pump)
         ! Other variales are averaged over the elements
-        PorousBC(iPBC)%Output(3:5) = PorousBC(iPBC)%Output(3:5) / PorousBC(iPBC)%Output(1)
+        PorousBCOutput(3:5,iPBC) = PorousBCOutput(3:5,iPBC) / PorousBCOutput(1,iPBC)
       END IF
     END DO
   END IF
@@ -1469,16 +1468,16 @@ IF (PartMPI%MPIROOT) THEN
     IF(CalcPorousBCInfo) THEN
       DO iPBC = 1, nPorousBC
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(2)
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBCOutput(2,iPBC)
         OutputCounter = OutputCounter + 1
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(3)
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBCOutput(3,iPBC)
         OutputCounter = OutputCounter + 1
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(4)
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBCOutput(4,iPBC)
         OutputCounter = OutputCounter + 1
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(5)
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBCOutput(5,iPBC)
         OutputCounter = OutputCounter + 1
       END DO
     END IF
@@ -2164,9 +2163,13 @@ IF (CollisMode.GT.1) THEN
       XiTotal = 3.
       ! If the species is molecular, add the vibrational energy to the temperature calculation
       IF(((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)).AND.(NumSpec(iSpec).GT.0)) THEN
-        CALL CalcXiVib(IntTemp(iSpec,1), iSpec, XiVibTotal=Xi_Vib(iSpec))
-        XiTotal = XiTotal + SpecDSMC(iSpec)%Xi_Rot + Xi_Vib(iSpec)
-        TempTotalDOF = TempTotalDOF + SpecDSMC(iSpec)%Xi_Rot*IntTemp(iSpec,2) + Xi_Vib(iSpec)*IntTemp(iSpec,1)
+        XiTotal = XiTotal + SpecDSMC(iSpec)%Xi_Rot
+        TempTotalDOF = TempTotalDOF + SpecDSMC(iSpec)%Xi_Rot*IntTemp(iSpec,2)
+        IF(IntTemp(iSpec,1).GT.0) THEN
+          CALL CalcXiVib(IntTemp(iSpec,1), iSpec, XiVibTotal=Xi_Vib(iSpec))
+          XiTotal = XiTotal + Xi_Vib(iSpec)
+          TempTotalDOF = TempTotalDOF + Xi_Vib(iSpec)*IntTemp(iSpec,1)
+        END IF
       END IF
       ! If electronic energy is greater zero, added it to the temperature calculation
       IF(IntTemp(iSpec,3).GT.0.) THEN
