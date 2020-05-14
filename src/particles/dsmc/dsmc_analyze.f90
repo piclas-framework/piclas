@@ -93,7 +93,7 @@ USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState_Shared,SampWallImpactNumber_Shared,SampWallImpactEnergy_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallImpactVector_Shared,SampWallImpactAngle_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea_Shared
-USE MOD_Particle_Boundary_Vars     ,ONLY: MapSurfSideToPorousBC
+USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared,SampWallPumpCapacity_Shared
 USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry2D
 USE MOD_Restart_Vars               ,ONLY: RestartTime
@@ -239,13 +239,10 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       END IF
 
       IF(nPorousBC.GT.0) THEN
-        ! Currently not working with new halo region
-        RETURN
-
         DO iPBC=1, nPorousBC
-          IF(MapSurfSideToPorousBC(iSurfSide).EQ.iPBC) THEN
+          IF(PorousBCInfo_Shared(1,MapSurfSideToPorousSide_Shared(iSurfSide)).EQ.iPBC) THEN
             ! Pump capacity is already in cubic meter per second (diving by the number of iterations)
-            MacroSurfaceVal(nVarCount+iPBC,p,q,OutputCounter) = SampWall(iSurfSide)%PumpCapacity * dt / TimeSample
+            MacroSurfaceVal(nVarCount+iPBC,p,q,OutputCounter) = SampWallPumpCapacity_Shared(iSurfSide) * dt / TimeSample
           END IF
         END DO
       END IF
@@ -745,7 +742,6 @@ SUBROUTINE DSMC_data_sampling()
 USE MOD_Globals
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_VolumeSample, ConsiderVolumePortions
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM

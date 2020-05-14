@@ -359,18 +359,6 @@ IF (CalcSurfaceImpact) THEN
 END IF
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
-! now the shadow arrays can be nullified
-SampWallState        = 0.
-IF(nPorousBC.GT.0) THEN
-  SampWallPumpCapacity = 0.
-END IF
-IF (CalcSurfaceImpact) THEN
-  SampWallImpactEnergy = 0.
-  SampWallImpactVector = 0.
-  SampWallImpactAngle  = 0.
-  SampWallImpactNumber = 0.
-END IF
-
 ! prepare buffers for surf leader communication
 IF (myComputeNodeRank.EQ.0) THEN
   nValues = SurfSampSize*nSurfSample**2
@@ -382,6 +370,7 @@ IF (myComputeNodeRank.EQ.0) THEN
   ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number: Add 8*nSpecies to the
   ! buffer length
   IF(CalcSurfaceImpact) nValues=nValues+8*nSpecies
+  IF(nPorousBC.GT.0) nValues = nValues + 1
 
   ! open receive buffer
   DO iProc = 0,nSurfLeaders-1
@@ -462,9 +451,12 @@ IF (myComputeNodeRank.EQ.0) THEN
             SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies) = SampWallImpactNumber_Shared(:,p,q,SurfSideID)
             iPos = iPos + nSpecies
           END IF ! CalcSurfaceImpact
-
         END DO ! p=0,nSurfSample
       END DO ! q=0,nSurfSample
+      IF(nPorousBC.GT.0) THEN
+        SurfSendBuf(iProc)%content(iPos+1:iPos+1) = SampWallPumpCapacity_Shared(SurfSideID)
+        iPos = iPos + 1
+      END IF
 
       SampWallState_Shared(:,:,:,SurfSideID)=0.
 !      IF (ANY(PartBound%Reactive)) THEN
@@ -479,6 +471,9 @@ IF (myComputeNodeRank.EQ.0) THEN
         SampWallImpactAngle_Shared (:,:,:,SurfSideID)   = 0.
         SampWallImpactNumber_Shared(:,:,:,SurfSideID)   = 0.
       END IF ! CalcSurfaceImpact
+      IF(nPorousBC.GT.0) THEN
+        SampWallPumpCapacity_Shared(SurfSideID) = 0.
+      END IF
     END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
   END DO
 
@@ -583,8 +578,11 @@ IF (myComputeNodeRank.EQ.0) THEN
           END IF ! CalcSurfaceImpact
         END DO ! p = 0,nSurfSample
       END DO ! q = 0,nSurfSample
+      IF(nPorousBC.GT.0) THEN
+        SampWallPumpCapacity_Shared(SurfSideID) = SurfRecvBuf(iProc)%content(iPos+1)
+        iPos = iPos + 1
+      END IF
     END DO ! iSurfSide = 1,SurfMapping(iProc)%nRecvSurfSides
-
      ! Nullify buffer
     SurfRecvBuf(iProc)%content = 0.
   END DO ! iProc
@@ -640,11 +638,13 @@ DO iProc = 0,nSurfLeaders-1
 
   IF (SurfMapping(iProc)%nRecvSurfSides.NE.0) THEN
     SDEALLOCATE(SurfMapping(iProc)%RecvSurfGlobalID)
+    SDEALLOCATE(SurfMapping(iProc)%RecvPorousGlobalID)
     SDEALLOCATE(SurfRecvBuf(iProc)%content)
   END IF
 
   IF (SurfMapping(iProc)%nSendSurfSides.NE.0) THEN
     SDEALLOCATE(SurfMapping(iProc)%SendSurfGlobalID)
+    SDEALLOCATE(SurfMapping(iProc)%SendPorousGlobalID)
     SDEALLOCATE(SurfSendBuf(iProc)%content)
   END IF
 END DO

@@ -76,6 +76,10 @@ TYPE tSurfaceMapping
   INTEGER,ALLOCATABLE                   :: SendSurfGlobalID(:)
   INTEGER                               :: nSendSurfSides
   INTEGER                               :: nRecvSurfSides
+  INTEGER,ALLOCATABLE                   :: RecvPorousGlobalID(:)
+  INTEGER,ALLOCATABLE                   :: SendPorousGlobalID(:)
+  INTEGER                               :: nSendPorousSides
+  INTEGER                               :: nRecvPorousSides
 END TYPE
 TYPE (tSurfaceMapping),ALLOCATABLE      :: SurfMapping(:)
 
@@ -203,8 +207,6 @@ TYPE tSampWall             ! DSMC sample for Wall
   !                                                                    ! 7-9 E_vib (pre, wall, re)
   !REAL, ALLOCATABLE                    :: Force(:,:,:)                ! x, y, z direction
   !REAL, ALLOCATABLE                    :: Counter(:,:,:)              ! Wall-Collision counter
-  REAL                                  :: PumpCapacity                !
-
 !  REAL,ALLOCATABLE                      :: ImpactEnergy(:,:,:,:)       ! 1-nSpecies: Particle impact energy (trans, rot, vib)
 !  REAL,ALLOCATABLE                      :: ImpactVector(:,:,:,:)       ! 1-nSpecies: Particle impact vector (x,y,z)
 !  REAL,ALLOCATABLE                      :: ImpactAngle(:,:,:)          ! 1-nSpecies: Particle impact angle (angle between particle
@@ -212,11 +214,40 @@ TYPE tSampWall             ! DSMC sample for Wall
 END TYPE
 TYPE(tSampWall), ALLOCATABLE            :: SampWall(:)             ! Wall sample array (number of BC-Sides)
 
-INTEGER                                 :: nPorousBC              ! Number of porous BCs
-INTEGER                                 :: nPorousBCVars = 2      ! 1: Number of particles impinging the porous BC
-                                                                  ! 2: Number of particles deleted at the porous BC
-INTEGER                                 :: PorousBCSampIter       !
-REAL, ALLOCATABLE                       :: PorousBCMacroVal(:,:,:)!
+INTEGER                                 :: nPorousBC                          ! Number of porous BCs
+INTEGER                                 :: nPorousSides                       ! Number of porous sides per compute node
+INTEGER,ALLOCPOINT                      :: MapSurfSideToPorousSide_Shared(:)  ! Mapping of surface side to porous side
+INTEGER,ALLOCPOINT                      :: PorousBCInfo_Shared(:,:)           ! Info and mappings for porous BCs [1:3,1:nPorousSides]
+                                                                              ! 1: Porous BC ID
+                                                                              ! 2: SurfSide ID
+                                                                              ! 3: SideType (0: inside, 1: partially)
+REAL,ALLOCPOINT                         :: PorousBCProperties_Shared(:,:)     ! Properties of porous sides [1:2,1:nPorousSides]
+                                                                              ! 1: Removal probability
+                                                                              ! 2: Pumping speed per side
+REAL,ALLOCPOINT                         :: PorousBCSampWall_Shared(:,:)       ! Sampling of impinging and deleted particles on each
+                                                                              ! porous sides [1:2,1:nPorousSides]
+                                                                              ! REAL variable since the particle weight is used
+                                                                              ! 1: Impinging particles
+                                                                              ! 2: Deleted particles
+#if USE_MPI
+INTEGER                                 :: MapSurfSideToPorousSide_Shared_Win
+INTEGER                                 :: PorousBCInfo_Shared_Win
+INTEGER                                 :: PorousBCProperties_Shared_Win
+INTEGER                                 :: PorousBCSampWall_Shared_Win
+#endif
+
+REAL,ALLOCATABLE                        :: PorousBCSampWall(:,:)  ! Processor-local sampling of impinging and deleted particles
+                                                                  ! REAL variable since the particle weight is used
+                                                                  ! 1: Impinging particles
+                                                                  ! 2: Deleted particles
+REAL,ALLOCATABLE                        :: PorousBCOutput(:,:)    ! 1: Counter of impinged particles on the BC
+                                                                  ! 2: Measured pumping speed [m3/s] through # of deleted particles
+                                                                  ! 3: Pumping speed [m3/s] used to calculate the removal prob.
+                                                                  ! 4: Removal probability [0-1]
+                                                                  ! 5: Pressure at the BC normalized with the user-given pressure
+
+INTEGER                                 :: PorousBCSampIter                   !
+REAL, ALLOCATABLE                       :: PorousBCMacroVal(:,:,:)            !
 
 TYPE tPorousBC
   INTEGER                               :: BC                     ! Number of the reflective BC to be used as a porous BC
@@ -232,23 +263,8 @@ TYPE tPorousBC
   REAL                                  :: origin(2)              ! origin in orth. coordinates of polar system
   REAL                                  :: rmax                   ! max radius of to-be inserted particles
   REAL                                  :: rmin                   ! min radius of to-be inserted particles
-  INTEGER                               :: SideNumber             ! Number of BC sides for the BC
-  INTEGER, ALLOCATABLE                  :: SideList(:)            ! Mapping from porous BC side list to the BC side list
-  REAL, ALLOCATABLE                     :: Sample(:,:)            ! Allocated with SideNumber and nPorousBCVars
-  INTEGER, ALLOCATABLE                  :: RegionSideType(:)      ! 0: side is completely inside porous region
-                                                                  ! 1: side is partially inside porous region
-  REAL, ALLOCATABLE                     :: RemovalProbability(:)  ! Removal probability at the porous BC
-  REAL, ALLOCATABLE                     :: PumpingSpeedSide(:)    ! Removal probability at the porous BC
-  REAL                                  :: Output(1:5)            ! 1: Counter of impinged particles on the BC
-                                                                  ! 2: Measured pumping speed [m3/s] through # of deleted particles
-                                                                  ! 3: Pumping speed [m3/s] used to calculate the removal prob.
-                                                                  ! 4: Removal probability [0-1]
-                                                                  ! 5: Pressure at the BC normalized with the user-given pressure
 END TYPE
 TYPE(tPorousBC), ALLOCATABLE            :: PorousBC(:)            ! Container for the porous BC, allocated with nPorousBC
-
-INTEGER, ALLOCATABLE                    :: MapSurfSideToPorousBC(:)   ! Mapping of the surface side to the porous BC
-INTEGER, ALLOCATABLE                    :: MapSurfSideToPorousSide(:) ! Mapping of the surface side to the porous side
 
 TYPE tSurfColl
   INTEGER                               :: NbrOfSpecies           ! Nbr. of Species to be counted for wall collisions (def. 0: all)

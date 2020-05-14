@@ -1250,7 +1250,6 @@ SDEALLOCATE(SampWallImpactNumber)
 ADEALLOCATE(SurfSideArea)
 ADEALLOCATE(GlobalSide2SurfSide)
 ADEALLOCATE(SurfSide2GlobalSide)
-
 ! Old stuff
 !SDEALLOCATE(XiEQ_SurfSample)
 !SDEALLOCATE(SurfMesh%SurfaceArea)
@@ -1293,8 +1292,6 @@ ADEALLOCATE(SurfSide2GlobalSide)
 !SDEALLOCATE(SurfCOMM%MPINeighbor)
 !SDEALLOCATE(SurfSendBuf)
 !SDEALLOCATE(SurfRecvBuf)
-!SDEALLOCATE(PorousBCSendBuf)
-!SDEALLOCATE(PorousBCRecvBuf)
 !SDEALLOCATE(OffSetSurfSideMPI)
 !SDEALLOCATE(OffSetInnerSurfSideMPI)
 !#endif /*USE_MPI*/

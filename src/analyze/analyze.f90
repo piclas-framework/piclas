@@ -766,7 +766,7 @@ USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_DSMC_Vars                 ,ONLY: useDSMC
 #endif
 USE MOD_Particle_Boundary_Vars    ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
-USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh, SampWall, PartBound, CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, SampWall, PartBound, CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,SampWallImpactEnergy,SampWallImpactVector
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity,SampWallImpactAngle,SampWallImpactNumber
 USE MOD_DSMC_Analyze              ,ONLY: DSMC_data_sampling, WriteDSMCToHDF5
@@ -1051,7 +1051,7 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
   IF (iter.GT.0) iter_macsurfvalout = iter_macsurfvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
     CALL CalcSurfaceValues()
-    DO iSide=1,SurfMesh%nTotalSides
+    DO iSide=1,nComputeNodeSurfTotalSides
       SampWallState(:,:,:,iSide)=0.
       IF (ANY(PartBound%Reactive)) THEN
         SampWall(iSide)%SurfModelState=0.
@@ -1108,7 +1108,7 @@ IF(OutPutHDF5)THEN
       iter_macsurfvalout = iter_macsurfvalout + 1
       IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
         CALL CalcSurfaceValues
-        DO iSide=1,SurfMesh%nTotalSides
+        DO iSide=1,nComputeNodeSurfTotalSides
           SampWallState(:,:,:,iSide)=0.
         END DO
         IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
