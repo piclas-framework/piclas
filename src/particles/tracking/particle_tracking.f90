@@ -210,7 +210,7 @@ DO i = 1,PDM%ParticleVecLength
               ! performed after the MPI communication: ParticleInsideQuad3D_MortarMPI)
               IF (NbElemID.LT.1) CYCLE
               ! For small mortar sides, SIDE_LOCALID contains the SideID of the corresponding big mortar side
-              nbSideID = ABS(SideInfo_Shared(SIDE_LOCALID,nbSideID))
+              nbSideID = SideInfo_Shared(SIDE_NBSIDEID,nbSideID)
               NblocSideID =  SideInfo_Shared(SIDE_LOCALID,nbSideID)
               DO TriNum = 1,2
                 ThroughSide = .FALSE.
