@@ -227,7 +227,7 @@ SUBROUTINE DepositionMethod_NGP(FirstPart,LastPart,DoInnerParts,doPartInExists,d
 ! Deposits the complete particle charge at the nearest Gauss point (interpolation point of the field solver)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc               ,ONLY: PP_N,PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartPosRef,PartMPF
 USE MOD_PICDepo_Vars          ,ONLY: PartSource,gaussborder
 !#if (PP_nVar==8)
@@ -369,7 +369,7 @@ SUBROUTINE DepositionMethod_NBC(FirstPart,LastPart,DoInnerParts,doPartInExists,d
 ! Deposits the complete particle charge at the center of the cell -> cell-constant deposition
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc            ,ONLY: PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 !#if (PP_nVar==8)
 USE MOD_Particle_Vars      ,ONLY: PartState
@@ -488,7 +488,7 @@ SUBROUTINE DepositionMethod_CVW(FirstPart,LastPart,DoInnerParts,doPartInExists,d
 ! Linear charge density distribution within a cell (discontinuous across cell interfaces)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc                ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,PartPosRef,usevMPF,PartMPF
 USE MOD_Particle_Vars          ,ONLY: PartState
 USE MOD_PICDepo_Vars           ,ONLY: PartSource,CellVolWeight_Volumes
@@ -641,7 +641,7 @@ SUBROUTINE DepositionMethod_CVWM(FirstPart,LastPart,DoInnerParts,doPartInExists,
 ! Linear charge density distribution within a cell (continuous across cell interfaces)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
@@ -826,7 +826,7 @@ SUBROUTINE DepositionMethod_SF(FirstPart,LastPart,DoInnerParts,doPartInExists,do
 ! Smooth polynomial deposition via "shape functions" of various order in 3D
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc                     ,ONLY: PP_N,PP_nElems
+USE MOD_Preproc
 USE MOD_globals                     ,ONLY: abort
 USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,PartMPF,usevMPF
 USE MOD_Particle_Vars               ,ONLY: PartState
@@ -1096,7 +1096,7 @@ SUBROUTINE DepositionMethod_SF1D(FirstPart,LastPart,DoInnerParts,doPartInExists,
 ! distributed must be supplied)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc            ,ONLY: PP_N,PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
@@ -1372,7 +1372,7 @@ SUBROUTINE DepositionMethod_SF2D(FirstPart,LastPart,DoInnerParts,doPartInExists,
 ! i.e., in which it is constant, must be supplied)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc                     ,ONLY: PP_N,PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,usevMPF,PartMPF
 USE MOD_Particle_Vars               ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
@@ -1717,7 +1717,7 @@ SUBROUTINE DepositionMethod_SFCS(FirstPart,LastPart,DoInnerParts,doPartInExists,
 ! spherical coordinates.
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc            ,ONLY: PP_N,PP_nElems
+USE MOD_Preproc
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
@@ -1986,7 +1986,7 @@ SUBROUTINE DepositionMethod_DD(FirstPart,LastPart,DoInnerParts,doPartInExists,do
 !   2. Bernstein polynomial function basis, which does not allow a change in sign of the charge density
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc                ,ONLY: PP_nElems,PP_N
+USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars          ,ONLY: PartState,PartPosRef
 USE MOD_PICDepo_Vars           ,ONLY: PartSource,DeltaType,XiNDepo,wBaryNDepo,Vdm_NDepo_GaussN,NKnots,Knots,NDepoChooseK,NDepo
@@ -2117,7 +2117,7 @@ SUBROUTINE DepositionMethod_MVW(FirstPart,LastPart,DoInnerParts,doPartInExists,d
 ! Deposition via a Cartesian background mesh, which is then interpolated to the polynomial of each cell.
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,bgmdeltas,BGMSource,GaussBGMFactor,GaussBGMIndex,BGMVolume
@@ -2266,7 +2266,7 @@ SUBROUTINE DepositionMethod_MS(FirstPart,LastPart,DoInnerParts,doPartInExists,do
 ! Deposition via a Cartesian background mesh using B-splines, which is then interpolated to the polynomial of each cell.
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,BGMdeltas,GaussBGMIndex,PartSource,GPWeight,BGMSource,BGMVolume

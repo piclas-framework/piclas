@@ -84,7 +84,7 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_io_HDF5
 USE MOD_HDF5_output   ,ONLY: WriteArrayToHDF5,WriteAttributeToHDF5,WriteHDF5Header
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
@@ -897,7 +897,7 @@ USE MOD_DSMC_Vars          ,ONLY: DSMCSampVolWe, HODSMC,DSMCSampNearInt, DSMCSam
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_Preproc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights, LegGaussLobNodesAndWeights
 USE MOD_Basis              ,ONLY: BarycentricWeights,InitializeVandermonde
@@ -1548,7 +1548,7 @@ SUBROUTINE DSMCHO_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars          ,ONLY: HODSMC, DSMC_HOSolution, DSMC_VolumeSample, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
@@ -2049,7 +2049,7 @@ SUBROUTINE WriteDSMCHOToHDF5(MeshFileName,OutputTime, FutureTime)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars     ,ONLY: HODSMC, DSMC, RadialWeighting, CollisMode
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: ProjectName
 USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
@@ -2267,10 +2267,9 @@ SUBROUTINE GenerateDSMCHOFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,O
 !> Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
+USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: ProjectName
-!USE MOD_PreProcFlags
 USE MOD_io_HDF5
 USE MOD_DSMC_Vars     ,ONLY: HODSMC
 USE MOD_HDF5_Output   ,ONLY: WriteAttributeToHDF5, WriteHDF5Header

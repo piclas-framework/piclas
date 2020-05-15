@@ -146,11 +146,11 @@ ALLOCATE(U(1:nVar_State,0:PP_N,0:PP_N,0:PP_N,nElems))
 CALL OpenDataFile(statefile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=mpi_comm_IN)
 ASSOCIATE (&
       nVar_State => INT(nVar_State,IK) ,&
-      PP_N       => INT(PP_N,IK)       ,&
+      N          => INT(PP_N,IK)       ,&
       nElems     => INT(nElems,IK)     ,&
       offsetElem => INT(offsetElem,IK)  &
       )
-  CALL ReadArray('DG_Solution',5,(/nVar_State,PP_N+1_IK,PP_N+1_IK,PP_N+1_IK,nElems/),offsetElem,5,RealArray=U)
+  CALL ReadArray('DG_Solution',5,(/nVar_State,N+1_IK,N+1_IK,N+1_IK,nElems/),offsetElem,5,RealArray=U)
 END ASSOCIATE
 CALL CloseDataFile()
 

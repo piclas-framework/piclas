@@ -633,7 +633,7 @@ SUBROUTINE Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides)
 !> array)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Preproc,     ONLY: PP_N
+USE MOD_Preproc
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
