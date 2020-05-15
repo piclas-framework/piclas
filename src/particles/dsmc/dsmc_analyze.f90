@@ -88,7 +88,7 @@ USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal,DSMC,MacroSurfaceSpecV
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile,BC
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis,nPorousBC,PartBound,CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide
 USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState_Shared,SampWallImpactNumber_Shared,SampWallImpactEnergy_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallImpactVector_Shared,SampWallImpactAngle_Shared
@@ -121,6 +121,7 @@ REAL                               :: TimeSample, ActualTime, TimeSampleTemp, Co
 INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
 LOGICAL                            :: during_dt
 INTEGER                            :: idx,OutputCounter
+INTEGER                            :: GlobalSideID, SurfSideNb
 !===================================================================================================================================
 
 IF (PRESENT(during_dt_opt)) THEN
@@ -190,6 +191,17 @@ OutputCounter = 0
 
 DO iSurfSide = 1,nComputeNodeSurfSides
   OutputCounter = OutputCounter + 1
+  !================== INNER BC CHECK
+  GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+  IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+    IF(GlobalSideID.LT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) THEN
+      SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))
+      SampWallState_Shared(:,:,:,iSurfSide) = SampWallState_Shared(:,:,:,iSurfSide) + SampWallState_Shared(:,:,:,SurfSideNb)
+    ELSE
+      CYCLE
+    END IF
+  END IF
+  !================== INNER BC CHECK
   DO q = 1,nSurfSample
     DO p = 1,nSurfSample
       CounterSum = SUM(SampWallState_Shared(SAMPWALL_NVARS+1:SAMPWALL_NVARS+nSpecies,p,q,iSurfSide))

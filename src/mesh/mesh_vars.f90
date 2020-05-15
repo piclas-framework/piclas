@@ -136,18 +136,6 @@ INTEGER,PARAMETER :: NormalDirs(6) = (/ 3 , 2 , 1 , 2 , 1 , 3 /) !< normal vecto
 INTEGER,PARAMETER :: TangDirs(6)   = (/ 1 , 3 , 2 , 3 , 2 , 1 /) !< first tangential vector direction for element local side
 REAL   ,PARAMETER :: NormalSigns(6)= (/-1.,-1., 1., 1.,-1., 1./) !< normal vector sign for element local side
 !----------------------------------------------------------------------------------------------------------------------------------
-! Mapping of nodes and surface sides, required for connectivity of elements for the posti/converter tool
-!----------------------------------------------------------------------------------------------------------------------------------
-TYPE tSurfaceConnect
-  INTEGER                         :: nSurfaceNode                 ! Number of Nodes on Surface (reflective)
-  INTEGER                         :: nSurfaceBCSides              ! Number of Sides on Surface (reflective)
-  INTEGER, ALLOCATABLE            :: BCSurfNodes(:)               ! Nodes on Surface (reflective) (nSurfaceNode)
-  REAL, ALLOCATABLE               :: NodeCoords(:,:)
-  INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)         ! Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceBCSides)
-END TYPE
-
-TYPE (tSurfaceConnect)               :: SurfConnect
-!----------------------------------------------------------------------------------------------------------------------------------
 ! Volume/Side mappings filled by mappings.f90 - not all available there are currently used!
 !----------------------------------------------------------------------------------------------------------------------------------
 !INTEGER,ALLOCATABLE :: V2S(:,:,:,:,:,:)  !< volume to side mapping

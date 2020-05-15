@@ -1908,7 +1908,7 @@ END DO
 
 ! Surface particle output to .h5
 IF(DoBoundaryParticleOutput)THEN
-  ALLOCATE(PartStateBoundary(1:9,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  ALLOCATE(PartStateBoundary(1:10,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
         __STAMP__&

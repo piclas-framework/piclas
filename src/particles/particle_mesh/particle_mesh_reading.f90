@@ -605,21 +605,28 @@ DO iElem = FirstElemInd,LastElemInd
   DO iLocSide = 1,nlocSides
     iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) + iLocSide
     ! Big mortar side
-    IF (SideInfo_Shared(SIDE_TYPE,iSide).GT.100) THEN
-      ! Check all sides on the small element side to find the small mortar side pointing back
-      NbElemID    = SideInfo_Shared(SIDE_NBELEMID,iSide)
+    IF (SideInfo_Shared(SIDE_TYPE,iSide).LE.100) THEN
+      sideCount = sideCount + 1
+      SideInfo_Shared(SIDE_LOCALID,iSide) = sideCount
+    ELSE
+      ! Mortar case
+      SideInfo_Shared(SIDE_LOCALID,iSide) = -1
+    END IF
+    ! Check all sides on the small element side to find the small mortar side pointing back
+    NbElemID    = SideInfo_Shared(SIDE_NBELEMID,iSide)
+    IF(NbElemID.EQ.0) THEN
+      SideInfo_Shared(SIDE_NBSIDEID,iSide) = 0
+    ELSE IF (NbElemID.LT.-1) THEN
+      SideInfo_Shared(SIDE_NBSIDEID,iSide) = -1
+    ELSE
       nlocSidesNb = ElemInfo_Shared(ELEM_LASTSIDEIND,NbElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,NbElemID)
       DO jLocSide = 1,nlocSidesNb
         NbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,NbElemID) + jLocSide
         IF (ABS(SideInfo_Shared(SIDE_ID,iSide)).EQ.ABS(SideInfo_Shared(SIDE_ID,NbSideID))) THEN
-          SideInfo_Shared(SIDE_LOCALID,iSide) = -NbSideID
+          SideInfo_Shared(SIDE_NBSIDEID,iSide) = NbSideID
           EXIT
         END IF
       END DO
-    ! Regular side
-    ELSE
-      sideCount = sideCount + 1
-      SideInfo_Shared(SIDE_LOCALID,iSide) = sideCount
     END IF
   END DO
 END DO
