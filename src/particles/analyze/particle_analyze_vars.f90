@@ -35,6 +35,8 @@ LOGICAL                       :: CalcEint                            !< Compute 
 LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcCoupledPower                    !< Computation of the power that is coupled into plasma
 LOGICAL                       :: DisplayCoupledPower                 !< Display coupled power in UNIT_stdOut
+REAL                          :: EDiff                               !< Difference in kinetic energy before and after the particle
+                                                                     !< push (only charged particles)
 REAL                          :: PCoupl                              !< Power that is coupled into plasma in [W]
 REAL                          :: PCouplAverage                       !< Power that is coupled into plasma (moving average) in [W]
 TYPE tPCoupl

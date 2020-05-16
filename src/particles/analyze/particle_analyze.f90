@@ -4204,10 +4204,10 @@ END SUBROUTINE AnalyticParticleMovement
 !===================================================================================================================================
 !> Determines the kinetic energy of a (charged) particle before and after the push, the difference is stored as the coupled power
 !===================================================================================================================================
-SUBROUTINE CalcCoupledPowerPart(iPart,mode,EDiff)
+SUBROUTINE CalcCoupledPowerPart(iPart,mode)
 ! MODULES
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PEM
-USE MOD_Particle_Analyze_Vars   ,ONLY: PCoupl, PCouplAverage, PCouplSpec
+USE MOD_Particle_Analyze_Vars   ,ONLY: PCoupl, PCouplAverage, PCouplSpec, EDiff
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Part_Tools              ,ONLY: isChargedParticle
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
@@ -4220,7 +4220,6 @@ INTEGER,INTENT(IN)              :: iPart                        !< Particle inde
 CHARACTER(LEN=*),INTENT(IN)     :: mode                         !< Mode: 'before' or 'after' the particle push
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)              :: EDiff                        !< Kinetic energy
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iElem, iSpec
@@ -4237,7 +4236,7 @@ CASE('after')
   EDiff         = ABS(EDiff + CalcEkinPart(iPart))
   PCoupl        = PCoupl + EDiff
   PCouplAverage = PCouplAverage + EDiff
-  iElem         = PEM%GlobalElemID(iPart)
+  iElem         = PEM%LocalElemID(iPart)
   iSpec         = PartSpecies(iPart)
   PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) + EDiff/ElemVolume_Shared(iElem)
 END SELECT
