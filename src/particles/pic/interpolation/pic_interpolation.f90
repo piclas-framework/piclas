@@ -73,6 +73,7 @@ CHARACTER(LEN=20)         :: tempStr
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
 
 InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
+
 InterpolationElemLoop = GETLOGICAL('PIC-InterpolationElemLoop')
 IF (InterpolationElemLoop) THEN !If user-defined F: F for all procs
   IF (PP_nElems.GT.10) THEN !so far arbitrary threshold...
@@ -97,7 +98,30 @@ IF (FileNameVariableExternalField.NE.'none') THEN ! if supplied, read the data f
   CALL ReadVariableExternalField()
 END IF
 
+!--- Allocate arrays for interpolation of fields to particles
+SDEALLOCATE(FieldAtParticle)
+ALLOCATE(FieldAtParticle(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+  __STAMP__ &
+  ,'ERROR in pic_interpolation.f90: Cannot allocate FieldAtParticle array!',ALLOCSTAT)
+END IF
+
+SELECT CASE(TRIM(InterpolationType))
+!CASE('nearest_blurycenter')
+   !InterpolationType='nearest_blurrycenter'
+!CASE('nearest_blurrycenter')
+!CASE('particle_position_slow')
+CASE('particle_position')
+!CASE('nearest_gausspoint')
+CASE DEFAULT
+  CALL abort(&
+  __STAMP__ &
+  ,'Unknown InterpolationType ['//TRIM(ADJUSTL(InterpolationType))//'] in pic_interpolation.f90')
+END SELECT
+
 #ifdef CODE_ANALYZE
+! Initialize analytic solutions for particle time integration (checking the order of convergence for time discretizations)
 DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
 IF(DoInterpolationAnalytic)THEN
   AnalyticInterpolationType = GETINT('PIC-AnalyticInterpolation-Type')
@@ -128,28 +152,6 @@ IF(DoInterpolationAnalytic)THEN
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
-
-!--- Allocate arrays for interpolation of fields to particles
-SDEALLOCATE(FieldAtParticle)
-ALLOCATE(FieldAtParticle(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-  __STAMP__ &
-  ,'ERROR in pic_interpolation.f90: Cannot allocate FieldAtParticle array!',ALLOCSTAT)
-END IF
-
-SELECT CASE(TRIM(InterpolationType))
-CASE('nearest_blurycenter')
-   InterpolationType='nearest_blurrycenter'
-CASE('nearest_blurrycenter')
-CASE('particle_position_slow')
-CASE('particle_position')
-CASE('nearest_gausspoint')
-CASE DEFAULT
-  CALL abort(&
-  __STAMP__ &
-  ,'Unknown InterpolationType in pic_interpolation.f90')
-END SELECT
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
 END SUBROUTINE InitializeParticleInterpolation

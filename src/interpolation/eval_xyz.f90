@@ -71,7 +71,7 @@ USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,XCL_NGeo
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)          :: ElemID                                 !< element index
+INTEGER,INTENT(IN)          :: ElemID                                 !< Global element index
 REAL,INTENT(IN)             :: x_in(3)                                !< position in physical space
 LOGICAL,INTENT(IN),OPTIONAL :: DoReUseMap                             !< flag if start values for newton elem mapping already exists
 LOGICAL,INTENT(IN),OPTIONAL :: ForceMode                              !< flag for mode change in RefElemNewton

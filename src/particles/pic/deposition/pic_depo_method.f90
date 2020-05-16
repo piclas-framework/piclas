@@ -286,7 +286,7 @@ DO iElem=1,PP_nElems
     END IF
     ! Don't deposit neutral particles!
     IF(.NOT.isDepositParticle(iPart)) CYCLE
-    IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
+    IF(PEM%LocalElemID(iPart).EQ.iElem)THEN
       IF (usevMPF) THEN
         prefac= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
       ELSE
@@ -294,7 +294,7 @@ DO iElem=1,PP_nElems
       END IF ! usevMPF
       ! Map Particle to -1|1 space (re-used in interpolation)
       !IF(.NOT.DoRefMapping)THEN
-      !  CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem,iPart)
+      !  CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),PEM%GlobalElemID(iPart),iPart)
       !END IF
       ! Find out which gausspoint is closest and add up charges and currents
       !! x-direction
@@ -438,7 +438,7 @@ DO iElem=1,PP_nElems
     END IF
     ! Don't deposit neutral particles!
     IF(.NOT.isDepositParticle(iPart)) CYCLE
-    IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
+    IF(PEM%LocalElemID(iPart).EQ.iElem)THEN
       IF(usevMPF)THEN
         IF(doCalculateCurrentDensity)THEN
           ElemSource(1:3,iElem) = ElemSource(1:3,iElem)+ PartState(4:6,iPart)*Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
@@ -566,17 +566,17 @@ DO iPart = FirstPart, LastPart
   ELSE
     Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
   END IF ! usevMPF
-  iElem = PEM%GlobalElemID(iPart)
   IF(DoRefMapping)THEN
     TempPartPos(1:3)=PartPosRef(1:3,iPart)
   ELSE
-    CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos,iElem,ForceMode=.TRUE.)
+    CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos,PEM%GlobalElemID(iPart),ForceMode=.TRUE.)
   END IF
   IF(doCalculateCurrentDensity)THEN
     TSource(1:3) = PartState(4:6,iPart)*Charge
   ELSE
     TSource(1:3) = 0.0
   END IF
+  iElem = PEM%LocalElemID(iPart)
   TSource(4) = Charge
   alpha1=(TempPartPos(1)+1.0)/2.0
   alpha2=(TempPartPos(2)+1.0)/2.0
@@ -642,8 +642,8 @@ SUBROUTINE DepositionMethod_CVWM(FirstPart,LastPart,DoInnerParts,doPartInExists,
 USE MOD_PreProc            ,ONLY: PP_N
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars          ,ONLY: nElems, nNodes
-USE MOD_Particle_Vars      ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
+USE MOD_Mesh_Vars          ,ONLY: nElems,nNodes
+USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
@@ -715,8 +715,7 @@ DO iPart=FirstPart,LastPart
     ELSE
       Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
     END IF
-    iElem = PEM%GlobalElemID(iPart)
-    CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos(1:3),iElem,ForceMode=.TRUE.)
+    CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos(1:3),PEM%GlobalElemID(iPart),ForceMode=.TRUE.)
     TSource(:) = 0.0
     IF(doCalculateCurrentDensity)THEN
       TSource(1:3) = PartState(4:6,iPart)*Charge
@@ -729,7 +728,7 @@ DO iPart=FirstPart,LastPart
 
 !    NodeID=GEO%ElemToNodeID(1:8,iElem)
     ! PEM already contains the global ElemID
-    NodeID = ElemNodeID_Shared(:,iElem)
+    NodeID = ElemNodeID_Shared(:,PEM%GlobalElemID(iPart))
 
     NodeSource(:,NodeID(1)) = NodeSource(:,NodeID(1))+(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
     NodeSource(:,NodeID(2)) = NodeSource(:,NodeID(2))+(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
@@ -740,7 +739,7 @@ DO iPart=FirstPart,LastPart
     NodeSource(:,NodeID(7)) = NodeSource(:,NodeID(7))+(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
     NodeSource(:,NodeID(8)) = NodeSource(:,NodeID(8))+(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
 #if USE_LOADBALANCE
-   CALL LBElemSplitTime(iElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
+   CALL LBElemSplitTime(PEM%LocalElemID(iPart),tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
 #endif /*USE_LOADBALANCE*/
   END IF
 END DO
@@ -2035,7 +2034,7 @@ DO iElem=1,PP_nElems
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
-    IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
+    IF(PEM%LocalElemID(iPart).EQ.iElem)THEN
       ! Don't deposit neutral particles!
       IF(.NOT.isDepositParticle(iPart)) CYCLE
       ! Set pre-factor
@@ -2046,7 +2045,7 @@ DO iElem=1,PP_nElems
       END IF ! usevMPF
       ! Map Particle to -1|1 space (re-used in interpolation)
       IF(.NOT.DoRefMapping)THEN
-        CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem)
+        CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),PEM%GlobalElemID(iPart))
       END IF
       ! get value of test function at particle position
       SELECT CASE(DeltaType)
