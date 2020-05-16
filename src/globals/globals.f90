@@ -566,9 +566,7 @@ IMPLICIT NONE
 CHARACTER(len=3) :: int2strf
 INTEGER,INTENT(IN) :: int_number
 !===================================================================================================================================
-!READ(int_number,'(I0)',IOSTAT=stat)  str
 WRITE(int2strf,'(I0)')  int_number
-WRITE (*,*) "int2strf =[", int2strf,"]"
 int2strf = TRIM(ADJUSTL(int2strf))
 END FUNCTION
 
