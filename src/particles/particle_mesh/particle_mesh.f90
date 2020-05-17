@@ -3384,7 +3384,7 @@ END SUBROUTINE GetMeshMinMax
 
 SUBROUTINE FinalizeParticleMesh()
 !===================================================================================================================================
-! read required parameters
+! 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -3397,6 +3397,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance,PartS
 #if USE_MPI
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
 #endif
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3577,13 +3578,15 @@ SELECT CASE (TrackingMethod)
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
-    ! CalcParticleMeshMetrics
-    CALL MPI_WIN_UNLOCK_ALL(XCL_NGeo_Shared_Win             ,iError)
-    CALL MPI_WIN_FREE(      XCL_NGeo_Shared_Win             ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(Elem_xGP_Shared_Win             ,iError)
-    CALL MPI_WIN_FREE(      Elem_xGP_Shared_Win             ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(dXCL_NGeo_Shared_Win            ,iError)
-    CALL MPI_WIN_FREE(      dXCL_NGeo_Shared_Win            ,iError)
+    IF(DoInterpolation)THEN
+      ! CalcParticleMeshMetrics
+      CALL MPI_WIN_UNLOCK_ALL(XCL_NGeo_Shared_Win             ,iError)
+      CALL MPI_WIN_FREE(      XCL_NGeo_Shared_Win             ,iError)
+      CALL MPI_WIN_UNLOCK_ALL(Elem_xGP_Shared_Win             ,iError)
+      CALL MPI_WIN_FREE(      Elem_xGP_Shared_Win             ,iError)
+      CALL MPI_WIN_UNLOCK_ALL(dXCL_NGeo_Shared_Win            ,iError)
+      CALL MPI_WIN_FREE(      dXCL_NGeo_Shared_Win            ,iError)
+    END IF ! DoInterpolation
 
     ! InitParticleGeometry
     CALL MPI_WIN_UNLOCK_ALL(ConcaveElemSide_Shared_Win,iError)
@@ -3595,19 +3598,21 @@ SELECT CASE (TrackingMethod)
     CALL MPI_WIN_UNLOCK_ALL(ElemMidPoint_Shared_Win,iError)
     CALL MPI_WIN_FREE(ElemMidPoint_Shared_Win,iError)
 
-    ! BuildElementRadiusTria
+    ! BuildElementRadiusTria()
     CALL MPI_WIN_UNLOCK_ALL(ElemBaryNGeo_Shared_Win,iError)
     CALL MPI_WIN_FREE(ElemBaryNGeo_Shared_Win,iError)
     CALL MPI_WIN_UNLOCK_ALL(ElemRadius2NGeo_Shared_Win,iError)
     CALL MPI_WIN_FREE(ElemRadius2NGeo_Shared_Win,iError)
-    CALL MPI_WIN_UNLOCK_ALL(XiEtaZetaBasis_Shared_Win       ,iError)
-    CALL MPI_WIN_FREE(      XiEtaZetaBasis_Shared_Win       ,iError)
-    CALL MPI_WIN_UNLOCK_ALL(slenXiEtaZetaBasis_Shared_Win   ,iError)
-    CALL MPI_WIN_FREE(      slenXiEtaZetaBasis_Shared_Win   ,iError)
 
-    ! BuildElemTypeTria
-    CALL MPI_WIN_UNLOCK_ALL(ElemCurved_Shared_Win           ,iError)
-    CALL MPI_WIN_FREE(      ElemCurved_Shared_Win           ,iError)
+    IF(DoInterpolation)THEN
+      ! BuildElemTypeAndBasisTria()
+      CALL MPI_WIN_UNLOCK_ALL(XiEtaZetaBasis_Shared_Win       ,iError)
+      CALL MPI_WIN_FREE(      XiEtaZetaBasis_Shared_Win       ,iError)
+      CALL MPI_WIN_UNLOCK_ALL(slenXiEtaZetaBasis_Shared_Win   ,iError)
+      CALL MPI_WIN_FREE(      slenXiEtaZetaBasis_Shared_Win   ,iError)
+      CALL MPI_WIN_UNLOCK_ALL(ElemCurved_Shared_Win           ,iError)
+      CALL MPI_WIN_FREE(      ElemCurved_Shared_Win           ,iError)
+    END IF ! DoInterpolation
 
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
@@ -3627,10 +3632,10 @@ SELECT CASE (TrackingMethod)
     ! BuildElementRadiusTria
     ADEALLOCATE(ElemBaryNGeo_Shared)
     ADEALLOCATE(ElemRadius2NGEO_Shared)
+
+    ! BuildElemTypeAndBasisTria()
     ADEALLOCATE(XiEtaZetaBasis_Shared)
     ADEALLOCATE(slenXiEtaZetaBasis_Shared)
-
-    !  BuildElemTypeTria
     ADEALLOCATE(ElemCurved)
     ADEALLOCATE(ElemCurved_Shared)
 
