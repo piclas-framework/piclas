@@ -137,9 +137,9 @@ CALL prms%CreateIntOption(     'BezierSampleN'&
 
 
 ! Background mesh init variables
-CALL prms%CreateLogicalOption( 'printMPINeighborWarnings'&
-    ,  ' Print warning if the MPI-Halo-region between to procs are not overlapping. Only one proc find the other in halo ' &
-    ,'.FALSE.')
+!CALL prms%CreateLogicalOption( 'printMPINeighborWarnings'&
+    !,  ' Print warning if the MPI-Halo-region between to procs are not overlapping. Only one proc find the other in halo ' &
+    !,'.FALSE.')
 CALL prms%CreateLogicalOption( 'CalcHaloInfo',         'Output halo element information to ElemData for each processor'//&
                                                        ' "MyRank_ElemHaloInfo"\n'//&
                                                        ' ElemHaloInfo = -1            : element not in list\n'//&
