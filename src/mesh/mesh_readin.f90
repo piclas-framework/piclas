@@ -386,6 +386,13 @@ DO iElem=FirstElemInd,LastElemInd
   aElem%Zone   = ElemInfo(ELEM_ZONE,iElem)
 END DO
 
+! Get number of compute-node elements (required for simulations with PARTICLES=ON/OFF)
+#if USE_MPI
+CALL MPI_ALLREDUCE(nElems,nComputeNodeElems,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
+#else
+nComputeNodeElems = nElems
+#endif /*USE_MPI*/
+
 #ifdef PARTICLES
 CALL ReadMeshElems()
 #endif
