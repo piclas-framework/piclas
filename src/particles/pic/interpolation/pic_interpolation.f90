@@ -108,12 +108,8 @@ IF (ALLOCSTAT.NE.0) THEN
 END IF
 
 SELECT CASE(TRIM(InterpolationType))
-!CASE('nearest_blurycenter')
-   !InterpolationType='nearest_blurrycenter'
-!CASE('nearest_blurrycenter')
-!CASE('particle_position_slow')
 CASE('particle_position')
-!CASE('nearest_gausspoint')
+  ! PASS
 CASE DEFAULT
   CALL abort(&
   __STAMP__ &
@@ -340,91 +336,6 @@ END IF
 
 IF (DoInterpolation) THEN                 ! skip if no self fields are calculated
   SELECT CASE(TRIM(InterpolationType))
-  CASE('nearest_blurrycenter')
-    ! add fields to fields at particle position
-    ! should nearest_blurrycenter not require to
-    ! a) evaluate the polynomial at Xi=0??
-    ! b) require the mean value of the field
-    !m = INT(PP_N/2)+1
-    DO iElem=1,PP_nElems
-#if (PP_nVar==8)
-!
-#ifdef PP_POIS
-      HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
-      HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-      CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,field(1:6),iElem)
-#else
-      CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
-#endif /*PP_POIS*/
-!
-#else /*PP_nVar not 8*/
-!
-#ifdef PP_POIS
-      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
-#elif USE_HDG
-#if PP_nVar==1
-      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
-#elif PP_nVar==3
-      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
-#else
-      HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
-      HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-      CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,field(1:6),iElem)
-#endif /*PP_nVar==1*/
-#else /*not HDG and not POIS and PP_nVar not 8*/
-      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
-#endif /*PP_POIS*/
-!
-#endif /*(PP_nVar==8)*/
-      DO iPart=firstPart,LastPart
-        IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
-        ! Don't interpolate the field at neutral particles (only when considering field ionization)
-        IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
-          IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
-            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
-          END IF! Element(iPart).EQ.iElem
-        END IF
-      END DO ! iPart
-    END DO ! iElem
-  CASE('particle_position_slow')
-    DO iElem=1,PP_nElems
-      DO iPart = firstPart, LastPart
-        IF(.NOT.PDM%ParticleInside(iPart))CYCLE
-        ! Don't interpolate the field at neutral particles (only when considering field ionization)
-        IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
-          IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
-            Pos = PartState(1:3,iPart)
-            !--- evaluate at Particle position
-#if (PP_nVar==8)
-#ifdef PP_POIS
-            HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
-            HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-            CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem)
-#else
-            CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
-#endif /*PP_POIS*/
-#else
-#ifdef PP_POIS
-            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
-#elif USE_HDG
-#if PP_nVar==1
-            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
-#elif PP_nVar==3
-            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
-#else
-            HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
-            HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-            CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem)
-#endif /*PP_nVar*/
-#else
-            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
-#endif /*PP_POIS*/
-#endif /*(PP_nVar==8)*/
-            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
-          END IF ! Element(iPart).EQ.iElem
-        END IF ! DoFieldIonization.OR.isInterpolateParticle(iPart)
-      END DO ! iPart
-    END DO ! iElem=1,PP_nElems
   CASE('particle_position')
     IF(.NOT.NotMappedSurfFluxParts .AND.(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint'))THEN
       ! particles have already been mapped in deposition, other eval routine used
@@ -580,90 +491,6 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         END DO ! iPart
       END DO ! iElem=1,PP_nElems
     END IF ! DoRefMapping .or. Depositiontype=nearest_gausspoint
-  CASE('nearest_gausspoint')
-    ! particles have already been mapped in deposition
-    IF(MOD(PP_N,2).EQ.0) THEN
-      a = PP_N/2
-      b = a
-    ELSE
-      a = (PP_N+1)/2
-      b = a-1
-    END IF
-    DO iElem=1,PP_nElems
-      DO iPart=firstPart,LastPart
-        IF(.NOT.PDM%ParticleInside(iPart))CYCLE
-        ! Don't interpolate the field at neutral particles (only when considering field ionization)
-        IF(DoFieldIonization.OR.isInterpolateParticle(iPart))THEN
-          IF(PEM%GlobalElemID(iPart).EQ.iElem)THEN
-            IF(.NOT.DoRefMapping .OR. (NotMappedSurfFluxParts .AND. PDM%dtFracPush(iPart)))THEN
-              CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),iElem)
-            END IF
-            ! compute exact k,l,m
-            !! x-direction
-            k = a
-            DO ii = 0,b-1
-              IF(ABS(PartPosRef(1,iPart)).GE.GaussBorder(PP_N-ii))THEN
-                k = PP_N-ii
-                EXIT
-              END IF
-            END DO
-            k = NINT((PP_N+SIGN(2.0*k-PP_N,PartPosRef(1,iPart)))/2)
-            !! y-direction
-            l = a
-            DO ii = 0,b-1
-              IF(ABS(PartPosRef(2,iPart)).GE.GaussBorder(PP_N-ii))THEN
-                l = PP_N-ii
-                EXIT
-              END IF
-            END DO
-            l = NINT((PP_N+SIGN(2.0*l-PP_N,PartPosRef(2,iPart)))/2)
-            !! z-direction
-            m = a
-            DO ii = 0,b-1
-              IF(ABS(PartPosRef(3,iPart)).GE.GaussBorder(PP_N-ii))THEN
-                m = PP_N-ii
-                EXIT
-              END IF
-            END DO
-            m = NINT((PP_N+SIGN(2.0*m-PP_N,PartPosRef(3,iPart)))/2)
-            PartPosGauss(iPart,1) = k
-            PartPosGauss(iPart,2) = l
-            PartPosGauss(iPart,3) = m
-            !--- evaluate at Particle position
-#if (PP_nVar==8)
-#ifdef PP_POIS
-            field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            field(4:6) = U(4:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
-#else
-            field = U(1:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
-#endif
-#else
-#ifdef PP_POIS
-            field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(1:3,iPart) = FieldAtParticle(1:3,iPart) + field(1:3)
-#elif USE_HDG
-#if PP_nVar==1
-            field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(1:3,iPart) = FieldAtParticle(1:3,iPart) + field(1:3)
-#elif PP_nVar==3
-            field(4:6) = B(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(4:6,iPart) = FieldAtParticle(4:6,iPart) + field(4:6)
-#else
-            field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            field(4:6) = B(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + field(1:6)
-#endif
-#else
-            field(1:3) = U(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-            FieldAtParticle(1:3,iPart) = FieldAtParticle(1:3,iPart) + field(1:3)
-#endif
-#endif
-          END IF ! Element(iPart).EQ.iElem
-        END IF ! DoFieldIonization.OR.isInterpolateParticle(iPart)
-      END DO ! iPart
-    END DO ! iElem=1,PP_nElems
   CASE DEFAULT
     CALL abort(&
 __STAMP__&
@@ -782,67 +609,6 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
   IF(ElemID.GT.PP_nElems) RETURN
 #endif
   SELECT CASE(TRIM(InterpolationType))
-  CASE('nearest_blurrycenter')
-    ! add fields to fields at particle position
-    ! should nearest_blurrycenter not require to
-    ! a) evaluate the polynomial at Xi=0??
-    ! b) require the mean value of the field
-    !m = INT(PP_N/2)+1
-#if (PP_nVar==8)
-#ifdef PP_POIS
-    HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-    HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-    CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,field(1:6),ElemID)
-#else
-    CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
-#endif /*PP_POIS*/
-#else
-#ifdef PP_POIS
-    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
-#elif USE_HDG
-#if PP_nVar==1
-    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
-#elif PP_nVar==3
-    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
-#else
-    HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-    HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-    CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,field(1:6),ElemID)
-#endif /*PP_nVar==1*/
-#else
-    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
-#endif /*PP_POIS*/
-#endif /*(PP_nVar==8)*/
-    FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
-  CASE('particle_position_slow')
-    Pos = PartState(1:3,PartID)
-    !--- evaluate at Particle position
-#if (PP_nVar==8)
-#ifdef PP_POIS
-    HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-    HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-    CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),ElemID)
-#else
-    CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
-#endif /*PP_POIS*/
-#else
-#ifdef PP_POIS
-    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
-#elif USE_HDG
-#if PP_nVar==1
-    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
-#elif PP_nVar==3
-    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
-#else
-    HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-    HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-    CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),ElemID)
-#endif /*PP_nVar*/
-#else
-    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
-#endif /*PP_POIS*/
-#endif /*(PP_nVar==8)*/
-    FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
   CASE('particle_position')
     IF(.NOT.NotMappedSurfFluxParts .AND.(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint'))THEN
       ! particles have already been mapped in deposition, other eval routine used
@@ -968,80 +734,6 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
       FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
     END IF ! DoRefMapping .or. Depositiontype=nearest_gausspoint
-  CASE('nearest_gausspoint')
-    ! particles have already been mapped in deposition
-    IF(MOD(PP_N,2).EQ.0) THEN
-      a = PP_N/2
-      b = a
-    ELSE
-      a = (PP_N+1)/2
-      b = a-1
-    END IF
-    IF(.NOT.DoRefMapping .OR. (NotMappedSurfFluxParts .AND. PDM%dtFracPush(PartID)))THEN
-      CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),ElemID)
-    END IF
-    ! compute exact k,l,m
-    !! x-direction
-    k = a
-    DO ii = 0,b-1
-      IF(ABS(PartPosRef(1,PartID)).GE.GaussBorder(PP_N-ii))THEN
-        k = PP_N-ii
-        EXIT
-      END IF
-    END DO
-    k = NINT((PP_N+SIGN(2.0*k-PP_N,PartPosRef(1,PartID)))/2)
-    !! y-direction
-    l = a
-    DO ii = 0,b-1
-      IF(ABS(PartPosRef(2,PartID)).GE.GaussBorder(PP_N-ii))THEN
-        l = PP_N-ii
-        EXIT
-      END IF
-    END DO
-    l = NINT((PP_N+SIGN(2.0*l-PP_N,PartPosRef(2,PartID)))/2)
-    !! z-direction
-    m = a
-    DO ii = 0,b-1
-      IF(ABS(PartPosRef(3,PartID)).GE.GaussBorder(PP_N-ii))THEN
-        m = PP_N-ii
-        EXIT
-      END IF
-    END DO
-    m = NINT((PP_N+SIGN(2.0*m-PP_N,PartPosRef(3,PartID)))/2)
-    PartPosGauss(PartID,1) = k
-    PartPosGauss(PartID,2) = l
-    PartPosGauss(PartID,3) = m
-    !--- evaluate at Particle position
-#if (PP_nVar==8)
-#ifdef PP_POIS
-    field(1:3) = E(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
-    field(4:6) = U(4:6,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
-    FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
-#else
-    field = U(1:6,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
-    FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
-#endif
-#else
-#ifdef PP_POIS
-    field(1:3) = E(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
-    FieldAtParticle(1:3) = FieldAtParticle(1:3) + field(1:3)
-#elif USE_HDG
-#if PP_nVar==1
-    field(1:3) = E(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
-    FieldAtParticle(1:3) = FieldAtParticle(1:3) + field(1:3)
-#elif PP_nVar==3
-    field(4:6) = B(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
-    FieldAtParticle(4:6) = FieldAtParticle(4:6) + field(4:6)
-#else
-    field(1:3) = E(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
-    field(4:6) = B(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
-    FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
-#endif
-#else
-    field(1:3) = U(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
-    FieldAtParticle(1:3) = FieldAtParticle(1:3) + field(1:3)
-#endif
-#endif
   CASE DEFAULT
     CALL abort(&
 __STAMP__&

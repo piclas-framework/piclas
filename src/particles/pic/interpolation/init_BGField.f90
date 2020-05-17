@@ -69,7 +69,7 @@ USE MOD_Mesh_Vars             ,ONLY: OffsetElem,nGlobalElems
 USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
 USE MOD_ReadInTools           ,ONLY: GETSTR,GETINT,GETREAL
 USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataProps,DatasetExists
-USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType,CalcBField
+USE MOD_PICInterpolation_Vars ,ONLY: CalcBField
 USE MOD_Interpolation_Vars    ,ONLY: NBG,BGType,BGField
 USE MOD_Interpolation_Vars    ,ONLY: BGField_xGP,BGField_wBary,BGDataSize
 USE MOD_Interpolation_Vars    ,ONLY: NodeType
@@ -155,9 +155,6 @@ IF (CalcBField) THEN
   ! Calculate the background B-field via SuperB
   CALL SuperB()
 ELSE
-  IF(TRIM(InterpolationType).NE.'particle_position')  CALL abort(&
-    __STAMP__&
-    ,'InterpolationType has to be set to particle position!')
   SWRITE(UNIT_stdOut,'(A)')' Reading background field from file... '
   ALLOCATE(VarNames(nVar_BField))
   CALL ReadAttribute(File_ID,'VarNames',nVar_BField,StrArray=VarNames)

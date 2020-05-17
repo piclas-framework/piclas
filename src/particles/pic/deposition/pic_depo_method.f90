@@ -133,7 +133,6 @@ SUBROUTINE InitDepositionMethod()
 USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETINTFROMSTR
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
-USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
@@ -145,12 +144,6 @@ INTEGER                 :: DepositionType_loc
 DepositionType_loc = GETINTFROMSTR('PIC-Deposition-Type')
 ! check for interpolation type incompatibilities (cannot be done at interpolation_init
 ! because DepositionType_loc is not known yet)
-IF((TRIM(InterpolationType).EQ.'nearest_gausspoint').AND. &
-   (DepositionType_loc.NE.PRM_DEPO_NGP)) THEN
-  CALL abort(&
-  __STAMP__&
-  ,'ERROR in pic_depo.f90: Interpolation type nearest_gausspoint only allowed with same deposition type!')
-END IF
 IF((DepositionType_loc.EQ.PRM_DEPO_CVWM).AND. &
    (.NOT.(TriaTracking))) THEN
   CALL abort(&

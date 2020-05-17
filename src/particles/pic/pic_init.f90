@@ -63,9 +63,8 @@ CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationPhase'   , "Phase shift 
 CALL prms%CreateLogicalOption(  'PIC-DoInterpolation'         , "TODO-DEFINE-PARAMETER\n"//&
                                                                 "Compute the self field's influence "//&
                                                                 "on the Particle", '.TRUE.')
-CALL prms%CreateStringOption(   'PIC-Interpolation-Type'      , "TODO-DEFINE-PARAMETER\n"//&
-                                                                "Type of Interpolation-Method to calculate"//&
-                                                                " the EM field's value for the particle", 'particle_position')
+CALL prms%CreateStringOption(   'PIC-Interpolation-Type'      , "Type of Interpolation-Method to calculate the electro(-magnetic)"//&
+                                                                " field's value for the particle", 'particle_position')
 CALL prms%CreateLogicalOption(  'PIC-InterpolationElemLoop'   , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Interpolate with outer iElem-loop (not'//&
                                                                 'for many Elems per proc!)', '.TRUE.')
