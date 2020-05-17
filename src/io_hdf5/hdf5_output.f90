@@ -2622,13 +2622,16 @@ SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputT
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars       ,ONLY: ProjectName
-USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
-USE MOD_Mesh_Vars          ,ONLY: nGlobalElems
-USE MOD_Interpolation_Vars ,ONLY: NodeType
+USE MOD_Globals_Vars           ,ONLY: ProjectName
+USE MOD_Output_Vars            ,ONLY: UserBlockTmpFile,userblock_total_len
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_Interpolation_Vars     ,ONLY: NodeType
 #ifdef INTEL
-USE IFPORT                 ,ONLY: SYSTEM
+USE IFPORT                     ,ONLY: SYSTEM
 #endif
+#ifdef PARTICLES
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+#endif /*PARTICLES*/
 !USE MOD_PreProcFlags
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2636,7 +2639,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)    :: TypeString
 INTEGER,INTENT(IN)             :: nVar
-!INTEGER,INTENT(IN)             :: NData
 CHARACTER(LEN=255)             :: StrVarNames(nVar)
 CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
 REAL,INTENT(IN)                :: OutputTime
@@ -2645,10 +2647,12 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(HID_T)                 :: DSet_ID,FileSpace,HDF5DataType
-INTEGER(HSIZE_T)               :: Dimsf(5)
-CHARACTER(LEN=255)             :: FileName,MeshFile255
-!CHARACTER(LEN=255),ALLOCATABLE :: params(:)
+INTEGER(HID_T)                               :: DSet_ID,FileSpace,HDF5DataType
+INTEGER(HSIZE_T)                             :: Dimsf(5)
+CHARACTER(LEN=255)                           :: FileName,MeshFile255
+#ifdef PARTICLES
+CHARACTER(LEN=255), DIMENSION(1:3),PARAMETER :: TrackingString = (/'refmapping  ', 'tracing     ', 'triatracking'/)
+#endif /*PARTICLES*/
 !===================================================================================================================================
 ! Create file
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
@@ -2679,6 +2683,10 @@ CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
 CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
 
 CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=PP_N)
+
+#ifdef PARTICLES
+CALL WriteAttributeToHDF5(File_ID,'TrackingMethod',1,StrScalar=(/TRIM(TrackingString(TrackingMethod))/))
+#endif /*PARTICLES*/
 
 CALL CloseDataFile()
 
