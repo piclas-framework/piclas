@@ -163,7 +163,7 @@ TYPE tSurfaceMesh
                                                                          ! surface sampling (MacroSurfaceVal and MacroSurfaceSpecVal)
                                                                          ! and output to .h5 (SurfData) purposes:
                                                                          ! nOutputSides = bcsides + maser_innersides
-  INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
+  !INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
   INTEGER                               :: nGlobalSides                  ! Global number of Sides on Surfaces (reflective)
   INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping of side ID to surface side ID (reflective)
   REAL, ALLOCATABLE                     :: SurfaceArea(:,:,:)            ! Area of Surface

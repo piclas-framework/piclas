@@ -237,6 +237,9 @@ USE MOD_SMCR_Init                  ,ONLY: InitSMCR
 #if USE_MPI
 USE MOD_SurfaceModel_MPI           ,ONLY: InitSurfModel_MPI
 #endif
+USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfTotalSides
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide
+USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -248,7 +251,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(32)                    :: hilf, hilf2
 INTEGER                          :: iSpec, iSide, iPartBound
-INTEGER                          :: SideID, PartBoundID
+INTEGER                          :: GlobalSideID, PartBoundID
 !===================================================================================================================================
 IF (.NOT.(ANY(PartBound%Reactive))) RETURN
 IF (CollisMode.LE.1) THEN
@@ -456,14 +459,14 @@ END DO
 ALLOCATE( SurfModel%SumEvapPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nOutputSides,1:nSpecies),&
           SurfModel%SumDesorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nOutputSides,1:nSpecies),&
           SurfModel%SumReactPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nOutputSides,1:nSpecies),&
-          SurfModel%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
-          SurfModel%SumERDesorbed(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies))
-ALLOCATE( Adsorption%ProbAds(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
-          Adsorption%ProbDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
-          Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies))
-ALLOCATE( Adsorption%DensSurfAtoms(1:SurfMesh%nTotalSides),&
-          Adsorption%AreaIncrease(1:SurfMesh%nTotalSides),&
-          Adsorption%CrystalIndx(1:SurfMesh%nTotalSides))
+          SurfModel%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides,1:nSpecies),&
+          SurfModel%SumERDesorbed(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides,1:nSpecies))
+ALLOCATE( Adsorption%ProbAds(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides,1:nSpecies),&
+          Adsorption%ProbDes(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides,1:nSpecies),&
+          Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides,1:nSpecies))
+ALLOCATE( Adsorption%DensSurfAtoms(1:nComputeNodeSurfTotalSides),&
+          Adsorption%AreaIncrease(1:nComputeNodeSurfTotalSides),&
+          Adsorption%CrystalIndx(1:nComputeNodeSurfTotalSides))
 
 IF (SurfMesh%SurfOnProc) THEN
   SurfModel%SumEvapPart(:,:,:,:) = 0
@@ -479,9 +482,9 @@ END IF ! SurfMesh%SurfOnProc
 Adsorption%DensSurfAtoms(:) = 0
 Adsorption%AreaIncrease(:)  = 0
 Adsorption%CrystalIndx(:)   = 0
-DO iSide=1,SurfMesh%nTotalSides
-  SideID = SurfMesh%SurfIDToSideID(iSide)
-  PartboundID = PartBound%MapToPartBC(BC(SideID))
+DO iSide=1,nComputeNodeSurfTotalSides
+  GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+  PartboundID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
   IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
   IF (PartBound%SolidState(PartBoundID)) THEN
     Adsorption%AreaIncrease(iSide)  = PartBound%SolidAreaIncrease(PartBoundID)
@@ -492,16 +495,28 @@ DO iSide=1,SurfMesh%nTotalSides
 END DO
 Adsorption%NumCovSamples = 0
 
-ALLOCATE ( Adsorption%IncidentNormalVeloAtSurf(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
-           Adsorption%SurfaceNormalVelo(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
-           Adsorption%CollSpecPartNum(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies) )
+ALLOCATE ( Adsorption%IncidentNormalVeloAtSurf(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides,1:nSpecies),&
+           Adsorption%SurfaceNormalVelo(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides,1:nSpecies),&
+           Adsorption%CollSpecPartNum(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides,1:nSpecies) )
 DO iSpec = 1,nSpecies
   ! Expacted value for an assumed Rayleigh distribution
   Adsorption%IncidentNormalVeloAtSurf(:,:,:,iSpec) =  &
-      SQRT(BoltzmannConst*Species(iSpec)%Init(0)%MWTemperatureIC/Species(iSpec)%MassIC) *SQRT(PI/2.)
+      SQRT(BoltzmannConst*Species(iSpec)%Init(1)%MWTemperatureIC/Species(iSpec)%MassIC) *SQRT(PI/2.)
 END DO
 Adsorption%SurfaceNormalVelo(:,:,:,:)  = 0.
 Adsorption%CollSpecPartNum(:,:,:,:)    = 0
+
+
+
+
+
+
+
+
+
+! THE FOLLOWING IS IGNORED FOR NOW
+
+RETURN
 
 ! Initialize surface coverage
 CALL InitSurfCoverage()
@@ -1258,6 +1273,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
 USE MOD_Particle_MPI_Vars      ,ONLY: SurfSendBuf,SurfRecvBuf,SurfExchange
 #endif /*USE_MPI*/
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfTotalSides
 !===================================================================================================================================
 IMPLICIT NONE
 !===================================================================================================================================
@@ -1269,7 +1285,7 @@ INTEGER                          :: iProc, SendArraySize, RecvArraySize
 !===================================================================================================================================
 
 SurfMesh%ReactiveSampSize=(5+nSpecies+nSpecies+2*(Adsorption%ReactNum*nSpecies))
-DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
+DO iSide=1,nComputeNodeSurfTotalSides ! caution: iSurfSideID
   ALLOCATE(SampWall(iSide)%SurfModelState(1:5+nSpecies,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%SurfModelState=0.
   ALLOCATE(SampWall(iSide)%Accomodation(1:nSpecies,1:nSurfSample,1:nSurfSample))
