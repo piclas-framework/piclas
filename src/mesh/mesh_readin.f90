@@ -214,6 +214,7 @@ USE MOD_IO_HDF5
 USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc!,offsetElemMPI
 USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
 USE MOD_Particle_Mesh_Vars
+USE MOD_MPI_Shared_Vars      ,ONLY: MPI_COMM_SHARED
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshBasics
@@ -385,6 +386,13 @@ DO iElem=FirstElemInd,LastElemInd
   aElem%Type   = ElemInfo(ELEM_TYPE,iElem)
   aElem%Zone   = ElemInfo(ELEM_ZONE,iElem)
 END DO
+
+! Get number of compute-node elements (required for simulations with PARTICLES=ON/OFF)
+#if USE_MPI
+CALL MPI_ALLREDUCE(nElems,nComputeNodeElems,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
+#else
+nComputeNodeElems = nElems
+#endif /*USE_MPI*/
 
 #ifdef PARTICLES
 CALL ReadMeshElems()

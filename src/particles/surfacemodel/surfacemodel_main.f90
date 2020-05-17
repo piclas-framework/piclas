@@ -277,7 +277,7 @@ CALL ExchangeSurfDistInfo()
 END SUBROUTINE UpdateSurfModelVars
 
 
-SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi,eta,PartID,sideID_IN,n_Loc,IsSpeciesSwap,&
+SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi,eta,PartID,SideID,n_Loc,IsSpeciesSwap,&
                               ReflectionIndex)
 !===================================================================================================================================
 !> Routine for Selection of Surface interaction
@@ -296,12 +296,13 @@ USE MOD_DSMC_Vars               ,ONLY: DSMC
 USE MOD_Particle_Boundary_Tools ,ONLY: SurfaceToPartEnergyInternal, CalcWallSample, AnalyzeSurfaceCollisions
 USE MOD_Particle_Boundary_Tools ,ONLY: AddPartInfoToSample
 USE MOD_Part_Tools              ,ONLY: TSURUTACONDENSCOEFF
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall, CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall, CalcSurfaceImpact, GlobalSide2SurfSide
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time, dt, RKdtFrac
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_SurfaceModel_Vars       ,ONLY: Adsorption, ModelERSpecular, SurfModel
 USE MOD_SMCR                    ,ONLY: SMCR_PartAdsorb
 USE MOD_SEE                     ,ONLY: SecondaryElectronEmission
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -311,7 +312,7 @@ REAL,INTENT(INOUT)          :: PartTrajectory(1:3), LengthPartTrajectory, alpha
 REAL,INTENT(IN)             :: xi, eta
 REAL,INTENT(IN)             :: n_loc(1:3)
 INTEGER,INTENT(IN)          :: PartID
-INTEGER,INTENT(IN)          :: sideID_IN
+INTEGER,INTENT(IN)          :: SideID
 LOGICAL,INTENT(IN)          :: IsSpeciesSwap
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -367,7 +368,7 @@ INTEGER                          :: iNewPart ! particle counter for newly create
 CALL OrthoNormVec(n_loc,tang1,tang2)
 
 ! additional states
-locBCID=PartBound%MapToPartBC(BC(sideID_IN))
+locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 ! get BC values
 WallVelo     = PartBound%WallVelo(1:3,locBCID)
 WallTemp     = PartBound%WallTemp(locBCID)
@@ -387,7 +388,7 @@ ELSE
   q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
 END IF
 
-SurfSideID = SurfMesh%SideIDToSurfID(sideID_IN)
+SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID) !SurfMesh%SideIDToSurfID(SideID)
 SpecID = PartSpecies(PartID)
 ! Update wallcollision counter
 SurfModel%Info(SpecID)%WallCollCount = SurfModel%Info(SpecID)%WallCollCount + 1

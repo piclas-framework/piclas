@@ -120,7 +120,6 @@ INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 !===================================================================================================================================
 #if USE_MPI
 ! allocate shared array for ElemInfo
-CALL MPI_ALLREDUCE(nElems,nComputeNodeElems,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
 MPISharedSize = INT((ELEM_HALOFLAG)*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
 CALL Allocate_Shared(MPISharedSize,(/ELEMINFOSIZE,nGlobalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemInfo_Shared_Win,IERROR)
@@ -141,7 +140,6 @@ CALL MPI_BCAST(offsetComputeNodeElem,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 
 #else
 ! allocate local array for ElemInfo
-nComputeNodeElems = nElems
 ALLOCATE(ElemInfo_Shared(1:ELEMINFOSIZE,1:nElems))
 ElemInfo_Shared(1:ELEMINFOSIZE_H5,1:nElems) = ElemInfo(:,:)
 #endif  /*USE_MPI*/

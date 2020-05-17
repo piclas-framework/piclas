@@ -147,12 +147,13 @@ SUBROUTINE ExchangeSurfaceHaloToOrigin(IntDataIN,RealDataIn,AddFlag)
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfComm, nSurfSample, SurfMesh
 USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfModelExchange
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfTotalSides
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(INOUT),OPTIONAL :: IntDataIN(nSurfSample,nSurfSample,SurfMesh%nTotalSides)
-REAL   ,INTENT(INOUT),OPTIONAL :: RealDataIN(nSurfSample,nSurfSample,SurfMesh%nTotalSides)
+INTEGER,INTENT(INOUT),OPTIONAL :: IntDataIN(nSurfSample,nSurfSample,nComputeNodeSurfTotalSides)
+REAL   ,INTENT(INOUT),OPTIONAL :: RealDataIN(nSurfSample,nSurfSample,nComputeNodeSurfTotalSides)
 LOGICAL,INTENT(IN)   ,OPTIONAL :: AddFlag
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -319,12 +320,13 @@ SUBROUTINE ExchangeSurfaceOriginToHalo(IntDataIN,RealDataIn,AddFlag)
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfComm, nSurfSample, SurfMesh
 USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfModelExchange
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfTotalSides
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(INOUT),OPTIONAL :: IntDataIN(nSurfSample,nSurfSample,SurfMesh%nTotalSides)
-REAL   ,INTENT(INOUT),OPTIONAL :: RealDataIN(nSurfSample,nSurfSample,SurfMesh%nTotalSides)
+INTEGER,INTENT(INOUT),OPTIONAL :: IntDataIN(nSurfSample,nSurfSample,nComputeNodeSurfTotalSides)
+REAL   ,INTENT(INOUT),OPTIONAL :: RealDataIN(nSurfSample,nSurfSample,nComputeNodeSurfTotalSides)
 LOGICAL,INTENT(IN)   ,OPTIONAL :: AddFlag
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -640,6 +642,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SurfComm, nSurfSample, PartBound
 USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfDistSendBuf, SurfDistRecvBuf, SurfModelExchange
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo
 USE MOD_Mesh_Vars              ,ONLY: BC,nBCSides,nSides
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfTotalSides
 !USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -785,7 +788,7 @@ IF(SurfMesh%nSides.GT.SurfMesh%nOutputSides) THEN ! There are reflective inner B
 END IF
 
 ! assign bond order to surface atoms in the surfacelattice for halo sides
-DO iSurfSide = SurfMesh%nOutputSides+1,SurfMesh%nTotalSides
+DO iSurfSide = SurfMesh%nOutputSides+1,nComputeNodeSurfTotalSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%SurfaceModel(PartboundID).NE.3) CYCLE
@@ -824,12 +827,13 @@ SUBROUTINE MapHaloInnerToOriginInnerSurf(IntDataIN,RealDataIN,AddFlag,Reverse)
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh,nSurfSample,PartBound
 USE MOD_Mesh_Vars              ,ONLY: nBCSides,nSides,BC
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfTotalSides
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(INOUT),OPTIONAL :: IntDataIN(nSurfSample,nSurfSample,SurfMesh%nTotalSides)
-REAL   ,INTENT(INOUT),OPTIONAL :: RealDataIN(nSurfSample,nSurfSample,SurfMesh%nTotalSides)
+INTEGER,INTENT(INOUT),OPTIONAL :: IntDataIN(nSurfSample,nSurfSample,nComputeNodeSurfTotalSides)
+REAL   ,INTENT(INOUT),OPTIONAL :: RealDataIN(nSurfSample,nSurfSample,nComputeNodeSurfTotalSides)
 LOGICAL,INTENT(IN)   ,OPTIONAL :: AddFlag
 LOGICAL,INTENT(IN)   ,OPTIONAL :: Reverse
 !----------------------------------------------------------------------------------------------------------------------------------!

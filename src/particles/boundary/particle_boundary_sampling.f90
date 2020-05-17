@@ -380,8 +380,8 @@ CALL MPI_WIN_SYNC(GlobalSide2SurfSide_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(SurfSide2GlobalSide_Shared_Win,IERROR)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
-SurfSide2GlobalSide(    :,offsetSurfTotalSidesProc+1:offsetSurfTotalSidesProc+nSurfSidesProc) &
-  = SurfSide2GlobalSideProc(:,1                         :                         nSurfSidesProc)
+SurfSide2GlobalSide(        : , offsetSurfTotalSidesProc+1:offsetSurfTotalSidesProc+nSurfSidesProc) &
+  = SurfSide2GlobalSideProc(: , 1                         :                         nSurfSidesProc)
 
 CALL MPI_WIN_SYNC(GlobalSide2SurfSide_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(SurfSide2GlobalSide_Shared_Win,IERROR)
@@ -1260,7 +1260,7 @@ ADEALLOCATE(SurfSide2GlobalSide)
 !!SDALLOCATE(SampWall%Energy)
 !!SDEALLOCATE(SampWall%Force)
 !!SDEALLOCATE(SampWall%Counter)
-!DO iSurfSide=1,SurfMesh%nTotalSides
+!DO iSurfSide=1,nComputeNodeSurfTotalSides
 !!  SDEALLOCATE(SampWall(iSurfSide)%State)
 !  SDEALLOCATE(SampWall(iSurfSide)%SurfModelState)
 !  SDEALLOCATE(SampWall(iSurfSide)%Accomodation)

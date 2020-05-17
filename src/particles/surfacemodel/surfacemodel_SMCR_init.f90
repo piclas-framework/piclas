@@ -31,7 +31,7 @@ CONTAINS
 
 SUBROUTINE InitSMCR()
 !===================================================================================================================================
-!> Initializing surface distibution reconstruction model for calculating of coverage effects on heat of adsorption
+!> Initializing surface distribution reconstruction model for calculating of coverage effects on heat of adsorption
 !> For now:
 !> Neighbours are all sites, that have the same binding surface atom.
 !> Except for top sites(3) they also interact with the next top site.
@@ -52,6 +52,7 @@ USE MOD_SurfaceModel_MPI       ,ONLY: InitSMCR_MPI
 USE MOD_Particle_Vars          ,ONLY: ManualTimeStep
 USE MOD_TimeDisc_Vars          ,ONLY: tend
 #endif
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfTotalSides
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -72,8 +73,8 @@ LOGICAL                          :: DistNumCase
 INTEGER                          :: BlockedNeightmp(3), i
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION...'
-ALLOCATE(SurfDistInfo(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides))
-DO iSurfSide = 1,SurfMesh%nTotalSides
+ALLOCATE(SurfDistInfo(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+DO iSurfSide = 1,nComputeNodeSurfTotalSides
   DO iSubSurf = 1,nSurfSample
     DO jSubSurf = 1,nSurfSample
       ALLOCATE( SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1:3),&
@@ -101,7 +102,7 @@ Max_Surfsites_own = 0
 Max_Surfsites_halo = 0
 
 ! Allocate and initializes number of surface sites and neighbours
-DO iSurfSide = 1,SurfMesh%nTotalSides
+DO iSurfSide = 1,nComputeNodeSurfTotalSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   DO iSubSurf = 1,nSurfSample
@@ -318,6 +319,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfTotalSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -331,7 +333,7 @@ INTEGER                          :: SideID, PartBoundID
 INTEGER                          :: surfsquare
 INTEGER                          :: Surfpos, Indx, Indy
 !===================================================================================================================================
-DO iSurfSide = 1,SurfMesh%nTotalSides
+DO iSurfSide = 1,nComputeNodeSurfTotalSides
 SideID = SurfMesh%SurfIDToSideID(iSurfSide)
 PartboundID = PartBound%MapToPartBC(BC(SideID))
 IF (PartBound%SurfaceModel(PartboundID).NE.3 .OR. PartBound%SolidStructure(PartBoundID).NE.1) CYCLE
@@ -614,6 +616,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
+USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfTotalSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -628,7 +631,7 @@ INTEGER                          :: surfsquare
 INTEGER                          :: Surfpos, Indx, Indy
 !===================================================================================================================================
 
-DO iSurfSide = 1,SurfMesh%nTotalSides
+DO iSurfSide = 1,nComputeNodeSurfTotalSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%SurfaceModel(PartboundID).NE.3 .OR. PartBound%SolidStructure(PartBoundID).NE.2) CYCLE

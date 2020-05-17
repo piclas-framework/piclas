@@ -1754,7 +1754,7 @@ END SUBROUTINE ParticleRefTracking
 
 
 RECURSIVE SUBROUTINE ParticleBCTracking(lengthPartTrajectory0 &
-                                       ,ElemID,firstSide,LastSide,nlocSides,PartId,PartisDone,PartisMoved,iCount)
+                                       ,ElemID,firstSide,lastSide,nlocSides,PartId,PartisDone,PartisMoved,iCount)
 !===================================================================================================================================
 ! Calculate intersection with boundary and choose boundary interaction type for reference tracking routine
 !===================================================================================================================================

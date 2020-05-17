@@ -994,7 +994,7 @@ IF(RP_onProc) THEN
   END IF
 END IF
 
-! end the analyzes for  all Runge-Kutta besed time-discs
+! end the analyzes for all Runge-Kutta based time-discs
 #endif /* LSERK && IMPA && ROS && USE_HDG*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
