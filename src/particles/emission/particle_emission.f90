@@ -508,6 +508,7 @@ DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
     GlobalElemID = PEM%GlobalElemID(i)
     ElemID = GlobalElemID - offsetElem
+    IF ((ElemID.LT.1).OR.(ElemID.GT.nElems)) CYCLE
     ! not a BC element
     ! IF (ElemToBCSides(ELEM_NBR_BCSIDES,ElemID).EQ.-1) CYCLE
     ! ======================================
@@ -601,10 +602,10 @@ DO AdaptiveElemID = 1,nElems
             ! number density
             IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
               Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/SamplingIteration   &
-                                                        /ElemVolume_Shared(AdaptiveElemID)
+                                                        /ElemVolume_Shared(GlobalElemID)
             ELSE
               Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/SamplingIteration   &
-                                                        /ElemVolume_Shared(AdaptiveElemID) * Species(iSpec)%MacroParticleFactor
+                                                        /ElemVolume_Shared(GlobalElemID) * Species(iSpec)%MacroParticleFactor
             END IF
             ! instantaneous temperature WITHOUT 1/BoltzmannConst
             PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) = PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) &
@@ -636,18 +637,18 @@ DO AdaptiveElemID = 1,nElems
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           ! compute density
           Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-            + RelaxationFactor*Source(11,AdaptiveElemID,iSpec) /ElemVolume_Shared(AdaptiveElemID)
+            + RelaxationFactor*Source(11,AdaptiveElemID,iSpec) /ElemVolume_Shared(GlobalElemID)
           ! Pressure with relaxation factor
           Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
-          +RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(AdaptiveElemID)*TTrans_TempFac
+          +RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(GlobalElemID)*TTrans_TempFac
         ELSE
           ! compute density
           Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-            + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
+            + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/ElemVolume_Shared(GlobalElemID)*Species(iSpec)%MacroParticleFactor
           ! Pressure with relaxation factor
           Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
                                                       + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)  &
-                                                      / ElemVolume_Shared(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
+                                                      / ElemVolume_Shared(GlobalElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
         END IF
       END IF
       ! !==================================================================================================
