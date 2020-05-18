@@ -46,11 +46,9 @@ INTEGER,PARAMETER      :: PRM_DEPO_SFC  = 3  ! shape_function_cylindrical
 INTEGER,PARAMETER      :: PRM_DEPO_SFS  = 4  ! shape_function_spherical
 INTEGER,PARAMETER      :: PRM_DEPO_SFSi = 5  ! shape_function_spherical
 INTEGER,PARAMETER      :: PRM_DEPO_CVW  = 6  ! cell_volweight
-INTEGER,PARAMETER      :: PRM_DEPO_NGP  = 7  ! nearest_gausspoint
 INTEGER,PARAMETER      :: PRM_DEPO_DD   = 8  ! delta_distri
 INTEGER,PARAMETER      :: PRM_DEPO_MVW  = 9  ! cartmesh_volumeweighting
 INTEGER,PARAMETER      :: PRM_DEPO_MS   = 10 ! cartmesh_splines
-INTEGER,PARAMETER      :: PRM_DEPO_NBC  = 11 ! nearest_blurrycenter
 INTEGER,PARAMETER      :: PRM_DEPO_CVWM = 12 ! cell_volweight_mean
 
 INTERFACE InitDepositionMethod
@@ -96,16 +94,14 @@ CALL prms%CreateIntFromStringOption('PIC-Deposition-Type', "Type/Method used in 
                                                              '        PIC-shapefunction-radius0\n'      //&
                                                              '        PIC-shapefunction-scale\n'        //&
                                                              '2.)   cell_volweight\n'                   //&
-                                                             '3.)   nearest_gausspoint\n'               //&
-                                                             '4.)   delta_distri\n'                     //&
+                                                             '3.)   delta_distri\n'                     //&
                                                              '      requires PIC-DeltaType\n'           //&
                                                              '               PIC-DeltaType-N\n'         //&
-                                                             '5.1)  cartmesh_volumeweighting\n'         //&
-                                                             '5.2)  cartmesh_splines\n'                 //&
+                                                             '4.1)  cartmesh_volumeweighting\n'         //&
+                                                             '4.2)  cartmesh_splines\n'                 //&
                                                              '      requires PIC-BGMdeltas\n'           //&
                                                              '               PIC-FactorBGM\n'           //&
-                                                             '6.)   nearest-blurrycenter\n'             //&
-                                                             '7.)   cell_volweight_mean'                &
+                                                             '5.)   cell_volweight_mean'                &
                                                        ,"cell_volweight")
 
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function'             , PRM_DEPO_SF)
@@ -115,12 +111,9 @@ CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_cylindrical' , PRM_
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_spherical'   , PRM_DEPO_SFS)
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_simple'      , PRM_DEPO_SFSi)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight'             , PRM_DEPO_CVW)
-CALL addStrListEntry('PIC-Deposition-Type' , 'nearest_gausspoint'         , PRM_DEPO_NGP)
 CALL addStrListEntry('PIC-Deposition-Type' , 'delta_distri'               , PRM_DEPO_DD)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cartmesh_volumeweighting'   , PRM_DEPO_MVW)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cartmesh_splines'           , PRM_DEPO_MS)
-CALL addStrListEntry('PIC-Deposition-Type' , 'nearest_blurrycenter'       , PRM_DEPO_NBC)
-CALL addStrListEntry('PIC-Deposition-Type' , 'nearest_blurycenter'        , PRM_DEPO_NBC)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight_mean'        , PRM_DEPO_CVWM)
 END SUBROUTINE DefineParametersDepositionMethod
 
@@ -174,9 +167,6 @@ Case(PRM_DEPO_SFS) ! shape_function_spherical
 Case(PRM_DEPO_CVW) ! cell_volweight
   DepositionType   = 'cell_volweight'
   DepositionMethod => DepositionMethod_CVW
-Case(PRM_DEPO_NGP) ! nearest_gausspoint
-  DepositionType   = 'nearest_gausspoint'
-  DepositionMethod => DepositionMethod_NGP
 Case(PRM_DEPO_DD) ! delta_distri
   DepositionType   = 'delta_distri'
   DepositionMethod => DepositionMethod_DD
@@ -186,9 +176,6 @@ Case(PRM_DEPO_MVW) ! cartmesh_volumeweighting
 Case(PRM_DEPO_MS) ! cartmesh_splines
   DepositionType   = 'cartmesh_splines'
   DepositionMethod => DepositionMethod_MS
-Case(PRM_DEPO_NBC) ! nearest_blurrycenter/nearest_blurycenter
-  DepositionType   = 'nearest_blurrycenter'
-  DepositionMethod => DepositionMethod_NBC
 Case(PRM_DEPO_CVWM) ! cell_volweight_mean
   DepositionType   = 'cell_volweight_mean'
   DepositionMethod => DepositionMethod_CVWM
@@ -204,273 +191,12 @@ CALL DepositionMethod_SF1D(0,0,.FALSE.)
 CALL DepositionMethod_SF2D(0,0,.FALSE.)
 CALL DepositionMethod_SFCS(0,0,.FALSE.)
 CALL DepositionMethod_CVW(0,0,.FALSE.)
-CALL DepositionMethod_NGP(0,0,.FALSE.)
 CALL DepositionMethod_DD(0,0,.FALSE.)
 CALL DepositionMethod_MVW(0,0,.FALSE.)
 CALL DepositionMethod_MS(0,0,.FALSE.)
-CALL DepositionMethod_NBC(0,0,.FALSE.)
 CALL DepositionMethod_CVWM(0,0,.FALSE.)
 
 END SUBROUTINE InitDepositionMethod
-
-
-SUBROUTINE DepositionMethod_NGP(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
-!===================================================================================================================================
-! 'nearest_gausspoint'
-! Deposits the complete particle charge at the nearest Gauss point (interpolation point of the field solver)
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc               ,ONLY: PP_N,PP_nElems
-USE MOD_Particle_Vars         ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartPosRef,PartMPF
-USE MOD_PICDepo_Vars          ,ONLY: PartSource,gaussborder
-!#if (PP_nVar==8)
-USE MOD_Particle_Vars         ,ONLY: PartState
-!#endif
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
-USE MOD_LoadBalance_Timers    ,ONLY: LBElemSplitTime_avg
-#endif /*USE_LOADBALANCE*/
-USE MOD_Interpolation_Vars    ,ONLY: wGP
-USE MOD_Mesh_Vars             ,ONLY: sJ
-USE MOD_Part_Tools            ,ONLY: isDepositParticle
-USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType
-USE MOD_Eval_xyz              ,ONLY: GetPositionInRefElem
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
-LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
-LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
-LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL               :: prefac
-#if USE_LOADBALANCE
-REAL               :: tLBStart
-#endif /*USE_LOADBALANCE*/
-LOGICAL            :: SAVE_GAUSS
-INTEGER            :: a,b, ii
-INTEGER            :: k, l, m, iElem, iPart
-!===================================================================================================================================
-! TODO: Info why and under which conditions the following 'RETURN' is called
-IF((DoInnerParts).AND.(LastPart.LT.FirstPart)) RETURN
-SAVE_GAUSS = .FALSE.
-IF(TRIM(InterpolationType).EQ.'nearest_gausspoint') SAVE_GAUSS = .TRUE.
-IF(MOD(PP_N,2).EQ.0) THEN
-  a = PP_N/2
-  b = a
-ELSE
-  a = (PP_N+1)/2
-  b = a-1
-END IF
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-DO iElem=1,PP_nElems
-  DO iPart=FirstPart,LastPart
-    ! TODO: Info why and under which conditions the following 'CYCLE' is called
-    IF(doPartInExists)THEN
-      IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
-    ELSE
-      IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
-    END IF
-    ! Don't deposit neutral particles!
-    IF(.NOT.isDepositParticle(iPart)) CYCLE
-    IF(PEM%LocalElemID(iPart).EQ.iElem)THEN
-      IF (usevMPF) THEN
-        prefac= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
-      ELSE
-        prefac= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
-      END IF ! usevMPF
-      ! Map Particle to -1|1 space (re-used in interpolation)
-      !IF(.NOT.DoRefMapping)THEN
-      !  CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),PEM%GlobalElemID(iPart),iPart)
-      !END IF
-      ! Find out which gausspoint is closest and add up charges and currents
-      !! x-direction
-      IF(.NOT.SAVE_GAUSS) THEN
-        k = a
-        DO ii = 0,b-1
-          IF(ABS(PartPosRef(1,iPart)).GE.GaussBorder(PP_N-ii))THEN
-            k = PP_N-ii
-            EXIT
-          END IF
-        END DO
-        k = NINT((PP_N+SIGN(2.0*k-PP_N,PartPosRef(1,iPart)))/2)
-        !! y-direction
-        l = a
-        DO ii = 0,b-1
-          IF(ABS(PartPosRef(2,iPart)).GE.GaussBorder(PP_N-ii))THEN
-            l = PP_N-ii
-            EXIT
-          END IF
-        END DO
-        l = NINT((PP_N+SIGN(2.0*l-PP_N,PartPosRef(2,iPart)))/2)
-        !! z-direction
-        m = a
-        DO ii = 0,b-1
-          IF(ABS(PartPosRef(3,iPart)).GE.GaussBorder(PP_N-ii))THEN
-            m = PP_N-ii
-            EXIT
-          END IF
-        END DO
-        m = NINT((PP_N+SIGN(2.0*m-PP_N,PartPosRef(3,iPart)))/2)
-      END IF
-!#if (PP_nVar==8)
-      PartSource(1:3,k,l,m,iElem) = PartSource(1:3,k,l,m,iElem) + PartState(4:6,iPart) * prefac
-!#endif
-      PartSource( 4 ,k,l,m,iElem) = PartSource( 4 ,k,l,m,iElem) + prefac
-      !IF (SAVE_GAUSS) THEN
-      !  PartPosGauss(iPart,1) = k
-      !  PartPosGauss(iPart,2) = l
-      !  PartPosGauss(iPart,3) = m
-      !END IF
-    END IF ! Element .EQ. iElem
-  END DO ! iPart
-#if USE_LOADBALANCE
-  CALL LBElemSplitTime(iElem,tLBStart)
-#endif /*USE_LOADBALANCE*/
-END DO ! iElem=1,PP_nElems
-IF(.NOT.DoInnerParts)THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-  DO iElem=1,PP_nElems
-    DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-    ! get densities by dividing by gauss volume
-!#if (PP_nVar==8)
-      PartSource(1:4,k,l,m,iElem) = PartSource(1:4,k,l,m,iElem) * sJ(k,l,m,iElem)/(wGP(k)*wGP(l)*wGP(m))
-!#else
-!        PartSource(4,k,l,m,iElem) = PartSource(4,k,l,m,iElem) * sJ(k,l,m,iElem)/(wGP(k)*wGP(l)*wGP(m))
-!#endif
-    END DO; END DO; END DO
-#if USE_LOADBALANCE
-    CALL LBElemSplitTime(iElem,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  END DO ! iElem=1,PP_nElems
-END IF
-
-END SUBROUTINE DepositionMethod_NGP
-
-
-SUBROUTINE DepositionMethod_NBC(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
-!===================================================================================================================================
-! 'nearest_blurrycenter'
-! Deposits the complete particle charge at the center of the cell -> cell-constant deposition
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc            ,ONLY: PP_nElems
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared
-USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
-USE MOD_Particle_Vars      ,ONLY: PartState
-USE MOD_PICDepo_Vars       ,ONLY: PartSource
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
-#endif /*USE_LOADBALANCE*/
-USE MOD_Mesh_Vars          ,ONLY: nElems
-USE MOD_Part_Tools         ,ONLY: isDepositParticle
-#if ((USE_HDG) && (PP_nVar==1))
-USE MOD_TimeDisc_Vars      ,ONLY: dt,tAnalyzeDiff,tEndDiff
-#endif
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)          :: FirstPart,LastPart ! Start and end of particle loop
-LOGICAL,INTENT(IN)          :: DoInnerParts ! TRUE: do cell-local particles, FALSE: do external particles from other (MPI) cells
-LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
-LOGICAL,INTENT(IN),OPTIONAL :: doPartInExists
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL, ALLOCATABLE  :: ElemSource(:,:)
-#if USE_LOADBALANCE
-REAL               :: tLBStart
-#endif /*USE_LOADBALANCE*/
-#if !((USE_HDG) && (PP_nVar==1))
-INTEGER, PARAMETER :: SourceDim=1
-LOGICAL, PARAMETER :: doCalculateCurrentDensity=.TRUE.
-#else
-LOGICAL            :: doCalculateCurrentDensity
-INTEGER            :: SourceDim
-#endif
-INTEGER            :: iElem,iPart
-!===================================================================================================================================
-! TODO: Info why and under which conditions the following 'RETURN' is called
-IF((DoInnerParts).AND.(LastPart.LT.FirstPart)) RETURN
-
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-
-! Check whether charge and current density have to be computed or just the charge density
-#if ((USE_HDG) && (PP_nVar==1))
-IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
-  doCalculateCurrentDensity=.TRUE.
-  SourceDim=1
-ELSE ! do not calculate current density
-  doCalculateCurrentDensity=.FALSE.
-  SourceDim=4
-END IF
-#endif
-
-ALLOCATE(ElemSource(SourceDim:4,1:nElems))
-ElemSource=0.0
-
-DO iElem=1,PP_nElems
-  DO iPart=FirstPart,LastPart
-    ! TODO: Info why and under which conditions the following 'CYCLE' is called
-    IF(doPartInExists)THEN
-      IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
-    ELSE
-      IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
-    END IF
-    ! Don't deposit neutral particles!
-    IF(.NOT.isDepositParticle(iPart)) CYCLE
-    IF(PEM%LocalElemID(iPart).EQ.iElem)THEN
-      IF(usevMPF)THEN
-        IF(doCalculateCurrentDensity)THEN
-          ElemSource(1:3,iElem) = ElemSource(1:3,iElem)+ PartState(4:6,iPart)*Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
-        END IF
-        ElemSource(4,iElem) = ElemSource(4,iElem)  + Species(PartSpecies(iPart))%ChargeIC* PartMPF(iPart)
-      ELSE
-        IF(doCalculateCurrentDensity)THEN
-          ElemSource(1:3,iElem) = ElemSource(1:3,iElem)+ &
-              PartState(4:6,iPart)* Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
-        END IF
-        ElemSource(4,iElem) = ElemSource(4,iElem) + &
-            Species(PartSpecies(iPart))%ChargeIC* Species(PartSpecies(iPart))%MacroParticleFactor
-      END IF ! usevMPF
-    END IF ! Element(iPart).EQ.iElem
-  END DO ! iPart
-  IF(doCalculateCurrentDensity)THEN
-    PartSource(1,:,:,:,iElem) = PartSource(1,:,:,:,iElem)+ElemSource(1,iElem)
-    PartSource(2,:,:,:,iElem) = PartSource(2,:,:,:,iElem)+ElemSource(2,iElem)
-    PartSource(3,:,:,:,iElem) = PartSource(3,:,:,:,iElem)+ElemSource(3,iElem)
-  END IF
-  PartSource(4,:,:,:,iElem) = PartSource(4,:,:,:,iElem)+ElemSource(4,iElem)
-#if USE_LOADBALANCE
-  CALL LBElemSplitTime(iElem,tLBStart)
-#endif /*USE_LOADBALANCE*/
-END DO ! iElem=1,PP_nElems
-
-IF(.NOT.DoInnerParts)THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-  DO iElem=1,PP_nElems
-    PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / ElemVolume_Shared(iElem)
-  END DO ! iElem=1,PP_nElems
-#if USE_LOADBALANCE
-  CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
-#endif /*USE_LOADBALANCE*/
-END IF ! .NOT. DoInnerParts
-END SUBROUTINE DepositionMethod_NBC
-
 
 
 SUBROUTINE DepositionMethod_CVW(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)
@@ -623,7 +349,6 @@ CALL LBElemSplitTime_avg(tLBStart) ! Average over the number of elems (and Start
 #endif /*USE_LOADBALANCE*/
 DEALLOCATE(BGMSourceCellVol)
 END SUBROUTINE DepositionMethod_CVW
-
 
 
 SUBROUTINE DepositionMethod_CVWM(FirstPart,LastPart,DoInnerParts,doPartInExists,doParticle_In)

@@ -35,9 +35,6 @@ USE MOD_Mesh                  ,ONLY: DefineParametersMesh,FinalizeMesh
 USE MOD_Equation              ,ONLY: DefineParametersEquation
 USE MOD_Interpolation_Vars    ,ONLY: BGField,BGFieldAnalytic
 USE MOD_Mesh                  ,ONLY: InitMesh
-#ifdef PARTICLES
-USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType
-#endif /*PARTICLES*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -119,9 +116,6 @@ CALL InitMesh(3) ! 0: only read and build Elem_xGP,
                  ! 1: as 0 + build connectivity
                  ! 2: as 1 + calc metrics
                  ! 3: as 2 but skip InitParticleMesh
-#ifdef PARTICLES
-InterpolationType = 'particle_position'
-#endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the background B-field via SuperB
 !-----------------------------------------------------------------------------------------------------------------------------------
