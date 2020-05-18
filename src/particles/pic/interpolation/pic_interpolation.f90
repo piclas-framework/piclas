@@ -567,12 +567,6 @@ IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field
   CALL abort(&
   __STAMP__&
   ,'DoInterpolationAnalytic: Do not call subroutine InterpolateFieldToSingleParticle()')
-  !        SELECT CASE(AnalyticInterpolationType)
-  !        CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
-  !          FieldAtParticle(6) = EXP(PartState(1,PartID)) ! "B_0" and "l" are dropped here
-  !        END SELECT
-  !        ! exit the subroutine after field determination
-  !        RETURN
 ELSE ! use variable or fixed external field
 #endif /*CODE_ANALYZE*/
   IF(useVariableExternalField) THEN ! used Variable external Bz

@@ -106,7 +106,6 @@ CALL prms%CreateLogicalOption(  'PIC-RelaxDeposition'      , 'Relaxation of curr
 CALL prms%CreateRealOption(     'PIC-RelaxFac'             , 'Relaxation factor of current PartSource with RelaxFac\n'//&
                                                              'into PartSourceOld', '0.001')
 
-CALL prms%CreateRealOption(     'PIC-epanechnikov-radius'  , 'TODO-DEFINE-PARAMETER', '1.')
 CALL prms%CreateRealOption(     'PIC-shapefunction-radius' , 'Radius of shape function', '1.')
 CALL prms%CreateIntOption(      'PIC-shapefunction-alpha'  , 'Exponent of shape function', '2')
 CALL prms%CreateLogicalOption(  'PIC-shapefunction-equi'   , 'Use equidistant points for shapefunction deposition' , '.FALSE.')

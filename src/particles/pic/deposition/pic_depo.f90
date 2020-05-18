@@ -220,9 +220,6 @@ END IF
 
 !--- init DepositionType-specific vars
 SELECT CASE(TRIM(DepositionType))
-CASE('nearest_blurrycenter')
-CASE('nearest_blurycenter')
-  DepositionType = 'nearest_blurrycenter'
 CASE('cell_volweight')
   ALLOCATE(CellVolWeightFac(0:PP_N),wGP_tmp(0:PP_N) , xGP_tmp(0:PP_N))
   ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
@@ -272,45 +269,6 @@ CASE('cell_volweight_mean', 'cell_volweight_mean2')
   ALLOCATE(Vdm_EQ_N(0:PP_N,0:1))
   CALL GetVandermonde(1, NodeTypeVISU, PP_N, NodeType, Vdm_EQ_N, modal=.FALSE.)
 
-CASE('epanechnikov')
-  r_sf     = GETREAL('PIC-epanechnikov-radius','1.')
-  r2_sf = r_sf * r_sf
-  ALLOCATE( tempcharge(1:nElems))
-CASE('nearest_gausspoint')
-  ! Allocate array for particle positions in -1|1 space (used for deposition as well as interpolation)
-  ! only if NOT DoRefMapping
-  IF(.NOT.DoRefMapping)THEN
-    ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
-    ,' Cannot allocate partposref!')
-  END IF
-  ! compute the borders of the virtual volumes around the gauss points in -1|1 space
-  ALLOCATE(GaussBorder(1:PP_N),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR in pic_depo.f90: Cannot allocate Mapped Gauss Border Coords!')
-  END IF
-  DO i=0,PP_N
-    ! bullshit here, use xGP
-    !CALL GetPositionInRefElem(Elem_xGP(:,i,1,1,1),Temp(:),1)
-    !MappedGauss(i+1) = Temp(1)
-    MappedGauss(i+1) = xGP(i)
-  END DO
-  DO i = 1,PP_N
-    GaussBorder(i) = (MappedGauss(i+1) + MappedGauss(i))/2
-  END DO
-  ! allocate array for saving the gauss points of particles for nearest_gausspoint interpolation
-  IF(TRIM(InterpolationType).EQ.'nearest_gausspoint')THEN
-    SDEALLOCATE(PartPosGauss)
-    ALLOCATE(PartPosGauss(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) THEN
-      CALL abort(&
-      __STAMP__&
-      ,'ERROR in pic_depo.f90: Cannot allocate Part Pos Gauss!')
-    END IF
-  END IF
 CASE('shape_function','shape_function_simple')
 #if USE_MPI
   DoExternalParts=.TRUE.
