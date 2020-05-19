@@ -621,6 +621,7 @@ USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC,CollisMode
 USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn,DSMC, useDSMC, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar
+USE MOD_DSMC_ElectronicModel    ,ONLY: RelaxElectronicShellWall
 USE MOD_TimeDisc_Vars           ,ONLY: dt,tend,time,RKdtFrac
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, PartSideToElem
 #if (PP_TimeDiscMethod==400)
@@ -648,7 +649,7 @@ REAL                                 :: VibQuantNewR                            
 !REAL,PARAMETER                       :: oneMinus=0.99999999
 REAL                                 :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
 REAL                                 :: EtraWall, EtraNew
-REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
+REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC, ElecACC
 REAL                                 :: tang1(1:3),tang2(1:3), NewVelo(3)
 REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                                 :: Xitild,EtaTild
@@ -684,6 +685,7 @@ IF (IsAuxBC) THEN
   TransACC   = PartAuxBC%TransACC(AuxBCIdx)
   VibACC     = PartAuxBC%VibACC(AuxBCIdx)
   RotACC     = PartAuxBC%RotACC(AuxBCIdx)
+  ElecACC    = PartAuxBC%ElecACC(AuxBCIdx)
 ELSE
   ! additional states
   locBCID=PartBound%MapToPartBC(BC(SideID))
@@ -693,7 +695,7 @@ ELSE
   TransACC   = PartBound%TransACC(locBCID)
   VibACC     = PartBound%VibACC(locBCID)
   RotACC     = PartBound%RotACC(locBCID)
-
+  ElecACC    = PartBound%ElecACC(locBCID)
 END IF !IsAuxBC
 CALL OrthoNormVec(n_loc,tang1,tang2)
 
@@ -921,6 +923,20 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
 #if (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==300)
         END IF ! FPDoVibRelaxation || BGKDoVibRelaxation
 #endif
+      END IF
+
+      IF ( DSMC%ElectronicModel ) THEN
+        IF((SpecDSMC(PartSpecies(PartID))%InterID.NE.4).AND.(.NOT.SpecDSMC(PartSpecies(PartID))%FullyIonized)) THEN
+          CALL RANDOM_NUMBER(RanNum)
+          IF (RanNum.LT.ElecACC) THEN
+            IF (DoSample) SampWall(SurfSideID)%State(4,p,q)=SampWall(SurfSideID)%State(4,p,q)+PartStateIntEn(3,PartID) * MacroParticleFactor
+            PartStateIntEn(3,PartID) = RelaxElectronicShellWall(PartID, WallTemp)
+            IF (DoSample) THEN
+              SampWall(SurfSideID)%State(5,p,q)=SampWall(SurfSideID)%State(5,p,q)+PartStateIntEn(3,PartID) * MacroParticleFactor
+              SampWall(SurfSideID)%State(6,p,q)=SampWall(SurfSideID)%State(6,p,q)+PartStateIntEn(3,PartID) * MacroParticleFactor
+            END IF
+          END IF
+        END IF
       END IF
     END IF ! CollisMode > 1
   END IF ! useDSMC

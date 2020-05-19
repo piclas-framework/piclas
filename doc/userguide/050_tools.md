@@ -15,7 +15,17 @@ A database (containing multiple species and cross-section types) downloaded dire
     database_input = "Database.txt"
     database_output = "Database.h5"
 
-Currently, PICLas only utilizes effective cross-sections between neutral species and electrons and as such only these cross-section types are stored in the output file. By defining a species list, only certain species can be included in the output database
+Currently, PICLas only utilizes effective and vibrational cross-sections, however, all excitation cross-section types are grouped and stored in the output file. An example is given below 
+
+    CO2-election (group)
+        EFFECTIVE (dataset)
+        ROTATION (group)
+            0.02 (dataset)
+        VIBRATION (group)
+            0.29
+            0.59
+
+Datasets, which cannot be identified as rotational, vibrational or electronic excitation will grouped within an `UNDEFINED` group. By defining a species list, only certain species can be included in the output database
 
     species_list = ["Ar","CO"]
 
