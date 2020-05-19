@@ -169,7 +169,7 @@ USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PIC_Vars
 USE MOD_PICInterpolation_Vars  ,ONLY: useVariableExternalField,FieldAtParticle,externalField,DoInterpolation,InterpolationType
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationElemLoop
-USE MOD_PICDepo_Vars           ,ONLY: DepositionType,GaussBorder
+USE MOD_PICDepo_Vars           ,ONLY: GaussBorder
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem,EvaluateFieldAtPhysPos,EvaluateFieldAtRefPos
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: E
@@ -337,7 +337,7 @@ END IF
 IF (DoInterpolation) THEN                 ! skip if no self fields are calculated
   SELECT CASE(TRIM(InterpolationType))
   CASE('particle_position')
-    IF(.NOT.NotMappedSurfFluxParts .AND.(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint'))THEN
+    IF(.NOT.NotMappedSurfFluxParts.AND.DoRefMapping)THEN
       ! particles have already been mapped in deposition, other eval routine used
       DO iElem=1,PP_nElems
         DO iPart=firstPart,LastPart
@@ -379,7 +379,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           END IF ! DoFieldIonization.OR.isInterpolateParticle(iPart)
         END DO ! iPart
       END DO ! iElem=1,PP_nElems
-    ELSE IF(NotMappedSurfFluxParts .AND.(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint'))THEN
+    ELSE IF(NotMappedSurfFluxParts .AND.DoRefMapping)THEN
       !some particle are mapped, surfaceflux particles (dtFracPush) are not
       DO iElem=1,PP_nElems
         DO iPart=firstPart,LastPart
@@ -490,7 +490,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           END IF ! DoFieldIonization.OR.isInterpolateParticle(iPart)
         END DO ! iPart
       END DO ! iElem=1,PP_nElems
-    END IF ! DoRefMapping .or. Depositiontype=nearest_gausspoint
+    END IF ! DoRefMapping
   CASE DEFAULT
     CALL abort(&
 __STAMP__&
@@ -516,7 +516,7 @@ USE MOD_DG_Vars,                 ONLY:U
 #endif
 USE MOD_PIC_Vars!,      ONLY:
 USE MOD_PICInterpolation_Vars,   ONLY:useVariableExternalField,externalField,DoInterpolation,InterpolationType
-USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
+USE MOD_PICDepo_Vars,            ONLY:GaussBorder
 USE MOD_Eval_xyz,                ONLY:GetPositionInRefElem,EvaluateFieldAtPhysPos,EvaluateFieldAtRefPos
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:E
@@ -604,7 +604,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
   SELECT CASE(TRIM(InterpolationType))
   CASE('particle_position')
-    IF(.NOT.NotMappedSurfFluxParts .AND.(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint'))THEN
+    IF(.NOT.NotMappedSurfFluxParts .AND.DoRefMapping)THEN
       ! particles have already been mapped in deposition, other eval routine used
       IF(.NOT.DoRefMapping)THEN
         CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),ElemID)
@@ -636,7 +636,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
 #endif
       FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
-    ELSE IF(NotMappedSurfFluxParts .AND.(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint'))THEN
+    ELSE IF(NotMappedSurfFluxParts .AND.DoRefMapping)THEN
       !some particle are mapped, surfaceflux particles (dtFracPush) are not
       IF(PDM%dtFracPush(PartID))THEN ! same as in "particles are not yet mapped"
         Pos = PartState(1:3,PartID)
@@ -727,7 +727,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
 #endif
       FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
-    END IF ! DoRefMapping .or. Depositiontype=nearest_gausspoint
+    END IF ! DoRefMapping
   CASE DEFAULT
     CALL abort(&
 __STAMP__&

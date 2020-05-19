@@ -49,14 +49,14 @@ USE MOD_DSMC_Vars     ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn     ! , R
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER, INTENT(IN)           :: Species
-REAL, INTENT(IN)              :: Pos(1:3)
-INTEGER, INTENT(IN)           :: ElemID
-REAL, INTENT(IN)              :: Velocity(1:3)
-REAL, INTENT(IN)              :: RotEnergy
-REAL, INTENT(IN)              :: VibEnergy
-REAL, INTENT(IN)              :: ElecEnergy
-INTEGER, INTENT(OUT),OPTIONAL :: NewPartID
+INTEGER, INTENT(IN)           :: Species       !< Species ID
+REAL, INTENT(IN)              :: Pos(1:3)      !< Position (x,y,z)
+INTEGER, INTENT(IN)           :: ElemID        !< global element ID
+REAL, INTENT(IN)              :: Velocity(1:3) !< Velocity (vx,vy,vz)
+REAL, INTENT(IN)              :: RotEnergy     !< Rotational energy
+REAL, INTENT(IN)              :: VibEnergy     !< Vibrational energy
+REAL, INTENT(IN)              :: ElecEnergy    !< Electronic energy
+INTEGER, INTENT(OUT),OPTIONAL :: NewPartID     !< ID of newly created particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER :: newParticleID
@@ -98,11 +98,11 @@ IF (useDSMC.AND.(CollisMode.GT.1)) THEN
   ENDIF
 END IF
 
-PDM%ParticleInside(newParticleID) = .TRUE.
-PDM%dtFracPush(newParticleID)     = .FALSE.
-PDM%IsNewPart(newParticleID)      = .FALSE.   ! ??????? correct ????
-PEM%GlobalElemID(newParticleID)        = ElemID
-PEM%LastGlobalElemID(newParticleID)    = ElemID
+PDM%ParticleInside(newParticleID)   = .TRUE.
+PDM%dtFracPush(newParticleID)       = .FALSE.
+PDM%IsNewPart(newParticleID)        = .FALSE.   ! ??????? correct ????
+PEM%GlobalElemID(newParticleID)     = ElemID
+PEM%LastGlobalElemID(newParticleID) = ElemID
 
 ! ?????? necessary?
 ! IF (VarTimeStep%UseVariableTimeStep) THEN

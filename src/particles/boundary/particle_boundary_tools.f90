@@ -524,12 +524,13 @@ SUBROUTINE DielectricSurfaceCharge(iPart,ElemID,PartTrajectory,alpha)
 ! description
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals         ,ONLY: abort,myrank
-USE MOD_Mesh_Vars       ,ONLY: nElems
-USE MOD_part_operations ,ONLY: CreateParticle
-USE MOD_part_tools      ,ONLY: isChargedParticle
-USE MOD_Particle_Vars   ,ONLY: PDM,PartSpecies,LastPartPos
-USE MOD_PICDepo_Tools   ,ONLY: DepositParticleOnNodes
+USE MOD_Globals            ,ONLY: abort,myrank
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_part_operations    ,ONLY: CreateParticle
+USE MOD_part_tools         ,ONLY: isChargedParticle
+USE MOD_Particle_Vars      ,ONLY: PDM,PartSpecies,LastPartPos
+USE MOD_PICDepo_Tools      ,ONLY: DepositParticleOnNodes
+USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -542,8 +543,8 @@ INTEGER               :: NewPartID
 !===================================================================================================================================
 ! Sanity checks
 IF(.NOT.PDM%ParticleInside(iPart))THEN
-  IPWRITE (*,*) "iPart  :", iPart
-  IPWRITE (*,*) "ElemID :", ElemID
+  IPWRITE (*,*) "iPart         :", iPart
+  IPWRITE (*,*) "global ElemID :", ElemID
   CALL abort(&
       __STAMP__&
       ,'Dielectric particle-surface interaction: Particle not inside element.')
@@ -558,7 +559,7 @@ ELSEIF(PartSpecies(iPart).LT.0)THEN
 END IF ! PartSpecies(iPart)
 
 IF(isChargedParticle(iPart))THEN
-  IF(ElemID.GT.nElems)THEN
+  IF(ElemID.GT.nComputeNodeElems)THEN
     ! Particle is now located in halo element: Create phantom particle, which is sent to new host Processor and removed there (set
     ! negative SpeciesID in order to remove particle in host Processor)
     CALL CreateParticle(-PartSpecies(iPart),LastPartPos(1:3,iPart)+PartTrajectory(1:3)*alpha,ElemID,(/0.,0.,0./),0.,0.,0.,NewPartID)
