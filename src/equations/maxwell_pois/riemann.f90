@@ -38,8 +38,9 @@ SUBROUTINE Riemann(F,U_L,U_R,nv)
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotatet: don't use it after this routine!!
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc ! PP_N
-USE MOD_Equation_Vars,ONLY:eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
+USE MOD_PreProc
+USE MOD_Equation_Vars ,ONLY: eta_c,c_corr,c_corr_c,c_corr_c2
+USE MOD_Globals_Vars  ,ONLY: c,c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

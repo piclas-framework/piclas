@@ -31,10 +31,11 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE InitializePiclas()
 ! MODULES
-USE MOD_Globals_vars           ,ONLY: InitializationWallTime
-USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: ParameterFile,ParameterDSMCFile
 USE MOD_Commandline_Arguments
+USE MOD_Globals                ,ONLY: iError,Logging,MPIroot,StartTime,UNIT_stdOut,PiclasTime,doPrintHelp,abort
+USE MOD_Globals                ,ONLY: SetStackSizeUnlimited,CollectiveStop,ReOpenLogFile
+USE MOD_Globals_Init           ,ONLY: InitGlobals
+USE MOD_Globals_Vars           ,ONLY: ParameterFile,ParameterDSMCFile,InitializationWallTime
 USE MOD_ReadInTools            ,ONLY: prms,PrintDefaultparameterFile,ExtractparameterFile
 USE MOD_Piclas_Init            ,ONLY: InitPiclas
 USE MOD_Restart_Vars           ,ONLY: RestartFile

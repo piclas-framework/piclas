@@ -33,14 +33,7 @@ INTEGER           :: BCType(6)=-999
 INTEGER           :: BoundaryCondition(6,2)
 LOGICAL           :: EquationInitIsDone=.FALSE.
 LOGICAL           :: DoParabolicDamping
-REAL              :: c
-REAL              :: c_inv
-REAL              :: c2      ! c^2
-REAL              :: c2_inv
-REAL              :: eps0
 REAL              :: xDipole(1:3) ! base point of electromagnetic dipole
-REAL              :: mu0
-REAL              :: smu0
 INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff

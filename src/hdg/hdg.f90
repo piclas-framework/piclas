@@ -99,7 +99,7 @@ USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides,nMortarMPISides
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
 USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
-USE MOD_Equation_Vars      ,ONLY: eps0
+USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_Restart_Vars       ,ONLY: DoRestart
 USE MOD_Mesh_Vars          ,ONLY: DoSwapMesh
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
@@ -661,7 +661,7 @@ USE MOD_FillMortar_HDG         ,ONLY: SmallToBigMortar_HDG
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars      ,ONLY: DoPrintConvInfo
 #endif
-USE MOD_Equation_Vars          ,ONLY: eps0
+USE MOD_Globals_Vars           ,ONLY: eps0
 USE MOD_Equation_Vars          ,ONLY: chitens_face
 USE MOD_Mesh_Vars              ,ONLY: Face_xGP,BoundaryType,nSides,BC
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem

@@ -194,7 +194,7 @@ ELSE
 END IF
 chunkSize = INT(nbrOfParticle/nChunks)
 IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
-  chunkSize = chunkSize + ( nbrOfParticle - (nChunks*chunkSize) )
+  chunkSize = chunkSize*(1-nChunks) + nbrOfParticle
 END IF
 ! all proc taking part in particle inserting
 IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN

@@ -42,9 +42,10 @@ SUBROUTINE EvalFlux3D(iElem,f,g,h)
 !
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc ! PP_N
-USE MOD_Equation_Vars,ONLY:c2,c_corr,c_corr_c2
-USE MOD_DG_Vars,ONLY:U
+USE MOD_PreProc
+USE MOD_Equation_Vars ,ONLY: c_corr,c_corr_c2
+USE MOD_Globals_Vars  ,ONLY: c2
+USE MOD_DG_Vars       ,ONLY: U
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -102,9 +103,10 @@ SUBROUTINE EvalFlux3DDielectric(iElem,f,g,h)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Equation_Vars,     ONLY: c2,c_corr,c_corr_c2
-USE MOD_DG_Vars,           ONLY: U
-USE MOD_Dielectric_Vars,   ONLY: ElemToDielectric,DielectricConstant_inv
+USE MOD_Equation_Vars   ,ONLY: c_corr,c_corr_c2
+USE MOD_Globals_Vars    ,ONLY: c2
+USE MOD_DG_Vars         ,ONLY: U
+USE MOD_Dielectric_Vars ,ONLY: ElemToDielectric,DielectricConstant_inv
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

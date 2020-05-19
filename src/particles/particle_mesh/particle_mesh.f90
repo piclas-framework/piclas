@@ -2533,7 +2533,7 @@ SUBROUTINE BuildBCElemDistance()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Equation_Vars          ,ONLY: c
+USE MOD_Globals_Vars           ,ONLY: c
 USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared
@@ -3958,7 +3958,6 @@ END SUBROUTINE FinalizeParticleMesh
 !#if !(USE_HDG)
 !USE MOD_CalcTimeStep         ,ONLY: CalcTimeStep
 !#endif /*USE_HDG*/
-!USE MOD_Equation_Vars        ,ONLY: c
 !USE MOD_Particle_Vars        ,ONLY: manualtimestep
 !#if (PP_TimeDiscMethod==201)
 !USE MOD_Particle_Vars        ,ONLY: dt_part_ratio

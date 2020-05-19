@@ -46,7 +46,8 @@ SUBROUTINE EvalFluxJacobian(fJac,gJac,hJac)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Equation_Vars,ONLY:c2,c_corr,c_corr_c2
+USE MOD_Globals_Vars  ,ONLY: c2
+USE MOD_Equation_Vars ,ONLY: c_corr,c_corr_c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -94,7 +95,8 @@ SUBROUTINE EvalFluxJacobianDielectric(DielectricConstant_inv,fJac,gJac,hJac)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Equation_Vars,ONLY:c2,c_corr,c_corr_c2
+USE MOD_Globals_Vars  ,ONLY: c2
+USE MOD_Equation_Vars ,ONLY: c_corr,c_corr_c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

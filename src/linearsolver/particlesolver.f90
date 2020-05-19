@@ -151,13 +151,13 @@ SUBROUTINE SelectImplicitParticles()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Vars,     ONLY:Species,PartSpecies,PartIsImplicit,PDM,Pt,PartState
-USE MOD_Linearsolver_Vars, ONLY:PartImplicitMethod
-USE MOD_TimeDisc_Vars,     ONLY:dt,nRKStages,iter!,time
-USE MOD_Equation_Vars,     ONLY:c2_inv
-USE MOD_LinearSolver_Vars, ONLY:DoPrintConvInfo
+USE MOD_Particle_Vars     ,ONLY: Species,PartSpecies,PartIsImplicit,PDM,Pt,PartState
+USE MOD_Linearsolver_Vars ,ONLY: PartImplicitMethod
+USE MOD_TimeDisc_Vars     ,ONLY: dt,nRKStages,iter
+USE MOD_Globals_Vars      ,ONLY: c2_inv
+USE MOD_LinearSolver_Vars ,ONLY: DoPrintConvInfo
 #if USE_MPI
-USE MOD_Particle_MPI_Vars, ONLY:PartMPI
+USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -266,7 +266,7 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_MPI*/
 USE MOD_LinearSolver_vars      ,ONLY: Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,DoPrintConvInfo
 USE MOD_Part_RHS               ,ONLY: PartRHS
-USE MOD_Equation_vars          ,ONLY: c2_inv
+USE MOD_Globals_Vars           ,ONLY: c2_inv
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 #ifdef CODE_ANALYZE
@@ -693,7 +693,7 @@ USE MOD_LinearSolver_Vars      ,ONLY: Part_alpha, Part_sigma
 USE MOD_Part_RHS               ,ONLY: PartRHS
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
-USE MOD_Equation_Vars          ,ONLY: c2_inv
+USE MOD_Globals_Vars           ,ONLY: c2_inv
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_LinearSolver_Vars      ,ONLY: DoFullNewton,PartNewtonRelaxation

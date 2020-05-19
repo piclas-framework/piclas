@@ -59,20 +59,6 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Equation")
-
-!CALL prms%CreateRealOption(     'c_corr'           , 'TODO-DEFINE-PARAMETER Multiplied with c0 results in the velocity of '//&
-!     'introduced artificial correcting waves (HDC)' , '1.')
-CALL prms%CreateRealOption(     'c0'               , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Velocity of light (in vacuum)' , '1.')
-CALL prms%CreateRealOption(     'eps'              , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Electric constant (vacuum permittivity)' , '1.')
-CALL prms%CreateRealOption(     'mu'               , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Magnetic constant (vacuum permeability = 4πE−7H/m)' &
-                                                   , '1.')
-!CALL prms%CreateRealOption(     'fDamping'         , 'TODO-DEFINE-PARAMETER Apply the damping factor also to PML source terms\n'//&
-!     ' but only to PML variables for Phi_E and Phi_B to prevent charge-related\n'//&
-!     ' instabilities (accumulation of divergence compensation over \n'//&
-!     'timeU2 = U2 * fDamping' , '0.999')
 CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Define exact function necessary for linear scalar advection')
 CALL prms%CreateRealArrayOption('IniWavenumber'    , 'TODO-DEFINE-PARAMETER' , '1. , 1. , 1.')
@@ -99,12 +85,13 @@ SUBROUTINE InitEquation()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Preproc
-USE MOD_ReadInTools,             ONLY:GETREALARRAY,GETREAL,GETINT
-USE MOD_Interpolation_Vars,      ONLY:InterpolationInitIsDone
+USE MOD_ReadInTools        ,ONLY: GETREALARRAY,GETREAL,GETINT
+USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 USE MOD_Equation_Vars
 USE MOD_HDG_vars
-USE MOD_Mesh_Vars,               ONLY:nSides
+USE MOD_Mesh_Vars          ,ONLY: nSides
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -124,11 +111,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT POISSON...'
 
 ! Read the velocity vector from ini file
-Pi=ACOS(-1.)
 IniWavenumber     = GETREALARRAY('IniWavenumber',3,'1.,1.,1.')
-c                  = GETREAL('c0','1.')
-eps0               = GETREAL('eps','1.')
-mu0                = GETREAL('mu','1.')
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
 IniCenter    = GETREALARRAY('IniCenter',3,'0.,0.,0.')
@@ -136,10 +119,6 @@ IniAmplitude = GETREAL('IniAmplitude','0.1')
 IniHalfwidth = GETREAL('IniHalfwidth','0.1')
 ACfrequency = GETREAL('ACfrequency','0.0')
 ACamplitude = GETREAL('ACamplitude','0.0')
-c_inv  = 1./c
-c2     = c*c
-smu0=1./mu0
-c2_inv = 1./c2
 
 chitensWhichField = GETINT( 'chitensWhichField','-1')
 chitensValue      = GETREAL('chitensValue','-1.0')
@@ -186,12 +165,12 @@ SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,         ONLY:Abort,mpiroot
-USE MOD_Equation_Vars,   ONLY:Pi
-USE MOD_Equation_Vars,   ONLY: IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_Equation_Vars,   ONLY: ACfrequency,ACamplitude
-USE MOD_Dielectric_Vars, ONLY:DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
-USE MOD_Mesh_Vars,       ONLY:ElemBaryNGeo
+USE MOD_Globals         ,ONLY: Abort,mpiroot
+USE MOD_Globals_Vars    ,ONLY: PI
+USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
+USE MOD_Equation_Vars   ,ONLY: ACfrequency,ACamplitude
+USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
+USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -225,19 +204,19 @@ CASE(101) !constant
 CASE(2) !sinus
   Frequency=0.5
   Amplitude=0.3
-  Omega=2.*Pi*Frequency
+  Omega=2.*PI*Frequency
   Resu(:)=1.+Amplitude*SIN(Omega*SUM(Cent))
 CASE(30) !sinus: shifted by PI into the future (ACamplitude -> -1*ACamplitude)
-  Omega=2.*Pi*ACfrequency
+  Omega=2.*PI*ACfrequency
   Resu(:)=-ACamplitude*SIN(Omega*t)
 CASE(31) !sinus
-  Omega=2.*Pi*ACfrequency
+  Omega=2.*PI*ACfrequency
   Resu(:)=ACamplitude*SIN(Omega*t)
 CASE(32) !sinus
   resu=0.
 return
-  Omega=2.*Pi*ACfrequency
-  Resu(:)=ACamplitude*SIN(Omega*t-Pi)
+  Omega=2.*PI*ACfrequency
+  Resu(:)=ACamplitude*SIN(Omega*t-PI)
 CASE(102) !linear: z=-1: 0, z=1, 1000
   resu(:)=(1+x(3))*1000.
 CASE(103) ! dipole
@@ -534,7 +513,7 @@ USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition,DepositionType
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
 USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
-USE MOD_Equation_Vars      ,ONLY: eps0
+USE MOD_Globals_Vars       ,ONLY: eps0
 #if IMPA
 USE MOD_LinearSolver_Vars  ,ONLY: ExplicitPartSource
 #endif

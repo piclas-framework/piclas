@@ -47,11 +47,11 @@ SUBROUTINE GetBoundaryFlux(F_Face,BCType,BCState,xGP_Face,normal,t,tDeriv,U_Face
 ! Attention 2: U_FacePeriodic is only needed in the case of periodic boundary conditions
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,ONLY:Abort
+USE MOD_Globals       ,ONLY: Abort
 USE MOD_PreProc
-USE MOD_Riemann,ONLY:Riemann
-USE MOD_Equation,ONLY:ExactFunc
-USE MOD_Equation_Vars,ONLY:IniExactFunc
+USE MOD_Riemann       ,ONLY: Riemann
+USE MOD_Equation      ,ONLY: ExactFunc
+USE MOD_Equation_Vars ,ONLY: IniExactFunc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

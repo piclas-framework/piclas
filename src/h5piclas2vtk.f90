@@ -52,10 +52,11 @@ END MODULE MOD_h5piclas2vtk_Vars
 
 PROGRAM H5PICLAS2VTK
 ! MODULES
-USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_StringTools
 USE MOD_Commandline_Arguments
+USE MOD_Globals               ,ONLY: doPrintHelp,CollectiveStop,MPIRoot,iError,MPI_COMM_WORLD,PiclasTime,UNIT_stdOut,StartTime,abort
+USE MOD_Globals               ,ONLY: SetStackSizeUnlimited
 USE MOD_IO_HDF5               ,ONLY: InitIOHDF5,DefineParametersIO
 USE MOD_MPI                   ,ONLY: InitMPI
 USE MOD_ReadInTools           ,ONLY: prms,PrintDefaultParameterFile

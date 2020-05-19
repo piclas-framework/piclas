@@ -195,7 +195,7 @@ USE MOD_Mesh_Vars          ,ONLY: ElemToSide,PoyntingMainDir
 USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,S
 USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus,wGPSurf
 USE MOD_DG_Vars            ,ONLY: U,U_master
-USE MOD_Equation_Vars      ,ONLY: smu0
+USE MOD_Globals_Vars       ,ONLY: smu0
 USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,Dielectric_MuR_Master_inv,DoDielectric
 #if USE_MPI
   USE MOD_Globals
@@ -673,22 +673,22 @@ SUBROUTINE CalcPotentialEnergy(WEl, WMag, Wphi, Wpsi)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,          ONLY : nElems, sJ
-USE MOD_Interpolation_Vars, ONLY : wGP
-USE MOD_Equation_Vars,      ONLY : smu0, eps0
-#if !(USE_HDG)
-USE MOD_DG_Vars,            ONLY : U
+USE MOD_Mesh_Vars          ,ONLY: nElems, sJ
+USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Globals_Vars       ,ONLY: smu0, eps0
+#if ! (USE_HDG)
+USE MOD_DG_Vars            ,ONLY: U
 #endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==1
-USE MOD_Equation_Vars,        ONLY:E
+USE MOD_Equation_Vars      ,ONLY: E
 #elif PP_nVar==3
-USE MOD_Equation_Vars,        ONLY:B
+USE MOD_Equation_Vars      ,ONLY: B
 #else
-USE MOD_Equation_Vars,        ONLY:B,E
+USE MOD_Equation_Vars      ,ONLY: B,E
 #endif /*PP_nVar==1*/
 #else
-USE MOD_PML_Vars,             ONLY:DoPML,isPMLElem
+USE MOD_PML_Vars           ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -822,7 +822,7 @@ USE MOD_Interpolation_Vars ,ONLY: wGP
 #if (PP_nVar==8)
 USE MOD_Dielectric_vars    ,ONLY: DielectricMu
 #endif /*PP_nVar=8*/
-USE MOD_Equation_Vars      ,ONLY: smu0, eps0
+USE MOD_Globals_Vars       ,ONLY: smu0, eps0
 USE MOD_Dielectric_vars    ,ONLY: isDielectricElem,DielectricEps,ElemToDielectric
 #if !(USE_HDG)
 USE MOD_DG_Vars            ,ONLY: U
