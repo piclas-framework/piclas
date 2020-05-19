@@ -164,7 +164,7 @@ build_gnu_maxwell:
   script:
     - mkdir -p build_gnu_maxwell ; cd build_gnu_maxwell
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DPICLAS_PARTICLES=OFF -DPICLAS_BUILD_HDF5=OFF ; make -j all
+    - cmake .. -DPICLAS_PARTICLES=OFF -DPICLAS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; make -j all
 
 build_gnu_poisson:
   tags:
