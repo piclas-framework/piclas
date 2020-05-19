@@ -952,6 +952,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-WaveLength'  &
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-YieldSEE'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(     'Part-Species[$]-Init[$]-RepetitionRate'  &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticles
 
@@ -1736,10 +1739,11 @@ __STAMP__&
   .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'Photon_SEE_disc')) THEN
       Species(iSpec)%Init(iInit)%PulseDuration      = GETREAL('Part-Species'//TRIM(hilf2)//'-PulseDuration')
       Species(iSpec)%Init(iInit)%WaistRadius        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaistRadius')
-      Species(iSpec)%Init(iInit)%IntensityAmplitude        = GETREAL('Part-Species'//TRIM(hilf2)//'-IntensityAmplitude')
-      Species(iSpec)%Init(iInit)%WaveLength        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaveLength')
-      Species(iSpec)%Init(iInit)%YieldSEE        = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')
-      Species(iSpec)%Init(iInit)%NINT_Correction        = 0.0
+      Species(iSpec)%Init(iInit)%IntensityAmplitude = GETREAL('Part-Species'//TRIM(hilf2)//'-IntensityAmplitude')
+      Species(iSpec)%Init(iInit)%WaveLength         = GETREAL('Part-Species'//TRIM(hilf2)//'-WaveLength')
+      Species(iSpec)%Init(iInit)%YieldSEE           = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')
+      Species(iSpec)%Init(iInit)%RepetitionRate     = GETINT('Part-Species'//TRIM(hilf2)//'-RepetitionRate','1')
+      Species(iSpec)%Init(iInit)%NINT_Correction    = 0.0
       IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') THEN
         CALL FlagElements_Cylinder_PhotoIonization(iSpec,iInit)
       END IF

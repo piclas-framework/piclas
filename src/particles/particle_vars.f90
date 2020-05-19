@@ -238,6 +238,7 @@ TYPE tInit                                                                   ! P
   REAL                                    :: IntensityAmplitude
   REAL                                    :: WaveLength
   REAL                                    :: YieldSEE
+  INTEGER                                 :: RepetitionRate
   REAL                                    :: NINT_Correction
 END TYPE tInit
 

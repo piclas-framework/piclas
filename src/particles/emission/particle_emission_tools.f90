@@ -1260,9 +1260,8 @@ REAL, INTENT(OUT)          :: NbrOfPhotons
 ! LOCAL VARIABLES
 REAL                     :: t_1, t_2,lambda
 REAL                     :: E_Intensity
-REAL                     :: pi_local
 #ifdef LSERK
-INTEGER                  :: iStage_loc, nStage
+INTEGER                  :: iStage_loc, nStage, NbrOfRepetitions
 REAL                     :: RKdtFrac
 #endif
 !===================================================================================================================================
@@ -1271,49 +1270,46 @@ ASSOCIATE( tau    => Species(i)%Init(iInit)%PulseDuration           ,&
            w_b    => Species(i)%Init(iInit)%WaistRadius             ,&
            Radius => Species(i)%Init(iInit)%RadiusIC                ,&
            I_0    => Species(i)%Init(iInit)%IntensityAmplitude      ,&
-           lambda => Species(i)%Init(iInit)%WaveLength               &
+           lambda => Species(i)%Init(iInit)%WaveLength              ,&
+           f_rep  => Species(i)%Init(iInit)%RepetitionRate           &
           )
 
-! temporal bound of integration
-! add arbitrary time shift (-4 sigma_t) so that I_max is not at t=0s
-! sigma_t = tau / sqrt(2)
+NbrOfRepetitions = INT(Time/(SQRT(32.0)*tau))
+IF((NbrOfRepetitions+1).LE.f_rep) THEN
+  ! temporal bound of integration
 #ifdef LSERK
-!IF (iStage.EQ.1) THEN
-!t_1 = Time - SQRT(8.0) *tau
-!t_2 = Time + RK_b(iStage) * dt - SQRT(8.0) *tau
-!ELSE
-!  t_1 = Time - SQRT(8.0) *tau
-!  t_2 = Time + RK_b(1) * dt - SQRT(8.0) *tau
-!  nStage = iStage - 1
-!  DO iStage_loc = 1, nStage
-!    t_1 = t_1 + RK_b(iStage_loc) * dt
-!    t_2 = t_2 + RK_b(iStage_loc+1) * dt
-!  END DO
-IF (iStage.EQ.1) THEN
-t_1 = Time - SQRT(8.0) *tau
-t_2 = Time + RK_c(2) * dt - SQRT(8.0) *tau
-ELSE
-  IF (iStage.NE.nRKStages) THEN
-    t_1 = Time + RK_c(iStage) * dt - SQRT(8.0) *tau
-    t_2 = Time + RK_c(iStage+1) * dt - SQRT(8.0) *tau
+  IF (iStage.EQ.1) THEN
+  t_1 = Time
+  t_2 = Time + RK_c(2) * dt
   ELSE
-    t_1 = Time + RK_c(iStage) * dt - SQRT(8.0) *tau
-    t_2 = Time + dt - SQRT(8.0) *tau
+    IF (iStage.NE.nRKStages) THEN
+      t_1 = Time + RK_c(iStage) * dt
+      t_2 = Time + RK_c(iStage+1) * dt
+    ELSE
+      t_1 = Time + RK_c(iStage) * dt
+      t_2 = Time + dt
+    END IF
   END IF
-END IF
 #else
-t_1 = Time - SQRT(8.0) *tau
-t_2 = Time + dt - SQRT(8.0) *tau
+  t_1 = Time
+  t_2 = Time + dt
 #endif
-pi_local = PI*SQRT(PI)
-IF(t_1.LE.SQRT(32.0)*tau) THEN   ! temporal cutt-off (8*sigma_t)
-! integral of I(r,t) = I_0 exp(-(t/tau)**2)exp(-(r/w_b)**2)
-! for t = t_1 to t_2, r = 0 to Radius
-  E_Intensity = 0.5 * I_0 * pi_local * w_b**2 * tau &
-              * (1-EXP(-Radius**2/w_b**2)) &
-              * (ERF(t_2/tau)-ERF(t_1/tau))
-  NbrOfPhotons = E_Intensity / CalcPhotonEnergie(lambda)
-ELSE
+  ! add arbitrary time shift (-4 sigma_t) so that I_max is not at t=0s
+  ! sigma_t = tau / sqrt(2)
+  t_1 = t_1 - SQRT(8.0) *tau - NbrOfRepetitions * SQRT(32.0)*tau
+  t_2 = t_2 - SQRT(8.0) *tau - NbrOfRepetitions * SQRT(32.0)*tau
+  IF(t_1.LE.(SQRT(8.0)*tau)) THEN   ! temporal cutt-off (4*sigma_t)
+  ! integral of I(r,t) = I_0 exp(-(t/tau)**2)exp(-(r/w_b)**2)
+  ! for t = t_1 to t_2, r = 0 to Radius
+    E_Intensity = 0.5 * I_0 * PI**(3.0/2.0) * w_b**2 * tau &
+                * (1-EXP(-Radius**2/w_b**2)) &
+                * (ERF(t_2/tau)-ERF(t_1/tau))
+    NbrOfPhotons = E_Intensity / CalcPhotonEnergie(lambda)
+  ELSE
+    NbrOfPhotons = 0.0
+    Species(i)%Init(iInit)%NINT_Correction = 0.0
+  END IF
+ELSE ! NbrOfRepetitions .GT. RepetitionRate => Cutoff
   NbrOfPhotons = 0.0
   Species(i)%Init(iInit)%NINT_Correction = 0.0
 END IF
