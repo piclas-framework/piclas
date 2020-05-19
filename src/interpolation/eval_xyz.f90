@@ -73,7 +73,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)          :: ElemID                                 !< Global element index
 REAL,INTENT(IN)             :: x_in(3)                                !< position in physical space
-LOGICAL,INTENT(IN),OPTIONAL :: DoReUseMap                             !< flag if start values for newton elem mapping already exists
+LOGICAL,INTENT(IN),OPTIONAL :: DoReUseMap                             !< flag if start values for Newton elem mapping already exists
 LOGICAL,INTENT(IN),OPTIONAL :: ForceMode                              !< flag for mode change in RefElemNewton
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -445,7 +445,7 @@ END SUBROUTINE EvaluateFieldAtRefPos
 
 SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,ElemID,Mode,PartID)
 !=================================================================================================================================
-!> Netwon for finding the position inside the reference element [-1,1] for an arbitrary physical point
+!> Newton for finding the position inside the reference element [-1,1] for an arbitrary physical point
 !=================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals
@@ -462,7 +462,8 @@ USE MOD_Particle_Vars,           ONLY:PEM,LastPartPos
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: N_In,ElemID
+INTEGER,INTENT(IN)               :: N_In
+INTEGER,INTENT(IN)               :: ElemID                   !> ElemID on compute node, not global ID
 INTEGER,INTENT(IN)               :: Mode
 INTEGER,INTENT(IN),OPTIONAL      :: PartID
 REAL,INTENT(IN)                  :: X_in(3)                  !> position in physical space
@@ -472,7 +473,7 @@ REAL,INTENT(IN)                  :: dXCL_N_in(3,3,0:N_In,0:N_in,0:N_In) !> deriv
 REAL,INTENT(IN)                  :: wBaryCL_N_in(0:N_In)     !> derivation of CL points
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)               :: Xi(3) ! position in reference element
+REAL,INTENT(INOUT)               :: Xi(3)                    !> position in reference element
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                             :: Lag(1:3,0:N_In), F(1:3),Xi_Old(1:3)
@@ -824,7 +825,7 @@ getInv(3,3) = ( Mat(1,1) * Mat(2,2) - Mat(1,2) * Mat(2,1) ) * sdet
 END FUNCTION getInv
 
 
-SUBROUTINE GetRefNewtonStartValue(X_in,Xi,ElemID)
+SUBROUTINE GetRefNewtonStartValue(X_in,Xi,CNElemID)
 !===================================================================================================================================
 !> Returns the initial value/ guess for the Newton's algorithm
 !===================================================================================================================================
@@ -843,7 +844,7 @@ USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo_Shared,XCL_NGeo_Shared,Elem_x
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)             :: ElemID
+INTEGER,INTENT(IN)             :: CNElemID
 REAL,INTENT(IN)                :: X_in(1:3)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -864,23 +865,14 @@ ASSOCIATE(ElemBaryNGeo => ElemBaryNGeo_Shared)
 
 epsOne=1.0+RefMappingEps
 RefMappingGuessLoc=RefMappingGuess
-! the location of the Gauss-points within halo elements is not communicated. Instead of looking for the closest Gauss-point, the
-! closest CL-point is used
-! this is no longer true with the new halo region
-!IF(ElemID.GT.PP_nElems) THEN
-!  IF(DoRefMapping)THEN
-!    IF(RefMappingGuess.EQ.2) RefMappingGuessLoc=3
-!  ELSE
-!    IF(RefMappingGuess.EQ.2) RefMappingGuessLoc=1
-!  END IF
-!END IF
 
 SELECT CASE(RefMappingGuessLoc)
+
 CASE(1)
-  Ptild=X_in - ElemBaryNGeo(:,ElemID)
+    Ptild = X_in - ElemBaryNGeo(:,CNElemID)
   ! plus coord system (1-3) and minus coord system (4-6)
   DO iDir=1,6
-    XiLinear(iDir)=DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,ElemID))*slenXiEtaZetaBasis(iDir,ElemID)
+      XiLinear(iDir) = DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,CNElemID))*slenXiEtaZetaBasis(iDir,CNElemID)
   END DO
   ! compute guess as average value
   DO iDir=1,3
@@ -888,16 +880,17 @@ CASE(1)
   END DO
   ! limit xi to [-1,1]
   IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=MAX(MIN(1.0d0,Xi),-1.0d0)
+
 CASE(2)
   ! compute distance on Gauss Points
-  Winner_Dist=SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP_Shared(:,0,0,0,ElemID)),(x_in(:)-Elem_xGP_Shared(:,0,0,0,ElemID))))
+    Winner_Dist = SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP_Shared(:,0,0,0,CNElemID)),(x_in(:)-Elem_xGP_Shared(:,0,0,0,CNElemID))))
   Xi(:)=(/xGP(0),xGP(0),xGP(0)/) ! start value
   DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
-    dX=ABS(X_in(1) - Elem_xGP_Shared(1,i,j,k,ElemID))
+      dX = ABS(X_in(1) - Elem_xGP_Shared(1,i,j,k,CNElemID))
     IF(dX.GT.Winner_Dist) CYCLE
-    dY=ABS(X_in(2) - Elem_xGP_Shared(2,i,j,k,ElemID))
+      dY = ABS(X_in(2) - Elem_xGP_Shared(2,i,j,k,CNElemID))
     IF(dY.GT.Winner_Dist) CYCLE
-    dZ=ABS(X_in(3) - Elem_xGP_Shared(3,i,j,k,ElemID))
+      dZ = ABS(X_in(3) - Elem_xGP_Shared(3,i,j,k,CNElemID))
     IF(dZ.GT.Winner_Dist) CYCLE
     Dist=SQRT(dX*dX+dY*dY+dZ*dZ)
     IF (Dist.LT.Winner_Dist) THEN
@@ -905,16 +898,17 @@ CASE(2)
       Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
     END IF
   END DO; END DO; END DO
+
 CASE(3)
   ! compute distance on XCL Points
-  Winner_Dist=SQRT(DOT_PRODUCT((x_in(:)-XCL_NGeo_Shared(:,0,0,0,ElemID)),(x_in(:)-XCL_NGeo_Shared(:,0,0,0,ElemID))))
+    Winner_Dist = SQRT(DOT_PRODUCT((x_in(:)-XCL_NGeo_Shared(:,0,0,0,CNElemID)),(x_in(:)-XCL_NGeo_Shared(:,0,0,0,CNElemID))))
   Xi(:)=(/XiCL_NGeo(0),XiCL_NGeo(0),XiCL_NGeo(0)/) ! start value
   DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
-    dX=ABS(X_in(1) - XCL_NGeo_Shared(1,i,j,k,ElemID))
+      dX = ABS(X_in(1) - XCL_NGeo_Shared(1,i,j,k,CNElemID))
     IF(dX.GT.Winner_Dist) CYCLE
-    dY=ABS(X_in(2) - XCL_NGeo_Shared(2,i,j,k,ElemID))
+      dY = ABS(X_in(2) - XCL_NGeo_Shared(2,i,j,k,CNElemID))
     IF(dY.GT.Winner_Dist) CYCLE
-    dZ=ABS(X_in(3) - XCL_NGeo_Shared(3,i,j,k,ElemID))
+      dZ = ABS(X_in(3) - XCL_NGeo_Shared(3,i,j,k,CNElemID))
     IF(dZ.GT.Winner_Dist) CYCLE
     Dist=SQRT(dX*dX+dY*dY+dZ*dZ)
     IF (Dist.LT.Winner_Dist) THEN
@@ -922,6 +916,7 @@ CASE(3)
       Xi(:)=(/XiCL_NGeo(i),XiCL_NGeo(j),XiCL_NGeo(k)/) ! start value
     END IF
   END DO; END DO; END DO
+
 CASE(4)
   ! trivial guess
   xi=0.
