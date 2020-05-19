@@ -451,14 +451,14 @@ SUBROUTINE PorousBoundaryRemovalProb_Pressure()
 !===================================================================================================================================
 ! Determing the removal probability based on a target pressure at the porous boundary condition (can be used as a pump BC)
 ! 1) MPI communication of particles that impinged on halo sides to corresponding side
-! 2) Loop over all porous BCs
-!   a) Summing up the number of impinged particles for the whole BC surface
-!   2.1) Loop over all sides within each porous BC: a), b) & d) is only performed if the pumping speed is adapted
-!       a) Determining the delta between current gas mixture pressure in adjacent cell and target pressure
-!       b) Adapting the pumping capacity (m^3/s) according to pressure difference (control through proportional and integral part)
-!       c) Calculate the removal probability if any particles hit the pump
-!       d) Limit removal probability to values between 0 and 1
-!       e) Sampling of the pumping capacity (and other variables for PartAnalyze) for the output
+! 2) Compute the total number of impinged particles per porous BC on each surface comm leader (=compute node leader)
+! 3) Sum-up the number of impinged particles across whole simulation domain
+! 4.1) Loop over all sides: a), b) & d) is only performed if the pumping speed is adapted
+!     a) Determining the delta between current gas mixture pressure in adjacent cell and target pressure
+!     b) Adapting the pumping capacity (m^3/s) according to pressure difference (control through proportional and integral part)
+!     c) Calculate the removal probability if any particles hit the pump
+!     d) Limit removal probability to values between 0 and 1
+!     e) Sampling of the pumping capacity (and other variables for PartAnalyze) for the output
 ! 3) MPI communication of the removal probability to halo sides
 !===================================================================================================================================
 ! MODULES
@@ -468,7 +468,7 @@ USE MOD_Mesh_Vars,              ONLY:nElems,offsetElem
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPorousBCInfo
 USE MOD_Particle_Boundary_Vars, ONLY:SurfOnNode, SurfSide2GlobalSide
 USE MOD_Particle_Boundary_Vars, ONLY:nPorousBC, PorousBC, nPorousSides, PorousBCInfo_Shared, PorousBCOutput, PorousBCSampWall_Shared
-USE MOD_Particle_Boundary_Vars, ONLY:PorousBCProperties_Shared, SampWallPumpCapacity
+USE MOD_Particle_Boundary_Vars, ONLY:PorousBCProperties_Shared, SampWallPumpCapacity, PorousBCSampWall
 USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal, usevMPF, VarTimeStep
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Timedisc_Vars,          ONLY:dt
@@ -486,7 +486,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                       :: LocalElemID,GlobalElemID,SurfSideID,GlobalSideID,iPorousSide,iPBC
 REAL                          :: PumpingSpeedTemp,DeltaPressure,partWeight,SumPartPorousBC,dtVar
-REAL,ALLOCATABLE              :: SumPartImpinged(:)
+REAL                          :: SumPartImpinged(nPorousBC)
 !===================================================================================================================================
 
 IF (.NOT.SurfOnNode) RETURN
@@ -497,7 +497,6 @@ ELSE
   partWeight = Species(1)%MacroParticleFactor
 END IF
 
-ALLOCATE(SumPartImpinged(nPorousBC))
 SumPartImpinged = 0
 ! 1) MPI communication of particles that impinged on halo sides to corresponding side
 #if USE_MPI
@@ -505,11 +504,17 @@ CALL ExchangeImpingedPartPorousBC()
 #else
 PorousBCSampWall_Shared(1:2,1:nPorousSides) = PorousBCSampWall(1:2,1:nPorousSides)
 #endif
-DO iPorousSide = 1, nPorousSides
-  iPBC = PorousBCInfo_Shared(1,iPorousSide)
-  SumPartImpinged(iPBC) = SumPartImpinged(iPBC) + PorousBCSampWall_Shared(1,iPorousSide)
-END DO
 
+! 2) Compute the total number of impinged particles per porous BC on each surface comm leader (=compute node leader)
+IF (myComputeNodeRank.EQ.0) THEN
+  DO iPorousSide = 1, nPorousSides
+    iPBC = PorousBCInfo_Shared(1,iPorousSide)
+    SumPartImpinged(iPBC) = SumPartImpinged(iPBC) + PorousBCSampWall_Shared(1,iPorousSide)
+  END DO
+END IF
+
+! 3) Sum-up the number of impinged particles across whole simulation domain by communication of surface comm leaders and distribute
+!     the information to the processors on the node
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,SumPartImpinged(1:nPorousBC),nPorousBC,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SURF,iError)
@@ -517,7 +522,10 @@ END IF
 CALL MPI_BCAST(SumPartImpinged(1:nPorousBC),nPorousBC,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
 #endif
 
-! 2) Loop over all porous sides
+! Zero the output variable
+IF(CalcPorousBCInfo) PorousBCOutput = 0.
+
+! 4) Loop over all porous sides
 DO iPorousSide = 1, nPorousSides
   SurfSideID = PorousBCInfo_Shared(2,iPorousSide)
   GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,SurfSideID)
@@ -527,8 +535,6 @@ DO iPorousSide = 1, nPorousSides
   LocalElemID = GlobalElemID - offsetElem
   iPBC = PorousBCInfo_Shared(1,iPorousSide)
   SumPartPorousBC = SumPartImpinged(iPBC)
-  ! Zero the output variable
-  IF(CalcPorousBCInfo) PorousBCOutput = 0.
   ! Skip element if number density is zero
   IF(SUM(Adaptive_MacroVal(DSMC_NUMDENS,LocalElemID,1:nSpecies)).EQ.0.0) CYCLE
   ! Get the correct time step of the cell
@@ -604,9 +610,10 @@ DO iPorousSide = 1, nPorousSides
       PorousBCOutput(5,iPBC) = PorousBCOutput(5,iPBC) + SUM(Adaptive_MacroVal(12,LocalElemID,1:nSpecies)) / PorousBC(iPBC)%Pressure
     END IF
   END IF
-  ! Reset of the sampled particle numbers at the pump
-  PorousBCSampWall_Shared = 0
 END DO    ! iPorousSide = 1, nPorousSides
+
+! Reset of the sampled particle numbers at the pump
+PorousBCSampWall = 0.
 
 ! Exchange removal probability for halo cells
 #if USE_MPI

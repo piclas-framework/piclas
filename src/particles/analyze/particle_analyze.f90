@@ -213,6 +213,7 @@ USE MOD_Restart_Vars          ,ONLY: RestartTime
 #endif
 #if USE_MPI
 USE MOD_MPI_Shared            ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared_Vars       ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars    ,ONLY: nComputeNodeElems,offsetComputeNodeElem
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared_Win
@@ -377,6 +378,7 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
   CALL MPI_WIN_SYNC(ElemCharLengthX_Shared_Win,IERROR)
   CALL MPI_WIN_SYNC(ElemCharLengthY_Shared_Win,IERROR)
   CALL MPI_WIN_SYNC(ElemCharLengthZ_Shared_Win,IERROR)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif
 END IF
 
@@ -4208,7 +4210,6 @@ SUBROUTINE CalcCoupledPowerPart(iPart,mode)
 ! MODULES
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PEM
 USE MOD_Particle_Analyze_Vars   ,ONLY: PCoupl, PCouplAverage, PCouplSpec, EDiff
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Part_Tools              ,ONLY: isChargedParticle
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
@@ -4254,7 +4255,6 @@ USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_Globals               ,ONLY: abort,mpiroot
 USE MOD_Particle_Analyze_Vars ,ONLY: PCouplSpec
 USE MOD_Particle_Vars         ,ONLY: nSpecies,Species
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_Mesh_Vars             ,ONLY: nElems
 #if USE_MPI
 USE MOD_Globals

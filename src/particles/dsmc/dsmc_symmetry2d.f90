@@ -86,6 +86,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, 
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 #if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -184,6 +185,7 @@ LocalVolume = SUM(ElemVolume_Shared(FirstElem:LastElem))
 #if USE_MPI
 CALL MPI_WIN_SYNC(ElemVolume_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(ElemCharLength_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #endif /*USE_MPI*/
 MeshVolume = SUM(ElemVolume_Shared)
 
@@ -686,6 +688,11 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
   ! are swapped
     CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
     CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
+    ! Remove the mean MPF of this pair from the pair-specific summation (required as the new pair might be of a different type)
+    CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
+      - 0.5 * (GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))
+    CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
+      - 0.5 * (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))
     ! Breaking up the next pair and swapping partners
     tempPart = Coll_pData(iPair)%iPart_p1
     Coll_pData(iPair)%iPart_p1 = Coll_pData(iPair + 1)%iPart_p1
@@ -700,6 +707,7 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
     Coll_pData(iPair)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
                              + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
                              + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
+    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
     IF(Coll_pData(iPair)%CRela2.EQ.0.0) THEN
       ! If the relative velocity is still zero, add the pair to the identical particles count
       IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
@@ -716,6 +724,7 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
                                + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
                                + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
     Coll_pData(iPair+1)%PairType = iCase
+    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
   ELSE
     ! For the last pair, only invert the velocity in z and calculate new relative velocity
     iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2

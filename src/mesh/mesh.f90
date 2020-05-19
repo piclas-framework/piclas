@@ -137,6 +137,7 @@ USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #endif /*USE_LOADBALANCE*/
 USE MOD_ReadInTools            ,ONLY: PrintOption
 #ifdef PARTICLES
+USE MOD_Particle_Mesh_Vars     ,ONLY: meshScale
 USE MOD_Particle_Vars          ,ONLY: usevMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 #endif
@@ -152,12 +153,15 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: MeshFile_IN !< file name of mesh to be
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                :: x(3),meshScale
+REAL                :: x(3)
 REAL,POINTER        :: coords(:,:,:,:,:)
 INTEGER             :: iElem,i,j,k,nElemsLoc
 !CHARACTER(32)       :: hilf2
 CHARACTER(LEN=255)  :: FileName
 LOGICAL             :: validMesh,ExistFile
+#ifndef PARTICLES
+REAL                :: meshScale
+#endif
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(&
@@ -230,6 +234,9 @@ ELSE
   END IF
 END IF
 
+#if PARTICLES
+meshScale    = GETREAL('meshScale'   ,'1.0')
+#endif /*USE_PARTICLES*/
 CALL ReadMesh(MeshFile) !set nElems
 
 !schmutz fink
@@ -248,7 +255,9 @@ ELSE
 ENDIF
 
 ! scale and deform mesh if desired (warning: no mesh output!)
+#if !PARTICLES
 meshScale=GETREAL('meshScale','1.0')
+#endif /*!USE_PARTICLES*/
 IF(ABS(meshScale-1.).GT.1e-14)&
   Coords =Coords*meshScale
 

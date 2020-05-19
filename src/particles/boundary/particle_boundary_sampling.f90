@@ -104,6 +104,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactEnergy
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactVector
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
@@ -146,7 +147,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                                :: iBC,iSpec
 INTEGER                                :: iSide,firstSide,lastSide
-INTEGER                                :: nSurfSidesProc
+INTEGER                                :: nSurfSidesProc,nSurfSidesTmp
 INTEGER                                :: offsetSurfTotalSidesProc
 INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
 INTEGER,ALLOCATABLE                    :: SurfSide2GlobalSideProc(:,:)
@@ -154,7 +155,7 @@ INTEGER,ALLOCATABLE                    :: CalcSurfCollis_SpeciesRead(:)         
 CHARACTER(20)                          :: hilf,hilf2
 CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
 ! surface area
-INTEGER                                :: SideID,ElemID,LocSideID
+INTEGER                                :: SideID,ElemID,CNElemID,LocSideID
 INTEGER                                :: p,q,iSample,jSample
 INTEGER                                :: TriNum, Node1, Node2
 REAL                                   :: area,nVal
@@ -163,7 +164,6 @@ REAL,DIMENSION(:),ALLOCATABLE          :: Xi_NGeo,wGP_NGeo
 REAL                                   :: XiOut(1:2),E,F,G,D,tmp1,tmpI2,tmpJ2
 REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz
 #if USE_MPI
-INTEGER                                :: iLeader
 INTEGER                                :: offsetSurfSidesProc
 INTEGER                                :: GlobalElemID,GlobalElemRank
 INTEGER(KIND=MPI_ADDRESS_KIND)         :: MPISharedSize
@@ -201,8 +201,8 @@ END DO
 
 ! Allocate shared array for surf sides
 #if USE_MPI
-MPISharedSize = INT((3*nComputeNodeTotalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeTotalSides/),GlobalSide2SurfSide_Shared_Win,GlobalSide2SurfSide_Shared)
+MPISharedSize = INT((3*nNonUniqueGlobalSides),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
+CALL Allocate_Shared(MPISharedSize,(/3,nNonUniqueGlobalSides/),GlobalSide2SurfSide_Shared_Win,GlobalSide2SurfSide_Shared)
 CALL MPI_WIN_LOCK_ALL(0,GlobalSide2SurfSide_Shared_Win,IERROR)
 GlobalSide2SurfSide => GlobalSide2SurfSide_Shared
 #else
@@ -279,10 +279,10 @@ DO iSide = firstSide,lastSide
     ! check if element for this side is on the current compute-node
     ! IF ((SideInfo_Shared(SIDE_ID,iSide).GT.ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1))                  .AND. &
     !     (SideInfo_Shared(SIDE_ID,iSide).LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
-    IF ((iSide.GE.(ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1)+1))                  .AND. &
-        (iSide.LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
-      nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
-    END IF
+!    IF ((iSide.GE.(ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1)+1))                  .AND. &
+!        (iSide.LE.ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetComputeNodeElem+nComputeNodeElems))) THEN
+!      nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
+!    END IF
 
     ! TODO: Add another check to determine the surface side in halo_eps from current proc. Node-wide halo can become quite large with
     !       with 128 procs!
@@ -299,39 +299,27 @@ DO iSide = firstSide,lastSide
       GlobalSide2SurfSideProc(SURF_LEADER,iSide) = myLeaderGroupRank
     ELSE
       ! find the compute node
-      DO iLeader = 0,nLeaderGroupProcs-2
-        ! The last proc is not a leader proc, so catch it separately
-        IF ((GlobalElemRank.GE.MPIRankLeader(iLeader)).AND.(GlobalElemRank.LT.MPIRankLeader(iLeader+1))) THEN
-          GlobalSide2SurfSideProc(SURF_LEADER,iSide) = iLeader
-          EXIT
-        ELSE
-          GlobalSide2SurfSideProc(SURF_LEADER,iSide) = nLeaderGroupProcs-1
-          EXIT
+      GlobalSide2SurfSideProc(SURF_LEADER,iSide) = INT(GlobalElemRank/nComputeNodeProcessors)
         END IF
-      END DO
-    END IF
 #else
     GlobalSide2SurfSideProc(SURF_LEADER,iSide) = GlobalSide2SurfSideProc(SURF_RANK,iSide)
 #endif /*USE_MPI*/
 
     ! check if element for this side is on the current compute-node. Alternative version to the check above
-!    IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) THEN
-!      nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
-!    END IF
-
-    SurfSide2GlobalSideProc(SURF_SIDEID,nSurfSidesProc) = iSide
-    SurfSide2GlobalSideProc(2:3        ,nSurfSidesProc) = GlobalSide2SurfSideProc(2:3,iSide)
+    IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) THEN
+      nComputeNodeSurfSides  = nComputeNodeSurfSides + 1
+    END IF
   END IF ! reflective side
 END DO
 
 ! Find CN global number of total surf sides and write Side to Surf Side mapping into shared array
 #if USE_MPI
-sendbuf = nSurfSidesProc
+sendbuf = nSurfSidesProc - nComputeNodeSurfSides
 recvbuf = 0
 CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
 offsetSurfTotalSidesProc   = recvbuf
 ! last proc knows CN total number of BC elems
-sendbuf = offsetSurfTotalSidesProc + nSurfSidesProc
+sendbuf = offsetSurfTotalSidesProc + nSurfSidesProc - nComputeNodeSurfSides
 CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
 nComputeNodeSurfTotalSides = sendbuf
 
@@ -344,28 +332,38 @@ offsetSurfSidesProc   = recvbuf
 sendbuf = offsetSurfSidesProc + nComputeNodeSurfSides
 CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
 nComputeNodeSurfSides = sendbuf
+nComputeNodeSurfTotalSides = nComputeNodeSurfTotalSides + nComputeNodeSurfSides
 
 ! increment SURF_SIDEID by offset
+nSurfSidesTmp = 0
 DO iSide = firstSide,lastSide
   IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
 
   ! sort compute-node local sides first
   IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).EQ.myLeaderGroupRank) THEN
-    GlobalSide2SurfSideProc(SURF_SIDEID,iSide) = GlobalSide2SurfSideProc(SURF_SIDEID,iSide) + offsetSurfSidesProc
+    nSurfSidesTmp = nSurfSidesTmp + 1
+
     GlobalSide2SurfSide    (:          ,iSide) = GlobalSide2SurfSideProc(:          ,iSide)
-  ! sampling sides in halo region follow at the end
-  ELSE
-    GlobalSide2SurfSideProc(SURF_SIDEID,iSide) = GlobalSide2SurfSideProc(SURF_SIDEID,iSide) + nComputeNodeSurfSides     &
-                                                                                            + offsetSurfTotalSidesProc  &
-                                                                                            - offsetSurfSidesProc
-    GlobalSide2SurfSide    (:          ,iSide) = GlobalSide2SurfSideProc(:          ,iSide)
+    GlobalSide2SurfSide(SURF_SIDEID,iSide) = nSurfSidesTmp + offsetSurfSidesProc
   END IF
 END DO
 
+nSurfSidesTmp = 0
+DO iSide = firstSide,lastSide
+  IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
+
+  ! sampling sides in halo region follow at the end
+  IF (GlobalSide2SurfSideProc(SURF_LEADER,iSide).NE.myLeaderGroupRank) THEN
+    nSurfSidesTmp = nSurfSidesTmp + 1
+
+    GlobalSide2SurfSide    (:          ,iSide) = GlobalSide2SurfSideProc(:          ,iSide)
+    GlobalSide2SurfSide(SURF_SIDEID,iSide) = nSurfSidesTmp + nComputeNodeSurfSides + offsetSurfTotalSidesProc
+  END IF
+END DO
 #else
 offsetSurfTotalSidesProc  = 0
 nComputeNodeSurfTotalSides = nSurfSidesProc
-GlobalSide2SurfSide(:,firstSide:lastSide) = GlobalSide2SurfSide(:,firstSide:lastSide)
+GlobalSide2SurfSide(:,firstSide:lastSide) = GlobalSide2SurfSideProc(:,firstSide:lastSide)
 #endif /*USE_MPI*/
 
 ! Build inverse mapping
@@ -375,13 +373,12 @@ CALL Allocate_Shared(MPISharedSize,(/3,nComputeNodeSurfTotalSides/),SurfSide2Glo
 CALL MPI_WIN_LOCK_ALL(0,SurfSide2GlobalSide_Shared_Win,IERROR)
 SurfSide2GlobalSide => SurfSide2GlobalSide_Shared
 
-! This barrier MIGHT not be required
-CALL MPI_WIN_SYNC(GlobalSide2SurfSide_Shared_Win,IERROR)
-CALL MPI_WIN_SYNC(SurfSide2GlobalSide_Shared_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+DO iSide = firstSide,lastSide
+  IF (GlobalSide2SurfSideProc(SURF_SIDEID,iSide).EQ.-1) CYCLE
 
-SurfSide2GlobalSide(        : , offsetSurfTotalSidesProc+1:offsetSurfTotalSidesProc+nSurfSidesProc) &
-  = SurfSide2GlobalSideProc(: , 1                         :                         nSurfSidesProc)
+  SurfSide2GlobalSide(:          ,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = GlobalSide2SurfSide(:,iSide)
+  SurfSide2GlobalSide(SURF_SIDEID,GlobalSide2SurfSide(SURF_SIDEID,iSide)) = iSide
+END DO
 
 CALL MPI_WIN_SYNC(GlobalSide2SurfSide_Shared_Win,IERROR)
 CALL MPI_WIN_SYNC(SurfSide2GlobalSide_Shared_Win,IERROR)
@@ -404,16 +401,12 @@ IF (nComputeNodeSurfTotalSides.GT.0) SurfOnNode = .TRUE.
 IF (myComputeNodeRank.EQ.0) THEN
   CALL InitSurfCommunication()
 END IF
-! The leaders are synchronized at this point, but behind the other procs. Bring them back into sync
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-CALL MPI_BCAST(nSurfTotalSides,1,MPI_INTEGER,0,MPI_COMM_SHARED,iError)
+! The leaders are synchronized at this point, but behind the other procs. nSurfTotalSides is only required when compiled without
+! MPI, so perform latency hiding by postponing synchronization
 #else
 mySurfRank      = 0
 nSurfTotalSides = nComputeNodeSurfTotalSides
 #endif /* USE_MPI */
-
-!> User sanity check
-SWRITE(UNIT_stdOut,'(A,I8)') ' nGlobalSurfSides ', nSurfTotalSides
 
 !> Energy + Force + nSpecies
 SurfSampSize = 9+3+nSpecies
@@ -610,23 +603,24 @@ DO iSide = firstSide,LastSide
 
   IF (TriaTracking) THEN
     ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
+    CNElemID  = GetCNElemID(ElemID)
     LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
     area = 0.
-    xNod = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
-    yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
-    zNod = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,LocSideID,ElemID)+1)
+    xNod = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+    yNod = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+    zNod = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
     IF(Symmetry2D) THEN
       SurfSideArea(1,1,iSide) = DSMC_2D_CalcSymmetryArea(LocSideID,ElemID)
     ELSE
       DO TriNum = 1,2
         Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
         Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-        Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - xNod
-        Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - yNod
-        Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,LocSideID,ElemID)+1) - zNod
-        Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - xNod
-        Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - yNod
-        Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,LocSideID,ElemID)+1) - zNod
+        Vector1(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node1,LocSideID,CNElemID)+1) - xNod
+        Vector1(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node1,LocSideID,CNElemID)+1) - yNod
+        Vector1(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node1,LocSideID,CNElemID)+1) - zNod
+        Vector2(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(Node2,LocSideID,CNElemID)+1) - xNod
+        Vector2(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(Node2,LocSideID,CNElemID)+1) - yNod
+        Vector2(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(Node2,LocSideID,CNElemID)+1) - zNod
         nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
         ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
         nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
@@ -690,8 +684,13 @@ CALL MPI_BCAST(area,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
 DEALLOCATE(Xi_NGeo,wGP_NGeo)
 
 #if USE_MPI
+! Delayed synchronization
+CALL MPI_BCAST(nSurfTotalSides,1,MPI_INTEGER,0,MPI_COMM_SHARED,iError)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+
 IF (mySurfRank.EQ.0) THEN
 #endif
+  WRITE(UNIT_StdOut,'(A,I8)')       ' | Number of sampling sides:           '    , nSurfTotalSides
   WRITE(UNIT_StdOut,'(A,ES10.4E2)') ' | Surface-Area:                         ', Area
   WRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING DONE'
 #if USE_MPI
