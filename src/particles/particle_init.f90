@@ -608,7 +608,8 @@ CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-ParticleEmissionType'  
                                   '3 = user def. emission rate\n'//&
                                   '4 = const. cell pressure\n'//&
                                   '5 = cell pres. w. complete part removal\n'//&
-                                  '6 = outflow BC (characteristics method)', '2', numberedmulti=.TRUE.)
+                                  '6 = outflow BC (characteristics method)\n'//&
+                                  '7 = SEE Photon-Electron emission', '2', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ParticleEmission' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Emission in [1/s] or [1/Iteration]', '0.', numberedmulti=.TRUE.)
@@ -935,11 +936,20 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-halfangle'  &
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
 
-! ====================================== cylinder photoionization =================================================================
+! ====================================== photoionization =================================================================
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-PulseDuration'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-WaistRadius'  &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-IntensityAmplitude'  &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-WaveLength'  &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-YieldSEE'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
 
@@ -1721,10 +1731,18 @@ __STAMP__&
       END IF
     END IF
     ! Photoionization in cylinderical volume (modelling a laser pulse)
-    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') THEN
+    ! and SEE based on photonimpact on surface
+    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') &
+  .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'Photon_SEE_disc')) THEN
       Species(iSpec)%Init(iInit)%PulseDuration      = GETREAL('Part-Species'//TRIM(hilf2)//'-PulseDuration')
       Species(iSpec)%Init(iInit)%WaistRadius        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaistRadius')
-      CALL FlagElements_Cylinder_PhotoIonization(iSpec,iInit)
+      Species(iSpec)%Init(iInit)%IntensityAmplitude        = GETREAL('Part-Species'//TRIM(hilf2)//'-IntensityAmplitude')
+      Species(iSpec)%Init(iInit)%WaveLength        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaveLength')
+      Species(iSpec)%Init(iInit)%YieldSEE        = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')
+      Species(iSpec)%Init(iInit)%NINT_Correction        = 0.0
+      IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') THEN
+        CALL FlagElements_Cylinder_PhotoIonization(iSpec,iInit)
+      END IF
     END IF
     IF (Species(iSpec)%Init(iInit)%UseForEmission) THEN
       Species(iSpec)%Init(iInit)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf2)//'-ParticleEmissionType','2')

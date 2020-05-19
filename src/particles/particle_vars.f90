@@ -235,6 +235,10 @@ TYPE tInit                                                                   ! P
   REAL, ALLOCATABLE                       :: ElementRadius(:)
   REAL                                    :: PulseDuration
   REAL                                    :: WaistRadius
+  REAL                                    :: IntensityAmplitude
+  REAL                                    :: WaveLength
+  REAL                                    :: YieldSEE
+  REAL                                    :: NINT_Correction
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData

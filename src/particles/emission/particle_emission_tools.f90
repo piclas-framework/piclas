@@ -78,6 +78,10 @@ INTERFACE InsideExcludeRegionCheck
   MODULE PROCEDURE InsideExcludeRegionCheck
 END INTERFACE
 
+INTERFACE CalcNbrOfPhotons
+  MODULE PROCEDURE CalcNbrOfPhotons
+END INTERFACE
+
 #if CODE_ANALYZE
 INTERFACE CalcVectorAdditionCoeffs
   MODULE PROCEDURE CalcVectorAdditionCoeffs
@@ -89,6 +93,7 @@ PUBLIC :: CalcVelocity_taylorgreenvortex, CalcVelocity_emmert
 PUBLIC :: IntegerDivide,SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn,SamplePoissonDistri
 PUBLIC :: BessK,DEVI,SYNGE,QUASIREL
 PUBLIC :: SetCellLocalParticlePosition,InsideExcludeRegionCheck
+PUBLIC :: CalcNbrOfPhotons
 #if CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
@@ -1230,5 +1235,114 @@ END DO
 chunkSize = ichunkSize - 1
 
 END SUBROUTINE Insert_Cylinder_PhotoIonization
+
+SUBROUTINE CalcNbrOfPhotons(i,iInit,NbrOfPhotons)
+!===================================================================================================================================
+!> Calculation of Number of Photon based on intensity function integral of timestep and radius
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: PI
+USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Timedisc_Vars           ,ONLY : dt,time
+#ifdef LSERK
+USE MOD_Timedisc_Vars           ,ONLY : iStage, RK_b, RK_a, RK_c,nRKStages
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: i
+INTEGER, INTENT(IN)             :: iInit
+! INOUTPUT VARIABLES
+REAL, INTENT(OUT)          :: NbrOfPhotons
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                     :: t_1, t_2,lambda
+REAL                     :: E_Intensity
+REAL                     :: pi_local
+#ifdef LSERK
+INTEGER                  :: iStage_loc, nStage
+REAL                     :: RKdtFrac
+#endif
+!===================================================================================================================================
+
+ASSOCIATE( tau    => Species(i)%Init(iInit)%PulseDuration           ,&
+           w_b    => Species(i)%Init(iInit)%WaistRadius             ,&
+           Radius => Species(i)%Init(iInit)%RadiusIC                ,&
+           I_0    => Species(i)%Init(iInit)%IntensityAmplitude      ,&
+           lambda => Species(i)%Init(iInit)%WaveLength               &
+          )
+
+! temporal bound of integration
+! add arbitrary time shift (-4 sigma_t) so that I_max is not at t=0s
+! sigma_t = tau / sqrt(2)
+#ifdef LSERK
+!IF (iStage.EQ.1) THEN
+!t_1 = Time - SQRT(8.0) *tau
+!t_2 = Time + RK_b(iStage) * dt - SQRT(8.0) *tau
+!ELSE
+!  t_1 = Time - SQRT(8.0) *tau
+!  t_2 = Time + RK_b(1) * dt - SQRT(8.0) *tau
+!  nStage = iStage - 1
+!  DO iStage_loc = 1, nStage
+!    t_1 = t_1 + RK_b(iStage_loc) * dt
+!    t_2 = t_2 + RK_b(iStage_loc+1) * dt
+!  END DO
+IF (iStage.EQ.1) THEN
+t_1 = Time - SQRT(8.0) *tau
+t_2 = Time + RK_c(2) * dt - SQRT(8.0) *tau
+ELSE
+  IF (iStage.NE.nRKStages) THEN
+    t_1 = Time + RK_c(iStage) * dt - SQRT(8.0) *tau
+    t_2 = Time + RK_c(iStage+1) * dt - SQRT(8.0) *tau
+  ELSE
+    t_1 = Time + RK_c(iStage) * dt - SQRT(8.0) *tau
+    t_2 = Time + dt - SQRT(8.0) *tau
+  END IF
+END IF
+#else
+t_1 = Time - SQRT(8.0) *tau
+t_2 = Time + dt - SQRT(8.0) *tau
+#endif
+pi_local = PI*SQRT(PI)
+IF(t_1.LE.SQRT(32.0)*tau) THEN   ! temporal cutt-off (8*sigma_t)
+! integral of I(r,t) = I_0 exp(-(t/tau)**2)exp(-(r/w_b)**2)
+! for t = t_1 to t_2, r = 0 to Radius
+  E_Intensity = 0.5 * I_0 * pi_local * w_b**2 * tau &
+              * (1-EXP(-Radius**2/w_b**2)) &
+              * (ERF(t_2/tau)-ERF(t_1/tau))
+  NbrOfPhotons = E_Intensity / CalcPhotonEnergie(lambda)
+ELSE
+  NbrOfPhotons = 0.0
+  Species(i)%Init(iInit)%NINT_Correction = 0.0
+END IF
+
+END ASSOCIATE
+
+END SUBROUTINE CalcNbrOfPhotons
+
+PURE FUNCTION CalcPhotonEnergie(lambda)
+!===================================================================================================================================
+!> Calculation of photon energie based on wavelength
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars          ,ONLY: PlanckConst
+USE MOD_Equation_Vars         ,ONLY: c
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)         :: lambda
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                     :: CalcPhotonEnergie
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+CalcPhotonEnergie = PlanckConst * c / lambda
+
+END FUNCTION CalcPhotonEnergie
 
 END MODULE MOD_part_emission_tools

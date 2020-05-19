@@ -387,7 +387,7 @@ USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_part_pressure          ,ONLY: ParticlePressure, ParticlePressureRem
-USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri
+USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri,CalcNbrOfPhotons
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -406,7 +406,7 @@ INTEGER                , SAVE    :: NbrOfParticle=0
 INTEGER(KIND=8)                  :: inserted_Particle_iter,inserted_Particle_time
 INTEGER(KIND=8)                  :: inserted_Particle_diff
 REAL                             :: PartIns, RandVal1
-REAL                             :: RiseFactor, RiseTime
+REAL                             :: RiseFactor, RiseTime,NbrOfPhotons
 #if USE_MPI
 INTEGER                          :: mode
 INTEGER                          :: InitGroup
@@ -536,6 +536,12 @@ __STAMP__&
 __STAMP__&
 ,' particle pressure not moved in picasso!')
           CALL ParticlePressureRem (i, iInit, NbrOfParticle)
+        CASE(7) ! SEE based on photonimpact
+          CALL CalcNbrOfPhotons(i, iInit, NbrOfPhotons)
+          NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / Species(i)%MacroParticleFactor &
+                       + Species(i)%Init(iInit)%NINT_Correction 
+          NbrOfParticle = NINT( NbrOfPhotons )
+          Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - NbrOfParticle
         CASE DEFAULT
           NbrOfParticle = 0
         END SELECT
