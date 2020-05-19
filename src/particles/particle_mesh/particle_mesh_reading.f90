@@ -275,6 +275,7 @@ INTEGER                        :: nNodeIDs,offsetNodeID
 INTEGER,ALLOCATABLE            :: NodeInfo(:)
 REAL,ALLOCATABLE               :: NodeCoords_indx(:,:)
 INTEGER                        :: CornerNodeIDswitch(8)
+REAL,ALLOCATABLE               :: NodeCoordsTmp(:,:,:,:),NodeCoordsNew(:,:,:,:)
 #if USE_MPI
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 #endif
@@ -315,12 +316,10 @@ IF (useCurveds.OR.NGeo.EQ.1) THEN
   CALL Allocate_Shared(MPISharedSize,(/3,nNonUniqueGlobalNodes/),NodeCoords_Shared_Win,NodeCoords_Shared)
   CALL MPI_WIN_LOCK_ALL(0,NodeCoords_Shared_Win,IERROR)
   NodeCoords_Shared(:,offsetNodeID+1:offsetNodeID+nNodeIDs) = NodeCoords_indx(:,:)
-  CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 #else
   nComputeNodeNodes = nNodeIDs
-  ALLOCATE(NodeInfo_Shared(1:nNodeIDs))
-  NodeInfo_Shared(1:nNodeIDs) = NodeInfo(:)
+!  ALLOCATE(NodeInfo_Shared(1:nNodeIDs))
+!  NodeInfo_Shared(1:nNodeIDs) = NodeInfo(:)
   ALLOCATE(NodeCoords_Shared(3,nNodeIDs))
   NodeCoords_Shared(:,:) = NodeCoords_indx(:,:)
 #endif  /*USE_MPI*/
@@ -340,7 +339,7 @@ ELSE
   ! New crazy corner node switch (philipesque)
   ASSOCIATE(CNS => CornerNodeIDswitch)
 
-  ! Only the 8 corner nodes count for nodes
+  ! Only the 8 corner nodes count for nodes. (NGeo+1)**2 = 8
   nComputeNodeNodes = 8*nComputeNodeElems
 
 #if USE_MPI
@@ -352,9 +351,10 @@ ELSE
 #endif  /*USE_MPI*/
 
   ! throw away all nodes except the 8 corner nodes of each hexa
+  nNonUniqueGlobalNodes = 8*nGlobalElems
+
   DO iElem = FirstElemInd,LastElemInd
-    FirstNodeInd = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem)
-    ! throw away all nodes except the 8 corner nodes of each hexa
+    FirstNodeInd = ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) - offsetNodeID
     ElemInfo_Shared(ELEM_FIRSTNODEIND,iElem) = 8*(iElem-1)
     ElemInfo_Shared(ELEM_LASTNODEIND ,iElem) = 8* iElem
     DO iNode = 1,8
@@ -362,13 +362,26 @@ ELSE
     END DO
   END DO
 
-#if USE_MPI
-  CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
-  CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-#endif  /*USE_MPI*/
-
   END ASSOCIATE
+
 END IF
+
+! Update node counters
+offsetNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nNodeIDs     = ElemInfo_Shared(ELEM_LASTNODEIND ,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemind)
+FirstNodeInd = offsetNodeID+1
+LastNodeInd  = offsetNodeID+nNodeIDs
+
+! scale mesh if desired. Mesh deformation currently not supported!
+IF (ABS(meshScale-1.).GT.1e-14) THEN
+  print *, meshScale
+  NodeCoords_Shared(:,FirstNodeInd:LastNodeInd) = NodeCoords_Shared(:,FirstNodeInd:LastNodeInd) * meshScale
+END IF
+
+#if USE_MPI
+CALL MPI_WIN_SYNC(NodeCoords_Shared_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+#endif  /*USE_MPI*/
 
 DEALLOCATE(NodeInfo,NodeCoords_indx)
 
@@ -472,15 +485,15 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 ! calculate all offsets
 FirstElemInd = offsetElem+1
 LastElemInd  = offsetElem+nElems
-offsetSideID = ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
-nSideIDs     = ElemInfo(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
+offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND ,LastElemInd) - ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
 offsetNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
 nNodeIDs     = ElemInfo_Shared(ELEM_LASTNODEIND,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemind)
 #else
 FirstElemInd = 1
 LastElemInd  = nElems
-offsetSideID = ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
-nSideIDs     = ElemInfo(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
+offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
 #endif /*USE_MPI*/
 
 #if USE_MPI
@@ -614,7 +627,7 @@ DO iElem = FirstElemInd,LastElemInd
     NbElemID    = SideInfo_Shared(SIDE_NBELEMID,iSide)
     IF(NbElemID.EQ.0) THEN
       SideInfo_Shared(SIDE_NBSIDEID,iSide) = 0
-    ELSE IF (NbElemID.LT.-1) THEN
+    ELSE IF (NbElemID.LE.-1) THEN
       SideInfo_Shared(SIDE_NBSIDEID,iSide) = -1
     ELSE
       nlocSidesNb = ElemInfo_Shared(ELEM_LASTSIDEIND,NbElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,NbElemID)
