@@ -2464,7 +2464,6 @@ REAL,ALLOCATABLE               :: tmpSideBCDistance(:)
 INTEGER,ALLOCATABLE            :: intSideBCMetrics(:)
 #if USE_MPI
 REAL                           :: BC_halo_eps_velo,BC_halo_diag,deltaT
-INTEGER                        :: iStage
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPISharedSize
 INTEGER                        :: sendbuf,recvbuf
 #endif /*USE_MPI*/
