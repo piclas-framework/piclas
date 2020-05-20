@@ -240,6 +240,8 @@ TYPE tInit                                                                   ! P
   REAL                                    :: YieldSEE
   INTEGER                                 :: RepetitionRate
   REAL                                    :: NINT_Correction
+  REAL                                    :: WorkFunctionSEE
+  REAL                                    :: AngularBetaSEE
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData

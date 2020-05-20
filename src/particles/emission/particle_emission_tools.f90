@@ -86,6 +86,10 @@ INTERFACE CalcLaserIntensity
   MODULE PROCEDURE CalcLaserIntensity
 END INTERFACE
 
+INTERFACE CalcVelocity_FromWorkFuncSEE
+  MODULE PROCEDURE CalcVelocity_FromWorkFuncSEE
+END INTERFACE
+
 #if CODE_ANALYZE
 INTERFACE CalcVectorAdditionCoeffs
   MODULE PROCEDURE CalcVectorAdditionCoeffs
@@ -99,6 +103,7 @@ PUBLIC :: BessK,DEVI,SYNGE,QUASIREL
 PUBLIC :: SetCellLocalParticlePosition,InsideExcludeRegionCheck
 PUBLIC :: CalcNbrOfPhotons
 PUBLIC :: CalcLaserIntensity
+PUBLIC :: CalcVelocity_FromWorkFuncSEE
 #if CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
@@ -1265,8 +1270,9 @@ REAL, INTENT(OUT)          :: NbrOfPhotons
 ! LOCAL VARIABLES
 REAL                     :: t_1, t_2,lambda
 REAL                     :: E_Intensity
+INTEGER                  :: NbrOfRepetitions
 #ifdef LSERK
-INTEGER                  :: iStage_loc, nStage, NbrOfRepetitions
+INTEGER                  :: iStage_loc, nStage
 REAL                     :: RKdtFrac
 #endif
 !===================================================================================================================================
@@ -1345,5 +1351,70 @@ REAL                     :: CalcPhotonEnergie
 CalcPhotonEnergie = PlanckConst * c / lambda
 
 END FUNCTION CalcPhotonEnergie
+
+SUBROUTINE CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit)
+!===================================================================================================================================
+! Subroutine to sample photon SEE electrons velocities from given energy distribution based on work function
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars            ,ONLY: PI
+USE MOD_Particle_Vars           ,ONLY: Species
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: FractNbr
+INTEGER,INTENT(IN), OPTIONAL     :: iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                 :: Vec3D(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                             :: RandVal
+REAL                             :: E_temp, E_max, VeloABS
+REAL                             :: Theta, Phi, Psi_temp
+REAL                             :: PDF_temp, PDF_max
+LOGICAL                          :: ARM_SEE_PDF
+!===================================================================================================================================
+
+ASSOCIATE( W    => Species(FractNbr)%Init(iInit)%WorkFunctionSEE    ,&
+           m    => Species(FractNbr)%MassIC                         ,&
+           beta => Species(FractNbr)%Init(iInit)%AngularBetaSEE      )
+
+! ARM for energy distribution
+E_max = 50.0 ! in eV (arbitrary)
+PDF_max = 81.0 / (128.0 * W)  ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
+ARM_SEE_PDF=.TRUE.
+DO WHILE(ARM_SEE_PDF)
+  CALL RANDOM_NUMBER(RandVal)
+  E_temp = RandVal * E_max
+  PDF_temp = 6 * W**2 * E_temp / (E_temp + W)**4
+  CALL RANDOM_NUMBER(RandVal)
+  IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
+END DO
+VeloABS = SQRT(2.0 * E_temp / m)
+
+! ARM for angular distribution
+CALL RANDOM_NUMBER(RandVal)
+Theta = RandVal * 2.0 * PI
+PDF_max = -(2.0*(beta+4.0)) / (PI * (beta-8.0))
+ARM_SEE_PDF=.TRUE.
+DO WHILE(ARM_SEE_PDF)
+  CALL RANDOM_NUMBER(RandVal)
+  Psi_temp = RandVal * PI
+  PDF_temp = ( (1.0 - beta / 2.0) + 3.0/4.0*beta*SIN(Psi_temp)**2 ) &
+           / (PI-PI*beta/8.0)
+  CALL RANDOM_NUMBER(RandVal)
+  IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
+END DO
+Phi = Psi_temp + Theta - PI/2.0
+! Construct VeloVec based on nVec and both angles
+
+Vec3D(1) = 1
+Vec3D(2) = 1
+Vec3D(3) = 1
+
+END ASSOCIATE
+
+END SUBROUTINE CalcVelocity_FromWorkFuncSEE
 
 END MODULE MOD_part_emission_tools

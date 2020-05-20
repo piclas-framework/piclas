@@ -1658,7 +1658,7 @@ USE MOD_Timedisc_Vars         ,ONLY: dt
 USE MOD_Equation_Vars         ,ONLY: c,c2
 USE MOD_PICInterpolation_vars ,ONLY: externalField
 USE MOD_part_emission_tools   ,ONLY: CalcVelocity_maxwell_lpn,BessK,DEVI,SYNGE,QUASIREL,CalcVelocity_taylorgreenvortex
-USE MOD_part_emission_tools   ,ONLY: CalcVelocity_emmert
+USE MOD_part_emission_tools   ,ONLY: CalcVelocity_emmert,CalcVelocity_FromWorkFuncSEE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)               :: FractNbr,iInit,init_or_sf
@@ -2340,6 +2340,18 @@ CASE('OneD-twostreaminstabilty')
 
 CASE('IMD') ! read IMD particle velocity from *.chkpt file -> velocity space has already been read when particles position was done
   ! do nothing
+CASE('Photon_SEE_Energy')
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr .NE. 0) THEN
+!       IF (Is_ElemMacro) THEN
+         CALL CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit=iInit)
+!       ELSE
+!         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
+!       END IF
+       PartState(4:6,PositionNbr) = Vec3D(1:3)
+    END IF
+  END DO
 CASE DEFAULT
   CALL abort(&
 __STAMP__&

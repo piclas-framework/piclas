@@ -955,6 +955,12 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-YieldSEE'  &
 CALL prms%CreateIntOption(     'Part-Species[$]-Init[$]-RepetitionRate'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-WorkFunctionSEE'  &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-AngularBetaSEE'  &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticles
 
@@ -1686,6 +1692,10 @@ DO iSpec = 1, nSpecies
 __STAMP__&
           ,' Wrong input parameter for VelocitySpread in [0;1].')
       Species(iSpec)%Init(iInit)%VelocitySpreadMethod  = GETINT('Part-Species'//TRIM(hilf2)//'-velocityspreadmethod','0')
+    END IF
+    IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'Photon_SEE_Energy')THEN
+      Species(iSpec)%Init(iInit)%WorkFunctionSEE  = GETREAL('Part-Species'//TRIM(hilf2)//'-WorkFunctionSEE')
+      Species(iSpec)%Init(iInit)%AngularBetaSEE  = GETREAL('Part-Species'//TRIM(hilf2)//'-AngularBetaSEE')
     END IF
     Species(iSpec)%Init(iInit)%InflowRiseTime        = GETREAL('Part-Species'//TRIM(hilf2)//'-InflowRiseTime','0.')
     IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
