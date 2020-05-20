@@ -73,7 +73,7 @@ USE MOD_Equation_vars          ,ONLY: c_inv
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_part_emission_tools    ,ONLY: IntegerDivide,CalcVelocity_maxwell_lpn,SamplePoissonDistri,SetCellLocalParticlePosition
 USE MOD_part_emission_tools    ,ONLY: InsideExcludeRegionCheck
-USE MOD_part_emission_tools    ,ONLY: Insert_Cylinder_Photoionization
+USE MOD_part_emission_tools    ,ONLY: Insert_Cylinder_Photoionization, CalcLaserIntensity
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -116,6 +116,7 @@ REAL                                     :: intersecPoint(3), orifice_delta, lPe
 INTEGER                                  :: DimSend, orificePeriodic
 LOGICAL                                  :: orificePeriodicLog(2), insideExcludeRegion
 LOGICAL                                  :: DoExactPartNumInsert
+LOGICAL                                  :: ARM_Gauss
 #if USE_MPI
 INTEGER                                  :: InitGroup,nChunksTemp,mySumOfRemovedParticles
 INTEGER,ALLOCATABLE                      :: PartFoundInProc(:,:) ! 1 proc id, 2 local part id
@@ -545,7 +546,8 @@ __STAMP__&
 
       DO i=1,chunkSize
          radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1
-         DO WHILE(radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC)
+         ARM_Gauss = .TRUE.
+         DO WHILE((radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC).OR.(ARM_Gauss))
             CALL RANDOM_NUMBER(RandVal)
             RandVal = RandVal * 2. - 1.
             Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%RadiusIC * &
@@ -557,6 +559,10 @@ __STAMP__&
                            (Particle_pos(2)-Species(FractNbr)%Init(iInit)%BasePointIC(2)) + &
                            (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) * &
                            (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) )
+            ! Start ARM for Gauss distribution
+            CALL RANDOM_NUMBER(RandVal1)
+            IF(CalcLaserIntensity(radius,Species(FractNbr)%Init(iInit)%WaistRadius).GT.RandVal1) ARM_Gauss = .FALSE.
+            ! End ARM for Gauss distribution
          END DO
          particle_positions(i*3-2) = Particle_pos(1)
          particle_positions(i*3-1) = Particle_pos(2)

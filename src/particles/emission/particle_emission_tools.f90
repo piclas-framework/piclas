@@ -82,6 +82,10 @@ INTERFACE CalcNbrOfPhotons
   MODULE PROCEDURE CalcNbrOfPhotons
 END INTERFACE
 
+INTERFACE CalcLaserIntensity
+  MODULE PROCEDURE CalcLaserIntensity
+END INTERFACE
+
 #if CODE_ANALYZE
 INTERFACE CalcVectorAdditionCoeffs
   MODULE PROCEDURE CalcVectorAdditionCoeffs
@@ -94,6 +98,7 @@ PUBLIC :: IntegerDivide,SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_max
 PUBLIC :: BessK,DEVI,SYNGE,QUASIREL
 PUBLIC :: SetCellLocalParticlePosition,InsideExcludeRegionCheck
 PUBLIC :: CalcNbrOfPhotons
+PUBLIC :: CalcLaserIntensity
 #if CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
