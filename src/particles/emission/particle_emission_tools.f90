@@ -1357,7 +1357,8 @@ SUBROUTINE CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit)
 ! Subroutine to sample photon SEE electrons velocities from given energy distribution based on work function
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars            ,ONLY: PI
+USE MOD_Globals    !             ,ONLY: CROSS
+USE MOD_Globals_Vars            ,ONLY: PI, ElementaryCharge
 USE MOD_Particle_Vars           ,ONLY: Species
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1371,14 +1372,17 @@ REAL,INTENT(OUT)                 :: Vec3D(3)
 ! LOCAL VARIABLES
 REAL                             :: RandVal
 REAL                             :: E_temp, E_max, VeloABS
-REAL                             :: Theta, Phi, Psi_temp
+REAL                             :: Theta, Chi, Psi_temp
 REAL                             :: PDF_temp, PDF_max
+REAL                             :: VeloVec_norm(3), RotationAxi(3)
 LOGICAL                          :: ARM_SEE_PDF
 !===================================================================================================================================
 
-ASSOCIATE( W    => Species(FractNbr)%Init(iInit)%WorkFunctionSEE    ,&
-           m    => Species(FractNbr)%MassIC                         ,&
-           beta => Species(FractNbr)%Init(iInit)%AngularBetaSEE      )
+ASSOCIATE( W     => Species(FractNbr)%Init(iInit)%WorkFunctionSEE    ,&
+           m     => Species(FractNbr)%MassIC                         ,&
+           beta  => Species(FractNbr)%Init(iInit)%AngularBetaSEE     ,&
+           t_vec => Species(FractNbr)%Init(iInit)%BaseVector1IC      ,&
+           n_vec => Species(FractNbr)%Init(iInit)%NormalIC            )
 
 ! ARM for energy distribution
 E_max = 50.0 ! in eV (arbitrary)
@@ -1391,27 +1395,34 @@ DO WHILE(ARM_SEE_PDF)
   CALL RANDOM_NUMBER(RandVal)
   IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
 END DO
-VeloABS = SQRT(2.0 * E_temp / m)
+VeloABS = SQRT(2.0 * E_temp * ElementaryCharge / m)
 
 ! ARM for angular distribution
 CALL RANDOM_NUMBER(RandVal)
-Theta = RandVal * 2.0 * PI
+Chi = RandVal * 2.0 * PI
 PDF_max = -(2.0*(beta+4.0)) / (PI * (beta-8.0))
 ARM_SEE_PDF=.TRUE.
 DO WHILE(ARM_SEE_PDF)
   CALL RANDOM_NUMBER(RandVal)
-  Psi_temp = RandVal * PI
+  Psi_temp =0.5 * PI * (1.0 + RandVal)
+!  Psi_temp = 0.5 * PI * RandVal
   PDF_temp = ( (1.0 - beta / 2.0) + 3.0/4.0*beta*SIN(Psi_temp)**2 ) &
            / (PI-PI*beta/8.0)
   CALL RANDOM_NUMBER(RandVal)
   IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
 END DO
-Phi = Psi_temp + Theta - PI/2.0
-! Construct VeloVec based on nVec and both angles
+Theta = PI - Psi_temp
 
-Vec3D(1) = 1
-Vec3D(2) = 1
-Vec3D(3) = 1
+! Construct norm. VeloVec based on n_vec, t_vec, Theta and Chi
+! first:  rotation of t_vec about n_vec with Chi (anzimuthal)
+RotationAxi = n_vec
+VeloVec_norm = t_vec * COS(Chi) + CROSS(RotationAxi,t_vec) * SIN(Chi)
+! second: rotation of VeloVec_norm about RotationAxi with Theta (pi/2-theta)
+RotationAxi = CROSS(VeloVec_norm,n_vec)
+VeloVec_norm = VeloVec_norm * SIN(Theta) + CROSS(RotationAxi,VeloVec_norm) * COS(Theta)
+
+! Calc VeloVec
+Vec3D = VeloVec_norm * VeloABS
 
 END ASSOCIATE
 
