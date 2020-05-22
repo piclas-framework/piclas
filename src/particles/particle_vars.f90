@@ -242,6 +242,7 @@ TYPE tInit                                                                   ! P
   REAL                                    :: NINT_Correction
   REAL                                    :: WorkFunctionSEE
   REAL                                    :: AngularBetaSEE
+  REAL                                    :: EffectivIntensityFac
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData

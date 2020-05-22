@@ -961,6 +961,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-WorkFunctionSEE'  &
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-AngularBetaSEE'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-EffectivIntensityFac'  &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticles
 
@@ -1746,16 +1749,20 @@ __STAMP__&
     ! Photoionization in cylinderical volume (modelling a laser pulse)
     ! and SEE based on photonimpact on surface
     IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') &
-  .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'Photon_SEE_disc')) THEN
+   .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'Photon_SEE_disc')          &
+   .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'Photon_Cylinder')) THEN
       Species(iSpec)%Init(iInit)%PulseDuration      = GETREAL('Part-Species'//TRIM(hilf2)//'-PulseDuration')
       Species(iSpec)%Init(iInit)%WaistRadius        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaistRadius')
       Species(iSpec)%Init(iInit)%IntensityAmplitude = GETREAL('Part-Species'//TRIM(hilf2)//'-IntensityAmplitude')
       Species(iSpec)%Init(iInit)%WaveLength         = GETREAL('Part-Species'//TRIM(hilf2)//'-WaveLength')
-      Species(iSpec)%Init(iInit)%YieldSEE           = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')
       Species(iSpec)%Init(iInit)%RepetitionRate     = GETINT('Part-Species'//TRIM(hilf2)//'-RepetitionRate','1')
       Species(iSpec)%Init(iInit)%NINT_Correction    = 0.0
-      IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') THEN
+      IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') &
+     .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'Photon_Cylinder')) THEN
+        Species(iSpec)%Init(iInit)%EffectivIntensityFac = GETREAL('Part-Species'//TRIM(hilf2)//'-EffectivIntensityFac')
         CALL FlagElements_Cylinder_PhotoIonization(iSpec,iInit)
+      ELSE
+        Species(iSpec)%Init(iInit)%YieldSEE           = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')
       END IF
     END IF
     IF (Species(iSpec)%Init(iInit)%UseForEmission) THEN

@@ -2158,7 +2158,7 @@ DO iSpec=1,nSpecies
         xCoords(1:3,8)=origin + (/ -radius , -radius , radius /)
       END ASSOCIATE
       RegionOnProc=BoxInProc(xCoords,8)
-    CASE('cylinder','cylinder_photoionization')
+    CASE('cylinder','cylinder_photoionization','Photon_Cylinder')
       lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
       lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &

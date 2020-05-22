@@ -568,6 +568,73 @@ __STAMP__&
          particle_positions(i*3-1) = Particle_pos(2)
          particle_positions(i*3  ) = Particle_pos(3)
       END DO
+    !------------------SpaceIC-case: special cylinder case for photonionization----------------------------------------------------
+    CASE('Photon_Cylinder')
+      IF (Species(FractNbr)%Init(iInit)%NormalIC(3).NE.0) THEN
+        lineVector(1) = 1.0
+        lineVector(2) = 1.0
+        lineVector(3) = -(Species(FractNbr)%Init(iInit)%NormalIC(1)+Species(FractNbr)%Init(iInit)%NormalIC(2))/ &
+                         Species(FractNbr)%Init(iInit)%NormalIC(3)
+      ELSE
+        IF (Species(FractNbr)%Init(iInit)%NormalIC(2).NE.0) THEN
+          lineVector(1) = 1.0
+          lineVector(3) = 1.0
+          lineVector(2) = -(Species(FractNbr)%Init(iInit)%NormalIC(1)+Species(FractNbr)%Init(iInit)%NormalIC(3))/ &
+                            Species(FractNbr)%Init(iInit)%NormalIC(2)
+        ELSE
+          IF (Species(FractNbr)%Init(iInit)%NormalIC(1).NE.0) THEN
+            lineVector(2) = 1.0
+            lineVector(3) = 1.0
+            lineVector(1) = -(Species(FractNbr)%Init(iInit)%NormalIC(2)+Species(FractNbr)%Init(iInit)%NormalIC(3))/ &
+                 Species(FractNbr)%Init(iInit)%NormalIC(1)
+          ELSE
+            CALL abort(&
+__STAMP__&
+,'Error in SetParticlePosition, NormalIC Vektor darf nicht Nullvektor sein')
+          END IF
+        END IF
+      END IF
+
+      lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * &
+           lineVector(2) + lineVector(3) * lineVector(3))
+
+      lineVector2(1) = Species(FractNbr)%Init(iInit)%NormalIC(2) * lineVector(3) - &
+           Species(FractNbr)%Init(iInit)%NormalIC(3) * lineVector(2)
+      lineVector2(2) = Species(FractNbr)%Init(iInit)%NormalIC(3) * lineVector(1) - &
+           Species(FractNbr)%Init(iInit)%NormalIC(1) * lineVector(3)
+      lineVector2(3) = Species(FractNbr)%Init(iInit)%NormalIC(1) * lineVector(2) - &
+           Species(FractNbr)%Init(iInit)%NormalIC(2) * lineVector(1)
+
+      lineVector2 = lineVector2 / SQRT(lineVector2(1) * lineVector2(1) + lineVector2(2) * &
+           lineVector2(2) + lineVector2(3) * lineVector2(3))
+
+      DO i=1,chunkSize
+         radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1
+         ARM_Gauss = .TRUE.
+         DO WHILE((radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC).OR.(ARM_Gauss))
+            CALL RANDOM_NUMBER(RandVal)
+            RandVal = RandVal * 2. - 1.
+            Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%RadiusIC * &
+                     (RandVal(1) * lineVector + RandVal(2) *lineVector2)
+
+            radius = SQRT( (Particle_pos(1)-Species(FractNbr)%Init(iInit)%BasePointIC(1)) * &
+                           (Particle_pos(1)-Species(FractNbr)%Init(iInit)%BasePointIC(1)) + &
+                           (Particle_pos(2)-Species(FractNbr)%Init(iInit)%BasePointIC(2)) * &
+                           (Particle_pos(2)-Species(FractNbr)%Init(iInit)%BasePointIC(2)) + &
+                           (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) * &
+                           (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) )
+            ! Start ARM for Gauss distribution
+            CALL RANDOM_NUMBER(RandVal1)
+            IF(CalcLaserIntensity(radius,Species(FractNbr)%Init(iInit)%WaistRadius).GT.RandVal1) ARM_Gauss = .FALSE.
+            ! End ARM for Gauss distribution
+         END DO
+         CALL RANDOM_NUMBER(RandVal1)
+         Particle_pos = Particle_pos &
+                      + Species(FractNbr)%Init(iInit)%NormalIC * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal1
+         particle_positions(i*3-2) = Particle_pos(1)
+         particle_positions(i*3-1) = Particle_pos(2)
+         particle_positions(i*3  ) = Particle_pos(3)
+      END DO
     CASE('circle')
       IF (Species(FractNbr)%Init(iInit)%NormalIC(3).NE.0) THEN
          lineVector(1) = 1.0

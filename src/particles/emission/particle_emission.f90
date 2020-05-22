@@ -542,6 +542,12 @@ __STAMP__&
                        + Species(i)%Init(iInit)%NINT_Correction 
           NbrOfParticle = NINT( NbrOfPhotons )
           Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - NbrOfParticle
+        CASE(8) ! SEE based on photonimpact
+          CALL CalcNbrOfPhotons(i, iInit, NbrOfPhotons)
+          NbrOfPhotons = Species(i)%Init(iInit)%EffectivIntensityFac * NbrOfPhotons / Species(i)%MacroParticleFactor &
+                       + Species(i)%Init(iInit)%NINT_Correction 
+          NbrOfParticle = NINT( NbrOfPhotons )
+          Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - NbrOfParticle
         CASE DEFAULT
           NbrOfParticle = 0
         END SELECT
