@@ -40,6 +40,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: BGGas_Initialize, BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
+PUBLIC :: BGGas_PhotoIonization
 !===================================================================================================================================
 
 CONTAINS
@@ -641,5 +642,150 @@ BGGas%PairingPartner = 0
 CALL UpdateNextFreePosition()
 
 END SUBROUTINE BGGas_DeleteParticles
+
+
+SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,InsertedNbrOfParticles)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcMeanFreePath
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles, XSec_NullCollision
+USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_DSMC_Init               ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_part_pos_and_velo       ,ONLY: SetParticleVelocity
+USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefmapping
+USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry
+USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iSpec,iInit,InsertedNbrOfParticles
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, NewParticleIndex, bgSpec, NbrOfParticle
+!===================================================================================================================================
+ChemReac%NumPhotoIonization = 0
+! 1) Compute the number of photoioinzation events in the local domain of each proc
+DO iReac = 1, ChemReac%NumOfReact
+  ! Only treat photoionization reactions
+  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
+  ChemReac%NumPhotoIonization(iReac) = INT(InsertedNbrOfParticles*ChemReac%CrossSection(iReac)/SUM(ChemReac%CrossSection))
+END DO
+
+IF(InsertedNbrOfParticles.GT.SUM(ChemReac%NumPhotoIonization)) THEN
+  ! Delete left-over inserted particles
+  DO iPart = SUM(ChemReac%NumPhotoIonization),InsertedNbrOfParticles
+    PDM%ParticleInside(PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)) = .FALSE.
+  END DO
+ELSE IF(InsertedNbrOfParticles.LT.SUM(ChemReac%NumPhotoIonization)) THEN
+  print*, InsertedNbrOfParticles, SUM(ChemReac%NumPhotoIonization)
+  CALL Abort(&
+    __STAMP__&
+    ,'ERROR in PhotoIonization: Something is wrong, trying to perform more reactions than anticipated!')
+END IF
+
+NbrOfParticle = SUM(ChemReac%NumPhotoIonization)
+
+ALLOCATE(Coll_pData(NbrOfParticle))
+Coll_pData%Ec=0
+DSMCSumOfFormedParticles = 0
+
+iPart = 1; iNewPart = 0; iPair = 0
+
+DO WHILE (iPart.LE.NbrOfParticle)
+  ! Loop over the particles with a set position (from SetParticlePosition)
+  ParticleIndex = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+  IF(ParticleIndex.NE.0) THEN
+    iNewPart = iNewPart + 1
+    ! Get a new index for the background gas particle
+    NewParticleIndex = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition+NbrOfParticle)
+    IF (NewParticleIndex.EQ.0) THEN
+      CALL Abort(&
+        __STAMP__&
+        ,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
+    END IF
+    PartState(1:3,NewParticleIndex) = PartState(1:3,ParticleIndex)
+    IF(DoRefMapping)THEN ! here Nearst-GP is missing
+      PartPosRef(1:3,NewParticleIndex)=PartPosRef(1:3,ParticleIndex)
+    END IF
+    bgSpec = BGGas_GetSpecies()
+    PartSpecies(NewParticleIndex) = bgSpec
+    PartSpecies(ParticleIndex) = iSpec
+    IF(CollisMode.GT.1) THEN
+      IF(SpecDSMC(bgSpec)%PolyatomicMol) THEN
+        CALL DSMC_SetInternalEnr_Poly(bgSpec,0,NewParticleIndex,1)
+      ELSE
+        CALL DSMC_SetInternalEnr_LauxVFD(bgSpec,0,NewParticleIndex,1)
+      END IF
+    END IF
+    CALL CalcVelocity_maxwell_lpn(FractNbr=bgSpec, Vec3D=PartState(4:6,NewParticleIndex), iInit=0)
+    ! Particle flags
+    PDM%ParticleInside(NewParticleIndex)  = .TRUE.
+    PDM%IsNewPart(NewParticleIndex)       = .TRUE.
+    PDM%dtFracPush(NewParticleIndex)      = .FALSE.
+    ! Particle element
+    PEM%Element(NewParticleIndex) = PEM%Element(ParticleIndex)
+    ! Pairing
+    Coll_pData(iNewPart)%iPart_p1 = NewParticleIndex
+    Coll_pData(iNewPart)%iPart_p2 = ParticleIndex
+    ! Relative velocity is simply the background gas velocity
+    Coll_pData(iNewPart)%CRela2 = DOTPRODUCT(PartState(4:6,NewParticleIndex))
+    ! ATTENTION: Hack for chemistry!
+    Coll_pData(iNewPart)%PairType = CollInf%Coll_Case(bgSpec, bgSpec)
+    ! Weighting factor
+    IF(usevMPF) THEN
+      PartMPF(NewParticleIndex) = Species(bgSpec)%MacroParticleFactor
+      PartMPF(ParticleIndex) = Species(iSpec)%MacroParticleFactor
+    END IF
+    ! Internal energies
+    PartStateIntEn(1:3,ParticleIndex) = 0.
+  ELSE
+    CALL Abort(&
+      __STAMP__&
+      ,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
+  END IF
+  iPart = iPart + 1
+END DO
+
+! Add the particles initialized through the emission and the background particles
+PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle + iNewPart
+! Update the current next free position
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle + iNewPart
+
+IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
+  CALL Abort(&
+    __STAMP__&
+    ,'ERROR in PhotoIonization: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &
+    , IntInfoOpt=PDM%ParticleVecLength)
+END IF
+
+DO iReac = 1, ChemReac%NumOfReact
+  ! Only treat photoionization reactions
+  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
+  DO iPart = 1, ChemReac%NumPhotoIonization(iReac)
+    iPair = iPair + 1
+    CALL DSMC_Chemistry(iPair, iReac)
+  END DO
+END DO
+
+! Advance particle vector length and the current next free position with newly created particles
+PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
+
+DSMCSumOfFormedParticles = 0
+
+DEALLOCATE(Coll_pData)
+
+END SUBROUTINE BGGas_PhotoIonization
+
 
 END MODULE MOD_DSMC_BGGas

@@ -42,7 +42,7 @@ SUBROUTINE DSMC_chemical_init()
   USE MOD_DSMC_Vars,              ONLY: ChemReac,CollisMode, DSMC, QKAnalytic, SpecDSMC, BGGas
   USE MOD_ReadInTools
   USE MOD_Globals
-  USE MOD_Globals_Vars,           ONLY: BoltzmannConst
+  USE MOD_Globals_Vars,           ONLY: BoltzmannConst, ElementaryCharge
   USE MOD_PARTICLE_Vars,          ONLY: nSpecies
   USE MOD_Particle_Analyze_Vars,  ONLY: ChemEnergySum
   USE MOD_DSMC_ChemReact,         ONLY: CalcPartitionFunction, CalcQKAnalyticRate
@@ -150,6 +150,12 @@ __STAMP__&
     ALLOCATE(ChemReac%DoScat(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%ReactInfo(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%TLU_FileName(ChemReac%NumOfReact))
+    ALLOCATE(ChemReac%PhotonEnergy(ChemReac%NumOfReact))
+    ChemReac%PhotonEnergy = 0.
+    ALLOCATE(ChemReac%CrossSection(ChemReac%NumOfReact))
+    ChemReac%CrossSection = 0.
+    ALLOCATE(ChemReac%NumPhotoIonization(ChemReac%NumOfReact))
+    ChemReac%NumPhotoIonization = 0
 
     IF (BGGas%NumberOfSpecies.GT.0) THEN
       DO iSpec = 1, nSpecies
@@ -203,7 +209,10 @@ __STAMP__&
       END IF
       ! ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','0')
       ! ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','0')
-
+      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+        ChemReac%PhotonEnergy(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-PhotonEnergy_eV') * ElementaryCharge
+        ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
+      END IF
       ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
       IF((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK')) THEN
         IF((ChemReac%DefinedReact(iReac,1,2).EQ.0).AND.(ChemReac%DefinedReact(iReac,2,2).EQ.0)) THEN
@@ -270,6 +279,11 @@ __STAMP__&
           END IF
           MaxElecQua=SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxElecQuant - 1
           ChemReac%EForm(iReac) = - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%ElectronicState(2,MaxElecQua)*BoltzmannConst
+        END IF
+        IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+          ! Photo-ionization reactions 
+          ChemReac%EForm(iReac) = ChemReac%EForm(iReac) + ChemReac%PhotonEnergy(iReac)
+          print*, iReac, ChemReac%EForm(iReac)
         END IF
       END DO
     END DO
@@ -374,11 +388,11 @@ __STAMP__&
           CALL abort(__STAMP__,&
           'Recombination - Error in Definition: Not all reactant species are defined! ReacNbr: ',iReac)
         END IF
-      ELSE
-        IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)).EQ.0) THEN
-          CALL abort(__STAMP__,&
-          'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
-        END IF
+      ! ELSE
+      !   IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)).EQ.0) THEN
+      !     CALL abort(__STAMP__,&
+      !     'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
+      !   END IF
       END IF
       ! Proof of product definition
       IF (TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
@@ -407,6 +421,14 @@ __STAMP__&
     PairCombID = 0
     CALL DSMC_BuildChem_IDArray(PairCombID)
 
+    ! Case: photo-ionization (NOT to be included in regular chemistry)
+    DO iReac = 1, ChemReac%NumOfReact
+      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+        IF(.NOT.YetDefined_Help(iReac)) THEN
+          YetDefined_Help(iReac) = .TRUE.
+        END IF
+      END IF
+    END DO
 
     ! Case 6: One ionization and one ion recombination possible
     DO iReac = 1, ChemReac%NumOfReact
@@ -868,6 +890,7 @@ SUBROUTINE Calc_Arrhenius_Factors()
 !===================================================================================================================================
 
   DO iReac = 1, ChemReac%NumOfReact
+    IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') CYCLE
     ! Calculate the Arrhenius arrays only if the reaction is not a QK reaction
     IF (.NOT.ChemReac%QKProcedure(iReac)) THEN
       ! Compute VHS Factor H_ab necessary for reaction probs, only defined for one omega for all species (laux diss page 24)

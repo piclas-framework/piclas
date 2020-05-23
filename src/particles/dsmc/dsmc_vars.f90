@@ -444,6 +444,9 @@ TYPE tChemReactions
   TYPE(tReactInfo), ALLOCATABLE   :: ReactInfo(:)           ! Information of Reactions (nReactions)
   INTEGER                         :: NumDeleteProducts      !
   INTEGER, ALLOCATABLE            :: DeleteProductsList(:)  !
+  REAL, ALLOCATABLE               :: PhotonEnergy(:)
+  REAL, ALLOCATABLE               :: CrossSection(:)
+  INTEGER, ALLOCATABLE            :: NumPhotoIonization(:)
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac

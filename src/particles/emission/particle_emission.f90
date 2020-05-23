@@ -389,6 +389,8 @@ USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_part_pressure          ,ONLY: ParticlePressure, ParticlePressureRem
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri,CalcNbrOfPhotons
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
+USE MOD_DSMC_BGGas             ,ONLY: BGGas_PhotoIonization
+USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -411,6 +413,7 @@ REAL                             :: RiseFactor, RiseTime,NbrOfPhotons
 INTEGER                          :: mode
 INTEGER                          :: InitGroup
 #endif
+INTEGER                          :: NbrOfReactions
 !===================================================================================================================================
 #if USE_MPI
 IF (PRESENT(mode_opt)) THEN
@@ -542,12 +545,13 @@ __STAMP__&
                        + Species(i)%Init(iInit)%NINT_Correction 
           NbrOfParticle = NINT( NbrOfPhotons )
           Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - NbrOfParticle
-        CASE(8) ! SEE based on photonimpact
+        CASE(8) ! Photo-ionization in the volume
           CALL CalcNbrOfPhotons(i, iInit, NbrOfPhotons)
-          NbrOfPhotons = Species(i)%Init(iInit)%EffectivIntensityFac * NbrOfPhotons / Species(i)%MacroParticleFactor &
-                       + Species(i)%Init(iInit)%NINT_Correction 
-          NbrOfParticle = NINT( NbrOfPhotons )
-          Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - NbrOfParticle
+          ! Calculation of the number of photons (using actual number and applying the weighting factor on the number of reactions)
+          NbrOfPhotons = Species(i)%Init(iInit)%EffectivIntensityFac * NbrOfPhotons
+          ! Calculation of the number of electron resulting from the chemical reactions in the photoionization region
+          CALL CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
+          NbrOfParticle = NbrOfReactions
         CASE DEFAULT
           NbrOfParticle = 0
         END SELECT
@@ -559,6 +563,11 @@ __STAMP__&
 #else
         CALL SetParticlePosition(i,iInit,NbrOfParticle)
 #endif
+        ! Pairing of "electrons" with the background species and performing the reaction
+        IF(Species(i)%Init(iInit)%ParticleEmissionType.EQ.8) THEN
+          CALL BGGas_PhotoIonization(i,iInit,NbrOfParticle)
+          CYCLE
+        END IF
        CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
        CALL SetParticleChargeAndMass(i,NbrOfParticle)
        IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(i,NbrOfParticle)

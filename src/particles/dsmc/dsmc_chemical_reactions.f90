@@ -55,6 +55,7 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb, CalcBackwardRate, gammainc, CalcPartitionFunction
 PUBLIC :: CalcQKAnalyticRate, GetQKAnalyticRate
+PUBLIC :: CalcPhotoIonizationNumber
 !===================================================================================================================================
 
 CONTAINS
@@ -417,6 +418,8 @@ USE MOD_part_operations        ,ONLY: RemoveParticle
 USE MOD_Globals                ,ONLY: unit_stdout,myrank
 USE MOD_Particle_Vars          ,ONLY: Symmetry2D
 #endif /* CODE_ANALYZE */
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,nPartOut,PartEkinIn,PartEkinOut
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -428,7 +431,7 @@ INTEGER, INTENT(IN), OPTIONAL :: iPart_p3
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ReactInx(1:3), ProductReac(1:3), EductReac(1:3), nProd, nDOFMAX, iProd, iPolyatMole, iSpec
-INTEGER                       :: SpecToDelete
+INTEGER                       :: SpecToDelete, iPart
 REAL                          :: FracMassCent1, FracMassCent2, MassRed     ! mx/(mx+my)
 REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
 REAL                          :: RanVelox, RanVeloy, RanVeloz , RanVec(3)   ! random relativ velo
@@ -463,6 +466,10 @@ END IF
 EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
 ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
 
+IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+  EductReac(2) = EductReac(1)
+END IF
+
 IF(PRESENT(iPart_p3)) THEN
   ReactInx(3) = iPart_p3
   IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
@@ -479,6 +486,13 @@ IF(PRESENT(iPart_p3)) THEN
   END IF
 END IF
 
+IF(CalcPartBalance) THEN
+  DO iPart = 1, NINT(NumWeightEduct)
+    nPartOut(EductReac(iPart))=nPartOut(EductReac(iPart)) + 1
+    PartEkinOut(EductReac(iPart))=PartEkinOut(EductReac(iPart))+CalcEkinPart(ReactInx(iPart))
+  END DO
+END IF
+
 Weight1 = GetParticleWeight(ReactInx(1))
 Weight2 = GetParticleWeight(ReactInx(2))
 IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(iPart_p3)
@@ -486,6 +500,8 @@ IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(iPart_p3)
 IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
   ReducedMass = Species(EductReac(1))%MassIC*Weight1 * Species(EductReac(2))%MassIC*Weight2 &
               / (Species(EductReac(1))%MassIC*Weight1 + Species(EductReac(2))%MassIC*Weight2)
+ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'phIon') THEN
+  ReducedMass = Species(EductReac(1))%MassIC
 ELSE
   ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
 END IF
@@ -1042,6 +1058,13 @@ IF(ChemReac%NumDeleteProducts.GT.0) THEN
   END DO
 END IF
 
+IF(CalcPartBalance) THEN
+  DO iPart = 1, NINT(NumWeightProd)
+    nPartIn(ProductReac(iPart))=nPartIn(ProductReac(iPart)) + 1
+    PartEkinIn(ProductReac(iPart))=PartEkinIn(ProductReac(iPart))+CalcEkinPart(ReactInx(iPart))
+  END DO
+END IF
+
 #ifdef CODE_ANALYZE
 ! Check for energy difference
 IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
@@ -1588,5 +1611,45 @@ FUNCTION gammainc( arg )
     gammainc=exp(-arg(2)+arg(1)*log(arg(2))-gln) * h
   END IF
 END FUNCTION gammainc
+
+
+SUBROUTINE CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Equation_Vars         ,ONLY: c
+USE MOD_Particle_Vars         ,ONLY: Species
+USE MOD_DSMC_Vars             ,ONLY: BGGas, ChemReac
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)              :: NbrOfPhotons
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER, INTENT(OUT)          :: NbrOfReactions
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: bgSpec, iReac
+!===================================================================================================================================
+
+NbrOfReactions = 0.
+
+DO iReac = 1, ChemReac%NumOfReact
+  ! Only treat photoionization reactions
+  IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
+  ! First educt of the reaction is the actual heavy particle species
+  bgSpec = BGGas%MapSpecToBGSpec(ChemReac%DefinedReact(iReac,1,1))
+  ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
+  ! Number of reactions: N = Z * dt * V (number of photons cancels out the volume)
+  ChemReac%NumPhotoIonization(iReac) = NINT(BGGas%NumberDensity(bgSpec) * NbrOfPhotons * ChemReac%CrossSection(iReac) * c &
+                                            / Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor)
+  NbrOfReactions = NbrOfReactions + ChemReac%NumPhotoIonization(iReac)
+END DO
+
+END SUBROUTINE CalcPhotoIonizationNumber
+
 
 END MODULE MOD_DSMC_ChemReact
