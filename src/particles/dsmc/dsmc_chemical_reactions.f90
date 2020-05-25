@@ -1619,9 +1619,10 @@ SUBROUTINE CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Equation_Vars         ,ONLY: c
-USE MOD_Particle_Vars         ,ONLY: Species
-USE MOD_DSMC_Vars             ,ONLY: BGGas, ChemReac
+USE MOD_Equation_Vars ,ONLY: c
+USE MOD_Particle_Vars ,ONLY: Species
+USE MOD_DSMC_Vars     ,ONLY: BGGas, ChemReac
+USE MOD_TimeDisc_Vars ,ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1640,12 +1641,12 @@ NbrOfReactions = 0.
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
   IF(TRIM(ChemReac%ReactType(iReac)).NE.'phIon') CYCLE
-  ! First educt of the reaction is the actual heavy particle species
+  ! First reactant of the reaction is the actual heavy particle species
   bgSpec = BGGas%MapSpecToBGSpec(ChemReac%DefinedReact(iReac,1,1))
   ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
   ! Number of reactions: N = Z * dt * V (number of photons cancels out the volume)
   ChemReac%NumPhotoIonization(iReac) = NINT(BGGas%NumberDensity(bgSpec) * NbrOfPhotons * ChemReac%CrossSection(iReac) * c &
-                                            / Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor)
+                                            *dt / Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor)
   NbrOfReactions = NbrOfReactions + ChemReac%NumPhotoIonization(iReac)
 END DO
 

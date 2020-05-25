@@ -123,6 +123,8 @@ INTEGER,ALLOCATABLE                      :: PartFoundInProc(:,:) ! 1 proc id, 2 
 REAL,ALLOCATABLE                         :: ProcMeshVol(:)
 INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
 #endif
+REAL                                     :: percent
+CHARACTER(LEN=255)                       :: helpstr
 !===================================================================================================================================
 ! emission group communicator
 #if USE_MPI
@@ -1663,29 +1665,23 @@ __STAMP__&
 #endif
     IF( Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) ) THEN
       IF ((nbrOfParticle .NE. sumOfMatchedParticles).AND.OutputVpiWarnings) THEN
-        SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
-        SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-        SWRITE(UNIT_StdOut,'(I0,A)') sumOfMatchedParticles, ' particles reached the domain when'
+        SWRITE(UNIT_StdOut,'(A)',ADVANCE='NO')'WARNING in ParticleEmission_parallel: '
+        SWRITE(UNIT_StdOut,'(A,I0,A)',ADVANCE='NO')'Fraction Nbr: ', FractNbr,' '
+        SWRITE(UNIT_StdOut,'(I0,A)',ADVANCE='NO') sumOfMatchedParticles, ' particles reached the domain when '
         SWRITE(UNIT_StdOut,'(I0,A)') NbrOfParticle, '(+1) velocities were calculated with vpi+PartDens'
       END IF
     ELSE
       ! add number of matching error to particle emission to fit
       ! number of added particles
       Species(FractNbr)%Init(iInit)%InsertedParticleMisMatch = nbrOfParticle  - sumOfMatchedParticles
-      IF (nbrOfParticle .GT. sumOfMatchedParticles) THEN
-        SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
-        SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-        SWRITE(UNIT_StdOut,'(A,I0,A)')'matched only ', sumOfMatchedParticles, ' particles'
-        SWRITE(UNIT_StdOut,'(A,I0,A)')'when ', NbrOfParticle, ' particles were required!'
-      ELSE IF (nbrOfParticle .LT. sumOfMatchedParticles) THEN
-            SWRITE(UNIT_StdOut,'(A)')'ERROR in ParticleEmission_parallel:'
-            SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-            SWRITE(UNIT_StdOut,'(A,I0,A)')'matched ', sumOfMatchedParticles, ' particles'
-            SWRITE(UNIT_StdOut,'(A,I0,A)')'when ', NbrOfParticle, ' particles were required!'
-      ELSE IF (nbrOfParticle .EQ. sumOfMatchedParticles) THEN
-      !  WRITE(UNIT_stdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-      !  WRITE(UNIT_stdOut,'(A,I0,A)')'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
-      END IF
+      percent = MERGE(REAL(sumOfMatchedParticles)/REAL(NbrOfParticle)*100.0, 0.0, ABS(NbrOfParticle).GT.0)
+
+      helpstr=''
+      IF(nbrOfParticle.GT.sumOfMatchedParticles)helpstr=' only'
+
+      IF(nbrOfParticle.NE.sumOfMatchedParticles.AND.MPIRoot)WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0,A,F6.2,A)')&
+          'WARNING in ParticleEmission_parallel: Fraction Nbr ',FractNbr,' matched'//TRIM(helpstr)//' ',sumOfMatchedParticles,&
+          ' particles, when ',NbrOfParticle, ' particles were required! [',percent,'%]'
     END IF
 #if USE_MPI
   END IF ! PartMPI%iProc.EQ.0

@@ -937,33 +937,24 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
 
 ! ====================================== photoionization =================================================================
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-PulseDuration'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-WaistRadius'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-IntensityAmplitude'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-WaveLength'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-YieldSEE'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(     'Part-Species[$]-Init[$]-RepetitionRate'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-WorkFunctionSEE'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-AngularBetaSEE'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-EffectivIntensityFac'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-PulseDuration'  &
+                         , 'Pulse duration tau for a Gaussian-tpye pulse with I~exp(-(t/tau)^2)','0.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WaistRadius'  &
+                         , 'Beam waist radius (in focal spot) w_b for Gaussian-tpye pulse with I~exp(-(r/w_b)^2)','0.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-IntensityAmplitude'  &
+                         , 'Beam intensity maximum I0 Gaussian-tpye pulse with I~I0*exp(-(t/tau)^2)exp(-(r/w_b)^2)','0.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WaveLength'  &
+                         , 'Beam wavelength','0.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-YieldSEE'  &
+                         , 'Secondary photoelectron yield','0.0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption('Part-Species[$]-Init[$]-RepetitionRate'  &
+                        , 'Pulse repitition rate (actually the number of pulses)','1', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WorkFunctionSEE'  &
+                         , 'Photoelectron work function in eV','0.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-AngularBetaSEE'  &
+                         , 'Orbital configuration of the solid from which the photoelectrons emerge','0.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-EffectivIntensityFac'  &
+                         , 'Effective intensity (considers reflectivity of the surface on which the beam impinges','0.0', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticles
 
@@ -1755,7 +1746,7 @@ __STAMP__&
       Species(iSpec)%Init(iInit)%WaistRadius        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaistRadius')
       Species(iSpec)%Init(iInit)%IntensityAmplitude = GETREAL('Part-Species'//TRIM(hilf2)//'-IntensityAmplitude')
       Species(iSpec)%Init(iInit)%WaveLength         = GETREAL('Part-Species'//TRIM(hilf2)//'-WaveLength')
-      Species(iSpec)%Init(iInit)%RepetitionRate     = GETINT('Part-Species'//TRIM(hilf2)//'-RepetitionRate','1')
+      Species(iSpec)%Init(iInit)%RepetitionRate     = GETINT('Part-Species'//TRIM(hilf2)//'-RepetitionRate')
       Species(iSpec)%Init(iInit)%NINT_Correction    = 0.0
       IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_photoionization') &
      .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'Photon_Cylinder')) THEN
