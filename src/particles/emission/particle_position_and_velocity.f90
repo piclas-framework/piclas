@@ -632,7 +632,7 @@ __STAMP__&
          END DO
          CALL RANDOM_NUMBER(RandVal1)
          Particle_pos = Particle_pos &
-                      + Species(FractNbr)%Init(iInit)%NormalIC * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal1
+                      + Species(FractNbr)%Init(iInit)%NormalIC * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal1
          particle_positions(i*3-2) = Particle_pos(1)
          particle_positions(i*3-1) = Particle_pos(2)
          particle_positions(i*3  ) = Particle_pos(3)
