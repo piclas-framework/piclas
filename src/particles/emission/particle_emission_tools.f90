@@ -1355,6 +1355,8 @@ END FUNCTION CalcPhotonEnergie
 SUBROUTINE CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit)
 !===================================================================================================================================
 ! Subroutine to sample photon SEE electrons velocities from given energy distribution based on work function
+! Perform ARM for the energy distribution and a second ARM for the emission angle (between the impacting photon and the emitting
+! electron)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals    !             ,ONLY: CROSS
@@ -1372,10 +1374,11 @@ REAL,INTENT(OUT)                 :: Vec3D(3)
 ! LOCAL VARIABLES
 REAL                             :: RandVal
 REAL                             :: E_temp, E_max, VeloABS
-REAL                             :: Theta, Chi, Psi_temp
+REAL                             :: Theta, Chi!, Psi_temp
 REAL                             :: PDF_temp, PDF_max
 REAL                             :: VeloVec_norm(3), RotationAxi(3)
 LOGICAL                          :: ARM_SEE_PDF
+REAL                             :: Theta_temp
 !===================================================================================================================================
 
 ASSOCIATE( W     => Species(FractNbr)%Init(iInit)%WorkFunctionSEE    ,&
@@ -1400,18 +1403,21 @@ VeloABS = SQRT(2.0 * E_temp * ElementaryCharge / m)
 ! ARM for angular distribution
 CALL RANDOM_NUMBER(RandVal)
 Chi = RandVal * 2.0 * PI
-PDF_max = -(2.0*(beta+4.0)) / (PI * (beta-8.0))
+!PDF_max = -(2.0*(beta+4.0)) / (PI * (beta-8.0)) ! Henke 1977
+PDF_max = 4. / PI
 ARM_SEE_PDF=.TRUE.
 DO WHILE(ARM_SEE_PDF)
   CALL RANDOM_NUMBER(RandVal)
-  Psi_temp =0.5 * PI * (1.0 + RandVal)
-!  Psi_temp = 0.5 * PI * RandVal
-  PDF_temp = ( (1.0 - beta / 2.0) + 3.0/4.0*beta*SIN(Psi_temp)**2 ) &
-           / (PI-PI*beta/8.0)
+  !Psi_temp =0.5 * PI * (1.0 + RandVal)
+  !Psi_temp = 0.5 * PI * RandVal
+  !PDF_temp = ( (1.0 - beta / 2.0) + 3.0/4.0*beta*SIN(Psi_temp)**2 ) / (PI-PI*beta/8.0) ! Henke 1977
+  Theta_temp = RandVal * 0.5 * PI
+  PDF_temp = 4.0 / PI * COS(Theta_temp)**2
   CALL RANDOM_NUMBER(RandVal)
   IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
 END DO
-Theta = PI - Psi_temp
+!Theta = PI - Psi_temp ! Henke 1977
+Theta = Theta_temp
 
 ! Construct norm. VeloVec based on n_vec, t_vec, Theta and Chi
 ! first:  rotation of t_vec about n_vec with Chi (anzimuthal)
