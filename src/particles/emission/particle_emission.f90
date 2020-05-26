@@ -391,6 +391,7 @@ USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,Sa
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_PhotoIonization
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
+USE MOD_Equation_Vars          ,ONLY: c
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -549,6 +550,9 @@ __STAMP__&
           CALL CalcNbrOfPhotons(i, iInit, NbrOfPhotons)
           ! Calculation of the number of photons (using actual number and applying the weighting factor on the number of reactions)
           NbrOfPhotons = Species(i)%Init(iInit)%EffectivIntensityFac * NbrOfPhotons
+          ! Calculation of the number of photons depending on the cylinder height (ratio of actual to virtual cylinder height, which
+          ! is spanned by the disk and the length given by c*dt)
+          NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
           ! Calculation of the number of electron resulting from the chemical reactions in the photoionization region
           CALL CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
           NbrOfParticle = NbrOfReactions
